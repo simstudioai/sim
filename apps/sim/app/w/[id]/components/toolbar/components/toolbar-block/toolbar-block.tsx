@@ -19,8 +19,6 @@ export function ToolbarBlock({ config }: ToolbarBlockProps) {
     const event = new CustomEvent('add-block-from-toolbar', {
       detail: {
         type: config.type,
-        clientX: e.clientX,
-        clientY: e.clientY
       },
     })
     window.dispatchEvent(event)

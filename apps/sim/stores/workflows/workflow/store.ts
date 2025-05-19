@@ -15,7 +15,6 @@ import { detectCycle, generateLoopBlocks } from './utils'
 const initialState = {
   blocks: {},
   edges: [],
-  loopBlocks: {},
   loops: {},
   lastSaved: undefined,
   isDeployed: false,
@@ -26,7 +25,7 @@ const initialState = {
   history: {
     past: [],
     present: {
-      state: { blocks: {}, edges: [], loopBlocks: {}, loops: {}, isDeployed: false, isPublished: false },
+      state: { blocks: {}, edges: [], loops: {}, isDeployed: false, isPublished: false },
       timestamp: Date.now(),
       action: 'Initial state',
       subblockValues: {},
@@ -110,7 +109,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               },
             },
             edges: [...get().edges],
-            loopBlocks: { ...get().loopBlocks },
             loops: get().generateLoopBlocks(),
           }
 
@@ -160,7 +158,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loopBlocks: { ...get().loopBlocks },
           loops: get().generateLoopBlocks(),
         }
 
@@ -256,7 +253,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loopBlocks: { ...get().loopBlocks },
           loops: { ...get().loops },
         };
 
@@ -280,7 +276,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges].filter((edge) => edge.source !== id && edge.target !== id),
-          loopBlocks: { ...get().loopBlocks },
           loops: { ...get().loops },
         }
 
@@ -372,7 +367,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Recalculate all loops after adding the edge
         const newLoops: Record<string, Loop> = {}
         const processedPaths = new Set<string>()
-        const existingLoops = get().loopBlocks
+        const existingLoops = get().loops
 
         // Check for cycles from each node
         const nodes = new Set(newEdges.map((e) => e.source))
@@ -414,7 +409,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           })
         })
 
-        // Generate loopBlocks from custom loop blocks
+        // Generate loops from custom loop blocks
         const generatedLoops = generateLoopBlocks(get().blocks);
 
         // Merge with detected cycles loops
@@ -423,7 +418,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
-          loopBlocks: mergedLoops,
           loops: mergedLoops,
         }
 
@@ -455,7 +449,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         //TODO: comment this loop logic out.
         const newLoops: Record<string, Loop> = {}
         const processedPaths = new Set<string>()
-        const existingLoops = get().loopBlocks
+        const existingLoops = get().loops
 
         // Check for cycles from each node
         const nodes = new Set(newEdges.map((e) => e.source))
@@ -503,7 +497,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
-          loopBlocks: { },
           loops: { },
         }
 
@@ -518,7 +511,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const newState = {
           blocks: {},
           edges: [],
-          loopBlocks: {},
           loops: {},
           history: {
             past: [],
@@ -526,7 +518,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               state: {
                 blocks: {},
                 edges: [],
-                loopBlocks: {},
                 loops: {},
                 isDeployed: false,
                 isPublished: false,
@@ -557,12 +548,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (activeWorkflowId) {
           const currentState = get()
-          const loopBlocks = currentState.generateLoopBlocks()
+          const generatedLoops = currentState.generateLoopBlocks()
           saveWorkflowState(activeWorkflowId, {
             blocks: currentState.blocks,
             edges: currentState.edges,
-            loopBlocks: loopBlocks,
-            loops: loopBlocks,
+            loops: generatedLoops,
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
@@ -586,7 +576,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loopBlocks: { ...get().loopBlocks },
           loops: { ...get().loops },
         }
 
@@ -638,7 +627,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loopBlocks: { ...get().loopBlocks },
           loops: get().generateLoopBlocks(),
         }
 
@@ -675,7 +663,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loopBlocks: { ...get().loopBlocks },
           loops: { ...get().loops },
         }
 
@@ -699,7 +686,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loopBlocks: { ...get().loopBlocks },
           loops: { ...get().loops },
         }
 
@@ -782,7 +768,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...state.edges],
-          loopBlocks: { ...state.loopBlocks },
           loops: { ...state.loops },
         }))
         get().updateLastSaved()
@@ -800,7 +785,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...state.edges],
-          loopBlocks: { ...state.loopBlocks },
           loops: { ...state.loops },
         }))
         get().updateLastSaved()
@@ -824,7 +808,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               }
             },
             edges: [...state.edges],
-            loopBlocks: { ...state.loopBlocks },
             loops: { ...state.loops },
           };
         }),
@@ -846,7 +829,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               }
             },
             edges: [...state.edges],
-            loopBlocks: { ...state.loopBlocks },
             loops: { ...state.loops },
           };
         }),
@@ -868,7 +850,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               }
             },
             edges: [...state.edges],
-            loopBlocks: { ...state.loopBlocks },
             loops: { ...state.loops },
           };
         }),
@@ -926,8 +907,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const newState = {
           blocks: deployedState.blocks,
           edges: deployedState.edges,
-          loopBlocks: deployedState.loopBlocks,
-          loops: deployedState.loopBlocks || {}, // Ensure loops property is set
+          loops: deployedState.loops || {}, // Ensure loops property is set
           isDeployed: true,
           needsRedeployment: false,
           hasActiveWebhook: false, // Reset webhook status

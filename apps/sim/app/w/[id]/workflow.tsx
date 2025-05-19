@@ -24,6 +24,16 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { getBlock } from '@/blocks'
+import {
+  calculateLoopDimensions,
+  calculateRelativePosition,
+  getNodeAbsolutePosition,
+  getNodeDepth,
+  getNodeHierarchy,
+  isPointInLoopNode,
+  resizeLoopNodes,
+  updateNodeParent as updateNodeParentUtil
+} from './utils'
 import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorBoundary } from './components/error/index'
 import { Panel } from './components/panel/panel'
@@ -65,7 +75,7 @@ function WorkflowContent() {
   // Store access
   const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
   //Removed loops from the store
-  const { blocks, edges, addBlock, updateBlockPosition, addEdge, removeEdge, updateParentId, removeBlock } =
+  const { blocks, edges, addBlock, updateNodeDimensions, updateBlockPosition, addEdge, removeEdge, updateParentId, removeBlock } =
     useWorkflowStore()
   const { setValue: setSubBlockValue } = useSubBlockStore()
   const { markAllAsRead } = useNotificationStore()
@@ -76,267 +86,50 @@ function WorkflowContent() {
   const { isDebugModeEnabled } = useGeneralStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
-  // Helper function to calculate node depth in hierarchy
-  const getNodeDepth = useCallback((nodeId: string): number => {
-    const node = getNodes().find(n => n.id === nodeId);
-    if (!node || !node.parentId) return 0;
-    return 1 + getNodeDepth(node.parentId);
+  // Wrapper functions that use the utilities but provide the getNodes function
+  const getNodeDepthWrapper = useCallback((nodeId: string): number => {
+    return getNodeDepth(nodeId, getNodes);
   }, [getNodes]);
 
-  // Helper function to get the full hierarchy path of a node
-  const getNodeHierarchy = useCallback((nodeId: string): string[] => {
-    const node = getNodes().find(n => n.id === nodeId);
-    if (!node || !node.parentId) return [nodeId];
-    return [...getNodeHierarchy(node.parentId), nodeId];
+  const getNodeHierarchyWrapper = useCallback((nodeId: string): string[] => {
+    return getNodeHierarchy(nodeId, getNodes);
   }, [getNodes]);
 
-  // Helper function to get absolute position of a node (accounting for nested parents)
-  const getNodeAbsolutePosition = useCallback((nodeId: string): { x: number, y: number } => {
-    const node = getNodes().find(n => n.id === nodeId);
-    if (!node) {
-      // Handle case where node doesn't exist anymore by returning origin position
-      // This helps prevent errors during cleanup operations
-      logger.warn('Attempted to get position of non-existent node', { nodeId });
-      return { x: 0, y: 0 };
-    }
-    
-    if (!node.parentId) {
-      return node.position;
-    }
-    
-    // Check if parent exists
-    const parentNode = getNodes().find(n => n.id === node.parentId);
-    if (!parentNode) {
-      // Parent reference is invalid, return node's current position
-      logger.warn('Node references non-existent parent', { 
-        nodeId, 
-        invalidParentId: node.parentId 
-      });
-      return node.position;
-    }
-    
-    // Check for circular reference to prevent infinite recursion
-    const visited = new Set<string>();
-    let current: any = node;
-    while (current && current.parentId) {
-      if (visited.has(current.parentId)) {
-        // Circular reference detected
-        logger.error('Circular parent reference detected', {
-          nodeId,
-          parentChain: Array.from(visited)
-        });
-        return node.position;
-      }
-      visited.add(current.id);
-      current = getNodes().find(n => n.id === current.parentId);
-    }
-    
-    // Get parent's absolute position
-    const parentPos = getNodeAbsolutePosition(node.parentId);
-    
-    // Calculate this node's absolute position
-    return {
-      x: parentPos.x + node.position.x,
-      y: parentPos.y + node.position.y
-    };
+  const getNodeAbsolutePositionWrapper = useCallback((nodeId: string): { x: number, y: number } => {
+    return getNodeAbsolutePosition(nodeId, getNodes);
   }, [getNodes]);
 
-  // Helper function to calculate relative position to a new parent
-  const calculateRelativePosition = useCallback((nodeId: string, newParentId: string): { x: number, y: number } => {
-    // Get absolute position of the node
-    const nodeAbsPos = getNodeAbsolutePosition(nodeId);
-    
-    // Get absolute position of the new parent
-    const parentAbsPos = getNodeAbsolutePosition(newParentId);
-    
-    // Calculate relative position
-    return {
-      x: nodeAbsPos.x - parentAbsPos.x,
-      y: nodeAbsPos.y - parentAbsPos.y
-    };
-  }, [getNodeAbsolutePosition]);
+  const calculateRelativePositionWrapper = useCallback((nodeId: string, newParentId: string): { x: number, y: number } => {
+    return calculateRelativePosition(nodeId, newParentId, getNodes);
+  }, [getNodes]);
 
   // Helper function to update a node's parent with proper position calculation
   const updateNodeParent = useCallback((nodeId: string, newParentId: string | null) => {
-    // Skip if no change
-    const node = getNodes().find(n => n.id === nodeId);
-    if (!node) return;
-    
-    const currentParentId = node.parentId || null;
-    if (newParentId === currentParentId) return;
-    
-    if (newParentId) {
-      // Moving to a new parent - calculate relative position
-      const relativePosition = calculateRelativePosition(nodeId, newParentId);
-      
-      // Update both position and parent
-      updateBlockPosition(nodeId, relativePosition);
-      updateParentId(nodeId, newParentId, 'parent');
-      
-      logger.info('Updated node parent', {
-        nodeId,
-        newParentId,
-        relativePosition
-      });
-    }
-    
-    // Resize affected loops
-    debouncedResizeLoopNodes();
-  }, [getNodes, calculateRelativePosition, getNodeAbsolutePosition, updateBlockPosition, updateParentId]);
+    return updateNodeParentUtil(
+      nodeId, 
+      newParentId, 
+      getNodes, 
+      updateBlockPosition, 
+      updateParentId, 
+      resizeLoopNodesWrapper
+    );
+  }, [getNodes, updateBlockPosition, updateParentId]);
 
-  // Helper function to check if a point is inside a loop node
-  const isPointInLoopNode = useCallback((position: { x: number, y: number }): { 
-    loopId: string, 
-    loopPosition: { x: number, y: number },
-    dimensions: { width: number, height: number } 
-  } | null => {
-    // Find loops that contain this position point
-    const containingLoops = getNodes()
-      .filter(n => n.type === 'loopNode')
-      .filter(n => {
-        const loopRect = {
-          left: n.position.x,
-          right: n.position.x + (n.data?.width || 500), 
-          top: n.position.y,
-          bottom: n.position.y + (n.data?.height || 300)
-        };
-
-        return (
-          position.x >= loopRect.left &&
-          position.x <= loopRect.right &&
-          position.y >= loopRect.top &&
-          position.y <= loopRect.bottom
-        );
-      })
-      .map(n => ({
-        loopId: n.id,
-        loopPosition: n.position,
-        dimensions: {
-          width: n.data?.width || 500,  
-          height: n.data?.height || 300
-        }
-      }));
-
-    // Sort by area (smallest first) in case of nested loops
-    if (containingLoops.length > 0) {
-      return containingLoops.sort((a, b) => {
-        const aArea = a.dimensions.width * a.dimensions.height;
-        const bArea = b.dimensions.width * b.dimensions.height;
-        return aArea - bArea;
-      })[0];
-    }
-
-    return null;
+  const isPointInLoopNodeWrapper = useCallback((position: { x: number, y: number }) => {
+    return isPointInLoopNode(position, getNodes);
   }, [getNodes]);
 
-  // Helper function to calculate proper dimensions for a loop node based on its children
-  const calculateLoopDimensions = useCallback((loopId: string): { width: number, height: number } => {
-    // Default minimum dimensions
-    const minWidth = 500;
-    const minHeight = 300;
-
-    // Get all child nodes of this loop
-    const childNodes = getNodes().filter(node => node.parentId === loopId);
-
-    if (childNodes.length === 0) {
-      return { width: minWidth, height: minHeight };
-    }
-
-    // Calculate the bounding box that contains all children
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-
-    childNodes.forEach(node => {
-      // Get accurate node dimensions based on node type
-      let nodeWidth;
-      let nodeHeight;
-      
-      if (node.type === 'loopNode') {
-        // For nested loops, don't add excessive padding to the parent
-        // Use actual dimensions without additional padding to prevent cascading expansion
-        nodeWidth = node.data?.width || 500;
-        nodeHeight = node.data?.height || 300;
-      } else if (node.type === 'workflowBlock') {
-        // Handle all workflowBlock types appropriately
-        const blockType = node.data?.type;
-        
-        switch (blockType) {
-          case 'agent':
-          case 'api':
-            // Tall blocks
-            nodeWidth = 350;
-            nodeHeight = 650;
-            break;
-          case 'condition':
-          case 'function':            
-            nodeWidth = 250;
-            nodeHeight = 200;
-            break;
-          case 'router':
-            nodeWidth = 250;
-            nodeHeight = 350;
-            break;
-          default:
-            // Default dimensions for other block types
-            nodeWidth = 200;
-            nodeHeight = 200;
-        }
-      } else {
-        // Default dimensions for any other node types
-        nodeWidth = 200;
-        nodeHeight = 200;
-      }
-
-      minX = Math.min(minX, node.position.x);
-      minY = Math.min(minY, node.position.y);
-      maxX = Math.max(maxX, node.position.x + nodeWidth);
-      maxY = Math.max(maxY, node.position.y + nodeHeight);
-    });
-
-    // Add buffer padding to all sides (20px buffer before edges)
-    // Add extra padding for nested loops to prevent tight boundaries
-    const hasNestedLoops = childNodes.some(node => node.type === 'loopNode');
-    
-    // More reasonable padding values, especially for nested loops
-    // Reduce the excessive padding that was causing parent loops to be too large
-    const sidePadding = hasNestedLoops ? 150 : 120; // Reduced padding for loops containing other loops
-    
-    // Ensure the width and height are never less than the minimums
-    // Apply padding to all sides (left/right and top/bottom)
-    const width = Math.max(minWidth, maxX + sidePadding);
-    const height = Math.max(minHeight, maxY + sidePadding);
-  
-    return { width, height };
+  const calculateLoopDimensionsWrapper = useCallback((loopId: string): { width: number, height: number } => {
+    return calculateLoopDimensions(loopId, getNodes);
   }, [getNodes]);
 
   // Function to resize all loop nodes with improved hierarchy handling
-  const resizeLoopNodes = useCallback(() => {
-    // Find all loop nodes and sort by hierarchy depth (parents first)
-    const loopNodes = getNodes()
-      .filter(node => node.type === 'loopNode')
-      .map(node => ({
-        ...node,
-        depth: getNodeDepth(node.id)
-      }))
-      .sort((a, b) => a.depth - b.depth);
-
-    // Resize each loop node based on its children
-    loopNodes.forEach(loopNode => {
-      const dimensions = calculateLoopDimensions(loopNode.id);
-
-      // Only update if dimensions have changed (to avoid unnecessary updates)
-      if (dimensions.width !== loopNode.data?.width || 
-          dimensions.height !== loopNode.data?.height) {
-        // Use the updateNodeDimensions from the workflow store
-        useWorkflowStore.getState().updateNodeDimensions(loopNode.id, dimensions);
-      }
-    });
-  }, [getNodes, calculateLoopDimensions, getNodeDepth]);
+  const resizeLoopNodesWrapper = useCallback(() => {
+    return resizeLoopNodes(getNodes, updateNodeDimensions);
+  }, [getNodes, updateNodeDimensions]);
 
   // Use direct resizing function instead of debounced version for immediate updates
-  const debouncedResizeLoopNodes = resizeLoopNodes;
+  const debouncedResizeLoopNodes = resizeLoopNodesWrapper;
 
   // Initialize workflow
   useEffect(() => {
@@ -517,7 +310,7 @@ function WorkflowContent() {
         })
 
         // Check if dropping inside a loop node
-        const loopInfo = isPointInLoopNode(position);
+        const loopInfo = isPointInLoopNodeWrapper(position);
 
         // Clear any drag-over styling
         document.querySelectorAll('.loop-node-drag-over').forEach(el => {
@@ -733,7 +526,7 @@ function WorkflowContent() {
         logger.error('Error dropping block:', { err })
       }
     },
-    [project, blocks, addBlock, addEdge, findClosestOutput, determineSourceHandle, isPointInLoopNode, getNodes]
+    [project, blocks, addBlock, addEdge, findClosestOutput, determineSourceHandle, isPointInLoopNodeWrapper, getNodes]
   )
 
   // Handle drag over for ReactFlow canvas
@@ -751,7 +544,7 @@ function WorkflowContent() {
       });
 
       // Check if hovering over a loop node
-      const loopInfo = isPointInLoopNode(position);
+      const loopInfo = isPointInLoopNodeWrapper(position);
 
       // Clear any previous highlighting
       document.querySelectorAll('.loop-node-drag-over').forEach(el => {
@@ -771,7 +564,7 @@ function WorkflowContent() {
     } catch (err) {
       logger.error('Error in onDragOver', { err });
     }
-  }, [project, isPointInLoopNode]);
+  }, [project, isPointInLoopNodeWrapper]);
 
   // Init workflow
   useEffect(() => {
@@ -932,14 +725,14 @@ function WorkflowContent() {
         });
         
         // Fix the node by removing its parent reference and calculating absolute position
-        const absolutePosition = getNodeAbsolutePosition(id);
+        const absolutePosition = getNodeAbsolutePositionWrapper(id);
         
         // Update the node to remove parent reference and use absolute position
         updateBlockPosition(id, absolutePosition);
         updateParentId(id, '', 'parent');
       }
     });
-  }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePosition]);
+  }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePositionWrapper]);
 
   // Update edges
   const onEdgesChange = useCallback(
@@ -1060,7 +853,7 @@ function WorkflowContent() {
       }
       
       // Get the node's absolute position to properly calculate intersections
-      const nodeAbsolutePos = getNodeAbsolutePosition(node.id);
+      const nodeAbsolutePos = getNodeAbsolutePositionWrapper(node.id);
       
       // Find intersections with loop nodes using absolute coordinates
       const intersectingNodes = getNodes()
@@ -1074,7 +867,7 @@ function WorkflowContent() {
           // Skip self-nesting: prevent a loop from becoming its own descendant
           if (node.type === 'loopNode') {
             // Get the full hierarchy of the potential parent
-            const hierarchy = getNodeHierarchy(n.id);
+            const hierarchy = getNodeHierarchyWrapper(n.id);
             
             // If the dragged node is in the hierarchy, this would create a circular reference
             if (hierarchy.includes(node.id)) {
@@ -1083,7 +876,7 @@ function WorkflowContent() {
           }
           
           // Get the loop's absolute position
-          const loopAbsolutePos = getNodeAbsolutePosition(n.id);
+          const loopAbsolutePos = getNodeAbsolutePositionWrapper(n.id);
 
           // Get dimensions based on node type
           const nodeWidth = node.type === 'loopNode' 
@@ -1120,7 +913,7 @@ function WorkflowContent() {
         // Add more information for sorting
         .map(n => ({
           loop: n,
-          depth: getNodeDepth(n.id),
+          depth: getNodeDepthWrapper(n.id),
           // Calculate size for secondary sorting
           size: (n.data?.width || 500) * (n.data?.height || 300)
         }));
@@ -1141,7 +934,7 @@ function WorkflowContent() {
         const bestLoopMatch = sortedLoops[0];
 
         // Add a check to see if the bestLoopMatch is apart of the heirarchy of the node being dragged
-        const hierarchy = getNodeHierarchy(node.id);
+        const hierarchy = getNodeHierarchyWrapper(node.id);
         if (hierarchy.includes(bestLoopMatch.loop.id)) {
           setPotentialParentId(null);
           return;
@@ -1167,7 +960,7 @@ function WorkflowContent() {
         }
       }
     },
-    [getNodes, potentialParentId, blocks, getNodeHierarchy, getNodeAbsolutePosition, getNodeDepth]
+    [getNodes, potentialParentId, blocks, getNodeHierarchyWrapper, getNodeAbsolutePositionWrapper, getNodeDepthWrapper]
   );
 
   // Add in a nodeDrag start event to set the dragStartParentId
@@ -1218,7 +1011,7 @@ function WorkflowContent() {
       // If we're dragging a loop node, do additional checks to prevent circular references
       if (node.type === 'loopNode' && potentialParentId) {
         // Get the hierarchy of the potential parent loop
-        const parentHierarchy = getNodeHierarchy(potentialParentId);
+        const parentHierarchy = getNodeHierarchyWrapper(potentialParentId);
         
         // If the dragged node is in the parent's hierarchy, it would create a circular reference
         if (parentHierarchy.includes(node.id)) {
@@ -1241,7 +1034,7 @@ function WorkflowContent() {
       setDraggedNodeId(null);
       setPotentialParentId(null);
     },
-    [getNodes, dragStartParentId, potentialParentId, updateNodeParent, getNodeHierarchy]
+    [getNodes, dragStartParentId, potentialParentId, updateNodeParent, getNodeHierarchyWrapper]
   );
 
   // Update onPaneClick to only handle edge selection

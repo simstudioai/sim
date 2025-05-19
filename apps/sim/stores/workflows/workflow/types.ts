@@ -53,7 +53,6 @@ export interface WorkflowState {
   blocks: Record<string, BlockState>
   edges: Edge[]
   lastSaved?: number
-  loopBlocks: Record<string, Loop>
   loops: Record<string, Loop>
   lastUpdate?: number
   isDeployed?: boolean

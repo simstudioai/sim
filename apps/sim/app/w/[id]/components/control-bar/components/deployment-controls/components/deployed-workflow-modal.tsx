@@ -52,13 +52,8 @@ export function DeployedWorkflowModal({
   }))
 
   const handleRevert = () => {
-    // Add the missing loopBlocks property
-    const completeState = {
-      ...deployedWorkflowState,
-      loopBlocks: {} // Add empty loopBlocks if not present
-    };
-    
-    revertToDeployedState(completeState);
+    // Revert to the deployed state
+    revertToDeployedState(deployedWorkflowState);
     setShowRevertDialog(false);
     onClose();
   }
