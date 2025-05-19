@@ -1,0 +1,52 @@
+{
+  "name": "simstudio",
+  "version": "0.1.16",
+  "description": "Sim Studio CLI - Run Sim Studio with a single command",
+  "main": "dist/index.js",
+  "bin": {
+    "simstudio": "dist/index.js"
+  },
+  "scripts": {
+    "build": "bun run build:tsc",
+    "build:tsc": "tsc",
+    "prepublishOnly": "bun run build"
+  },
+  "files": [ "dist" ],
+  "keywords": [
+    "simstudio",
+    "ai",
+    "workflow",
+    "ui",
+    "cli",
+    "sim",
+    "sim-studio",
+    "agent",
+    "agents",
+    "automation",
+    "docker"
+  ],
+  "author": "Sim Studio",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "dotenv": "^16.3.1",
+    "inquirer": "^8.2.6",
+    "listr2": "^6.6.1"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^8.2.6",
+    "@types/node": "^20.5.1",
+    "typescript": "^5.1.6"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "turbo": {
+    "tasks": {
+      "build": {
+        "outputs": ["dist/**"]
+      }
+    }
+  }
+}

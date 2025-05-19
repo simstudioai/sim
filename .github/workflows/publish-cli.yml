@@ -1,0 +1,58 @@
+name: Publish CLI Package
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/simstudio/**'
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js for npm publishing
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org/'
+
+      - name: Install dependencies
+        working-directory: packages/simstudio
+        run: bun install
+
+      - name: Build package
+        working-directory: packages/simstudio
+        run: bun run build
+
+      - name: Get package version
+        id: package_version
+        working-directory: packages/simstudio
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Check if version already exists
+        id: version_check
+        run: |
+          if npm view simstudio@${{ steps.package_version.outputs.version }} version &> /dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to npm
+        if: steps.version_check.outputs.exists == 'false'
+        working-directory: packages/simstudio
+        run: npm publish --access=public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Log skipped publish
+        if: steps.version_check.outputs.exists == 'true'
+        run: echo "Skipped publishing because version ${{ steps.package_version.outputs.version }} already exists on npm" 

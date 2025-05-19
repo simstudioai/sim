@@ -1,14 +1,6 @@
 {
-  "devDependencies": {
-    "@next/env": "^15.3.2",
-    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
-    "dotenv-cli": "^8.0.0",
-    "prettier": "^3.5.3",
-    "prettier-plugin-tailwindcss": "^0.6.11",
-    "turbo": "2.5.3"
-  },
-  "packageManager": "bun@1.2.12",
   "name": "simstudio",
+  "packageManager": "bun@1.2.12",
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
@@ -33,5 +25,13 @@
   "dependencies": {
     "@t3-oss/env-nextjs": "0.13.4",
     "@vercel/analytics": "1.5.0"
+  },
+  "devDependencies": {
+    "@next/env": "^15.3.2",
+    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "dotenv-cli": "^8.0.0",
+    "prettier": "^3.5.3",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "turbo": "2.5.3"
   }
 }
