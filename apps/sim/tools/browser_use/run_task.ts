@@ -179,11 +179,6 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
           if (taskResponse.ok) {
             const taskData = await taskResponse.json()
             result.output = {
-              ...taskData,
-              structuredOutput: null,
-            }
-
-            result.output = {
               id: taskId,
               success: status === 'finished' ? true : false,
               output: taskData.output,
