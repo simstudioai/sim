@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // First get all workspaces where the user is a member with owner role
+    // Get all workspaces where the user is a member (any role)
     const userWorkspaces = await db
       .select({ id: workspace.id })
       .from(workspace)
@@ -32,8 +32,7 @@ export async function GET(req: NextRequest) {
         workspaceMember,
         and(
           eq(workspaceMember.workspaceId, workspace.id),
-          eq(workspaceMember.userId, session.user.id),
-          eq(workspaceMember.role, 'owner')
+          eq(workspaceMember.userId, session.user.id)
         )
       )
 
@@ -41,7 +40,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ invitations: [] })
     }
 
-    // Get all workspaceIds where the user is an owner
+    // Get all workspaceIds where the user is a member
     const workspaceIds = userWorkspaces.map((w) => w.id)
 
     // Find all invitations for those workspaces
@@ -84,11 +83,8 @@ export async function POST(req: NextRequest) {
       )
       .then((rows) => rows[0])
 
-    if (!membership || membership.role !== 'owner') {
-      return NextResponse.json(
-        { error: 'You are not authorized to invite to this workspace' },
-        { status: 403 }
-      )
+    if (!membership) {
+      return NextResponse.json({ error: 'You are not a member of this workspace' }, { status: 403 })
     }
 
     // Get the workspace details for the email

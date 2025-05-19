@@ -1,14 +1,12 @@
 'use client'
 
-import { KeyboardEvent, useEffect, useState } from 'react'
-import { Check, Loader2, X, XCircle } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { KeyboardEvent, useState } from 'react'
+import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { InvitesSent } from './invites-sent/invites-sent'
 
 interface InviteModalProps {
   open: boolean

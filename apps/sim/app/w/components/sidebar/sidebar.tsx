@@ -22,7 +22,6 @@ import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 export function Sidebar() {
   useRegistryLoading()
-  // Initialize global keyboard shortcuts
   useGlobalShortcuts()
 
   const {
@@ -38,6 +37,7 @@ export function Sidebar() {
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showInviteMembers, setShowInviteMembers] = useState(false)
+  const [isDevEnvironment, setIsDevEnvironment] = useState(false)
   const {
     mode,
     isExpanded,
@@ -50,6 +50,10 @@ export function Sidebar() {
   } = useSidebarStore()
   const [isHovered, setIsHovered] = useState(false)
   const [explicitMouseEnter, setExplicitMouseEnter] = useState(false)
+
+  useEffect(() => {
+    setIsDevEnvironment(process.env.NODE_ENV === 'development')
+  }, [])
 
   // Track when active workspace changes to ensure we refresh the UI
   useEffect(() => {
@@ -272,17 +276,19 @@ export function Sidebar() {
         <div className="flex-shrink-0 px-3 pb-3 pt-1">
           <div className="flex flex-col space-y-[1px]">
             {/* Invite members button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div
-                  onClick={() => setShowInviteMembers(true)}
-                  className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
-                >
-                  <Send className="h-[18px] w-[18px]" />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right">Invite Members</TooltipContent>
-            </Tooltip>
+            {!isDevEnvironment && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    onClick={() => setShowInviteMembers(true)}
+                    className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
+                  >
+                    <Send className="h-[18px] w-[18px]" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="right">Invite Members</TooltipContent>
+              </Tooltip>
+            )}
 
             {/* Help button */}
             <Tooltip>
@@ -309,15 +315,17 @@ export function Sidebar() {
       ) : (
         <>
           {/* Invite members bar */}
-          <div className="flex-shrink-0 px-3 pt-1">
-            <div
-              onClick={() => setShowInviteMembers(true)}
-              className="flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
-            >
-              <Send className="h-[18px] w-[18px]" />
-              <span className="ml-2">Invite members</span>
+          {!isDevEnvironment && (
+            <div className="flex-shrink-0 px-3 pt-1">
+              <div
+                onClick={() => setShowInviteMembers(true)}
+                className="flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+              >
+                <Send className="h-[18px] w-[18px]" />
+                <span className="ml-2">Invite members</span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Bottom buttons container */}
           <div className="flex-shrink-0 px-3 pb-3 pt-1">
@@ -350,7 +358,9 @@ export function Sidebar() {
 
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
-      <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
+      {!isDevEnvironment && (
+        <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
+      )}
     </aside>
   )
 }
