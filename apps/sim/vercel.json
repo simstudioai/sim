@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/schedules/execute",
-      "schedule": "0 12 * * *"
+      "schedule": "*/1 * * * *"
     },
     {
       "path": "/api/webhooks/poll/gmail",
-      "schedule": "0 12 * * *"
+      "schedule": "*/1 * * * *"
     },
     {
       "path": "/api/logs/cleanup",
