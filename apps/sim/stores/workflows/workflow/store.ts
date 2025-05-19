@@ -956,7 +956,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().sync.forceSync()
       },
 
-<<<<<<< HEAD
       toggleBlockAdvancedMode: (id: string) => {
         const block = get().blocks[id]
         if (!block) return
@@ -1006,7 +1005,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().triggerUpdate()
         get().sync.markDirty()
         get().sync.forceSync()
-=======
       // Add the implementations for parallel block methods
       updateParallelCount: (parallelId: string, count: number) => 
         set(state => {
@@ -1055,7 +1053,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       // Function to convert UI parallel blocks to execution format
       generateParallelBlocks: () => {
         return generateParallelBlocks(get().blocks);
->>>>>>> f468f34a (feat: added parallel execution block)
       },
     })),
     { name: 'workflow-store' }

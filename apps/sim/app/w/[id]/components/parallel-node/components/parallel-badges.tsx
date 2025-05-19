@@ -17,7 +17,6 @@ interface ParallelNodeData {
   state?: string;
   type?: string;
   extent?: 'parent';
-  count?: number;
   collection?: string | any[] | Record<string, any>;
   executionState?: {
     currentExecution: number;

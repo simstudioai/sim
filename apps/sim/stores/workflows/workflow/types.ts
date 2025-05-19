@@ -66,7 +66,6 @@ export interface Loop {
 export interface Parallel {
   id: string
   nodes: string[]
-  branches: number
   distribution?: any[] | Record<string, any> | string // Items or expression
 }
 
@@ -114,7 +113,6 @@ export interface WorkflowActions {
   updateLoopCount: (loopId: string, count: number) => void
   updateLoopType: (loopId: string, loopType: 'for' | 'forEach') => void
   updateLoopCollection: (loopId: string, collection: string) => void
-  updateParallelCount: (parallelId: string, count: number) => void
   updateParallelCollection: (parallelId: string, collection: string) => void
   generateLoopBlocks: () => Record<string, Loop>
   generateParallelBlocks: () => Record<string, Parallel>

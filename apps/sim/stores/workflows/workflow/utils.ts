@@ -99,7 +99,6 @@ export function convertParallelBlockToParallel(
   return {
     id: parallelBlockId,
     nodes: findChildNodes(parallelBlockId, blocks),
-    branches: parallelBlock.data?.count || 2,
     distribution: parallelBlock.data?.collection || '',
   };
 }
