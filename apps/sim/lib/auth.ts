@@ -166,6 +166,7 @@ export const auth = betterAuth({
         type: 'sign-in' | 'email-verification' | 'forget-password'
       }) => {
         if (isDevOrDocker) {
+          logger.info('Skipping email verification in dev/docker')
           return
         }
         try {

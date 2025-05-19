@@ -1,29 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import clsx from 'clsx'
-import {
-  ChevronLeft,
-  ChevronRight,
-  HelpCircle,
-  Home,
-  PanelRight,
-  PenLine,
-  ScrollText,
-  Send,
-  Settings,
-  Shapes,
-  Store,
-  Users,
-} from 'lucide-react'
-import { AgentIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
+import { HelpCircle, ScrollText, Send, Settings } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
-import { env } from '@/lib/env'
 import { isProd } from '@/lib/environment'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

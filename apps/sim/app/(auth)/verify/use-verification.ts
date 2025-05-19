@@ -214,9 +214,11 @@ export function useVerification({
   useEffect(() => {
     if (!isProduction || !hasResendKey) {
       setIsVerified(true)
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         router.push('/w')
       }, 1000)
+
+      return () => clearTimeout(timeoutId)
     }
   }, [isProduction, hasResendKey, router])
 

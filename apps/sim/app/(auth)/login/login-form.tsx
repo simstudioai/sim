@@ -90,7 +90,7 @@ export default function LoginPage({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter') {
+      if (event.key === 'Enter' && forgotPasswordOpen) {
         handleForgotPassword()
       }
     }
@@ -99,7 +99,7 @@ export default function LoginPage({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [forgotPasswordEmail])
+  }, [forgotPasswordEmail, forgotPasswordOpen])
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
