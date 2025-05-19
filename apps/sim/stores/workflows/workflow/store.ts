@@ -770,6 +770,28 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().sync.markDirty()
         get().sync.forceSync()
       },
+
+      toggleBlockAdvancedMode: (id: string) => {
+        const block = get().blocks[id]
+        if (!block) return
+
+        const newState = {
+          blocks: {
+            ...get().blocks,
+            [id]: {
+              ...block,
+              advancedMode: !block.advancedMode,
+            },
+          },
+          edges: [...get().edges],
+          loops: { ...get().loops },
+        }
+
+        set(newState)
+        get().triggerUpdate()
+        get().sync.markDirty()
+        get().sync.forceSync()
+      },
     })),
     { name: 'workflow-store' }
   )

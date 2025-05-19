@@ -87,6 +87,7 @@ export interface SubBlockConfig {
   title?: string
   type: SubBlockType
   layout?: SubBlockLayout
+  mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
   options?:
     | string[]
     | { label: string; id: string }[]
