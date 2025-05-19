@@ -3,22 +3,13 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, EyeOff } from 'lucide-react'
+import { Command, CornerDownLeft, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
-import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 
 const PASSWORD_VALIDATIONS = {
   minLength: { regex: /.{8,}/, message: 'Password must be at least 8 characters long.' },
@@ -148,7 +139,9 @@ function SignupFormContent({
     setPassword(newPassword)
 
     // Silently validate but don't show errors
-    validatePassword(newPassword)
+    const errors = validatePassword(newPassword)
+    setPasswordErrors(errors)
+    setShowValidationError(false)
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -198,20 +191,16 @@ function SignupFormContent({
               errorMessage = 'Please enter a valid email address.'
             } else if (ctx.error.message?.includes('PASSWORD_TOO_SHORT')) {
               errorMessage = 'Password must be at least 8 characters long.'
-            } else if (ctx.error.message?.includes('PASSWORD_TOO_LONG')) {
-              errorMessage = 'Password must be less than 128 characters.'
-            } else if (ctx.error.message?.includes('USER_ALREADY_EXISTS')) {
-              errorMessage = 'An account with this email already exists. Please sign in instead.'
+            } else if (ctx.error.message?.includes('MISSING_CREDENTIALS')) {
+              errorMessage = 'Please enter all required fields.'
+            } else if (ctx.error.message?.includes('EMAIL_PASSWORD_DISABLED')) {
+              errorMessage = 'Email and password signup is disabled.'
             } else if (ctx.error.message?.includes('FAILED_TO_CREATE_USER')) {
               errorMessage = 'Failed to create account. Please try again later.'
-            } else if (ctx.error.message?.includes('FAILED_TO_CREATE_SESSION')) {
-              errorMessage = 'Failed to create session. Please try again later.'
-            } else if (ctx.error.message?.includes('rate limit')) {
-              errorMessage = 'Too many signup attempts. Please try again later.'
             } else if (ctx.error.message?.includes('network')) {
               errorMessage = 'Network error. Please check your connection and try again.'
-            } else if (ctx.error.message?.includes('invalid name')) {
-              errorMessage = 'Please enter a valid name.'
+            } else if (ctx.error.message?.includes('rate limit')) {
+              errorMessage = 'Too many requests. Please wait a moment before trying again.'
             }
 
             addNotification('error', errorMessage, null)
@@ -224,126 +213,175 @@ function SignupFormContent({
         return
       }
 
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('verificationEmail', emailValue)
-
-        // If this is an invitation flow, store that information for after verification
-        if (isInviteFlow && redirectUrl) {
-          sessionStorage.setItem('inviteRedirectUrl', redirectUrl)
-          sessionStorage.setItem('isInviteFlow', 'true')
+      // If we have a waitlist token, mark it as used
+      if (waitlistToken) {
+        try {
+          await fetch('/api/waitlist', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              token: waitlistToken,
+              email: emailValue,
+              action: 'use',
+            }),
+          })
+        } catch (error) {
+          console.error('Error marking waitlist token as used:', error)
+          // Continue regardless - this is not critical
         }
       }
 
-      // If verification is required, go to verify page with proper redirect
+      // Handle invitation flow redirect
       if (isInviteFlow && redirectUrl) {
-        router.push(
-          `/verify?fromSignup=true&redirectAfter=${encodeURIComponent(redirectUrl)}&invite_flow=true`
-        )
-      } else {
-        router.push(`/verify?fromSignup=true`)
+        router.push(redirectUrl)
+        return
       }
-    } catch (err: any) {
-      console.error('Uncaught signup error:', err)
-    } finally {
+
+      // Send verification OTP in Prod
+      try {
+        await client.emailOtp.sendVerificationOtp({
+          email: emailValue,
+          type: 'email-verification',
+        })
+
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('verificationEmail', emailValue)
+          localStorage.setItem('has_logged_in_before', 'true')
+          document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
+        }
+
+        router.push('/verify')
+      } catch (error) {
+        console.error('Failed to send verification code:', error)
+        addNotification('error', 'Account created but failed to send verification code.', null)
+        router.push('/login')
+      }
+    } catch (error) {
+      console.error('Signup error:', error)
       setIsLoading(false)
     }
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
-      {/* Ensure NotificationList is always rendered */}
-      <NotificationList />
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-8">Sim Studio</h1>
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle>Create an account</CardTitle>
-            <CardDescription>Enter your details to get started</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-6">
-              <SocialLoginButtons
-                githubAvailable={githubAvailable}
-                googleAvailable={googleAvailable}
-                callbackURL="/w"
-                isProduction={isProduction}
-              />
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-                </div>
-              </div>
-              <form onSubmit={onSubmit}>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input id="name" name="name" type="text" placeholder="Alan Turing" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      placeholder="name@example.com"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        name="password"
-                        type={showPassword ? 'text' : 'password'}
-                        required
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={handlePasswordChange}
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                        onClick={() => setShowPassword(!showPassword)}
-                        tabIndex={-1}
-                      >
-                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                    </div>
-                    {showValidationError && passwordErrors.length > 0 && (
-                      <div className="text-sm text-red-500 mt-1">
-                        <p>Password must:</p>
-                        <ul className="list-disc pl-5 mt-1">
-                          {passwordErrors.map((error, index) => (
-                            <li key={index}>{error}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Creating account...' : 'Create account'}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <p className="text-sm text-gray-500 text-center w-full">
-              Already have an account?{' '}
-              <Link href="/login" className="text-primary hover:underline">
-                Sign in
-              </Link>
-            </p>
-          </CardFooter>
-        </Card>
+    <div className="space-y-6">
+      <div className="space-y-2 text-center">
+        <h1 className="text-[32px] font-semibold tracking-tight text-white">Create Account</h1>
+        <p className="text-sm text-neutral-400">Enter your details to create a new account</p>
       </div>
-    </main>
+
+      <div className="flex flex-col gap-6">
+        <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/40 rounded-xl p-6">
+          <form onSubmit={onSubmit} className="space-y-5">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-neutral-300">
+                  Full Name
+                </Label>
+                <Input
+                  id="name"
+                  name="name"
+                  placeholder="Enter your name"
+                  required
+                  type="text"
+                  autoCapitalize="words"
+                  autoComplete="name"
+                  className="bg-neutral-900 border-neutral-700 text-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-neutral-300">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  name="email"
+                  placeholder="Enter your email"
+                  required
+                  type="email"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect="off"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="bg-neutral-900 border-neutral-700 text-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-neutral-300">
+                  Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    required
+                    type={showPassword ? 'text' : 'password'}
+                    autoCapitalize="none"
+                    autoComplete="new-password"
+                    placeholder="Enter your password"
+                    autoCorrect="off"
+                    value={password}
+                    onChange={handlePasswordChange}
+                    className="bg-neutral-900 border-neutral-700 text-white pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white transition"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {showValidationError && passwordErrors.length > 0 && (
+                  <div className="text-xs text-red-400 mt-1 space-y-1">
+                    {passwordErrors.map((error, index) => (
+                      <p key={index}>{error}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full bg-[#701ffc] hover:bg-[#802FFF] h-11 font-medium text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200 flex items-center justify-center gap-2"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Creating account...' : 'Create Account'}
+            </Button>
+          </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-neutral-700/50"></div>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-neutral-800/50 px-2 text-neutral-400">or continue with</span>
+            </div>
+          </div>
+
+          <SocialLoginButtons
+            githubAvailable={githubAvailable}
+            googleAvailable={googleAvailable}
+            callbackURL={redirectUrl || '/w'}
+            isProduction={isProduction}
+          />
+        </div>
+
+        <div className="text-center text-sm">
+          <span className="text-neutral-400">Already have an account? </span>
+          <Link
+            href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
+            className="text-[#9D54FF] hover:text-[#a66fff] font-medium transition underline-offset-4 hover:underline"
+          >
+            Sign in
+          </Link>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -358,11 +396,7 @@ export default function SignupPage({
 }) {
   return (
     <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      }
+      fallback={<div className="h-screen flex items-center justify-center">Loading...</div>}
     >
       <SignupFormContent
         githubAvailable={githubAvailable}

@@ -2,14 +2,6 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { cn } from '@/lib/utils'
 import { useVerification } from './use-verification'
@@ -59,122 +51,127 @@ function VerificationForm({
   }
 
   return (
-    <>
-      <CardHeader>
-        <CardTitle>{isVerified ? 'Email Verified!' : 'Verify your email'}</CardTitle>
-        <CardDescription>
-          {isVerified ? (
-            'Your email has been verified. Redirecting to dashboard...'
-          ) : hasResendKey ? (
-            <p>A verification code has been sent to {email || 'your email'}</p>
-          ) : !isProduction ? (
-            <div className="space-y-1">
-              <p>Development mode: No Resend API key configured</p>
-              <p className="text-xs text-muted-foreground italic">
-                Check your console logs for the verification code
-              </p>
-            </div>
-          ) : (
-            <p>Error: Invalid API key configuration</p>
-          )}
-        </CardDescription>
-      </CardHeader>
-
-      {/* Add debug output for error state */}
-      <div className="hidden">
-        Debug - isInvalidOtp: {String(isInvalidOtp)}, errorMessage: {errorMessage || 'none'}
+    <div className="space-y-6">
+      <div className="space-y-2 text-center">
+        <h1 className="text-[32px] font-semibold tracking-tight text-white">
+          {isVerified ? 'Email Verified!' : 'Verify Your Email'}
+        </h1>
+        <p className="text-sm text-neutral-400">
+          {isVerified
+            ? 'Your email has been verified. Redirecting to dashboard...'
+            : hasResendKey
+              ? `A verification code has been sent to ${email || 'your email'}`
+              : !isProduction
+                ? 'Development mode: Check your console logs for the verification code'
+                : 'Error: Invalid API key configuration'}
+        </p>
       </div>
 
       {!isVerified && (
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground mb-2">
-            Enter the 6-digit code to verify your account.
-            {hasResendKey ? " If you don't see it in your email, check your spam folder." : ''}
-          </p>
-          <div className="flex flex-col items-center space-y-2">
+        <div className="flex flex-col gap-6">
+          <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/40 rounded-xl p-6">
+            <p className="text-sm text-neutral-400 mb-4">
+              Enter the 6-digit code to verify your account.
+              {hasResendKey ? " If you don't see it in your inbox, check your spam folder." : ''}
+            </p>
+
             <div className="flex justify-center py-4">
               <InputOTP
                 maxLength={6}
                 value={otp}
                 onChange={handleOtpChange}
                 disabled={isLoading}
-                className={cn(isInvalidOtp && 'border-red-500 focus-visible:ring-red-500')}
+                className={cn(
+                  isInvalidOtp ? 'border-red-500 focus-visible:ring-red-500' : 'border-neutral-700'
+                )}
               >
                 <InputOTPGroup>
-                  <InputOTPSlot index={0} />
-                  <InputOTPSlot index={1} />
-                  <InputOTPSlot index={2} />
-                  <InputOTPSlot index={3} />
-                  <InputOTPSlot index={4} />
-                  <InputOTPSlot index={5} />
+                  <InputOTPSlot
+                    index={0}
+                    className="bg-neutral-900 border-neutral-700 text-white"
+                  />
+                  <InputOTPSlot
+                    index={1}
+                    className="bg-neutral-900 border-neutral-700 text-white"
+                  />
+                  <InputOTPSlot
+                    index={2}
+                    className="bg-neutral-900 border-neutral-700 text-white"
+                  />
+                  <InputOTPSlot
+                    index={3}
+                    className="bg-neutral-900 border-neutral-700 text-white"
+                  />
+                  <InputOTPSlot
+                    index={4}
+                    className="bg-neutral-900 border-neutral-700 text-white"
+                  />
+                  <InputOTPSlot
+                    index={5}
+                    className="bg-neutral-900 border-neutral-700 text-white"
+                  />
                 </InputOTPGroup>
               </InputOTP>
             </div>
-          </div>
 
-          {/* Error message - moved above the button for better visibility */}
-          {errorMessage && (
-            <div className="mt-2 mb-2 text-center border border-red-200 rounded-md py-2 bg-red-50">
-              <p className="text-sm font-semibold text-red-600">{errorMessage}</p>
-            </div>
-          )}
-
-          <Button onClick={verifyCode} className="w-full" disabled={!isOtpComplete || isLoading}>
-            {isLoading ? 'Verifying...' : 'Verify Email'}
-          </Button>
-        </CardContent>
-      )}
-
-      {!isVerified && hasResendKey && (
-        <CardFooter className="flex justify-center">
-          <p className="text-sm text-muted-foreground">
-            Didn't receive a code?{' '}
-            {countdown > 0 ? (
-              <span className="text-muted-foreground">
-                Resend in <span className="font-medium text-primary">{countdown}s</span>
-              </span>
-            ) : (
-              <button
-                className="text-primary hover:underline font-medium"
-                onClick={handleResend}
-                disabled={isLoading || isResendDisabled}
-              >
-                Resend
-              </button>
+            {/* Error message */}
+            {errorMessage && (
+              <div className="mt-2 mb-4 text-center border border-red-900/20 rounded-md py-2 bg-red-900/10">
+                <p className="text-sm font-medium text-red-400">{errorMessage}</p>
+              </div>
             )}
-          </p>
-        </CardFooter>
+
+            <Button
+              onClick={verifyCode}
+              className="w-full bg-[#701ffc] hover:bg-[#802FFF] h-11 font-medium text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200"
+              disabled={!isOtpComplete || isLoading}
+            >
+              {isLoading ? 'Verifying...' : 'Verify Email'}
+            </Button>
+
+            {hasResendKey && (
+              <div className="mt-4 text-center">
+                <p className="text-sm text-neutral-400">
+                  Didn't receive a code?{' '}
+                  {countdown > 0 ? (
+                    <span>
+                      Resend in <span className="font-medium text-neutral-300">{countdown}s</span>
+                    </span>
+                  ) : (
+                    <button
+                      className="text-[#9D54FF] hover:text-[#a66fff] font-medium transition underline-offset-4 hover:underline"
+                      onClick={handleResend}
+                      disabled={isLoading || isResendDisabled}
+                    >
+                      Resend
+                    </button>
+                  )}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
-    </>
+    </div>
   )
 }
 
 // Fallback component while the verification form is loading
 function VerificationFormFallback() {
   return (
-    <CardHeader>
-      <CardTitle>Loading verification...</CardTitle>
-      <CardDescription>Please wait while we load your verification details...</CardDescription>
-    </CardHeader>
+    <div className="text-center p-8">
+      <div className="animate-pulse">
+        <div className="h-8 bg-neutral-800 rounded w-48 mx-auto mb-4"></div>
+        <div className="h-4 bg-neutral-800 rounded w-64 mx-auto"></div>
+      </div>
+    </div>
   )
 }
 
 export function VerifyContent({ hasResendKey, baseUrl, isProduction }: VerifyContentProps) {
   return (
-    <Card className="w-full">
-      <Suspense fallback={<VerificationFormFallback />}>
-        <VerificationForm hasResendKey={hasResendKey} isProduction={isProduction} />
-      </Suspense>
-
-      {/* Login link for already verified users */}
-      <CardFooter className="flex justify-center pt-0">
-        <p className="text-sm text-muted-foreground">
-          Already have an account? Go to{' '}
-          <a href="/login" className="text-primary hover:underline font-medium">
-            Login
-          </a>
-        </p>
-      </CardFooter>
-    </Card>
+    <Suspense fallback={<VerificationFormFallback />}>
+      <VerificationForm hasResendKey={hasResendKey} isProduction={isProduction} />
+    </Suspense>
   )
 }

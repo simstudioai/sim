@@ -99,7 +99,7 @@ export function SocialLoginButtons({
   const githubButton = (
     <Button
       variant="outline"
-      className="w-full"
+      className="w-full bg-neutral-900 border-neutral-700 text-white hover:bg-neutral-800 hover:text-white"
       disabled={!githubAvailable || isGithubLoading}
       onClick={signInWithGithub}
     >
@@ -111,7 +111,7 @@ export function SocialLoginButtons({
   const googleButton = (
     <Button
       variant="outline"
-      className="w-full"
+      className="w-full bg-neutral-900 border-neutral-700 text-white hover:bg-neutral-800 hover:text-white"
       disabled={!googleAvailable || isGoogleLoading}
       onClick={signInWithGoogle}
     >
@@ -129,12 +129,12 @@ export function SocialLoginButtons({
           <TooltipTrigger asChild>
             <div>{githubButton}</div>
           </TooltipTrigger>
-          <TooltipContent>
+          <TooltipContent className="bg-neutral-800 text-white border-neutral-700">
             <p>
               GitHub login requires OAuth credentials to be configured. Add the following
               environment variables:
             </p>
-            <ul className="mt-2 text-xs space-y-1">
+            <ul className="mt-2 text-xs space-y-1 text-neutral-300">
               <li>• GITHUB_CLIENT_ID</li>
               <li>• GITHUB_CLIENT_SECRET</li>
             </ul>
@@ -153,12 +153,12 @@ export function SocialLoginButtons({
           <TooltipTrigger asChild>
             <div>{googleButton}</div>
           </TooltipTrigger>
-          <TooltipContent>
+          <TooltipContent className="bg-neutral-800 text-white border-neutral-700">
             <p>
               Google login requires OAuth credentials to be configured. Add the following
               environment variables:
             </p>
-            <ul className="mt-2 text-xs space-y-1">
+            <ul className="mt-2 text-xs space-y-1 text-neutral-300">
               <li>• GOOGLE_CLIENT_ID</li>
               <li>• GOOGLE_CLIENT_SECRET</li>
             </ul>
@@ -169,7 +169,7 @@ export function SocialLoginButtons({
   }
 
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-3">
       {renderGithubButton()}
       {renderGoogleButton()}
     </div>

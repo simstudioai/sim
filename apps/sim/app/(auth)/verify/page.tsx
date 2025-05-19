@@ -8,15 +8,7 @@ export const dynamic = 'force-dynamic'
 
 export default function VerifyPage() {
   const baseUrl = getBaseUrl()
-
   const hasResendKey = Boolean(env.RESEND_API_KEY && env.RESEND_API_KEY !== 'placeholder')
 
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-8">Sim Studio</h1>
-        <VerifyContent hasResendKey={hasResendKey} baseUrl={baseUrl} isProduction={isProd} />
-      </div>
-    </main>
-  )
+  return <VerifyContent hasResendKey={hasResendKey} baseUrl={baseUrl} isProduction={isProd} />
 }

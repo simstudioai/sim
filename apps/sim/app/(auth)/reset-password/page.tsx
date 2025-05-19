@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
-import { SetNewPasswordForm } from '../components/reset-password-form'
+import { SetNewPasswordForm } from './reset-password-form'
 
 const logger = createLogger('ResetPasswordPage')
 

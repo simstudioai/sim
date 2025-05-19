@@ -5,23 +5,13 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { RequestResetForm } from '@/app/(auth)/components/reset-password-form'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
-import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 
 const logger = createLogger('LoginForm')
 
@@ -38,12 +28,6 @@ const validateCallbackUrl = (url: string): boolean => {
     if (url.startsWith(currentOrigin)) {
       return true
     }
-
-    // Add other trusted domains if needed
-    // const trustedDomains = ['trusted-domain.com']
-    // if (trustedDomains.some(domain => url.startsWith(`https://${domain}`))) {
-    //   return true
-    // }
 
     return false
   } catch (error) {
@@ -103,6 +87,19 @@ export default function LoginPage({
       setIsInviteFlow(inviteFlow)
     }
   }, [searchParams])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && forgotPasswordOpen) {
+        handleForgotPassword()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [forgotPasswordEmail, forgotPasswordOpen])
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -259,123 +256,155 @@ export default function LoginPage({
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
-      {/* Ensure NotificationList is always rendered */}
-      <NotificationList />
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-8">Sim Studio</h1>
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle>Welcome back</CardTitle>
-            <CardDescription>
-              {isInviteFlow
-                ? 'Sign in to continue to the invitation'
-                : 'Enter your credentials to access your account'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-6">
-              {mounted && (
-                <SocialLoginButtons
-                  githubAvailable={githubAvailable}
-                  googleAvailable={googleAvailable}
-                  callbackURL={callbackUrl}
-                  isProduction={isProduction}
-                />
-              )}
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-                </div>
-              </div>
-              <form onSubmit={onSubmit}>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      placeholder="name@example.com"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password">Password</Label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const emailInput = document.getElementById('email') as HTMLInputElement
-                          setForgotPasswordEmail(emailInput?.value || '')
-                          setForgotPasswordOpen(true)
-                        }}
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Forgot password?
-                      </button>
-                    </div>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        name="password"
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="Enter your password"
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                        onClick={() => setShowPassword(!showPassword)}
-                        tabIndex={-1}
-                      >
-                        {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                    </div>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Signing in...' : 'Sign in'}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <p className="text-sm text-gray-500 text-center w-full">
-              Don't have an account?{' '}
-              <Link
-                href={mounted && searchParams ? `/signup?${searchParams.toString()}` : '/signup'}
-                className="text-primary hover:underline"
-              >
-                Sign up
-              </Link>
-            </p>
-          </CardFooter>
-        </Card>
+    <div className="space-y-6">
+      <div className="space-y-2 text-center">
+        <h1 className="text-[32px] font-semibold tracking-tight text-white">Sign In</h1>
+        <p className="text-sm text-neutral-400">
+          Enter your email below to sign in to your account
+        </p>
       </div>
 
-      {/* Forgot Password Dialog */}
-      <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Reset Password</DialogTitle>
-          </DialogHeader>
-          <RequestResetForm
-            email={forgotPasswordEmail}
-            onEmailChange={setForgotPasswordEmail}
-            onSubmit={handleForgotPassword}
-            isSubmitting={isSubmittingReset}
-            statusType={resetStatus.type}
-            statusMessage={resetStatus.message}
-            className="py-4"
+      <div className="flex flex-col gap-6">
+        <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/40 rounded-xl p-6">
+          <form onSubmit={onSubmit} className="space-y-5">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-neutral-300">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  name="email"
+                  placeholder="Enter your email"
+                  required
+                  type="email"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect="off"
+                  className="bg-neutral-900 border-neutral-700 text-white"
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-neutral-300">
+                    Password
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => setForgotPasswordOpen(true)}
+                    className="text-xs text-neutral-400 hover:text-white transition font-medium"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    required
+                    type={showPassword ? 'text' : 'password'}
+                    autoCapitalize="none"
+                    autoComplete="current-password"
+                    autoCorrect="off"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-neutral-900 border-neutral-700 text-white pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white transition"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full bg-[#701ffc] hover:bg-[#802FFF] h-11 font-medium text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200 flex items-center justify-center gap-2"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Signing in...' : 'Sign In'}
+            </Button>
+          </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-neutral-700/50"></div>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-neutral-800/50 px-2 text-neutral-400">or continue with</span>
+            </div>
+          </div>
+
+          <SocialLoginButtons
+            googleAvailable={googleAvailable}
+            githubAvailable={githubAvailable}
+            isProduction={isProduction}
+            callbackURL={callbackUrl}
           />
+        </div>
+
+        <div className="text-center text-sm">
+          <span className="text-neutral-400">Don't have an account? </span>
+          <Link
+            href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
+            className="text-[#9D54FF] hover:text-[#a66fff] font-medium transition underline-offset-4 hover:underline"
+          >
+            Sign up
+          </Link>
+        </div>
+      </div>
+
+      <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
+        <DialogContent className="bg-neutral-800/90 border border-neutral-700/50 text-white backdrop-blur-sm">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold tracking-tight text-white">
+              Reset Password
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-sm text-neutral-300">
+              Enter your email address and we'll send you a link to reset your password.
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reset-email" className="text-neutral-300">
+                Email
+              </Label>
+              <Input
+                id="reset-email"
+                value={forgotPasswordEmail}
+                onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                placeholder="Enter your email"
+                required
+                type="email"
+                className="bg-neutral-900 border-neutral-700/80 text-white focus:border-[#802FFF]/70 focus:ring-[#802FFF]/20"
+              />
+            </div>
+            {resetStatus.type && (
+              <div
+                className={`text-sm ${
+                  resetStatus.type === 'success' ? 'text-[#4CAF50]' : 'text-red-500'
+                }`}
+              >
+                {resetStatus.message}
+              </div>
+            )}
+            <Button
+              type="button"
+              onClick={handleForgotPassword}
+              className="w-full bg-[#701ffc] hover:bg-[#802FFF] h-11 font-medium text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200"
+              disabled={isSubmittingReset}
+            >
+              {isSubmittingReset ? 'Sending...' : 'Send Reset Link'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
-    </main>
+    </div>
   )
 }

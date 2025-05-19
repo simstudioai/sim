@@ -15,7 +15,7 @@ import {
 import { signOut, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { RequestResetForm } from '@/app/(auth)/components/reset-password-form'
+import { RequestResetForm } from '@/app/(auth)/reset-password/reset-password-form'
 import { clearUserData } from '@/stores'
 
 const logger = createLogger('Account')
