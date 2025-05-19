@@ -761,6 +761,142 @@ describe('AgentBlockHandler', () => {
       )
     })
 
+    // Tests for raw messages parameter
+    it('should execute with raw JSON messages array', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant.' },
+          { role: 'user', content: 'Hello, how are you?' }
+        ],
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify messages were sent to the provider
+      expect(requestBody.messages).toBeDefined()
+      expect(requestBody.messages.length).toBe(2)
+      expect(requestBody.messages[0].role).toBe('system')
+      expect(requestBody.messages[1].role).toBe('user')
+      
+      // Verify system prompt and context are not included
+      expect(requestBody.systemPrompt).toBeUndefined()
+      expect(requestBody.context).toBeUndefined()
+    })
+
+    it('should parse and use messages with single quotes', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        // Single-quoted JSON format
+        messages: `[{'role': 'system', 'content': 'You are a helpful assistant.'}, {'role': 'user', 'content': 'Hello, how are you?'}]`,
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify messages were parsed and sent to the provider
+      expect(requestBody.messages).toBeDefined()
+      expect(requestBody.messages.length).toBe(2)
+      expect(requestBody.messages[0].role).toBe('system')
+      expect(requestBody.messages[0].content).toBe('You are a helpful assistant.')
+      expect(requestBody.messages[1].role).toBe('user')
+      expect(requestBody.messages[1].content).toBe('Hello, how are you?')
+    })
+
+    it('should prioritize messages over systemPrompt and context when both are provided', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        // Valid messages array should take priority
+        messages: [
+          { role: 'system', content: 'You are an AI assistant.' },
+          { role: 'user', content: 'What is the capital of France?' }
+        ],
+        // These should be ignored since messages are valid
+        systemPrompt: 'You are a helpful assistant.',
+        context: 'Tell me about the weather.',
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify messages were sent to the provider
+      expect(requestBody.messages).toBeDefined()
+      expect(requestBody.messages.length).toBe(2)
+      expect(requestBody.messages[0].content).toBe('You are an AI assistant.')
+      expect(requestBody.messages[1].content).toBe('What is the capital of France?')
+      
+      // Verify system prompt and context are not included
+      expect(requestBody.systemPrompt).toBeUndefined()
+      expect(requestBody.context).toBeUndefined()
+    })
+
+    it('should fall back to systemPrompt and context if messages array is invalid', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        // Invalid messages array (missing required 'role' field)
+        messages: [
+          { content: 'This message is missing the role field' },
+          { role: 'user', content: 'Hello' }
+        ],
+        // These should be used as fallback
+        systemPrompt: 'You are a helpful assistant.',
+        context: 'Help the user with their query.',
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify fallback to systemPrompt and context
+      expect(requestBody.messages).toBeUndefined()
+      expect(requestBody.systemPrompt).toBe('You are a helpful assistant.')
+      expect(requestBody.context).toBe('Help the user with their query.')
+    })
+
+    it('should handle messages with mixed quote styles', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        // Mixed quote styles as shown in the user's example
+        messages: `[{'role': 'system', "content": "Only answer questions about the United States. If someone asks about something else, just say you can't help with that."}, {"role": "user", "content": "What's the capital of Bosnia and Herzegovina?"}]`,
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify messages were parsed and sent to the provider
+      expect(requestBody.messages).toBeDefined()
+      expect(requestBody.messages.length).toBe(2)
+      expect(requestBody.messages[0].role).toBe('system')
+      expect(requestBody.messages[0].content).toBe("Only answer questions about the United States. If someone asks about something else, just say you can't help with that.")
+      expect(requestBody.messages[1].role).toBe('user')
+      expect(requestBody.messages[1].content).toBe("What's the capital of Bosnia and Herzegovina?")
+    })
+
     it('should handle streaming responses with text/event-stream content type', async () => {
       const mockStreamBody = {
         getReader: vi.fn().mockReturnValue({

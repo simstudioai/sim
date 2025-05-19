@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
       responseFormat,
       workflowId,
       stream,
+      messages,
     } = body
 
     let finalApiKey: string
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
       responseFormat,
       workflowId,
       stream,
+      messages,
     })
 
     // Check if the response is a StreamingExecution

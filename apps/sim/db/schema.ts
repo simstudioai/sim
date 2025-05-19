@@ -7,6 +7,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  index,
 } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
@@ -380,3 +381,29 @@ export const workspaceInvitation = pgTable('workspace_invitation', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+export const memory = pgTable(
+  'memory',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(), // Identifier for the memory within its context
+    type: text('type').notNull(), // 'agent' or 'raw'
+    data: json('data').notNull(), // Stores either agent message data or raw data
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    deletedAt: timestamp('deleted_at'),
+  },
+  (table) => {
+    return {
+      // Add index on key for faster lookups
+      keyIdx: index('memory_key_idx').on(table.key),
+      
+      // Add index on workflowId for faster filtering
+      workflowIdx: index('memory_workflow_idx').on(table.workflowId),
+      
+      // Compound unique index to ensure keys are unique per workflow
+      uniqueKeyPerWorkflowIdx: uniqueIndex('memory_workflow_key_idx').on(table.workflowId, table.key),
+    }
+  }
+)

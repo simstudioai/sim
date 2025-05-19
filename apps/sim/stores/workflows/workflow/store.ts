@@ -770,6 +770,57 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().sync.markDirty()
         get().sync.forceSync()
       },
+
+      toggleBlockAdvancedMode: (id: string) => {
+        const block = get().blocks[id]
+        if (!block) return
+
+        const newState = {
+          blocks: {
+            ...get().blocks,
+            [id]: {
+              ...block,
+              advancedMode: !block.advancedMode,
+            },
+          },
+          edges: [...get().edges],
+          loops: { ...get().loops },
+        }
+
+        set(newState)
+        
+        // Clear the appropriate subblock values based on the new mode
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        if (activeWorkflowId) {
+          const subBlockStore = useSubBlockStore.getState()
+          const blockValues = subBlockStore.workflowValues[activeWorkflowId]?.[id] || {}
+          const updatedValues = { ...blockValues }
+          
+          if (!block.advancedMode) {
+            // Switching TO advanced mode, clear system prompt and context (basic mode fields)
+            updatedValues.systemPrompt = null
+            updatedValues.context = null
+          } else {
+            // Switching TO basic mode, clear messages (advanced mode field)
+            updatedValues.messages = null
+          }
+          
+          // Update subblock store with the cleared values
+          useSubBlockStore.setState({
+            workflowValues: {
+              ...subBlockStore.workflowValues,
+              [activeWorkflowId]: {
+                ...subBlockStore.workflowValues[activeWorkflowId],
+                [id]: updatedValues
+              }
+            }
+          })
+        }
+        
+        get().triggerUpdate()
+        get().sync.markDirty()
+        get().sync.forceSync()
+      },
     })),
     { name: 'workflow-store' }
   )

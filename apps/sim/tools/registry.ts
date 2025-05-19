@@ -42,6 +42,7 @@ import { readUrlTool } from './jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
 import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from './mem0'
+import { memoryAddTool, memoryGetTool, memoryGetAllTool, memoryDeleteTool } from './memory'
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool, embeddingsTool as openAIEmbeddings } from './openai'
@@ -154,6 +155,10 @@ export const tools: Record<string, ToolConfig> = {
   mem0_add_memories: mem0AddMemoriesTool,
   mem0_search_memories: mem0SearchMemoriesTool,
   mem0_get_memories: mem0GetMemoriesTool,
+  memory_add: memoryAddTool,
+  memory_get: memoryGetTool,
+  memory_get_all: memoryGetAllTool,
+  memory_delete: memoryDeleteTool,
   elevenlabs_tts: elevenLabsTtsTool,
   s3_get_object: s3GetObjectTool,
   telegram_message: telegramMessageTool,

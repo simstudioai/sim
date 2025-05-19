@@ -17,6 +17,7 @@ export interface BlockState {
   horizontalHandles?: boolean
   isWide?: boolean
   height?: number
+  advancedMode?: boolean
 }
 
 export interface SubBlockState {
@@ -78,6 +79,7 @@ export interface WorkflowActions {
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
   setScheduleStatus: (hasActiveSchedule: boolean) => void
   setWebhookStatus: (hasActiveWebhook: boolean) => void
+  toggleBlockAdvancedMode: (id: string) => void
 
   // Add the sync control methods to the WorkflowActions interface
   sync: SyncControl

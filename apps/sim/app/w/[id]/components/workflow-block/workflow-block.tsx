@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
 import { Handle, NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -61,6 +61,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
   const hasActiveWebhook = useWorkflowStore((state) => state.hasActiveWebhook ?? false)
+  const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
+  const toggleBlockAdvancedMode = useWorkflowStore((state) => state.toggleBlockAdvancedMode)
 
   // Workflow store actions
   const updateBlockName = useWorkflowStore((state) => state.updateBlockName)
@@ -257,10 +259,17 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     const blocks = useWorkflowStore.getState().blocks
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
     const mergedState = mergeSubblockState(blocks, activeWorkflowId, blockId)[blockId]
+    const isAdvancedMode = useWorkflowStore.getState().blocks[blockId]?.advancedMode ?? false
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
       if (block.hidden) return false
+
+      // Filter by mode if specified
+      if (block.mode) {
+        if (block.mode === 'basic' && isAdvancedMode) return false
+        if (block.mode === 'advanced' && !isAdvancedMode) return false
+      }
 
       // If there's no condition, the block should be shown
       if (!block.condition) return true
@@ -552,76 +561,86 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 </TooltipContent>
               </Tooltip>
             )}
-            {config.longDescription && (
+            {config.subBlocks.some((block) => block.mode) && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {config.docsLink ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-500 p-1 h-7"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        window.open(config.docsLink, '_target', 'noopener,noreferrer')
-                      }}
-                    >
-                      <BookOpen className="h-5 w-5" />
-                    </Button>
-                  ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => toggleBlockAdvancedMode(id)}
+                    className={cn('text-gray-500 p-1 h-7', blockAdvancedMode && 'text-[#701FFC]')}
+                  >
+                    <Code className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {blockAdvancedMode ? 'Switch to Basic Mode' : 'Switch to Advanced Mode'}
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {config.docsLink ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 p-1 h-7"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open(config.docsLink, '_target', 'noopener,noreferrer')
+                    }}
+                  >
+                    <BookOpen className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">See Docs</TooltipContent>
+              </Tooltip>
+            ) : (
+              config.longDescription && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
                     <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
                       <Info className="h-5 w-5" />
                     </Button>
-                  )}
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[300px] p-4">
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium mb-1">Description</p>
-                      <p className="text-sm text-muted-foreground">{config.longDescription}</p>
-                      {config.docsLink && (
-                        <p className="text-xs text-blue-500 mt-1">
-                          <a
-                            href={config.docsLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                            }}
-                          >
-                            View Documentation
-                          </a>
-                        </p>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-[300px] p-4">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm font-medium mb-1">Description</p>
+                        <p className="text-sm text-muted-foreground">{config.longDescription}</p>
+                      </div>
+                      {config.outputs && (
+                        <div>
+                          <p className="text-sm font-medium mb-1">Output</p>
+                          <div className="text-sm">
+                            {Object.entries(config.outputs).map(([key, value]) => (
+                              <div key={key} className="mb-1">
+                                <span className="text-muted-foreground">{key}</span>{' '}
+                                {typeof value.type === 'object' ? (
+                                  <div className="pl-3 mt-1">
+                                    {Object.entries(value.type).map(([typeKey, typeValue]) => (
+                                      <div key={typeKey} className="flex items-start">
+                                        <span className="text-blue-500 font-medium">
+                                          {typeKey}:
+                                        </span>
+                                        <span className="text-green-500 ml-1">
+                                          {typeValue as string}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-green-500">{value.type as string}</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
-                    {config.outputs && (
-                      <div>
-                        <p className="text-sm font-medium mb-1">Output</p>
-                        <div className="text-sm">
-                          {Object.entries(config.outputs).map(([key, value]) => (
-                            <div key={key} className="mb-1">
-                              <span className="text-muted-foreground">{key}</span>{' '}
-                              {typeof value.type === 'object' ? (
-                                <div className="pl-3 mt-1">
-                                  {Object.entries(value.type).map(([typeKey, typeValue]) => (
-                                    <div key={typeKey} className="flex items-start">
-                                      <span className="text-blue-500 font-medium">{typeKey}:</span>
-                                      <span className="text-green-500 ml-1">
-                                        {typeValue as string}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-green-500">{value.type as string}</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
+                  </TooltipContent>
+                </Tooltip>
+              )
             )}
             <Tooltip>
               <TooltipTrigger asChild>
