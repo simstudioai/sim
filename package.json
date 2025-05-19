@@ -22,7 +22,8 @@
     "test": "turbo run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "prepare": "bun husky"
   },
   "overrides": {
     "react": "19.1.0",

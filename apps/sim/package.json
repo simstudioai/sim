@@ -24,13 +24,6 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",
-    "cli:build": "bun run build -w packages/simstudio",
-    "cli:dev": "bun run build -w packages/simstudio && cd packages/simstudio && bun ./dist/index.js",
-    "cli:publish": "cd packages/simstudio && bun publish",
-    "cli:start": "cd packages/simstudio && bun ./dist/index.js start",
-    "build:standalone": "bun scripts/build-standalone.js",
-    "build:cli": "bun run cli:build && bun run build:standalone",
-    "publish:cli": "bun run build:cli && bun run cli:publish",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {

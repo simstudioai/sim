@@ -66,23 +66,22 @@ Runs a browser automation task using BrowserUse
 
 #### Input
 
-| Parameter      | Type   | Required | Description                                                                              |
-| -------------- | ------ | -------- | ---------------------------------------------------------------------------------------- |
-| `task`         | string | Yes      | What should the browser agent do                                                         |
-| `apiKey`       | string | Yes      | API key for BrowserUse API                                                               |
-| `pollInterval` | number | No       | Interval between polling requests in milliseconds \(default: 5000\)                      |
-| `maxPollTime`  | number | No       | Maximum time to poll for task completion in milliseconds \(default: 300000 - 5 minutes\) |
+| Parameter           | Type    | Required | Description                                                     |
+| ------------------- | ------- | -------- | --------------------------------------------------------------- |
+| `task`              | string  | Yes      | What should the browser agent do                                |
+| `variables`         | json    | No       | Optional variables to use as secrets \(format: \{key: value\}\) |
+| `save_browser_data` | boolean | No       | Whether to save browser data                                    |
+| `model`             | string  | No       | LLM model to use \(default: gpt-4o\)                            |
+| `apiKey`            | string  | Yes      | API key for BrowserUse API                                      |
 
 #### Output
 
-| Parameter  | Type   |
-| ---------- | ------ |
-| `id`       | string |
-| `task`     | string |
-| `output`   | string |
-| `status`   | string |
-| `steps`    | string |
-| `live_url` | string |
+| Parameter | Type   |
+| --------- | ------ |
+| `id`      | string |
+| `success` | string |
+| `output`  | string |
+| `steps`   | string |
 
 ## Block Configuration
 
@@ -94,15 +93,13 @@ Runs a browser automation task using BrowserUse
 
 ### Outputs
 
-| Output       | Type   | Description              |
-| ------------ | ------ | ------------------------ |
-| `response`   | object | Output from response     |
-| ↳ `id`       | string | id of the response       |
-| ↳ `task`     | string | task of the response     |
-| ↳ `output`   | any    | output of the response   |
-| ↳ `status`   | string | status of the response   |
-| ↳ `steps`    | json   | steps of the response    |
-| ↳ `live_url` | any    | live_url of the response |
+| Output      | Type    | Description             |
+| ----------- | ------- | ----------------------- |
+| `response`  | object  | Output from response    |
+| ↳ `id`      | string  | id of the response      |
+| ↳ `success` | boolean | success of the response |
+| ↳ `output`  | any     | output of the response  |
+| ↳ `steps`   | json    | steps of the response   |
 
 ## Notes
 

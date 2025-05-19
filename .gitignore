@@ -7,8 +7,6 @@
 /scripts/node_modules
 
 # bun specific
-.bun
-bun.lock
 bun-debug.log*
 
 # testing
