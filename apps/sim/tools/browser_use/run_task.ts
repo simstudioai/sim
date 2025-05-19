@@ -31,8 +31,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
     },
     model: {
       type: 'string',
-      required: true,
-      requiredForToolCall: false,
+      required: false,
       description: 'LLM model to use (default: gpt-4o)',
     },
     apiKey: {
