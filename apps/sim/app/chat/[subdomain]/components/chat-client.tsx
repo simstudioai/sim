@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/input'
 import { OTPInputForm } from '@/components/ui/input-otp-form'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
+import HeaderLinks from './components/header-links/header-links'
 import MarkdownRenderer from './components/markdown-renderer/markdown-renderer'
 
 // Define message type
@@ -96,6 +98,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [starCount, setStarCount] = useState('3.4k')
 
   // Authentication state
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
@@ -163,6 +166,15 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Fetch chat config on mount
   useEffect(() => {
     fetchChatConfig()
+
+    // Fetch GitHub stars
+    getFormattedGitHubStars()
+      .then((formattedStars) => {
+        setStarCount(formattedStars)
+      })
+      .catch((err) => {
+        console.error('Failed to fetch GitHub stars:', err)
+      })
   }, [subdomain])
 
   // Handle keyboard input for message sending
@@ -514,6 +526,49 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="p-6 max-w-md mx-auto bg-white rounded-xl shadow-md">
+          <div className="flex justify-between items-center mb-2">
+            <a href="https://simstudio.ai" target="_blank" rel="noopener noreferrer">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 50 50"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="rounded-[6px]"
+              >
+                <rect width="50" height="50" fill="#701FFC" />
+                <path
+                  d="M34.1455 20.0728H16.0364C12.7026 20.0728 10 22.7753 10 26.1091V35.1637C10 38.4975 12.7026 41.2 16.0364 41.2H34.1455C37.4792 41.2 40.1818 38.4975 40.1818 35.1637V26.1091C40.1818 22.7753 37.4792 20.0728 34.1455 20.0728Z"
+                  fill="#701FFC"
+                  stroke="white"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M25.0919 14.0364C26.7588 14.0364 28.1101 12.6851 28.1101 11.0182C28.1101 9.35129 26.7588 8 25.0919 8C23.425 8 22.0737 9.35129 22.0737 11.0182C22.0737 12.6851 23.425 14.0364 25.0919 14.0364Z"
+                  fill="#701FFC"
+                  stroke="white"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M25.0915 14.856V19.0277V14.856ZM20.5645 32.1398V29.1216V32.1398ZM29.619 29.1216V32.1398V29.1216Z"
+                  fill="#701FFC"
+                />
+                <path
+                  d="M25.0915 14.856V19.0277M20.5645 32.1398V29.1216M29.619 29.1216V32.1398"
+                  stroke="white"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx="25" cy="11" r="2" fill="#701FFC" />
+              </svg>
+            </a>
+            <HeaderLinks stars={starCount} />
+          </div>
           <h2 className="text-xl font-bold text-red-500 mb-2">Error</h2>
           <p className="text-gray-700">{error}</p>
         </div>
@@ -530,6 +585,49 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="p-6 max-w-md w-full mx-auto bg-white rounded-xl shadow-md">
+          <div className="flex justify-between items-center w-full mb-4">
+            <a href="https://simstudio.ai" target="_blank" rel="noopener noreferrer">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 50 50"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="rounded-[6px]"
+              >
+                <rect width="50" height="50" fill="#701FFC" />
+                <path
+                  d="M34.1455 20.0728H16.0364C12.7026 20.0728 10 22.7753 10 26.1091V35.1637C10 38.4975 12.7026 41.2 16.0364 41.2H34.1455C37.4792 41.2 40.1818 38.4975 40.1818 35.1637V26.1091C40.1818 22.7753 37.4792 20.0728 34.1455 20.0728Z"
+                  fill="#701FFC"
+                  stroke="white"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M25.0919 14.0364C26.7588 14.0364 28.1101 12.6851 28.1101 11.0182C28.1101 9.35129 26.7588 8 25.0919 8C23.425 8 22.0737 9.35129 22.0737 11.0182C22.0737 12.6851 23.425 14.0364 25.0919 14.0364Z"
+                  fill="#701FFC"
+                  stroke="white"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M25.0915 14.856V19.0277V14.856ZM20.5645 32.1398V29.1216V32.1398ZM29.619 29.1216V32.1398V29.1216Z"
+                  fill="#701FFC"
+                />
+                <path
+                  d="M25.0915 14.856V19.0277M20.5645 32.1398V29.1216M29.619 29.1216V32.1398"
+                  stroke="white"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx="25" cy="11" r="2" fill="#701FFC" />
+              </svg>
+            </a>
+            <HeaderLinks stars={starCount} />
+          </div>
           <div className="text-center mb-6">
             <h2 className="text-xl font-bold mb-2">{title}</h2>
             <p className="text-gray-600">
@@ -744,18 +842,65 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         }
       `}</style>
 
-      {/* Header with title */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="text-lg font-medium">
-          {chatConfig.customizations?.headerText || chatConfig.title || 'Chat'}
-        </h2>
-        {chatConfig.customizations?.logoUrl && (
-          <img
-            src={chatConfig.customizations.logoUrl}
-            alt={`${chatConfig.title} logo`}
-            className="h-6 w-6 object-contain"
-          />
-        )}
+      {/* Header with title and links */}
+      <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-2">
+          {chatConfig?.customizations?.logoUrl && (
+            <img
+              src={chatConfig.customizations.logoUrl}
+              alt={`${chatConfig?.title || 'Chat'} logo`}
+              className="h-6 w-6 object-contain"
+            />
+          )}
+          <h2 className="text-lg font-medium">
+            {chatConfig?.customizations?.headerText || chatConfig?.title || 'Chat'}
+          </h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <HeaderLinks stars={starCount} />
+          {!chatConfig?.customizations?.logoUrl && (
+            <a href="https://simstudio.ai" target="_blank" rel="noopener noreferrer">
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 50 50"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="rounded-[6px]"
+              >
+                <rect width="50" height="50" fill="#701FFC" />
+                <path
+                  d="M34.1455 20.0728H16.0364C12.7026 20.0728 10 22.7753 10 26.1091V35.1637C10 38.4975 12.7026 41.2 16.0364 41.2H34.1455C37.4792 41.2 40.1818 38.4975 40.1818 35.1637V26.1091C40.1818 22.7753 37.4792 20.0728 34.1455 20.0728Z"
+                  fill="#701FFC"
+                  stroke="white"
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M25.0919 14.0364C26.7588 14.0364 28.1101 12.6851 28.1101 11.0182C28.1101 9.35129 26.7588 8 25.0919 8C23.425 8 22.0737 9.35129 22.0737 11.0182C22.0737 12.6851 23.425 14.0364 25.0919 14.0364Z"
+                  fill="#701FFC"
+                  stroke="white"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M25.0915 14.856V19.0277V14.856ZM20.5645 32.1398V29.1216V32.1398ZM29.619 29.1216V32.1398V29.1216Z"
+                  fill="#701FFC"
+                />
+                <path
+                  d="M25.0915 14.856V19.0277M20.5645 32.1398V29.1216M29.619 29.1216V32.1398"
+                  stroke="white"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx="25" cy="11" r="2" fill="#701FFC" />
+              </svg>
+            </a>
+          )}
+        </div>
       </div>
 
       {/* Messages container */}
