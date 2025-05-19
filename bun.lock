@@ -34,7 +34,6 @@
         "tailwind-merge": "^3.0.2",
       },
       "devDependencies": {
-        "@simstudio/tsconfig": "workspace:*",
         "@tailwindcss/postcss": "^4.0.12",
         "@types/mdx": "^2.0.13",
         "@types/node": "^22.14.1",
