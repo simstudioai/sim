@@ -211,6 +211,15 @@ export function useVerification({
     setOtp(value)
   }
 
+  useEffect(() => {
+    if (!isProduction || !hasResendKey) {
+      setIsVerified(true)
+      setTimeout(() => {
+        router.push('/w')
+      }, 1000)
+    }
+  }, [isProduction, hasResendKey, router])
+
   return {
     otp,
     email,

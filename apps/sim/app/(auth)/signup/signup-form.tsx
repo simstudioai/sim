@@ -315,16 +315,7 @@ function SignupFormContent({
                         {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
                     </div>
-                    {showValidationError && passwordErrors.length > 0 && (
-                      <div className="text-sm text-red-500 mt-1">
-                        <p>Password must:</p>
-                        <ul className="list-disc pl-5 mt-1">
-                          {passwordErrors.map((error, index) => (
-                            <li key={index}>{error}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    {showValidationError && passwordErrors.length > 0 && <></>}
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? 'Creating account...' : 'Create account'}
