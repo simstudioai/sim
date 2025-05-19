@@ -10,7 +10,6 @@
       "devDependencies": {
         "@next/env": "^15.3.2",
         "@trivago/prettier-plugin-sort-imports": "^5.2.2",
-        "chalk": "^4.1.2",
         "dotenv-cli": "^8.0.0",
         "prettier": "^3.5.3",
         "prettier-plugin-tailwindcss": "^0.6.11",
