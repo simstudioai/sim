@@ -42,6 +42,19 @@ export interface LoopBlock {
   }
 }
 
+export interface ParallelBlock {
+  id: string;
+  collection: string;
+  width: number;
+  height: number;
+  executionState: {
+    currentExecution: number;
+    isExecuting: boolean;
+    startTime: null | number;
+    endTime: null | number;
+  }
+}
+
 export interface Loop {
   id: string
   nodes: string[]
@@ -50,11 +63,19 @@ export interface Loop {
   forEachItems?: any[] | Record<string, any> | string // Items or expression
 }
 
+export interface Parallel {
+  id: string
+  nodes: string[]
+  branches: number
+  distribution?: any[] | Record<string, any> | string // Items or expression
+}
+
 export interface WorkflowState {
   blocks: Record<string, BlockState>
   edges: Edge[]
   lastSaved?: number
   loops: Record<string, Loop>
+  parallels?: Record<string, Parallel>
   lastUpdate?: number
   isDeployed?: boolean
   deployedAt?: Date
@@ -93,7 +114,10 @@ export interface WorkflowActions {
   updateLoopCount: (loopId: string, count: number) => void
   updateLoopType: (loopId: string, loopType: 'for' | 'forEach') => void
   updateLoopCollection: (loopId: string, collection: string) => void
+  updateParallelCount: (parallelId: string, count: number) => void
+  updateParallelCollection: (parallelId: string, collection: string) => void
   generateLoopBlocks: () => Record<string, Loop>
+  generateParallelBlocks: () => Record<string, Parallel>
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => void
   setScheduleStatus: (hasActiveSchedule: boolean) => void

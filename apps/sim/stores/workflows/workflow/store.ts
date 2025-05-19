@@ -9,13 +9,14 @@ import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
 import { markWorkflowsDirty, workflowSync } from '../sync'
 import { mergeSubblockState } from '../utils'
-import { Loop, Position, SubBlockState, SyncControl, WorkflowState } from './types'
-import { detectCycle, generateLoopBlocks } from './utils'
+import { Loop, Parallel, Position, SubBlockState, SyncControl, WorkflowState } from './types'
+import { detectCycle, generateLoopBlocks, generateParallelBlocks } from './utils'
 
 const initialState = {
   blocks: {},
   edges: [],
   loops: {},
+  parallels: {},
   lastSaved: undefined,
   isDeployed: false,
   deployedAt: undefined,
@@ -25,7 +26,7 @@ const initialState = {
   history: {
     past: [],
     present: {
-      state: { blocks: {}, edges: [], loops: {}, isDeployed: false, isPublished: false },
+      state: { blocks: {}, edges: [], loops: {}, parallels: {}, isDeployed: false, isPublished: false },
       timestamp: Date.now(),
       action: 'Initial state',
       subblockValues: {},
@@ -83,8 +84,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
       addBlock: (id: string, type: string, name: string, position: Position, data?: Record<string, any>, parentId?: string, extent?: 'parent') => {
         const blockConfig = getBlock(type)
-        // For custom nodes like loop that don't use BlockConfig
-        if (!blockConfig && type === 'loop') {
+        // For custom nodes like loop and parallel that don't use BlockConfig
+        if (!blockConfig && (type === 'loop' || type === 'parallel')) {
           // Merge parentId and extent into data if provided
           const nodeData = {
             ...data,
@@ -519,6 +520,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 blocks: {},
                 edges: [],
                 loops: {},
+                parallels: {},
                 isDeployed: false,
                 isPublished: false,
               },
@@ -954,6 +956,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().sync.forceSync()
       },
 
+<<<<<<< HEAD
       toggleBlockAdvancedMode: (id: string) => {
         const block = get().blocks[id]
         if (!block) return
@@ -1003,6 +1006,56 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().triggerUpdate()
         get().sync.markDirty()
         get().sync.forceSync()
+=======
+      // Add the implementations for parallel block methods
+      updateParallelCount: (parallelId: string, count: number) => 
+        set(state => {
+          const block = state.blocks[parallelId];
+          if (!block || block.type !== 'parallel') return state;
+          
+          return {
+            blocks: {
+              ...state.blocks,
+              [parallelId]: {
+                ...block,
+                data: {
+                  ...block.data,
+                  count: Math.max(2, Math.min(20, count)) // Clamp between 2-20
+                }
+              }
+            },
+            edges: [...state.edges],
+            loops: { ...state.loops },
+            parallels: { ...state.parallels }
+          };
+        }),
+        
+      updateParallelCollection: (parallelId: string, collection: string) =>
+        set(state => {
+          const block = state.blocks[parallelId];
+          if (!block || block.type !== 'parallel') return state;
+          
+          return {
+            blocks: {
+              ...state.blocks,
+              [parallelId]: {
+                ...block,
+                data: {
+                  ...block.data,
+                  collection
+                }
+              }
+            },
+            edges: [...state.edges],
+            loops: { ...state.loops },
+            parallels: { ...state.parallels }
+          };
+        }),
+
+      // Function to convert UI parallel blocks to execution format
+      generateParallelBlocks: () => {
+        return generateParallelBlocks(get().blocks);
+>>>>>>> f468f34a (feat: added parallel execution block)
       },
     })),
     { name: 'workflow-store' }

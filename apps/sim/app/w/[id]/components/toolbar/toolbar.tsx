@@ -11,6 +11,7 @@ import { BlockCategory } from '@/blocks/types'
 import { ToolbarBlock } from './components/toolbar-block/toolbar-block'
 import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
 import LoopToolbarItem from './components/toolbar-loop-block/toolbar-loop-block'
+import ParallelToolbarItem from './components/toolbar-parallel/toolbar-parallel'
 
 export function Toolbar() {
   const [activeTab, setActiveTab] = useState<BlockCategory>('blocks')
@@ -88,7 +89,12 @@ export function Toolbar() {
               {blocks.map((block) => (
                 <ToolbarBlock key={block.type} config={block} />
               ))}
-              {activeTab === 'blocks' && !searchQuery && <LoopToolbarItem />}
+              {activeTab === 'blocks' && !searchQuery && (
+                <>
+                  <LoopToolbarItem />
+                  <ParallelToolbarItem />
+                </>
+              )}
             </div>
           </div>
         </ScrollArea>

@@ -1,5 +1,5 @@
 import { Edge } from 'reactflow'
-import { Loop } from './types';
+import { Loop, Parallel } from './types';
 import { BlockState } from './types';
 
 /**
@@ -83,26 +83,48 @@ export function convertLoopBlockToLoop(
 }
 
 /**
- * Find all nodes that are children of this loop
+ * Convert UI parallel block to executor Parallel format
  * 
- * @param loopId - ID of the loop to find children for
+ * @param parallelBlockId - ID of the parallel block to convert
  * @param blocks - Record of all blocks in the workflow
- * @returns Array of node IDs that are direct children of this loop
+ * @returns Parallel object for execution engine or undefined if not a valid parallel block
  */
-export function findChildNodes(loopId: string, blocks: Record<string, BlockState>): string[] {
+export function convertParallelBlockToParallel(
+  parallelBlockId: string,
+  blocks: Record<string, BlockState>
+): Parallel | undefined {
+  const parallelBlock = blocks[parallelBlockId];
+  if (!parallelBlock || parallelBlock.type !== 'parallel') return undefined;
+  
+  return {
+    id: parallelBlockId,
+    nodes: findChildNodes(parallelBlockId, blocks),
+    branches: parallelBlock.data?.count || 2,
+    distribution: parallelBlock.data?.collection || '',
+  };
+}
+
+/**
+ * Find all nodes that are children of this container (loop or parallel)
+ * 
+ * @param containerId - ID of the container to find children for
+ * @param blocks - Record of all blocks in the workflow
+ * @returns Array of node IDs that are direct children of this container
+ */
+export function findChildNodes(containerId: string, blocks: Record<string, BlockState>): string[] {
   return Object.values(blocks)
-    .filter(block => block.data?.parentId === loopId)
+    .filter(block => block.data?.parentId === containerId)
     .map(block => block.id);
 }
 
 /**
  * Find all descendant nodes, including children, grandchildren, etc.
  * 
- * @param loopId - ID of the loop to find descendants for
+ * @param containerId - ID of the container to find descendants for
  * @param blocks - Record of all blocks in the workflow
- * @returns Array of node IDs that are descendants of this loop
+ * @returns Array of node IDs that are descendants of this container
  */
-export function findAllDescendantNodes(loopId: string, blocks: Record<string, BlockState>): string[] {
+export function findAllDescendantNodes(containerId: string, blocks: Record<string, BlockState>): string[] {
   const descendants: string[] = [];
   const findDescendants = (parentId: string) => {
     const children = Object.values(blocks)
@@ -115,7 +137,7 @@ export function findAllDescendantNodes(loopId: string, blocks: Record<string, Bl
     });
   };
   
-  findDescendants(loopId);
+  findDescendants(containerId);
   return descendants;
 }
 
@@ -139,4 +161,26 @@ export function generateLoopBlocks(blocks: Record<string, BlockState>): Record<s
     });
   
   return loops;
+}
+
+/**
+ * Builds a complete collection of parallel blocks from the UI blocks
+ * 
+ * @param blocks - Record of all blocks in the workflow
+ * @returns Record of Parallel objects for execution engine
+ */
+export function generateParallelBlocks(blocks: Record<string, BlockState>): Record<string, Parallel> {
+  const parallels: Record<string, Parallel> = {};
+  
+  // Find all parallel nodes
+  Object.entries(blocks)
+    .filter(([_, block]) => block.type === 'parallel')
+    .forEach(([id, block]) => {
+      const parallel = convertParallelBlockToParallel(id, blocks);
+      if (parallel) {
+        parallels[id] = parallel;
+      }
+    });
+  
+  return parallels;
 }

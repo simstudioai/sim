@@ -41,6 +41,7 @@ import { Toolbar } from './components/toolbar/toolbar'
 import { WorkflowBlock } from './components/workflow-block/workflow-block'
 import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
 import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
+import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
 
 const logger = createLogger('Workflow')
 
@@ -48,6 +49,7 @@ const logger = createLogger('Workflow')
 const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
   loopNode: LoopNodeComponent,
+  parallelNode: ParallelNodeComponent,
 }
 const edgeTypes: EdgeTypes = { workflowEdge: WorkflowEdge }
 
@@ -202,11 +204,11 @@ function WorkflowContent() {
       if (!type) return
       if (type === 'connectionBlock') return
 
-      // Special handling for loop nodes
-      if (type === 'loop') {
-        // Create a unique ID and name for the loop
+      // Special handling for container nodes (loop or parallel)
+      if (type === 'loop' || type === 'parallel') {
+        // Create a unique ID and name for the container
         const id = crypto.randomUUID()
-        const name = 'Loop'
+        const name = type === 'loop' ? 'Loop' : 'Parallel'
 
         // Calculate the center position of the viewport
         const centerPosition = project({
@@ -214,14 +216,14 @@ function WorkflowContent() {
           y: window.innerHeight / 2,
         })
 
-        // Add the loop node directly to canvas with default dimensions
+        // Add the container node directly to canvas with default dimensions
         addBlock(id, type, name, centerPosition, {
           width: 500,
           height: 300,
-          type: 'loopNode'
+          type: type === 'loop' ? 'loopNode' : 'parallelNode'
         })
         
-        // Auto-connect logic for loop nodes
+        // Auto-connect logic for container nodes
         const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
         if (isAutoConnectEnabled) {
           const closestBlock = findClosestOutput(centerPosition)
@@ -297,7 +299,7 @@ function WorkflowContent() {
   // Update the onDrop handler
   const onDrop = useCallback(
     (event: React.DragEvent) => {
-      event.preventDefault()
+      event.preventDefault();
 
       try {
         const data = JSON.parse(event.dataTransfer.getData('application/json'))
@@ -309,53 +311,53 @@ function WorkflowContent() {
           y: event.clientY - reactFlowBounds.top,
         })
 
-        // Check if dropping inside a loop node
-        const loopInfo = isPointInLoopNodeWrapper(position);
+        // Check if dropping inside a container node (loop or parallel)
+        const containerInfo = isPointInLoopNodeWrapper(position);
 
         // Clear any drag-over styling
-        document.querySelectorAll('.loop-node-drag-over').forEach(el => {
-          el.classList.remove('loop-node-drag-over');
+        document.querySelectorAll('.loop-node-drag-over, .parallel-node-drag-over').forEach(el => {
+          el.classList.remove('loop-node-drag-over', 'parallel-node-drag-over');
         });
         document.body.style.cursor = '';
 
-        // Special handling for loop nodes
-        if (data.type === 'loop') {
-          // Create a unique ID and name for the loop
+        // Special handling for container nodes (loop or parallel)
+        if (data.type === 'loop' || data.type === 'parallel') {
+          // Create a unique ID and name for the container
           const id = crypto.randomUUID()
-          const name = 'Loop'
+          const name = data.type === 'loop' ? 'Loop' : 'Parallel'
 
-          // Check if we're dropping inside another loop
-          if (loopInfo) {
-            // Calculate position relative to the parent loop
+          // Check if we're dropping inside another container
+          if (containerInfo) {
+            // Calculate position relative to the parent container
             const relativePosition = {
-              x: position.x - loopInfo.loopPosition.x,
-              y: position.y - loopInfo.loopPosition.y
+              x: position.x - containerInfo.loopPosition.x,
+              y: position.y - containerInfo.loopPosition.y
             };
 
-            // Add the loop as a child of the parent loop
+            // Add the container as a child of the parent container
             addBlock(id, data.type, name, relativePosition, {
               width: 500,
               height: 300,
-              type: 'loopNode',
-              parentId: loopInfo.loopId,
+              type: data.type === 'loop' ? 'loopNode' : 'parallelNode',
+              parentId: containerInfo.loopId,
               extent: 'parent'
             });
             
-            logger.info('Added nested loop inside parent loop', {
-              loopId: id,
-              parentLoopId: loopInfo.loopId,
+            logger.info(`Added nested ${data.type} inside parent container`, {
+              nodeId: id,
+              parentId: containerInfo.loopId,
               relativePosition
             });
             
-            // Auto-connect the nested loop to nodes inside the parent loop
+            // Auto-connect the nested container to nodes inside the parent container
             const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled;
             if (isAutoConnectEnabled) {
-              // Try to find other nodes in the parent loop to connect to
-              const loopNodes = getNodes().filter(n => n.parentId === loopInfo.loopId);
+              // Try to find other nodes in the parent container to connect to
+              const containerNodes = getNodes().filter(n => n.parentId === containerInfo.loopId);
               
-              if (loopNodes.length > 0) {
-                // Connect to the closest node in the loop
-                const closestNode = loopNodes
+              if (containerNodes.length > 0) {
+                // Connect to the closest node in the container
+                const closestNode = containerNodes
                   .map(n => ({
                     id: n.id,
                     distance: Math.sqrt(
@@ -390,17 +392,17 @@ function WorkflowContent() {
               }
             }
             
-            // Resize the parent loop to fit the new child loop
+            // Resize the parent container to fit the new child container
             debouncedResizeLoopNodes();
           } else {
-            // Add the loop node directly to canvas with default dimensions
+            // Add the container node directly to canvas with default dimensions
             addBlock(id, data.type, name, position, {
               width: 500,
               height: 300,
-              type: 'loopNode'
+              type: data.type === 'loop' ? 'loopNode' : 'parallelNode'
             });
             
-            // Auto-connect the loop to the closest node on the canvas
+            // Auto-connect the container to the closest node on the canvas
             const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled;
             if (isAutoConnectEnabled) {
               const closestBlock = findClosestOutput(position);
@@ -423,50 +425,50 @@ function WorkflowContent() {
         }
 
         const blockConfig = getBlock(data.type)
-        if (!blockConfig && data.type !== 'loop') {
+        if (!blockConfig && data.type !== 'loop' && data.type !== 'parallel') {
           logger.error('Invalid block type:', { data })
           return
         }
         
         // Generate id and name here so they're available in all code paths
         const id = crypto.randomUUID()
-        const name = data.type === 'loop' 
-          ? 'Loop' 
-          : `${blockConfig!.name} ${Object.values(blocks).filter((b) => b.type === data.type).length + 1}`
+        const name = data.type === 'loop' ? 'Loop' : 
+                    data.type === 'parallel' ? 'Parallel' :
+                    `${blockConfig!.name} ${Object.values(blocks).filter((b) => b.type === data.type).length + 1}`
 
-        if (loopInfo) {
-          // Calculate position relative to the loop node
+        if (containerInfo) {
+          // Calculate position relative to the container node
           const relativePosition = {
-            x: position.x - loopInfo.loopPosition.x,
-            y: position.y - loopInfo.loopPosition.y
+            x: position.x - containerInfo.loopPosition.x,
+            y: position.y - containerInfo.loopPosition.y
           };
 
           // Add block with parent info
           addBlock(id, data.type, name, relativePosition, {
-            parentId: loopInfo.loopId,
+            parentId: containerInfo.loopId,
             extent: 'parent'
           });
 
-          logger.info('Added block inside loop', {
+          logger.info('Added block inside container', {
             blockId: id,
             blockType: data.type,
-            loopId: loopInfo.loopId,
+            containerId: containerInfo.loopId,
             relativePosition
           });
 
-          // Resize the loop node to fit the new block
+          // Resize the container node to fit the new block
           // Immediate resize without delay
           debouncedResizeLoopNodes();
 
-          // Auto-connect logic for blocks inside loops
+          // Auto-connect logic for blocks inside containers
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled;
           if (isAutoConnectEnabled && data.type !== 'starter') {
-            // Try to find other nodes in the loop to connect to
-            const loopNodes = getNodes().filter(n => n.parentId === loopInfo.loopId);
+            // Try to find other nodes in the container to connect to
+            const containerNodes = getNodes().filter(n => n.parentId === containerInfo.loopId);
 
-            if (loopNodes.length > 0) {
-              // Connect to the closest node in the loop
-              const closestNode = loopNodes
+            if (containerNodes.length > 0) {
+              // Connect to the closest node in the container
+              const closestNode = containerNodes
                 .map(n => ({
                   id: n.id,
                   distance: Math.sqrt(
@@ -543,19 +545,25 @@ function WorkflowContent() {
         y: event.clientY - reactFlowBounds.top,
       });
 
-      // Check if hovering over a loop node
-      const loopInfo = isPointInLoopNodeWrapper(position);
+      // Check if hovering over a container node
+      const containerInfo = isPointInLoopNodeWrapper(position);
 
       // Clear any previous highlighting
-      document.querySelectorAll('.loop-node-drag-over').forEach(el => {
-        el.classList.remove('loop-node-drag-over');
+      document.querySelectorAll('.loop-node-drag-over, .parallel-node-drag-over').forEach(el => {
+        el.classList.remove('loop-node-drag-over', 'parallel-node-drag-over');
       });
 
-      // If hovering over a loop node, highlight it
-      if (loopInfo) {
-        const loopElement = document.querySelector(`[data-id="${loopInfo.loopId}"]`);
-        if (loopElement) {
-          loopElement.classList.add('loop-node-drag-over');
+      // If hovering over a container node, highlight it
+      if (containerInfo) {
+        const containerElement = document.querySelector(`[data-id="${containerInfo.loopId}"]`);
+        if (containerElement) {
+          // Determine the type of container node for appropriate styling
+          const containerNode = getNodes().find(n => n.id === containerInfo.loopId);
+          if (containerNode?.type === 'loopNode') {
+            containerElement.classList.add('loop-node-drag-over');
+          } else if (containerNode?.type === 'parallelNode') {
+            containerElement.classList.add('parallel-node-drag-over');
+          }
           document.body.style.cursor = 'copy';
         }
       } else {
@@ -564,7 +572,7 @@ function WorkflowContent() {
     } catch (err) {
       logger.error('Error in onDragOver', { err });
     }
-  }, [project, isPointInLoopNodeWrapper]);
+  }, [project, isPointInLoopNodeWrapper, getNodes]);
 
   // Init workflow
   useEffect(() => {
@@ -632,11 +640,29 @@ function WorkflowContent() {
         return
       }
 
-      // Handle loop nodes differently
+      // Handle container nodes differently
       if (block.type === 'loop') {
         nodeArray.push({
           id: block.id,
           type: 'loopNode',
+          position: block.position,
+          parentId: block.data?.parentId,
+          extent: block.data?.extent || undefined,
+          dragHandle: '.workflow-drag-handle',
+          data: {
+            ...block.data,
+            width: block.data?.width || 500,
+            height: block.data?.height || 300,
+          },
+        })
+        return
+      }
+      
+      // Handle parallel nodes
+      if (block.type === 'parallel') {
+        nodeArray.push({
+          id: block.id,
+          type: 'parallelNode',
           position: block.position,
           parentId: block.data?.parentId,
           extent: block.data?.extent || undefined,
@@ -751,45 +777,47 @@ function WorkflowContent() {
   const onConnect = useCallback(
     (connection: any) => {
       if (connection.source && connection.target) {
-        // Check if connecting nodes across loop boundaries
+        // Check if connecting nodes across container boundaries
         const sourceNode = getNodes().find(n => n.id === connection.source);
         const targetNode = getNodes().find(n => n.id === connection.target);
         
         if (!sourceNode || !targetNode) return;
         
-        // Get parent information (handle loop start node case)
+        // Get parent information (handle container start node case)
         const sourceParentId = sourceNode.parentId || 
-                              (connection.sourceHandle === 'loop-start-source' ? 
+                              (connection.sourceHandle === 'loop-start-source' || 
+                               connection.sourceHandle === 'parallel-start-source' ? 
                                 connection.source : undefined);
         const targetParentId = targetNode.parentId;
         
         // Generate a unique edge ID
         const edgeId = crypto.randomUUID();
         
-        // Special case for loop-start-source: Always allow connections to nodes within the same loop
-        if (connection.sourceHandle === 'loop-start-source' && targetNode.parentId === sourceNode.id) {
-          // This is a connection from loop start to a node inside the loop - always allow
-          logger.info('Creating loop start connection:', {
+        // Special case for container start source: Always allow connections to nodes within the same container
+        if ((connection.sourceHandle === 'loop-start-source' || connection.sourceHandle === 'parallel-start-source') && 
+             targetNode.parentId === sourceNode.id) {
+          // This is a connection from container start to a node inside the container - always allow
+          logger.info('Creating container start connection:', {
             edgeId,
             sourceId: connection.source,
             targetId: connection.target,
-            parentLoopId: sourceNode.id
+            parentId: sourceNode.id
           });
           
           addEdge({
             ...connection,
             id: edgeId,
             type: 'workflowEdge',
-            // Add metadata about the loop context
+            // Add metadata about the container context
             data: {
-              parentLoopId: sourceNode.id,
-              isInsideLoop: true
+              parentId: sourceNode.id,
+              isInsideContainer: true
             }
           });
           return;
         }
         
-        // Prevent connections across loop boundaries
+        // Prevent connections across container boundaries
         if ((sourceParentId && !targetParentId) || (!sourceParentId && targetParentId) || 
             (sourceParentId && targetParentId && sourceParentId !== targetParentId)) {
           logger.info('Rejected cross-boundary connection:', {
@@ -801,26 +829,26 @@ function WorkflowContent() {
           return;
         }
         
-        // Track if this connection is inside a loop
-        const isInsideLoop = Boolean(sourceParentId) || Boolean(targetParentId);
-        const parentLoopId = sourceParentId || targetParentId;
+        // Track if this connection is inside a container
+        const isInsideContainer = Boolean(sourceParentId) || Boolean(targetParentId);
+        const parentId = sourceParentId || targetParentId;
         
         logger.info('Creating connection:', {
           edgeId,
           sourceId: connection.source,
           targetId: connection.target,
-          isInsideLoop,
-          parentLoopId
+          isInsideContainer,
+          parentId
         });
         
-        // Add appropriate metadata for loop context
+        // Add appropriate metadata for container context
         addEdge({
           ...connection,
           id: edgeId,
           type: 'workflowEdge',
-          data: isInsideLoop ? {
-            parentLoopId,
-            isInsideLoop
+          data: isInsideContainer ? {
+            parentId,
+            isInsideContainer
           } : undefined
         });
       }
@@ -828,7 +856,7 @@ function WorkflowContent() {
     [addEdge, getNodes]
   );
 
-  // Handle node drag to detect intersections with loop nodes
+  // Handle node drag to detect intersections with container nodes
   const onNodeDrag = useCallback(
     (event: React.MouseEvent, node: any) => {
       // Store currently dragged node ID
@@ -837,35 +865,35 @@ function WorkflowContent() {
       // Get the current parent ID of the node being dragged
       const currentParentId = blocks[node.id]?.data?.parentId || null;
       
-      // Check if this is a starter block - starter blocks should never be in loops
+      // Check if this is a starter block - starter blocks should never be in containers
       const isStarterBlock = node.data?.type === 'starter';
       if (isStarterBlock) {
-        // If it's a starter block, remove any highlighting and don't allow it to be dragged into loops
+        // If it's a starter block, remove any highlighting and don't allow it to be dragged into containers
         if (potentialParentId) {
           const prevElement = document.querySelector(`[data-id="${potentialParentId}"]`);
           if (prevElement) {
-            prevElement.classList.remove('loop-node-drag-over');
+            prevElement.classList.remove('loop-node-drag-over', 'parallel-node-drag-over');
           }
           setPotentialParentId(null);
           document.body.style.cursor = '';
         }
-        return; // Exit early - don't process any loop intersections for starter blocks
+        return; // Exit early - don't process any container intersections for starter blocks
       }
       
       // Get the node's absolute position to properly calculate intersections
       const nodeAbsolutePos = getNodeAbsolutePositionWrapper(node.id);
       
-      // Find intersections with loop nodes using absolute coordinates
+      // Find intersections with container nodes using absolute coordinates
       const intersectingNodes = getNodes()
         .filter(n => {
-          // Only consider loop nodes that aren't the dragged node
-          if (n.type !== 'loopNode' || n.id === node.id) return false;
+          // Only consider container nodes that aren't the dragged node
+          if ((n.type !== 'loopNode' && n.type !== 'parallelNode') || n.id === node.id) return false;
 
-          // Skip if this loop is already the parent of the node being dragged
+          // Skip if this container is already the parent of the node being dragged
           if (n.id === currentParentId) return false;
 
-          // Skip self-nesting: prevent a loop from becoming its own descendant
-          if (node.type === 'loopNode') {
+          // Skip self-nesting: prevent a container from becoming its own descendant
+          if (node.type === 'loopNode' || node.type === 'parallelNode') {
             // Get the full hierarchy of the potential parent
             const hierarchy = getNodeHierarchyWrapper(n.id);
             
@@ -875,15 +903,15 @@ function WorkflowContent() {
             }
           }
           
-          // Get the loop's absolute position
-          const loopAbsolutePos = getNodeAbsolutePositionWrapper(n.id);
+          // Get the container's absolute position
+          const containerAbsolutePos = getNodeAbsolutePositionWrapper(n.id);
 
           // Get dimensions based on node type
-          const nodeWidth = node.type === 'loopNode' 
+          const nodeWidth = (node.type === 'loopNode' || node.type === 'parallelNode')
             ? (node.data?.width || 500) 
             : (node.type === 'condition' ? 250 : 350);
           
-          const nodeHeight = node.type === 'loopNode' 
+          const nodeHeight = (node.type === 'loopNode' || node.type === 'parallelNode')
             ? (node.data?.height || 300) 
             : (node.type === 'condition' ? 150 : 100);
 
@@ -895,33 +923,33 @@ function WorkflowContent() {
             bottom: nodeAbsolutePos.y + nodeHeight
           };
 
-          const loopRect = {
-            left: loopAbsolutePos.x,
-            right: loopAbsolutePos.x + (n.data?.width || 500),
-            top: loopAbsolutePos.y,
-            bottom: loopAbsolutePos.y + (n.data?.height || 300)
+          const containerRect = {
+            left: containerAbsolutePos.x,
+            right: containerAbsolutePos.x + (n.data?.width || 500),
+            top: containerAbsolutePos.y,
+            bottom: containerAbsolutePos.y + (n.data?.height || 300)
           };
 
           // Check intersection with absolute coordinates for accurate detection
           return (
-            nodeRect.left < loopRect.right &&
-            nodeRect.right > loopRect.left &&
-            nodeRect.top < loopRect.bottom &&
-            nodeRect.bottom > loopRect.top
+            nodeRect.left < containerRect.right &&
+            nodeRect.right > containerRect.left &&
+            nodeRect.top < containerRect.bottom &&
+            nodeRect.bottom > containerRect.top
           );
         })
         // Add more information for sorting
         .map(n => ({
-          loop: n,
+          container: n,
           depth: getNodeDepthWrapper(n.id),
           // Calculate size for secondary sorting
           size: (n.data?.width || 500) * (n.data?.height || 300)
         }));
 
-      // Update potential parent if there's at least one intersecting loop node
+      // Update potential parent if there's at least one intersecting container node
       if (intersectingNodes.length > 0) {
-        // Sort by depth first (deepest/most nested loops first), then by size if same depth
-        const sortedLoops = intersectingNodes.sort((a, b) => {
+        // Sort by depth first (deepest/most nested containers first), then by size if same depth
+        const sortedContainers = intersectingNodes.sort((a, b) => {
           // First try to compare by hierarchy depth
           if (a.depth !== b.depth) {
             return b.depth - a.depth; // Higher depth (more nested) comes first
@@ -930,30 +958,35 @@ function WorkflowContent() {
           return a.size - b.size; // Smaller container takes precedence
         });
         
-        // Use the most appropriate loop (deepest or smallest at same depth)
-        const bestLoopMatch = sortedLoops[0];
+        // Use the most appropriate container (deepest or smallest at same depth)
+        const bestContainerMatch = sortedContainers[0];
 
-        // Add a check to see if the bestLoopMatch is apart of the heirarchy of the node being dragged
+        // Add a check to see if the bestContainerMatch is a part of the hierarchy of the node being dragged
         const hierarchy = getNodeHierarchyWrapper(node.id);
-        if (hierarchy.includes(bestLoopMatch.loop.id)) {
+        if (hierarchy.includes(bestContainerMatch.container.id)) {
           setPotentialParentId(null);
           return;
         }
 
-        setPotentialParentId(bestLoopMatch.loop.id);
+        setPotentialParentId(bestContainerMatch.container.id);
 
         // Add highlight class and change cursor
-        const loopElement = document.querySelector(`[data-id="${bestLoopMatch.loop.id}"]`);
-        if (loopElement) {
-          loopElement.classList.add('loop-node-drag-over');
+        const containerElement = document.querySelector(`[data-id="${bestContainerMatch.container.id}"]`);
+        if (containerElement) {
+          // Apply appropriate class based on container type
+          if (bestContainerMatch.container.type === 'loopNode') {
+            containerElement.classList.add('loop-node-drag-over');
+          } else if (bestContainerMatch.container.type === 'parallelNode') {
+            containerElement.classList.add('parallel-node-drag-over');
+          }
           document.body.style.cursor = 'copy';
         }
       } else {
-        // Remove highlighting if no longer over a loop
+        // Remove highlighting if no longer over a container
         if (potentialParentId) {
           const prevElement = document.querySelector(`[data-id="${potentialParentId}"]`);
           if (prevElement) {
-            prevElement.classList.remove('loop-node-drag-over');
+            prevElement.classList.remove('loop-node-drag-over', 'parallel-node-drag-over');
           }
           setPotentialParentId(null);
           document.body.style.cursor = '';
@@ -980,8 +1013,8 @@ function WorkflowContent() {
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: any) => {
       // Clear UI effects
-      document.querySelectorAll('.loop-node-drag-over').forEach(el => {
-        el.classList.remove('loop-node-drag-over');
+      document.querySelectorAll('.loop-node-drag-over, .parallel-node-drag-over').forEach(el => {
+        el.classList.remove('loop-node-drag-over', 'parallel-node-drag-over');
       });
       document.body.style.cursor = '';
 
@@ -995,10 +1028,10 @@ function WorkflowContent() {
         nodeType: node.type 
       });
 
-      // Check if this is a starter block - starter blocks should never be in loops
+      // Check if this is a starter block - starter blocks should never be in containers
       const isStarterBlock = node.data?.type === 'starter';
       if (isStarterBlock) {
-        logger.warn('Prevented starter block from being placed inside a loop', {
+        logger.warn('Prevented starter block from being placed inside a container', {
           blockId: node.id,
           attemptedParentId: potentialParentId
         });
@@ -1008,15 +1041,16 @@ function WorkflowContent() {
         return; // Exit early - don't allow starter blocks to have parents
       }
 
-      // If we're dragging a loop node, do additional checks to prevent circular references
-      if (node.type === 'loopNode' && potentialParentId) {
-        // Get the hierarchy of the potential parent loop
+      // If we're dragging a container node, do additional checks to prevent circular references
+      if ((node.type === 'loopNode' || node.type === 'parallelNode') && potentialParentId) {
+        // Get the hierarchy of the potential parent container
         const parentHierarchy = getNodeHierarchyWrapper(potentialParentId);
         
         // If the dragged node is in the parent's hierarchy, it would create a circular reference
         if (parentHierarchy.includes(node.id)) {
-          logger.warn('Prevented circular loop nesting', {
-            draggedLoopId: node.id,
+          logger.warn('Prevented circular container nesting', {
+            draggedNodeId: node.id,
+            draggedNodeType: node.type,
             potentialParentId,
             parentHierarchy
           });
@@ -1026,7 +1060,7 @@ function WorkflowContent() {
 
       // Update the node's parent relationship
       if (potentialParentId) {
-        // Moving to a new parent loop
+        // Moving to a new parent container
         updateNodeParent(node.id, potentialParentId);
       }
 

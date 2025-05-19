@@ -164,10 +164,10 @@ export const updateNodeParent = (
 };
 
 /**
- * Checks if a point is inside a loop node
+ * Checks if a point is inside a loop or parallel node
  * @param position Position coordinates to check
  * @param getNodes Function to retrieve all nodes from ReactFlow
- * @returns The smallest loop containing the point, or null if none
+ * @returns The smallest container node containing the point, or null if none
  */
 export const isPointInLoopNode = (
   position: { x: number, y: number },
@@ -177,11 +177,11 @@ export const isPointInLoopNode = (
   loopPosition: { x: number, y: number },
   dimensions: { width: number, height: number } 
 } | null => {
-  // Find loops that contain this position point
-  const containingLoops = getNodes()
-    .filter(n => n.type === 'loopNode')
+  // Find loops and parallel nodes that contain this position point
+  const containingNodes = getNodes()
+    .filter(n => n.type === 'loopNode' || n.type === 'parallelNode')
     .filter(n => {
-      const loopRect = {
+      const rect = {
         left: n.position.x,
         right: n.position.x + (n.data?.width || 500), 
         top: n.position.y,
@@ -189,10 +189,10 @@ export const isPointInLoopNode = (
       };
 
       return (
-        position.x >= loopRect.left &&
-        position.x <= loopRect.right &&
-        position.y >= loopRect.top &&
-        position.y <= loopRect.bottom
+        position.x >= rect.left &&
+        position.x <= rect.right &&
+        position.y >= rect.top &&
+        position.y <= rect.bottom
       );
     })
     .map(n => ({
@@ -204,9 +204,9 @@ export const isPointInLoopNode = (
       }
     }));
 
-  // Sort by area (smallest first) in case of nested loops
-  if (containingLoops.length > 0) {
-    return containingLoops.sort((a, b) => {
+  // Sort by area (smallest first) in case of nested containers
+  if (containingNodes.length > 0) {
+    return containingNodes.sort((a, b) => {
       const aArea = a.dimensions.width * a.dimensions.height;
       const bArea = b.dimensions.width * b.dimensions.height;
       return aArea - bArea;
@@ -217,21 +217,21 @@ export const isPointInLoopNode = (
 };
 
 /**
- * Calculates appropriate dimensions for a loop node based on its children
- * @param loopId ID of the loop node
+ * Calculates appropriate dimensions for a loop or parallel node based on its children
+ * @param nodeId ID of the container node
  * @param getNodes Function to retrieve all nodes from ReactFlow
- * @returns Calculated width and height for the loop
+ * @returns Calculated width and height for the container
  */
 export const calculateLoopDimensions = (
-  loopId: string,
+  nodeId: string,
   getNodes: () => any[]
 ): { width: number, height: number } => {
   // Default minimum dimensions
   const minWidth = 500;
   const minHeight = 300;
 
-  // Get all child nodes of this loop
-  const childNodes = getNodes().filter(node => node.parentId === loopId);
+  // Get all child nodes of this container
+  const childNodes = getNodes().filter(node => node.parentId === nodeId);
 
   if (childNodes.length === 0) {
     return { width: minWidth, height: minHeight };
@@ -248,8 +248,8 @@ export const calculateLoopDimensions = (
     let nodeWidth;
     let nodeHeight;
     
-    if (node.type === 'loopNode') {
-      // For nested loops, don't add excessive padding to the parent
+    if (node.type === 'loopNode' || node.type === 'parallelNode') {
+      // For nested containers, don't add excessive padding to the parent
       // Use actual dimensions without additional padding to prevent cascading expansion
       nodeWidth = node.data?.width || 500;
       nodeHeight = node.data?.height || 300;
@@ -291,12 +291,14 @@ export const calculateLoopDimensions = (
   });
 
   // Add buffer padding to all sides (20px buffer before edges)
-  // Add extra padding for nested loops to prevent tight boundaries
-  const hasNestedLoops = childNodes.some(node => node.type === 'loopNode');
+  // Add extra padding for nested containers to prevent tight boundaries
+  const hasNestedContainers = childNodes.some(node => 
+    node.type === 'loopNode' || node.type === 'parallelNode'
+  );
   
-  // More reasonable padding values, especially for nested loops
-  // Reduce the excessive padding that was causing parent loops to be too large
-  const sidePadding = hasNestedLoops ? 150 : 120; // Reduced padding for loops containing other loops
+  // More reasonable padding values, especially for nested containers
+  // Reduce the excessive padding that was causing parent containers to be too large
+  const sidePadding = hasNestedContainers ? 150 : 120; // Reduced padding for containers containing other containers
   
   // Ensure the width and height are never less than the minimums
   // Apply padding to all sides (left/right and top/bottom)
@@ -307,7 +309,7 @@ export const calculateLoopDimensions = (
 };
 
 /**
- * Resizes all loop nodes based on their children
+ * Resizes all loop and parallel nodes based on their children
  * @param getNodes Function to retrieve all nodes from ReactFlow
  * @param updateNodeDimensions Function to update the dimensions of a node
  */
@@ -315,23 +317,23 @@ export const resizeLoopNodes = (
   getNodes: () => any[],
   updateNodeDimensions: (id: string, dimensions: { width: number, height: number }) => void
 ) => {
-  // Find all loop nodes and sort by hierarchy depth (parents first)
-  const loopNodes = getNodes()
-    .filter(node => node.type === 'loopNode')
+  // Find all container nodes and sort by hierarchy depth (parents first)
+  const containerNodes = getNodes()
+    .filter(node => node.type === 'loopNode' || node.type === 'parallelNode')
     .map(node => ({
       ...node,
       depth: getNodeDepth(node.id, getNodes)
     }))
     .sort((a, b) => a.depth - b.depth);
 
-  // Resize each loop node based on its children
-  loopNodes.forEach(loopNode => {
-    const dimensions = calculateLoopDimensions(loopNode.id, getNodes);
+  // Resize each container node based on its children
+  containerNodes.forEach(node => {
+    const dimensions = calculateLoopDimensions(node.id, getNodes);
 
     // Only update if dimensions have changed (to avoid unnecessary updates)
-    if (dimensions.width !== loopNode.data?.width || 
-        dimensions.height !== loopNode.data?.height) {
-      updateNodeDimensions(loopNode.id, dimensions);
+    if (dimensions.width !== node.data?.width || 
+        dimensions.height !== node.data?.height) {
+      updateNodeDimensions(node.id, dimensions);
     }
   });
 }; 
