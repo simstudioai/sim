@@ -7,7 +7,6 @@ import { HelpCircle, ScrollText, Send, Settings } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
-import { isProd } from '@/lib/environment'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -157,9 +156,6 @@ export function Sidebar() {
     mode === 'hover' &&
     ((isHovered && !isAnyModalOpen && explicitMouseEnter) || workspaceDropdownOpen)
 
-  // Invite members is only shown in production
-  const shouldShowInviteMembers = isProd
-
   return (
     <aside
       className={clsx(
@@ -276,19 +272,17 @@ export function Sidebar() {
         <div className="flex-shrink-0 px-3 pb-3 pt-1">
           <div className="flex flex-col space-y-[1px]">
             {/* Invite members button */}
-            {shouldShowInviteMembers && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    onClick={() => setShowInviteMembers(true)}
-                    className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
-                  >
-                    <Send className="h-[18px] w-[18px]" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="right">Invite Members</TooltipContent>
-              </Tooltip>
-            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  onClick={() => setShowInviteMembers(true)}
+                  className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
+                >
+                  <Send className="h-[18px] w-[18px]" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">Invite Members</TooltipContent>
+            </Tooltip>
 
             {/* Help button */}
             <Tooltip>
@@ -315,17 +309,15 @@ export function Sidebar() {
       ) : (
         <>
           {/* Invite members bar */}
-          {shouldShowInviteMembers && (
-            <div className="flex-shrink-0 px-3 pt-1">
-              <div
-                onClick={() => setShowInviteMembers(true)}
-                className="flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
-              >
-                <Send className="h-[18px] w-[18px]" />
-                <span className="ml-2">Invite members</span>
-              </div>
+          <div className="flex-shrink-0 px-3 pt-1">
+            <div
+              onClick={() => setShowInviteMembers(true)}
+              className="flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+            >
+              <Send className="h-[18px] w-[18px]" />
+              <span className="ml-2">Invite members</span>
             </div>
-          )}
+          </div>
 
           {/* Bottom buttons container */}
           <div className="flex-shrink-0 px-3 pb-3 pt-1">

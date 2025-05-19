@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useNotificationStore } from '@/stores/notifications/store'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 
 const logger = createLogger('LoginForm')
@@ -49,9 +48,10 @@ export default function LoginPage({
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const { addNotification } = useNotificationStore()
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([])
+  const [showValidationError, setShowValidationError] = useState(false)
 
   // Initialize state for URL parameters
   const [callbackUrl, setCallbackUrl] = useState('/w')
@@ -121,45 +121,47 @@ export default function LoginPage({
         {
           onError: (ctx) => {
             console.error('Login error:', ctx.error)
-            let errorMessage = 'Invalid email or password'
+            let errorMessage: string[] = ['Invalid email or password']
 
-            // Handle all possible error cases from Better Auth
-            if (ctx.error.message?.includes('EMAIL_NOT_VERIFIED')) {
+            if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
               return
             } else if (
-              ctx.error.message?.includes('BAD_REQUEST') ||
+              ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign in is not enabled')
             ) {
-              errorMessage = 'Email sign in is currently disabled.'
+              errorMessage.push('Email sign in is currently disabled.')
             } else if (
-              ctx.error.message?.includes('INVALID_CREDENTIALS') ||
+              ctx.error.code?.includes('INVALID_CREDENTIALS') ||
               ctx.error.message?.includes('invalid password')
             ) {
-              errorMessage = 'Invalid email or password. Please try again.'
+              errorMessage.push('Invalid email or password. Please try again.')
             } else if (
-              ctx.error.message?.includes('USER_NOT_FOUND') ||
+              ctx.error.code?.includes('USER_NOT_FOUND') ||
               ctx.error.message?.includes('not found')
             ) {
-              errorMessage = 'No account found with this email. Please sign up first.'
-            } else if (ctx.error.message?.includes('MISSING_CREDENTIALS')) {
-              errorMessage = 'Please enter both email and password.'
-            } else if (ctx.error.message?.includes('EMAIL_PASSWORD_DISABLED')) {
-              errorMessage = 'Email and password login is disabled.'
-            } else if (ctx.error.message?.includes('FAILED_TO_CREATE_SESSION')) {
-              errorMessage = 'Failed to create session. Please try again later.'
-            } else if (ctx.error.message?.includes('too many attempts')) {
-              errorMessage =
+              errorMessage.push('No account found with this email. Please sign up first.')
+            } else if (ctx.error.code?.includes('MISSING_CREDENTIALS')) {
+              errorMessage.push('Please enter both email and password.')
+            } else if (ctx.error.code?.includes('EMAIL_PASSWORD_DISABLED')) {
+              errorMessage.push('Email and password login is disabled.')
+            } else if (ctx.error.code?.includes('FAILED_TO_CREATE_SESSION')) {
+              errorMessage.push('Failed to create session. Please try again later.')
+            } else if (ctx.error.code?.includes('too many attempts')) {
+              errorMessage.push(
                 'Too many login attempts. Please try again later or reset your password.'
-            } else if (ctx.error.message?.includes('account locked')) {
-              errorMessage =
+              )
+            } else if (ctx.error.code?.includes('account locked')) {
+              errorMessage.push(
                 'Your account has been locked for security. Please reset your password.'
-            } else if (ctx.error.message?.includes('network')) {
-              errorMessage = 'Network error. Please check your connection and try again.'
+              )
+            } else if (ctx.error.code?.includes('network')) {
+              errorMessage.push('Network error. Please check your connection and try again.')
             } else if (ctx.error.message?.includes('rate limit')) {
-              errorMessage = 'Too many requests. Please wait a moment before trying again.'
+              errorMessage.push('Too many requests. Please wait a moment before trying again.')
             }
 
-            addNotification('error', errorMessage, null)
+            setPasswordErrors(errorMessage)
+            setShowValidationError(true)
           },
         }
       )
@@ -176,7 +178,7 @@ export default function LoginPage({
       }
     } catch (err: any) {
       // Handle only the special verification case that requires a redirect
-      if (err.message?.includes('not verified') || err.message?.includes('EMAIL_NOT_VERIFIED')) {
+      if (err.message?.includes('not verified') || err.code?.includes('EMAIL_NOT_VERIFIED')) {
         try {
           await client.emailOtp.sendVerificationOtp({
             email,
@@ -190,11 +192,8 @@ export default function LoginPage({
           router.push(`/verify`)
           return
         } catch (verifyErr) {
-          addNotification(
-            'error',
-            'Failed to send verification code. Please try again later.',
-            null
-          )
+          setPasswordErrors(['Failed to send verification code. Please try again later.'])
+          setShowValidationError(true)
           setIsLoading(false)
           return
         }
@@ -308,7 +307,13 @@ export default function LoginPage({
                     autoCorrect="off"
                     placeholder="Enter your password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      if (showValidationError) {
+                        setShowValidationError(false)
+                        setPasswordErrors([])
+                      }
+                    }}
                     className="bg-neutral-900 border-neutral-700 text-white pr-10"
                   />
                   <button
@@ -320,6 +325,13 @@ export default function LoginPage({
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                {showValidationError && passwordErrors.length > 0 && (
+                  <div className="text-xs text-red-400 mt-1 space-y-1">
+                    {passwordErrors.map((error, index) => (
+                      <p key={index}>{error}</p>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

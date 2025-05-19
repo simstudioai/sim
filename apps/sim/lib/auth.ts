@@ -165,7 +165,7 @@ export const auth = betterAuth({
         otp: string
         type: 'sign-in' | 'email-verification' | 'forget-password'
       }) => {
-        if (isDevOrDocker) {
+        if (!isProd) {
           logger.info('Skipping email verification in dev/docker')
           return
         }
@@ -205,7 +205,7 @@ export const auth = betterAuth({
           throw error
         }
       },
-      sendVerificationOnSignUp: !isDevOrDocker,
+      sendVerificationOnSignUp: isProd,
       otpLength: 6,
       expiresIn: 15 * 60,
     }),
