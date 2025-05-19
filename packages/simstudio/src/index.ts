@@ -13,6 +13,7 @@ const NETWORK_NAME = 'simstudio-network'
 const DB_CONTAINER = 'simstudio-db'
 const MIGRATIONS_CONTAINER = 'simstudio-migrations'
 const APP_CONTAINER = 'simstudio-app'
+const DEFAULT_PORT = '3000'
 
 const program = new Command()
 
@@ -22,7 +23,7 @@ program
   .version('0.1.0')
 
 program
-  .option('-p, --port <port>', 'Port to run Sim Studio on', '3000')
+  .option('-p, --port <port>', 'Port to run Sim Studio on', DEFAULT_PORT)
   .option('-y, --yes', 'Skip interactive prompts and use defaults')
   .option('--no-pull', 'Skip pulling the latest Docker images')
 
@@ -92,21 +93,8 @@ async function main() {
     process.exit(1)
   }
 
-  // Interactive configuration if not using --yes flag
-  let port = options.port
-
-  if (!options.yes) {
-    const answers = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'port',
-        message: 'Which port would you like to run Sim Studio on?',
-        default: options.port
-      }
-    ])
-    
-    port = answers.port
-  }
+  // Use port from options, with 3000 as default
+  const port = options.port
   
   // Pull latest images if not skipped
   if (options.pull) {
