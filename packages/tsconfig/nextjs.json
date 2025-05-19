@@ -4,6 +4,7 @@
   "extends": "./base.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    "noEmit": true,
     "plugins": [
       {
         "name": "next"
