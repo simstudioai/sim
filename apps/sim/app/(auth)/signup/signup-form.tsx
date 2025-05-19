@@ -292,6 +292,19 @@ function SignupFormContent({
 
       <div className="flex flex-col gap-6">
         <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/40 rounded-xl p-6">
+          <SocialLoginButtons
+            githubAvailable={githubAvailable}
+            googleAvailable={googleAvailable}
+            callbackURL={redirectUrl || '/w'}
+            isProduction={isProduction}
+          />
+
+          <div className="relative py-4 mt-2">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-neutral-700/50"></div>
+            </div>
+          </div>
+
           <form onSubmit={onSubmit} className="space-y-5">
             <div className="space-y-4">
               <div className="space-y-2">
@@ -306,7 +319,7 @@ function SignupFormContent({
                   type="text"
                   autoCapitalize="words"
                   autoComplete="name"
-                  className="bg-neutral-900 border-neutral-700 text-white"
+                  className="bg-neutral-900 border-neutral-700 text-white placeholder:text-white/60"
                 />
               </div>
               <div className="space-y-2">
@@ -325,7 +338,7 @@ function SignupFormContent({
                   value={email}
                   onChange={handleEmailChange}
                   className={cn(
-                    'bg-neutral-900 border-neutral-700 text-white',
+                    'bg-neutral-900 border-neutral-700 text-white placeholder:text-white/60',
                     emailError && 'border-red-500 focus-visible:ring-red-500'
                   )}
                 />
@@ -351,7 +364,7 @@ function SignupFormContent({
                     autoCorrect="off"
                     value={password}
                     onChange={handlePasswordChange}
-                    className="bg-neutral-900 border-neutral-700 text-white pr-10"
+                    className="bg-neutral-900 border-neutral-700 text-white pr-10 placeholder:text-white/60"
                   />
                   <button
                     type="button"
@@ -380,22 +393,6 @@ function SignupFormContent({
               {isLoading ? 'Creating account...' : 'Create Account'}
             </Button>
           </form>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-neutral-700/50"></div>
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-neutral-800/50 px-2 text-neutral-400">or continue with</span>
-            </div>
-          </div>
-
-          <SocialLoginButtons
-            githubAvailable={githubAvailable}
-            googleAvailable={googleAvailable}
-            callbackURL={redirectUrl || '/w'}
-            isProduction={isProduction}
-          />
         </div>
 
         <div className="text-center text-sm">

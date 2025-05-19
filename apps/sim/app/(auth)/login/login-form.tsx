@@ -265,6 +265,19 @@ export default function LoginPage({
 
       <div className="flex flex-col gap-6">
         <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/40 rounded-xl p-6">
+          <SocialLoginButtons
+            googleAvailable={googleAvailable}
+            githubAvailable={githubAvailable}
+            isProduction={isProduction}
+            callbackURL={callbackUrl}
+          />
+
+          <div className="relative py-4 mt-2">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-neutral-700/50"></div>
+            </div>
+          </div>
+
           <form onSubmit={onSubmit} className="space-y-5">
             <div className="space-y-4">
               <div className="space-y-2">
@@ -280,7 +293,7 @@ export default function LoginPage({
                   autoCapitalize="none"
                   autoComplete="email"
                   autoCorrect="off"
-                  className="bg-neutral-900 border-neutral-700 text-white"
+                  className="bg-neutral-900 border-neutral-700 text-white placeholder:text-white/60"
                 />
               </div>
               <div className="space-y-2">
@@ -314,7 +327,7 @@ export default function LoginPage({
                         setPasswordErrors([])
                       }
                     }}
-                    className="bg-neutral-900 border-neutral-700 text-white pr-10"
+                    className="bg-neutral-900 border-neutral-700 text-white pr-10 placeholder:text-white/60"
                   />
                   <button
                     type="button"
@@ -343,22 +356,6 @@ export default function LoginPage({
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-neutral-700/50"></div>
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-neutral-800/50 px-2 text-neutral-400">or continue with</span>
-            </div>
-          </div>
-
-          <SocialLoginButtons
-            googleAvailable={googleAvailable}
-            githubAvailable={githubAvailable}
-            isProduction={isProduction}
-            callbackURL={callbackUrl}
-          />
         </div>
 
         <div className="text-center text-sm">
@@ -394,7 +391,7 @@ export default function LoginPage({
                 placeholder="Enter your email"
                 required
                 type="email"
-                className="bg-neutral-900 border-neutral-700/80 text-white focus:border-[#802FFF]/70 focus:ring-[#802FFF]/20"
+                className="bg-neutral-900 border-neutral-700/80 text-white focus:border-[#802FFF]/70 focus:ring-[#802FFF]/20 placeholder:text-white/60"
               />
             </div>
             {resetStatus.type && (

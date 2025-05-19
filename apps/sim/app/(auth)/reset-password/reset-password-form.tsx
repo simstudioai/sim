@@ -44,6 +44,7 @@ export function RequestResetForm({
             type="email"
             disabled={isSubmitting}
             required
+            className="placeholder:text-white/60"
           />
           <p className="text-sm text-muted-foreground">
             We'll send a password reset link to this email address.
@@ -133,6 +134,8 @@ export function SetNewPasswordForm({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            placeholder="Enter new password"
+            className="placeholder:text-white/60"
           />
         </div>
         <div className="grid gap-2">
@@ -147,6 +150,8 @@ export function SetNewPasswordForm({
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
+            placeholder="Confirm new password"
+            className="placeholder:text-white/60"
           />
         </div>
 

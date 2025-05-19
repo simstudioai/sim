@@ -19,7 +19,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       />
 
       {/* Header */}
-      <div className="px-6 py-8 relative z-10">
+      <div className="px-6 pt-9 relative z-10">
         <div className="max-w-7xl mx-auto">
           <Link href="/" className="inline-flex">
             <Image src="/sim.svg" alt="Sim Logo" width={42} height={42} />
