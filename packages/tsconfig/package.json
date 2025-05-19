@@ -1,0 +1,11 @@
+{
+  "name": "@simstudio/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "files": [
+    "base.json",
+    "nextjs.json",
+    "library.json"
+  ]
+}
