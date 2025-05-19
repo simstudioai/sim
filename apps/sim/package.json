@@ -4,6 +4,7 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
+  "packageManager": "bun@1.2.12",
   "engines": {
     "bun": ">=1.2.13",
     "node": ">=20.0.0"
@@ -134,7 +135,8 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5.7.3",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.0.8"
+    "vitest": "^3.0.8",
+    "@simstudio/tsconfig": "workspace:*"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css,scss,md}": [

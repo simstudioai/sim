@@ -131,6 +131,7 @@
         "zod": "^3.24.2",
       },
       "devDependencies": {
+        "@simstudio/tsconfig": "workspace:*",
         "@tailwindcss/typography": "^0.5.16",
         "@testing-library/jest-dom": "^6.6.3",
         "@testing-library/react": "^16.2.0",
@@ -161,7 +162,7 @@
     },
     "packages/simstudio": {
       "name": "simstudio",
-      "version": "0.1.16",
+      "version": "0.1.17",
       "bin": {
         "simstudio": "dist/index.js",
       },
@@ -173,10 +174,15 @@
         "listr2": "^6.6.1",
       },
       "devDependencies": {
+        "@simstudio/tsconfig": "workspace:*",
         "@types/inquirer": "^8.2.6",
         "@types/node": "^20.5.1",
         "typescript": "^5.1.6",
       },
+    },
+    "packages/tsconfig": {
+      "name": "@simstudio/tsconfig",
+      "version": "0.0.0",
     },
   },
   "trustedDependencies": [
@@ -973,6 +979,8 @@
     "@simplewebauthn/browser": ["@simplewebauthn/browser@13.1.0", "", {}, "sha512-WuHZ/PYvyPJ9nxSzgHtOEjogBhwJfC8xzYkPC+rR/+8chl/ft4ngjiK8kSU5HtRJfczupyOh33b25TjYbvwAcg=="],
 
     "@simplewebauthn/server": ["@simplewebauthn/server@13.1.1", "", { "dependencies": { "@hexagon/base64": "^1.1.27", "@levischuck/tiny-cbor": "^0.2.2", "@peculiar/asn1-android": "^2.3.10", "@peculiar/asn1-ecc": "^2.3.8", "@peculiar/asn1-rsa": "^2.3.8", "@peculiar/asn1-schema": "^2.3.8", "@peculiar/asn1-x509": "^2.3.8" } }, "sha512-1hsLpRHfSuMB9ee2aAdh0Htza/X3f4djhYISrggqGe3xopNjOcePiSDkDDoPzDYaaMCrbqGP1H2TYU7bgL9PmA=="],
+
+    "@simstudio/tsconfig": ["@simstudio/tsconfig@workspace:packages/tsconfig"],
 
     "@smithy/abort-controller": ["@smithy/abort-controller@4.0.2", "", { "dependencies": { "@smithy/types": "^4.2.0", "tslib": "^2.6.2" } }, "sha512-Sl/78VDtgqKxN2+1qduaVE140XF+Xg+TafkncspwM4jFP/LHr76ZHmIY/y3V1M0mMLNk+Je6IGbzxy23RSToMw=="],
 
