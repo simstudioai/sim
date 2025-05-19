@@ -7,7 +7,6 @@ import { HelpCircle, ScrollText, Send, Settings } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
-import { isDev } from '@/lib/environment'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -23,7 +22,6 @@ import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 export function Sidebar() {
   useRegistryLoading()
-  // Initialize global keyboard shortcuts
   useGlobalShortcuts()
 
   const {
@@ -39,6 +37,7 @@ export function Sidebar() {
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showInviteMembers, setShowInviteMembers] = useState(false)
+  const [isDevEnvironment, setIsDevEnvironment] = useState(false)
   const {
     mode,
     isExpanded,
@@ -51,6 +50,10 @@ export function Sidebar() {
   } = useSidebarStore()
   const [isHovered, setIsHovered] = useState(false)
   const [explicitMouseEnter, setExplicitMouseEnter] = useState(false)
+
+  useEffect(() => {
+    setIsDevEnvironment(process.env.NODE_ENV === 'development')
+  }, [])
 
   // Track when active workspace changes to ensure we refresh the UI
   useEffect(() => {
@@ -273,7 +276,7 @@ export function Sidebar() {
         <div className="flex-shrink-0 px-3 pb-3 pt-1">
           <div className="flex flex-col space-y-[1px]">
             {/* Invite members button */}
-            {!isDev && (
+            {!isDevEnvironment && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
@@ -312,7 +315,7 @@ export function Sidebar() {
       ) : (
         <>
           {/* Invite members bar */}
-          {!isDev && (
+          {!isDevEnvironment && (
             <div className="flex-shrink-0 px-3 pt-1">
               <div
                 onClick={() => setShowInviteMembers(true)}
@@ -355,7 +358,9 @@ export function Sidebar() {
 
       <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <HelpModal open={showHelp} onOpenChange={setShowHelp} />
-      {!isDev && <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />}
+      {!isDevEnvironment && (
+        <InviteModal open={showInviteMembers} onOpenChange={setShowInviteMembers} />
+      )}
     </aside>
   )
 }
