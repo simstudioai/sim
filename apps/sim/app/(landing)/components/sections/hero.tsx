@@ -14,16 +14,38 @@ function Hero() {
   const { data: session, isPending } = useSession()
   const isAuthenticated = !isPending && !!session?.user
 
-  const handleStartNowClick = () => {
+  const handleNavigate = () => {
     if (typeof window !== 'undefined') {
-      document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax'
-    }
-    if (isAuthenticated) {
-      router.push('/w')
-    } else {
-      router.push('/login')
+      // Check if user has an active session
+      if (isAuthenticated) {
+        router.push('/w')
+      } else {
+        // Check if user has logged in before
+        const hasLoggedInBefore =
+          localStorage.getItem('has_logged_in_before') === 'true' ||
+          document.cookie.includes('has_logged_in_before=true')
+
+        if (hasLoggedInBefore) {
+          // User has logged in before but doesn't have an active session
+          router.push('/login')
+        } else {
+          // User has never logged in before
+          router.push('/signup')
+        }
+      }
     }
   }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        handleNavigate()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isAuthenticated])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -39,7 +61,7 @@ function Hero() {
     return (
       <Button
         variant={'secondary'}
-        onClick={handleStartNowClick}
+        onClick={handleNavigate}
         className="bg-[#701ffc] font-geist-sans items-center px-7 py-6 text-lg text-neutral-100 font-[420] tracking-normal shadow-lg shadow-[#701ffc]/30 hover:bg-[#802FFF] animate-fade-in"
         aria-label="Start using the platform"
       >
