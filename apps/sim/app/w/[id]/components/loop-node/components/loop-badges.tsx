@@ -11,12 +11,30 @@ import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
 
-interface LoopConfigBadgesProps {
-  nodeId: string
-  data: any
+interface LoopNodeData {
+  width?: number;
+  height?: number;
+  parentId?: string;
+  state?: string;
+  type?: string;
+  extent?: 'parent';
+  loopType?: 'for' | 'forEach';
+  count?: number;
+  collection?: string | any[] | Record<string, any>;
+  executionState?: {
+    currentIteration: number;
+    isExecuting: boolean;
+    startTime: number | null;
+    endTime: number | null;
+  };
 }
 
-export function LoopConfigBadges({ nodeId, data }: LoopConfigBadgesProps) {
+interface LoopBadgesProps {
+  nodeId: string
+  data: LoopNodeData
+}
+
+export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   // State
   const [loopType, setLoopType] = useState(data?.loopType || 'for')
   const [iterations, setIterations] = useState(data?.count || 5)
@@ -26,7 +44,7 @@ export function LoopConfigBadges({ nodeId, data }: LoopConfigBadgesProps) {
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
 
   // Get store methods
-  const updateNodeData = useCallback((updates: any) => {
+  const updateNodeData = useCallback((updates: Partial<LoopNodeData>) => {
     useWorkflowStore.setState(state => ({
       blocks: {
         ...state.blocks,

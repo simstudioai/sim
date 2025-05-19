@@ -33,7 +33,6 @@ export function getWorkflowWithValues(workflowId: string) {
     workflowState = {
       blocks: currentState.blocks,
       edges: currentState.edges,
-      loopBlocks: currentState.loopBlocks,
       loops: currentState.loops,
       isDeployed: currentState.isDeployed,
       deployedAt: currentState.deployedAt,
@@ -112,7 +111,6 @@ export function getAllWorkflowsWithValues() {
       workflowState = {
         blocks: currentState.blocks,
         edges: currentState.edges,
-        loopBlocks: currentState.loopBlocks,
         loops: currentState.loops,
         isDeployed: currentState.isDeployed,
         deployedAt: currentState.deployedAt,

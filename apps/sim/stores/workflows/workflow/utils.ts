@@ -120,13 +120,13 @@ export function findAllDescendantNodes(loopId: string, blocks: Record<string, Bl
 }
 
 /**
- * Builds a complete loopBlocks collection from the UI blocks
+ * Builds a complete collection of loops from the UI blocks
  * 
  * @param blocks - Record of all blocks in the workflow
  * @returns Record of Loop objects for execution engine
  */
 export function generateLoopBlocks(blocks: Record<string, BlockState>): Record<string, Loop> {
-  const loopBlocks: Record<string, Loop> = {};
+  const loops: Record<string, Loop> = {};
   
   // Find all loop nodes
   Object.entries(blocks)
@@ -134,9 +134,9 @@ export function generateLoopBlocks(blocks: Record<string, BlockState>): Record<s
     .forEach(([id, block]) => {
       const loop = convertLoopBlockToLoop(id, blocks);
       if (loop) {
-        loopBlocks[id] = loop;
+        loops[id] = loop;
       }
     });
   
-  return loopBlocks;
+  return loops;
 }
