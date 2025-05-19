@@ -212,13 +212,23 @@ export function useVerification({
   }
 
   useEffect(() => {
-    if (!isProduction || !hasResendKey) {
-      setIsVerified(true)
-      const timeoutId = setTimeout(() => {
-        router.push('/w')
-      }, 1000)
+    if (typeof window !== 'undefined') {
+      if (!isProduction || !hasResendKey) {
+        const storedEmail = sessionStorage.getItem('verificationEmail')
+        logger.info('Auto-verifying user', { email: storedEmail })
+      }
 
-      return () => clearTimeout(timeoutId)
+      const isDevOrDocker = !isProduction || process.env.DOCKER_BUILD === 'true'
+
+      // Auto-verify and redirect in development/docker environments
+      if (isDevOrDocker || !hasResendKey) {
+        setIsVerified(true)
+        const timeoutId = setTimeout(() => {
+          router.push('/w')
+        }, 1000)
+
+        return () => clearTimeout(timeoutId)
+      }
     }
   }, [isProduction, hasResendKey, router])
 

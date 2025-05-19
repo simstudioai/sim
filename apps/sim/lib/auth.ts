@@ -21,7 +21,6 @@ import { env } from './env'
 const logger = createLogger('Auth')
 
 const isProd = env.NODE_ENV === 'production'
-const isDevOrDocker = env.NODE_ENV === 'development' || env.DOCKER_BUILD
 
 // Only initialize Stripe if the key is provided
 // This allows local development without a Stripe account
@@ -205,9 +204,9 @@ export const auth = betterAuth({
           throw error
         }
       },
-      sendVerificationOnSignUp: isProd,
-      otpLength: 6,
-      expiresIn: 15 * 60,
+      sendVerificationOnSignUp: false,
+      otpLength: 6, // Explicitly set the OTP length
+      expiresIn: 15 * 60, // 15 minutes in seconds
     }),
     genericOAuth({
       config: [

@@ -257,26 +257,22 @@ function SignupFormContent({
         return
       }
 
-      // Send verification OTP in Prod
       try {
         await client.emailOtp.sendVerificationOtp({
           email: emailValue,
           type: 'email-verification',
         })
-
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('verificationEmail', emailValue)
-          localStorage.setItem('has_logged_in_before', 'true')
-          document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
-        }
-
-        router.push('/verify')
-      } catch (error) {
-        console.error('Failed to send verification code:', error)
-        setPasswordErrors(['Account created but failed to send verification code.'])
-        setShowValidationError(true)
-        router.push('/login')
+      } catch (err) {
+        console.error('Failed to send verification OTP:', err)
       }
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('verificationEmail', emailValue)
+        localStorage.setItem('has_logged_in_before', 'true')
+        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
+      }
+
+      router.push('/verify?fromSignup=true')
     } catch (error) {
       console.error('Signup error:', error)
       setIsLoading(false)
