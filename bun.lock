@@ -161,7 +161,7 @@
     },
     "packages/simstudio": {
       "name": "simstudio",
-      "version": "0.1.0",
+      "version": "0.1.16",
       "bin": {
         "simstudio": "dist/index.js",
       },
