@@ -33,6 +33,3 @@ coverage
 **/public/workbox-*.js
 **/public/worker-*.js
 **/public/fallback-*.js
-
-# Documentation
-apps/docs/**/*.mdx
