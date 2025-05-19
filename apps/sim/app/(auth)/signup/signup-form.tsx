@@ -3,12 +3,12 @@
 import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Command, CornerDownLeft, Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
-import { useNotificationStore } from '@/stores/notifications/store'
+import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 
 const PASSWORD_VALIDATIONS = {
@@ -41,12 +41,12 @@ function SignupFormContent({
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
   const [, setMounted] = useState(false)
-  const { addNotification } = useNotificationStore()
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
   const [showValidationError, setShowValidationError] = useState(false)
   const [email, setEmail] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [waitlistToken, setWaitlistToken] = useState('')
   const [redirectUrl, setRedirectUrl] = useState('')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
@@ -144,6 +144,14 @@ function SignupFormContent({
     setShowValidationError(false)
   }
 
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value)
+    // Clear any previous email errors when the user starts typing
+    if (emailError) {
+      setEmailError('')
+    }
+  }
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setIsLoading(true)
@@ -163,7 +171,8 @@ function SignupFormContent({
     try {
       if (errors.length > 0) {
         // Show first error as notification
-        addNotification('error', errors[0], null)
+        setPasswordErrors([errors[0]])
+        setShowValidationError(true)
         setIsLoading(false)
         return
       }
@@ -177,33 +186,42 @@ function SignupFormContent({
         {
           onError: (ctx) => {
             console.error('Signup error:', ctx.error)
-            let errorMessage = 'Failed to create account'
+            let errorMessage: string[] = ['Failed to create account']
 
-            // Handle all possible error cases from Better Auth
-            if (ctx.error.status === 422 || ctx.error.message?.includes('already exists')) {
-              errorMessage = 'An account with this email already exists. Please sign in instead.'
+            if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
+              errorMessage.push(
+                'An account with this email already exists. Please sign in instead.'
+              )
+              setEmailError(errorMessage[0])
             } else if (
-              ctx.error.message?.includes('BAD_REQUEST') ||
+              ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign up is not enabled')
             ) {
-              errorMessage = 'Email signup is currently disabled.'
-            } else if (ctx.error.message?.includes('INVALID_EMAIL')) {
-              errorMessage = 'Please enter a valid email address.'
-            } else if (ctx.error.message?.includes('PASSWORD_TOO_SHORT')) {
-              errorMessage = 'Password must be at least 8 characters long.'
-            } else if (ctx.error.message?.includes('MISSING_CREDENTIALS')) {
-              errorMessage = 'Please enter all required fields.'
-            } else if (ctx.error.message?.includes('EMAIL_PASSWORD_DISABLED')) {
-              errorMessage = 'Email and password signup is disabled.'
-            } else if (ctx.error.message?.includes('FAILED_TO_CREATE_USER')) {
-              errorMessage = 'Failed to create account. Please try again later.'
-            } else if (ctx.error.message?.includes('network')) {
-              errorMessage = 'Network error. Please check your connection and try again.'
-            } else if (ctx.error.message?.includes('rate limit')) {
-              errorMessage = 'Too many requests. Please wait a moment before trying again.'
+              errorMessage.push('Email signup is currently disabled.')
+              setEmailError(errorMessage[0])
+            } else if (ctx.error.code?.includes('INVALID_EMAIL')) {
+              errorMessage.push('Please enter a valid email address.')
+              setEmailError(errorMessage[0])
+            } else if (ctx.error.code?.includes('PASSWORD_TOO_SHORT')) {
+              errorMessage.push('Password must be at least 8 characters long.')
+              setPasswordErrors(errorMessage)
+              setShowValidationError(true)
+            } else if (ctx.error.code?.includes('PASSWORD_TOO_LONG')) {
+              errorMessage.push('Password must be less than 128 characters long.')
+              setPasswordErrors(errorMessage)
+              setShowValidationError(true)
+            } else if (ctx.error.code?.includes('network')) {
+              errorMessage.push('Network error. Please check your connection and try again.')
+              setPasswordErrors(errorMessage)
+              setShowValidationError(true)
+            } else if (ctx.error.code?.includes('rate limit')) {
+              errorMessage.push('Too many requests. Please wait a moment before trying again.')
+              setPasswordErrors(errorMessage)
+              setShowValidationError(true)
+            } else {
+              setPasswordErrors(errorMessage)
+              setShowValidationError(true)
             }
-
-            addNotification('error', errorMessage, null)
           },
         }
       )
@@ -255,7 +273,8 @@ function SignupFormContent({
         router.push('/verify')
       } catch (error) {
         console.error('Failed to send verification code:', error)
-        addNotification('error', 'Account created but failed to send verification code.', null)
+        setPasswordErrors(['Account created but failed to send verification code.'])
+        setShowValidationError(true)
         router.push('/login')
       }
     } catch (error) {
@@ -304,9 +323,17 @@ function SignupFormContent({
                   autoComplete="email"
                   autoCorrect="off"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-neutral-900 border-neutral-700 text-white"
+                  onChange={handleEmailChange}
+                  className={cn(
+                    'bg-neutral-900 border-neutral-700 text-white',
+                    emailError && 'border-red-500 focus-visible:ring-red-500'
+                  )}
                 />
+                {emailError && (
+                  <div className="text-xs text-red-400 mt-1">
+                    <p>{emailError}</p>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-neutral-300">
