@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
+import { createLogger } from '@/lib/logs/console-logger'
 import { pushHistory, withHistory, WorkflowStoreWithHistory } from '../middleware'
 import { saveWorkflowState } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
@@ -11,6 +12,8 @@ import { markWorkflowsDirty, workflowSync } from '../sync'
 import { mergeSubblockState } from '../utils'
 import { Loop, Position, SubBlockState, SyncControl, WorkflowState } from './types'
 import { detectCycle } from './utils'
+
+const logger = createLogger('WorkflowStore')
 
 const initialState = {
   blocks: {},
@@ -81,6 +84,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       sync: createSyncControl(),
 
       setNeedsRedeploymentFlag: (needsRedeployment: boolean) => {
+        logger.debug(`Setting global needsRedeployment flag to ${needsRedeployment} (active workflow: ${useWorkflowRegistry.getState().activeWorkflowId})`)
         set({ needsRedeployment })
       },
 

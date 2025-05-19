@@ -8,6 +8,7 @@ export interface DeploymentStatus {
   isDeployed: boolean
   deployedAt?: Date
   apiKey?: string
+  needsRedeployment?: boolean
 }
 
 export interface WorkflowMetadata {
@@ -49,6 +50,7 @@ export interface WorkflowRegistryActions {
   // Add deployment-related methods
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setDeploymentStatus: (workflowId: string | null, isDeployed: boolean, deployedAt?: Date, apiKey?: string) => void
+  setWorkflowNeedsRedeployment: (workflowId: string | null, needsRedeployment: boolean) => void
 }
 
 export type WorkflowRegistry = WorkflowRegistryState & WorkflowRegistryActions

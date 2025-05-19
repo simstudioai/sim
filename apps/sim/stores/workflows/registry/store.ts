@@ -377,6 +377,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               isDeployed,
               deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
               apiKey,
+              // Preserve existing needsRedeployment flag if available, but reset if newly deployed
+              needsRedeployment: isDeployed ? false : 
+                (state.deploymentStatuses?.[workflowId as string] as any)?.needsRedeployment ?? false,
             },
           }
         }))
@@ -395,6 +398,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 isDeployed,
                 deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
                 apiKey,
+                needsRedeployment: isDeployed ? false : 
+                  (state.deploymentStatuses?.[workflowId as string] as any)?.needsRedeployment ?? false,
               }
             }
           }))
@@ -415,6 +420,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 isDeployed,
                 deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
                 apiKey,
+                needsRedeployment: isDeployed ? false : 
+                  (workflowState.deploymentStatuses?.[workflowId] as any)?.needsRedeployment ?? false,
               }
             }
           })
@@ -422,6 +429,61 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         // Trigger workflow sync to update server state
         workflowSync.sync()
+      },
+
+      // Method to set the needsRedeployment flag for a specific workflow
+      setWorkflowNeedsRedeployment: (workflowId: string | null, needsRedeployment: boolean) => {
+        if (!workflowId) {
+          workflowId = get().activeWorkflowId
+          if (!workflowId) return
+        }
+
+        // Log the action
+        logger.debug(`Setting workflow-specific needsRedeployment=${needsRedeployment} for workflow ${workflowId}`)
+
+        // Update the registry's deployment status for this specific workflow
+        set((state) => {
+          const deploymentStatuses = state.deploymentStatuses || {};
+          const currentStatus = deploymentStatuses[workflowId as string] || { isDeployed: false };
+          
+          return {
+            deploymentStatuses: {
+              ...deploymentStatuses,
+              [workflowId as string]: {
+                ...currentStatus,
+                needsRedeployment,
+              },
+            }
+          };
+        });
+
+        // Only update the global flag if this is the active workflow
+        const { activeWorkflowId } = get()
+        if (workflowId === activeWorkflowId) {
+          logger.debug(`Updating global needsRedeployment flag to ${needsRedeployment} for active workflow ${workflowId}`)
+          useWorkflowStore.getState().setNeedsRedeploymentFlag(needsRedeployment)
+        } else {
+          // Important: Do NOT update global state for non-active workflows
+          logger.debug(`Not updating global needsRedeployment flag for non-active workflow ${workflowId}`)
+        }
+
+        // Save to persistent storage
+        const workflowState = loadWorkflowState(workflowId)
+        if (workflowState) {
+          const deploymentStatuses = workflowState.deploymentStatuses || {};
+          const currentStatus = deploymentStatuses[workflowId] || { isDeployed: false };
+          
+          saveWorkflowState(workflowId, {
+            ...workflowState,
+            deploymentStatuses: {
+              ...deploymentStatuses,
+              [workflowId]: {
+                ...currentStatus,
+                needsRedeployment,
+              }
+            }
+          })
+        }
       },
 
       // Modified setActiveWorkflow to load deployment statuses
@@ -432,8 +494,17 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return
         }
 
-        // Save current workflow state before switching
+        // Get current workflow ID
         const currentId = get().activeWorkflowId
+        
+        // Log the current state for debugging
+        logger.debug(`Switching from workflow ${currentId} to ${id}`)
+        if (currentId) {
+          const workflowStore = useWorkflowStore.getState()
+          logger.debug(`Current workflow ${currentId} has needsRedeployment=${workflowStore.needsRedeployment}`)
+        }
+
+        // Save current workflow state before switching
         if (currentId) {
           const currentState = useWorkflowStore.getState()
 
@@ -466,17 +537,22 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             loops, 
             isDeployed, 
             deployedAt, 
-            deploymentStatuses 
+            deploymentStatuses,
+            needsRedeployment 
           } = parsedState
+
+          logger.debug(`Loaded workflow ${id} with needsRedeployment=${needsRedeployment}, isDeployed=${isDeployed}`)
 
           // Get workflow-specific deployment status
           let workflowIsDeployed = isDeployed;
           let workflowDeployedAt = deployedAt;
+          let workflowNeedsRedeployment = needsRedeployment;
           
           // Check if we have a workflow-specific deployment status
           if (deploymentStatuses && deploymentStatuses[id]) {
             workflowIsDeployed = deploymentStatuses[id].isDeployed;
             workflowDeployedAt = deploymentStatuses[id].deployedAt;
+            workflowNeedsRedeployment = deploymentStatuses[id].needsRedeployment;
           }
 
           // Initialize subblock store with workflow values
@@ -490,6 +566,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             // Set global deployment status based on this workflow's status
             isDeployed: workflowIsDeployed !== undefined ? workflowIsDeployed : false,
             deployedAt: workflowDeployedAt ? new Date(workflowDeployedAt) : undefined,
+            // Set the needsRedeployment flag from the workflow-specific status
+            needsRedeployment: workflowNeedsRedeployment !== undefined ? workflowNeedsRedeployment : false,
             // Include the deployment statuses map
             deploymentStatuses: deploymentStatuses || {},
             hasActiveSchedule: false,

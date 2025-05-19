@@ -200,6 +200,9 @@ export function ControlBar() {
     let pendingChanges = 0
     const DEBOUNCE_DELAY = 1000
     const THROTTLE_INTERVAL = 3000
+    
+    // Store the current workflow ID when the effect runs
+    const effectWorkflowId = activeWorkflowId
 
     // Function to check if redeployment is needed
     const checkForChanges = async () => {
@@ -210,17 +213,33 @@ export function ControlBar() {
       pendingChanges = 0
       lastCheckTime = Date.now()
 
+      // Store the current workflow ID to check for race conditions
+      const requestedWorkflowId = activeWorkflowId
+      logger.debug(`Checking for changes in workflow ${requestedWorkflowId}`)
+
       try {
         // Get the deployed state from the API
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
+        const response = await fetch(`/api/workflows/${requestedWorkflowId}/status`)
         if (response.ok) {
           const data = await response.json()
 
+          // Verify the active workflow hasn't changed while fetching
+          if (requestedWorkflowId !== activeWorkflowId) {
+            logger.debug(`Ignoring changes response for ${requestedWorkflowId} - no longer the active workflow`)
+            return
+          }
+
+          logger.debug(`API needsRedeployment response for workflow ${requestedWorkflowId}: ${data.needsRedeployment}`)
+
           // If the API says we need redeployment, update our state and the store
           if (data.needsRedeployment) {
+            logger.info(`Setting needsRedeployment flag to TRUE for workflow ${requestedWorkflowId}`)
+            
+            // Update local state
             setNeedsRedeployment(true)
-            // Also update the store state so other components can access this flag
-            useWorkflowStore.getState().setNeedsRedeploymentFlag(true)
+            
+            // Use the workflow-specific method to update the registry
+            useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(requestedWorkflowId, true)
           }
         }
       } catch (error) {
@@ -230,6 +249,12 @@ export function ControlBar() {
 
     // Debounced check function
     const debouncedCheck = () => {
+      // Skip if the active workflow has changed
+      if (effectWorkflowId !== activeWorkflowId) {
+        logger.debug(`Skipping check for changes - workflow has changed from ${effectWorkflowId} to ${activeWorkflowId}`)
+        return
+      }
+      
       // Increment the pending changes counter
       pendingChanges++
 
@@ -245,16 +270,16 @@ export function ControlBar() {
         const adjustedDelay = Math.max(THROTTLE_INTERVAL - timeElapsed, DEBOUNCE_DELAY)
 
         debounceTimer = setTimeout(() => {
-          // Only check if we have pending changes
-          if (pendingChanges > 0) {
+          // Only check if we have pending changes and workflow ID hasn't changed
+          if (pendingChanges > 0 && effectWorkflowId === activeWorkflowId) {
             checkForChanges()
           }
         }, adjustedDelay)
       } else {
         // Standard debounce delay if we haven't checked recently
         debounceTimer = setTimeout(() => {
-          // Only check if we have pending changes
-          if (pendingChanges > 0) {
+          // Only check if we have pending changes and workflow ID hasn't changed
+          if (pendingChanges > 0 && effectWorkflowId === activeWorkflowId) {
             checkForChanges()
           }
         }, DEBOUNCE_DELAY)
@@ -268,9 +293,15 @@ export function ControlBar() {
     const subBlockUnsubscribe = useSubBlockStore.subscribe((state) => {
       // Only check for the active workflow
       if (!activeWorkflowId || !isDeployed || needsRedeployment) return
+      
+      // Skip if the workflow ID has changed since this effect started
+      if (effectWorkflowId !== activeWorkflowId) {
+        logger.debug(`Skipping subblock check - workflow has changed from ${effectWorkflowId} to ${activeWorkflowId}`)
+        return
+      }
 
       // Only trigger when there is an update to the current workflow's subblocks
-      const workflowSubBlocks = state.workflowValues[activeWorkflowId]
+      const workflowSubBlocks = state.workflowValues[effectWorkflowId]
       if (workflowSubBlocks && Object.keys(workflowSubBlocks).length > 0) {
         debouncedCheck()
       }
@@ -291,17 +322,34 @@ export function ControlBar() {
       if (!activeWorkflowId) return
 
       try {
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
+        // Store the current workflow ID to check for race conditions
+        const requestedWorkflowId = activeWorkflowId
+
+        const response = await fetch(`/api/workflows/${requestedWorkflowId}/status`)
         if (response.ok) {
           const data = await response.json()
+
+          // Verify the active workflow hasn't changed while fetching
+          if (requestedWorkflowId !== activeWorkflowId) {
+            logger.debug(`Ignoring status response for ${requestedWorkflowId} - no longer the active workflow`)
+            return
+          }
+          
+          // Log the response data
+          logger.debug(`Status API response for workflow ${requestedWorkflowId}: isDeployed=${data.isDeployed}, needsRedeployment=${data.needsRedeployment}`)
+          
           // Update the store with the status from the API
           setDeploymentStatus(
-            activeWorkflowId, 
+            requestedWorkflowId, 
             data.isDeployed,
             data.deployedAt ? new Date(data.deployedAt) : undefined
           )
+          
+          // Update local state
           setNeedsRedeployment(data.needsRedeployment)
-          useWorkflowStore.getState().setNeedsRedeploymentFlag(data.needsRedeployment)
+          
+          // Use the workflow-specific method to update the registry
+          useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(requestedWorkflowId, data.needsRedeployment)
         }
       } catch (error) {
         logger.error('Failed to check workflow status:', { error })
@@ -315,28 +363,49 @@ export function ControlBar() {
     // When deployment status changes and isDeployed becomes true,
     // that means a deployment just occurred, so reset the needsRedeployment flag
     if (isDeployed) {
+      // Update local state
       setNeedsRedeployment(false)
-      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+      
+      // Use the workflow-specific method to update the registry
+      if (activeWorkflowId) {
+        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(activeWorkflowId, false)
+      }
     }
-  }, [isDeployed])
+  }, [isDeployed, activeWorkflowId])
 
   // Add a listener for the needsRedeployment flag in the workflow store
   useEffect(() => {
     const unsubscribe = useWorkflowStore.subscribe((state) => {
-      // Update local state when the store flag changes
+      // Only update local state when it's for the currently active workflow
       if (state.needsRedeployment !== undefined) {
-        setNeedsRedeployment(state.needsRedeployment)
+        // Get the workflow-specific needsRedeployment flag for the current workflow
+        const currentWorkflowStatus = useWorkflowRegistry.getState()
+          .getWorkflowDeploymentStatus(activeWorkflowId);
+        
+        // Only set local state based on current workflow's status
+        if (currentWorkflowStatus?.needsRedeployment !== undefined) {
+          setNeedsRedeployment(currentWorkflowStatus.needsRedeployment);
+        } else {
+          // Fallback to global state only if we don't have workflow-specific status
+          setNeedsRedeployment(state.needsRedeployment);
+        }
       }
-    })
+    });
 
-    return () => unsubscribe()
-  }, [])
+    return () => unsubscribe();
+  }, [activeWorkflowId]);
 
   // Add a manual method to update the deployment status and clear the needsRedeployment flag
   const updateDeploymentStatusAndClearFlag = (isDeployed: boolean, deployedAt?: Date) => {
     setDeploymentStatus(activeWorkflowId, isDeployed, deployedAt)
+    
+    // Update local state
     setNeedsRedeployment(false)
-    useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+    
+    // Use the workflow-specific method to update the registry
+    if (activeWorkflowId) {
+      useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(activeWorkflowId, false)
+    }
   }
 
   // Update existing API notifications when needsRedeployment changes

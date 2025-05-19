@@ -199,6 +199,11 @@ export function DeployModal({
     }
   }, [open, workflowId])
 
+  // Log when needsRedeployment changes
+  useEffect(() => {
+    logger.debug(`DeployModal: needsRedeployment changed to ${needsRedeployment} for workflow ${workflowId}`)
+  }, [needsRedeployment, workflowId])
+
   // Fetch deployment info when the modal opens and the workflow is deployed
   useEffect(() => {
     async function fetchDeploymentInfo() {
@@ -281,6 +286,9 @@ export function DeployModal({
 
       // Reset the needs redeployment flag
       setNeedsRedeployment(false)
+      if (workflowId) {
+        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
+      }
 
       // Update the local deployment info
       const endpoint = `${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
@@ -377,6 +385,9 @@ export function DeployModal({
 
       // Reset the needs redeployment flag
       setNeedsRedeployment(false)
+      if (workflowId) {
+        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
+      }
 
       // Add a success notification
       addNotification('info', 'Workflow successfully redeployed', workflowId)
