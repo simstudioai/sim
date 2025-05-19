@@ -38,5 +38,12 @@
   },
   "engines": {
     "node": ">=16"
+  },
+  "turbo": {
+    "tasks": {
+      "build": {
+        "outputs": ["dist/**"]
+      }
+    }
   }
 }
