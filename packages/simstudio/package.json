@@ -19,8 +19,14 @@
     "simstudio",
     "ai",
     "workflow",
-    "docker",
-    "cli"
+    "ui",
+    "cli",
+    "sim",
+    "sim-studio",
+    "agent",
+    "agents",
+    "automation",
+    "docker"
   ],
   "author": "Sim Studio",
   "license": "Apache-2.0",
