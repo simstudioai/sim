@@ -40,6 +40,9 @@ function isDockerRunning(): Promise<boolean> {
 async function runCommand(command: string[]): Promise<boolean> {
   return new Promise((resolve) => {
     const process = spawn(command[0], command.slice(1), { stdio: 'inherit' })
+    process.on('error', () => {
+      resolve(false)
+    })
     process.on('close', (code) => {
       resolve(code === 0)
     })

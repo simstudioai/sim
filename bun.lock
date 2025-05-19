@@ -166,7 +166,7 @@
         "simstudio": "dist/index.js",
       },
       "dependencies": {
-        "chalk": "4.1.2",
+        "chalk": "^4.1.2",
         "commander": "^11.1.0",
         "dotenv": "^16.3.1",
         "inquirer": "^8.2.6",

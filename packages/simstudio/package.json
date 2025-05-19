@@ -11,10 +11,7 @@
     "build:tsc": "tsc",
     "prepublishOnly": "bun run build"
   },
-  "files": [
-    "dist",
-    "docker-compose.yml"
-  ],
+  "files": [ "dist" ],
   "keywords": [
     "simstudio",
     "ai",
@@ -31,7 +28,7 @@
   "author": "Sim Studio",
   "license": "Apache-2.0",
   "dependencies": {
-    "chalk": "4.1.2",
+    "chalk": "^4.1.2",
     "commander": "^11.1.0",
     "dotenv": "^16.3.1",
     "inquirer": "^8.2.6",
