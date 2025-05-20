@@ -180,7 +180,7 @@ export class AgentBlockHandler implements BlockHandler {
     const hasOutgoingConnections = context.edges?.some((edge) => edge.source === block.id) ?? false
 
     // Determine if we should use streaming for this block
-    const shouldUseStreaming = context.stream && isBlockSelectedForOutput && !hasOutgoingConnections
+    const shouldUseStreaming = context.stream && isBlockSelectedForOutput
 
     if (shouldUseStreaming) {
       logger.info(
@@ -189,68 +189,68 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     // Parse messages if they're in string format
-    let parsedMessages = inputs.messages;
+    let parsedMessages = inputs.messages
     if (typeof inputs.messages === 'string' && inputs.messages.trim()) {
       try {
         // Fast path: try standard JSON.parse first
         try {
-          parsedMessages = JSON.parse(inputs.messages);
-          logger.info('Successfully parsed messages from JSON format');
+          parsedMessages = JSON.parse(inputs.messages)
+          logger.info('Successfully parsed messages from JSON format')
         } catch (jsonError) {
           // Fast direct approach for single-quoted JSON
           // Replace single quotes with double quotes, but keep single quotes inside double quotes
           // This optimized approach handles the most common cases in one pass
           const preprocessed = inputs.messages
-            // Ensure we have valid JSON by replacing all single quotes with double quotes, 
+            // Ensure we have valid JSON by replacing all single quotes with double quotes,
             // except those inside existing double quotes
             .replace(/(['"])(.*?)\1/g, (match, quote, content) => {
-              if (quote === '"') return match; // Keep existing double quotes intact
-              return `"${content}"`; // Replace single quotes with double quotes
-            });
-          
+              if (quote === '"') return match // Keep existing double quotes intact
+              return `"${content}"` // Replace single quotes with double quotes
+            })
+
           try {
-            parsedMessages = JSON.parse(preprocessed);
-            logger.info('Successfully parsed messages after single-quote preprocessing');
+            parsedMessages = JSON.parse(preprocessed)
+            logger.info('Successfully parsed messages after single-quote preprocessing')
           } catch (preprocessError) {
             // Ultimate fallback: simply replace all single quotes
             try {
-              parsedMessages = JSON.parse(inputs.messages.replace(/'/g, '"'));
-              logger.info('Successfully parsed messages using direct quote replacement');
+              parsedMessages = JSON.parse(inputs.messages.replace(/'/g, '"'))
+              logger.info('Successfully parsed messages using direct quote replacement')
             } catch (finalError) {
-              logger.error('All parsing attempts failed', { 
+              logger.error('All parsing attempts failed', {
                 original: inputs.messages,
-                error: finalError
-              });
+                error: finalError,
+              })
               // Keep original value
             }
           }
         }
       } catch (error) {
-        logger.error('Failed to parse messages from string:', { error });
+        logger.error('Failed to parse messages from string:', { error })
         // Keep original value if all parsing fails
       }
     }
 
     // Fast validation of parsed messages
-    const validMessages = Array.isArray(parsedMessages) && 
-                         parsedMessages.length > 0 && 
-                         parsedMessages.every(msg => 
-                           typeof msg === 'object' && 
-                           msg !== null && 
-                           'role' in msg && 
-                           typeof msg.role === 'string' && 
-                           (
-                             'content' in msg || 
-                             (msg.role === 'assistant' && ('function_call' in msg || 'tool_calls' in msg))
-                           )
-                         );
-                         
+    const validMessages =
+      Array.isArray(parsedMessages) &&
+      parsedMessages.length > 0 &&
+      parsedMessages.every(
+        (msg) =>
+          typeof msg === 'object' &&
+          msg !== null &&
+          'role' in msg &&
+          typeof msg.role === 'string' &&
+          ('content' in msg ||
+            (msg.role === 'assistant' && ('function_call' in msg || 'tool_calls' in msg)))
+      )
+
     if (Array.isArray(parsedMessages) && parsedMessages.length > 0 && !validMessages) {
-      logger.warn('Messages array has invalid format:', { 
-        messageCount: parsedMessages.length 
-      });
+      logger.warn('Messages array has invalid format:', {
+        messageCount: parsedMessages.length,
+      })
     } else if (validMessages) {
-      logger.info('Messages validated successfully');
+      logger.info('Messages validated successfully')
     }
 
     // Debug request before sending to provider
@@ -280,7 +280,8 @@ export class AgentBlockHandler implements BlockHandler {
     logger.info(`Provider request prepared`, {
       model: providerRequest.model,
       hasMessages: Array.isArray(parsedMessages) && parsedMessages.length > 0,
-      hasSystemPrompt: !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.systemPrompt,
+      hasSystemPrompt:
+        !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.systemPrompt,
       hasContext: !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.context,
       hasTools: !!providerRequest.tools,
       hasApiKey: !!providerRequest.apiKey,
@@ -290,7 +291,10 @@ export class AgentBlockHandler implements BlockHandler {
       hasOutgoingConnections,
       // Debug info about messages to help diagnose issues
       messagesProvided: 'messages' in providerRequest,
-      messagesCount: 'messages' in providerRequest && Array.isArray(providerRequest.messages) ? providerRequest.messages.length : 0
+      messagesCount:
+        'messages' in providerRequest && Array.isArray(providerRequest.messages)
+          ? providerRequest.messages.length
+          : 0,
     })
 
     const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
