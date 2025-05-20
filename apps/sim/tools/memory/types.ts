@@ -2,9 +2,8 @@ import { ToolResponse } from '../types'
 
 export interface MemoryResponse extends ToolResponse {
   output: {
-    memory?: any
     memories?: any[]
-    message: string
+    message?: string
   }
 }
 

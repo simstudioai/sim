@@ -54,15 +54,13 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       return {
         success: true,
         output: {
-          memory: undefined,
-          message: `Deleted memory.`
+          message: `Memory deleted successfully.`
         },
       }
     } catch (error: any) {
       return {
         success: false,
         output: {
-          memory: undefined,
           message: `Failed to delete memory: ${error.message || 'Unknown error'}`
         },
         error: `Failed to delete memory: ${error.message || 'Unknown error'}`
@@ -74,7 +72,6 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
     return {
       success: false,
       output: {
-        memory: undefined,
         message: errorMessage
       },
       error: errorMessage

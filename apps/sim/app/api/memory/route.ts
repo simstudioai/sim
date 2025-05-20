@@ -206,6 +206,8 @@ export async function POST(request: NextRequest) {
       )
       .limit(1)
     
+    let statusCode = 201 // Default status code for new memory
+    
     if (existingMemory.length > 0) {
       logger.info(`[${requestId}] Memory with key ${key} exists, checking if we can append`)
       
@@ -263,48 +265,60 @@ export async function POST(request: NextRequest) {
           )
         )
       
-      // Fetch the updated memory
-      const updatedMemory = await db
-        .select()
-        .from(memory)
-        .where(
-          and(
-            eq(memory.key, key),
-            eq(memory.workflowId, workflowId)
-          )
-        )
-        .limit(1)
+      statusCode = 200 // Status code for updated memory
+    } else {
+      // Insert the new memory
+      const newMemory = {
+        id: `mem_${crypto.randomUUID().replace(/-/g, '')}`,
+        workflowId,
+        key,
+        type,
+        data: type === 'agent' ? Array.isArray(data) ? data : [data] : data,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
       
-      logger.info(`[${requestId}] Memory appended successfully: ${key} for workflow: ${workflowId}`)
+      await db.insert(memory).values(newMemory)
+      logger.info(`[${requestId}] Memory created successfully: ${key} for workflow: ${workflowId}`)
+    }
+    
+    // Fetch all memories with the same key for this workflow to return the complete list
+    const allMemories = await db
+      .select()
+      .from(memory)
+      .where(
+        and(
+          eq(memory.key, key),
+          eq(memory.workflowId, workflowId),
+          isNull(memory.deletedAt)
+        )
+      )
+      .orderBy(memory.createdAt)
+    
+    if (allMemories.length === 0) {
+      // This shouldn't happen but handle it just in case
+      logger.warn(`[${requestId}] No memories found after creating/updating memory: ${key}`)
       return NextResponse.json(
         {
-          success: true,
-          data: updatedMemory[0]
+          success: false,
+          error: {
+            message: 'Failed to retrieve memory after creation/update',
+          },
         },
-        { status: 200 }
+        { status: 500 }
       )
     }
     
-    // Insert the new memory
-    const newMemory = {
-      id: `mem_${crypto.randomUUID().replace(/-/g, '')}`,
-      workflowId,
-      key,
-      type,
-      data: type === 'agent' ? Array.isArray(data) ? data : [data] : data,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
+    // Get the memory object to return
+    const memoryRecord = allMemories[0];
     
-    await db.insert(memory).values(newMemory)
-    
-    logger.info(`[${requestId}] Memory created successfully: ${key} for workflow: ${workflowId}`)
+    logger.info(`[${requestId}] Memory operation successful: ${key} for workflow: ${workflowId}`)
     return NextResponse.json(
       {
         success: true,
-        data: newMemory
+        data: memoryRecord
       },
-      { status: 201 }
+      { status: statusCode }
     )
     
   } catch (error: any) {

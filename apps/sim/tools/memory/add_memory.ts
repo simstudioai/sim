@@ -130,29 +130,34 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
   transformResponse: async (response): Promise<MemoryResponse> => {
     try {
       const result = await response.json()
-      
-      if (!response.ok) {
-        const errorMessage = result.error?.message || 'Failed to add memory'
-        throw new Error(errorMessage)
-      }
+      let errorMessage = result.error?.message || 'Failed to add memory'
       
       const data = result.data || result
-      const isNewMemory = response.status === 201
+      
+      // Extract the memories from the response based on memory type
+      let memories
+      if (data.type === 'agent') {
+        // For agent memories, return the full array of message objects
+        memories = Array.isArray(data.data) ? data.data : [data.data]
+      } else {
+        // For raw memories, return the raw data object
+        memories = data.data
+      }
       
       return {
         success: true,
         output: {
-          memories: data.data,
-          message: isNewMemory ? 'Memory created successfully' : 'Memory appended successfully'
+          memories,
         },
+        error: errorMessage
       }
     } catch (error: any) {
       return {
         success: false,
         output: {
           memories: undefined,
-          message: `Failed to add memory: ${error.message || 'Unknown error occurred'}`
         },
+        error
       }
     }
   },
