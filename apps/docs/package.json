@@ -4,7 +4,7 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "dev": "next dev --turbo --port 3001",
+    "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
     "postinstall": "fumadocs-mdx"
