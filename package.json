@@ -1,6 +1,6 @@
 {
   "name": "simstudio",
-  "packageManager": "bun@1.2.13",
+  "packageManager": "bun@1.2.12",
   "version": "0.0.0",
   "private": true,
   "license": "Apache-2.0",
