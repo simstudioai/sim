@@ -264,7 +264,6 @@ export function ControlBar() {
     const debouncedCheck = () => {
       // Skip if the active workflow has changed
       if (effectWorkflowId !== activeWorkflowId) {
-        logger.debug(`Skipping check for changes - workflow has changed from ${effectWorkflowId} to ${activeWorkflowId}`)
         return
       }
       
@@ -309,7 +308,6 @@ export function ControlBar() {
       
       // Skip if the workflow ID has changed since this effect started
       if (effectWorkflowId !== activeWorkflowId) {
-        logger.debug(`Skipping subblock check - workflow has changed from ${effectWorkflowId} to ${activeWorkflowId}`)
         return
       }
 
@@ -331,7 +329,6 @@ export function ControlBar() {
       periodicCheckTimer = setInterval(() => {
         // Only perform the check if this is still the active workflow
         if (effectWorkflowId === activeWorkflowId) {
-          logger.debug(`Performing periodic redeployment check for workflow ${activeWorkflowId}`);
           checkForChanges();
         } else {
           // Clear the interval if the workflow has changed
@@ -369,12 +366,9 @@ export function ControlBar() {
 
           // Verify the active workflow hasn't changed while fetching
           if (requestedWorkflowId !== activeWorkflowId) {
-            logger.debug(`Ignoring status response for ${requestedWorkflowId} - no longer the active workflow`)
             return
           }
           
-          // Log the response data
-          logger.debug(`Status API response for workflow ${requestedWorkflowId}: isDeployed=${data.isDeployed}, needsRedeployment=${data.needsRedeployment}`)
           
           // Update the store with the status from the API
           setDeploymentStatus(

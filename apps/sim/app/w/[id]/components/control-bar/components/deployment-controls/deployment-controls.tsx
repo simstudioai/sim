@@ -31,9 +31,7 @@ export function DeploymentControls({
   const workflowNeedsRedeployment = deploymentStatus?.needsRedeployment !== undefined 
     ? deploymentStatus.needsRedeployment 
     : needsRedeployment
-  
-  logger.debug(`DeploymentControls: Workflow ${activeWorkflowId} - isDeployed: ${isDeployed}, needsRedeployment: ${workflowNeedsRedeployment}`)
-  
+    
   const [isDeploying, setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
 

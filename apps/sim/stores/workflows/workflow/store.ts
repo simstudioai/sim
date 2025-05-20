@@ -84,7 +84,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       sync: createSyncControl(),
 
       setNeedsRedeploymentFlag: (needsRedeployment: boolean) => {
-        logger.debug(`Setting global needsRedeployment flag to ${needsRedeployment} (active workflow: ${useWorkflowRegistry.getState().activeWorkflowId})`)
         set({ needsRedeployment })
       },
 

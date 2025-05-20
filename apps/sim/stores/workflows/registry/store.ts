@@ -69,7 +69,6 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
               // Only remove if it belongs to the current workspace
               if (parsed.workspaceId === workspaceId) {
                 localStorage.removeItem(key)
-                logger.debug(`Removed stale localStorage data for workflow ${workflowId}`)
               }
             } catch (e) {
               // Skip if we can't parse the data
@@ -78,7 +77,6 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
           } else {
             // If we can't determine the workspace, remove it to be safe
             localStorage.removeItem(key)
-            logger.debug(`Removed stale localStorage data for workflow ${workflowId}`)
           }
         }
         // Case 2: Clean up workflows that reference deleted workspaces
@@ -99,9 +97,6 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
                       // Workspace doesn't exist, update the workflow to use current workspace
                       parsed.workspaceId = workspaceId
                       localStorage.setItem(`workflow-${workflowId}`, JSON.stringify(parsed))
-                      logger.debug(
-                        `Updated workflow ${workflowId} to use current workspace ${workspaceId}`
-                      )
                     }
                   } catch (e) {
                     // Skip if we can't parse workspaces data
@@ -438,9 +433,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           if (!workflowId) return
         }
 
-        // Log the action
-        logger.debug(`Setting workflow-specific needsRedeployment=${needsRedeployment} for workflow ${workflowId}`)
-
         // Update the registry's deployment status for this specific workflow
         set((state) => {
           const deploymentStatuses = state.deploymentStatuses || {};
@@ -460,13 +452,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Only update the global flag if this is the active workflow
         const { activeWorkflowId } = get()
         if (workflowId === activeWorkflowId) {
-          logger.debug(`Updating global needsRedeployment flag to ${needsRedeployment} for active workflow ${workflowId}`)
           useWorkflowStore.getState().setNeedsRedeploymentFlag(needsRedeployment)
-        } else {
-          // Important: Do NOT update global state for non-active workflows
-          logger.debug(`Not updating global needsRedeployment flag for non-active workflow ${workflowId}`)
         }
-
         // Save to persistent storage
         const workflowState = loadWorkflowState(workflowId)
         if (workflowState) {
@@ -496,15 +483,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         // Get current workflow ID
         const currentId = get().activeWorkflowId
-        
-        // Log the current state for debugging
-        logger.debug(`Switching from workflow ${currentId} to ${id}`)
-        if (currentId) {
-          const workflowStore = useWorkflowStore.getState()
-          logger.debug(`Current workflow ${currentId} has needsRedeployment=${workflowStore.needsRedeployment}`)
-        }
-
-        // Save current workflow state before switching
+                // Save current workflow state before switching
         if (currentId) {
           const currentState = useWorkflowStore.getState()
 
@@ -540,8 +519,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             deploymentStatuses,
             needsRedeployment 
           } = parsedState
-
-          logger.debug(`Loaded workflow ${id} with needsRedeployment=${needsRedeployment}, isDeployed=${isDeployed}`)
 
           // Get workflow-specific deployment status
           let workflowIsDeployed = isDeployed;

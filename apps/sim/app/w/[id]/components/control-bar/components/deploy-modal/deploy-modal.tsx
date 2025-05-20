@@ -199,11 +199,6 @@ export function DeployModal({
     }
   }, [open, workflowId])
 
-  // Log when needsRedeployment changes
-  useEffect(() => {
-    logger.debug(`DeployModal: needsRedeployment changed to ${needsRedeployment} for workflow ${workflowId}`)
-  }, [needsRedeployment, workflowId])
-
   // Fetch deployment info when the modal opens and the workflow is deployed
   useEffect(() => {
     async function fetchDeploymentInfo() {
