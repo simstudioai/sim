@@ -82,7 +82,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   const { getNodes } = useReactFlow();
   const blockRef = useRef<HTMLDivElement>(null);
   
-  // Determine nesting level by counting parents
+  // Determine nesting level by ing parents
   const nestingLevel = useMemo(() => {
     let level = 0;
     let currentParentId = data?.parentId;
@@ -194,7 +194,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
                 type="source"
                 position={Position.Right}
                 id="parallel-start-source"
-                className="!w-[6px] !h-4 !bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none !z-[30] hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none !cursor-crosshair -[colors] duration-150"
+                className="!w-[6px] !h-4 !bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none !z-[30] hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none !cursor-crosshair transition-[colors] duration-150"
                 style={{ 
                   right: "-6px", 
                   top: "50%",

@@ -1,8 +1,5 @@
 import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, EdgeProps, getSmoothStepPath } from 'reactflow'
-import { createLogger } from '@/lib/logs/console-logger'
-
-const logger = createLogger('WorkflowEdge')
 
 export const WorkflowEdge = ({
   id,
