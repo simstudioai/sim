@@ -84,7 +84,7 @@ export const RedditBlock: BlockConfig<
     },
     {
       id: 'limit',
-      title: 'Number of Posts',
+      title: 'Max Posts',
       type: 'short-input',
       layout: 'full',
       placeholder: '10',

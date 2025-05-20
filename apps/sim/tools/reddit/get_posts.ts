@@ -40,7 +40,7 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       const limit = Math.min(Math.max(1, params.limit || 10), 100)
 
       // Build URL with appropriate parameters
-      let url = `https://www.reddit.com/r/${subreddit}/${sort}.json?limit=${limit}`
+      let url = `https://www.reddit.com/r/${subreddit}/${sort}.json?limit=${limit}&raw_json=1`
 
       // Add time parameter only for 'top' sorting
       if (sort === 'top' && params.time) {
@@ -51,46 +51,88 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
     },
     method: 'GET',
     headers: () => ({
-      'User-Agent': 'Sim Studio Reddit Tool/1.0',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+      'Accept': 'application/json',
     }),
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
+  transformResponse: async (response: Response, requestParams?: RedditPostsParams) => {
+    try {
+      // Check if response is OK
+      if (!response.ok) {
+        if (response.status === 403 || response.status === 429) {
+          throw new Error('Reddit API access blocked or rate limited. Please try again later.')
+        }
+        throw new Error(`Reddit API returned ${response.status}: ${response.statusText}`)
+      }
 
-    // Extract subreddit name from response
-    const subredditName = data.data?.children[0]?.data?.subreddit || 'unknown'
+      // Attempt to parse JSON
+      let data
+      try {
+        data = await response.json()
+      } catch (error) {
+        throw new Error('Failed to parse Reddit API response: Response was not valid JSON')
+      }
 
-    // Transform posts data
-    const posts =
-      data.data?.children.map((child: any) => {
-        const post = child.data
+      // Check if response contains error
+      if (data.error || !data.data) {
+        throw new Error(data.message || 'Invalid response from Reddit API')
+      }
+
+      // Extract subreddit name from response (with fallback)
+      const subredditName = data.data?.children[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
+
+      // Transform posts data with proper error handling
+      const posts = data.data?.children?.map((child: any) => {
+        const post = child.data || {}
         return {
-          id: post.id,
-          title: post.title,
-          author: post.author,
-          url: post.url,
-          permalink: `https://www.reddit.com${post.permalink}`,
-          created_utc: post.created_utc,
-          score: post.score,
-          num_comments: post.num_comments,
-          is_self: post.is_self,
-          selftext: post.selftext,
-          thumbnail: post.thumbnail,
-          subreddit: post.subreddit,
+          id: post.id || '',
+          title: post.title || '',
+          author: post.author || '[deleted]',
+          url: post.url || '',
+          permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
+          created_utc: post.created_utc || 0,
+          score: post.score || 0,
+          num_comments: post.num_comments || 0,
+          is_self: !!post.is_self,
+          selftext: post.selftext || '',
+          thumbnail: post.thumbnail || '',
+          subreddit: post.subreddit || subredditName,
         }
       }) || []
 
-    return {
-      success: true,
-      output: {
-        subreddit: subredditName,
-        posts,
-      },
+      return {
+        success: true,
+        output: {
+          subreddit: subredditName,
+          posts,
+        },
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'Unknown error'
+      return {
+        success: false,
+        output: {
+          subreddit: requestParams?.subreddit || 'unknown',
+          posts: [],
+        },
+        error: errorMessage
+      }
     }
   },
 
-  transformError: (error) => {
-    return `Error fetching Reddit posts: ${error.message}`
+  transformError: (error): string => {
+    // Create detailed error message
+    let errorMessage = error.message || 'Unknown error'
+    
+    if (errorMessage.includes('blocked') || errorMessage.includes('rate limited')) {
+      errorMessage = `Reddit access is currently unavailable: ${errorMessage}. Consider reducing request frequency or using the official Reddit API with authentication.`
+    }
+    
+    if (errorMessage.includes('not valid JSON')) {
+      errorMessage = 'Unable to process Reddit response: Received non-JSON response, which typically happens when Reddit blocks automated access.'
+    }
+    
+    return `Error fetching Reddit posts: ${errorMessage}`
   },
 }
