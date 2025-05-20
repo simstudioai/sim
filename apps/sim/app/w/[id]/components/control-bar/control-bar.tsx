@@ -206,9 +206,9 @@ export function ControlBar() {
 
     // Function to check if redeployment is needed
     const checkForChanges = async () => {
-      // Skip if we're already showing needsRedeployment
-      if (needsRedeployment) return
-
+      // No longer skip if we're already showing needsRedeployment
+      // This allows us to detect when changes have been reverted
+      
       // Reset the pending changes counter
       pendingChanges = 0
       lastCheckTime = Date.now()
@@ -231,7 +231,8 @@ export function ControlBar() {
 
           logger.debug(`API needsRedeployment response for workflow ${requestedWorkflowId}: ${data.needsRedeployment}`)
 
-          // If the API says we need redeployment, update our state and the store
+          // Always update the needsRedeployment flag based on API response to handle both true and false
+          // This ensures it's updated when changes are detected and when changes are no longer detected
           if (data.needsRedeployment) {
             logger.info(`Setting needsRedeployment flag to TRUE for workflow ${requestedWorkflowId}`)
             
@@ -240,6 +241,18 @@ export function ControlBar() {
             
             // Use the workflow-specific method to update the registry
             useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(requestedWorkflowId, true)
+          } else {
+            // Only update to false if the current state is true to avoid unnecessary updates
+            const currentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(requestedWorkflowId);
+            if (currentStatus?.needsRedeployment) {
+              logger.info(`Setting needsRedeployment flag to FALSE for workflow ${requestedWorkflowId}`)
+              
+              // Update local state
+              setNeedsRedeployment(false)
+              
+              // Use the workflow-specific method to update the registry
+              useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(requestedWorkflowId, false)
+            }
           }
         }
       } catch (error) {
@@ -291,8 +304,8 @@ export function ControlBar() {
 
     // Also subscribe to subblock store changes
     const subBlockUnsubscribe = useSubBlockStore.subscribe((state) => {
-      // Only check for the active workflow
-      if (!activeWorkflowId || !isDeployed || needsRedeployment) return
+      // Only check for the active workflow when it's deployed
+      if (!activeWorkflowId || !isDeployed) return
       
       // Skip if the workflow ID has changed since this effect started
       if (effectWorkflowId !== activeWorkflowId) {
@@ -307,9 +320,34 @@ export function ControlBar() {
       }
     })
 
+    // Set up a periodic check when needsRedeployment is true to ensure it gets set back to false
+    // when changes are reverted
+    let periodicCheckTimer: NodeJS.Timeout | null = null
+    
+    if (needsRedeployment) {
+      // Check every 5 seconds when needsRedeployment is true to catch reverted changes
+      const PERIODIC_CHECK_INTERVAL = 5000; // 5 seconds
+      
+      periodicCheckTimer = setInterval(() => {
+        // Only perform the check if this is still the active workflow
+        if (effectWorkflowId === activeWorkflowId) {
+          logger.debug(`Performing periodic redeployment check for workflow ${activeWorkflowId}`);
+          checkForChanges();
+        } else {
+          // Clear the interval if the workflow has changed
+          if (periodicCheckTimer) {
+            clearInterval(periodicCheckTimer);
+          }
+        }
+      }, PERIODIC_CHECK_INTERVAL);
+    }
+
     return () => {
       if (debounceTimer) {
         clearTimeout(debounceTimer)
+      }
+      if (periodicCheckTimer) {
+        clearInterval(periodicCheckTimer)
       }
       workflowUnsubscribe()
       subBlockUnsubscribe()
