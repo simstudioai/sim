@@ -318,6 +318,30 @@ export class Executor {
                           }
                         }
                       }
+
+                      // After the stream has fully completed and we've updated the
+                      // final content, resume workflow execution for any
+                      // downstream blocks (e.g. memory blocks) that depend on
+                      // the agent response.
+                      try {
+                        // Determine the next blocks that are now unblocked.
+                        let nextLayer = this.getNextExecutionLayer(context)
+
+                        while (nextLayer.length > 0) {
+                          await this.executeLayer(nextLayer, context)
+
+                          // Handle any loop activations, etc.
+                          await this.loopManager.processLoopIterations(context)
+
+                          // Fetch the subsequent layer (if any)
+                          nextLayer = this.getNextExecutionLayer(context)
+                        }
+                      } catch (resumeError) {
+                        logger.error(
+                          'Error continuing workflow after stream completion:',
+                          resumeError
+                        )
+                      }
                     } catch (e) {
                       logger.error('Error processing stream for console update:', e)
                     }
@@ -723,7 +747,7 @@ export class Executor {
               input: this.workflowInput,
               // Add top-level fields for backward compatibility
               message: this.workflowInput.input,
-              conversationId: this.workflowInput.conversationId
+              conversationId: this.workflowInput.conversationId,
             },
           }
 
@@ -755,7 +779,7 @@ export class Executor {
           response: {
             input: this.workflowInput,
             message: this.workflowInput?.input,
-            conversationId: this.workflowInput?.conversationId
+            conversationId: this.workflowInput?.conversationId,
           },
         }
 
