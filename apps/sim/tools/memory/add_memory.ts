@@ -142,7 +142,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       return {
         success: true,
         output: {
-          memory: data.data,
+          memories: data.data,
           message: isNewMemory ? 'Memory created successfully' : 'Memory appended successfully'
         },
       }
@@ -150,7 +150,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       return {
         success: false,
         output: {
-          memory: undefined,
+          memories: undefined,
           message: `Failed to add memory: ${error.message || 'Unknown error occurred'}`
         },
       }
@@ -161,7 +161,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
     return {
       success: false,
       output: {
-        memory: undefined,
+        memories: undefined,
         message: `Memory operation failed: ${error.message || 'Unknown error occurred'}`
       },
       error: errorMessage

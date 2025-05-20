@@ -118,7 +118,6 @@ export const MemoryBlock: BlockConfig = {
   outputs: {
     response: {
       type: {
-        memory: 'any',
         memories: 'any',
         id: 'string',
       },

@@ -56,7 +56,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       return {
         success: true,
         output: {
-          memory: data.data,
+          memories: data.data,
           message: 'Memory retrieved successfully'
         },
       }
@@ -64,7 +64,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       return {
         success: false,
         output: {
-          memory: undefined,
+          memories: undefined,
           message: `Failed to retrieve memory: ${error.message || 'Unknown error'}`
         },
         error: `Failed to retrieve memory: ${error.message || 'Unknown error'}`
@@ -76,7 +76,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
     return {
       success: false,
       output: {
-        memory: undefined,
+        memories: undefined,
         message: errorMessage
       },
       error: errorMessage
