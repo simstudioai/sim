@@ -308,11 +308,10 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
   const { setDeploymentStatus } = useWorkflowRegistry()
-  const { activeWorkflowId } = useWorkflowRegistry()
-
-  // Get deployment status from registry
+  
+  // Get deployment status from registry using notification's workflowId, not activeWorkflowId
   const deploymentStatus = useWorkflowRegistry(state => 
-    state.getWorkflowDeploymentStatus(activeWorkflowId))
+    state.getWorkflowDeploymentStatus(workflowId || null))
   const isDeployed = deploymentStatus?.isDeployed || false
 
   // Create a function to clear the redeployment flag and update deployment status

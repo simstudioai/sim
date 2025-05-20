@@ -39,6 +39,7 @@ export interface DeploymentStatus {
   isDeployed: boolean
   deployedAt?: Date
   apiKey?: string
+  needsRedeployment?: boolean
 }
 
 export interface WorkflowState {
