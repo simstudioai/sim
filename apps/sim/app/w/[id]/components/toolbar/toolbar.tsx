@@ -91,7 +91,7 @@ export function Toolbar() {
               ))}
               {activeTab === 'blocks' && !searchQuery && (
                 <>
-                  <LoopToolbarItem />
+                  {/* <LoopToolbarItem /> */}
                   <ParallelToolbarItem />
                 </>
               )}

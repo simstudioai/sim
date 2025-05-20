@@ -1005,11 +1005,13 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().triggerUpdate()
         get().sync.markDirty()
         get().sync.forceSync()
-      // Add the implementations for parallel block methods
-      updateParallelCount: (parallelId: string, count: number) => 
-        set(state => {
-          const block = state.blocks[parallelId];
-          if (!block || block.type !== 'parallel') return state;
+      },
+      
+      // Parallel block methods implementation
+      updateParallelCount: (parallelId: string, count: number) => {
+        return set(state => {
+          const block = state.blocks[parallelId]
+          if (!block || block.type !== 'parallel') return state
           
           return {
             blocks: {
@@ -1025,13 +1027,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             edges: [...state.edges],
             loops: { ...state.loops },
             parallels: { ...state.parallels }
-          };
-        }),
+          }
+        })
+      },
         
-      updateParallelCollection: (parallelId: string, collection: string) =>
-        set(state => {
-          const block = state.blocks[parallelId];
-          if (!block || block.type !== 'parallel') return state;
+      updateParallelCollection: (parallelId: string, collection: string) => {
+        return set(state => {
+          const block = state.blocks[parallelId]
+          if (!block || block.type !== 'parallel') return state
           
           return {
             blocks: {
@@ -1047,12 +1050,13 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             edges: [...state.edges],
             loops: { ...state.loops },
             parallels: { ...state.parallels }
-          };
-        }),
+          }
+        })
+      },
 
       // Function to convert UI parallel blocks to execution format
       generateParallelBlocks: () => {
-        return generateParallelBlocks(get().blocks);
+        return generateParallelBlocks(get().blocks)
       },
     })),
     { name: 'workflow-store' }
