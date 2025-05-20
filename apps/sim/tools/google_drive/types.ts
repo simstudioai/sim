@@ -25,7 +25,14 @@ export interface GoogleDriveUploadResponse extends ToolResponse {
   }
 }
 
-export interface GoogleDriveDownloadResponse extends ToolResponse {
+export interface GoogleDriveGetContentResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: GoogleDriveFile
+  }
+}
+
+export interface GoogleDriveExportResponse extends ToolResponse {
   output: {
     content: string
     metadata: GoogleDriveFile
@@ -42,4 +49,5 @@ export interface GoogleDriveToolParams {
   query?: string
   pageSize?: number
   pageToken?: string
+  exportMimeType?: string
 }
