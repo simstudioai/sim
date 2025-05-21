@@ -884,9 +884,9 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
       return
     }
 
-    // Skip blocks with category 'blocks', only process blocks with category 'tools', and skip specific blocks
+    // Skip blocks with category 'blocks' (except memory type), and skip specific blocks
     if (
-      blockConfig.category === 'blocks' ||
+      (blockConfig.category === 'blocks' && blockConfig.type !== 'memory') ||
       blockConfig.type === 'evaluator' ||
       blockConfig.type === 'number'
     ) {

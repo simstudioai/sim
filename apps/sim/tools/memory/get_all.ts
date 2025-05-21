@@ -1,7 +1,6 @@
 import { ToolConfig } from '../types'
 import { MemoryResponse } from './types'
 
-// Get All Memories Tool
 export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
   id: 'memory_get_all',
   name: 'Get All Memories',
@@ -12,7 +11,7 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
     url: (params): any => {
       // Get workflowId from context (set by workflow execution)
       const workflowId = params._context?.workflowId
-      
+
       if (!workflowId) {
         return {
           _errorResponse: {
@@ -20,13 +19,13 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
             data: {
               success: false,
               error: {
-                message: 'workflowId is required and must be provided in execution context'
-              }
-            }
-          }
+                message: 'workflowId is required and must be provided in execution context',
+              },
+            },
+          },
         }
       }
-      
+
       // Append workflowId as query parameter
       return `/api/memory?workflowId=${encodeURIComponent(workflowId)}`
     },
@@ -39,28 +38,28 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
   transformResponse: async (response): Promise<MemoryResponse> => {
     try {
       const result = await response.json()
-      
+
       if (!response.ok) {
         const errorMessage = result.error?.message || 'Failed to retrieve memories'
         throw new Error(errorMessage)
       }
-      
+
       // Extract memories from the response
       const data = result.data || result
-      let rawMemories = data.memories || data || [];
-      
+      let rawMemories = data.memories || data || []
+
       // Transform memories to return them with their keys and types for better context
       const memories = rawMemories.map((memory: any) => ({
         key: memory.key,
         type: memory.type,
-        data: memory.data
-      }));
-      
+        data: memory.data,
+      }))
+
       return {
         success: true,
         output: {
           memories,
-          message: 'Memories retrieved successfully'
+          message: 'Memories retrieved successfully',
         },
       }
     } catch (error: any) {
@@ -68,9 +67,9 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
         success: false,
         output: {
           memories: [],
-          message: `Failed to retrieve memories: ${error.message || 'Unknown error'}`
+          message: `Failed to retrieve memories: ${error.message || 'Unknown error'}`,
         },
-        error: `Failed to retrieve memories: ${error.message || 'Unknown error'}`
+        error: `Failed to retrieve memories: ${error.message || 'Unknown error'}`,
       }
     }
   },
@@ -80,9 +79,9 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
       success: false,
       output: {
         memories: [],
-        message: errorMessage
+        message: errorMessage,
       },
-      error: errorMessage
+      error: errorMessage,
     }
   },
-} 
+}
