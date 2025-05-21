@@ -7,7 +7,7 @@ const logger = createLogger('ImageTool')
 
 export const imageTool: ToolConfig = {
   id: 'openai_image',
-  name: 'Image Generate',
+  name: 'Image Generator',
   description: "Generate images using OpenAI's Image models",
   version: '1.0.0',
   params: {
