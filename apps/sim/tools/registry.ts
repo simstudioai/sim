@@ -76,7 +76,11 @@ import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube'
-import { microsoftTeamsReadTool, microsoftTeamsWriteTool } from './microsoft_teams'
+import { microsoftTeamsReadChatTool,
+  microsoftTeamsWriteChatTool,
+  microsoftTeamsReadChannelTool,
+  microsoftTeamsWriteChannelTool
+} from './microsoft_teams'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -174,6 +178,8 @@ export const tools: Record<string, ToolConfig> = {
   discord_get_server: discordGetServerTool,
   discord_get_user: discordGetUserTool,
   openai_image: imageTool,
-  microsoft_teams_read: microsoftTeamsReadTool,
-  microsoft_teams_write: microsoftTeamsWriteTool,
+  microsoft_teams_read_chat: microsoftTeamsReadChatTool,
+  microsoft_teams_write_chat: microsoftTeamsWriteChatTool,
+  microsoft_teams_read_channel: microsoftTeamsReadChannelTool,
+  microsoft_teams_write_channel: microsoftTeamsWriteChannelTool,
 }

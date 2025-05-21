@@ -27,8 +27,10 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Read Messages', id: 'read' },
-        { label: 'Write to Message', id: 'write' },
+        { label: 'Read Chat Messages', id: 'read_chat' },
+        { label: 'Write Chat Message', id: 'write_chat' },
+        { label: 'Read Channel Messages', id: 'read_channel' },
+        { label: 'Write Channel Message', id: 'write_channel' },
       ],
     },
     // Microsoft Teams Credentials
@@ -39,7 +41,18 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       layout: 'full',
       provider: 'microsoft-teams',
       serviceId: 'microsoft-teams',
-      requiredScopes: ['https://graph.microsoft.com/.default'], //TODO: Modify scopes
+      requiredScopes: [
+        'openid',  
+        'profile',          
+        'email',   
+        'User.Read',
+        'Chat.Read',
+        'Chat.ReadWrite',
+        'ChannelMessage.Read.All',
+        'ChannelMessage.ReadWrite',
+        'Team.ReadBasic.All',
+        'offline_access'
+      ],
       placeholder: 'Select Microsoft account',
     },
     {
@@ -51,7 +64,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         serviceId: 'microsoft-teams',
         requiredScopes: [],
         placeholder: 'Select a team',
-        condition: { field: 'operation', value: ['write', 'read'] },
+        condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
       },
     
     {
@@ -63,7 +76,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         serviceId: 'microsoft-teams',
         requiredScopes: [],
         placeholder: 'Select a chat',
-        condition: { field: 'operation', value: ['write', 'read'] },
+        condition: { field: 'operation', value: ['read_chat', 'write_chat'] },
     },
     {
         id: 'channelId',
@@ -74,7 +87,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         serviceId: 'microsoft-teams',
         requiredScopes: [],
         placeholder: 'Select a channel',
-        condition: { field: 'operation', value: ['write', 'read'] },
+        condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
     },
     // Create-specific Fields
     {
@@ -83,20 +96,24 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter message content',
-      condition: { field: 'operation', value: 'write' },
+      condition: { field: 'operation', value: ['write_chat', 'write_channel'] },
     },
   ],
   tools: {
-    access: ['microsoft_teams_read', 'microsoft_teams_write'],
+    access: ['microsoft_teams_read_chat', 'microsoft_teams_write_chat', 'microsoft_teams_read_channel', 'microsoft_teams_write_channel'],
     config: {
       tool: (params) => {
         switch (params.operation) {
-          case 'read':
-            return 'microsoft_teams_read'
-          case 'write':
-            return 'microsoft_teams_write'
+          case 'read_chat':
+            return 'microsoft_teams_read_chat'
+          case 'write_chat':
+            return 'microsoft_teams_write_chat'
+          case 'read_channel':
+            return 'microsoft_teams_read_channel'
+          case 'write_channel':
+            return 'microsoft_teams_write_channel'
           default:
-            throw new Error(`Invalid Microsoft Teams operation: ${params.operation}`)
+            return 'microsoft_teams_read_chat'
         }
       },
       params: (params) => {
@@ -125,8 +142,8 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
     messageId: { type: 'string', required: true },
-    chatId: { type: 'string', required: false },
-    channelId: { type: 'string', required: false },
+    chatId: { type: 'string', required: true },
+    channelId: { type: 'string', required: true },
     teamId: { type: 'string', required: true },
     content: { type: 'string', required: true },
   },

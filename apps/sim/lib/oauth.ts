@@ -146,7 +146,18 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'microsoft-teams',
         icon: (props) => MicrosoftTeamsIcon(props),
         baseProviderIcon: (props) => MicrosoftIcon(props),
-        scopes: ['https://graph.microsoft.com/.default'], //TODO: Add/edit the scopes
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'User.Read',
+          'Chat.Read',
+          'Chat.ReadWrite',
+          'ChannelMessage.Read.All',
+          'ChannelMessage.ReadWrite',
+          'Team.ReadBasic.All',
+          'offline_access',
+        ],
       },
     },
     defaultService: 'microsoft',
@@ -485,6 +496,11 @@ export async function refreshOAuthToken(
         clientId = env.DISCORD_CLIENT_ID
         clientSecret = env.DISCORD_CLIENT_SECRET
         useBasicAuth = true
+        break
+      case 'microsoft':
+        tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
+        clientId = env.MICROSOFT_CLIENT_ID
+        clientSecret = env.MICROSOFT_CLIENT_SECRET
         break
       default:
         throw new Error(`Unsupported provider: ${provider}`)

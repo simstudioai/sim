@@ -114,6 +114,7 @@ export const auth = betterAuth({
         'supabase',
         'x',
         'notion',
+        'microsoft'
       ],
     },
   },
@@ -363,6 +364,59 @@ export const auth = betterAuth({
           ],
           prompt: 'consent',
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/google-sheets`,
+        },
+
+        {
+          providerId: 'microsoft-teams',
+          clientId: env.MICROSOFT_CLIENT_ID as string,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET as string,
+          authorizationUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+          tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+          userInfoUrl: 'https://graph.microsoft.com/v1.0/me',
+          scopes: [
+            'openid',
+            'profile',
+            'email',
+            'User.Read',
+            'Chat.Read',
+            'Chat.ReadWrite',
+            'ChannelMessage.Read.All',
+            'ChannelMessage.ReadWrite',
+            'Team.ReadBasic.All',
+            'offline_access',
+          ],
+          responseType: 'code',
+          accessType: 'offline',
+          authentication: 'basic',
+          prompt: 'consent',
+          pkce: true,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/microsoft-teams`,
+          getUserInfo: async (tokens) => {
+            try {
+              const res = await fetch('https://graph.microsoft.com/v1.0/me', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+        
+              if (!res.ok) return null
+              const profile = await res.json()
+              const now = new Date()
+        
+              return {
+                id: profile.id,
+                name: profile.displayName || 'Microsoft User',
+                email: profile.mail || profile.userPrincipalName,
+                image: null,
+                emailVerified: true,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (err) {
+              logger.error('Error fetching Microsoft user info:', { err })
+              return null
+            }
+          },
         },
 
         // Supabase provider

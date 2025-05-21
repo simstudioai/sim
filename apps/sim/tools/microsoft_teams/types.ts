@@ -27,6 +27,7 @@ export interface MicrosoftTeamsWriteResponse extends ToolResponse {
 export interface MicrosoftTeamsToolParams {
   accessToken: string
   messageId?: string
+  chatId?: string
   channelId?: string
   teamId?: string
   content?: string

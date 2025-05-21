@@ -1,10 +1,10 @@
 import { ToolConfig } from '../types'
-import { MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse } from './types'
+import { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
 
-export const writeTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse> = {
-  id: 'microsoft_teams_write',
-  name: 'Write to Microsoft Teams Message',
-  description: 'Write or update content in a Microsoft Teams message',
+export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
+  id: 'microsoft_teams_read_chat',
+  name: 'Read Microsoft Teams Chat',
+  description: 'Read content from a Microsoft Teams chat',
   version: '1.0',
   oauth: {
     required: true,
@@ -17,30 +17,15 @@ export const writeTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWrite
       required: true,
       description: 'The access token for the Microsoft Teams API',
     },
-    teamId: {
-        type: 'string',
-        required: true,
-        description: 'The ID of the team to write to',
-      },
     chatId: {
       type: 'string',
-      required: false,
-      description: 'The ID of the chat to write to',
-    },
-    channelId: {
-      type: 'string',
-      required: false,
-      description: 'The ID of the channel to write to',
-    },
-    messageId: {
-      type: 'string',
       required: true,
-      description: 'The ID of the message to write to',
+      description: 'The ID of the chat to read from',
     },
     content: {
       type: 'string',
       required: true,
-      description: 'The content to write to the message',
+      description: 'The content to read from the chat',
     },
   },
   request: {
@@ -50,10 +35,10 @@ export const writeTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWrite
       if (!messageId) {
         throw new Error('Message ID is required')
       }
-
-      return `https://graph.microsoft.com/v1.0/teams/${params.teamId}/channels/${params.channelId}/messages/${messageId}:batchUpdate`
+      //We can just extract the chats once the user has signed in
+      return `https://graph.microsoft.com/v1.0/chats/${params.chatId}/messages`
     },
-    method: 'POST',
+    method: 'GET',
     headers: (params) => {
       // Validate access token
       if (!params.accessToken) {
@@ -62,36 +47,13 @@ export const writeTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWrite
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
       }
-    },
-    body: (params) => {
-      // Validate content
-      if (!params.content) {
-        throw new Error('Content is required')
-      }
-
-      // Following the exact format from the Google Docs API examples
-      // Always insert at the end of the document to avoid duplication
-      // See: https://developers.google.com/docs/api/reference/rest/v1/documents/request#InsertTextRequest
-      const requestBody = {
-        requests: [
-          {
-            insertText: {
-              endOfSegmentLocation: {},
-              text: params.content,
-            },
-          },
-        ],
-      }
-
-      return requestBody
     },
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Failed to write Microsoft Teams message: ${errorText}`)
+      throw new Error(`Failed to read Microsoft Teams message: ${errorText}`)
     }
 
     const data = await response.json()
@@ -107,7 +69,7 @@ export const writeTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWrite
     return {
       success: true,
       output: {
-        updatedContent: true,
+        content: data.body.content,
         metadata,
       },
     }
@@ -132,3 +94,5 @@ export const writeTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWrite
     return 'An error occurred while reading Microsoft Teams message'
   },
 }
+
+
