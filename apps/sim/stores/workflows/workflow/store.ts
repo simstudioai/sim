@@ -1042,10 +1042,10 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         
       updateParallelCollection: (parallelId: string, collection: string) => {
         return set(state => {
-          const block = state.blocks[parallelId]
-          if (!block || block.type !== 'parallel') return state
+          const block = state.blocks[parallelId];
+          if (!block || block.type !== 'parallel') return state;
           
-          return {
+          const newState = {
             blocks: {
               ...state.blocks,
               [parallelId]: {
@@ -1059,11 +1059,17 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             edges: [...state.edges],
             loops: { ...state.loops },
             parallels: { ...state.parallels }
-          }
-        })
+          };
+          
+          pushHistory(set, get, newState, `Update parallel collection for ${block.name}`);
+          get().updateLastSaved();
+          get().sync.markDirty();
+          
+          return newState;
+        });
       },
 
-      // Function to convert UI parallel blocks to execution format
+      // Function to convert UI loop blocks to execution format
       generateParallelBlocks: () => {
         return generateParallelBlocks(get().blocks)
       },

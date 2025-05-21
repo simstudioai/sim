@@ -82,26 +82,17 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   const { getNodes } = useReactFlow();
   const blockRef = useRef<HTMLDivElement>(null);
   
+  // Get the updateParallelCollection function from store
+  const updateParallelCollection = useWorkflowStore(state => state.updateParallelCollection);
+  
   // Ensure collection property is initialized
   useEffect(() => {
     const currentData = useWorkflowStore.getState().blocks[id]?.data;
     if (currentData && !currentData.collection) {
-      // Update the node data to include collection property
-      useWorkflowStore.setState(state => ({
-        blocks: {
-          ...state.blocks,
-          [id]: {
-            ...state.blocks[id],
-            data: {
-              ...state.blocks[id].data,
-              collection: "",
-              type: 'parallelNode'
-            }
-          }
-        }
-      }));
+      // Initialize with empty collection
+      updateParallelCollection(id, "");
     }
-  }, [id]);
+  }, [id, updateParallelCollection]);
   
   // Determine nesting level by ing parents
   const nestingLevel = useMemo(() => {

@@ -37,20 +37,7 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
 
   // Get store methods
-  const updateNodeData = useCallback((updates: Partial<ParallelNodeData>) => {
-    useWorkflowStore.setState(state => ({
-      blocks: {
-        ...state.blocks,
-        [nodeId]: {
-          ...state.blocks[nodeId],
-          data: {
-            ...state.blocks[nodeId].data,
-            ...updates
-          }
-        }
-      }
-    }))
-  }, [nodeId])
+  const updateParallelCollection = useWorkflowStore(state => state.updateParallelCollection)
 
   // Initialize editor value from data when it changes
   useEffect(() => {
@@ -60,15 +47,21 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
       } else if (Array.isArray(data.collection) || typeof data.collection === 'object') {
         setEditorValue(JSON.stringify(data.collection))
       }
+    } else {
+      // Set default empty value if no collection exists
+      const defaultValue = ''
+      setEditorValue(defaultValue)
+      // Initialize the collection in the store
+      updateParallelCollection(nodeId, defaultValue)
     }
-  }, [data?.collection, nodeId, updateNodeData])
+  }, [data?.collection, nodeId, updateParallelCollection])
 
   // Handle editor change
   const handleEditorChange = useCallback((value: string) => {
     setEditorValue(value)
-    // Ensure we update with a valid value
-    updateNodeData({ collection: value })
-  }, [updateNodeData])
+    // Update the store using the dedicated function
+    updateParallelCollection(nodeId, value)
+  }, [nodeId, updateParallelCollection])
 
   return (
     <div className="absolute -top-9 left-0 right-0 flex justify-end z-10">

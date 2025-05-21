@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useMemo, useRef, useEffect } from 'react'
 import { Handle, NodeProps, Position, useReactFlow } from 'reactflow'
 import { Trash2 } from 'lucide-react'
 import { StartIcon } from '@/components/icons'
@@ -81,6 +81,28 @@ const LoopNodeStyles: React.FC = () => {
 export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
   const { getNodes } = useReactFlow();
   const blockRef = useRef<HTMLDivElement>(null);
+  
+  // Get the update functions from store
+  const updateLoopType = useWorkflowStore(state => state.updateLoopType);
+  const updateLoopCount = useWorkflowStore(state => state.updateLoopCount);
+  const updateLoopCollection = useWorkflowStore(state => state.updateLoopCollection);
+  
+  // Ensure loop properties are initialized
+  useEffect(() => {
+    const currentData = useWorkflowStore.getState().blocks[id]?.data;
+    if (currentData) {
+      // Initialize with default values if missing
+      if (!currentData.loopType) {
+        updateLoopType(id, 'for');
+      }
+      if (!currentData.count && currentData.count !== 0) {
+        updateLoopCount(id, 5);
+      }
+      if (currentData.loopType === 'forEach' && !currentData.collection) {
+        updateLoopCollection(id, '');
+      }
+    }
+  }, [id, updateLoopType, updateLoopCount, updateLoopCollection]);
   
   // Determine nesting level by counting parents
   const nestingLevel = useMemo(() => {

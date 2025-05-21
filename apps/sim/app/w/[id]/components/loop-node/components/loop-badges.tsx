@@ -44,20 +44,9 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
 
   // Get store methods
-  const updateNodeData = useCallback((updates: Partial<LoopNodeData>) => {
-    useWorkflowStore.setState(state => ({
-      blocks: {
-        ...state.blocks,
-        [nodeId]: {
-          ...state.blocks[nodeId],
-          data: {
-            ...state.blocks[nodeId].data,
-            ...updates
-          }
-        }
-      }
-    }))
-  }, [nodeId])
+  const updateLoopType = useWorkflowStore(state => state.updateLoopType)
+  const updateLoopCount = useWorkflowStore(state => state.updateLoopCount)
+  const updateLoopCollection = useWorkflowStore(state => state.updateLoopCollection)
 
   // Initialize editor value from data when it changes
   useEffect(() => {
@@ -75,15 +64,20 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
       } else if (Array.isArray(data.collection) || typeof data.collection === 'object') {
         setEditorValue(JSON.stringify(data.collection))
       }
+    } else if (loopType === 'forEach' && !data?.collection) {
+      // Initialize with empty string if collection doesn't exist
+      const defaultValue = ''
+      setEditorValue(defaultValue)
+      updateLoopCollection(nodeId, defaultValue)
     }
-  }, [data?.loopType, data?.count, data?.collection, loopType, iterations])
+  }, [data?.loopType, data?.count, data?.collection, loopType, iterations, nodeId, updateLoopCollection])
 
   // Handle loop type change
   const handleLoopTypeChange = useCallback((newType: 'for' | 'forEach') => {
     setLoopType(newType)
-    updateNodeData({ loopType: newType })
+    updateLoopType(nodeId, newType)
     setTypePopoverOpen(false)
-  }, [updateNodeData])
+  }, [nodeId, updateLoopType])
 
   // Handle iterations input change
   const handleIterationsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,19 +98,19 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
     if (!isNaN(value)) {
       const newValue = Math.min(100, Math.max(1, value))
       setIterations(newValue)
-      updateNodeData({ count: newValue })
+      updateLoopCount(nodeId, newValue)
       setInputValue(newValue.toString())
     } else {
       setInputValue(iterations.toString())
     }
     setConfigPopoverOpen(false)
-  }, [inputValue, iterations, updateNodeData])
+  }, [inputValue, iterations, nodeId, updateLoopCount])
 
   // Handle editor change
   const handleEditorChange = useCallback((value: string) => {
     setEditorValue(value)
-    updateNodeData({ collection: value })
-  }, [updateNodeData])
+    updateLoopCollection(nodeId, value)
+  }, [nodeId, updateLoopCollection])
 
   return (
     <div className="absolute -top-9 left-0 right-0 flex justify-between z-10">
