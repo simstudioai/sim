@@ -11,6 +11,8 @@ import {
   GoogleIcon,
   GoogleSheetsIcon,
   JiraIcon,
+  MicrosoftIcon,
+  MicrosoftTeamsIcon,
   NotionIcon,
   SupabaseIcon,
   xIcon,
@@ -31,6 +33,7 @@ export type OAuthProvider =
   | 'notion'
   | 'jira'
   | 'discord'
+  | 'microsoft'
   | string
 
 export type OAuthService =
@@ -47,7 +50,7 @@ export type OAuthService =
   | 'notion'
   | 'jira'
   | 'discord'
-
+  | 'microsoft-teams'
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -130,6 +133,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'gmail',
+  },
+  microsoft: {
+    id: 'microsoft',
+    name: 'Microsoft',
+    icon: (props) => MicrosoftIcon(props),
+    services: {
+      'microsoft-teams': {
+        id: 'microsoft-teams',
+        name: 'Microsoft Teams',
+        description: 'Connect to Microsoft Teams and manage messages.',
+        providerId: 'microsoft-teams',
+        icon: (props) => MicrosoftTeamsIcon(props),
+        baseProviderIcon: (props) => MicrosoftIcon(props),
+        scopes: ['https://graph.microsoft.com/.default'], //TODO: Add/edit the scopes
+      },
+    },
+    defaultService: 'microsoft',
   },
   github: {
     id: 'github',
@@ -319,6 +339,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     if (scopes.some((scope) => scope.includes('calendar'))) {
       return 'google-calendar'
     }
+  } else if (provider === 'microsoft-teams') {
+    return 'microsoft-teams'
   } else if (provider === 'github') {
     return 'github'
   } else if (provider === 'supabase') {
