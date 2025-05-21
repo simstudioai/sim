@@ -130,54 +130,69 @@ Using clear and consistent commit messages makes it easier for everyone to under
 
 To set up your local development environment:
 
-### Option 1: Using Docker (Recommended)
+### Option 1: Using NPM Package (Simplest)
 
-Docker provides a consistent development environment with all dependencies pre-configured.
+The easiest way to run Sim Studio locally is using our NPM package:
 
-1. **Clone the Repository:**
+```bash
+npx simstudio
+```
 
-   ```bash
-   git clone https://github.com/<your-username>/sim.git
-   cd sim
-   ```
+After running this command, open [http://localhost:3000/](http://localhost:3000/) in your browser.
 
-2. **Start the Docker Environment:**
+#### Options
 
-   ```bash
-   docker compose up -d
-   ```
+- `-p, --port <port>`: Specify the port to run Sim Studio on (default: 3000)
+- `--no-pull`: Skip pulling the latest Docker images
 
-   Or use the convenience script which handles environment setup and migrations:
+#### Requirements
 
-   ```bash
-   chmod +x scripts/start_simstudio_docker.sh
-   ./scripts/start_simstudio_docker.sh
-   ```
+- Docker must be installed and running on your machine
 
-   This will:
+### Option 2: Using Docker Compose
 
-   - Start a PostgreSQL database container
-   - Build and run the Next.js application with hot-reloading
-   - Set up all necessary environment variables
-   - Apply database migrations automatically
+```bash
+# Clone the repository
+git clone https://github.com/<your-username>/sim.git
+cd sim
 
-3. **View Logs:**
+# Start Sim Studio
+docker compose -f docker-compose.prod.yml up -d
+```
 
-   ```bash
-   docker compose logs -f simstudio
-   ```
+Access the application at [http://localhost:3000/](http://localhost:3000/)
 
-4. **Make Your Changes:**
-   - Edit files in your local directory
-   - Changes will be automatically reflected thanks to hot-reloading
+#### Using Local Models
 
-### Option 2: Using VS Code / Cursor Dev Containers
+To use local models with Sim Studio:
+
+1. Pull models using our helper script:
+
+```bash
+./apps/sim/scripts/ollama_docker.sh pull <model_name>
+```
+
+2. Start Sim Studio with local model support:
+
+```bash
+# With NVIDIA GPU support
+docker compose --profile local-gpu -f docker-compose.ollama.yml up -d
+
+# Without GPU (CPU only)
+docker compose --profile local-cpu -f docker-compose.ollama.yml up -d
+
+# If hosting on a server, update the environment variables in the docker-compose.prod.yml file
+# to include the server's public IP then start again (OLLAMA_URL to i.e. http://1.1.1.1:11434)
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### Option 3: Using VS Code / Cursor Dev Containers
 
 Dev Containers provide a consistent and easy-to-use development environment:
 
 1. **Prerequisites:**
 
-   - Visual Studio Code
+   - Visual Studio Code or Cursor
    - Docker Desktop
    - [Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension for VS Code
 
@@ -188,58 +203,53 @@ Dev Containers provide a consistent and easy-to-use development environment:
      git clone https://github.com/<your-username>/sim.git
      cd sim
      ```
-   - Open the project in VS Code
+   - Open the project in VS Code/Cursor
    - When prompted, click "Reopen in Container" (or press F1 and select "Remote-Containers: Reopen in Container")
    - Wait for the container to build and initialize
-   - The development environment will be set up in the `sim/` directory
 
 3. **Start Developing:**
 
+   - Run `bun run dev` in the terminal or use the `sim-start` alias
    - All dependencies and configurations are automatically set up
-   - Use the provided aliases (like `sim-start`) to run common commands
    - Your changes will be automatically hot-reloaded
 
 4. **GitHub Codespaces:**
    - This setup also works with GitHub Codespaces if you prefer development in the browser
    - Just click "Code" → "Codespaces" → "Create codespace on main"
 
-### Option 3: Manual Setup
+### Option 4: Manual Setup
 
 If you prefer not to use Docker or Dev Containers:
 
 1. **Clone the Repository:**
    ```bash
    git clone https://github.com/<your-username>/sim.git
-   cd sim/sim
+   cd sim
+   bun install
    ```
-2. **Install Dependencies:**
 
-   - Using Bun:
+2. **Set Up Environment:**
+
+   - Navigate to the app directory:
      ```bash
-     bun install
+     cd apps/sim
      ```
-
-3. **Set Up Environment:**
-
    - Copy `.env.example` to `.env`
-   - Configure database connection and other required authentication variables
+   - Configure required variables (DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL)
 
-4. **Set Up Database:**
+3. **Set Up Database:**
 
-   - You need a PostgreSQL instance running
-   - Run migrations:
-     ```bash
-     bun run db:push
-     ```
+   ```bash
+   bunx drizzle-kit push
+   ```
 
-5. **Run the Development Server:**
+4. **Run the Development Server:**
 
-   - With Bun:
-     ```bash
-     bun run dev
-     ```
+   ```bash
+   bun run dev
+   ```
 
-6. **Make Your Changes and Test Locally.**
+5. **Make Your Changes and Test Locally.**
 
 ### Email Template Development
 

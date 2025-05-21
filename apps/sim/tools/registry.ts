@@ -50,7 +50,7 @@ import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from './memory'
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
-import { dalleTool, embeddingsTool as openAIEmbeddings } from './openai'
+import { imageTool, embeddingsTool as openAIEmbeddings } from './openai'
 import { perplexityChatTool } from './perplexity'
 import {
   pineconeFetchTool,
@@ -149,7 +149,6 @@ export const tools: Record<string, ToolConfig> = {
   confluence_retrieve: confluenceRetrieveTool,
   confluence_update: confluenceUpdateTool,
   twilio_send_sms: sendSMSTool,
-  openai_dalle: dalleTool,
   airtable_create_records: airtableCreateRecordsTool,
   airtable_get_record: airtableGetRecordTool,
   airtable_list_records: airtableListRecordsTool,
@@ -173,4 +172,5 @@ export const tools: Record<string, ToolConfig> = {
   discord_get_messages: discordGetMessagesTool,
   discord_get_server: discordGetServerTool,
   discord_get_user: discordGetUserTool,
+  openai_image: imageTool,
 }

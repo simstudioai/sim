@@ -73,10 +73,10 @@ To use local models with Sim Studio:
 
 ```bash
 # With NVIDIA GPU support
-docker compose -f docker-compose.ollama.yml up --profile local-gpu -d --build
+docker compose --profile local-gpu -f docker-compose.ollama.yml up -d
 
 # Without GPU (CPU only)
-docker compose -f docker-compose.ollama.yml up --profile local-cpu -d --build
+docker compose --profile local-cpu -f docker-compose.ollama.yml up -d
 
 # If hosting on a server, update the environment variables in the docker-compose.prod.yml file to include the server's public IP then start again (OLLAMA_URL to i.e. http://1.1.1.1:11434)
 docker compose -f docker-compose.prod.yml up -d
