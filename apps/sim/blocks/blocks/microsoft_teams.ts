@@ -27,20 +27,20 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Read Message', id: 'read' },
+        { label: 'Read Messages', id: 'read' },
         { label: 'Write to Message', id: 'write' },
       ],
     },
     // Microsoft Teams Credentials
     {
       id: 'credential',
-      title: 'Microsoft Teams Account',
+      title: 'Microsoft Account',
       type: 'oauth-input',
       layout: 'full',
       provider: 'microsoft-teams',
       serviceId: 'microsoft-teams',
       requiredScopes: ['https://graph.microsoft.com/.default'], //TODO: Modify scopes
-      placeholder: 'Select Microsoft Teams account',
+      placeholder: 'Select Microsoft account',
     },
     {
         id: 'teamId',
@@ -76,18 +76,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         placeholder: 'Select a channel',
         condition: { field: 'operation', value: ['write', 'read'] },
     },
-
-    {
-        id: 'messageId',
-        title: 'Select Message',
-        type: 'file-selector',
-        layout: 'full',
-        provider: 'microsoft-teams',
-        serviceId: 'microsoft-teams',
-        requiredScopes: [],
-        placeholder: 'Select a message',
-        condition: { field: 'operation', value: 'read' },
-      },
     // Create-specific Fields
     {
       id: 'content',
