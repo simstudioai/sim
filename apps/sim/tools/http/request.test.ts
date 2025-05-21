@@ -452,5 +452,75 @@ describe('HTTP Request Tool', () => {
       // Reset window
       global.window = originalWindow
     })
+
+    test('should include method parameter in proxy URL', () => {
+      const originalWindow = global.window
+      Object.defineProperty(global, 'window', {
+        value: {
+          location: {
+            origin: 'https://simstudio.ai',
+          },
+        },
+        writable: true,
+      })
+
+      const originalVitest = process.env.VITEST
+
+      try {
+        process.env.VITEST = undefined
+
+        const buildProxyUrl = (params: any) => {
+          const baseUrl = `https://external-api.com/endpoint`
+          let proxyUrl = `/api/proxy?url=${encodeURIComponent(baseUrl)}`
+
+          if (params.method) {
+            proxyUrl += `&method=${encodeURIComponent(params.method)}`
+          }
+
+          if (
+            params.body &&
+            ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')
+          ) {
+            const bodyStr =
+              typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
+            proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
+          }
+
+          return proxyUrl
+        }
+
+        const getParams = {
+          url: 'https://external-api.com/endpoint',
+          method: 'GET',
+        }
+        const getProxyUrl = buildProxyUrl(getParams)
+        expect(getProxyUrl).toContain('/api/proxy?url=')
+        expect(getProxyUrl).toContain('&method=GET')
+
+        const postParams = {
+          url: 'https://external-api.com/endpoint',
+          method: 'POST',
+          body: { key: 'value' },
+        }
+        const postProxyUrl = buildProxyUrl(postParams)
+        expect(postProxyUrl).toContain('/api/proxy?url=')
+        expect(postProxyUrl).toContain('&method=POST')
+        expect(postProxyUrl).toContain('&body=')
+        expect(postProxyUrl).toContain(encodeURIComponent('{"key":"value"}'))
+
+        const putParams = {
+          url: 'https://external-api.com/endpoint',
+          method: 'PUT',
+          body: 'string body',
+        }
+        const putProxyUrl = buildProxyUrl(putParams)
+        expect(putProxyUrl).toContain('/api/proxy?url=')
+        expect(putProxyUrl).toContain('&method=PUT')
+        expect(putProxyUrl).toContain(`&body=${encodeURIComponent('string body')}`)
+      } finally {
+        global.window = originalWindow
+        process.env.VITEST = originalVitest
+      }
+    })
   })
 })

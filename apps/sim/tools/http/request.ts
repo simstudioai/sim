@@ -232,8 +232,17 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
 
       // Determine if we should use the proxy
       if (shouldUseProxy(url)) {
-        // Route request through our proxy
         let proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`
+
+        if (params.method) {
+          proxyUrl += `&method=${encodeURIComponent(params.method)}`
+        }
+
+        if (params.body && ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')) {
+          const bodyStr =
+            typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
+          proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
+        }
 
         // Forward all headers as URL parameters
         const userHeaders = transformTable(params.headers || null)
@@ -386,6 +395,16 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       // For external URLs that need proxying
       if (shouldUseProxy(processedUrl)) {
         let proxyUrl = `/api/proxy?url=${encodeURIComponent(processedUrl)}`
+
+        if (params.method) {
+          proxyUrl += `&method=${encodeURIComponent(params.method)}`
+        }
+
+        if (params.body && ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')) {
+          const bodyStr =
+            typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
+          proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
+        }
 
         // Forward all headers as URL parameters
         const userHeaders = transformTable(params.headers || null)
