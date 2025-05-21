@@ -49,8 +49,10 @@ git clone https://github.com/simstudioai/sim.git
 # Navigate to the project directory
 cd sim
 
-# Start Sim Studio
-docker compose up -d --build
+# Edit the docker-compose.prod.yml file to set the environment variables
+
+# Start the application
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 Access the application at [http://localhost:3000/](http://localhost:3000/)
@@ -65,14 +67,17 @@ To use local models with Sim Studio:
 ./apps/sim/scripts/ollama_docker.sh pull <model_name>
 ```
 
-2. Start Sim Studio with local model support:
+2. Start Ollama with local model support:
 
 ```bash
 # With NVIDIA GPU support
-docker compose up --profile local-gpu -d --build
+docker compose -f docker-compose.ollama.yml up --profile local-gpu -d --build
 
 # Without GPU (CPU only)
-docker compose up --profile local-cpu -d --build
+docker compose -f docker-compose.ollama.yml up --profile local-cpu -d --build
+
+# If hosting on a server, update the environment variables in the docker-compose.prod.yml file to include the server's public IP then start again (OLLAMA_HOST)
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ### Option 3: Dev Containers
