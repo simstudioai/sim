@@ -1,7 +1,6 @@
 import { ToolConfig } from '../types'
 import { MemoryResponse } from './types'
 
-// Get Memory Tool
 export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
   id: 'memory_get',
   name: 'Get Memory',
@@ -12,13 +11,13 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       type: 'string',
       required: true,
       description: 'Identifier for the memory to retrieve',
-    }
+    },
   },
   request: {
     url: (params): any => {
       // Get workflowId from context (set by workflow execution)
       const workflowId = params._context?.workflowId
-      
+
       if (!workflowId) {
         return {
           _errorResponse: {
@@ -26,13 +25,13 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
             data: {
               success: false,
               error: {
-                message: 'workflowId is required and must be provided in execution context'
-              }
-            }
-          }
+                message: 'workflowId is required and must be provided in execution context',
+              },
+            },
+          },
         }
       }
-      
+
       // Append workflowId as query parameter
       return `/api/memory/${encodeURIComponent(params.id)}?workflowId=${encodeURIComponent(workflowId)}`
     },
@@ -45,19 +44,19 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
   transformResponse: async (response): Promise<MemoryResponse> => {
     try {
       const result = await response.json()
-      
+
       if (!response.ok) {
         const errorMessage = result.error?.message || 'Failed to retrieve memory'
         throw new Error(errorMessage)
       }
-      
+
       const data = result.data || result
-      
+
       return {
         success: true,
         output: {
           memories: data.data,
-          message: 'Memory retrieved successfully'
+          message: 'Memory retrieved successfully',
         },
       }
     } catch (error: any) {
@@ -65,9 +64,9 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
         success: false,
         output: {
           memories: undefined,
-          message: `Failed to retrieve memory: ${error.message || 'Unknown error'}`
+          message: `Failed to retrieve memory: ${error.message || 'Unknown error'}`,
         },
-        error: `Failed to retrieve memory: ${error.message || 'Unknown error'}`
+        error: `Failed to retrieve memory: ${error.message || 'Unknown error'}`,
       }
     }
   },
@@ -77,9 +76,9 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       success: false,
       output: {
         memories: undefined,
-        message: errorMessage
+        message: errorMessage,
       },
-      error: errorMessage
+      error: errorMessage,
     }
   },
-} 
+}
