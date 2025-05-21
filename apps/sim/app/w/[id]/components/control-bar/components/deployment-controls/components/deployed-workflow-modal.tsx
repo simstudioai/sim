@@ -32,6 +32,7 @@ interface DeployedWorkflowModalProps {
     blocks: Record<string, any>
     edges: Array<any>
     loops: Record<string, any>
+    parallels: Record<string, any>
   }
 }
 
@@ -49,13 +50,14 @@ export function DeployedWorkflowModal({
     blocks: activeWorkflowId ? mergeSubblockState(state.blocks, activeWorkflowId) : state.blocks,
     edges: state.edges,
     loops: state.loops,
+    parallels: state.parallels,
   }))
 
   const handleRevert = () => {
     // Revert to the deployed state
-    revertToDeployedState(deployedWorkflowState);
-    setShowRevertDialog(false);
-    onClose();
+    revertToDeployedState(deployedWorkflowState)
+    setShowRevertDialog(false)
+    onClose()
   }
 
   return (
