@@ -277,6 +277,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const subBlockStore = useSubBlockStore.getState()
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
+        console.log('[removeBlock] Starting removal of block:', {
+          targetBlockId: id,
+          isParallelBlock: get().blocks[id]?.type === 'parallel',
+          currentParallels: get().parallels
+        });
+
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges].filter((edge) => edge.source !== id && edge.target !== id),
@@ -327,15 +333,25 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }))
         }
 
-       // Remove all edges connected to any of the blocks being removed
-       newState.edges = newState.edges.filter(edge => 
-        !blocksToRemove.has(edge.source) && !blocksToRemove.has(edge.target)
-      )
+        // Remove all edges connected to any of the blocks being removed
+        newState.edges = newState.edges.filter(edge => 
+          !blocksToRemove.has(edge.source) && !blocksToRemove.has(edge.target)
+        )
 
-      // Delete all blocks marked for removal
-      blocksToRemove.forEach(blockId => {
-        delete newState.blocks[blockId]
-      })
+        // Delete all blocks marked for removal
+        blocksToRemove.forEach(blockId => {
+          delete newState.blocks[blockId]
+        })
+
+        // Now regenerate loops and parallels AFTER removing blocks
+        newState.loops = generateLoopBlocks(newState.blocks);
+        newState.parallels = generateParallelBlocks(newState.blocks);
+
+        console.log('[removeBlock] After cleanup, new state:', {
+          blocksRemoved: Array.from(blocksToRemove),
+          remainingBlocks: Object.keys(newState.blocks),
+          remainingParallels: newState.parallels
+        });
 
         set(newState)
         pushHistory(set, get, newState, 'Remove block and children')
@@ -504,7 +520,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: { ...get().blocks },
           edges: newEdges,
           loops: { },
-          parallels: { ...get().parallels },
+          parallels: get().generateParallelBlocks(),
         }
 
         set(newState)
@@ -556,11 +572,22 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (activeWorkflowId) {
           const currentState = get()
-          const generatedLoops = currentState.generateLoopBlocks()
+          
+          // Regenerate loops and parallels from the current blocks
+          const generatedLoops = generateLoopBlocks(currentState.blocks)
+          const generatedParallels = generateParallelBlocks(currentState.blocks)
+          
+          // Log for debugging
+          console.log('[updateLastSaved] Regenerating parallels:', {
+            parallelBlocksInWorkflow: Object.keys(currentState.blocks).filter(id => currentState.blocks[id].type === 'parallel'),
+            regeneratedParallels: generatedParallels
+          });
+          
           saveWorkflowState(activeWorkflowId, {
             blocks: currentState.blocks,
             edges: currentState.edges,
             loops: generatedLoops,
+            parallels: generatedParallels,
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
@@ -1043,23 +1070,49 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       updateParallelCollection: (parallelId: string, collection: string) => {
         return set(state => {
           const block = state.blocks[parallelId];
-          if (!block || block.type !== 'parallel') return state;
+          if (!block || block.type !== 'parallel') {
+            console.warn('[updateParallelCollection] Invalid block or not a parallel block:', {
+              blockId: parallelId,
+              blockExists: !!block,
+              blockType: block?.type
+            });
+            return state;
+          }
           
-          const newState = {
-            blocks: {
-              ...state.blocks,
-              [parallelId]: {
-                ...block,
-                data: {
-                  ...block.data,
-                  collection
-                }
+          console.log('[updateParallelCollection] Before update:', {
+            blockId: parallelId,
+            currentCollection: block.data?.collection || '',
+            newCollection: collection,
+            currentParallels: state.parallels
+          });
+          
+          // Update block data with new collection value
+          const updatedBlocks = {
+            ...state.blocks,
+            [parallelId]: {
+              ...block,
+              data: {
+                ...block.data,
+                collection
               }
-            },
+            }
+          };
+          
+          // Regenerate parallels completely using the updated blocks
+          const updatedParallels = generateParallelBlocks(updatedBlocks);
+          
+          // Create complete new state
+          const newState = {
+            blocks: updatedBlocks,
             edges: [...state.edges],
             loops: { ...state.loops },
-            parallels: { ...state.parallels }
+            parallels: updatedParallels // Use freshly generated parallels object
           };
+          
+          console.log('[updateParallelCollection] After update:', {
+            updatedCollection: newState.blocks[parallelId]?.data?.collection,
+            updatedParallels: updatedParallels
+          });
           
           pushHistory(set, get, newState, `Update parallel collection for ${block.name}`);
           get().updateLastSaved();

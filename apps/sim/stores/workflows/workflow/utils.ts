@@ -171,15 +171,22 @@ export function generateLoopBlocks(blocks: Record<string, BlockState>): Record<s
 export function generateParallelBlocks(blocks: Record<string, BlockState>): Record<string, Parallel> {
   const parallels: Record<string, Parallel> = {};
   
-  // Find all parallel nodes
-  Object.entries(blocks)
-    .filter(([_, block]) => block.type === 'parallel')
-    .forEach(([id, block]) => {
-      const parallel = convertParallelBlockToParallel(id, blocks);
-      if (parallel) {
-        parallels[id] = parallel;
-      }
-    });
+  console.log('[generateParallelBlocks] Starting with blocks:', Object.keys(blocks));
   
+  // Find all parallel nodes
+  const parallelBlocks = Object.entries(blocks)
+    .filter(([_, block]) => block.type === 'parallel');
+  
+  console.log('[generateParallelBlocks] Found parallel blocks:', parallelBlocks.map(([id]) => id));
+  
+  parallelBlocks.forEach(([id, block]) => {
+    const parallel = convertParallelBlockToParallel(id, blocks);
+    if (parallel) {
+      console.log('[generateParallelBlocks] Generated parallel for', id, parallel);
+      parallels[id] = parallel;
+    }
+  });
+  
+  console.log('[generateParallelBlocks] Final output:', parallels);
   return parallels;
 }

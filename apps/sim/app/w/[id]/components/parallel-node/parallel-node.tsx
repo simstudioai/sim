@@ -81,6 +81,8 @@ const ParallelNodeStyles: React.FC = () => {
 export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) => {
   const { getNodes } = useReactFlow();
   const blockRef = useRef<HTMLDivElement>(null);
+  // Track if we've initialized the node to prevent infinite loops
+  const initializedRef = useRef(false);
   
   // Get the updateParallelCollection function from store
   const updateParallelCollection = useWorkflowStore(state => state.updateParallelCollection);
@@ -88,9 +90,11 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   // Ensure collection property is initialized
   useEffect(() => {
     const currentData = useWorkflowStore.getState().blocks[id]?.data;
-    if (currentData && !currentData.collection) {
+    if (currentData && !currentData.collection && !initializedRef.current) {
       // Initialize with empty collection
       updateParallelCollection(id, "");
+      // Mark as initialized to prevent further calls
+      initializedRef.current = true;
     }
   }, [id, updateParallelCollection]);
   

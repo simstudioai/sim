@@ -158,15 +158,23 @@ export function setupUnloadPersistence(): void {
       // Save workflow state
       const currentState = useWorkflowStore.getState()
       
-      // Generate loops from the current blocks for consistency
+      // Generate loops and parallels from the current blocks for consistency
       const generatedLoops = currentState.generateLoopBlocks ? currentState.generateLoopBlocks() : {}
-
+      const generatedParallels = currentState.generateParallelBlocks ? currentState.generateParallelBlocks() : {}
+      
+      // Log regeneration of parallels during save for debugging
+      console.log('[persistence:beforeunload] Regenerated parallels for save:', {
+        workflowId: currentId,
+        parallelBlocks: Object.keys(currentState.blocks).filter(id => currentState.blocks[id].type === 'parallel'),
+        generatedParallels
+      });
+      
       // Save the complete state including history which is added by middleware
       saveWorkflowState(currentId, {
         blocks: currentState.blocks,
         edges: currentState.edges,
         loops: generatedLoops,
-        parallels: currentState.parallels,
+        parallels: generatedParallels,
         isDeployed: currentState.isDeployed,
         deployedAt: currentState.deployedAt,
         lastSaved: Date.now(),

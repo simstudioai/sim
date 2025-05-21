@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -42,6 +42,8 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   const [editorValue, setEditorValue] = useState('')
   const [typePopoverOpen, setTypePopoverOpen] = useState(false)
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
+  // Track if we've initialized collection to prevent infinite loops
+  const collectionInitializedRef = useRef(false)
 
   // Get store methods
   const updateLoopType = useWorkflowStore(state => state.updateLoopType)
@@ -64,13 +66,25 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
       } else if (Array.isArray(data.collection) || typeof data.collection === 'object') {
         setEditorValue(JSON.stringify(data.collection))
       }
-    } else if (loopType === 'forEach' && !data?.collection) {
-      // Initialize with empty string if collection doesn't exist
+      // Mark as initialized since we have collection data
+      collectionInitializedRef.current = true
+    } else if (loopType === 'forEach' && !data?.collection && !collectionInitializedRef.current) {
+      // Initialize with empty string if collection doesn't exist and we haven't initialized yet
       const defaultValue = ''
       setEditorValue(defaultValue)
       updateLoopCollection(nodeId, defaultValue)
+      // Mark as initialized
+      collectionInitializedRef.current = true
     }
   }, [data?.loopType, data?.count, data?.collection, loopType, iterations, nodeId, updateLoopCollection])
+
+  // Reset initialization flag when loop type changes
+  useEffect(() => {
+    if (loopType === 'for') {
+      // Reset the flag when switching to 'for' type
+      collectionInitializedRef.current = false
+    }
+  }, [loopType])
 
   // Handle loop type change
   const handleLoopTypeChange = useCallback((newType: 'for' | 'forEach') => {

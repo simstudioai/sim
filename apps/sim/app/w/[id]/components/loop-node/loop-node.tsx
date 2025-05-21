@@ -82,6 +82,11 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
   const { getNodes } = useReactFlow();
   const blockRef = useRef<HTMLDivElement>(null);
   
+  // Add refs to track initialization state
+  const typeInitializedRef = useRef(false);
+  const countInitializedRef = useRef(false);
+  const collectionInitializedRef = useRef(false);
+  
   // Get the update functions from store
   const updateLoopType = useWorkflowStore(state => state.updateLoopType);
   const updateLoopCount = useWorkflowStore(state => state.updateLoopCount);
@@ -92,14 +97,19 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
     const currentData = useWorkflowStore.getState().blocks[id]?.data;
     if (currentData) {
       // Initialize with default values if missing
-      if (!currentData.loopType) {
+      if (!currentData.loopType && !typeInitializedRef.current) {
         updateLoopType(id, 'for');
+        typeInitializedRef.current = true;
       }
-      if (!currentData.count && currentData.count !== 0) {
+      
+      if (!currentData.count && currentData.count !== 0 && !countInitializedRef.current) {
         updateLoopCount(id, 5);
+        countInitializedRef.current = true;
       }
-      if (currentData.loopType === 'forEach' && !currentData.collection) {
+      
+      if (currentData.loopType === 'forEach' && !currentData.collection && !collectionInitializedRef.current) {
         updateLoopCollection(id, '');
+        collectionInitializedRef.current = true;
       }
     }
   }, [id, updateLoopType, updateLoopCount, updateLoopCollection]);

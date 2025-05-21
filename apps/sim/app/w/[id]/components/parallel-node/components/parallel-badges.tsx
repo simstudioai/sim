@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -35,6 +35,8 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   // State
   const [editorValue, setEditorValue] = useState('')
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
+  // Use a ref to track if we've initialized the collection
+  const initializedRef = useRef(false)
 
   // Get store methods
   const updateParallelCollection = useWorkflowStore(state => state.updateParallelCollection)
@@ -47,12 +49,16 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
       } else if (Array.isArray(data.collection) || typeof data.collection === 'object') {
         setEditorValue(JSON.stringify(data.collection))
       }
-    } else {
-      // Set default empty value if no collection exists
+      // Mark as initialized since we have data
+      initializedRef.current = true
+    } else if (!initializedRef.current) {
+      // Only initialize if we haven't done so already
       const defaultValue = ''
       setEditorValue(defaultValue)
       // Initialize the collection in the store
       updateParallelCollection(nodeId, defaultValue)
+      // Mark as initialized to prevent future calls
+      initializedRef.current = true
     }
   }, [data?.collection, nodeId, updateParallelCollection])
 
