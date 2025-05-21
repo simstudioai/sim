@@ -4,7 +4,6 @@ import { GoogleDriveGetContentResponse, GoogleDriveToolParams } from './types'
 
 const logger = createLogger('GoogleDriveGetContentTool')
 
-// Google Workspace file types that need to be exported
 const GOOGLE_WORKSPACE_MIME_TYPES = [
   'application/vnd.google-apps.document', // Google Docs
   'application/vnd.google-apps.spreadsheet', // Google Sheets
@@ -14,7 +13,6 @@ const GOOGLE_WORKSPACE_MIME_TYPES = [
   'application/vnd.google-apps.script', // Google Apps Scripts
 ]
 
-// Default export formats for Google Workspace files
 const DEFAULT_EXPORT_FORMATS: Record<string, string> = {
   'application/vnd.google-apps.document': 'text/plain',
   'application/vnd.google-apps.spreadsheet': 'text/csv',
@@ -53,7 +51,6 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
     },
   },
   request: {
-    // Initial metadata request to detect file type
     url: (params) =>
       `https://www.googleapis.com/drive/v3/files/${params.fileId}?fields=id,name,mimeType`,
     method: 'GET',
@@ -73,7 +70,6 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
         throw new Error(errorDetails.error?.message || 'Failed to get file metadata')
       }
 
-      // Get file metadata
       const metadata = await response.json()
       const fileId = metadata.id
       const mimeType = metadata.mimeType
@@ -81,9 +77,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
 
       let content: string
 
-      // Check if this is a Google Workspace file
       if (GOOGLE_WORKSPACE_MIME_TYPES.includes(mimeType)) {
-        // Use export API for Google Workspace files
         const exportFormat = params?.mimeType || DEFAULT_EXPORT_FORMATS[mimeType] || 'text/plain'
         logger.info('Exporting Google Workspace file', {
           fileId,
@@ -112,7 +106,6 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
 
         content = await exportResponse.text()
       } else {
-        // Use regular download for non-Google Workspace files
         logger.info('Downloading regular file', {
           fileId,
           mimeType,
@@ -140,7 +133,6 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
         content = await downloadResponse.text()
       }
 
-      // Get complete metadata
       const metadataResponse = await fetch(
         `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,webViewLink,webContentLink,size,createdTime,modifiedTime,parents`,
         {

@@ -40,8 +40,10 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
 
       // Build the query conditions
       const conditions = ['trashed = false'] // Always exclude trashed files
-      if (params.folderId) {
-        conditions.push(`'${params.folderId}' in parents`)
+      const folderId = params.folderId || params.folderSelector
+      if (folderId) {
+        conditions.push(`'${folderId}' in parents`)
+        console.log('folderId', folderId)
       }
 
       // Combine all conditions with AND

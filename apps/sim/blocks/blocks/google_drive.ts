@@ -14,7 +14,7 @@ type GoogleDriveResponse =
 export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   type: 'google_drive',
   name: 'Google Drive',
-  description: 'Upload, create, and list files',
+  description: 'Create and list files',
   longDescription:
     'Integrate Google Drive functionality to manage files and folders. Upload new files, get content from existing files, create new folders, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.',
   docsLink: 'https://docs.simstudio.ai/tools/google_drive',
@@ -29,7 +29,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Upload File', id: 'upload' },
+        // { label: 'Upload File', id: 'upload' },
         // { label: 'Get File Content', id: 'get_content' },
         { label: 'Create Folder', id: 'create_folder' },
         { label: 'List Files', id: 'list' },
@@ -47,60 +47,60 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       placeholder: 'Select Google Drive account',
     },
     // Upload Fields
-    {
-      id: 'fileName',
-      title: 'File Name',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Name for the uploaded file (e.g., document.txt)',
-      condition: { field: 'operation', value: 'upload' },
-    },
-    {
-      id: 'content',
-      title: 'Content',
-      type: 'long-input',
-      layout: 'full',
-      placeholder: 'Content to upload to the file',
-      condition: { field: 'operation', value: 'upload' },
-    },
-    {
-      id: 'mimeType',
-      title: 'MIME Type',
-      type: 'dropdown',
-      layout: 'full',
-      options: [
-        { label: 'Google Doc', id: 'application/vnd.google-apps.document' },
-        { label: 'Google Sheet', id: 'application/vnd.google-apps.spreadsheet' },
-        { label: 'Google Slides', id: 'application/vnd.google-apps.presentation' },
-        { label: 'PDF (application/pdf)', id: 'application/pdf' },
-      ],
-      placeholder: 'Select a file type',
-      condition: { field: 'operation', value: 'upload' },
-    },
-    {
-      id: 'folderSelector',
-      title: 'Select Parent Folder',
-      type: 'file-selector',
-      layout: 'full',
-      provider: 'google-drive',
-      serviceId: 'google-drive',
-      requiredScopes: [],
-      mimeType: 'application/vnd.google-apps.folder',
-      placeholder: 'Select a parent folder',
-      condition: { field: 'operation', value: 'upload' },
-    },
-    {
-      id: 'folderId',
-      title: 'Or Enter Parent Folder ID Manually',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'ID of the parent folder (leave empty for root folder)',
-      condition: {
-        field: 'operation',
-        value: 'upload',
-      },
-    },
-    // // Get Content Fields
+    // {
+    //   id: 'fileName',
+    //   title: 'File Name',
+    //   type: 'short-input',
+    //   layout: 'full',
+    //   placeholder: 'Name for the uploaded file (e.g., document.txt)',
+    //   condition: { field: 'operation', value: 'upload' },
+    // },
+    // {
+    //   id: 'content',
+    //   title: 'Content',
+    //   type: 'long-input',
+    //   layout: 'full',
+    //   placeholder: 'Content to upload to the file',
+    //   condition: { field: 'operation', value: 'upload' },
+    // },
+    // {
+    //   id: 'mimeType',
+    //   title: 'MIME Type',
+    //   type: 'dropdown',
+    //   layout: 'full',
+    //   options: [
+    //     { label: 'Google Doc', id: 'application/vnd.google-apps.document' },
+    //     { label: 'Google Sheet', id: 'application/vnd.google-apps.spreadsheet' },
+    //     { label: 'Google Slides', id: 'application/vnd.google-apps.presentation' },
+    //     { label: 'PDF (application/pdf)', id: 'application/pdf' },
+    //   ],
+    //   placeholder: 'Select a file type',
+    //   condition: { field: 'operation', value: 'upload' },
+    // },
+    // {
+    //   id: 'folderSelector',
+    //   title: 'Select Parent Folder',
+    //   type: 'file-selector',
+    //   layout: 'full',
+    //   provider: 'google-drive',
+    //   serviceId: 'google-drive',
+    //   requiredScopes: [],
+    //   mimeType: 'application/vnd.google-apps.folder',
+    //   placeholder: 'Select a parent folder',
+    //   condition: { field: 'operation', value: 'upload' },
+    // },
+    // {
+    //   id: 'folderId',
+    //   title: 'Or Enter Parent Folder ID Manually',
+    //   type: 'short-input',
+    //   layout: 'full',
+    //   placeholder: 'ID of the parent folder (leave empty for root folder)',
+    //   condition: {
+    //     field: 'operation',
+    //     value: 'upload',
+    //   },
+    // },
+    // Get Content Fields
     // {
     //   id: 'fileId',
     //   title: 'Select File',
@@ -129,18 +129,18 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
     //   },
     // },
     // Export format for Google Workspace files
-    {
-      id: 'mimeType',
-      title: 'Export Format',
-      type: 'dropdown',
-      layout: 'full',
-      options: [
-        { label: 'Plain Text', id: 'text/plain' },
-        { label: 'HTML', id: 'text/html' },
-      ],
-      placeholder: 'Optional: Choose export format for Google Workspace files',
-      condition: { field: 'operation', value: 'get_content' },
-    },
+    // {
+    //   id: 'mimeType',
+    //   title: 'Export Format',
+    //   type: 'dropdown',
+    //   layout: 'full',
+    //   options: [
+    //     { label: 'Plain Text', id: 'text/plain' },
+    //     { label: 'HTML', id: 'text/html' },
+    //   ],
+    //   placeholder: 'Optional: Choose export format for Google Workspace files',
+    //   condition: { field: 'operation', value: 'get_content' },
+    // },
     // Create Folder Fields
     {
       id: 'fileName',
@@ -272,8 +272,8 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   outputs: {
     response: {
       type: {
-        content: 'string',
-        metadata: 'json',
+        file: 'json',
+        files: 'json',
       },
     },
   },

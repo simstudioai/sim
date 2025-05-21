@@ -61,8 +61,8 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
         ...(params.folderId && params.folderId.trim() !== '' ? { parents: [params.folderId] } : {}),
       }
 
-      // Create file metadata first, then add content in a separate request
-      return { body: JSON.stringify(metadata) }
+      // Return metadata directly; our request formatter will JSON-stringify it.
+      return metadata
     },
   },
   transformResponse: async (response: Response, params?: GoogleDriveToolParams) => {

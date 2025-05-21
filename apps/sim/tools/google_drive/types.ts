@@ -32,16 +32,10 @@ export interface GoogleDriveGetContentResponse extends ToolResponse {
   }
 }
 
-export interface GoogleDriveExportResponse extends ToolResponse {
-  output: {
-    content: string
-    metadata: GoogleDriveFile
-  }
-}
-
 export interface GoogleDriveToolParams {
   accessToken: string
   folderId?: string
+  folderSelector?: string
   fileId?: string
   fileName?: string
   content?: string
