@@ -90,7 +90,6 @@ export const imageTool: ToolConfig = {
           }
         })
       }
-      logger.info('Image API response:', JSON.stringify(sanitizedData, null, 2))
 
       const modelName = params?.model || 'dall-e-3'
       let imageUrl = null

@@ -145,7 +145,7 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   inputs: {
     prompt: { type: 'string', required: true },
     model: { type: 'string', required: true },
-    size: { type: 'string', required: true },
+    size: { type: 'string', required: false },
     quality: { type: 'string', required: false },
     style: { type: 'string', required: false },
     background: { type: 'string', required: false },
