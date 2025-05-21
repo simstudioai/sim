@@ -1,4 +1,4 @@
-import { dalleTool } from './dalle'
 import { embeddingsTool } from './embeddings'
+import { imageTool } from './image'
 
-export { embeddingsTool, dalleTool }
+export { embeddingsTool, imageTool }

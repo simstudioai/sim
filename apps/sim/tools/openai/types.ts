@@ -1,5 +1,13 @@
 import { ToolResponse } from '../types'
 
+export interface BaseImageRequestBody {
+  model: string
+  prompt: string
+  size: string
+  n: number
+  [key: string]: any // Allow for additional properties
+}
+
 export interface DalleResponse extends ToolResponse {
   output: {
     content: string // This will now be the image URL

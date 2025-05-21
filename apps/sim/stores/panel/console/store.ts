@@ -6,6 +6,8 @@ import { ConsoleEntry, ConsoleStore } from './types'
 
 // MAX across all workflows
 const MAX_ENTRIES = 50
+// Maximum size of image data to store (in characters)
+const MAX_IMAGE_DATA_SIZE = 1000
 
 /**
  * Gets a nested property value from an object using a path string
@@ -27,6 +29,39 @@ const getValueByPath = (obj: any, path: string): any => {
   }
 
   return current
+}
+
+/**
+ * Processes an object to truncate large strings (like base64 image data)
+ * to prevent localStorage quota issues
+ */
+const processSafeStorage = (obj: any): any => {
+  if (!obj) return obj
+
+  if (typeof obj !== 'object') return obj
+
+  if (Array.isArray(obj)) {
+    return obj.map((item) => processSafeStorage(item))
+  }
+
+  const result: any = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'image' && typeof value === 'string' && value.length > MAX_IMAGE_DATA_SIZE) {
+      result[key] = `[Base64 image data truncated, length: ${value.length}]`
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = processSafeStorage(value)
+    } else if (
+      typeof value === 'string' &&
+      value.length > MAX_IMAGE_DATA_SIZE &&
+      (value.startsWith('data:image') || /^[A-Za-z0-9+/=]{1000,}$/.test(value))
+    ) {
+      result[key] = `[Large data truncated, length: ${value.length}]`
+    } else {
+      result[key] = value
+    }
+  }
+
+  return result
 }
 
 export const useConsoleStore = create<ConsoleStore>()(
@@ -207,6 +242,18 @@ export const useConsoleStore = create<ConsoleStore>()(
       }),
       {
         name: 'console-store',
+        serialize: (state) => {
+          return JSON.stringify({
+            ...state,
+            state: {
+              ...state.state,
+              entries: state.state.entries.map((entry) => ({
+                ...entry,
+                output: processSafeStorage(entry.output),
+              })),
+            },
+          })
+        },
       }
     )
   )

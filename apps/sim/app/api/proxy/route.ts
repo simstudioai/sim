@@ -280,7 +280,6 @@ export async function POST(request: Request) {
   }
 }
 
-// Add OPTIONS handler for CORS preflight requests
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
