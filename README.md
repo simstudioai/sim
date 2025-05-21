@@ -78,7 +78,7 @@ docker compose -f docker-compose.ollama.yml up --profile local-gpu -d --build
 # Without GPU (CPU only)
 docker compose -f docker-compose.ollama.yml up --profile local-cpu -d --build
 
-# If hosting on a server, update the environment variables in the docker-compose.prod.yml file to include the server's public IP then start again (OLLAMA_HOST)
+# If hosting on a server, update the environment variables in the docker-compose.prod.yml file to include the server's public IP then start again (OLLAMA_URL to i.e. http://1.1.1.1:11434)
 docker compose -f docker-compose.prod.yml up -d
 ```
 
