@@ -213,18 +213,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           return;
         }
 
-        console.log('UpdateParentId called:', { 
-          blockId: id, 
-          blockName: block.name, 
-          blockType: block.type, 
-          newParentId: parentId,
-          extent,
-          currentParentId: block.data?.parentId 
-        });
-
         // Skip if the parent ID hasn't changed
         if (block.data?.parentId === parentId) {
-          console.log('Parent ID unchanged, skipping update');
           return;
         }
 
@@ -260,12 +250,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           parallels: { ...get().parallels },
         };
 
-        console.log('[WorkflowStore/updateParentId] Updated parentId relationship:', {
-          blockId: id,
-          newParentId: parentId || 'None (removed parent)',
-          keepingPosition: absolutePosition
-        });
-
         set(newState);
         pushHistory(set, get, newState, parentId ? `Set parent for ${block.name}` : `Remove parent for ${block.name}`);
         get().updateLastSaved();
@@ -276,12 +260,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // First, clean up any subblock values for this block
         const subBlockStore = useSubBlockStore.getState()
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-
-        console.log('[removeBlock] Starting removal of block:', {
-          targetBlockId: id,
-          isParallelBlock: get().blocks[id]?.type === 'parallel',
-          currentParallels: get().parallels
-        });
 
         const newState = {
           blocks: { ...get().blocks },
@@ -305,13 +283,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
         
         // Start recursive search from the target block
-        findAllDescendants(id)
-        
-        console.log('[WorkflowStore/removeBlock] Found blocks to remove:', {
-          targetId: id,
-          totalBlocksToRemove: Array.from(blocksToRemove),
-          includesHierarchy: blocksToRemove.size > 1
-        })
+        findAllDescendants(id)       
 
         // Clean up subblock values before removing the block
         if (activeWorkflowId) {
@@ -347,11 +319,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         newState.loops = generateLoopBlocks(newState.blocks);
         newState.parallels = generateParallelBlocks(newState.blocks);
 
-        console.log('[removeBlock] After cleanup, new state:', {
-          blocksRemoved: Array.from(blocksToRemove),
-          remainingBlocks: Object.keys(newState.blocks),
-          remainingParallels: newState.parallels
-        });
+        set(newState)
 
         set(newState)
         pushHistory(set, get, newState, 'Remove block and children')
@@ -457,12 +425,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           console.warn(`Attempted to remove non-existent edge: ${edgeId}`);
           return;
         }
- 
-        console.log('Removing edge in store:', { 
-          id: edgeId, 
-          source: edgeToRemove.source, 
-          target: edgeToRemove.target 
-        });
  
         const newEdges = get().edges.filter((edge) => edge.id !== edgeId);
 
@@ -576,12 +538,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           // Regenerate loops and parallels from the current blocks
           const generatedLoops = generateLoopBlocks(currentState.blocks)
           const generatedParallels = generateParallelBlocks(currentState.blocks)
-          
-          // Log for debugging
-          console.log('[updateLastSaved] Regenerating parallels:', {
-            parallelBlocksInWorkflow: Object.keys(currentState.blocks).filter(id => currentState.blocks[id].type === 'parallel'),
-            regeneratedParallels: generatedParallels
-          });
           
           saveWorkflowState(activeWorkflowId, {
             blocks: currentState.blocks,
@@ -1079,13 +1035,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             return state;
           }
           
-          console.log('[updateParallelCollection] Before update:', {
-            blockId: parallelId,
-            currentCollection: block.data?.collection || '',
-            newCollection: collection,
-            currentParallels: state.parallels
-          });
-          
           // Update block data with new collection value
           const updatedBlocks = {
             ...state.blocks,
@@ -1108,11 +1057,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             loops: { ...state.loops },
             parallels: updatedParallels // Use freshly generated parallels object
           };
-          
-          console.log('[updateParallelCollection] After update:', {
-            updatedCollection: newState.blocks[parallelId]?.data?.collection,
-            updatedParallels: updatedParallels
-          });
           
           pushHistory(set, get, newState, `Update parallel collection for ${block.name}`);
           get().updateLastSaved();
