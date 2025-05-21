@@ -52,7 +52,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
       title: 'File Name',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Name for the uploaded file (e.g., document.txt)',
+      placeholder: 'Name of the file',
       condition: { field: 'operation', value: 'upload' },
     },
     {
