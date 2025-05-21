@@ -107,7 +107,7 @@ export interface SubBlockConfig {
     not?: boolean
     and?: {
       field: string
-      value: string | number | boolean | Array<string | number | boolean>
+      value: string | number | boolean | Array<string | number | boolean> | undefined
       not?: boolean
     }
   }

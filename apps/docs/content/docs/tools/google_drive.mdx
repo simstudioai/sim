@@ -1,6 +1,6 @@
 ---
 title: Google Drive
-description: Upload, download, and list files
+description: Create and list files
 ---
 
 import { BlockInfoCard } from '@/components/ui/block-info-card'
@@ -72,7 +72,7 @@ In Sim Studio, the Google Drive integration enables your agents to interact dire
 
 ## Usage Instructions
 
-Integrate Google Drive functionality to manage files and folders. Upload new files, download existing ones, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.
+Integrate Google Drive functionality to manage files and folders. Upload new files, get content from existing files, create new folders, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.
 
 ## Tools
 
@@ -104,22 +104,23 @@ Upload a file to Google Drive
 | `modifiedTime`   | string |
 | `parents`        | string |
 
-### `google_drive_download`
+### `google_drive_create_folder`
 
-Download a file from Google Drive
+Create a new folder in Google Drive
 
 #### Input
 
-| Parameter     | Type   | Required | Description                               |
-| ------------- | ------ | -------- | ----------------------------------------- |
-| `accessToken` | string | Yes      | The access token for the Google Drive API |
-| `fileId`      | string | Yes      | The ID of the file to download            |
+| Parameter     | Type   | Required | Description                                             |
+| ------------- | ------ | -------- | ------------------------------------------------------- |
+| `accessToken` | string | Yes      | The access token for the Google Drive API               |
+| `fileName`    | string | Yes      | Name of the folder to create                            |
+| `folderId`    | string | No       | ID of the parent folder \(leave empty for root folder\) |
 
 #### Output
 
 | Parameter        | Type   |
 | ---------------- | ------ |
-| `metadata`       | string |
+| `file`           | string |
 | `name`           | string |
 | `mimeType`       | string |
 | `webViewLink`    | string |
@@ -159,15 +160,19 @@ List files and folders in Google Drive
 
 ## Block Configuration
 
-No configuration parameters required.
+### Input
+
+| Parameter   | Type   | Required | Description |
+| ----------- | ------ | -------- | ----------- |
+| `operation` | string | Yes      | Operation   |
 
 ### Outputs
 
-| Output       | Type   | Description              |
-| ------------ | ------ | ------------------------ |
-| `response`   | object | Output from response     |
-| ↳ `content`  | string | content of the response  |
-| ↳ `metadata` | json   | metadata of the response |
+| Output     | Type   | Description           |
+| ---------- | ------ | --------------------- |
+| `response` | object | Output from response  |
+| ↳ `file`   | json   | file of the response  |
+| ↳ `files`  | json   | files of the response |
 
 ## Notes
 

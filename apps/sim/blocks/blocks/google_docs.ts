@@ -77,12 +77,8 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Or Enter Document ID Manually',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the document (from URL)',
-      condition: {
-        field: 'operation',
-        value: 'read',
-        and: { field: 'documentId', value: '' },
-      },
+      placeholder: 'ID of the document',
+      condition: { field: 'operation', value: 'read' },
     },
     // Manual Document ID for write operation
     {
@@ -90,12 +86,8 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       title: 'Or Enter Document ID Manually',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'ID of the document (from URL)',
-      condition: {
-        field: 'operation',
-        value: 'write',
-        and: { field: 'documentId', value: '' },
-      },
+      placeholder: 'ID of the document',
+      condition: { field: 'operation', value: 'write' },
     },
     // Create-specific Fields
     {
@@ -106,9 +98,23 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
       placeholder: 'Enter title for the new document',
       condition: { field: 'operation', value: 'create' },
     },
+    // Folder Selector for create operation
+    {
+      id: 'folderSelector',
+      title: 'Select Parent Folder',
+      type: 'file-selector',
+      layout: 'full',
+      provider: 'google-drive',
+      serviceId: 'google-drive',
+      requiredScopes: [],
+      mimeType: 'application/vnd.google-apps.folder',
+      placeholder: 'Select a parent folder',
+      condition: { field: 'operation', value: 'create' },
+    },
+    // Manual Folder ID for create operation
     {
       id: 'folderId',
-      title: 'Parent Folder ID (Optional)',
+      title: 'Or Enter Parent Folder ID Manually',
       type: 'short-input',
       layout: 'full',
       placeholder: 'ID of the parent folder (leave empty for root folder)',
@@ -149,22 +155,16 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
         }
       },
       params: (params) => {
-        const { credential, documentId, manualDocumentId, ...rest } = params
+        const { credential, documentId, manualDocumentId, folderSelector, folderId, ...rest } =
+          params
 
-        // Use the selected document ID or the manually entered one
-        // If documentId is provided, it's from the file selector and contains the file ID
-        // If not, fall back to manually entered ID
         const effectiveDocumentId = (documentId || manualDocumentId || '').trim()
-
-        if (params.operation !== 'create' && !effectiveDocumentId) {
-          throw new Error(
-            'Document ID is required. Please select a document or enter an ID manually.'
-          )
-        }
+        const effectiveFolderId = (folderSelector || folderId || '').trim()
 
         return {
           ...rest,
           documentId: effectiveDocumentId,
+          folderId: effectiveFolderId,
           credential,
         }
       },
@@ -176,6 +176,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
     documentId: { type: 'string', required: false },
     manualDocumentId: { type: 'string', required: false },
     title: { type: 'string', required: false },
+    folderSelector: { type: 'string', required: false },
     folderId: { type: 'string', required: false },
     content: { type: 'string', required: false },
   },

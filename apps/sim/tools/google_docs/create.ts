@@ -34,7 +34,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
   },
   request: {
     url: () => {
-      return 'https://docs.googleapis.com/v1/documents'
+      return 'https://www.googleapis.com/drive/v3/files'
     },
     method: 'POST',
     headers: (params) => {
@@ -49,51 +49,52 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
       }
     },
     body: (params) => {
-      // Validate title
       if (!params.title) {
         throw new Error('Title is required')
       }
 
-      // Create a new document with the specified title
-      const requestBody = {
-        title: params.title,
+      const requestBody: any = {
+        name: params.title,
+        mimeType: 'application/vnd.google-apps.document',
+      }
+
+      // Add parent folder if specified
+      if (params.folderId || params.folderSelector) {
+        requestBody.parents = [params.folderId || params.folderSelector]
       }
 
       return requestBody
     },
   },
   postProcess: async (result, params, executeTool) => {
-    // Only add content if it was provided and not already added during creation
-    // The Google Docs API doesn't directly support content in the create request,
-    // so we need to add it separately via the write tool
-    if (result.success && params.content) {
-      const documentId = result.output.metadata.documentId
+    if (!result.success) {
+      return result
+    }
 
-      if (documentId) {
-        try {
-          const writeParams = {
-            accessToken: params.accessToken,
-            documentId: documentId,
-            content: params.content,
-          }
+    const documentId = result.output.metadata.documentId
 
-          // Use the write tool to add content
-          const writeResult = await executeTool('google_docs_write', writeParams)
-
-          if (!writeResult.success) {
-            logger.warn(
-              'Failed to add content to document, but document was created:',
-              writeResult.error
-            )
-          }
-        } catch (error) {
-          logger.warn('Error adding content to document:', { error })
-          // Don't fail the overall operation if adding content fails
+    if (params.content && documentId) {
+      try {
+        const writeParams = {
+          accessToken: params.accessToken,
+          documentId: documentId,
+          content: params.content,
         }
+
+        const writeResult = await executeTool('google_docs_write', writeParams)
+
+        if (!writeResult.success) {
+          logger.warn(
+            'Failed to add content to document, but document was created:',
+            writeResult.error
+          )
+        }
+      } catch (error) {
+        logger.warn('Error adding content to document:', { error })
+        // Don't fail the overall operation if adding content fails
       }
     }
 
-    // Return the original result regardless of post-processing outcome
     return result
   },
   transformResponse: async (response: Response) => {
@@ -113,13 +114,11 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     try {
       // Get the response data
       const responseText = await response.text()
-
       const data = JSON.parse(responseText)
 
-      const documentId = data.documentId
-      const title = data.title
+      const documentId = data.id
+      const title = data.name
 
-      // Create document metadata
       const metadata = {
         documentId,
         title: title || 'Untitled Document',

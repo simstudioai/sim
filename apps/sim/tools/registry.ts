@@ -28,7 +28,12 @@ import {
 import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { searchTool as googleSearchTool } from './google'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './google_docs'
-import { driveDownloadTool, driveListTool, driveUploadTool } from './google_drive'
+import {
+  driveCreateFolderTool,
+  driveGetContentTool,
+  driveListTool,
+  driveUploadTool,
+} from './google_drive'
 import {
   sheetsAppendTool,
   sheetsReadTool,
@@ -42,7 +47,7 @@ import { readUrlTool } from './jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
 import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from './mem0'
-import { memoryAddTool, memoryGetTool, memoryGetAllTool, memoryDeleteTool } from './memory'
+import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from './memory'
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
 import { dalleTool, embeddingsTool as openAIEmbeddings } from './openai'
@@ -127,9 +132,10 @@ export const tools: Record<string, ToolConfig> = {
   reddit_hot_posts: redditHotPostsTool,
   reddit_get_posts: redditGetPostsTool,
   reddit_get_comments: redditGetCommentsTool,
-  google_drive_download: driveDownloadTool,
+  google_drive_get_content: driveGetContentTool,
   google_drive_list: driveListTool,
   google_drive_upload: driveUploadTool,
+  google_drive_create_folder: driveCreateFolderTool,
   google_docs_read: docsReadTool,
   google_docs_write: docsWriteTool,
   google_docs_create: docsCreateTool,
