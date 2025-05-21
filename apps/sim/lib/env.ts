@@ -53,7 +53,7 @@ export const env = createEnv({
     JWT_SECRET: z.string().min(1).optional(),
     BROWSERBASE_API_KEY: z.string().min(1).optional(),
     BROWSERBASE_PROJECT_ID: z.string().min(1).optional(),
-    OLLAMA_HOST: z.string().url().optional(),
+    OLLAMA_URL: z.string().url().optional(),
     SENTRY_ORG: z.string().optional(),
     SENTRY_PROJECT: z.string().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
