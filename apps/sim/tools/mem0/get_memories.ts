@@ -10,17 +10,20 @@ export const mem0GetMemoriesTool: ToolConfig = {
     apiKey: {
       type: 'string',
       required: true,
+      requiredForToolCall: true,
       description: 'Your Mem0 API key',
     },
     userId: {
       type: 'string',
       required: true,
       description: 'User ID to retrieve memories for',
+      optionalToolInput: true,
     },
     memoryId: {
       type: 'string',
       required: false,
       description: 'Specific memory ID to retrieve',
+      optionalToolInput: true,
     },
     startDate: {
       type: 'string',

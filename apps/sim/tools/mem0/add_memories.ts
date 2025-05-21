@@ -11,11 +11,13 @@ export const mem0AddMemoriesTool: ToolConfig = {
       type: 'string',
       required: true,
       description: 'Your Mem0 API key',
+      requiredForToolCall: true,
     },
     userId: {
       type: 'string',
       required: true,
       description: 'User ID associated with the memory',
+      optionalToolInput: true,
     },
     messages: {
       type: 'json',

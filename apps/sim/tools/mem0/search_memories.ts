@@ -1,7 +1,8 @@
 import { ToolConfig } from '../types'
+import { Mem0Response } from './types'
 
 // Search Memories Tool
-export const mem0SearchMemoriesTool: ToolConfig = {
+export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
   id: 'mem0_search_memories',
   name: 'Search Memories',
   description: 'Search for memories in Mem0 using semantic search',
@@ -10,11 +11,13 @@ export const mem0SearchMemoriesTool: ToolConfig = {
     apiKey: {
       type: 'string',
       required: true,
+      requiredForToolCall: true,
       description: 'Your Mem0 API key',
     },
     userId: {
       type: 'string',
       required: true,
+      requiredForToolCall: true,
       description: 'User ID to search memories for',
     },
     query: {
