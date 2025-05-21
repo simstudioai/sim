@@ -36,7 +36,6 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      console.log('Creating folder in Google Drive', { params })
       const metadata = {
         name: params.fileName,
         mimeType: 'application/vnd.google-apps.folder',
@@ -51,12 +50,11 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
     },
   },
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-    console.log('Folder created in Google Drive', { data })
-
     if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
       throw new Error(data.error?.message || 'Failed to create folder in Google Drive')
     }
+    const data = await response.json()
 
     return {
       success: true,
