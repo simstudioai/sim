@@ -640,9 +640,34 @@ function parseOutputStructure(
 
   while ((fieldMatch = fieldRegex.exec(outputContent)) !== null) {
     const fieldName = fieldMatch[1].trim()
-    const fieldType = fieldMatch[2].trim().replace(/['"\[\]]/g, '')
+    const fieldType = fieldMatch[2].trim().replace(/["'\[\]]/g, '')
 
     // Determine a good description based on field name
+    let description = 'Dynamic output field'
+
+    if (fieldName === 'results' || fieldName === 'memories' || fieldName === 'searchResults') {
+      description = `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} from the operation`
+    } else if (fieldName === 'ids') {
+      description = 'IDs of created or retrieved resources'
+    } else if (fieldName === 'answer') {
+      description = 'Generated answer text'
+    } else if (fieldName === 'citations') {
+      description = 'References used to generate the answer'
+    }
+
+    outputs[fieldName] = description
+  }
+
+  const shorthandRegex = /(?:^\s*|[,{]\s*)([A-Za-z_][\w]*)\s*(?=,|})/g
+  let shorthandMatch
+
+  while ((shorthandMatch = shorthandRegex.exec(outputContent)) !== null) {
+    const fieldName = shorthandMatch[1].trim()
+
+    // Ignore fields already captured or those that are part of key/value pairs
+    if (outputs[fieldName]) continue
+
+    // Provide the same heuristic descriptions as above
     let description = 'Dynamic output field'
 
     if (fieldName === 'results' || fieldName === 'memories' || fieldName === 'searchResults') {
@@ -884,9 +909,9 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
       return
     }
 
-    // Skip blocks with category 'blocks', only process blocks with category 'tools', and skip specific blocks
+    // Skip blocks with category 'blocks' (except memory type), and skip specific blocks
     if (
-      blockConfig.category === 'blocks' ||
+      (blockConfig.category === 'blocks' && blockConfig.type !== 'memory') ||
       blockConfig.type === 'evaluator' ||
       blockConfig.type === 'number'
     ) {

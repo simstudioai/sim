@@ -1,6 +1,6 @@
-import { memoryAddTool } from './add_memory'
-import { memoryGetTool } from './get_memory'
-import { memoryGetAllTool } from './get_all_memories'
-import { memoryDeleteTool } from './delete_memory'
+import { memoryAddTool } from './add'
+import { memoryDeleteTool } from './delete'
+import { memoryGetTool } from './get'
+import { memoryGetAllTool } from './get_all'
 
-export { memoryAddTool, memoryGetTool, memoryGetAllTool, memoryDeleteTool } 
+export { memoryAddTool, memoryGetTool, memoryGetAllTool, memoryDeleteTool }
