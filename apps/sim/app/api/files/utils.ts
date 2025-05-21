@@ -55,11 +55,13 @@ export const contentTypeMap: Record<string, string> = {
   ts: 'application/typescript',
   // Document formats
   pdf: 'application/pdf',
+  googleDoc: 'application/vnd.google-apps.document',
   doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   // Spreadsheet formats
   xls: 'application/vnd.ms-excel',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  googleSheet: 'application/vnd.google-apps.spreadsheet',
   // Presentation formats
   ppt: 'application/vnd.ms-powerpoint',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -71,6 +73,8 @@ export const contentTypeMap: Record<string, string> = {
   svg: 'image/svg+xml',
   // Archive formats
   zip: 'application/zip',
+  // Folder format
+  googleFolder: 'application/vnd.google-apps.folder',
 }
 
 /**

@@ -74,6 +74,90 @@ In Sim Studio, the Google Drive integration enables your agents to interact dire
 
 Integrate Google Drive functionality to manage files and folders. Upload new files, get content from existing files, create new folders, and list contents of folders using OAuth authentication. Supports file operations with custom MIME types and folder organization.
 
+## Tools
+
+### `google_drive_upload`
+
+Upload a file to Google Drive
+
+#### Input
+
+| Parameter     | Type   | Required | Description                                |
+| ------------- | ------ | -------- | ------------------------------------------ |
+| `accessToken` | string | Yes      | The access token for the Google Drive API  |
+| `fileName`    | string | Yes      | The name of the file to upload             |
+| `content`     | string | Yes      | The content of the file to upload          |
+| `mimeType`    | string | No       | The MIME type of the file to upload        |
+| `folderId`    | string | No       | The ID of the folder to upload the file to |
+
+#### Output
+
+| Parameter        | Type   |
+| ---------------- | ------ |
+| `file`           | string |
+| `name`           | string |
+| `mimeType`       | string |
+| `webViewLink`    | string |
+| `webContentLink` | string |
+| `size`           | string |
+| `createdTime`    | string |
+| `modifiedTime`   | string |
+| `parents`        | string |
+
+### `google_drive_create_folder`
+
+Create a new folder in Google Drive
+
+#### Input
+
+| Parameter     | Type   | Required | Description                                             |
+| ------------- | ------ | -------- | ------------------------------------------------------- |
+| `accessToken` | string | Yes      | The access token for the Google Drive API               |
+| `fileName`    | string | Yes      | Name of the folder to create                            |
+| `folderId`    | string | No       | ID of the parent folder \(leave empty for root folder\) |
+
+#### Output
+
+| Parameter        | Type   |
+| ---------------- | ------ |
+| `file`           | string |
+| `name`           | string |
+| `mimeType`       | string |
+| `webViewLink`    | string |
+| `webContentLink` | string |
+| `size`           | string |
+| `createdTime`    | string |
+| `modifiedTime`   | string |
+| `parents`        | string |
+
+### `google_drive_list`
+
+List files and folders in Google Drive
+
+#### Input
+
+| Parameter     | Type   | Required | Description                               |
+| ------------- | ------ | -------- | ----------------------------------------- |
+| `accessToken` | string | Yes      | The access token for the Google Drive API |
+| `folderId`    | string | No       | The ID of the folder to list files from   |
+| `query`       | string | No       | A query to filter the files               |
+| `pageSize`    | number | No       | The number of files to return             |
+| `pageToken`   | string | No       | The page token to use for pagination      |
+
+#### Output
+
+| Parameter        | Type   |
+| ---------------- | ------ |
+| `files`          | string |
+| `name`           | string |
+| `mimeType`       | string |
+| `webViewLink`    | string |
+| `webContentLink` | string |
+| `size`           | string |
+| `createdTime`    | string |
+| `modifiedTime`   | string |
+| `parents`        | string |
+
 ## Block Configuration
 
 ### Input

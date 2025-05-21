@@ -1,22 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { ToolConfig } from '../types'
 import { GoogleDriveToolParams, GoogleDriveUploadResponse } from './types'
+import { GOOGLE_WORKSPACE_MIME_TYPES, SOURCE_MIME_TYPES } from './utils'
 
 const logger = createLogger('GoogleDriveUploadTool')
-
-// Google Workspace MIME types that need special handling
-const GOOGLE_WORKSPACE_MIME_TYPES = [
-  'application/vnd.google-apps.document', // Google Docs
-  'application/vnd.google-apps.spreadsheet', // Google Sheets
-  'application/vnd.google-apps.presentation', // Google Slides
-]
-
-// Source MIME types for Google Workspace formats for content upload
-const SOURCE_MIME_TYPES: Record<string, string> = {
-  'application/vnd.google-apps.document': 'text/plain',
-  'application/vnd.google-apps.spreadsheet': 'text/csv',
-  'application/vnd.google-apps.presentation': 'application/vnd.ms-powerpoint',
-}
 
 export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResponse> = {
   id: 'google_drive_upload',
@@ -61,7 +48,10 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
         ...(params.folderId && params.folderId.trim() !== '' ? { parents: [params.folderId] } : {}),
       }
 
-      // Return metadata directly; our request formatter will JSON-stringify it.
+      if (params.folderSelector) {
+        metadata.parents = [params.folderSelector]
+      }
+
       return metadata
     },
   },
@@ -80,7 +70,6 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
 
       // Now upload content to the created file
       const fileId = data.id
-      const fileName = data.name
       const requestedMimeType = params?.mimeType || 'text/plain'
       const authHeader =
         response.headers.get('Authorization') || `Bearer ${params?.accessToken || ''}`
