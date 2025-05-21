@@ -13,6 +13,7 @@ export const ParallelTool = {
     width: 500,
     height: 300,
     extent: 'parent',
+    type: 'parallelNode',
     executionState: {
       currentExecution: 0,
       isExecuting: false,

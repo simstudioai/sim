@@ -61,11 +61,12 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         setEditorValue(JSON.stringify(data.collection))
       }
     }
-  }, [data?.collection])
+  }, [data?.collection, nodeId, updateNodeData])
 
   // Handle editor change
   const handleEditorChange = useCallback((value: string) => {
     setEditorValue(value)
+    // Ensure we update with a valid value
     updateNodeData({ collection: value })
   }, [updateNodeData])
 

@@ -66,7 +66,7 @@ export interface Loop {
 export interface Parallel {
   id: string
   nodes: string[]
-  distribution?: any[] | Record<string, any> | string // Items or expression
+  collection?: any[] | Record<string, any> | string // Items or expression
 }
 
 export interface WorkflowState {

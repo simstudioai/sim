@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useMemo, useRef, useEffect } from 'react'
 import { Handle, NodeProps, Position, useReactFlow } from 'reactflow'
 import { Trash2 } from 'lucide-react'
 import { StartIcon } from '@/components/icons'
@@ -81,6 +81,27 @@ const ParallelNodeStyles: React.FC = () => {
 export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) => {
   const { getNodes } = useReactFlow();
   const blockRef = useRef<HTMLDivElement>(null);
+  
+  // Ensure collection property is initialized
+  useEffect(() => {
+    const currentData = useWorkflowStore.getState().blocks[id]?.data;
+    if (currentData && !currentData.collection) {
+      // Update the node data to include collection property
+      useWorkflowStore.setState(state => ({
+        blocks: {
+          ...state.blocks,
+          [id]: {
+            ...state.blocks[id],
+            data: {
+              ...state.blocks[id].data,
+              collection: "",
+              type: 'parallelNode'
+            }
+          }
+        }
+      }));
+    }
+  }, [id]);
   
   // Determine nesting level by ing parents
   const nestingLevel = useMemo(() => {
