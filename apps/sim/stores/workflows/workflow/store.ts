@@ -111,6 +111,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
             edges: [...get().edges],
             loops: get().generateLoopBlocks(),
+            parallels: get().generateParallelBlocks(),
           }
 
           set(newState)
@@ -160,6 +161,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: get().generateLoopBlocks(),
+          parallels: get().generateParallelBlocks(),
         }
 
         set(newState)
@@ -255,6 +257,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: { ...get().loops },
+          parallels: { ...get().parallels },
         };
 
         console.log('[WorkflowStore/updateParentId] Updated parentId relationship:', {
@@ -278,6 +281,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: { ...get().blocks },
           edges: [...get().edges].filter((edge) => edge.source !== id && edge.target !== id),
           loops: { ...get().loops },
+          parallels: { ...get().parallels },
         }
 
         // Find and remove all child blocks if this is a parent node
@@ -420,6 +424,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: { ...get().blocks },
           edges: newEdges,
           loops: mergedLoops,
+          parallels: get().generateParallelBlocks(),
         }
 
         set(newState)
@@ -499,6 +504,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: { ...get().blocks },
           edges: newEdges,
           loops: { },
+          parallels: { ...get().parallels },
         }
 
         set(newState)
@@ -630,6 +636,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: get().generateLoopBlocks(),
+          parallels: get().generateParallelBlocks(),
         }
 
         // Update the subblock store with the duplicated values
@@ -689,6 +696,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: { ...get().loops },
+          parallels: { ...get().parallels },
         }
 
         // Update references in subblock store
@@ -909,7 +917,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const newState = {
           blocks: deployedState.blocks,
           edges: deployedState.edges,
-          loops: deployedState.loops || {}, // Ensure loops property is set
+          loops: deployedState.loops || {},
+          parallels: deployedState.parallels || {},
           isDeployed: true,
           needsRedeployment: false,
           hasActiveWebhook: false, // Reset webhook status
@@ -1020,7 +1029,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 ...block,
                 data: {
                   ...block.data,
-                  count: Math.max(2, Math.min(20, count)) // Clamp between 2-20
+                  count: Math.max(1, Math.min(20, count)) // Clamp between 1-20
                 }
               }
             },

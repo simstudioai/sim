@@ -165,7 +165,8 @@ export function setupUnloadPersistence(): void {
       saveWorkflowState(currentId, {
         blocks: currentState.blocks,
         edges: currentState.edges,
-        loops: generatedLoops, // Use generated loops
+        loops: generatedLoops,
+        parallels: currentState.parallels,
         isDeployed: currentState.isDeployed,
         deployedAt: currentState.deployedAt,
         lastSaved: Date.now(),

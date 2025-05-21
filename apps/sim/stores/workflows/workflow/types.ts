@@ -74,7 +74,7 @@ export interface WorkflowState {
   edges: Edge[]
   lastSaved?: number
   loops: Record<string, Loop>
-  parallels?: Record<string, Parallel>
+  parallels: Record<string, Parallel>
   lastUpdate?: number
   isDeployed?: boolean
   deployedAt?: Date

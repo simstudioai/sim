@@ -9,9 +9,9 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 import { getAllBlocks, getBlocksByCategory } from '@/blocks'
 import { BlockCategory } from '@/blocks/types'
 import { ToolbarBlock } from './components/toolbar-block/toolbar-block'
-import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
 import LoopToolbarItem from './components/toolbar-loop-block/toolbar-loop-block'
-import ParallelToolbarItem from './components/toolbar-parallel/toolbar-parallel'
+import ParallelToolbarItem from './components/toolbar-parallel-block/toolbar-parallel-block'
+import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
 
 export function Toolbar() {
   const [activeTab, setActiveTab] = useState<BlockCategory>('blocks')
