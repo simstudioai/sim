@@ -9,7 +9,6 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
   oauth: {
     required: true,
     provider: 'microsoft-teams',
-    additionalScopes: ['https://graph.microsoft.com/.default'],
   },
   params: {
     accessToken: {

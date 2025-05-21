@@ -9,7 +9,6 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
   oauth: {
     required: true,
     provider: 'microsoft-teams',
-    additionalScopes: ['https://graph.microsoft.com/.default'],
   },
   params: {
     accessToken: {

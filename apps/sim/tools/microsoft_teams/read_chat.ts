@@ -9,7 +9,6 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
   oauth: {
     required: true,
     provider: 'microsoft-teams',
-    additionalScopes: ['https://graph.microsoft.com/.default'],
   },
   params: {
     accessToken: {

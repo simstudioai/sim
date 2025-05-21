@@ -3,18 +3,13 @@
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { env } from '@/lib/env'
-import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import {
-  type ConfluenceFileInfo,
-  ConfluenceFileSelector,
-} from './components/confluence-file-selector'
-import {
-  type DiscordChannelInfo,
-  DiscordChannelSelector,
-} from './components/discord-channel-selector'
-import { type FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
-import { type JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
+import { SubBlockConfig } from '@/blocks/types'
+import { ConfluenceFileInfo, ConfluenceFileSelector } from './components/confluence-file-selector'
+import { DiscordChannelInfo, DiscordChannelSelector } from './components/discord-channel-selector'
+import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
+import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
+import { TeamsMessageInfo, TeamsMessageSelector } from './components/teams-message-selector'
 
 interface FileSelectorInputProps {
   blockId: string
@@ -29,13 +24,16 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   const [selectedIssueId, setSelectedIssueId] = useState<string>('')
   const [_issueInfo, setIssueInfo] = useState<JiraIssueInfo | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
-  const [_channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
+  const [channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
+  const [selectedMessageId, setSelectedMessageId] = useState<string>('')
+  const [messageInfo, setMessageInfo] = useState<TeamsMessageInfo | null>(null)
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
   const isConfluence = provider === 'confluence'
   const isJira = provider === 'jira'
   const isDiscord = provider === 'discord'
+  const isMicrosoftTeams = provider === 'microsoft-teams'
 
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
@@ -172,6 +170,63 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
           {!domain && (
             <TooltipContent side='top'>
               <p>Please enter a Jira domain first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  // Handle Microsoft Teams selector
+  if (isMicrosoftTeams) {
+    const credential = getValue(blockId, 'credential') as string || ''
+    
+    // Determine the selector type based on the subBlock ID
+    let selectionType: 'team' | 'channel' | 'chat' = 'team';
+    
+    if (subBlock.id === 'teamId') {
+      selectionType = 'team';
+    } else if (subBlock.id === 'channelId') {
+      selectionType = 'channel';
+    } else if (subBlock.id === 'chatId') {
+      selectionType = 'chat';
+    } else {
+      // Fallback: look at the operation to determine the selection type
+      const operation = getValue(blockId, 'operation') as string || '';
+      if (operation.includes('chat')) {
+        selectionType = 'chat';
+      } else if (operation.includes('channel')) {
+        selectionType = 'channel';
+      }
+    }
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="w-full">
+              <TeamsMessageSelector
+                value={selectedMessageId}
+                onChange={(value, info) => {
+                  setSelectedMessageId(value)
+                  setMessageInfo(info || null)
+                  setValue(blockId, subBlock.id, value)
+                }}
+                provider="microsoft-teams"
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId={subBlock.serviceId}
+                label={subBlock.placeholder || 'Select Teams message location'}
+                disabled={disabled || !credential}
+                showPreview={true}
+                onMessageInfoChange={setMessageInfo}
+                credential={credential}
+                selectionType={selectionType}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side="top">
+              <p>Please select Microsoft Teams credentials first</p>
             </TooltipContent>
           )}
         </Tooltip>
