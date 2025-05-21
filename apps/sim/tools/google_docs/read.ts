@@ -22,7 +22,7 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
   request: {
     url: (params) => {
       // Ensure documentId is valid
-      const documentId = params.documentId?.trim()
+      const documentId = params.documentId?.trim() || params.manualDocumentId?.trim()
       if (!documentId) {
         throw new Error('Document ID is required')
       }
