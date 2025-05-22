@@ -1,0 +1,30 @@
+import { SplitIcon } from 'lucide-react'
+
+export const ParallelTool = {
+  id: 'parallel',
+  type: 'parallel',
+  name: 'Parallel',
+  description: 'Parallel Execution',
+  icon: SplitIcon,
+  bgColor: '#FEE12B', // Yellow color for parallel execution
+  data: {
+    label: 'Parallel',
+    collection: '',
+    width: 500,
+    height: 300,
+    extent: 'parent',
+    type: 'parallelNode',
+    executionState: {
+      currentExecution: 0,
+      isExecuting: false,
+      startTime: null,
+      endTime: null,
+    }
+  },
+  style: {
+    width: 500,
+    height: 300,
+  },
+  // Specify that this should be rendered as a ReactFlow group node
+  isResizable: true,
+}
