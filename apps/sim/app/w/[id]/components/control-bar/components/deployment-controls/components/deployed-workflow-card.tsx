@@ -68,12 +68,12 @@ export function DeployedWorkflowCard({
           .filter(([_, block]) => block && block.type) // Filter out invalid blocks
           .map(([id, block]) => {
             // Deep clone the block to avoid any reference sharing
-            const clonedBlock = JSON.parse(JSON.stringify(block));
+            const clonedBlock = structuredClone(block);
             return [id, clonedBlock];
           })
       ),
-      edges: workflowToShow.edges ? JSON.parse(JSON.stringify(workflowToShow.edges)) : [],
-      loops: workflowToShow.loops ? JSON.parse(JSON.stringify(workflowToShow.loops)) : {},
+      edges: workflowToShow.edges ? structuredClone(workflowToShow.edges) : [],
+      loops: workflowToShow.loops ? structuredClone(workflowToShow.loops) : {},
       _metadata: {
         ...(workflowToShow._metadata || {}),
         workflowId: activeWorkflowId,
@@ -87,7 +87,7 @@ export function DeployedWorkflowCard({
 
   // Generate a unique key for the workflow preview
   const previewKey = useMemo(() => {
-    return `${showingDeployed ? 'deployed' : 'current'}-preview-${activeWorkflowId}-${Date.now()}`;
+    return `${showingDeployed ? 'deployed' : 'current'}-preview-${activeWorkflowId}}`;
   }, [showingDeployed, activeWorkflowId]);
 
   return (

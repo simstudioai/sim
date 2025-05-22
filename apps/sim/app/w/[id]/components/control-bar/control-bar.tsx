@@ -218,11 +218,10 @@ export function ControlBar() {
     // Function to check if redeployment is needed
     const checkForChanges = async () => {
       // Skip if we're already showing needsRedeployment
-      if (needsRedeployment) return
-
+      
       // Reset the pending changes counter
-      pendingChanges = 0
-      lastCheckTime = Date.now()
+      pendingChanges = 0;
+      lastCheckTime = Date.now();
 
       try {
         // Get the deployed state from the API
@@ -235,6 +234,10 @@ export function ControlBar() {
             setNeedsRedeployment(true)
             // Also update the store state so other components can access this flag
             useWorkflowStore.getState().setNeedsRedeploymentFlag(true)
+          } else {
+            // Add this else branch to handle the case when changes are reverted
+            setNeedsRedeployment(false)
+            useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
           }
         }
       } catch (error) {
@@ -397,11 +400,6 @@ export function ControlBar() {
     if (isDeployed) {
       setNeedsRedeployment(false)
       useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
-      
-      // When a workflow is newly deployed, we need to fetch the deployed state
-      if (activeWorkflowId && deployedState === null) {
-        // We'll fetch the deployed state in the other useEffect
-      }
     } else {
       // If workflow is undeployed, clear the deployed state
       setDeployedState(null)
