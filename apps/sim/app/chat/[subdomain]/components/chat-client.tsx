@@ -102,15 +102,21 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [starCount, setStarCount] = useState('3.4k')
   const [conversationId, setConversationId] = useState('')
-  
+
   // New ref to track the latest user message ID for scrolling
   const latestUserMessageIdRef = useRef<string | null>(null)
-  
+
   // Add AbortController ref to stop streaming
   const abortControllerRef = useRef<AbortController | null>(null)
-  
+
   // New state for container scroll behavior
   const [scrollBehavior, setScrollBehavior] = useState<'smooth' | 'auto'>('smooth')
+
+  // Spacer element height. We inflate it **only** right after a user message is
+  // inserted so that the new message can scroll to the very top of the
+  // viewport. As soon as the assistant response finishes (or an error occurs),
+  // we reset it to 0 so there is no lingering blank space.
+  const [bottomSpacerHeight, setBottomSpacerHeight] = useState(0)
 
   // Authentication state
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
@@ -124,64 +130,64 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [otpValue, setOtpValue] = useState('')
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
-  
+
   // Scroll and streaming state
   const [isStreamingResponse, setIsStreamingResponse] = useState(false)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [hasScrolled, setHasScrolled] = useState(false)
-  
+
   // Function to scroll to the bottom of the chat
   const scrollToBottom = () => {
     if (messagesEndRef.current && messagesContainerRef.current) {
       // Set behavior back to smooth for user-initiated scrolling
       setScrollBehavior('smooth')
-      
+
       // Use scrollIntoView with block: 'end' to scroll to the bottom
-      messagesEndRef.current.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'end' 
+      messagesEndRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'end',
       })
     }
   }
-  
+
   // Listen for scroll events to determine when to show scroll button
   useEffect(() => {
     const container = messagesContainerRef.current
     if (!container) return
-    
+
     const handleScroll = () => {
       // Get scroll metrics
       const { scrollTop, scrollHeight, clientHeight } = container
-      
+
       // Calculate scroll position - are we near the bottom?
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
       const isNearBottom = distanceFromBottom < 100
-      
+
       // Show button if not at the bottom (with some tolerance)
       setShowScrollButton(!isNearBottom)
-      
+
       // Track if user has ever scrolled
       if (!hasScrolled && scrollTop > 0) {
         setHasScrolled(true)
       }
     }
-    
+
     container.addEventListener('scroll', handleScroll, { passive: true })
-    
+
     // Initial check
     handleScroll()
-    
+
     // Also recheck when messages change or streaming state changes
     // This ensures button appears properly after new content is added
     if (messages.length > 0) {
       handleScroll()
     }
-    
+
     return () => container.removeEventListener('scroll', handleScroll)
   }, [hasScrolled, messages, isStreamingResponse])
 
   // Auto-scroll to the bottom only when a **new assistant** message is added
-  
+
   useEffect(() => {
     if (messages.length === 0 || isStreamingResponse) return
 
@@ -198,36 +204,35 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     if (latestUserMessageIdRef.current && messagesContainerRef.current) {
       const messageId = latestUserMessageIdRef.current
       const container = messagesContainerRef.current
-      
+
       console.log('useLayoutEffect scrolling to message:', messageId)
-      
+
       // Find the message element by its data-message-id
-      const messageElement = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null
-      
+      const messageElement = container.querySelector(
+        `[data-message-id="${messageId}"]`
+      ) as HTMLElement | null
+
       if (messageElement) {
-        // Snap the user message to the very top of the container
+        // Snap the user message to the very top of the container (smoothly)
         const targetScrollTop = messageElement.offsetTop
-        
-        // Apply scroll immediately (no smooth behavior)
-        container.scrollTop = targetScrollTop
-        
+
+        // Ensure scroll-behaviour is smooth for this operation
+        setScrollBehavior('smooth')
+
+        // Use built-in smooth scrolling
+        container.scrollTo({ top: targetScrollTop, behavior: 'smooth' })
+
         console.log('Applied scroll in useLayoutEffect:', {
           messageId,
           elementOffsetTop: messageElement.offsetTop,
           targetScrollTop,
           actualScrollTop: container.scrollTop,
         })
-        
+
         // Clear the ref to avoid unnecessary scrolling
         latestUserMessageIdRef.current = null
-        
-        // Restore smooth scrolling behavior after a brief delay
-        // This ensures any subsequent scrolling is smooth
-        setTimeout(() => {
-          if (!isStreamingResponse) {
-            setScrollBehavior('smooth')
-          }
-        }, 300)
+
+        // After the scroll completes, keep behaviour as smooth by default (no further action needed)
       }
     }
   }, [messages, isStreamingResponse]) // Run this effect whenever messages or streaming state change
@@ -486,19 +491,24 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
     // Store the ID of the user message we're about to add
     latestUserMessageIdRef.current = userMessage.id
-    
+
     // Add the user's message to the chat
     setMessages((prev) => [...prev, userMessage])
     setInputValue('')
     setIsLoading(true)
-    
+
     // Reset scroll state when sending a new message
     setHasScrolled(false)
     setShowScrollButton(false)
-    
+
     // Set scroll behavior to auto for immediate positioning
     setScrollBehavior('auto')
-    
+
+    // Inflate bottom spacer just for this scroll-to-top operation
+    if (messagesContainerRef.current) {
+      setBottomSpacerHeight(messagesContainerRef.current.clientHeight)
+    }
+
     // Ensure focus remains on input field
     if (inputRef.current) {
       inputRef.current.focus()
@@ -523,7 +533,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(payload),
-        signal: abortControllerRef.current.signal
+        signal: abortControllerRef.current.signal,
       })
 
       if (!response.ok) {
@@ -536,10 +546,10 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       if (contentType.includes('text/plain')) {
         // Handle streaming response
         const messageId = crypto.randomUUID()
-        
+
         // Set streaming state before adding the assistant message
         setIsStreamingResponse(true)
-        
+
         // Keep scroll behavior as auto during streaming
         setScrollBehavior('auto')
 
@@ -562,7 +572,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         if (reader) {
           const decoder = new TextDecoder()
           let done = false
-          
+
           try {
             while (!done) {
               // Check if aborted before each read
@@ -570,7 +580,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                 console.log('Stream reading aborted')
                 break
               }
-              
+
               const { value, done: readerDone } = await reader.read()
               if (value) {
                 const chunk = decoder.decode(value, { stream: true })
@@ -590,14 +600,16 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             // Always reset streaming state and controller when done
             setIsStreamingResponse(false)
             abortControllerRef.current = null
-            
+
             // Reset scroll behavior to smooth after streaming completes
             setScrollBehavior('smooth')
+            setBottomSpacerHeight(0)
           }
         } else {
           setIsStreamingResponse(false)
           abortControllerRef.current = null
           setScrollBehavior('smooth')
+          setBottomSpacerHeight(0)
         }
       } else {
         // Fallback to JSON response handling
@@ -634,6 +646,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
           // Add all messages at once
           setMessages((prev) => [...prev, ...assistantMessages])
+          // Ensure spacer is cleared so no extra blank area remains
+          setBottomSpacerHeight(0)
         } else {
           // Handle single output as before
           let messageContent = responseData.output
@@ -662,6 +676,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           }
 
           setMessages((prev) => [...prev, assistantMessage])
+          // Ensure spacer is cleared so no extra blank area remains
+          setBottomSpacerHeight(0)
         }
       }
     } catch (error) {
@@ -675,6 +691,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       }
 
       setMessages((prev) => [...prev, errorMessage])
+      setBottomSpacerHeight(0)
     } finally {
       setIsLoading(false)
       // Reset streaming state if it wasn't already reset
@@ -689,34 +706,35 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Function to stop the streaming response
   const stopStreaming = () => {
     console.log('Stopping streaming response')
-    
+
     if (abortControllerRef.current) {
       // Abort the fetch request
       abortControllerRef.current.abort()
       abortControllerRef.current = null
-      
+
       // Add a message indicating the response was stopped
-      setMessages(prev => {
+      setMessages((prev) => {
         const lastMessage = prev[prev.length - 1]
-        
+
         // Only modify if the last message is from the assistant (as expected)
         if (lastMessage && lastMessage.type === 'assistant') {
           // Append a note that the response was stopped
-          const updatedContent = lastMessage.content + 
-            (lastMessage.content ? '\n\n_Response stopped by user._' : '_Response stopped by user._')
-          
-          return [
-            ...prev.slice(0, -1),
-            { ...lastMessage, content: updatedContent }
-          ]
+          const updatedContent =
+            lastMessage.content +
+            (lastMessage.content
+              ? '\n\n_Response stopped by user._'
+              : '_Response stopped by user._')
+
+          return [...prev.slice(0, -1), { ...lastMessage, content: updatedContent }]
         }
-        
+
         return prev
       })
-      
+
       // Reset streaming state
       setIsStreamingResponse(false)
       setScrollBehavior('smooth')
+      setBottomSpacerHeight(0)
     }
   }
 
@@ -1103,21 +1121,20 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       </div>
 
       {/* Redesigned Message Container */}
-      <div 
+      <div
         className="relative flex-1 overflow-hidden"
         style={{ display: 'flex', flexDirection: 'column' }}
       >
         {/* Scrollable Messages Area */}
-        <div 
+        <div
           ref={messagesContainerRef}
           className="absolute inset-0 overflow-y-auto"
-          style={{ 
+          style={{
             scrollBehavior: scrollBehavior,
             overscrollBehavior: 'auto',
-            WebkitOverflowScrolling: 'touch'
+            WebkitOverflowScrolling: 'touch',
           }}
         >
-          
           {/* Actual Messages */}
           <div className="max-w-3xl mx-auto px-4 pt-10">
             {messages.length === 0 ? (
@@ -1148,11 +1165,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               </div>
             )}
 
-            {/* Bottom reference for scrolling */}
-            <div ref={messagesEndRef} className="h-20 md:h-32" />
+            {/* Bottom spacer ‑ its height is at least the container height so the new
+                user message can be scrolled to the top. */}
+            <div ref={messagesEndRef} style={{ height: bottomSpacerHeight }} />
           </div>
         </div>
-        
+
         {/* Scroll to bottom button - appears when user scrolls up or during streaming */}
         {(showScrollButton || isStreamingResponse) && (
           <div className="absolute bottom-5 left-1/2 transform -translate-x-1/2 z-10">
@@ -1169,7 +1187,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       </div>
 
       {/* Input area (fixed at bottom) */}
-      <div className="bg-background p-6 border-t relative">        
+      <div className="bg-background p-6 border-t relative">
         <div className="max-w-3xl mx-auto">
           <div className="relative rounded-2xl border bg-background shadow-sm">
             <Input
@@ -1177,7 +1195,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isStreamingResponse ? "Generating response..." : "Message..."}
+              placeholder={isStreamingResponse ? 'Generating response...' : 'Message...'}
               className="flex-1 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-7 pr-16 bg-transparent pl-6 text-base min-h-[50px] rounded-2xl"
               disabled={isStreamingResponse}
             />
