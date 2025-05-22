@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { createLogger } from '@/lib/logs/console-logger'
 import { WorkflowPreview } from '@/app/w/components/workflow-preview/workflow-preview'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('DeployedWorkflowCard')
 
@@ -16,11 +17,23 @@ interface DeployedWorkflowCardProps {
     blocks: Record<string, any>
     edges: Array<any>
     loops: Record<string, any>
+    _metadata?: {
+      workflowId?: string
+      fetchTimestamp?: number
+      requestId?: number
+      [key: string]: any
+    }
   }
   deployedWorkflowState: {
     blocks: Record<string, any>
     edges: Array<any>
     loops: Record<string, any>
+    _metadata?: {
+      workflowId?: string
+      fetchTimestamp?: number
+      requestId?: number
+      [key: string]: any
+    }
   }
   className?: string
 }
@@ -32,13 +45,24 @@ export function DeployedWorkflowCard({
 }: DeployedWorkflowCardProps) {
   const [showingDeployed, setShowingDeployed] = useState(true)
   const workflowToShow = showingDeployed ? deployedWorkflowState : currentWorkflowState
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   
   // Create sanitized workflow state
   const sanitizedWorkflowState = useMemo(() => {
     if (!workflowToShow) return null;
     
+    // Verify the workflow ID matches if metadata exists
+    if (workflowToShow._metadata?.workflowId && 
+        workflowToShow._metadata.workflowId !== activeWorkflowId) {
+      logger.warn('Workflow ID mismatch detected in card', {
+        stateWorkflowId: workflowToShow._metadata.workflowId,
+        activeWorkflowId,
+        isDeployed: showingDeployed
+      });
+    }
+    
     // Filter out invalid blocks and make deep clone to avoid reference issues
-    return {
+    const result = {
       blocks: Object.fromEntries(
         Object.entries(workflowToShow.blocks || {})
           .filter(([_, block]) => block && block.type) // Filter out invalid blocks
@@ -49,14 +73,22 @@ export function DeployedWorkflowCard({
           })
       ),
       edges: workflowToShow.edges ? JSON.parse(JSON.stringify(workflowToShow.edges)) : [],
-      loops: workflowToShow.loops ? JSON.parse(JSON.stringify(workflowToShow.loops)) : {}
+      loops: workflowToShow.loops ? JSON.parse(JSON.stringify(workflowToShow.loops)) : {},
+      _metadata: {
+        ...(workflowToShow._metadata || {}),
+        workflowId: activeWorkflowId,
+        viewType: showingDeployed ? 'deployed' : 'current',
+        sanitizedAt: Date.now()
+      }
     };
-  }, [workflowToShow]);
+    
+    return result;
+  }, [workflowToShow, showingDeployed, activeWorkflowId]);
 
   // Generate a unique key for the workflow preview
   const previewKey = useMemo(() => {
-    return `${showingDeployed ? 'deployed' : 'current'}-preview`;
-  }, [showingDeployed]);
+    return `${showingDeployed ? 'deployed' : 'current'}-preview-${activeWorkflowId}-${Date.now()}`;
+  }, [showingDeployed, activeWorkflowId]);
 
   return (
     <Card className={cn('relative overflow-hidden', className)}>
@@ -94,6 +126,8 @@ export function DeployedWorkflowCard({
           </div>
         </div>
       </CardHeader>
+      
+      <div className="h-px w-full bg-border shadow-sm"></div>
 
       <CardContent className='p-0'>
         {/* Workflow preview with fixed height */}
