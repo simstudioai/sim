@@ -5,11 +5,12 @@ import {
   isValidElement,
   KeyboardEvent,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
-import { ArrowUp, Loader2, Lock, Mail } from 'lucide-react'
+import { ArrowDown, ArrowUp, Loader2, Lock, Mail, Square } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -52,7 +53,7 @@ function ClientChatMessage({ message }: { message: ChatMessage }) {
   // For user messages (on the right)
   if (message.type === 'user') {
     return (
-      <div className="py-5 px-4">
+      <div className="py-5 px-4" data-message-id={message.id}>
         <div className="max-w-3xl mx-auto">
           <div className="flex justify-end">
             <div className="bg-[#F4F4F4] dark:bg-gray-600 rounded-3xl max-w-[80%] py-3 px-4">
@@ -72,7 +73,7 @@ function ClientChatMessage({ message }: { message: ChatMessage }) {
 
   // For assistant messages (on the left)
   return (
-    <div className="py-5 px-4">
+    <div className="py-5 px-4" data-message-id={message.id}>
       <div className="max-w-3xl mx-auto">
         <div className="flex">
           <div className="max-w-[80%]">
@@ -101,6 +102,15 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [starCount, setStarCount] = useState('3.4k')
   const [conversationId, setConversationId] = useState('')
+  
+  // New ref to track the latest user message ID for scrolling
+  const latestUserMessageIdRef = useRef<string | null>(null)
+  
+  // Add AbortController ref to stop streaming
+  const abortControllerRef = useRef<AbortController | null>(null)
+  
+  // New state for container scroll behavior
+  const [scrollBehavior, setScrollBehavior] = useState<'smooth' | 'auto'>('smooth')
 
   // Authentication state
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
@@ -114,6 +124,120 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [otpValue, setOtpValue] = useState('')
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
+  
+  // Scroll and streaming state
+  const [isStreamingResponse, setIsStreamingResponse] = useState(false)
+  const [showScrollButton, setShowScrollButton] = useState(false)
+  const [hasScrolled, setHasScrolled] = useState(false)
+  
+  // Function to scroll to the bottom of the chat
+  const scrollToBottom = () => {
+    if (messagesEndRef.current && messagesContainerRef.current) {
+      // Set behavior back to smooth for user-initiated scrolling
+      setScrollBehavior('smooth')
+      
+      // Use scrollIntoView with block: 'end' to scroll to the bottom
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'end' 
+      })
+    }
+  }
+  
+  // Listen for scroll events to determine when to show scroll button
+  useEffect(() => {
+    const container = messagesContainerRef.current
+    if (!container) return
+    
+    const handleScroll = () => {
+      // Get scroll metrics
+      const { scrollTop, scrollHeight, clientHeight } = container
+      
+      // Calculate scroll position - are we near the bottom?
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+      const isNearBottom = distanceFromBottom < 100
+      
+      // Show button if not at the bottom (with some tolerance)
+      setShowScrollButton(!isNearBottom)
+      
+      // Track if user has ever scrolled
+      if (!hasScrolled && scrollTop > 0) {
+        setHasScrolled(true)
+      }
+      
+      // Log scroll position for debugging
+      console.log('Scroll metrics:', {
+        scrollTop,
+        scrollHeight,
+        clientHeight,
+        distanceFromBottom,
+        isNearBottom,
+        showButton: !isNearBottom
+      })
+    }
+    
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    
+    // Initial check
+    handleScroll()
+    
+    // Also recheck when messages change or streaming state changes
+    // This ensures button appears properly after new content is added
+    if (messages.length > 0) {
+      handleScroll()
+    }
+    
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [hasScrolled, messages, isStreamingResponse])
+
+  // Scroll to bottom when new messages are added
+  useEffect(() => {
+    // Only scroll to bottom if we're not streaming a response
+    if (messages.length > 0 && !isStreamingResponse) {
+      scrollToBottom()
+    }
+  }, [messages, isStreamingResponse])
+
+  // Use useLayoutEffect for scrolling to the latest user message
+  // This runs synchronously after DOM mutations but before browser paints
+  useLayoutEffect(() => {
+    if (latestUserMessageIdRef.current && messagesContainerRef.current) {
+      const messageId = latestUserMessageIdRef.current
+      const container = messagesContainerRef.current
+      
+      console.log('useLayoutEffect scrolling to message:', messageId)
+      
+      // Find the message element by its data-message-id
+      const messageElement = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null
+      
+      if (messageElement) {
+        // Calculate position with 40px padding from the top
+        const topPadding = 40
+        const targetScrollTop = messageElement.offsetTop - topPadding
+        
+        // Apply scroll immediately (no smooth behavior)
+        container.scrollTop = targetScrollTop
+        
+        console.log('Applied scroll in useLayoutEffect:', {
+          messageId,
+          elementOffsetTop: messageElement.offsetTop,
+          targetScrollTop,
+          actualScrollTop: container.scrollTop,
+        })
+        
+        // Clear the ref to avoid unnecessary scrolling
+        latestUserMessageIdRef.current = null
+        
+        // Restore smooth scrolling behavior after a brief delay
+        // This ensures any subsequent scrolling is smooth
+        setTimeout(() => {
+          if (!isStreamingResponse) {
+            setScrollBehavior('smooth')
+          }
+        }, 300)
+      }
+    }
+  }, [messages, isStreamingResponse]) // Run this effect whenever messages or streaming state change
 
   // Fetch chat config function
   const fetchChatConfig = async () => {
@@ -356,13 +480,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     }
   }
 
-  // Scroll to bottom of messages
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [messages])
-
   // Handle sending a message
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return
@@ -374,10 +491,21 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       timestamp: new Date(),
     }
 
+    // Store the ID of the user message we're about to add
+    latestUserMessageIdRef.current = userMessage.id
+    
+    // Add the user's message to the chat
     setMessages((prev) => [...prev, userMessage])
     setInputValue('')
     setIsLoading(true)
-
+    
+    // Reset scroll state when sending a new message
+    setHasScrolled(false)
+    setShowScrollButton(false)
+    
+    // Set scroll behavior to auto for immediate positioning
+    setScrollBehavior('auto')
+    
     // Ensure focus remains on input field
     if (inputRef.current) {
       inputRef.current.focus()
@@ -390,6 +518,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         conversationId,
       }
 
+      // Create a new AbortController for this request
+      abortControllerRef.current = new AbortController()
+
       // Use relative URL with credentials
       const response = await fetch(`/api/chat/${subdomain}`, {
         method: 'POST',
@@ -399,6 +530,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(payload),
+        signal: abortControllerRef.current.signal
       })
 
       if (!response.ok) {
@@ -411,6 +543,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       if (contentType.includes('text/plain')) {
         // Handle streaming response
         const messageId = crypto.randomUUID()
+        
+        // Set streaming state before adding the assistant message
+        setIsStreamingResponse(true)
+        
+        // Keep scroll behavior as auto during streaming
+        setScrollBehavior('auto')
 
         // Add placeholder message
         setMessages((prev) => [
@@ -431,20 +569,42 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         if (reader) {
           const decoder = new TextDecoder()
           let done = false
-          while (!done) {
-            const { value, done: readerDone } = await reader.read()
-            if (value) {
-              const chunk = decoder.decode(value, { stream: true })
-              if (chunk) {
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === messageId ? { ...msg, content: msg.content + chunk } : msg
-                  )
-                )
+          
+          try {
+            while (!done) {
+              // Check if aborted before each read
+              if (abortControllerRef.current === null) {
+                console.log('Stream reading aborted')
+                break
               }
+              
+              const { value, done: readerDone } = await reader.read()
+              if (value) {
+                const chunk = decoder.decode(value, { stream: true })
+                if (chunk) {
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === messageId ? { ...msg, content: msg.content + chunk } : msg
+                    )
+                  )
+                }
+              }
+              done = readerDone
             }
-            done = readerDone
+          } catch (error) {
+            console.error('Error reading stream:', error)
+          } finally {
+            // Always reset streaming state and controller when done
+            setIsStreamingResponse(false)
+            abortControllerRef.current = null
+            
+            // Reset scroll behavior to smooth after streaming completes
+            setScrollBehavior('smooth')
           }
+        } else {
+          setIsStreamingResponse(false)
+          abortControllerRef.current = null
+          setScrollBehavior('smooth')
         }
       } else {
         // Fallback to JSON response handling
@@ -524,10 +684,46 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
+      // Reset streaming state if it wasn't already reset
+      setIsStreamingResponse(false)
       // Ensure focus remains on input field even after the response
       if (inputRef.current) {
         inputRef.current.focus()
       }
+    }
+  }
+
+  // Function to stop the streaming response
+  const stopStreaming = () => {
+    console.log('Stopping streaming response')
+    
+    if (abortControllerRef.current) {
+      // Abort the fetch request
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+      
+      // Add a message indicating the response was stopped
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1]
+        
+        // Only modify if the last message is from the assistant (as expected)
+        if (lastMessage && lastMessage.type === 'assistant') {
+          // Append a note that the response was stopped
+          const updatedContent = lastMessage.content + 
+            (lastMessage.content ? '\n\n_Response stopped by user._' : '_Response stopped by user._')
+          
+          return [
+            ...prev.slice(0, -1),
+            { ...lastMessage, content: updatedContent }
+          ]
+        }
+        
+        return prev
+      })
+      
+      // Reset streaming state
+      setIsStreamingResponse(false)
+      setScrollBehavior('smooth')
     }
   }
 
@@ -853,7 +1049,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       `}</style>
 
       {/* Header with title and links */}
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex items-center justify-between px-6 py-4 border-b">
         <div className="flex items-center gap-2">
           {chatConfig?.customizations?.logoUrl && (
             <img
@@ -913,43 +1109,74 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         </div>
       </div>
 
-      {/* Messages container */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto">
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full py-10 px-4">
-              <div className="text-center space-y-2">
-                <h3 className="text-lg font-medium">How can I help you today?</h3>
-                <p className="text-muted-foreground text-sm">
-                  {chatConfig.description || 'Ask me anything.'}
-                </p>
+      {/* Redesigned Message Container */}
+      <div 
+        className="relative flex-1 overflow-hidden"
+        style={{ display: 'flex', flexDirection: 'column' }}
+      >
+        {/* Scrollable Messages Area */}
+        <div 
+          ref={messagesContainerRef}
+          className="absolute inset-0 overflow-y-auto"
+          style={{ 
+            scrollBehavior: scrollBehavior,
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          
+          {/* Actual Messages */}
+          <div className="max-w-3xl mx-auto px-4 pt-10">
+            {messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10">
+                <div className="text-center space-y-2">
+                  <h3 className="text-lg font-medium">How can I help you today?</h3>
+                  <p className="text-muted-foreground text-sm">
+                    {chatConfig.description || 'Ask me anything.'}
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            messages.map((message) => <ClientChatMessage key={message.id} message={message} />)
-          )}
+            ) : (
+              messages.map((message) => <ClientChatMessage key={message.id} message={message} />)
+            )}
 
-          {/* Loading indicator (shows only when executing) */}
-          {isLoading && (
-            <div className="py-5 px-4">
-              <div className="max-w-3xl mx-auto">
-                <div className="flex">
-                  <div className="max-w-[80%]">
-                    <div className="flex items-center h-6">
-                      <div className="w-3 h-3 rounded-full bg-black dark:bg-black loading-dot"></div>
+            {/* Loading indicator (shows only when executing) */}
+            {isLoading && (
+              <div className="py-5 px-4">
+                <div className="max-w-3xl mx-auto">
+                  <div className="flex">
+                    <div className="max-w-[80%]">
+                      <div className="flex items-center h-6">
+                        <div className="w-3 h-3 rounded-full bg-black dark:bg-black loading-dot"></div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div ref={messagesEndRef} className="h-1" />
+            {/* Bottom reference for scrolling */}
+            <div ref={messagesEndRef} className="h-20 md:h-32" />
+          </div>
         </div>
+        
+        {/* Scroll to bottom button - appears when user scrolls up or during streaming */}
+        {(showScrollButton || isStreamingResponse) && (
+          <div className="absolute bottom-5 left-1/2 transform -translate-x-1/2 z-10">
+            <Button
+              onClick={scrollToBottom}
+              size="sm"
+              variant="outline"
+              className="rounded-full py-1 px-3 border border-gray-200 bg-white shadow-md hover:bg-gray-50 transition-all flex items-center gap-1"
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Input area (fixed at bottom) */}
-      <div className="bg-background p-6">
+      <div className="bg-background p-6 border-t relative">        
         <div className="max-w-3xl mx-auto">
           <div className="relative rounded-2xl border bg-background shadow-sm">
             <Input
@@ -957,17 +1184,28 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Message..."
+              placeholder={isStreamingResponse ? "Generating response..." : "Message..."}
               className="flex-1 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-7 pr-16 bg-transparent pl-6 text-base min-h-[50px] rounded-2xl"
+              disabled={isStreamingResponse}
             />
-            <Button
-              onClick={handleSendMessage}
-              size="icon"
-              disabled={!inputValue.trim() || isLoading}
-              className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-xl bg-black text-white hover:bg-gray-800"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </Button>
+            {isStreamingResponse ? (
+              <Button
+                onClick={stopStreaming}
+                size="icon"
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-xl bg-red-500 hover:bg-red-600 text-white"
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSendMessage}
+                size="icon"
+                disabled={!inputValue.trim() || isLoading}
+                className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-xl bg-black text-white hover:bg-gray-800"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
