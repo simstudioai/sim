@@ -1,6 +1,10 @@
 'use client'
 
+<<<<<<< HEAD
 import { useEffect, useState } from 'react'
+=======
+import { useState, useEffect, useRef } from 'react'
+>>>>>>> 2d314bcc (fix: deployed state preview persists across workflows)
 import { Loader2, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -42,6 +46,68 @@ export function DeploymentControls({
 
   const [isDeploying, _setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  // Add a ref to track the last seen workflow ID and deployed state
+  const lastWorkflowIdRef = useRef<string | null>(null)
+  const lastDeployedStateRef = useRef<any>(null)
+  
+  // Log when workflow ID changes
+  useEffect(() => {
+    if (activeWorkflowId !== lastWorkflowIdRef.current) {
+      logger.info('Workflow ID changed in DeploymentControls', {
+        previousId: lastWorkflowIdRef.current,
+        currentId: activeWorkflowId,
+        timestamp: Date.now()
+      });
+      lastWorkflowIdRef.current = activeWorkflowId;
+    }
+  }, [activeWorkflowId]);
+  
+  // Log when deployed state changes
+  useEffect(() => {
+    if (deployedState && deployedState !== lastDeployedStateRef.current) {
+      const blockIds = Object.keys(deployedState?.blocks || {});
+      logger.info('Deployed state changed in DeploymentControls', {
+        workflowId: activeWorkflowId,
+        blockCount: blockIds.length,
+        blockIds: JSON.stringify(blockIds.slice(0, 3)),
+        isLoadingState: isLoadingDeployedState,
+        timestamp: Date.now(),
+        stateHash: JSON.stringify(deployedState).length
+      });
+      lastDeployedStateRef.current = deployedState;
+    }
+  }, [deployedState, activeWorkflowId, isLoadingDeployedState]);
+  
+  // Add wrapper around refetchDeployedState to track timing
+  const refetchWithLogging = async () => {
+    if (!activeWorkflowId) return;
+    
+    const fetchId = Date.now();
+    logger.info('Starting deployedState refetch', {
+      workflowId: activeWorkflowId,
+      fetchId,
+      timestamp: Date.now()
+    });
+    
+    try {
+      await refetchDeployedState();
+      
+      logger.info('Completed deployedState refetch', {
+        workflowId: activeWorkflowId,
+        fetchId,
+        timestamp: Date.now(),
+        duration: Date.now() - fetchId
+      });
+    } catch (error) {
+      logger.error('Error in deployedState refetch', {
+        workflowId: activeWorkflowId,
+        fetchId,
+        error,
+        timestamp: Date.now()
+      });
+    }
+  };
 
   // Update parent component when workflow-specific status changes
   useEffect(() => {
@@ -108,7 +174,7 @@ export function DeploymentControls({
         setNeedsRedeployment={setNeedsRedeployment}
         deployedState={deployedState}
         isLoadingDeployedState={isLoadingDeployedState}
-        refetchDeployedState={refetchDeployedState}
+        refetchDeployedState={refetchWithLogging}
       />
     </>
   )

@@ -111,6 +111,11 @@ export function ControlBar() {
   // Add deployedState management
   const [deployedState, setDeployedState] = useState<any>(null)
   const [isLoadingDeployedState, setIsLoadingDeployedState] = useState<boolean>(false)
+  
+  // Add refs to manage fetch state and prevent race conditions
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const lastFetchedWorkflowIdRef = useRef<string | null>(null)
+  const lastDeployedStateRef = useRef<boolean>(false)
 
   // Workflow name editing state
   const [isEditing, setIsEditing] = useState(false)
@@ -301,50 +306,68 @@ export function ControlBar() {
    * @returns Promise that resolves when the deployed state is fetched
    */
   const fetchDeployedState = async (options = { forceRefetch: false }) => {
+    // Cancel any in-flight requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
+    const { signal } = abortControllerRef.current;
+    
+    const requestId = Date.now();
+    const currentWorkflowId = activeWorkflowId;
+    
     // Skip fetching if we don't have an active workflow ID or it's not deployed
     // unless we're explicitly forcing a refetch
-    if ((!activeWorkflowId || !isDeployed) && !options.forceRefetch) {
+    if ((!currentWorkflowId || !isDeployed) && !options.forceRefetch) {
       setDeployedState(null);
       return;
     }
 
     try {
       setIsLoadingDeployedState(true);
-      const logMessage = options.forceRefetch 
-        ? `[CENTRAL] Explicitly refetching deployed state for workflow: ${activeWorkflowId}`
-        : `[CENTRAL] Fetching deployed state for workflow: ${activeWorkflowId} (Control Bar - Single Source of Truth)`;
       
-      logger.info(logMessage);
+      // Pass the abort signal to the fetch call
+      const response = await fetch(
+        `/api/workflows/${currentWorkflowId}/deployed`, 
+        { signal }
+      );
       
-      const response = await fetch(`/api/workflows/${activeWorkflowId}/deployed`);
       if (!response.ok) {
         throw new Error(`Failed to fetch deployed state: ${response.status}`);
       }
       
       const data = await response.json();
       
+      // Final workflow ID check before updating state
+      if (currentWorkflowId !== activeWorkflowId) {
+        return;
+      }
+      
       if (data.deployedState) {
-        const successMessage = options.forceRefetch
-          ? 'Successfully refetched deployed state from DB after redeployment'
-          : 'Successfully fetched deployed state from DB - This is the only place that should fetch deployed state';
+        // Create a single deep clone with metadata
+        const deployedStateWithMetadata = {
+          ...JSON.parse(JSON.stringify(data.deployedState)),
+          _metadata: {
+            workflowId: currentWorkflowId,
+            fetchTimestamp: Date.now(),
+            requestId
+          }
+        };
         
-        logger.info(successMessage);
-        
-        // Create a deep clone to ensure no reference sharing with current state
-        const deepClonedState = JSON.parse(JSON.stringify(data.deployedState));
-        logger.info('deepClonedState', deepClonedState);
-        setDeployedState(deepClonedState);
+        setDeployedState(deployedStateWithMetadata);
       } else {
-        const warningMessage = options.forceRefetch
-          ? 'No deployed state found in the database after refetch'
-          : 'No deployed state found in the database';
-        
-        logger.warn(warningMessage);
         setDeployedState(null);
       }
-    } catch (error) {
-      logger.error('Error fetching deployed state:', error);
-      setDeployedState(null);
+    } catch (error: unknown) {
+      // Don't log AbortError as it's expected when cancelling requests
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Silently ignore abort errors
+      } else {
+        logger.error(`Error fetching deployed state:`, { error });
+        setDeployedState(null);
+      }
     } finally {
       setIsLoadingDeployedState(false);
     }
@@ -355,7 +378,16 @@ export function ControlBar() {
 
   // Fetch deployed state when the workflow ID changes or deployment status changes
   useEffect(() => {
-    fetchDeployedState();
+    // Only fetch if the workflow ID or deployed status has actually changed
+    if (activeWorkflowId !== lastFetchedWorkflowIdRef.current || 
+        isDeployed !== lastDeployedStateRef.current) {
+      
+      // Update refs to track what we're fetching for
+      lastFetchedWorkflowIdRef.current = activeWorkflowId;
+      lastDeployedStateRef.current = isDeployed;
+      
+      fetchDeployedState();
+    }
   }, [activeWorkflowId, isDeployed]);
 
   // Listen for deployment status changes

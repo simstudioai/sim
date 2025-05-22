@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Info, Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,11 +66,10 @@ export function DeploymentInfo({
     
     // If deployedState is already loaded, use it directly
     if (deployedState) {
-      logger.info(`Using cached deployed state for workflow: ${workflowId}`)
       setIsViewingDeployed(true)
       return
     } else if (!isLoadingDeployedState) {
-      logger.debug(`[${workflowId}] No deployed state found`)
+      logger.debug(`No deployed state found`)
       addNotification('error', 'Cannot view deployment: No deployed state available', workflowId)
     }
   }
