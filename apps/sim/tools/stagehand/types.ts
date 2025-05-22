@@ -1,5 +1,5 @@
-import { z } from 'zod'
-import { ToolResponse } from '../types'
+import { z } from "zod"
+import type { ToolResponse } from "../types"
 
 export interface StagehandExtractParams {
   instruction: string
@@ -46,12 +46,12 @@ export interface StagehandAgentResponse extends ToolResponse {
 
 export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
   if (!jsonSchema) {
-    throw new Error('Invalid schema: Schema is required')
+    throw new Error("Invalid schema: Schema is required")
   }
 
   // Handle different schema types
   switch (jsonSchema.type) {
-    case 'object':
+    case "object": {
       if (!jsonSchema.properties) {
         return z.object({})
       }
@@ -77,23 +77,24 @@ export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
       }
 
       return z.object(shape)
+    }
 
-    case 'array':
+    case "array":
       if (!jsonSchema.items) {
         return z.array(z.any())
       }
       return z.array(jsonSchemaToZod(jsonSchema.items as Record<string, any>))
 
-    case 'string':
+    case "string":
       return z.string()
 
-    case 'number':
+    case "number":
       return z.number()
 
-    case 'boolean':
+    case "boolean":
       return z.boolean()
 
-    case 'null':
+    case "null":
       return z.null()
 
     default:

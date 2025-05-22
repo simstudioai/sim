@@ -1,9 +1,9 @@
-'use client'
+"use client"
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
-import { ConfluenceIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Check, ChevronDown, ExternalLink, RefreshCw, X } from "lucide-react"
+import { ConfluenceIcon } from "@/components/icons"
+import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandEmpty,
@@ -11,16 +11,16 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+} from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
-  Credential,
+  type Credential,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
-  OAuthProvider,
-} from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
-import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
+  type OAuthProvider,
+} from "@/lib/oauth"
+import { saveToStorage } from "@/stores/workflows/persistence"
+import { OAuthRequiredModal } from "../../credential-selector/components/oauth-required-modal"
 
 export interface ConfluenceFileInfo {
   id: string
@@ -50,7 +50,7 @@ export function ConfluenceFileSelector({
   onChange,
   provider,
   requiredScopes = [],
-  label = 'Select Confluence page',
+  label = "Select Confluence page",
   disabled = false,
   serviceId,
   domain,
@@ -60,7 +60,7 @@ export function ConfluenceFileSelector({
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [files, setFiles] = useState<ConfluenceFileInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>("")
   const [selectedFileId, setSelectedFileId] = useState(value)
   const [selectedFile, setSelectedFile] = useState<ConfluenceFileInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -139,7 +139,7 @@ export function ConfluenceFileSelector({
         }
       }
     } catch (error) {
-      console.error('Error fetching credentials:', error)
+      console.error("Error fetching credentials:", error)
     } finally {
       setIsLoading(false)
     }
@@ -152,9 +152,9 @@ export function ConfluenceFileSelector({
 
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
-      if (!trimmedDomain.includes('.')) {
+      if (!trimmedDomain.includes(".")) {
         setError(
-          'Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)'
+          "Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)"
         )
         return
       }
@@ -164,10 +164,10 @@ export function ConfluenceFileSelector({
 
       try {
         // Get the access token from the selected credential
-        const tokenResponse = await fetch('/api/auth/oauth/token', {
-          method: 'POST',
+        const tokenResponse = await fetch("/api/auth/oauth/token", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
@@ -176,17 +176,17 @@ export function ConfluenceFileSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          throw new Error(errorData.error || 'Failed to get access token')
+          throw new Error(errorData.error || "Failed to get access token")
         }
 
         const tokenData = await tokenResponse.json()
         const accessToken = tokenData.accessToken
 
         // Use the access token to fetch the page info
-        const response = await fetch(`/api/auth/oauth/confluence/page`, {
-          method: 'POST',
+        const response = await fetch("/api/auth/oauth/confluence/page", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             domain,
@@ -197,7 +197,7 @@ export function ConfluenceFileSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to fetch page info')
+          throw new Error(errorData.error || "Failed to fetch page info")
         }
 
         const data = await response.json()
@@ -206,7 +206,7 @@ export function ConfluenceFileSelector({
           onFileInfoChange?.(data.file)
         }
       } catch (error) {
-        console.error('Error fetching page info:', error)
+        console.error("Error fetching page info:", error)
         setError((error as Error).message)
       } finally {
         setIsLoading(false)
@@ -222,9 +222,9 @@ export function ConfluenceFileSelector({
 
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
-      if (!trimmedDomain.includes('.')) {
+      if (!trimmedDomain.includes(".")) {
         setError(
-          'Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)'
+          "Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)"
         )
         setFiles([])
         setIsLoading(false)
@@ -236,10 +236,10 @@ export function ConfluenceFileSelector({
 
       try {
         // Get the access token from the selected credential
-        const tokenResponse = await fetch('/api/auth/oauth/token', {
-          method: 'POST',
+        const tokenResponse = await fetch("/api/auth/oauth/token", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
@@ -248,10 +248,10 @@ export function ConfluenceFileSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          console.error('Access token error:', errorData)
+          console.error("Access token error:", errorData)
 
           // If there's a token error, we might need to reconnect the account
-          setError('Authentication failed. Please reconnect your Confluence account.')
+          setError("Authentication failed. Please reconnect your Confluence account.")
           setIsLoading(false)
           return
         }
@@ -260,17 +260,17 @@ export function ConfluenceFileSelector({
         const accessToken = tokenData.accessToken
 
         if (!accessToken) {
-          console.error('No access token returned')
-          setError('Authentication failed. Please reconnect your Confluence account.')
+          console.error("No access token returned")
+          setError("Authentication failed. Please reconnect your Confluence account.")
           setIsLoading(false)
           return
         }
 
         // Simply fetch pages directly using the endpoint
-        const response = await fetch('/api/auth/oauth/confluence/pages', {
-          method: 'POST',
+        const response = await fetch("/api/auth/oauth/confluence/pages", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             domain,
@@ -282,8 +282,8 @@ export function ConfluenceFileSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
-          console.error('Confluence API error:', errorData)
-          throw new Error(errorData.error || 'Failed to fetch pages')
+          console.error("Confluence API error:", errorData)
+          throw new Error(errorData.error || "Failed to fetch pages")
         }
 
         const data = await response.json()
@@ -302,7 +302,7 @@ export function ConfluenceFileSelector({
           }
         }
       } catch (error) {
-        console.error('Error fetching pages:', error)
+        console.error("Error fetching pages:", error)
         setError((error as Error).message)
         setFiles([])
       } finally {
@@ -325,14 +325,14 @@ export function ConfluenceFileSelector({
     setOpen(isOpen)
 
     // Only fetch files when opening the dropdown and if we have valid credentials and domain
-    if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
+    if (isOpen && selectedCredentialId && domain && domain.includes(".")) {
       fetchFiles()
     }
   }
 
   // Fetch the selected page metadata once credentials and domain are ready or changed
   useEffect(() => {
-    if (value && selectedCredentialId && !selectedFile && domain && domain.includes('.')) {
+    if (value && selectedCredentialId && !selectedFile && domain && domain.includes(".")) {
       fetchPageInfo(value)
     }
   }, [value, selectedCredentialId, selectedFile, domain, fetchPageInfo])
@@ -359,10 +359,10 @@ export function ConfluenceFileSelector({
     const providerId = getProviderId()
 
     // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', providerId)
+    saveToStorage<string>("pending_service_id", effectiveServiceId)
+    saveToStorage<string[]>("pending_oauth_scopes", requiredScopes)
+    saveToStorage<string>("pending_oauth_return_url", window.location.href)
+    saveToStorage<string>("pending_oauth_provider_id", providerId)
 
     // Show the OAuth modal
     setShowOAuthModal(true)
@@ -371,9 +371,9 @@ export function ConfluenceFileSelector({
 
   // Clear selection
   const handleClearSelection = () => {
-    setSelectedFileId('')
+    setSelectedFileId("")
     setSelectedFile(null)
-    onChange('', undefined)
+    onChange("", undefined)
     onFileInfoChange?.(null)
   }
 
@@ -392,7 +392,7 @@ export function ConfluenceFileSelector({
               {selectedFile ? (
                 <div className="flex items-center gap-2 overflow-hidden">
                   <ConfluenceIcon className="h-4 w-4" />
-                  <span className="font-normal truncate">{selectedFile.name}</span>
+                  <span className="truncate font-normal">{selectedFile.name}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -403,15 +403,15 @@ export function ConfluenceFileSelector({
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[300px]" align="start">
+          <PopoverContent className="w-[300px] p-0" align="start">
             {/* Current account indicator */}
             {selectedCredentialId && credentials.length > 0 && (
-              <div className="px-3 py-2 border-b flex items-center justify-between">
+              <div className="flex items-center justify-between border-b px-3 py-2">
                 <div className="flex items-center gap-2">
                   <ConfluenceIcon className="h-4 w-4" />
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
-                      'Unknown'}
+                      "Unknown"}
                   </span>
                 </div>
                 {credentials.length > 1 && (
@@ -438,19 +438,19 @@ export function ConfluenceFileSelector({
                     </div>
                   ) : error ? (
                     <div className="p-4 text-center">
-                      <p className="text-sm text-destructive">{error}</p>
+                      <p className="text-destructive text-sm">{error}</p>
                     </div>
                   ) : credentials.length === 0 ? (
                     <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No accounts connected.</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-medium text-sm">No accounts connected.</p>
+                      <p className="text-muted-foreground text-xs">
                         Connect a Confluence account to continue.
                       </p>
                     </div>
                   ) : (
                     <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No pages found.</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-medium text-sm">No pages found.</p>
+                      <p className="text-muted-foreground text-xs">
                         Try a different search or account.
                       </p>
                     </div>
@@ -460,7 +460,7 @@ export function ConfluenceFileSelector({
                 {/* Account selection - only show if we have multiple accounts */}
                 {credentials.length > 1 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
                       Switch Account
                     </div>
                     {credentials.map((cred) => (
@@ -482,7 +482,7 @@ export function ConfluenceFileSelector({
                 {/* Files list */}
                 {files.length > 0 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
                       Pages
                     </div>
                     {files.map((file) => (
@@ -493,7 +493,7 @@ export function ConfluenceFileSelector({
                       >
                         <div className="flex items-center gap-2 overflow-hidden">
                           <ConfluenceIcon className="h-4 w-4" />
-                          <span className="font-normal truncate">{file.name}</span>
+                          <span className="truncate font-normal">{file.name}</span>
                         </div>
                         {file.id === selectedFileId && <Check className="ml-auto h-4 w-4" />}
                       </CommandItem>
@@ -519,7 +519,7 @@ export function ConfluenceFileSelector({
 
         {/* File preview */}
         {showPreview && selectedFile && (
-          <div className="mt-2 rounded-md border border-muted bg-muted/10 p-2 relative">
+          <div className="relative mt-2 rounded-md border border-muted bg-muted/10 p-2">
             <div className="absolute top-2 right-2">
               <Button
                 variant="ghost"
@@ -531,14 +531,14 @@ export function ConfluenceFileSelector({
               </Button>
             </div>
             <div className="flex items-center gap-3 pr-4">
-              <div className="flex-shrink-0 flex items-center justify-center h-6 w-6 bg-muted/20 rounded">
+              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20">
                 <ConfluenceIcon className="h-4 w-4" />
               </div>
-              <div className="overflow-hidden flex-1 min-w-0">
+              <div className="min-w-0 flex-1 overflow-hidden">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-xs font-medium truncate">{selectedFile.name}</h4>
+                  <h4 className="truncate font-medium text-xs">{selectedFile.name}</h4>
                   {selectedFile.modifiedTime && (
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    <span className="whitespace-nowrap text-muted-foreground text-xs">
                       {new Date(selectedFile.modifiedTime).toLocaleDateString()}
                     </span>
                   )}
@@ -548,7 +548,7 @@ export function ConfluenceFileSelector({
                     href={selectedFile.webViewLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                    className="flex items-center gap-1 text-primary text-xs hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>Open in Confluence</span>

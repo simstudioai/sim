@@ -1,4 +1,4 @@
-import * as React from 'react'
+import * as React from "react"
 import {
   Body,
   Column,
@@ -11,21 +11,21 @@ import {
   Row,
   Section,
   Text,
-} from '@react-email/components'
-import { env } from '@/lib/env'
-import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
+} from "@react-email/components"
+import { env } from "@/lib/env"
+import { baseStyles } from "./base-styles"
+import EmailFooter from "./footer"
 
 interface WaitlistApprovalEmailProps {
   email?: string
   signupLink?: string
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+const baseUrl = env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
 
 export const WaitlistApprovalEmail = ({
-  email = '',
-  signupLink = '',
+  email = "",
+  signupLink = "",
 }: WaitlistApprovalEmailProps) => {
   return (
     <Html>
@@ -33,15 +33,15 @@ export const WaitlistApprovalEmail = ({
       <Body style={baseStyles.main}>
         <Preview>You've Been Approved to Join Sim Studio!</Preview>
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
+          <Section style={{ padding: "30px 0", textAlign: "center" }}>
             <Row>
-              <Column style={{ textAlign: 'center' }}>
+              <Column style={{ textAlign: "center" }}>
                 <Img
                   src={`${baseUrl}/static/sim.png`}
                   width="114"
                   alt="Sim Studio"
                   style={{
-                    margin: '0 auto',
+                    margin: "0 auto",
                   }}
                 />
               </Column>
@@ -66,7 +66,7 @@ export const WaitlistApprovalEmail = ({
               Your email ({email}) has been approved. Click the button below to create your account
               and start using Sim Studio today:
             </Text>
-            <Link href={signupLink} style={{ textDecoration: 'none' }}>
+            <Link href={signupLink} style={{ textDecoration: "none" }}>
               <Text style={baseStyles.button}>Create Your Account</Text>
             </Link>
             <Text style={baseStyles.paragraph}>

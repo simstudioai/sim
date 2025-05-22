@@ -1,8 +1,8 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   ChevronDown,
   GitPullRequestCreate,
@@ -12,8 +12,8 @@ import {
   Plus,
   Trash2,
   X,
-} from 'lucide-react'
-import { AgentIcon } from '@/components/icons'
+} from "lucide-react"
+import { AgentIcon } from "@/components/icons"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,23 +24,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useSession } from '@/lib/auth-client'
-import { cn } from '@/lib/utils'
-import { useSidebarStore } from '@/stores/sidebar/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useSession } from "@/lib/auth-client"
+import { cn } from "@/lib/utils"
+import { useSidebarStore } from "@/stores/sidebar/store"
+import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
 
 interface Workspace {
   id: string
@@ -63,13 +63,13 @@ interface WorkspaceModalProps {
 }
 
 function WorkspaceModal({ open, onOpenChange, onCreateWorkspace }: WorkspaceModalProps) {
-  const [workspaceName, setWorkspaceName] = useState('')
+  const [workspaceName, setWorkspaceName] = useState("")
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (workspaceName.trim()) {
       onCreateWorkspace(workspaceName.trim())
-      setWorkspaceName('')
+      setWorkspaceName("")
       onOpenChange(false)
     }
   }
@@ -77,12 +77,12 @@ function WorkspaceModal({ open, onOpenChange, onCreateWorkspace }: WorkspaceModa
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[500px] flex flex-col p-0 gap-0 overflow-hidden"
+        className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]"
         hideCloseButton
       >
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+        <DialogHeader className="flex-shrink-0 border-b px-6 py-4">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Create New Workspace</DialogTitle>
+            <DialogTitle className="font-medium text-lg">Create New Workspace</DialogTitle>
             <Button
               variant="ghost"
               size="icon"
@@ -99,7 +99,7 @@ function WorkspaceModal({ open, onOpenChange, onCreateWorkspace }: WorkspaceModa
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="workspace-name" className="text-sm font-medium">
+                <label htmlFor="workspace-name" className="font-medium text-sm">
                   Workspace Name
                 </label>
                 <Input
@@ -117,11 +117,11 @@ function WorkspaceModal({ open, onOpenChange, onCreateWorkspace }: WorkspaceModa
                   size="sm"
                   disabled={!workspaceName.trim()}
                   className={cn(
-                    'gap-2 font-medium',
-                    'bg-[#802FFF] hover:bg-[#7028E6]',
-                    'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                    'text-white transition-all duration-200',
-                    'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+                    "gap-2 font-medium",
+                    "bg-[#802FFF] hover:bg-[#7028E6]",
+                    "shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]",
+                    "text-white transition-all duration-200",
+                    "disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none"
                   )}
                 >
                   Create
@@ -149,7 +149,7 @@ function WorkspaceEditModal({
   onUpdateWorkspace,
   workspace,
 }: WorkspaceEditModalProps) {
-  const [workspaceName, setWorkspaceName] = useState('')
+  const [workspaceName, setWorkspaceName] = useState("")
 
   useEffect(() => {
     if (workspace && open) {
@@ -161,7 +161,7 @@ function WorkspaceEditModal({
     e.preventDefault()
     if (workspace && workspaceName.trim()) {
       onUpdateWorkspace(workspace.id, workspaceName.trim())
-      setWorkspaceName('')
+      setWorkspaceName("")
       onOpenChange(false)
     }
   }
@@ -169,12 +169,12 @@ function WorkspaceEditModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[500px] flex flex-col p-0 gap-0 overflow-hidden"
+        className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]"
         hideCloseButton
       >
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+        <DialogHeader className="flex-shrink-0 border-b px-6 py-4">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Edit Workspace</DialogTitle>
+            <DialogTitle className="font-medium text-lg">Edit Workspace</DialogTitle>
             <Button
               variant="ghost"
               size="icon"
@@ -191,7 +191,7 @@ function WorkspaceEditModal({
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="workspace-name-edit" className="text-sm font-medium">
+                <label htmlFor="workspace-name-edit" className="font-medium text-sm">
                   Workspace Name
                 </label>
                 <Input
@@ -209,11 +209,11 @@ function WorkspaceEditModal({
                   size="sm"
                   disabled={!workspaceName.trim()}
                   className={cn(
-                    'gap-2 font-medium',
-                    'bg-[#802FFF] hover:bg-[#7028E6]',
-                    'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                    'text-white transition-all duration-200',
-                    'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+                    "gap-2 font-medium",
+                    "bg-[#802FFF] hover:bg-[#7028E6]",
+                    "shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]",
+                    "text-white transition-all duration-200",
+                    "disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none"
                   )}
                 >
                   Update
@@ -238,7 +238,7 @@ export function WorkspaceHeader({
   // Keep local isOpen state in sync with the store (for internal component use)
   const [isOpen, setIsOpen] = useState(workspaceDropdownOpen)
   const { data: sessionData, isPending } = useSession()
-  const [plan, setPlan] = useState('Free Plan')
+  const [plan, setPlan] = useState("Free Plan")
   // Use client-side loading instead of isPending to avoid hydration mismatch
   const [isClientLoading, setIsClientLoading] = useState(true)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -253,7 +253,7 @@ export function WorkspaceHeader({
   // Get workflowRegistry state and actions
   const { activeWorkspaceId, setActiveWorkspace: setActiveWorkspaceId } = useWorkflowRegistry()
 
-  const userName = sessionData?.user?.name || sessionData?.user?.email || 'User'
+  const userName = sessionData?.user?.name || sessionData?.user?.email || "User"
 
   // Set isClientLoading to false after hydration
   useEffect(() => {
@@ -263,18 +263,18 @@ export function WorkspaceHeader({
   useEffect(() => {
     // Fetch subscription status if user is logged in
     if (sessionData?.user?.id) {
-      fetch('/api/user/subscription')
+      fetch("/api/user/subscription")
         .then((res) => res.json())
         .then((data) => {
-          setPlan(data.isPro ? 'Pro Plan' : 'Free Plan')
+          setPlan(data.isPro ? "Pro Plan" : "Free Plan")
         })
         .catch((err) => {
-          console.error('Error fetching subscription status:', err)
+          console.error("Error fetching subscription status:", err)
         })
 
       // Fetch user's workspaces
       setIsWorkspacesLoading(true)
-      fetch('/api/workspaces')
+      fetch("/api/workspaces")
         .then((res) => res.json())
         .then((data) => {
           if (data.workspaces && Array.isArray(data.workspaces)) {
@@ -300,7 +300,7 @@ export function WorkspaceHeader({
           setIsWorkspacesLoading(false)
         })
         .catch((err) => {
-          console.error('Error fetching workspaces:', err)
+          console.error("Error fetching workspaces:", err)
           setIsWorkspacesLoading(false)
         })
     }
@@ -326,10 +326,10 @@ export function WorkspaceHeader({
   const handleCreateWorkspace = (name: string) => {
     setIsWorkspacesLoading(true)
 
-    fetch('/api/workspaces', {
-      method: 'POST',
+    fetch("/api/workspaces", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ name }),
     })
@@ -349,7 +349,7 @@ export function WorkspaceHeader({
         setIsWorkspacesLoading(false)
       })
       .catch((err) => {
-        console.error('Error creating workspace:', err)
+        console.error("Error creating workspace:", err)
         setIsWorkspacesLoading(false)
       })
   }
@@ -357,8 +357,8 @@ export function WorkspaceHeader({
   const handleUpdateWorkspace = async (id: string, name: string) => {
     // Check if user has permission to update the workspace
     const workspace = workspaces.find((w) => w.id === id)
-    if (!workspace || workspace.role !== 'owner') {
-      console.error('Permission denied: Only workspace owners can update workspaces')
+    if (!workspace || workspace.role !== "owner") {
+      console.error("Permission denied: Only workspace owners can update workspaces")
       return
     }
 
@@ -366,15 +366,15 @@ export function WorkspaceHeader({
 
     try {
       const response = await fetch(`/api/workspaces/${id}`, {
-        method: 'PUT',
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ name }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to update workspace')
+        throw new Error("Failed to update workspace")
       }
 
       const { workspace } = await response.json()
@@ -389,7 +389,7 @@ export function WorkspaceHeader({
         setActiveWorkspace({ ...activeWorkspace, name: workspace.name } as Workspace)
       }
     } catch (err) {
-      console.error('Error updating workspace:', err)
+      console.error("Error updating workspace:", err)
     } finally {
       setIsWorkspacesLoading(false)
     }
@@ -398,8 +398,8 @@ export function WorkspaceHeader({
   const handleDeleteWorkspace = async (id: string) => {
     // Check if user has permission to delete the workspace
     const workspace = workspaces.find((w) => w.id === id)
-    if (!workspace || workspace.role !== 'owner') {
-      console.error('Permission denied: Only workspace owners can delete workspaces')
+    if (!workspace || workspace.role !== "owner") {
+      console.error("Permission denied: Only workspace owners can delete workspaces")
       return
     }
 
@@ -407,11 +407,11 @@ export function WorkspaceHeader({
 
     try {
       const response = await fetch(`/api/workspaces/${id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       })
 
       if (!response.ok) {
-        throw new Error('Failed to delete workspace')
+        throw new Error("Failed to delete workspace")
       }
 
       // Remove from workspace list
@@ -428,7 +428,7 @@ export function WorkspaceHeader({
 
       setIsOpen(false)
     } catch (err) {
-      console.error('Error deleting workspace:', err)
+      console.error("Error deleting workspace:", err)
     } finally {
       setIsDeleting(false)
     }
@@ -437,8 +437,8 @@ export function WorkspaceHeader({
   const openEditModal = (workspace: Workspace, e: React.MouseEvent) => {
     e.stopPropagation()
     // Check if user has permission to edit the workspace
-    if (workspace.role !== 'owner') {
-      console.error('Permission denied: Only workspace owners can edit workspaces')
+    if (workspace.role !== "owner") {
+      console.error("Permission denied: Only workspace owners can edit workspaces")
       return
     }
     setEditingWorkspace(workspace)
@@ -446,7 +446,7 @@ export function WorkspaceHeader({
   }
 
   // Determine URL for workspace links
-  const workspaceUrl = activeWorkspace ? `/w/${activeWorkspace.id}` : '/w'
+  const workspaceUrl = activeWorkspace ? `/w/${activeWorkspace.id}` : "/w"
 
   // Notify parent component when dropdown opens/closes
   const handleDropdownOpenChange = (open: boolean) => {
@@ -460,7 +460,7 @@ export function WorkspaceHeader({
   // Special handling for click interactions in hover mode
   const handleTriggerClick = (e: React.MouseEvent) => {
     // When in hover mode, explicitly prevent bubbling for the trigger
-    if (mode === 'hover') {
+    if (mode === "hover") {
       e.stopPropagation()
       e.preventDefault()
       // Toggle dropdown state
@@ -475,7 +475,7 @@ export function WorkspaceHeader({
   }, [isWorkspaceModalOpen, isEditModalOpen, isDeleting, setAnyModalOpen])
 
   return (
-    <div className="py-2 px-2">
+    <div className="px-2 py-2">
       {/* Workspace Modal */}
       <WorkspaceModal
         open={isWorkspaceModalOpen}
@@ -493,10 +493,10 @@ export function WorkspaceHeader({
 
       <DropdownMenu open={isOpen} onOpenChange={handleDropdownOpenChange}>
         <div
-          className={`group relative rounded-md cursor-pointer ${isCollapsed ? 'flex justify-center' : ''}`}
+          className={`group relative cursor-pointer rounded-md ${isCollapsed ? "flex justify-center" : ""}`}
           onClick={(e) => {
             // In hover mode, prevent clicks on the container from collapsing the sidebar
-            if (mode === 'hover') {
+            if (mode === "hover") {
               e.stopPropagation()
             }
           }}
@@ -506,22 +506,22 @@ export function WorkspaceHeader({
 
           {/* Content with consistent padding */}
           {isCollapsed ? (
-            <div className="flex items-center justify-center px-2 py-[6px] relative z-10">
+            <div className="relative z-10 flex items-center justify-center px-2 py-[6px]">
               <Link
                 href={workspaceUrl}
                 className="group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]"
               >
-                <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
+                <AgentIcon className="-translate-y-[0.5px] h-[18px] w-[18px] text-white transition-all group-hover:scale-105" />
               </Link>
             </div>
           ) : (
             <div className="relative">
               <DropdownMenuTrigger asChild>
                 <div
-                  className="flex items-center px-2 py-[6px] relative z-10 w-full"
+                  className="relative z-10 flex w-full items-center px-2 py-[6px]"
                   onClick={handleTriggerClick}
                 >
-                  <div className="flex items-center gap-2 overflow-hidden cursor-pointer">
+                  <div className="flex cursor-pointer items-center gap-2 overflow-hidden">
                     <Link
                       href={workspaceUrl}
                       className="group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]"
@@ -529,13 +529,13 @@ export function WorkspaceHeader({
                         if (isOpen) e.preventDefault()
                       }}
                     >
-                      <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
+                      <AgentIcon className="-translate-y-[0.5px] h-[18px] w-[18px] text-white transition-all group-hover:scale-105" />
                     </Link>
                     {isClientLoading || isWorkspacesLoading ? (
                       <Skeleton className="h-4 w-[140px]" />
                     ) : (
                       <div className="flex items-center gap-1">
-                        <span className="truncate max-w-[120px] text-sm font-medium">
+                        <span className="max-w-[120px] truncate font-medium text-sm">
                           {activeWorkspace?.name || `${userName}'s Workspace`}
                         </span>
                         <ChevronDown className="h-3 w-3 opacity-60" />
@@ -547,7 +547,7 @@ export function WorkspaceHeader({
 
               {/* Plus button positioned absolutely */}
               {!isCollapsed && (
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30">
+                <div className="-translate-y-1/2 absolute top-1/2 right-2 z-30">
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div>
@@ -560,7 +560,7 @@ export function WorkspaceHeader({
                             onClick={(e) => {
                               onCreateWorkflow()
                             }}
-                            className="h-6 w-6 shrink-0 p-0 flex items-center justify-center"
+                            className="flex h-6 w-6 shrink-0 items-center justify-center p-0"
                           >
                             <Plus className="h-[18px] w-[18px] stroke-[2px]" />
                             <span className="sr-only">New Workflow</span>
@@ -575,25 +575,25 @@ export function WorkspaceHeader({
             </div>
           )}
         </div>
-        <DropdownMenuContent align="start" className="p-1 min-w-[224px]">
+        <DropdownMenuContent align="start" className="min-w-[224px] p-1">
           <div className="space-y-3">
             <div className="flex items-center justify-between p-1">
               <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#802FFF]">
-                  <AgentIcon className="text-white w-5 h-5" />
+                  <AgentIcon className="h-5 w-5 text-white" />
                 </div>
-                <div className="flex flex-col max-w-full">
+                <div className="flex max-w-full flex-col">
                   {isClientLoading || isWorkspacesLoading ? (
                     <>
-                      <Skeleton className="h-4 w-[140px] mb-1" />
+                      <Skeleton className="mb-1 h-4 w-[140px]" />
                       <Skeleton className="h-3 w-16" />
                     </>
                   ) : (
                     <>
-                      <span className="text-sm font-medium truncate">
+                      <span className="truncate font-medium text-sm">
                         {activeWorkspace?.name || `${userName}'s Workspace`}
                       </span>
-                      <span className="text-xs text-muted-foreground">{plan}</span>
+                      <span className="text-muted-foreground text-xs">{plan}</span>
                     </>
                   )}
                 </div>
@@ -604,10 +604,10 @@ export function WorkspaceHeader({
           <DropdownMenuSeparator />
 
           {/* Workspaces list */}
-          <div className="py-1 px-1">
-            <div className="text-xs font-medium text-muted-foreground mb-1 pl-1">Workspaces</div>
+          <div className="px-1 py-1">
+            <div className="mb-1 pl-1 font-medium text-muted-foreground text-xs">Workspaces</div>
             {isWorkspacesLoading ? (
-              <div className="py-1 px-2">
+              <div className="px-2 py-1">
                 <Skeleton className="h-5 w-full" />
               </div>
             ) : (
@@ -615,12 +615,12 @@ export function WorkspaceHeader({
                 {workspaces.map((workspace) => (
                   <DropdownMenuItem
                     key={workspace.id}
-                    className={`text-sm rounded-md px-2 py-1.5 cursor-pointer ${activeWorkspace?.id === workspace.id ? 'bg-accent' : ''} group relative`}
+                    className={`cursor-pointer rounded-md px-2 py-1.5 text-sm ${activeWorkspace?.id === workspace.id ? "bg-accent" : ""} group relative`}
                     onClick={() => switchWorkspace(workspace)}
                   >
                     <span className="truncate pr-16">{workspace.name}</span>
-                    {workspace.role === 'owner' && (
-                      <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                    {workspace.role === "owner" && (
+                      <div className="absolute right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -677,7 +677,7 @@ export function WorkspaceHeader({
 
             {/* Create new workspace button */}
             <DropdownMenuItem
-              className="text-sm rounded-md px-2 py-1.5 cursor-pointer mt-1 text-muted-foreground"
+              className="mt-1 cursor-pointer rounded-md px-2 py-1.5 text-muted-foreground text-sm"
               onClick={() => setIsWorkspaceModalOpen(true)}
             >
               <span className="truncate">+ New workspace</span>

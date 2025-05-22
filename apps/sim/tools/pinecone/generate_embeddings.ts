@@ -1,48 +1,48 @@
-import { ToolConfig } from '../types'
-import { PineconeGenerateEmbeddingsParams, PineconeResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { PineconeGenerateEmbeddingsParams, PineconeResponse } from "./types"
 
 export const generateEmbeddingsTool: ToolConfig<
   PineconeGenerateEmbeddingsParams,
   PineconeResponse
 > = {
-  id: 'pinecone_generate_embeddings',
-  name: 'Pinecone Generate Embeddings',
+  id: "pinecone_generate_embeddings",
+  name: "Pinecone Generate Embeddings",
   description: "Generate embeddings from text using Pinecone's hosted models",
-  version: '1.0',
+  version: "1.0",
 
   params: {
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Pinecone API key',
+      description: "Pinecone API key",
     },
     model: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Model to use for generating embeddings',
+      description: "Model to use for generating embeddings",
     },
     inputs: {
-      type: 'array',
+      type: "array",
       required: true,
-      description: 'Array of text inputs to generate embeddings for',
+      description: "Array of text inputs to generate embeddings for",
     },
   },
 
   request: {
-    method: 'POST',
-    url: () => 'https://api.pinecone.io/embed',
+    method: "POST",
+    url: () => "https://api.pinecone.io/embed",
     headers: (params) => ({
-      'Api-Key': params.apiKey,
-      'Content-Type': 'application/json',
-      'X-Pinecone-API-Version': '2025-01',
+      "Api-Key": params.apiKey,
+      "Content-Type": "application/json",
+      "X-Pinecone-API-Version": "2025-01",
     }),
     body: (params) => ({
       model: params.model,
       inputs: params.inputs,
       parameters: params.parameters || {
-        input_type: 'passage',
-        truncate: 'END',
+        input_type: "passage",
+        truncate: "END",
       },
     }),
   },

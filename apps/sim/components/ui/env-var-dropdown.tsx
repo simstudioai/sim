@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
-import { cn } from '@/lib/utils'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import type React from "react"
+import { useEffect, useState } from "react"
+import { cn } from "@/lib/utils"
+import { useEnvironmentStore } from "@/stores/settings/environment/store"
 
 interface EnvVarDropdownProps {
   visible: boolean
@@ -16,7 +17,7 @@ interface EnvVarDropdownProps {
 export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   visible,
   onSelect,
-  searchTerm = '',
+  searchTerm = "",
   className,
   inputValue,
   cursorPosition,
@@ -42,7 +43,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
     const textAfterCursor = inputValue.slice(cursorPosition)
 
     // Find the start of the env var syntax (last '{{' before cursor)
-    const lastOpenBraces = textBeforeCursor.lastIndexOf('{{')
+    const lastOpenBraces = textBeforeCursor.lastIndexOf("{{")
 
     // Check if we're in a standard env var context (with braces) or direct typing mode
     const isStandardEnvVarContext = lastOpenBraces !== -1
@@ -52,21 +53,21 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
       const startText = textBeforeCursor.slice(0, lastOpenBraces)
 
       // Find the end of any existing env var syntax after cursor
-      const closeIndex = textAfterCursor.indexOf('}}')
+      const closeIndex = textAfterCursor.indexOf("}}")
       const endText = closeIndex !== -1 ? textAfterCursor.slice(closeIndex + 2) : textAfterCursor
 
       // Construct the new value with proper env var syntax
-      const newValue = startText + '{{' + envVar + '}}' + endText
+      const newValue = `${startText}{{${envVar}}}${endText}`
       onSelect(newValue)
     } else {
       // For direct typing mode (API key fields), check if we need to replace existing text
       // This handles the case where user has already typed part of a variable name
-      if (inputValue.trim() !== '') {
+      if (inputValue.trim() !== "") {
         // Replace the entire input with the selected env var
-        onSelect('{{' + envVar + '}}')
+        onSelect(`{{${envVar}}}`)
       } else {
         // Empty input, just insert the env var
-        onSelect('{{' + envVar + '}}')
+        onSelect(`{{${envVar}}}`)
       }
     }
 
@@ -80,22 +81,22 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         if (!filteredEnvVars.length) return
 
         switch (e.key) {
-          case 'ArrowDown':
+          case "ArrowDown":
             e.preventDefault()
             e.stopPropagation()
             setSelectedIndex((prev) => (prev < filteredEnvVars.length - 1 ? prev + 1 : prev))
             break
-          case 'ArrowUp':
+          case "ArrowUp":
             e.preventDefault()
             e.stopPropagation()
             setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
             break
-          case 'Enter':
+          case "Enter":
             e.preventDefault()
             e.stopPropagation()
             handleEnvVarSelect(filteredEnvVars[selectedIndex])
             break
-          case 'Escape':
+          case "Escape":
             e.preventDefault()
             e.stopPropagation()
             onClose?.()
@@ -103,8 +104,8 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         }
       }
 
-      window.addEventListener('keydown', handleKeyboardEvent, true)
-      return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
+      window.addEventListener("keydown", handleKeyboardEvent, true)
+      return () => window.removeEventListener("keydown", handleKeyboardEvent, true)
     }
   }, [visible, selectedIndex, filteredEnvVars])
 
@@ -113,13 +114,13 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   return (
     <div
       className={cn(
-        'absolute z-[9999] w-full mt-1 overflow-hidden bg-popover rounded-md border shadow-md',
+        "absolute z-[9999] mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-md",
         className
       )}
       style={style}
     >
       {filteredEnvVars.length === 0 ? (
-        <div className="px-3 py-2 text-sm text-muted-foreground">
+        <div className="px-3 py-2 text-muted-foreground text-sm">
           No matching environment variables
         </div>
       ) : (
@@ -128,10 +129,10 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
             <button
               key={envVar}
               className={cn(
-                'w-full px-3 py-1.5 text-sm text-left',
-                'hover:bg-accent hover:text-accent-foreground',
-                'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                index === selectedIndex && 'bg-accent text-accent-foreground'
+                "w-full px-3 py-1.5 text-left text-sm",
+                "hover:bg-accent hover:text-accent-foreground",
+                "focus:bg-accent focus:text-accent-foreground focus:outline-none",
+                index === selectedIndex && "bg-accent text-accent-foreground"
               )}
               onMouseEnter={() => setSelectedIndex(index)}
               onMouseDown={(e) => {
@@ -163,9 +164,9 @@ export const checkEnvVarTrigger = (
 
     // Also check for exact {{ without any text after it
     // This ensures all env vars show when user just types {{
-    if (textBeforeCursor.endsWith('{{')) {
-      return { show: true, searchTerm: '' }
+    if (textBeforeCursor.endsWith("{{")) {
+      return { show: true, searchTerm: "" }
     }
   }
-  return { show: false, searchTerm: '' }
+  return { show: false, searchTerm: "" }
 }

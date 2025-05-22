@@ -1,12 +1,12 @@
-'use client'
+"use client"
 
-import React from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { DiscordIcon, GithubIcon, xIcon as XIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
-import useIsMobile from '../hooks/useIsMobile'
+import React from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
+import { DiscordIcon, GithubIcon, xIcon as XIcon } from "@/components/icons"
+import { Button } from "@/components/ui/button"
+import useIsMobile from "../hooks/useIsMobile"
 
 interface FooterProps {
   onOpenTypeformLink: () => void
@@ -17,25 +17,25 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
   const { isMobile, mounted } = useIsMobile()
 
   if (!mounted) {
-    return <section className="w-full p-4 md:p-9 flex" />
+    return <section className="flex w-full p-4 md:p-9" />
   }
 
   // If on mobile, render without animations
   if (isMobile) {
     return (
-      <section className="w-full p-4 md:p-9 flex">
-        <div className="bg-[#2B2334] rounded-3xl flex flex-col p-6 sm:p-10 md:p-16 w-full">
-          <div className="flex flex-col w-full h-full md:flex-row justify-between">
+      <section className="flex w-full p-4 md:p-9">
+        <div className="flex w-full flex-col rounded-3xl bg-[#2B2334] p-6 sm:p-10 md:p-16">
+          <div className="flex h-full w-full flex-col justify-between md:flex-row">
             {/* Left side content */}
             <div className="flex flex-col justify-between">
-              <p className="max-w-lg leading-[1.1] text-[#B5A1D4] font-light md:text-6xl text-5xl">
+              <p className="max-w-lg font-light text-5xl text-[#B5A1D4] leading-[1.1] md:text-6xl">
                 Ready to build AI faster and easier?
               </p>
-              <div className="mt-4 md:mt-auto pt-4 md:pt-8">
+              <div className="mt-4 pt-4 md:mt-auto md:pt-8">
                 <Button
-                  className="bg-[#B5A1D4] text-[#1C1C1C] w-fit hover:bg-[#bdaecb] transition-colors duration-500"
-                  size={'lg'}
-                  variant={'secondary'}
+                  className="w-fit bg-[#B5A1D4] text-[#1C1C1C] transition-colors duration-500 hover:bg-[#bdaecb]"
+                  size={"lg"}
+                  variant={"secondary"}
                   onClick={onOpenTypeformLink}
                 >
                   Get Started
@@ -44,59 +44,59 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
             </div>
 
             {/* Right side content */}
-            <div className="md:w-auto w-full flex flex-col gap-6 md:flex-row md:gap-16 md:items-end mt-8 md:mt-0 md:justify-end relative">
+            <div className="relative mt-8 flex w-full flex-col gap-6 md:mt-0 md:w-auto md:flex-row md:items-end md:justify-end md:gap-16">
               {/* See repo button positioned absolutely to align with the top text - desktop only */}
-              <div className="absolute top-0 right-0 md:block hidden">
+              <div className="absolute top-0 right-0 hidden md:block">
                 <Link
                   href="https://github.com/simstudioai/sim"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   <Button
-                    className="bg-[#B5A1D4] text-[#1C1C1C] hover:bg-[#bdaecb] transition-colors duration-500 flex items-center gap-2"
-                    size={'lg'}
-                    variant={'secondary'}
+                    className="flex items-center gap-2 bg-[#B5A1D4] text-[#1C1C1C] transition-colors duration-500 hover:bg-[#bdaecb]"
+                    size={"lg"}
+                    variant={"secondary"}
                   >
-                    <GithubIcon className="w-5 h-5" />
+                    <GithubIcon className="h-5 w-5" />
                     See repo
                   </Button>
                 </Link>
               </div>
 
               {/* Links section - flex row on mobile, part of flex row in md */}
-              <div className="flex flex-row justify-between md:justify-start w-full md:w-auto gap-4 md:gap-16">
+              <div className="flex w-full flex-row justify-between gap-4 md:w-auto md:justify-start md:gap-16">
                 <div className="flex flex-col gap-2">
                   <Link
-                    href={'https://docs.simstudio.ai/'}
+                    href={"https://docs.simstudio.ai/"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
+                    className="font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl"
                   >
                     Docs
                   </Link>
                   <Link
-                    href={'https://github.com/simstudioai/sim'}
+                    href={"https://github.com/simstudioai/sim"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
+                    className="font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl"
                   >
                     Contributors
                   </Link>
                 </div>
                 <div className="flex flex-col gap-2">
                   <Link
-                    href={'/terms'}
+                    href={"/terms"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
+                    className="font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl"
                   >
                     Terms and Conditions
                   </Link>
                   <Link
-                    href={'/privacy'}
+                    href={"/privacy"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
+                    className="font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl"
                   >
                     Privacy Policy
                   </Link>
@@ -104,13 +104,13 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
               </div>
 
               {/* Social icons */}
-              <div className="flex md:justify-end items-center mt-4 md:mt-0">
+              <div className="mt-4 flex items-center md:mt-0 md:justify-end">
                 <div className="flex gap-4">
                   <Link
-                    href={'https://github.com/simstudioai/sim'}
+                    href={"https://github.com/simstudioai/sim"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex md:hidden text-2xl transition-all duration-500"
+                    className="flex text-2xl transition-all duration-500 md:hidden"
                   >
                     <svg
                       width="36"
@@ -129,20 +129,20 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
                     </svg>
                   </Link>
                   <Link
-                    href={'https://discord.gg/Hr4UWYEcTT'}
+                    href={"https://discord.gg/Hr4UWYEcTT"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-2xl transition-all duration-500"
                   >
-                    <DiscordIcon className="fill-[#9E91AA] hover:fill-[#bdaecb] w-9 h-9 md:w-10 md:h-10" />
+                    <DiscordIcon className="h-9 w-9 fill-[#9E91AA] hover:fill-[#bdaecb] md:h-10 md:w-10" />
                   </Link>
                   <Link
-                    href={'https://x.com/simstudioai'}
+                    href={"https://x.com/simstudioai"}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-2xl transition-all duration-500"
                   >
-                    <XIcon className="w-9 h-9 md:w-10 md:h-10 text-[#9E91AA] hover:text-[#bdaecb] transition-all duration-500" />
+                    <XIcon className="h-9 w-9 text-[#9E91AA] transition-all duration-500 hover:text-[#bdaecb] md:h-10 md:w-10" />
                   </Link>
                 </div>
               </div>
@@ -155,48 +155,48 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
 
   return (
     <motion.section
-      className="w-full p-4 md:p-9 flex"
+      className="flex w-full p-4 md:p-9"
       initial={{ opacity: 0, y: 40 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
-      transition={{ duration: 0.7, delay: 0.05, ease: 'easeOut' }}
+      transition={{ duration: 0.7, delay: 0.05, ease: "easeOut" }}
     >
       <motion.div
-        className="bg-[#2B2334] rounded-3xl flex flex-col p-6 sm:p-10 md:p-16 w-full"
+        className="flex w-full flex-col rounded-3xl bg-[#2B2334] p-6 sm:p-10 md:p-16"
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.2 }}
-        transition={{ duration: 0.7, delay: 0.1, ease: 'easeOut' }}
+        transition={{ duration: 0.7, delay: 0.1, ease: "easeOut" }}
       >
         <motion.div
-          className="flex flex-col w-full h-full md:flex-row justify-between"
+          className="flex h-full w-full flex-col justify-between md:flex-row"
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.7, delay: 0.15, ease: 'easeOut' }}
+          transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
         >
           {/* Left side content */}
           <div className="flex flex-col justify-between">
             <motion.p
-              className="max-w-lg leading-[1.1] text-[#B5A1D4] font-light md:text-6xl text-5xl"
+              className="max-w-lg font-light text-5xl text-[#B5A1D4] leading-[1.1] md:text-6xl"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.18, ease: 'easeOut' }}
+              transition={{ duration: 0.7, delay: 0.18, ease: "easeOut" }}
             >
               Ready to build AI faster and easier?
             </motion.p>
             <motion.div
-              className="mt-4 md:mt-auto pt-4 md:pt-8"
+              className="mt-4 pt-4 md:mt-auto md:pt-8"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.22, ease: 'easeOut' }}
+              transition={{ duration: 0.7, delay: 0.22, ease: "easeOut" }}
             >
               <Button
-                className="bg-[#B5A1D4] text-[#1C1C1C] w-fit hover:bg-[#bdaecb] transition-colors duration-500"
-                size={'lg'}
-                variant={'secondary'}
+                className="w-fit bg-[#B5A1D4] text-[#1C1C1C] transition-colors duration-500 hover:bg-[#bdaecb]"
+                size={"lg"}
+                variant={"secondary"}
                 onClick={onOpenTypeformLink}
               >
                 Get Started
@@ -206,19 +206,19 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
 
           {/* Right side content */}
           <motion.div
-            className="md:w-auto w-full flex flex-col gap-6 md:flex-row md:gap-16 md:items-end mt-8 md:mt-0 md:justify-end relative"
+            className="relative mt-8 flex w-full flex-col gap-6 md:mt-0 md:w-auto md:flex-row md:items-end md:justify-end md:gap-16"
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.7, delay: 0.28, ease: 'easeOut' }}
+            transition={{ duration: 0.7, delay: 0.28, ease: "easeOut" }}
           >
             {/* See repo button positioned absolutely to align with the top text - desktop only */}
             <motion.div
-              className="absolute top-0 right-0 md:block hidden"
+              className="absolute top-0 right-0 hidden md:block"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.4, ease: 'easeOut' }}
+              transition={{ duration: 0.7, delay: 0.4, ease: "easeOut" }}
             >
               <Link
                 href="https://github.com/simstudioai/sim"
@@ -226,38 +226,38 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
                 rel="noopener noreferrer"
               >
                 <Button
-                  className="bg-[#B5A1D4] text-[#1C1C1C] hover:bg-[#bdaecb] transition-colors duration-500 flex items-center gap-2"
-                  size={'lg'}
-                  variant={'secondary'}
+                  className="flex items-center gap-2 bg-[#B5A1D4] text-[#1C1C1C] transition-colors duration-500 hover:bg-[#bdaecb]"
+                  size={"lg"}
+                  variant={"secondary"}
                 >
-                  <GithubIcon className="w-5 h-5" />
+                  <GithubIcon className="h-5 w-5" />
                   See repo
                 </Button>
               </Link>
             </motion.div>
 
             {/* Links section - flex row on mobile, part of flex row in md */}
-            <div className="flex flex-row justify-between md:justify-start w-full md:w-auto gap-4 md:gap-16">
+            <div className="flex w-full flex-row justify-between gap-4 md:w-auto md:justify-start md:gap-16">
               <motion.div
                 className="flex flex-col gap-2"
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: 0.7, delay: 0.32, ease: 'easeOut' }}
+                transition={{ duration: 0.7, delay: 0.32, ease: "easeOut" }}
               >
                 <Link
-                  href={'https://docs.simstudio.ai/'}
+                  href={"https://docs.simstudio.ai/"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
+                  className="font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl"
                 >
                   Docs
                 </Link>
                 <Link
-                  href={'https://github.com/simstudioai/sim'}
+                  href={"https://github.com/simstudioai/sim"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
+                  className="font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl"
                 >
                   Contributors
                 </Link>
@@ -267,21 +267,21 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: 0.7, delay: 0.36, ease: 'easeOut' }}
+                transition={{ duration: 0.7, delay: 0.36, ease: "easeOut" }}
               >
                 <Link
-                  href={'/terms'}
+                  href={"/terms"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
+                  className="font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl"
                 >
                   Terms and Conditions
                 </Link>
                 <Link
-                  href={'/privacy'}
+                  href={"/privacy"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xl md:text-2xl text-[#9E91AA] font-light hover:text-[#bdaecb] transition-all duration-500"
+                  className="font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl"
                 >
                   Privacy Policy
                 </Link>
@@ -290,18 +290,18 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
 
             {/* Social icons */}
             <motion.div
-              className="flex md:justify-end items-center mt-4 md:mt-0"
+              className="mt-4 flex items-center md:mt-0 md:justify-end"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.4, ease: 'easeOut' }}
+              transition={{ duration: 0.7, delay: 0.4, ease: "easeOut" }}
             >
               <div className="flex gap-4">
                 <Link
-                  href={'https://github.com/simstudioai/sim'}
+                  href={"https://github.com/simstudioai/sim"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex md:hidden text-2xl transition-all duration-500"
+                  className="flex text-2xl transition-all duration-500 md:hidden"
                 >
                   <svg
                     width="36"
@@ -320,20 +320,20 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
                   </svg>
                 </Link>
                 <Link
-                  href={'https://discord.gg/Hr4UWYEcTT'}
+                  href={"https://discord.gg/Hr4UWYEcTT"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-2xl transition-all duration-500"
                 >
-                  <DiscordIcon className="fill-[#9E91AA] hover:fill-[#bdaecb] w-9 h-9 md:w-10 md:h-10" />
+                  <DiscordIcon className="h-9 w-9 fill-[#9E91AA] hover:fill-[#bdaecb] md:h-10 md:w-10" />
                 </Link>
                 <Link
-                  href={'https://x.com/simstudioai'}
+                  href={"https://x.com/simstudioai"}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-2xl transition-all duration-500"
                 >
-                  <XIcon className="w-9 h-9 md:w-10 md:h-10 text-[#9E91AA] hover:text-[#bdaecb] transition-all duration-500" />
+                  <XIcon className="h-9 w-9 text-[#9E91AA] transition-all duration-500 hover:text-[#bdaecb] md:h-10 md:w-10" />
                 </Link>
               </div>
             </motion.div>

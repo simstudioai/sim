@@ -1,17 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
-import { z } from 'zod'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { marketplace, user, workflow } from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { eq } from "drizzle-orm"
+import { v4 as uuidv4 } from "uuid"
+import { z } from "zod"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { db } from "@/db"
+import { marketplace, user, workflow } from "@/db/schema"
 
 // Create a logger for this module
-const logger = createLogger('MarketplacePublishAPI')
+const logger = createLogger("MarketplacePublishAPI")
 
 // No cache
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 // Schema for request body
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized marketplace publish attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const userId = session.user.id
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         logger.warn(
           `[${requestId}] User ${userId} attempted to publish workflow they don't own: ${workflowId}`
         )
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+        return NextResponse.json({ error: "Workflow not found" }, { status: 404 })
       }
 
       // Get the user's name for attribution
@@ -66,13 +66,13 @@ export async function POST(request: NextRequest) {
 
       if (!userData.length) {
         logger.error(`[${requestId}] User data not found for ID: ${userId}`)
-        return NextResponse.json({ error: 'User data not found' }, { status: 500 })
+        return NextResponse.json({ error: "User data not found" }, { status: 500 })
       }
 
       // Verify we have the workflow state
       if (!workflowState) {
         logger.error(`[${requestId}] No workflow state provided for ID: ${workflowId}`)
-        return NextResponse.json({ error: 'Workflow state is required' }, { status: 400 })
+        return NextResponse.json({ error: "Workflow state is required" }, { status: 400 })
       }
 
       // Check if this workflow is already published
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
         workflowId,
         state: workflowState,
         name: name || userWorkflow[0].name,
-        description: description || userWorkflow[0].description || '',
+        description: description || userWorkflow[0].description || "",
         authorId: userId,
         authorName: authorName || userData[0].name,
         category: category || null,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json({
-        message: 'Workflow published successfully',
+        message: "Workflow published successfully",
         data: {
           id: result[0].id,
           workflowId: result[0].workflowId,
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
         })
         return NextResponse.json(
           {
-            error: 'Invalid request parameters',
+            error: "Invalid request parameters",
             details: validationError.errors,
           },
           { status: 400 }

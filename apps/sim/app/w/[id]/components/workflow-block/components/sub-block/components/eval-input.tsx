@@ -1,9 +1,9 @@
-import { Plus, Trash } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import { Plus, Trash } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useSubBlockValue } from "../hooks/use-sub-block-value"
 
 interface EvalMetric {
   id: string
@@ -23,8 +23,8 @@ interface EvalInputProps {
 // Default values
 const DEFAULT_METRIC: EvalMetric = {
   id: crypto.randomUUID(),
-  name: '',
-  description: '',
+  name: "",
+  description: "",
   range: { min: 0, max: 1 },
 }
 
@@ -52,7 +52,7 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
     setValue(metrics.map((metric) => (metric.id === id ? { ...metric, [field]: value } : metric)))
   }
 
-  const updateRange = (id: string, field: 'min' | 'max', value: string) => {
+  const updateRange = (id: string, field: "min" | "max", value: string) => {
     setValue(
       metrics.map((metric) =>
         metric.id === id
@@ -66,9 +66,9 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
   }
 
   // Validation handlers
-  const handleRangeBlur = (id: string, field: 'min' | 'max', value: string) => {
-    const sanitizedValue = value.replace(/[^\d.-]/g, '')
-    const numValue = parseFloat(sanitizedValue)
+  const handleRangeBlur = (id: string, field: "min" | "max", value: string) => {
+    const sanitizedValue = value.replace(/[^\d.-]/g, "")
+    const numValue = Number.parseFloat(sanitizedValue)
 
     setValue(
       metrics.map((metric) =>
@@ -77,7 +77,7 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
               ...metric,
               range: {
                 ...metric.range,
-                [field]: !isNaN(numValue) ? numValue : 0,
+                [field]: !Number.isNaN(numValue) ? numValue : 0,
               },
             }
           : metric
@@ -87,8 +87,8 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
 
   // Metric header
   const renderMetricHeader = (metric: EvalMetric, index: number) => (
-    <div className="flex h-10 items-center justify-between bg-card px-3 rounded-t-lg border-b">
-      <span className="text-sm font-medium">Metric {index + 1}</span>
+    <div className="flex h-10 items-center justify-between rounded-t-lg border-b bg-card px-3">
+      <span className="font-medium text-sm">Metric {index + 1}</span>
       <div className="flex items-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
@@ -126,17 +126,17 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
         <div
           key={metric.id}
           data-metric-id={metric.id}
-          className="overflow-visible rounded-lg border bg-background group relative"
+          className="group relative overflow-visible rounded-lg border bg-background"
         >
           {renderMetricHeader(metric, index)}
 
-          <div className="px-3 pt-2 pb-3 space-y-2">
+          <div className="space-y-2 px-3 pt-2 pb-3">
             <div className="space-y-1">
               <Label>Name</Label>
               <Input
                 name="name"
                 value={metric.name}
-                onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
+                onChange={(e) => updateMetric(metric.id, "name", e.target.value)}
                 placeholder="Accuracy"
                 className="placeholder:text-muted-foreground/50"
               />
@@ -146,7 +146,7 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
               <Label>Description</Label>
               <Input
                 value={metric.description}
-                onChange={(e) => updateMetric(metric.id, 'description', e.target.value)}
+                onChange={(e) => updateMetric(metric.id, "description", e.target.value)}
                 placeholder="How accurate is the response?"
                 className="placeholder:text-muted-foreground/50"
               />
@@ -158,8 +158,8 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
                 <Input
                   type="text"
                   value={metric.range.min}
-                  onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
-                  onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
+                  onChange={(e) => updateRange(metric.id, "min", e.target.value)}
+                  onBlur={(e) => handleRangeBlur(metric.id, "min", e.target.value)}
                   className="placeholder:text-muted-foreground/50"
                 />
               </div>
@@ -168,8 +168,8 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
                 <Input
                   type="text"
                   value={metric.range.max}
-                  onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
-                  onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
+                  onChange={(e) => updateRange(metric.id, "max", e.target.value)}
+                  onBlur={(e) => handleRangeBlur(metric.id, "max", e.target.value)}
                   className="placeholder:text-muted-foreground/50"
                 />
               </div>

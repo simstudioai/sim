@@ -1,10 +1,10 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
-import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { cn } from "@/lib/utils"
+import { WorkflowPreview } from "@/app/w/components/workflow-preview/generic-workflow-preview"
 
 interface DeployedWorkflowCardProps {
   currentWorkflowState?: {
@@ -29,19 +29,19 @@ export function DeployedWorkflowCard({
   const workflowToShow = showingDeployed ? deployedWorkflowState : currentWorkflowState
 
   return (
-    <Card className={cn('overflow-hidden relative', className)}>
+    <Card className={cn("relative overflow-hidden", className)}>
       <CardHeader
         className={cn(
-          'space-y-4 p-4 sticky top-0 z-10',
-          'backdrop-blur-xl',
-          'bg-background/70 dark:bg-background/50',
-          'border-b border-border/30 dark:border-border/20',
-          'shadow-sm'
+          "sticky top-0 z-10 space-y-4 p-4",
+          "backdrop-blur-xl",
+          "bg-background/70 dark:bg-background/50",
+          "border-border/30 border-b dark:border-border/20",
+          "shadow-sm"
         )}
       >
         <div className="flex items-center justify-between">
           <h3 className="font-medium">
-            {showingDeployed ? 'Deployed Workflow' : 'Current Workflow'}
+            {showingDeployed ? "Deployed Workflow" : "Current Workflow"}
           </h3>
           {/* Controls */}
           <div className="flex items-center gap-4">
@@ -52,7 +52,7 @@ export function DeployedWorkflowCard({
                 size="sm"
                 onClick={() => setShowingDeployed(!showingDeployed)}
               >
-                {showingDeployed ? 'Show Current' : 'Show Deployed'}
+                {showingDeployed ? "Show Current" : "Show Deployed"}
               </Button>
             )}
           </div>

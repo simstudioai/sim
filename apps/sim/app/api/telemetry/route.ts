@@ -1,16 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
+import { type NextRequest, NextResponse } from "next/server"
+import { env } from "@/lib/env"
+import { createLogger } from "@/lib/logs/console-logger"
 
-const logger = createLogger('TelemetryAPI')
+const logger = createLogger("TelemetryAPI")
 
 const ALLOWED_CATEGORIES = [
-  'page_view',
-  'feature_usage',
-  'performance',
-  'error',
-  'workflow',
-  'consent',
+  "page_view",
+  "feature_usage",
+  "performance",
+  "error",
+  "workflow",
+  "consent",
 ]
 
 const DEFAULT_TIMEOUT = 5000 // 5 seconds timeout
@@ -19,7 +19,7 @@ const DEFAULT_TIMEOUT = 5000 // 5 seconds timeout
  * Validates telemetry data to ensure it doesn't contain sensitive information
  */
 function validateTelemetryData(data: any): boolean {
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== "object") {
     return false
   }
 
@@ -42,13 +42,13 @@ function validateTelemetryData(data: any): boolean {
  */
 function safeStringValue(value: any): string {
   if (value === undefined || value === null) {
-    return ''
+    return ""
   }
 
   try {
     return String(value)
   } catch (e) {
-    return ''
+    return ""
   }
 }
 
@@ -58,7 +58,7 @@ function safeStringValue(value: any): string {
 function createSafeAttributes(
   data: Record<string, any>
 ): Array<{ key: string; value: { stringValue: string } }> {
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== "object") {
     return []
   }
 
@@ -80,12 +80,12 @@ function createSafeAttributes(
  * Forwards telemetry data to OpenTelemetry collector
  */
 async function forwardToCollector(data: any): Promise<boolean> {
-  if (!data || typeof data !== 'object') {
-    logger.error('Invalid telemetry data format')
+  if (!data || typeof data !== "object") {
+    logger.error("Invalid telemetry data format")
     return false
   }
 
-  const endpoint = env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces'
+  const endpoint = env.TELEMETRY_ENDPOINT || "https://telemetry.simstudio.ai/v1/traces"
   const timeout = DEFAULT_TIMEOUT
 
   try {
@@ -94,19 +94,19 @@ async function forwardToCollector(data: any): Promise<boolean> {
     const safeAttrs = createSafeAttributes(data)
 
     const serviceAttrs = [
-      { key: 'service.name', value: { stringValue: 'sim-studio' } },
+      { key: "service.name", value: { stringValue: "sim-studio" } },
       {
-        key: 'service.version',
-        value: { stringValue: '0.1.0' },
+        key: "service.version",
+        value: { stringValue: "0.1.0" },
       },
       {
-        key: 'deployment.environment',
-        value: { stringValue: env.NODE_ENV || 'production' },
+        key: "deployment.environment",
+        value: { stringValue: env.NODE_ENV || "production" },
       },
     ]
 
     const spanName =
-      data.category && data.action ? `${data.category}.${data.action}` : 'telemetry.event'
+      data.category && data.action ? `${data.category}.${data.action}` : "telemetry.event"
 
     const payload = {
       resourceSpans: [
@@ -137,9 +137,9 @@ async function forwardToCollector(data: any): Promise<boolean> {
 
     try {
       const options = {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
         signal: controller.signal,
@@ -149,7 +149,7 @@ async function forwardToCollector(data: any): Promise<boolean> {
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        logger.error('Telemetry collector returned error', {
+        logger.error("Telemetry collector returned error", {
           status: response.status,
           statusText: response.statusText,
         })
@@ -159,15 +159,15 @@ async function forwardToCollector(data: any): Promise<boolean> {
       return true
     } catch (fetchError) {
       clearTimeout(timeoutId)
-      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        logger.error('Telemetry request timed out', { endpoint })
+      if (fetchError instanceof Error && fetchError.name === "AbortError") {
+        logger.error("Telemetry request timed out", { endpoint })
       } else {
-        logger.error('Failed to send telemetry to collector', fetchError)
+        logger.error("Failed to send telemetry to collector", fetchError)
       }
       return false
     }
   } catch (error) {
-    logger.error('Error preparing telemetry payload', error)
+    logger.error("Error preparing telemetry payload", error)
     return false
   }
 }
@@ -181,12 +181,12 @@ export async function POST(req: NextRequest) {
     try {
       eventData = await req.json()
     } catch (parseError) {
-      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 })
     }
 
     if (!validateTelemetryData(eventData)) {
       return NextResponse.json(
-        { error: 'Invalid telemetry data format or contains sensitive information' },
+        { error: "Invalid telemetry data format or contains sensitive information" },
         { status: 400 }
       )
     }
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
       forwarded,
     })
   } catch (error) {
-    logger.error('Error processing telemetry event', error)
-    return NextResponse.json({ error: 'Failed to process telemetry event' }, { status: 500 })
+    logger.error("Error processing telemetry event", error)
+    return NextResponse.json({ error: "Failed to process telemetry event" }, { status: 500 })
   }
 }

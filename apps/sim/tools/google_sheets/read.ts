@@ -1,35 +1,35 @@
-import { ToolConfig } from '../types'
-import { GoogleSheetsReadResponse, GoogleSheetsToolParams } from './types'
+import type { ToolConfig } from "../types"
+import type { GoogleSheetsReadResponse, GoogleSheetsToolParams } from "./types"
 
 export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadResponse> = {
-  id: 'google_sheets_read',
-  name: 'Read from Google Sheets',
-  description: 'Read data from a Google Sheets spreadsheet',
-  version: '1.0',
+  id: "google_sheets_read",
+  name: "Read from Google Sheets",
+  description: "Read data from a Google Sheets spreadsheet",
+  version: "1.0",
   oauth: {
     required: true,
-    provider: 'google-sheets',
-    additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    provider: "google-sheets",
+    additionalScopes: ["https://www.googleapis.com/auth/spreadsheets"],
   },
   params: {
     accessToken: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'The access token for the Google Sheets API',
+      description: "The access token for the Google Sheets API",
     },
     spreadsheetId: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'The ID of the spreadsheet to read from',
+      description: "The ID of the spreadsheet to read from",
     },
-    range: { type: 'string', required: false, description: 'The range of cells to read from' },
+    range: { type: "string", required: false, description: "The range of cells to read from" },
   },
   request: {
     url: (params) => {
       // Ensure spreadsheetId is valid
       const spreadsheetId = params.spreadsheetId?.trim()
       if (!spreadsheetId) {
-        throw new Error('Spreadsheet ID is required')
+        throw new Error("Spreadsheet ID is required")
       }
 
       // If no range is provided, get all values from the first sheet
@@ -40,11 +40,11 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
       // Otherwise, get values from the specified range
       return `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(params.range)}`
     },
-    method: 'GET',
+    method: "GET",
     headers: (params) => {
       // Validate access token
       if (!params.accessToken) {
-        throw new Error('Access token is required')
+        throw new Error("Access token is required")
       }
 
       return {
@@ -56,7 +56,7 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
     if (!response.ok) {
       const errorJson = await response.json().catch(() => ({ error: response.statusText }))
       const errorText =
-        errorJson.error && typeof errorJson.error === 'object'
+        errorJson.error && typeof errorJson.error === "object"
           ? errorJson.error.message || JSON.stringify(errorJson.error)
           : errorJson.error || response.statusText
       throw new Error(`Failed to read Google Sheets data: ${errorText}`)
@@ -65,8 +65,8 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
     const data = await response.json()
 
     // Extract spreadsheet ID from the URL
-    const urlParts = response.url.split('/spreadsheets/')
-    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
+    const urlParts = response.url.split("/spreadsheets/")
+    const spreadsheetId = urlParts[1]?.split("/")[0] || ""
 
     // Create a simple metadata object with just the ID and URL
     const metadata = {
@@ -80,7 +80,7 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
       success: true,
       output: {
         data: {
-          range: data.range || '',
+          range: data.range || "",
           values: data.values || [],
         },
         metadata: {
@@ -99,14 +99,14 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
     }
 
     // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
+    if (typeof error === "object" && error !== null) {
       // Handle Google API error response format
       if (error.error) {
-        if (typeof error.error === 'string') {
+        if (typeof error.error === "string") {
           return error.error
         }
         // Google API often returns error objects with error.error.message
-        if (typeof error.error === 'object' && error.error.message) {
+        if (typeof error.error === "object" && error.error.message) {
           return error.error.message
         }
         // If error.error is an object but doesn't have a message property
@@ -122,11 +122,11 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
         return `Google Sheets API error: ${JSON.stringify(error)}`
       } catch (e) {
         // In case the error object can't be stringified (e.g., circular references)
-        return 'Google Sheets API error: Unable to parse error details'
+        return "Google Sheets API error: Unable to parse error details"
       }
     }
 
     // Default fallback message
-    return 'An error occurred while reading from Google Sheets'
+    return "An error occurred while reading from Google Sheets"
   },
 }

@@ -1,14 +1,14 @@
-'use client'
+"use client"
 
-import * as React from 'react'
-import { format } from 'date-fns'
-import { Calendar as CalendarIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { cn } from '@/lib/utils'
-import { useNotificationStore } from '@/stores/notifications/store'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import * as React from "react"
+import { format } from "date-fns"
+import { Calendar as CalendarIcon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { useNotificationStore } from "@/stores/notifications/store"
+import { useSubBlockValue } from "../hooks/use-sub-block-value"
 
 interface DateInputProps {
   blockId: string
@@ -34,10 +34,10 @@ export function DateInput({ blockId, subBlockId, placeholder }: DateInputProps) 
       today.setHours(0, 0, 0, 0)
 
       if (selectedDate < today) {
-        addNotification('error', 'Cannot start at a date in the past', blockId)
+        addNotification("error", "Cannot start at a date in the past", blockId)
       }
     }
-    setValue(selectedDate?.toISOString() || '')
+    setValue(selectedDate?.toISOString() || "")
   }
 
   return (
@@ -46,13 +46,13 @@ export function DateInput({ blockId, subBlockId, placeholder }: DateInputProps) 
         <Button
           variant="outline"
           className={cn(
-            'w-full justify-start text-left font-normal',
-            !date && 'text-muted-foreground',
-            isPastDate && 'border-red-500'
+            "w-full justify-start text-left font-normal",
+            !date && "text-muted-foreground",
+            isPastDate && "border-red-500"
           )}
         >
           <CalendarIcon className="mr-1 h-4 w-4" />
-          {date ? format(date, 'MMM d, yy') : <span>{placeholder || 'Pick a date'}</span>}
+          {date ? format(date, "MMM d, yy") : <span>{placeholder || "Pick a date"}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">

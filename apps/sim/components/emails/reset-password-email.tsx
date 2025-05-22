@@ -1,4 +1,4 @@
-import * as React from 'react'
+import * as React from "react"
 import {
   Body,
   Column,
@@ -11,11 +11,11 @@ import {
   Row,
   Section,
   Text,
-} from '@react-email/components'
-import { format } from 'date-fns'
-import { env } from '@/lib/env'
-import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
+} from "@react-email/components"
+import { format } from "date-fns"
+import { env } from "@/lib/env"
+import { baseStyles } from "./base-styles"
+import EmailFooter from "./footer"
 
 interface ResetPasswordEmailProps {
   username?: string
@@ -23,11 +23,11 @@ interface ResetPasswordEmailProps {
   updatedDate?: Date
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+const baseUrl = env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
 
 export const ResetPasswordEmail = ({
-  username = '',
-  resetLink = '',
+  username = "",
+  resetLink = "",
   updatedDate = new Date(),
 }: ResetPasswordEmailProps) => {
   return (
@@ -36,15 +36,15 @@ export const ResetPasswordEmail = ({
       <Body style={baseStyles.main}>
         <Preview>Reset your Sim Studio password</Preview>
         <Container style={baseStyles.container}>
-          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
+          <Section style={{ padding: "30px 0", textAlign: "center" }}>
             <Row>
-              <Column style={{ textAlign: 'center' }}>
+              <Column style={{ textAlign: "center" }}>
                 <Img
                   src={`${baseUrl}/static/sim.png`}
                   width="114"
                   alt="Sim Studio"
                   style={{
-                    margin: '0 auto',
+                    margin: "0 auto",
                   }}
                 />
               </Column>
@@ -65,7 +65,7 @@ export const ResetPasswordEmail = ({
               You recently requested to reset your password for your Sim Studio account. Use the
               button below to reset it. This password reset is only valid for the next 24 hours.
             </Text>
-            <Link href={resetLink} style={{ textDecoration: 'none' }}>
+            <Link href={resetLink} style={{ textDecoration: "none" }}>
               <Text style={baseStyles.button}>Reset Your Password</Text>
             </Link>
             <Text style={baseStyles.paragraph}>
@@ -80,12 +80,12 @@ export const ResetPasswordEmail = ({
             <Text
               style={{
                 ...baseStyles.footerText,
-                marginTop: '40px',
-                textAlign: 'left',
-                color: '#666666',
+                marginTop: "40px",
+                textAlign: "left",
+                color: "#666666",
               }}
             >
-              This email was sent on {format(updatedDate, 'MMMM do, yyyy')} because a password reset
+              This email was sent on {format(updatedDate, "MMMM do, yyyy")} because a password reset
               was requested for your account.
             </Text>
           </Section>

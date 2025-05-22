@@ -1,55 +1,55 @@
-import { ToolConfig } from '../types'
-import { VisionParams, VisionResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { VisionParams, VisionResponse } from "./types"
 
 export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
-  id: 'vision_tool',
-  name: 'Vision Tool',
+  id: "vision_tool",
+  name: "Vision Tool",
   description:
-    'Process and analyze images using advanced vision models. Capable of understanding image content, extracting text, identifying objects, and providing detailed visual descriptions.',
-  version: '1.0.0',
+    "Process and analyze images using advanced vision models. Capable of understanding image content, extracting text, identifying objects, and providing detailed visual descriptions.",
+  version: "1.0.0",
 
   params: {
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'API key for the selected model provider',
+      description: "API key for the selected model provider",
     },
     imageUrl: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Publicly accessible image URL',
+      description: "Publicly accessible image URL",
     },
     model: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Vision model to use (gpt-4o, claude-3-opus-20240229, etc)',
+      description: "Vision model to use (gpt-4o, claude-3-opus-20240229, etc)",
     },
     prompt: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Custom prompt for image analysis',
+      description: "Custom prompt for image analysis",
     },
   },
 
   request: {
-    method: 'POST',
+    method: "POST",
     url: (params) => {
-      if (params.model?.startsWith('claude-3')) {
-        return 'https://api.anthropic.com/v1/messages'
+      if (params.model?.startsWith("claude-3")) {
+        return "https://api.anthropic.com/v1/messages"
       }
-      return 'https://api.openai.com/v1/chat/completions'
+      return "https://api.openai.com/v1/chat/completions"
     },
     headers: (params) => {
       const headers = {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       }
 
-      return params.model?.startsWith('claude-3')
+      return params.model?.startsWith("claude-3")
         ? {
             ...headers,
-            'x-api-key': params.apiKey,
-            'anthropic-version': '2023-06-01',
+            "x-api-key": params.apiKey,
+            "anthropic-version": "2023-06-01",
           }
         : {
             ...headers,
@@ -57,20 +57,20 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
           }
     },
     body: (params) => {
-      const defaultPrompt = 'Please analyze this image and describe what you see in detail.'
+      const defaultPrompt = "Please analyze this image and describe what you see in detail."
       const prompt = params.prompt || defaultPrompt
 
-      if (params.model?.startsWith('claude-3')) {
+      if (params.model?.startsWith("claude-3")) {
         return {
           model: params.model,
           messages: [
             {
-              role: 'user',
+              role: "user",
               content: [
-                { type: 'text', text: prompt },
+                { type: "text", text: prompt },
                 {
-                  type: 'image',
-                  source: { type: 'url', url: params.imageUrl },
+                  type: "image",
+                  source: { type: "url", url: params.imageUrl },
                 },
               ],
             },
@@ -79,14 +79,14 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
       }
 
       return {
-        model: 'gpt-4o',
+        model: "gpt-4o",
         messages: [
           {
-            role: 'user',
+            role: "user",
             content: [
-              { type: 'text', text: prompt },
+              { type: "text", text: prompt },
               {
-                type: 'image_url',
+                type: "image_url",
                 image_url: {
                   url: params.imageUrl,
                 },
@@ -103,12 +103,12 @@ export const visionTool: ToolConfig<VisionParams, VisionResponse> = {
     const data = await response.json()
 
     if (data.error) {
-      throw new Error(data.error.message || 'Unknown error occurred')
+      throw new Error(data.error.message || "Unknown error occurred")
     }
 
     const result = data.content?.[0]?.text || data.choices?.[0]?.message?.content
     if (!result) {
-      throw new Error('No output content in response')
+      throw new Error("No output content in response")
     }
 
     return {

@@ -1,14 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { jwtDecode } from 'jwt-decode'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { account, user } from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { eq } from "drizzle-orm"
+import { jwtDecode } from "jwt-decode"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { db } from "@/db"
+import { account, user } from "@/db/schema"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
-const logger = createLogger('OAuthConnectionsAPI')
+const logger = createLogger("OAuthConnectionsAPI")
 
 interface GoogleIdToken {
   email?: string
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated request rejected`)
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+      return NextResponse.json({ error: "User not authenticated" }, { status: 401 })
     }
 
     // Get all accounts for this user
@@ -49,11 +49,11 @@ export async function GET(request: NextRequest) {
 
     for (const acc of accounts) {
       // Extract the base provider and feature type from providerId (e.g., 'google-email' -> 'google', 'email')
-      const [provider, featureType = 'default'] = acc.providerId.split('-')
+      const [provider, featureType = "default"] = acc.providerId.split("-")
 
       if (provider) {
         // Try multiple methods to get a user-friendly display name
-        let displayName = ''
+        let displayName = ""
 
         // Method 1: Try to extract email from ID token (works for Google, etc.)
         if (acc.idToken) {
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Method 2: For GitHub, the accountId might be the username
-        if (!displayName && provider === 'github') {
+        if (!displayName && provider === "github") {
           displayName = `${acc.accountId} (GitHub)`
         }
 
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
             baseProvider: provider,
             featureType,
             isConnected: true,
-            scopes: acc.scope ? acc.scope.split(' ') : [],
+            scopes: acc.scope ? acc.scope.split(" ") : [],
             lastConnected: acc.updatedAt.toISOString(),
             accounts: [
               {
@@ -122,6 +122,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ connections }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching OAuth connections`, error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

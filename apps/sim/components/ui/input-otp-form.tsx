@@ -1,9 +1,9 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
-import { Button } from './button'
-import { InputOTP, InputOTPGroup, InputOTPSlot } from './input-otp'
+import { useState } from "react"
+import { Loader2 } from "lucide-react"
+import { Button } from "./button"
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "./input-otp"
 
 interface OTPInputFormProps {
   onSubmit: (otp: string) => void
@@ -18,7 +18,7 @@ export function OTPInputForm({
   error = null,
   length = 6,
 }: OTPInputFormProps) {
-  const [value, setValue] = useState('')
+  const [value, setValue] = useState("")
 
   const handleComplete = (value: string) => {
     setValue(value)
@@ -46,13 +46,13 @@ export function OTPInputForm({
         >
           <InputOTPGroup>
             {Array.from({ length }).map((_, i) => (
-              <InputOTPSlot key={i} index={i} className="w-10 h-12" />
+              <InputOTPSlot key={i} index={i} className="h-12 w-10" />
             ))}
           </InputOTPGroup>
         </InputOTP>
       </div>
 
-      {error && <p className="text-sm text-destructive text-center">{error}</p>}
+      {error && <p className="text-center text-destructive text-sm">{error}</p>}
 
       <Button type="submit" className="w-full" disabled={value.length !== length || isLoading}>
         {isLoading ? (
@@ -61,7 +61,7 @@ export function OTPInputForm({
             Verifying...
           </div>
         ) : (
-          'Verify'
+          "Verify"
         )}
       </Button>
     </form>

@@ -1,45 +1,45 @@
-import { ToolConfig } from '../types'
+import type { ToolConfig } from "../types"
 
 // Get Memories Tool
 export const mem0GetMemoriesTool: ToolConfig = {
-  id: 'mem0_get_memories',
-  name: 'Get Memories',
-  description: 'Retrieve memories from Mem0 by ID or filter criteria',
-  version: '1.0.0',
+  id: "mem0_get_memories",
+  name: "Get Memories",
+  description: "Retrieve memories from Mem0 by ID or filter criteria",
+  version: "1.0.0",
   params: {
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Your Mem0 API key',
+      description: "Your Mem0 API key",
     },
     userId: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'User ID to retrieve memories for',
+      description: "User ID to retrieve memories for",
       optionalToolInput: true,
     },
     memoryId: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Specific memory ID to retrieve',
+      description: "Specific memory ID to retrieve",
       optionalToolInput: true,
     },
     startDate: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Start date for filtering by created_at (format: YYYY-MM-DD)',
+      description: "Start date for filtering by created_at (format: YYYY-MM-DD)",
     },
     endDate: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'End date for filtering by created_at (format: YYYY-MM-DD)',
+      description: "End date for filtering by created_at (format: YYYY-MM-DD)",
     },
     limit: {
-      type: 'number',
+      type: "number",
       required: false,
       default: 10,
-      description: 'Maximum number of results to return',
+      description: "Maximum number of results to return",
     },
   },
   request: {
@@ -47,15 +47,15 @@ export const mem0GetMemoriesTool: ToolConfig = {
       // For a specific memory ID, use the get single memory endpoint
       if (params.memoryId) {
         // Dynamically set method to GET for memory ID requests
-        params.method = 'GET'
+        params.method = "GET"
         return `https://api.mem0.ai/v1/memories/${params.memoryId}/`
       }
       // Otherwise use v2 memories endpoint with filters
-      return 'https://api.mem0.ai/v2/memories/'
+      return "https://api.mem0.ai/v2/memories/"
     },
-    method: 'POST', // Default to POST for filtering
+    method: "POST", // Default to POST for filtering
     headers: (params) => ({
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Token ${params.apiKey}`,
     }),
     body: (params: Record<string, any>) => {

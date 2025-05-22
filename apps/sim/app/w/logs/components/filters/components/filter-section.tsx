@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { useState } from "react"
+import { ChevronDown } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 export default function FilterSection({
   title,
@@ -19,19 +19,19 @@ export default function FilterSection({
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
-          className="flex w-full justify-between px-2 text-sm font-medium hover:bg-accent rounded-md"
+          className="flex w-full justify-between rounded-md px-2 font-medium text-sm hover:bg-accent"
         >
           <span>{title}</span>
           <ChevronDown
-            className={`h-4 w-4 text-muted-foreground transition-transform mr-[5px] ${
-              isOpen ? 'rotate-180' : ''
+            className={`mr-[5px] h-4 w-4 text-muted-foreground transition-transform ${
+              isOpen ? "rotate-180" : ""
             }`}
           />
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="pt-2">
         {content || (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-muted-foreground text-sm">
             Filter options for {title} will go here
           </div>
         )}

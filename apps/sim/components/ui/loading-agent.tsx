@@ -1,14 +1,14 @@
-'use client'
+"use client"
 
 export interface LoadingAgentProps {
   /**
    * Size of the loading agent
    * @default 'md'
    */
-  size?: 'sm' | 'md' | 'lg'
+  size?: "sm" | "md" | "lg"
 }
 
-export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
+export function LoadingAgent({ size = "md" }: LoadingAgentProps) {
   const pathLength = 120
 
   // Size mappings for width and height
@@ -38,7 +38,7 @@ export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
         style={{
           strokeDasharray: pathLength,
           strokeDashoffset: pathLength,
-          animation: 'dash 1.5s linear forwards',
+          animation: "dash 1.5s linear forwards",
         }}
       />
       <path
@@ -50,8 +50,8 @@ export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
         style={{
           strokeDasharray: pathLength,
           strokeDashoffset: pathLength,
-          animation: 'dash 1.5s linear forwards',
-          animationDelay: '0.5s', // if you want to stagger it
+          animation: "dash 1.5s linear forwards",
+          animationDelay: "0.5s", // if you want to stagger it
         }}
       />
       <path
@@ -63,8 +63,8 @@ export function LoadingAgent({ size = 'md' }: LoadingAgentProps) {
         style={{
           strokeDasharray: pathLength,
           strokeDashoffset: pathLength,
-          animation: 'dash 1.5s linear forwards',
-          animationDelay: '1s',
+          animation: "dash 1.5s linear forwards",
+          animationDelay: "1s",
         }}
       />
       <style>

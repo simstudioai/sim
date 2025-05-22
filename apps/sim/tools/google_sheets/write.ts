@@ -1,63 +1,63 @@
-import { ToolConfig } from '../types'
-import { GoogleSheetsToolParams, GoogleSheetsWriteResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { GoogleSheetsToolParams, GoogleSheetsWriteResponse } from "./types"
 
 export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResponse> = {
-  id: 'google_sheets_write',
-  name: 'Write to Google Sheets',
-  description: 'Write data to a Google Sheets spreadsheet',
-  version: '1.0',
+  id: "google_sheets_write",
+  name: "Write to Google Sheets",
+  description: "Write data to a Google Sheets spreadsheet",
+  version: "1.0",
   oauth: {
     required: true,
-    provider: 'google-sheets',
-    additionalScopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    provider: "google-sheets",
+    additionalScopes: ["https://www.googleapis.com/auth/spreadsheets"],
   },
   params: {
     accessToken: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'The access token for the Google Sheets API',
+      description: "The access token for the Google Sheets API",
     },
     spreadsheetId: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'The ID of the spreadsheet to write to',
+      description: "The ID of the spreadsheet to write to",
     },
-    range: { type: 'string', required: false, description: 'The range of cells to write to' },
-    values: { type: 'array', required: true, description: 'The data to write to the spreadsheet' },
+    range: { type: "string", required: false, description: "The range of cells to write to" },
+    values: { type: "array", required: true, description: "The data to write to the spreadsheet" },
     valueInputOption: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'The format of the data to write',
+      description: "The format of the data to write",
     },
     includeValuesInResponse: {
-      type: 'boolean',
+      type: "boolean",
       required: false,
-      description: 'Whether to include the written values in the response',
+      description: "Whether to include the written values in the response",
     },
   },
   request: {
     url: (params) => {
       // If range is not provided, use a default range for the first sheet, second row to preserve headers
-      const range = params.range || 'Sheet1!A2'
+      const range = params.range || "Sheet1!A2"
 
       const url = new URL(
         `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(range)}`
       )
 
       // Default to USER_ENTERED if not specified
-      const valueInputOption = params.valueInputOption || 'USER_ENTERED'
-      url.searchParams.append('valueInputOption', valueInputOption)
+      const valueInputOption = params.valueInputOption || "USER_ENTERED"
+      url.searchParams.append("valueInputOption", valueInputOption)
 
       if (params.includeValuesInResponse) {
-        url.searchParams.append('includeValuesInResponse', 'true')
+        url.searchParams.append("includeValuesInResponse", "true")
       }
 
       return url.toString()
     },
-    method: 'PUT',
+    method: "PUT",
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     }),
     body: (params) => {
       let processedValues: any = params.values || []
@@ -66,7 +66,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
       if (
         Array.isArray(processedValues) &&
         processedValues.length > 0 &&
-        typeof processedValues[0] === 'object' &&
+        typeof processedValues[0] === "object" &&
         !Array.isArray(processedValues[0])
       ) {
         // It's an array of objects
@@ -74,7 +74,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
         // First, extract all unique keys from all objects to create headers
         const allKeys = new Set<string>()
         processedValues.forEach((obj: any) => {
-          if (obj && typeof obj === 'object') {
+          if (obj && typeof obj === "object") {
             Object.keys(obj).forEach((key) => allKeys.add(key))
           }
         })
@@ -82,17 +82,17 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
 
         // Then create rows with object values in the order of headers
         const rows = processedValues.map((obj: any) => {
-          if (!obj || typeof obj !== 'object') {
+          if (!obj || typeof obj !== "object") {
             // Handle non-object items by creating an array with empty values
-            return Array(headers.length).fill('')
+            return Array(headers.length).fill("")
           }
           return headers.map((key) => {
             const value = obj[key]
             // Handle nested objects/arrays by converting to JSON string
-            if (value !== null && typeof value === 'object') {
+            if (value !== null && typeof value === "object") {
               return JSON.stringify(value)
             }
-            return value === undefined ? '' : value
+            return value === undefined ? "" : value
           })
         })
 
@@ -101,7 +101,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
       }
 
       const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
+        majorDimension: params.majorDimension || "ROWS",
         values: processedValues,
       }
 
@@ -122,8 +122,8 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
     const data = await response.json()
 
     // Extract spreadsheet ID from the URL
-    const urlParts = response.url.split('/spreadsheets/')
-    const spreadsheetId = urlParts[1]?.split('/')[0] || ''
+    const urlParts = response.url.split("/spreadsheets/")
+    const spreadsheetId = urlParts[1]?.split("/")[0] || ""
 
     // Create a simple metadata object with just the ID and URL
     const metadata = {
@@ -155,9 +155,9 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
     }
 
     // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
+    if (typeof error === "object" && error !== null) {
       if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
+        return typeof error.error === "string" ? error.error : JSON.stringify(error.error)
       }
       if (error.message) {
         return error.message
@@ -165,6 +165,6 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
     }
 
     // Default fallback message
-    return 'An error occurred while writing to Google Sheets'
+    return "An error occurred while writing to Google Sheets"
   },
 }

@@ -1,6 +1,6 @@
-import { createLogger } from '@/lib/logs/console-logger'
+import { createLogger } from "@/lib/logs/console-logger"
 
-const logger = createLogger('SyncCore')
+const logger = createLogger("SyncCore")
 
 /**
  * Core sync types and utilities for optimistic state synchronization
@@ -11,7 +11,7 @@ export interface SyncConfig {
   // Required configuration
   endpoint: string
   preparePayload: () => Promise<any> | any
-  method?: 'GET' | 'POST' | 'DELETE' | 'PUT'
+  method?: "GET" | "POST" | "DELETE" | "PUT"
 
   // Sync triggers
   syncOnInterval?: boolean
@@ -126,7 +126,7 @@ async function sendWithRetry(endpoint: string, payload: any, config: SyncConfig)
 
       // Calculate exponential backoff with jitter
       const jitter = Math.random() * 0.3 + 0.85 // Random between 0.85 and 1.15
-      const backoff = baseBackoff * Math.pow(2, attempt) * jitter
+      const backoff = baseBackoff * 2 ** attempt * jitter
 
       logger.warn(
         `Sync attempt ${attempt + 1}/${maxRetries} failed for ${endpoint}. Retrying in ${Math.round(backoff)}ms: ${lastError.message}`
@@ -157,16 +157,16 @@ async function sendRequest(endpoint: string, payload: any, config: SyncConfig): 
 
   try {
     const response = await fetch(endpoint, {
-      method: config.method || 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: config.method !== 'GET' ? JSON.stringify(payload) : undefined,
+      method: config.method || "POST",
+      headers: { "Content-Type": "application/json" },
+      body: config.method !== "GET" ? JSON.stringify(payload) : undefined,
       signal: controller.signal,
       // Add cache control for GET requests to prevent caching
-      cache: config.method === 'GET' ? 'no-store' : undefined,
+      cache: config.method === "GET" ? "no-store" : undefined,
     })
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Failed to read error response')
+      const errorText = await response.text().catch(() => "Failed to read error response")
       throw new Error(`Sync failed: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
@@ -179,8 +179,8 @@ async function sendRequest(endpoint: string, payload: any, config: SyncConfig): 
     return true
   } catch (error) {
     // Handle abort (timeout) explicitly
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(`Sync request timed out after 30 seconds`)
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Sync request timed out after 30 seconds")
     }
     throw error
   } finally {

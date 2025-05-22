@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
-import { getSession } from '@/lib/auth'
-import { db } from '@/db'
-import { workspace, workspaceMember } from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { and, eq } from "drizzle-orm"
+import { getSession } from "@/lib/auth"
+import { db } from "@/db"
+import { workspace, workspaceMember } from "@/db/schema"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const workspaceId = id
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .then((rows) => rows[0])
 
   if (!membership) {
-    return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
+    return NextResponse.json({ error: "Workspace not found or access denied" }, { status: 404 })
   }
 
   // Get workspace details
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .then((rows) => rows[0])
 
   if (!workspaceDetails) {
-    return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+    return NextResponse.json({ error: "Workspace not found" }, { status: 404 })
   }
 
   return NextResponse.json({
@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const workspaceId = id
@@ -66,19 +66,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     .then((rows) => rows[0])
 
   if (!membership) {
-    return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
+    return NextResponse.json({ error: "Workspace not found or access denied" }, { status: 404 })
   }
 
   // For now, only allow owners to update workspace
-  if (membership.role !== 'owner') {
-    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+  if (membership.role !== "owner") {
+    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
   }
 
   try {
     const { name } = await request.json()
 
     if (!name) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+      return NextResponse.json({ error: "Name is required" }, { status: 400 })
     }
 
     // Update workspace
@@ -104,8 +104,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       },
     })
   } catch (error) {
-    console.error('Error updating workspace:', error)
-    return NextResponse.json({ error: 'Failed to update workspace' }, { status: 500 })
+    console.error("Error updating workspace:", error)
+    return NextResponse.json({ error: "Failed to update workspace" }, { status: 500 })
   }
 }
 
@@ -117,7 +117,7 @@ export async function DELETE(
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const workspaceId = id
@@ -131,8 +131,8 @@ export async function DELETE(
     )
     .then((rows) => rows[0])
 
-  if (!membership || membership.role !== 'owner') {
-    return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+  if (!membership || membership.role !== "owner") {
+    return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
   }
 
   try {
@@ -141,8 +141,8 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deleting workspace:', error)
-    return NextResponse.json({ error: 'Failed to delete workspace' }, { status: 500 })
+    console.error("Error deleting workspace:", error)
+    return NextResponse.json({ error: "Failed to delete workspace" }, { status: 500 })
   }
 }
 

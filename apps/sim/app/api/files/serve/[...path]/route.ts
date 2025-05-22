@@ -1,20 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { readFile } from 'fs/promises'
-import { createLogger } from '@/lib/logs/console-logger'
-import { downloadFromS3, getPresignedUrl } from '@/lib/uploads/s3-client'
-import { USE_S3_STORAGE } from '@/lib/uploads/setup'
-import '@/lib/uploads/setup.server'
+import { type NextRequest, NextResponse } from "next/server"
+import { readFile } from "node:fs/promises"
+import { createLogger } from "@/lib/logs/console-logger"
+import { downloadFromS3, getPresignedUrl } from "@/lib/uploads/s3-client"
+import { USE_S3_STORAGE } from "@/lib/uploads/setup"
+import "@/lib/uploads/setup.server"
 import {
   createErrorResponse,
   createFileResponse,
   FileNotFoundError,
   findLocalFile,
   getContentType,
-} from '../../utils'
+} from "../../utils"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
-const logger = createLogger('FilesServeAPI')
+const logger = createLogger("FilesServeAPI")
 
 /**
  * Main API route handler for serving files
@@ -28,11 +28,11 @@ export async function GET(
     const { path } = await params
 
     // Join the path segments to get the filename or S3 key
-    const pathString = path.join('/')
+    const pathString = path.join("/")
     logger.info(`Serving file: ${pathString}`)
 
     // Check if this is an S3 file (path starts with 's3/')
-    const isS3Path = path[0] === 's3'
+    const isS3Path = path[0] === "s3"
 
     try {
       // Use S3 handler if in production or path explicitly specifies S3
@@ -43,11 +43,11 @@ export async function GET(
       // Use local handler for local files
       return await handleLocalFile(path)
     } catch (error) {
-      logger.error('Error serving file:', error)
+      logger.error("Error serving file:", error)
       return createErrorResponse(error as Error)
     }
   } catch (error) {
-    logger.error('Error serving file:', error)
+    logger.error("Error serving file:", error)
     return createErrorResponse(error as Error)
   }
 }
@@ -61,14 +61,14 @@ async function handleS3File(
   pathString: string
 ): Promise<NextResponse> {
   // If path starts with s3/, remove that prefix to get the actual key
-  const s3Key = isS3Path ? decodeURIComponent(path.slice(1).join('/')) : pathString
+  const s3Key = isS3Path ? decodeURIComponent(path.slice(1).join("/")) : pathString
   logger.info(`Serving file from S3: ${s3Key}`)
 
   try {
     // First try direct access via presigned URL (most efficient)
     return await handleS3PresignedUrl(s3Key)
   } catch (error) {
-    logger.info('Falling back to proxy method for S3 file')
+    logger.info("Falling back to proxy method for S3 file")
     // Fall back to proxy method if presigned URL fails
     return await handleS3Proxy(s3Key)
   }
@@ -85,7 +85,7 @@ async function handleS3PresignedUrl(s3Key: string): Promise<NextResponse> {
     // Redirect to the presigned URL for direct S3 access
     return NextResponse.redirect(presignedUrl)
   } catch (error) {
-    logger.error('Error generating presigned URL:', error)
+    logger.error("Error generating presigned URL:", error)
     throw error
   }
 }
@@ -98,7 +98,7 @@ async function handleS3Proxy(s3Key: string): Promise<NextResponse> {
     const fileBuffer = await downloadFromS3(s3Key)
 
     // Extract the original filename from the key (last part after last /)
-    const originalFilename = s3Key.split('/').pop() || 'download'
+    const originalFilename = s3Key.split("/").pop() || "download"
     const contentType = getContentType(originalFilename)
 
     return createFileResponse({
@@ -107,7 +107,7 @@ async function handleS3Proxy(s3Key: string): Promise<NextResponse> {
       filename: originalFilename,
     })
   } catch (error) {
-    logger.error('Error downloading from S3:', error)
+    logger.error("Error downloading from S3:", error)
     throw error
   }
 }
@@ -117,7 +117,7 @@ async function handleS3Proxy(s3Key: string): Promise<NextResponse> {
  */
 async function handleLocalFile(path: string[]): Promise<NextResponse> {
   // Join as a path for findLocalFile
-  const pathString = path.join('/')
+  const pathString = path.join("/")
   const filePath = findLocalFile(pathString)
 
   // Handle file not found

@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq, sql } from 'drizzle-orm'
-import { z } from 'zod'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { userStats, workflow } from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { eq, sql } from "drizzle-orm"
+import { z } from "zod"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { db } from "@/db"
+import { userStats, workflow } from "@/db/schema"
 
-const logger = createLogger('UserStatsAPI')
+const logger = createLogger("UserStatsAPI")
 
 /**
  * GET endpoint to retrieve user statistics including the count of workflows
@@ -16,8 +16,8 @@ export async function GET(request: NextRequest) {
     // Get the user session
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn('Unauthorized user stats access attempt')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      logger.warn("Unauthorized user stats access attempt")
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const userId = session.user.id
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
         totalScheduledExecutions: 0,
         totalChatExecutions: 0,
         totalTokensUsed: 0,
-        totalCost: '0.00',
+        totalCost: "0.00",
         lastActive: new Date(),
       }
 
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
       workflowCount,
     })
   } catch (error) {
-    logger.error('Error fetching user stats:', error)
-    return NextResponse.json({ error: 'Failed to fetch user statistics' }, { status: 500 })
+    logger.error("Error fetching user stats:", error)
+    return NextResponse.json({ error: "Failed to fetch user statistics" }, { status: 500 })
   }
 }

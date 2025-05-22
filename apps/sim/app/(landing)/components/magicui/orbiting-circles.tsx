@@ -1,5 +1,5 @@
-import React from 'react'
-import { cn } from '@/lib/utils'
+import React from "react"
+import { cn } from "@/lib/utils"
 
 export interface OrbitingCirclesProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string
@@ -33,7 +33,7 @@ export function OrbitingCircles({
           version="1.1"
           className="pointer-events-none absolute inset-0 size-full"
         >
-          <circle className="stroke-white/10 stroke-1" cx="50%" cy="50%" r={radius} fill="none" />
+          <circle className="stroke-1 stroke-white/10" cx="50%" cy="50%" r={radius} fill="none" />
         </svg>
       )}
       {React.Children.map(children, (child, index) => {
@@ -42,15 +42,15 @@ export function OrbitingCircles({
           <div
             style={
               {
-                '--duration': calculatedDuration,
-                '--radius': radius,
-                '--angle': angle,
-                '--icon-size': `${iconSize}px`,
+                "--duration": calculatedDuration,
+                "--radius": radius,
+                "--angle": angle,
+                "--icon-size": `${iconSize}px`,
               } as React.CSSProperties
             }
             className={cn(
-              `absolute flex size-[var(--icon-size)] transform-gpu animate-orbit items-center justify-center rounded-full`,
-              { '[animation-direction:reverse]': reverse },
+              "absolute flex size-[var(--icon-size)] transform-gpu animate-orbit items-center justify-center rounded-full",
+              { "[animation-direction:reverse]": reverse },
               className
             )}
             {...props}

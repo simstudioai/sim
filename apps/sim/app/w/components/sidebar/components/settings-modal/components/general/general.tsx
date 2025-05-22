@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { AlertTriangle, Info } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { AlertTriangle, Info } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,27 +12,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useGeneralStore } from '@/stores/settings/general/store'
-import { resetAllStores } from '@/stores'
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useGeneralStore } from "@/stores/settings/general/store"
+import { resetAllStores } from "@/stores"
 
 const TOOLTIPS = {
-  debugMode: 'Enable visual debugging information during execution.',
-  autoConnect: 'Automatically connect nodes.',
-  autoFillEnvVars: 'Automatically fill API keys.',
-  resetData: 'Permanently delete all workflows, settings, and stored data.',
+  debugMode: "Enable visual debugging information during execution.",
+  autoConnect: "Automatically connect nodes.",
+  autoFillEnvVars: "Automatically fill API keys.",
+  resetData: "Permanently delete all workflows, settings, and stored data.",
 }
 
 export function General() {
@@ -59,7 +59,7 @@ export function General() {
     loadData()
   }, [loadSettings, retryCount])
 
-  const handleThemeChange = (value: 'system' | 'light' | 'dark') => {
+  const handleThemeChange = (value: "system" | "light" | "dark") => {
     setTheme(value)
   }
 
@@ -83,7 +83,7 @@ export function General() {
 
   const handleResetData = () => {
     resetAllStores()
-    router.push('/w/1') // Redirect to home page after reset
+    router.push("/w/1") // Redirect to home page after reset
   }
 
   const handleRetry = () => {
@@ -91,11 +91,11 @@ export function General() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="flex justify-between items-center">
+          <AlertDescription className="flex items-center justify-between">
             <span>Failed to load settings: {error}</span>
             <Button variant="outline" size="sm" onClick={handleRetry} disabled={isLoading}>
               Retry
@@ -105,7 +105,7 @@ export function General() {
       )}
 
       <div>
-        <h2 className="text-lg font-medium mb-[22px]">General Settings</h2>
+        <h2 className="mb-[22px] font-medium text-lg">General Settings</h2>
         <div className="space-y-4">
           {isLoading ? (
             <>
@@ -143,7 +143,7 @@ export function General() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-gray-500 p-1 h-7"
+                        className="h-7 p-1 text-gray-500"
                         aria-label="Learn more about debug mode"
                         disabled={isLoading}
                       >
@@ -172,7 +172,7 @@ export function General() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-gray-500 p-1 h-7"
+                        className="h-7 p-1 text-gray-500"
                         aria-label="Learn more about auto-connect feature"
                         disabled={isLoading}
                       >
@@ -201,7 +201,7 @@ export function General() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-gray-500 p-1 h-7"
+                        className="h-7 p-1 text-gray-500"
                         aria-label="Learn more about auto-fill environment variables"
                         disabled={isLoading}
                       >
@@ -235,7 +235,7 @@ export function General() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-gray-500 p-1 h-7"
+                  className="h-7 p-1 text-gray-500"
                   aria-label="Learn more about resetting all data"
                   disabled={isLoading}
                 >

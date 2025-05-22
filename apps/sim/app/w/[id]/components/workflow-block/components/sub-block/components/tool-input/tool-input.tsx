@@ -1,34 +1,34 @@
-import { useCallback, useState } from 'react'
-import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useCallback, useState } from "react"
+import { PlusIcon, WrenchIcon, XIcon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Toggle } from '@/components/ui/toggle'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
-import { OAuthProvider } from '@/lib/oauth'
-import { cn } from '@/lib/utils'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { getAllBlocks } from '@/blocks'
-import { supportsToolUsageControl } from '@/providers/model-capabilities'
-import { getProviderFromModel } from '@/providers/utils'
-import { getTool } from '@/tools/utils'
-import { useSubBlockValue } from '../../hooks/use-sub-block-value'
-import { CredentialSelector } from '../credential-selector/credential-selector'
-import { ShortInput } from '../short-input'
-import { CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
-import { ToolCommand } from './components/tool-command/tool-command'
+} from "@/components/ui/select"
+import { Toggle } from "@/components/ui/toggle"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { createLogger } from "@/lib/logs/console-logger"
+import type { OAuthProvider } from "@/lib/oauth"
+import { cn } from "@/lib/utils"
+import { useCustomToolsStore } from "@/stores/custom-tools/store"
+import { useGeneralStore } from "@/stores/settings/general/store"
+import { useSubBlockStore } from "@/stores/workflows/subblock/store"
+import { useWorkflowStore } from "@/stores/workflows/workflow/store"
+import { getAllBlocks } from "@/blocks"
+import { supportsToolUsageControl } from "@/providers/model-capabilities"
+import { getProviderFromModel } from "@/providers/utils"
+import { getTool } from "@/tools/utils"
+import { useSubBlockValue } from "../../hooks/use-sub-block-value"
+import { CredentialSelector } from "../credential-selector/credential-selector"
+import { ShortInput } from "../short-input"
+import { type CustomTool, CustomToolModal } from "./components/custom-tool-modal/custom-tool-modal"
+import { ToolCommand } from "./components/tool-command/tool-command"
 
-const logger = createLogger('ToolInput')
+const logger = createLogger("ToolInput")
 
 interface ToolInputProps {
   blockId: string
@@ -43,7 +43,7 @@ interface StoredTool {
   schema?: any // For custom tools
   code?: string // For custom tools implementation
   operation?: string // For tools with multiple operations
-  usageControl?: 'auto' | 'force' | 'none' // Control how the tool is used
+  usageControl?: "auto" | "force" | "none" // Control how the tool is used
 }
 
 interface ToolParam {
@@ -109,8 +109,8 @@ const getCustomToolParams = (schema: any): ToolParam[] => {
 
   return Object.entries(properties).map(([paramId, param]: [string, any]) => ({
     id: paramId,
-    type: param.type || 'string',
-    description: param.description || '',
+    type: param.type || "string",
+    description: param.description || "",
     requiredForToolCall: required.includes(paramId),
     optionalToolInput: optionalInputs.includes(paramId),
   }))
@@ -128,10 +128,10 @@ const getOperationOptions = (blockType: string): { label: string; id: string }[]
   if (!block || !block.tools?.access) return []
 
   // Look for an operation dropdown in the block's subBlocks
-  const operationSubBlock = block.subBlocks.find((sb) => sb.id === 'operation')
+  const operationSubBlock = block.subBlocks.find((sb) => sb.id === "operation")
   if (
     operationSubBlock &&
-    operationSubBlock.type === 'dropdown' &&
+    operationSubBlock.type === "dropdown" &&
     Array.isArray(operationSubBlock.options)
   ) {
     return operationSubBlock.options as { label: string; id: string }[]
@@ -207,15 +207,15 @@ const hasExpandableContent = (
 // Helper to format parameter IDs into human-readable labels
 const formatParamId = (paramId: string): string => {
   // Special case for common parameter names
-  if (paramId === 'apiKey') return 'API Key'
-  if (paramId === 'apiVersion') return 'API Version'
+  if (paramId === "apiKey") return "API Key"
+  if (paramId === "apiVersion") return "API Version"
 
   // Handle underscore and hyphen separated words
-  if (paramId.includes('_') || paramId.includes('-')) {
+  if (paramId.includes("_") || paramId.includes("-")) {
     return paramId
       .split(/[-_]/)
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ')
+      .join(" ")
   }
 
   // Handle single character parameters
@@ -223,16 +223,16 @@ const formatParamId = (paramId: string): string => {
 
   // Handle camelCase
   if (/[A-Z]/.test(paramId)) {
-    const result = paramId.replace(/([A-Z])/g, ' $1')
+    const result = paramId.replace(/([A-Z])/g, " $1")
     return (
       result.charAt(0).toUpperCase() +
       result
         .slice(1)
-        .replace(/ Api/g, ' API')
-        .replace(/ Id/g, ' ID')
-        .replace(/ Url/g, ' URL')
-        .replace(/ Uri/g, ' URI')
-        .replace(/ Ui/g, ' UI')
+        .replace(/ Api/g, " API")
+        .replace(/ Id/g, " ID")
+        .replace(/ Url/g, " URL")
+        .replace(/ Uri/g, " URI")
+        .replace(/ Ui/g, " UI")
     )
   }
 
@@ -245,19 +245,19 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState("")
   const isWide = useWorkflowStore((state) => state.blocks[blockId]?.isWide)
   const customTools = useCustomToolsStore((state) => state.getAllTools())
   const subBlockStore = useSubBlockStore()
   const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
 
   // Get the current model from the 'model' subblock
-  const modelValue = useSubBlockStore.getState().getValue(blockId, 'model')
-  const model = typeof modelValue === 'string' ? modelValue : ''
-  const provider = model ? getProviderFromModel(model) : ''
+  const modelValue = useSubBlockStore.getState().getValue(blockId, "model")
+  const model = typeof modelValue === "string" ? modelValue : ""
+  const provider = model ? getProviderFromModel(model) : ""
   const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
 
-  const toolBlocks = getAllBlocks().filter((block) => block.category === 'tools')
+  const toolBlocks = getAllBlocks().filter((block) => block.category === "tools")
 
   // Custom filter function for the Command component
   const customFilter = useCallback((value: string, search: string) => {
@@ -280,7 +280,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   }, [])
 
   const selectedTools: StoredTool[] =
-    Array.isArray(value) && value.length > 0 && typeof value[0] === 'object'
+    Array.isArray(value) && value.length > 0 && typeof value[0] === "object"
       ? (value as unknown as StoredTool[])
       : []
 
@@ -307,7 +307,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       params: initialParams,
       isExpanded: true,
       operation: defaultOperation,
-      usageControl: 'auto',
+      usageControl: "auto",
     }
 
     // If isWide, keep tools in the same row expanded
@@ -333,7 +333,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     if (
       selectedTools.some(
         (tool) =>
-          tool.type === 'custom-tool' &&
+          tool.type === "custom-tool" &&
           tool.schema?.function?.name === customTool.schema.function.name
       )
     ) {
@@ -356,13 +356,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     )
 
     const newTool: StoredTool = {
-      type: 'custom-tool',
+      type: "custom-tool",
       title: customTool.title,
       params: initialParams,
       isExpanded: true,
       schema: customTool.schema,
-      code: customTool.code || '',
-      usageControl: 'auto',
+      code: customTool.code || "",
+      usageControl: "auto",
     }
 
     // If isWide, keep tools in the same row expanded
@@ -383,7 +383,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
 
   const handleEditCustomTool = (toolIndex: number) => {
     const tool = selectedTools[toolIndex]
-    if (tool.type !== 'custom-tool' || !tool.schema) return
+    if (tool.type !== "custom-tool" || !tool.schema) return
 
     // Find the tool ID from the custom tools store based on the function name
     const customToolsList = useCustomToolsStore.getState().getAllTools()
@@ -405,7 +405,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                 ...tool,
                 title: customTool.title,
                 schema: customTool.schema,
-                code: customTool.code || '',
+                code: customTool.code || "",
               }
             : tool
         )
@@ -427,7 +427,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     const updatedTools = selectedTools.filter((tool) => {
       // For custom tools, we need to check if it matches the deleted tool
       if (
-        tool.type === 'custom-tool' &&
+        tool.type === "custom-tool" &&
         tool.schema?.function?.name &&
         customTools.some(
           (customTool) =>
@@ -450,8 +450,8 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     // Store the value in the tool params store for future use
     const tool = selectedTools[toolIndex]
     const toolId =
-      tool.type === 'custom-tool'
-        ? `custom-${tool.schema?.function?.name || 'tool'}`
+      tool.type === "custom-tool"
+        ? `custom-${tool.schema?.function?.name || "tool"}`
         : getToolIdFromBlock(tool.type) || tool.type
 
     // Only store non-empty values
@@ -480,13 +480,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     const subBlockStore = useSubBlockStore.getState()
 
     // Clear fields when operation changes for Jira
-    if (tool.type === 'jira') {
+    if (tool.type === "jira") {
       // Clear all fields that might be shared between operations
-      subBlockStore.setValue(blockId, 'summary', '')
-      subBlockStore.setValue(blockId, 'description', '')
-      subBlockStore.setValue(blockId, 'issueKey', '')
-      subBlockStore.setValue(blockId, 'projectId', '')
-      subBlockStore.setValue(blockId, 'parentIssue', '')
+      subBlockStore.setValue(blockId, "summary", "")
+      subBlockStore.setValue(blockId, "description", "")
+      subBlockStore.setValue(blockId, "issueKey", "")
+      subBlockStore.setValue(blockId, "projectId", "")
+      subBlockStore.setValue(blockId, "parentIssue", "")
     }
 
     setValue(
@@ -525,7 +525,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
         index === toolIndex
           ? {
               ...tool,
-              usageControl: usageControl as 'auto' | 'force' | 'none',
+              usageControl: usageControl as "auto" | "force" | "none",
             }
           : tool
       )
@@ -550,14 +550,14 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       {selectedTools.length === 0 ? (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <div className="flex h-10 w-full items-center justify-center rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer">
+            <div className="flex h-10 w-full cursor-pointer items-center justify-center rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground">
               <div className="flex items-center text-base text-muted-foreground/50 md:text-sm">
-                <PlusIcon className="w-4 h-4 mr-2" />
+                <PlusIcon className="mr-2 h-4 w-4" />
                 Add Tool
               </div>
             </div>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[200px]" align="start">
+          <PopoverContent className="w-[200px] p-0" align="start">
             <ToolCommand.Root filter={customFilter}>
               <ToolCommand.Input placeholder="Search tools..." onValueChange={setSearchQuery} />
               <ToolCommand.List>
@@ -569,10 +569,10 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                       setOpen(false)
                       setCustomToolModalOpen(true)
                     }}
-                    className="flex items-center gap-2 cursor-pointer mb-1"
+                    className="mb-1 flex cursor-pointer items-center gap-2"
                   >
-                    <div className="flex items-center justify-center w-6 h-6 rounded border border-dashed border-muted-foreground/50 bg-transparent">
-                      <WrenchIcon className="w-4 h-4 text-muted-foreground" />
+                    <div className="flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent">
+                      <WrenchIcon className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <span>Create Tool</span>
                   </ToolCommand.Item>
@@ -581,7 +581,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                   {customTools.length > 0 && (
                     <>
                       <ToolCommand.Separator />
-                      <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                      <div className="px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs">
                         Custom Tools
                       </div>
                       <ToolCommand.Group className="-mx-1 -px-1">
@@ -591,13 +591,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                             value={customTool.title}
                             onSelect={() => {
                               const newTool: StoredTool = {
-                                type: 'custom-tool',
+                                type: "custom-tool",
                                 title: customTool.title,
                                 params: {},
                                 isExpanded: true,
                                 schema: customTool.schema,
                                 code: customTool.code,
-                                usageControl: 'auto',
+                                usageControl: "auto",
                               }
 
                               if (isWide) {
@@ -621,12 +621,12 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                               }
                               setOpen(false)
                             }}
-                            className="flex items-center gap-2 cursor-pointer"
+                            className="flex cursor-pointer items-center gap-2"
                           >
-                            <div className="flex items-center justify-center w-6 h-6 rounded bg-blue-500">
-                              <WrenchIcon className="w-4 h-4 text-white" />
+                            <div className="flex h-6 w-6 items-center justify-center rounded bg-blue-500">
+                              <WrenchIcon className="h-4 w-4 text-white" />
                             </div>
-                            <span className="truncate max-w-[140px]">{customTool.title}</span>
+                            <span className="max-w-[140px] truncate">{customTool.title}</span>
                           </ToolCommand.Item>
                         ))}
                       </ToolCommand.Group>
@@ -635,9 +635,9 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                   )}
 
                   {/* Display built-in tools */}
-                  {toolBlocks.some((block) => customFilter(block.name, searchQuery || '') > 0) && (
+                  {toolBlocks.some((block) => customFilter(block.name, searchQuery || "") > 0) && (
                     <>
-                      <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                      <div className="px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs">
                         Built-in Tools
                       </div>
                       <ToolCommand.Group className="-mx-1 -px-1">
@@ -646,15 +646,15 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                             key={block.type}
                             value={block.name}
                             onSelect={() => handleSelectTool(block)}
-                            className="flex items-center gap-2 cursor-pointer"
+                            className="flex cursor-pointer items-center gap-2"
                           >
                             <div
-                              className="flex items-center justify-center w-6 h-6 rounded"
+                              className="flex h-6 w-6 items-center justify-center rounded"
                               style={{ backgroundColor: block.bgColor }}
                             >
-                              <IconComponent icon={block.icon} className="w-4 h-4 text-white" />
+                              <IconComponent icon={block.icon} className="h-4 w-4 text-white" />
                             </div>
-                            <span className="truncate max-w-[140px]">{block.name}</span>
+                            <span className="max-w-[140px] truncate">{block.name}</span>
                           </ToolCommand.Item>
                         ))}
                       </ToolCommand.Group>
@@ -666,10 +666,10 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
           </PopoverContent>
         </Popover>
       ) : (
-        <div className="flex flex-wrap gap-2 min-h-[2.5rem] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background">
+        <div className="flex min-h-[2.5rem] w-full flex-wrap gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background">
           {selectedTools.map((tool, toolIndex) => {
             // Handle custom tools differently
-            const isCustomTool = tool.type === 'custom-tool'
+            const isCustomTool = tool.type === "custom-tool"
             const toolBlock = !isCustomTool
               ? toolBlocks.find((block) => block.type === tool.type)
               : null
@@ -696,13 +696,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
             return (
               <div
                 key={`${tool.type}-${toolIndex}`}
-                className={cn('group flex flex-col', isWide ? 'w-[calc(50%-0.25rem)]' : 'w-full')}
+                className={cn("group flex flex-col", isWide ? "w-[calc(50%-0.25rem)]" : "w-full")}
               >
-                <div className="flex flex-col rounded-md border bg-card overflow-visible">
+                <div className="flex flex-col overflow-visible rounded-md border bg-card">
                   <div
                     className={cn(
-                      'flex items-center justify-between p-2 bg-accent/50',
-                      isExpandable ? 'cursor-pointer' : 'cursor-default'
+                      "flex items-center justify-between bg-accent/50 p-2",
+                      isExpandable ? "cursor-pointer" : "cursor-default"
                     )}
                     onClick={() => {
                       if (isCustomTool) {
@@ -712,91 +712,91 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                       }
                     }}
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-shrink-1 overflow-hidden">
+                    <div className="flex min-w-0 flex-shrink-1 items-center gap-2 overflow-hidden">
                       <div
-                        className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded"
+                        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded"
                         style={{
                           backgroundColor: isCustomTool
-                            ? '#3B82F6' // blue-500 for custom tools
+                            ? "#3B82F6" // blue-500 for custom tools
                             : toolBlock?.bgColor,
                         }}
                       >
                         {isCustomTool ? (
-                          <WrenchIcon className="w-3 h-3 text-white" />
+                          <WrenchIcon className="h-3 w-3 text-white" />
                         ) : (
-                          <IconComponent icon={toolBlock?.icon} className="w-3 h-3 text-white" />
+                          <IconComponent icon={toolBlock?.icon} className="h-3 w-3 text-white" />
                         )}
                       </div>
-                      <span className="text-sm font-medium truncate">{tool.title}</span>
+                      <span className="truncate font-medium text-sm">{tool.title}</span>
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                    <div className="ml-2 flex flex-shrink-0 items-center gap-1">
                       {/* Only render the tool usage control if the provider supports it */}
                       {supportsToolControl && (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Toggle
-                              className="group h-6 px-2 py-0 rounded-sm data-[state=on]:bg-transparent hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 flex items-center justify-center"
+                              className="group flex h-6 items-center justify-center rounded-sm px-2 py-0 hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=on]:bg-transparent"
                               pressed={true}
                               onPressedChange={() => {}}
                               onClick={(e: React.MouseEvent) => {
                                 e.stopPropagation()
                                 // Cycle through the states: auto -> force -> none -> auto
-                                const currentState = tool.usageControl || 'auto'
+                                const currentState = tool.usageControl || "auto"
                                 const nextState =
-                                  currentState === 'auto'
-                                    ? 'force'
-                                    : currentState === 'force'
-                                      ? 'none'
-                                      : 'auto'
+                                  currentState === "auto"
+                                    ? "force"
+                                    : currentState === "force"
+                                      ? "none"
+                                      : "auto"
                                 handleUsageControlChange(toolIndex, nextState)
                               }}
                               aria-label="Toggle tool usage control"
                             >
                               {/* Text boxes instead of icons */}
                               <span
-                                className={`text-xs font-medium ${
-                                  tool.usageControl === 'auto'
-                                    ? 'block text-muted-foreground'
-                                    : 'hidden'
+                                className={`font-medium text-xs ${
+                                  tool.usageControl === "auto"
+                                    ? "block text-muted-foreground"
+                                    : "hidden"
                                 }`}
                               >
                                 Auto
                               </span>
                               <span
-                                className={`text-xs font-medium ${
-                                  tool.usageControl === 'force'
-                                    ? 'block text-muted-foreground'
-                                    : 'hidden'
+                                className={`font-medium text-xs ${
+                                  tool.usageControl === "force"
+                                    ? "block text-muted-foreground"
+                                    : "hidden"
                                 }`}
                               >
                                 Force
                               </span>
                               <span
-                                className={`text-xs font-medium ${
-                                  tool.usageControl === 'none'
-                                    ? 'block text-muted-foreground'
-                                    : 'hidden'
+                                className={`font-medium text-xs ${
+                                  tool.usageControl === "none"
+                                    ? "block text-muted-foreground"
+                                    : "hidden"
                                 }`}
                               >
                                 Deny
                               </span>
                             </Toggle>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom" className="p-2 max-w-[240px]">
+                          <TooltipContent side="bottom" className="max-w-[240px] p-2">
                             <p className="text-xs">
-                              {tool.usageControl === 'auto' && (
+                              {tool.usageControl === "auto" && (
                                 <span>
                                   <span className="font-medium">Auto:</span> Let the agent decide
                                   when to use the tool
                                 </span>
                               )}
-                              {tool.usageControl === 'force' && (
+                              {tool.usageControl === "force" && (
                                 <span>
                                   <span className="font-medium">Force:</span> Always use this tool
                                   in the response
                                 </span>
                               )}
-                              {tool.usageControl === 'none' && (
+                              {tool.usageControl === "none" && (
                                 <span>
                                   <span className="font-medium">Deny:</span> Never use this tool
                                 </span>
@@ -812,14 +812,14 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                         }}
                         className="text-muted-foreground hover:text-foreground"
                       >
-                        <XIcon className="w-4 h-4" />
+                        <XIcon className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
 
                   {tool.isExpanded && !isCustomTool && isExpandable && (
                     <div
-                      className="p-3 space-y-3"
+                      className="space-y-3 p-3"
                       onClick={(e) => {
                         if (e.target === e.currentTarget) {
                           toggleToolExpansion(toolIndex)
@@ -828,8 +828,8 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                     >
                       {/* Add operation dropdown for tools with multiple operations */}
                       {hasOperations && operationOptions.length > 0 && (
-                        <div className="space-y-1.5 relative">
-                          <div className="text-xs font-medium text-muted-foreground">Operation</div>
+                        <div className="relative space-y-1.5">
+                          <div className="font-medium text-muted-foreground text-xs">Operation</div>
                           <Select
                             value={tool.operation || operationOptions[0].id}
                             onValueChange={(value) => handleOperationChange(toolIndex, value)}
@@ -854,12 +854,12 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                           const oauthConfig = getOAuthConfig(toolId)
                           if (oauthConfig?.required) {
                             return (
-                              <div className="space-y-1.5 relative">
-                                <div className="text-xs font-medium text-muted-foreground">
+                              <div className="relative space-y-1.5">
+                                <div className="font-medium text-muted-foreground text-xs">
                                   Account
                                 </div>
                                 <CredentialSelector
-                                  value={tool.params.credential || ''}
+                                  value={tool.params.credential || ""}
                                   onChange={(value) => handleCredentialChange(toolIndex, value)}
                                   provider={oauthConfig.provider as OAuthProvider}
                                   requiredScopes={oauthConfig.additionalScopes || []}
@@ -874,11 +874,11 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
 
                       {/* Existing parameters */}
                       {requiredParams.map((param) => (
-                        <div key={param.id} className="space-y-1.5 relative">
-                          <div className="text-xs font-medium text-muted-foreground flex items-center">
+                        <div key={param.id} className="relative space-y-1.5">
+                          <div className="flex items-center font-medium text-muted-foreground text-xs">
                             {formatParamId(param.id)}
                             {param.optionalToolInput && !param.requiredForToolCall && (
-                              <span className="ml-1 text-xs text-muted-foreground/60">
+                              <span className="ml-1 text-muted-foreground/60 text-xs">
                                 (Optional)
                               </span>
                             )}
@@ -888,14 +888,14 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                               blockId={blockId}
                               subBlockId={`${subBlockId}-param`}
                               placeholder={param.description}
-                              password={param.id.toLowerCase().replace(/\s+/g, '') === 'apikey'}
+                              password={param.id.toLowerCase().replace(/\s+/g, "") === "apikey"}
                               isConnecting={false}
                               config={{
                                 id: `${subBlockId}-param`,
-                                type: 'short-input',
+                                type: "short-input",
                                 title: param.id,
                               }}
-                              value={tool.params[param.id] || ''}
+                              value={tool.params[param.id] || ""}
                               onChange={(value) => handleParamChange(toolIndex, param.id, value)}
                             />
                           </div>
@@ -912,13 +912,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                className="h-6 px-2 text-muted-foreground text-xs hover:text-foreground"
               >
-                <PlusIcon className="w-3 h-3" />
+                <PlusIcon className="h-3 w-3" />
                 Add Tool
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="p-0 w-[200px]" align="start">
+            <PopoverContent className="w-[200px] p-0" align="start">
               <ToolCommand.Root filter={customFilter}>
                 <ToolCommand.Input placeholder="Search tools..." onValueChange={setSearchQuery} />
                 <ToolCommand.List>
@@ -930,10 +930,10 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                         setOpen(false)
                         setCustomToolModalOpen(true)
                       }}
-                      className="flex items-center gap-2 cursor-pointer mb-1"
+                      className="mb-1 flex cursor-pointer items-center gap-2"
                     >
-                      <div className="flex items-center justify-center w-6 h-6 rounded border border-dashed border-muted-foreground/50 bg-transparent">
-                        <WrenchIcon className="w-4 h-4 text-muted-foreground" />
+                      <div className="flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent">
+                        <WrenchIcon className="h-4 w-4 text-muted-foreground" />
                       </div>
                       <span>Create Tool</span>
                     </ToolCommand.Item>
@@ -942,7 +942,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                     {customTools.length > 0 && (
                       <>
                         <ToolCommand.Separator />
-                        <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                        <div className="px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs">
                           Custom Tools
                         </div>
                         <ToolCommand.Group className="-mx-1 -px-1">
@@ -952,13 +952,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                               value={customTool.title}
                               onSelect={() => {
                                 const newTool: StoredTool = {
-                                  type: 'custom-tool',
+                                  type: "custom-tool",
                                   title: customTool.title,
                                   params: {},
                                   isExpanded: true,
                                   schema: customTool.schema,
                                   code: customTool.code,
-                                  usageControl: 'auto',
+                                  usageControl: "auto",
                                 }
 
                                 if (isWide) {
@@ -982,12 +982,12 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                 }
                                 setOpen(false)
                               }}
-                              className="flex items-center gap-2 cursor-pointer"
+                              className="flex cursor-pointer items-center gap-2"
                             >
-                              <div className="flex items-center justify-center w-6 h-6 rounded bg-blue-500">
-                                <WrenchIcon className="w-4 h-4 text-white" />
+                              <div className="flex h-6 w-6 items-center justify-center rounded bg-blue-500">
+                                <WrenchIcon className="h-4 w-4 text-white" />
                               </div>
-                              <span className="truncate max-w-[140px]">{customTool.title}</span>
+                              <span className="max-w-[140px] truncate">{customTool.title}</span>
                             </ToolCommand.Item>
                           ))}
                         </ToolCommand.Group>
@@ -997,10 +997,10 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
 
                     {/* Display built-in tools */}
                     {toolBlocks.some(
-                      (block) => customFilter(block.name, searchQuery || '') > 0
+                      (block) => customFilter(block.name, searchQuery || "") > 0
                     ) && (
                       <>
-                        <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
+                        <div className="px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs">
                           Built-in Tools
                         </div>
                         <ToolCommand.Group className="-mx-1 -px-1">
@@ -1009,15 +1009,15 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                               key={block.type}
                               value={block.name}
                               onSelect={() => handleSelectTool(block)}
-                              className="flex items-center gap-2 cursor-pointer"
+                              className="flex cursor-pointer items-center gap-2"
                             >
                               <div
-                                className="flex items-center justify-center w-6 h-6 rounded"
+                                className="flex h-6 w-6 items-center justify-center rounded"
                                 style={{ backgroundColor: block.bgColor }}
                               >
-                                <IconComponent icon={block.icon} className="w-4 h-4 text-white" />
+                                <IconComponent icon={block.icon} className="h-4 w-4 text-white" />
                               </div>
-                              <span className="truncate max-w-[140px]">{block.name}</span>
+                              <span className="max-w-[140px] truncate">{block.name}</span>
                             </ToolCommand.Item>
                           ))}
                         </ToolCommand.Group>
@@ -1041,7 +1041,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
         onSave={editingToolIndex !== null ? handleSaveCustomTool : handleAddCustomTool}
         onDelete={handleDeleteTool}
         initialValues={
-          editingToolIndex !== null && selectedTools[editingToolIndex]?.type === 'custom-tool'
+          editingToolIndex !== null && selectedTools[editingToolIndex]?.type === "custom-tool"
             ? {
                 id: customTools.find(
                   (tool) =>
@@ -1049,7 +1049,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                     selectedTools[editingToolIndex].schema.function.name
                 )?.id,
                 schema: selectedTools[editingToolIndex].schema,
-                code: selectedTools[editingToolIndex].code || '',
+                code: selectedTools[editingToolIndex].code || "",
               }
             : undefined
         }

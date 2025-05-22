@@ -1,4 +1,4 @@
-import { ToolResponse } from '../types'
+import type { ToolResponse } from "../types"
 
 export interface TavilySearchResult {
   title: string
@@ -31,7 +31,7 @@ export interface TavilyExtractResponse extends ToolResponse {
 export interface TavilyExtractParams {
   urls: string | string[]
   apiKey: string
-  extract_depth?: 'basic' | 'advanced'
+  extract_depth?: "basic" | "advanced"
 }
 
 interface ExtractResult {

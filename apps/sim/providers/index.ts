@@ -1,10 +1,10 @@
-import { createLogger } from '@/lib/logs/console-logger'
-import { StreamingExecution } from '@/executor/types'
-import { supportsTemperature } from './model-capabilities'
-import { ProviderRequest, ProviderResponse } from './types'
-import { calculateCost, generateStructuredOutputInstructions, getProvider } from './utils'
+import { createLogger } from "@/lib/logs/console-logger"
+import type { StreamingExecution } from "@/executor/types"
+import { supportsTemperature } from "./model-capabilities"
+import type { ProviderRequest, ProviderResponse } from "./types"
+import { calculateCost, generateStructuredOutputInstructions, getProvider } from "./utils"
 
-const logger = createLogger('Providers')
+const logger = createLogger("Providers")
 
 // Sanitize the request by removing parameters that aren't supported by the model
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
@@ -13,7 +13,7 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
 
   // Remove temperature if the model doesn't support it
   if (sanitizedRequest.model && !supportsTemperature(sanitizedRequest.model)) {
-    delete sanitizedRequest.temperature
+    sanitizedRequest.temperature = undefined
   }
 
   return sanitizedRequest
@@ -21,7 +21,7 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
 
 // Type guard for StreamingExecution
 function isStreamingExecution(response: any): response is StreamingExecution {
-  return response && typeof response === 'object' && 'stream' in response && 'execution' in response
+  return response && typeof response === "object" && "stream" in response && "execution" in response
 }
 
 // Type guard for ReadableStream
@@ -51,10 +51,10 @@ export async function executeProviderRequest(
   // If responseFormat is provided, modify the system prompt to enforce structured output
   if (sanitizedRequest.responseFormat) {
     if (
-      typeof sanitizedRequest.responseFormat === 'string' &&
-      sanitizedRequest.responseFormat === ''
+      typeof sanitizedRequest.responseFormat === "string" &&
+      sanitizedRequest.responseFormat === ""
     ) {
-      logger.info(`Empty response format provided, ignoring it`)
+      logger.info("Empty response format provided, ignoring it")
       sanitizedRequest.responseFormat = undefined
     } else {
       // Generate structured output instructions
@@ -64,11 +64,11 @@ export async function executeProviderRequest(
 
       // Only add additional instructions if they're not empty
       if (structuredOutputInstructions.trim()) {
-        const originalPrompt = sanitizedRequest.systemPrompt || ''
+        const originalPrompt = sanitizedRequest.systemPrompt || ""
         sanitizedRequest.systemPrompt =
           `${originalPrompt}\n\n${structuredOutputInstructions}`.trim()
 
-        logger.info(`Added structured output instructions to system prompt`)
+        logger.info("Added structured output instructions to system prompt")
       }
     }
   }
@@ -78,17 +78,17 @@ export async function executeProviderRequest(
 
   // If we received a StreamingExecution or ReadableStream, just pass it through
   if (isStreamingExecution(response)) {
-    logger.info(`Provider returned StreamingExecution`)
+    logger.info("Provider returned StreamingExecution")
     return response
   }
 
   if (isReadableStream(response)) {
-    logger.info(`Provider returned ReadableStream`)
+    logger.info("Provider returned ReadableStream")
     return response
   }
 
   // At this point, we know we have a ProviderResponse
-  logger.info(`Provider response received`, {
+  logger.info("Provider response received", {
     contentLength: response.content ? response.content.length : 0,
     model: response.model,
     hasTokens: !!response.tokens,

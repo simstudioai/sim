@@ -1,6 +1,6 @@
-import { filesTool } from './files'
-import { insightsTool } from './insights'
-import { responsesTool } from './responses'
+import { filesTool } from "./files"
+import { insightsTool } from "./insights"
+import { responsesTool } from "./responses"
 
 export const typeformResponsesTool = responsesTool
 export const typeformFilesTool = filesTool

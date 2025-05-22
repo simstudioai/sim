@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef } from 'react'
-import { isEqual } from 'lodash'
-import { useGeneralStore } from '@/stores/settings/general/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { getProviderFromModel } from '@/providers/utils'
+import { useCallback, useEffect, useRef } from "react"
+import { isEqual } from "lodash"
+import { useGeneralStore } from "@/stores/settings/general/store"
+import { useSubBlockStore } from "@/stores/workflows/subblock/store"
+import { useWorkflowStore } from "@/stores/workflows/workflow/store"
+import { getProviderFromModel } from "@/providers/utils"
 
 /**
  * Helper to handle API key auto-fill for provider-based blocks
@@ -22,22 +22,22 @@ function handleProviderBasedApiKey(
   const provider = getProviderFromModel(modelValue)
 
   // Skip if we couldn't determine a provider
-  if (!provider || provider === 'ollama') return
+  if (!provider || provider === "ollama") return
 
   const subBlockStore = useSubBlockStore.getState()
 
   // Try to get a saved API key for this provider
-  const savedValue = subBlockStore.resolveToolParamValue(provider, 'apiKey', blockId)
+  const savedValue = subBlockStore.resolveToolParamValue(provider, "apiKey", blockId)
 
   // If we have a valid API key, use it
-  if (savedValue && savedValue !== '') {
+  if (savedValue && savedValue !== "") {
     // Always update the value when switching models, even if it appears the same
     // This handles cases where the field shows masked values but needs to update
     subBlockStore.setValue(blockId, subBlockId, savedValue)
   } else {
     // Always clear the field when switching to a model with no API key
     // Don't wait for user interaction to clear it
-    subBlockStore.setValue(blockId, subBlockId, '')
+    subBlockStore.setValue(blockId, subBlockId, "")
   }
 }
 
@@ -55,11 +55,11 @@ function handleStandardBlockApiKey(
   const subBlockStore = useSubBlockStore.getState()
 
   // Only auto-fill if the field is empty
-  if (!storeValue || storeValue === '') {
+  if (!storeValue || storeValue === "") {
     // Pass the blockId as instanceId to check if this specific instance has been cleared
-    const savedValue = subBlockStore.resolveToolParamValue(blockType, 'apiKey', blockId)
+    const savedValue = subBlockStore.resolveToolParamValue(blockType, "apiKey", blockId)
 
-    if (savedValue && savedValue !== '' && savedValue !== storeValue) {
+    if (savedValue && savedValue !== "" && savedValue !== storeValue) {
       // Auto-fill the API key from the param store
       subBlockStore.setValue(blockId, subBlockId, savedValue)
     }
@@ -67,12 +67,12 @@ function handleStandardBlockApiKey(
   // Handle environment variable references
   else if (
     storeValue &&
-    typeof storeValue === 'string' &&
-    storeValue.startsWith('{{') &&
-    storeValue.endsWith('}}')
+    typeof storeValue === "string" &&
+    storeValue.startsWith("{{") &&
+    storeValue.endsWith("}}")
   ) {
     // Pass the blockId as instanceId
-    const currentValue = subBlockStore.resolveToolParamValue(blockType, 'apiKey', blockId)
+    const currentValue = subBlockStore.resolveToolParamValue(blockType, "apiKey", blockId)
 
     if (currentValue !== storeValue) {
       // If we got a replacement or null, update the field
@@ -103,35 +103,35 @@ function storeApiKeyValue(
   // clearing from model switching
   if (
     storeValue &&
-    storeValue !== '' &&
-    (newValue === null || newValue === '' || String(newValue).trim() === '')
+    storeValue !== "" &&
+    (newValue === null || newValue === "" || String(newValue).trim() === "")
   ) {
     // Mark this specific instance as cleared so we don't auto-fill it
-    subBlockStore.markParamAsCleared(blockId, 'apiKey')
+    subBlockStore.markParamAsCleared(blockId, "apiKey")
     return
   }
 
   // Only store non-empty values
-  if (!newValue || String(newValue).trim() === '') return
+  if (!newValue || String(newValue).trim() === "") return
 
   // If user enters a value, we should clear any "cleared" flag
   // to ensure auto-fill will work in the future
-  if (subBlockStore.isParamCleared(blockId, 'apiKey')) {
-    subBlockStore.unmarkParamAsCleared(blockId, 'apiKey')
+  if (subBlockStore.isParamCleared(blockId, "apiKey")) {
+    subBlockStore.unmarkParamAsCleared(blockId, "apiKey")
   }
 
   // For provider-based blocks, store the API key under the provider name
   if (
-    (blockType === 'agent' || blockType === 'router' || blockType === 'evaluator') &&
+    (blockType === "agent" || blockType === "router" || blockType === "evaluator") &&
     modelValue
   ) {
     const provider = getProviderFromModel(modelValue)
-    if (provider && provider !== 'ollama') {
-      subBlockStore.setToolParam(provider, 'apiKey', String(newValue))
+    if (provider && provider !== "ollama") {
+      subBlockStore.setToolParam(provider, "apiKey", String(newValue))
     }
   } else {
     // For other blocks, store under the block type
-    subBlockStore.setToolParam(blockType, 'apiKey', String(newValue))
+    subBlockStore.setToolParam(blockType, "apiKey", String(newValue))
   }
 }
 
@@ -147,7 +147,7 @@ function storeApiKeyValue(
 export function useSubBlockValue<T = any>(
   blockId: string,
   subBlockId: string,
-  triggerWorkflowUpdate: boolean = false
+  triggerWorkflowUpdate = false
 ): readonly [T | null, (value: T) => void] {
   const blockType = useWorkflowStore(
     useCallback((state) => state.blocks?.[blockId]?.type, [blockId])
@@ -173,19 +173,19 @@ export function useSubBlockValue<T = any>(
 
   // Check if this is an API key field that could be auto-filled
   const isApiKey =
-    subBlockId === 'apiKey' || (subBlockId?.toLowerCase().includes('apikey') ?? false)
+    subBlockId === "apiKey" || (subBlockId?.toLowerCase().includes("apikey") ?? false)
 
   // Check if auto-fill environment variables is enabled - always call this hook unconditionally
   const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
 
   // Always call this hook unconditionally - don't wrap it in a condition
   const modelSubBlockValue = useSubBlockStore((state) =>
-    blockId ? state.getValue(blockId, 'model') : null
+    blockId ? state.getValue(blockId, "model") : null
   )
 
   // Determine if this is a provider-based block type
   const isProviderBasedBlock =
-    blockType === 'agent' || blockType === 'router' || blockType === 'evaluator'
+    blockType === "agent" || blockType === "router" || blockType === "evaluator"
 
   // Compute the modelValue based on block type
   const modelValue = isProviderBasedBlock ? (modelSubBlockValue as string) : null
@@ -201,7 +201,7 @@ export function useSubBlockValue<T = any>(
         const valueCopy =
           newValue === null
             ? null
-            : typeof newValue === 'object'
+            : typeof newValue === "object"
               ? JSON.parse(JSON.stringify(newValue))
               : newValue
 
@@ -269,20 +269,20 @@ export function useSubBlockValue<T = any>(
         const provider = getProviderFromModel(modelValue)
 
         // Skip if we couldn't determine a provider
-        if (!provider || provider === 'ollama') return
+        if (!provider || provider === "ollama") return
 
         const subBlockStore = useSubBlockStore.getState()
 
         // Check if there's a saved value for this provider
-        const savedValue = subBlockStore.resolveToolParamValue(provider, 'apiKey', blockId)
+        const savedValue = subBlockStore.resolveToolParamValue(provider, "apiKey", blockId)
 
-        if (savedValue && savedValue !== '' && isAutoFillEnvVarsEnabled) {
+        if (savedValue && savedValue !== "" && isAutoFillEnvVarsEnabled) {
           // Only auto-fill if the feature is enabled
           subBlockStore.setValue(blockId, subBlockId, savedValue)
         } else {
           // Always clear immediately when switching to a model with no saved key
           // or when auto-fill is disabled
-          subBlockStore.setValue(blockId, subBlockId, '')
+          subBlockStore.setValue(blockId, subBlockId, "")
         }
       }
     }

@@ -1,17 +1,17 @@
-import { NextRequest } from 'next/server'
-import { render } from '@react-email/render'
-import { eq } from 'drizzle-orm'
-import { z } from 'zod'
-import OTPVerificationEmail from '@/components/emails/otp-verification-email'
-import { createLogger } from '@/lib/logs/console-logger'
-import { sendEmail } from '@/lib/mailer'
-import { getRedisClient, markMessageAsProcessed, releaseLock } from '@/lib/redis'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { chat } from '@/db/schema'
-import { addCorsHeaders, setChatAuthCookie } from '../../utils'
+import type { NextRequest } from "next/server"
+import { render } from "@react-email/render"
+import { eq } from "drizzle-orm"
+import { z } from "zod"
+import OTPVerificationEmail from "@/components/emails/otp-verification-email"
+import { createLogger } from "@/lib/logs/console-logger"
+import { sendEmail } from "@/lib/mailer"
+import { getRedisClient, markMessageAsProcessed, releaseLock } from "@/lib/redis"
+import { createErrorResponse, createSuccessResponse } from "@/app/api/workflows/utils"
+import { db } from "@/db"
+import { chat } from "@/db/schema"
+import { addCorsHeaders, setChatAuthCookie } from "../../utils"
 
-const logger = createLogger('ChatOtpAPI')
+const logger = createLogger("ChatOtpAPI")
 
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString()
@@ -28,7 +28,7 @@ async function storeOTP(email: string, chatId: string, otp: string): Promise<voi
 
   if (redis) {
     // Use Redis if available
-    await redis.set(key, otp, 'EX', OTP_EXPIRY)
+    await redis.set(key, otp, "EX", OTP_EXPIRY)
   } else {
     // Use the existing function as fallback to mark that an OTP exists
     await markMessageAsProcessed(key, OTP_EXPIRY)
@@ -45,7 +45,7 @@ async function storeOTP(email: string, chatId: string, otp: string): Promise<voi
         inMemoryCache.set(fullKey, { value: otp, expiry })
       }
     } catch (error) {
-      logger.error('Error storing OTP in fallback cache:', error)
+      logger.error("Error storing OTP in fallback cache:", error)
     }
   }
 }
@@ -58,32 +58,31 @@ async function getOTP(email: string, chatId: string): Promise<string | null> {
   if (redis) {
     // Use Redis if available
     return await redis.get(key)
-  } else {
-    // Use the existing function as fallback - check if it exists
-    const exists = await new Promise((resolve) => {
-      try {
-        // Check the in-memory cache directly - hacky but works for fallback
-        const inMemoryCache = (global as any).inMemoryCache
-        const fullKey = `processed:${key}`
-        const cacheEntry = inMemoryCache?.get(fullKey)
-        resolve(!!cacheEntry)
-      } catch {
-        resolve(false)
-      }
-    })
-
-    if (!exists) return null
-
-    // Try to get the value key
-    const valueKey = `${key}:value`
+  }
+  // Use the existing function as fallback - check if it exists
+  const exists = await new Promise((resolve) => {
     try {
+      // Check the in-memory cache directly - hacky but works for fallback
       const inMemoryCache = (global as any).inMemoryCache
-      const fullKey = `processed:${valueKey}`
+      const fullKey = `processed:${key}`
       const cacheEntry = inMemoryCache?.get(fullKey)
-      return cacheEntry?.value || null
+      resolve(!!cacheEntry)
     } catch {
-      return null
+      resolve(false)
     }
+  })
+
+  if (!exists) return null
+
+  // Try to get the value key
+  const valueKey = `${key}:value`
+  try {
+    const inMemoryCache = (global as any).inMemoryCache
+    const fullKey = `processed:${valueKey}`
+    const cacheEntry = inMemoryCache?.get(fullKey)
+    return cacheEntry?.value || null
+  } catch {
+    return null
   }
 }
 
@@ -103,12 +102,12 @@ async function deleteOTP(email: string, chatId: string): Promise<void> {
 }
 
 const otpRequestSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().email("Invalid email address"),
 })
 
 const otpVerifySchema = z.object({
-  email: z.string().email('Invalid email address'),
-  otp: z.string().length(6, 'OTP must be 6 digits'),
+  email: z.string().email("Invalid email address"),
+  otp: z.string().length(6, "OTP must be 6 digits"),
 })
 
 // Send OTP endpoint
@@ -142,15 +141,15 @@ export async function POST(
 
       if (deploymentResult.length === 0) {
         logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
-        return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
+        return addCorsHeaders(createErrorResponse("Chat not found", 404), request)
       }
 
       const deployment = deploymentResult[0]
 
       // Verify this is an email-protected chat
-      if (deployment.authType !== 'email') {
+      if (deployment.authType !== "email") {
         return addCorsHeaders(
-          createErrorResponse('This chat does not use email authentication', 400),
+          createErrorResponse("This chat does not use email authentication", 400),
           request
         )
       }
@@ -163,8 +162,8 @@ export async function POST(
       const isEmailAllowed =
         allowedEmails.includes(email) ||
         allowedEmails.some((allowed: string) => {
-          if (allowed.startsWith('@')) {
-            const domain = email.split('@')[1]
+          if (allowed.startsWith("@")) {
+            const domain = email.split("@")[1]
             return domain && allowed === `@${domain}`
           }
           return false
@@ -172,7 +171,7 @@ export async function POST(
 
       if (!isEmailAllowed) {
         return addCorsHeaders(
-          createErrorResponse('Email not authorized for this chat', 403),
+          createErrorResponse("Email not authorized for this chat", 403),
           request
         )
       }
@@ -187,8 +186,8 @@ export async function POST(
       const emailContent = OTPVerificationEmail({
         otp,
         email,
-        type: 'chat-access',
-        chatTitle: deployment.title || 'Chat',
+        type: "chat-access",
+        chatTitle: deployment.title || "Chat",
       })
 
       // await the render function
@@ -197,14 +196,14 @@ export async function POST(
       // MAKE SURE TO AWAIT THE EMAIL SENDING
       const emailResult = await sendEmail({
         to: email,
-        subject: `Verification code for ${deployment.title || 'Chat'}`,
+        subject: `Verification code for ${deployment.title || "Chat"}`,
         html: emailHtml,
       })
 
       if (!emailResult.success) {
         logger.error(`[${requestId}] Failed to send OTP email:`, emailResult.message)
         return addCorsHeaders(
-          createErrorResponse('Failed to send verification email', 500),
+          createErrorResponse("Failed to send verification email", 500),
           request
         )
       }
@@ -214,11 +213,11 @@ export async function POST(
       await new Promise((resolve) => setTimeout(resolve, 500))
 
       logger.info(`[${requestId}] OTP sent to ${email} for chat ${deployment.id}`)
-      return addCorsHeaders(createSuccessResponse({ message: 'Verification code sent' }), request)
+      return addCorsHeaders(createSuccessResponse({ message: "Verification code sent" }), request)
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return addCorsHeaders(
-          createErrorResponse(error.errors[0]?.message || 'Invalid request', 400),
+          createErrorResponse(error.errors[0]?.message || "Invalid request", 400),
           request
         )
       }
@@ -227,7 +226,7 @@ export async function POST(
   } catch (error: any) {
     logger.error(`[${requestId}] Error processing OTP request:`, error)
     return addCorsHeaders(
-      createErrorResponse(error.message || 'Failed to process request', 500),
+      createErrorResponse(error.message || "Failed to process request", 500),
       request
     )
   }
@@ -262,7 +261,7 @@ export async function PUT(
 
       if (deploymentResult.length === 0) {
         logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
-        return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
+        return addCorsHeaders(createErrorResponse("Chat not found", 404), request)
       }
 
       const deployment = deploymentResult[0]
@@ -271,14 +270,14 @@ export async function PUT(
       const storedOTP = await getOTP(email, deployment.id)
       if (!storedOTP) {
         return addCorsHeaders(
-          createErrorResponse('No verification code found, request a new one', 400),
+          createErrorResponse("No verification code found, request a new one", 400),
           request
         )
       }
 
       // Check if OTP matches
       if (storedOTP !== otp) {
-        return addCorsHeaders(createErrorResponse('Invalid verification code', 400), request)
+        return addCorsHeaders(createErrorResponse("Invalid verification code", 400), request)
       }
 
       // OTP is valid, clean up
@@ -294,7 +293,7 @@ export async function PUT(
     } catch (error: any) {
       if (error instanceof z.ZodError) {
         return addCorsHeaders(
-          createErrorResponse(error.errors[0]?.message || 'Invalid request', 400),
+          createErrorResponse(error.errors[0]?.message || "Invalid request", 400),
           request
         )
       }
@@ -303,7 +302,7 @@ export async function PUT(
   } catch (error: any) {
     logger.error(`[${requestId}] Error verifying OTP:`, error)
     return addCorsHeaders(
-      createErrorResponse(error.message || 'Failed to process request', 500),
+      createErrorResponse(error.message || "Failed to process request", 500),
       request
     )
   }

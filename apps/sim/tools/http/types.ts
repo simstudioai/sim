@@ -1,6 +1,6 @@
-import { ToolResponse } from '../types'
-import { HttpMethod } from '../types'
-import { TableRow } from '../types'
+import type { ToolResponse } from "../types"
+import type { HttpMethod } from "../types"
+import type { TableRow } from "../types"
 
 export interface RequestParams {
   url: string

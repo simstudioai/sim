@@ -1,71 +1,71 @@
-import { ToolConfig } from '../types'
-import { PineconeResponse, PineconeSearchHit, PineconeSearchTextParams } from './types'
+import type { ToolConfig } from "../types"
+import type { PineconeResponse, PineconeSearchHit, PineconeSearchTextParams } from "./types"
 
 export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeResponse> = {
-  id: 'pinecone_search_text',
-  name: 'Pinecone Search Text',
-  description: 'Search for similar text in a Pinecone index',
-  version: '1.0',
+  id: "pinecone_search_text",
+  name: "Pinecone Search Text",
+  description: "Search for similar text in a Pinecone index",
+  version: "1.0",
 
   params: {
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Pinecone API key',
+      description: "Pinecone API key",
     },
     indexHost: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Full Pinecone index host URL',
+      description: "Full Pinecone index host URL",
     },
     namespace: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Namespace to search in',
+      description: "Namespace to search in",
     },
     searchQuery: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Text to search for',
+      description: "Text to search for",
     },
     topK: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Number of results to return',
+      description: "Number of results to return",
     },
     fields: {
-      type: 'array',
+      type: "array",
       required: false,
-      description: 'Fields to return in the results',
+      description: "Fields to return in the results",
     },
     filter: {
-      type: 'object',
+      type: "object",
       required: false,
-      description: 'Filter to apply to the search',
+      description: "Filter to apply to the search",
     },
     rerank: {
-      type: 'object',
+      type: "object",
       required: false,
-      description: 'Reranking parameters',
+      description: "Reranking parameters",
     },
   },
 
   request: {
-    method: 'POST',
+    method: "POST",
     url: (params) => `${params.indexHost}/records/namespaces/${params.namespace}/search`,
     headers: (params) => ({
-      'Api-Key': params.apiKey,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'X-Pinecone-API-Version': '2025-01',
+      "Api-Key": params.apiKey,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "X-Pinecone-API-Version": "2025-01",
     }),
     body: (params) => {
       // Format the query object
       const query = {
         inputs: { text: params.searchQuery },
-        top_k: parseInt(params.topK || '10'),
+        top_k: Number.parseInt(params.topK || "10"),
       }
 
       // Build the request body
@@ -75,16 +75,16 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
 
       // Add optional parameters if provided
       if (params.fields) {
-        body.fields = typeof params.fields === 'string' ? JSON.parse(params.fields) : params.fields
+        body.fields = typeof params.fields === "string" ? JSON.parse(params.fields) : params.fields
       }
 
       if (params.filter) {
         body.query.filter =
-          typeof params.filter === 'string' ? JSON.parse(params.filter) : params.filter
+          typeof params.filter === "string" ? JSON.parse(params.filter) : params.filter
       }
 
       if (params.rerank) {
-        body.rerank = typeof params.rerank === 'string' ? JSON.parse(params.rerank) : params.rerank
+        body.rerank = typeof params.rerank === "string" ? JSON.parse(params.rerank) : params.rerank
         // If rerank query is not specified, use the search query
         if (!body.rerank.query) {
           body.rerank.query = { text: params.searchQuery }

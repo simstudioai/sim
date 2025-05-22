@@ -1,11 +1,11 @@
-import OpenAI from 'openai'
-import { createLogger } from '@/lib/logs/console-logger'
-import { StreamingExecution } from '@/executor/types'
-import { executeTool } from '@/tools'
-import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
+import OpenAI from "openai"
+import { createLogger } from "@/lib/logs/console-logger"
+import type { StreamingExecution } from "@/executor/types"
+import { executeTool } from "@/tools"
+import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
+import { prepareToolsWithUsageControl, trackForcedToolUsage } from "../utils"
 
-const logger = createLogger('OpenAIProvider')
+const logger = createLogger("OpenAIProvider")
 
 /**
  * Helper function to convert an OpenAI stream to a standard ReadableStream
@@ -15,7 +15,7 @@ function createReadableStreamFromOpenAIStream(
   openaiStream: any,
   onComplete?: (content: string, usage?: any) => void
 ): ReadableStream {
-  let fullContent = ''
+  let fullContent = ""
   let usageData: any = null
 
   return new ReadableStream({
@@ -27,7 +27,7 @@ function createReadableStreamFromOpenAIStream(
             usageData = chunk.usage
           }
 
-          const content = chunk.choices[0]?.delta?.content || ''
+          const content = chunk.choices[0]?.delta?.content || ""
           if (content) {
             fullContent += content
             controller.enqueue(new TextEncoder().encode(content))
@@ -51,18 +51,18 @@ function createReadableStreamFromOpenAIStream(
  * OpenAI provider configuration
  */
 export const openaiProvider: ProviderConfig = {
-  id: 'openai',
-  name: 'OpenAI',
+  id: "openai",
+  name: "OpenAI",
   description: "OpenAI's GPT models",
-  version: '1.0.0',
-  models: ['gpt-4o', 'o1', 'o3', 'o4-mini', 'gpt-4.1'],
-  defaultModel: 'gpt-4o',
+  version: "1.0.0",
+  models: ["gpt-4o", "o1", "o3", "o4-mini", "gpt-4.1"],
+  defaultModel: "gpt-4o",
 
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
-    logger.info('Preparing OpenAI request', {
-      model: request.model || 'gpt-4o',
+    logger.info("Preparing OpenAI request", {
+      model: request.model || "gpt-4o",
       hasSystemPrompt: !!request.systemPrompt,
       hasMessages: !!request.messages?.length,
       hasTools: !!request.tools?.length,
@@ -80,7 +80,7 @@ export const openaiProvider: ProviderConfig = {
     // Add system prompt if present
     if (request.systemPrompt) {
       allMessages.push({
-        role: 'system',
+        role: "system",
         content: request.systemPrompt,
       })
     }
@@ -88,7 +88,7 @@ export const openaiProvider: ProviderConfig = {
     // Add context if present
     if (request.context) {
       allMessages.push({
-        role: 'user',
+        role: "user",
         content: request.context,
       })
     }
@@ -101,7 +101,7 @@ export const openaiProvider: ProviderConfig = {
     // Transform tools to OpenAI format if provided
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
-          type: 'function',
+          type: "function",
           function: {
             name: tool.id,
             description: tool.description,
@@ -112,7 +112,7 @@ export const openaiProvider: ProviderConfig = {
 
     // Build the request payload
     const payload: any = {
-      model: request.model || 'gpt-4o',
+      model: request.model || "gpt-4o",
       messages: allMessages,
     }
 
@@ -124,41 +124,41 @@ export const openaiProvider: ProviderConfig = {
     if (request.responseFormat) {
       // Use OpenAI's JSON schema format
       payload.response_format = {
-        type: 'json_schema',
+        type: "json_schema",
         json_schema: {
-          name: request.responseFormat.name || 'response_schema',
+          name: request.responseFormat.name || "response_schema",
           schema: request.responseFormat.schema || request.responseFormat,
           strict: request.responseFormat.strict !== false,
         },
       }
 
-      logger.info('Added JSON schema response format to request')
+      logger.info("Added JSON schema response format to request")
     }
 
     // Handle tools and tool usage control
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
     if (tools?.length) {
-      preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'openai')
+      preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, "openai")
       const { tools: filteredTools, toolChoice } = preparedTools
 
       if (filteredTools?.length && toolChoice) {
         payload.tools = filteredTools
         payload.tool_choice = toolChoice
 
-        logger.info(`OpenAI request configuration:`, {
+        logger.info("OpenAI request configuration:", {
           toolCount: filteredTools.length,
           toolChoice:
-            typeof toolChoice === 'string'
+            typeof toolChoice === "string"
               ? toolChoice
-              : toolChoice.type === 'function'
+              : toolChoice.type === "function"
                 ? `force:${toolChoice.function.name}`
-                : toolChoice.type === 'tool'
+                : toolChoice.type === "tool"
                   ? `force:${toolChoice.name}`
-                  : toolChoice.type === 'any'
-                    ? `force:${toolChoice.any?.name || 'unknown'}`
-                    : 'unknown',
-          model: request.model || 'gpt-4o',
+                  : toolChoice.type === "any"
+                    ? `force:${toolChoice.any?.name || "unknown"}`
+                    : "unknown",
+          model: request.model || "gpt-4o",
         })
       }
     }
@@ -170,7 +170,7 @@ export const openaiProvider: ProviderConfig = {
     try {
       // Check if we can stream directly (no tools required)
       if (request.stream && (!tools || tools.length === 0)) {
-        logger.info('Using streaming response for OpenAI request')
+        logger.info("Using streaming response for OpenAI request")
 
         // Create a streaming request with token usage tracking
         const streamResponse = await openai.chat.completions.create({
@@ -180,13 +180,13 @@ export const openaiProvider: ProviderConfig = {
         })
 
         // Start collecting token usage from the stream
-        let tokenUsage = {
+        const tokenUsage = {
           prompt: 0,
           completion: 0,
           total: 0,
         }
 
-        let streamContent = ''
+        let streamContent = ""
 
         // Create a StreamingExecution response with a callback to update content and tokens
         const streamingResult = {
@@ -229,7 +229,7 @@ export const openaiProvider: ProviderConfig = {
             success: true,
             output: {
               response: {
-                content: '', // Will be filled by the stream completion callback
+                content: "", // Will be filled by the stream completion callback
                 model: request.model,
                 tokens: tokenUsage,
                 toolCalls: undefined,
@@ -239,8 +239,8 @@ export const openaiProvider: ProviderConfig = {
                   duration: Date.now() - providerStartTime,
                   timeSegments: [
                     {
-                      type: 'model',
-                      name: 'Streaming response',
+                      type: "model",
+                      name: "Streaming response",
                       startTime: providerStartTime,
                       endTime: Date.now(),
                       duration: Date.now() - providerStartTime,
@@ -278,13 +278,13 @@ export const openaiProvider: ProviderConfig = {
         response: any,
         toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
       ) => {
-        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
+        if (typeof toolChoice === "object" && response.choices[0]?.message?.tool_calls) {
           const toolCallsResponse = response.choices[0].message.tool_calls
           const result = trackForcedToolUsage(
             toolCallsResponse,
             toolChoice,
             logger,
-            'openai',
+            "openai",
             forcedTools,
             usedForcedTools
           )
@@ -296,16 +296,16 @@ export const openaiProvider: ProviderConfig = {
       let currentResponse = await openai.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
-      let content = currentResponse.choices[0]?.message?.content || ''
+      let content = currentResponse.choices[0]?.message?.content || ""
       // Collect token information but don't calculate costs - that will be done in execution-logger.ts
-      let tokens = {
+      const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
-      let toolCalls = []
-      let toolResults = []
-      let currentMessages = [...allMessages]
+      const toolCalls = []
+      const toolResults = []
+      const currentMessages = [...allMessages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 
@@ -319,8 +319,8 @@ export const openaiProvider: ProviderConfig = {
       // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
-          type: 'model',
-          name: 'Initial response',
+          type: "model",
+          name: "Initial response",
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -370,7 +370,7 @@ export const openaiProvider: ProviderConfig = {
 
             // Add to time segments
             timeSegments.push({
-              type: 'tool',
+              type: "tool",
               name: toolName,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
@@ -389,12 +389,12 @@ export const openaiProvider: ProviderConfig = {
 
             // Add the tool call and result to messages
             currentMessages.push({
-              role: 'assistant',
+              role: "assistant",
               content: null,
               tool_calls: [
                 {
                   id: toolCall.id,
-                  type: 'function',
+                  type: "function",
                   function: {
                     name: toolName,
                     arguments: toolCall.function.arguments,
@@ -404,12 +404,12 @@ export const openaiProvider: ProviderConfig = {
             })
 
             currentMessages.push({
-              role: 'tool',
+              role: "tool",
               tool_call_id: toolCall.id,
               content: JSON.stringify(result.output),
             })
           } catch (error) {
-            logger.error('Error processing tool call:', {
+            logger.error("Error processing tool call:", {
               error,
               toolName: toolCall?.function?.name,
             })
@@ -427,21 +427,21 @@ export const openaiProvider: ProviderConfig = {
         }
 
         // Update tool_choice based on which forced tools have been used
-        if (typeof originalToolChoice === 'object' && hasUsedForcedTool && forcedTools.length > 0) {
+        if (typeof originalToolChoice === "object" && hasUsedForcedTool && forcedTools.length > 0) {
           // If we have remaining forced tools, get the next one to force
           const remainingTools = forcedTools.filter((tool) => !usedForcedTools.includes(tool))
 
           if (remainingTools.length > 0) {
             // Force the next tool
             nextPayload.tool_choice = {
-              type: 'function',
+              type: "function",
               function: { name: remainingTools[0] },
             }
             logger.info(`Forcing next tool: ${remainingTools[0]}`)
           } else {
             // All forced tools have been used, switch to auto
-            nextPayload.tool_choice = 'auto'
-            logger.info('All forced tools have been used, switching to auto tool_choice')
+            nextPayload.tool_choice = "auto"
+            logger.info("All forced tools have been used, switching to auto tool_choice")
           }
         }
 
@@ -459,7 +459,7 @@ export const openaiProvider: ProviderConfig = {
 
         // Add to time segments
         timeSegments.push({
-          type: 'model',
+          type: "model",
           name: `Model response (iteration ${iterationCount + 1})`,
           startTime: nextModelStartTime,
           endTime: nextModelEndTime,
@@ -486,14 +486,14 @@ export const openaiProvider: ProviderConfig = {
 
       // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
       if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final response after tool calls')
+        logger.info("Using streaming for final response after tool calls")
 
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents OpenAI API from trying to force tool usage again in the final streaming response
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
+          tool_choice: "auto", // Always use 'auto' for the streaming response after tool calls
           stream: true,
           stream_options: { include_usage: true },
         }
@@ -501,7 +501,7 @@ export const openaiProvider: ProviderConfig = {
         const streamResponse = await openai.chat.completions.create(streamingPayload)
 
         // Create the StreamingExecution object with all collected data
-        let streamContent = ''
+        let streamContent = ""
 
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
@@ -524,7 +524,7 @@ export const openaiProvider: ProviderConfig = {
             success: true,
             output: {
               response: {
-                content: '', // Will be filled by the callback
+                content: "", // Will be filled by the callback
                 model: request.model,
                 tokens: {
                   prompt: tokens.prompt,
@@ -593,7 +593,7 @@ export const openaiProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in OpenAI request:', {
+      logger.error("Error in OpenAI request:", {
         error,
         duration: totalDuration,
       })

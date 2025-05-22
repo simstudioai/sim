@@ -1,7 +1,8 @@
-'use client'
+"use client"
 
-import React, { useEffect, useId, useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
+import type React from "react"
+import { useEffect, useId, useRef, useState } from "react"
+import { cn } from "@/lib/utils"
 
 /**
  *  DotPattern Component Props
@@ -84,8 +85,8 @@ export function DotPattern({
     }
 
     updateDimensions()
-    window.addEventListener('resize', updateDimensions)
-    return () => window.removeEventListener('resize', updateDimensions)
+    window.addEventListener("resize", updateDimensions)
+    return () => window.removeEventListener("resize", updateDimensions)
   }, [])
 
   const dots = Array.from(
@@ -108,7 +109,7 @@ export function DotPattern({
     <svg
       ref={containerRef}
       aria-hidden="true"
-      className={cn('pointer-events-none absolute inset-0 h-full w-full', className)}
+      className={cn("pointer-events-none absolute inset-0 h-full w-full", className)}
       {...props}
     >
       <defs>
@@ -123,7 +124,7 @@ export function DotPattern({
           cx={dot.x}
           cy={dot.y}
           r={cr}
-          fill={glow ? `url(#${id}-gradient)` : 'currentColor'}
+          fill={glow ? `url(#${id}-gradient)` : "currentColor"}
           className="text-neutral-400/80"
         />
       ))}

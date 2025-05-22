@@ -1,21 +1,21 @@
-import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
-import { getAllBlocks } from '@/blocks'
-import { BlockOutput } from '@/blocks/types'
-import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
-import { SerializedBlock } from '@/serializer/types'
-import { executeTool } from '@/tools'
-import { getTool, getToolAsync } from '@/tools/utils'
-import { BlockHandler, ExecutionContext, StreamingExecution } from '../../types'
+import { env } from "@/lib/env"
+import { createLogger } from "@/lib/logs/console-logger"
+import { getAllBlocks } from "@/blocks"
+import type { BlockOutput } from "@/blocks/types"
+import { getProviderFromModel, transformBlockTool } from "@/providers/utils"
+import type { SerializedBlock } from "@/serializer/types"
+import { executeTool } from "@/tools"
+import { getTool, getToolAsync } from "@/tools/utils"
+import type { BlockHandler, ExecutionContext, StreamingExecution } from "../../types"
 
-const logger = createLogger('AgentBlockHandler')
+const logger = createLogger("AgentBlockHandler")
 
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
  */
 export class AgentBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'agent'
+    return block.metadata?.id === "agent"
   }
 
   async execute(
@@ -29,35 +29,35 @@ export class AgentBlockHandler implements BlockHandler {
     let responseFormat: any = undefined
     if (inputs.responseFormat) {
       // Handle empty string case - treat it as no response format
-      if (inputs.responseFormat === '') {
+      if (inputs.responseFormat === "") {
         responseFormat = undefined
       } else {
         try {
           responseFormat =
-            typeof inputs.responseFormat === 'string'
+            typeof inputs.responseFormat === "string"
               ? JSON.parse(inputs.responseFormat)
               : inputs.responseFormat
 
           // Ensure the responseFormat is properly structured
-          if (responseFormat && typeof responseFormat === 'object') {
+          if (responseFormat && typeof responseFormat === "object") {
             // If it's just a raw schema without the expected wrapper properties,
             // wrap it properly for the provider
             if (!responseFormat.schema && !responseFormat.name) {
               responseFormat = {
-                name: 'response_schema',
+                name: "response_schema",
                 schema: responseFormat,
                 strict: true,
               }
             }
           }
         } catch (error: any) {
-          logger.error(`Failed to parse response format:`, { error })
+          logger.error("Failed to parse response format:", { error })
           throw new Error(`Invalid response format: ${error.message}`)
         }
       }
     }
 
-    const model = inputs.model || 'gpt-4o'
+    const model = inputs.model || "gpt-4o"
     const providerId = getProviderFromModel(model)
     logger.info(`Using provider: ${providerId}, model: ${model}`)
 
@@ -68,8 +68,8 @@ export class AgentBlockHandler implements BlockHandler {
             // First filter out any tools with usageControl set to 'none'
             inputs.tools
               .filter((tool: any) => {
-                const usageControl = tool.usageControl || 'auto'
-                if (usageControl === 'none') {
+                const usageControl = tool.usageControl || "auto"
+                if (usageControl === "none") {
                   logger.info(`Filtering out tool set to 'none': ${tool.title || tool.type}`)
                   return false
                 }
@@ -77,7 +77,7 @@ export class AgentBlockHandler implements BlockHandler {
               })
               .map(async (tool: any) => {
                 // Handle custom tools
-                if (tool.type === 'custom-tool' && tool.schema) {
+                if (tool.type === "custom-tool" && tool.schema) {
                   // Add function execution capability to custom tools with code
                   if (tool.code) {
                     // Store the tool's code and make it available for execution
@@ -88,18 +88,18 @@ export class AgentBlockHandler implements BlockHandler {
                     return {
                       id: `custom_${tool.title}`,
                       name: toolName,
-                      description: tool.schema.function.description || '',
+                      description: tool.schema.function.description || "",
                       params: params,
                       parameters: {
                         type: tool.schema.function.parameters.type,
                         properties: tool.schema.function.parameters.properties,
                         required: tool.schema.function.parameters.required || [],
                       },
-                      usageControl: tool.usageControl || 'auto',
+                      usageControl: tool.usageControl || "auto",
                       executeFunction: async (callParams: Record<string, any>) => {
                         try {
                           // Execute the code using the function_execute tool
-                          const result = await executeTool('function_execute', {
+                          const result = await executeTool("function_execute", {
                             code: tool.code,
                             ...params,
                             ...callParams,
@@ -107,7 +107,7 @@ export class AgentBlockHandler implements BlockHandler {
                           })
 
                           if (!result.success) {
-                            throw new Error(result.error || 'Function execution failed')
+                            throw new Error(result.error || "Function execution failed")
                           }
 
                           return result.output
@@ -122,14 +122,14 @@ export class AgentBlockHandler implements BlockHandler {
                   return {
                     id: `custom_${tool.title}`,
                     name: tool.schema.function.name,
-                    description: tool.schema.function.description || '',
+                    description: tool.schema.function.description || "",
                     params: tool.params || {},
                     parameters: {
                       type: tool.schema.function.parameters.type,
                       properties: tool.schema.function.parameters.properties,
                       required: tool.schema.function.parameters.required || [],
                     },
-                    usageControl: tool.usageControl || 'auto',
+                    usageControl: tool.usageControl || "auto",
                   }
                 }
 
@@ -143,7 +143,7 @@ export class AgentBlockHandler implements BlockHandler {
 
                 // Add usageControl to the transformed tool if it exists
                 if (transformedTool) {
-                  transformedTool.usageControl = tool.usageControl || 'auto'
+                  transformedTool.usageControl = tool.usageControl || "auto"
                 }
 
                 return transformedTool
@@ -162,7 +162,7 @@ export class AgentBlockHandler implements BlockHandler {
         }
 
         // Then try parsing the blockId from the blockId_path format
-        const firstUnderscoreIndex = outputId.indexOf('_')
+        const firstUnderscoreIndex = outputId.indexOf("_")
         if (firstUnderscoreIndex !== -1) {
           const blockId = outputId.substring(0, firstUnderscoreIndex)
           const isMatch = blockId === block.id
@@ -190,12 +190,12 @@ export class AgentBlockHandler implements BlockHandler {
 
     // Parse messages if they're in string format
     let parsedMessages = inputs.messages
-    if (typeof inputs.messages === 'string' && inputs.messages.trim()) {
+    if (typeof inputs.messages === "string" && inputs.messages.trim()) {
       try {
         // Fast path: try standard JSON.parse first
         try {
           parsedMessages = JSON.parse(inputs.messages)
-          logger.info('Successfully parsed messages from JSON format')
+          logger.info("Successfully parsed messages from JSON format")
         } catch (jsonError) {
           // Fast direct approach for single-quoted JSON
           // Replace single quotes with double quotes, but keep single quotes inside double quotes
@@ -210,14 +210,14 @@ export class AgentBlockHandler implements BlockHandler {
 
           try {
             parsedMessages = JSON.parse(preprocessed)
-            logger.info('Successfully parsed messages after single-quote preprocessing')
+            logger.info("Successfully parsed messages after single-quote preprocessing")
           } catch (preprocessError) {
             // Ultimate fallback: simply replace all single quotes
             try {
               parsedMessages = JSON.parse(inputs.messages.replace(/'/g, '"'))
-              logger.info('Successfully parsed messages using direct quote replacement')
+              logger.info("Successfully parsed messages using direct quote replacement")
             } catch (finalError) {
-              logger.error('All parsing attempts failed', {
+              logger.error("All parsing attempts failed", {
                 original: inputs.messages,
                 error: finalError,
               })
@@ -226,7 +226,7 @@ export class AgentBlockHandler implements BlockHandler {
           }
         }
       } catch (error) {
-        logger.error('Failed to parse messages from string:', { error })
+        logger.error("Failed to parse messages from string:", { error })
         // Keep original value if all parsing fails
       }
     }
@@ -237,20 +237,20 @@ export class AgentBlockHandler implements BlockHandler {
       parsedMessages.length > 0 &&
       parsedMessages.every(
         (msg) =>
-          typeof msg === 'object' &&
+          typeof msg === "object" &&
           msg !== null &&
-          'role' in msg &&
-          typeof msg.role === 'string' &&
-          ('content' in msg ||
-            (msg.role === 'assistant' && ('function_call' in msg || 'tool_calls' in msg)))
+          "role" in msg &&
+          typeof msg.role === "string" &&
+          ("content" in msg ||
+            (msg.role === "assistant" && ("function_call" in msg || "tool_calls" in msg)))
       )
 
     if (Array.isArray(parsedMessages) && parsedMessages.length > 0 && !validMessages) {
-      logger.warn('Messages array has invalid format:', {
+      logger.warn("Messages array has invalid format:", {
         messageCount: parsedMessages.length,
       })
     } else if (validMessages) {
-      logger.info('Messages validated successfully')
+      logger.info("Messages validated successfully")
     }
 
     // Debug request before sending to provider
@@ -264,7 +264,7 @@ export class AgentBlockHandler implements BlockHandler {
             systemPrompt: inputs.systemPrompt,
             context: Array.isArray(inputs.context)
               ? JSON.stringify(inputs.context, null, 2)
-              : typeof inputs.context === 'string'
+              : typeof inputs.context === "string"
                 ? inputs.context
                 : JSON.stringify(inputs.context, null, 2),
           }),
@@ -277,7 +277,7 @@ export class AgentBlockHandler implements BlockHandler {
       stream: shouldUseStreaming,
     }
 
-    logger.info(`Provider request prepared`, {
+    logger.info("Provider request prepared", {
       model: providerRequest.model,
       hasMessages: Array.isArray(parsedMessages) && parsedMessages.length > 0,
       hasSystemPrompt:
@@ -290,21 +290,21 @@ export class AgentBlockHandler implements BlockHandler {
       isBlockSelectedForOutput,
       hasOutgoingConnections,
       // Debug info about messages to help diagnose issues
-      messagesProvided: 'messages' in providerRequest,
+      messagesProvided: "messages" in providerRequest,
       messagesCount:
-        'messages' in providerRequest && Array.isArray(providerRequest.messages)
+        "messages" in providerRequest && Array.isArray(providerRequest.messages)
           ? providerRequest.messages.length
           : 0,
     })
 
-    const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
-    const url = new URL('/api/providers', baseUrl)
+    const baseUrl = env.NEXT_PUBLIC_APP_URL || ""
+    const url = new URL("/api/providers", baseUrl)
 
     try {
       const response = await fetch(url.toString(), {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(providerRequest),
       })
@@ -324,8 +324,8 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       // Check if we're getting a streaming response
-      const contentType = response.headers.get('Content-Type')
-      if (contentType?.includes('text/event-stream')) {
+      const contentType = response.headers.get("Content-Type")
+      if (contentType?.includes("text/event-stream")) {
         logger.info(`Received streaming response for block ${block.id}`)
 
         // Ensure we have a valid body stream
@@ -334,14 +334,14 @@ export class AgentBlockHandler implements BlockHandler {
         }
 
         // Check if we have execution data in the header
-        const executionDataHeader = response.headers.get('X-Execution-Data')
+        const executionDataHeader = response.headers.get("X-Execution-Data")
         if (executionDataHeader) {
           try {
             // Parse the execution data from the header
             const executionData = JSON.parse(executionDataHeader)
 
             // Add block-specific data to the execution logs if needed
-            if (executionData && executionData.logs) {
+            if (executionData?.logs) {
               for (const log of executionData.logs) {
                 if (!log.blockId) log.blockId = block.id
                 if (!log.blockName && block.metadata?.name) log.blockName = block.metadata.name
@@ -398,7 +398,7 @@ export class AgentBlockHandler implements BlockHandler {
       // Check if we have a combined response with both stream and execution data
       const result = await response.json()
 
-      if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
+      if (result && typeof result === "object" && "stream" in result && "execution" in result) {
         logger.info(`Received combined streaming response for block ${block.id}`)
 
         // Get the stream as a ReadableStream (need to convert from serialized format)
@@ -409,7 +409,7 @@ export class AgentBlockHandler implements BlockHandler {
             const encoder = new TextEncoder()
             controller.enqueue(
               encoder.encode(
-                'Stream data cannot be serialized as JSON. You will need to return a proper stream.'
+                "Stream data cannot be serialized as JSON. You will need to return a proper stream."
               )
             )
             controller.close()
@@ -424,7 +424,7 @@ export class AgentBlockHandler implements BlockHandler {
         return streamingExecution
       }
 
-      logger.info(`Provider response received`, {
+      logger.info("Provider response received", {
         contentLength: result.content ? result.content.length : 0,
         model: result.model,
         hasTokens: !!result.tokens,
@@ -468,8 +468,8 @@ export class AgentBlockHandler implements BlockHandler {
 
           return responseResult
         } catch (error) {
-          logger.error(`Failed to parse response content:`, { error })
-          logger.info(`Falling back to standard response format`)
+          logger.error("Failed to parse response content:", { error })
+          logger.info("Falling back to standard response format")
 
           // Fall back to standard response if parsing fails
           return {
@@ -535,12 +535,12 @@ export class AgentBlockHandler implements BlockHandler {
         },
       }
     } catch (error) {
-      logger.error(`Error executing provider request:`, { error })
+      logger.error("Error executing provider request:", { error })
       throw error
     }
   }
 }
 
 export function stripCustomToolPrefix(name: string) {
-  return name.startsWith('custom_') ? name.replace('custom_', '') : name
+  return name.startsWith("custom_") ? name.replace("custom_", "") : name
 }

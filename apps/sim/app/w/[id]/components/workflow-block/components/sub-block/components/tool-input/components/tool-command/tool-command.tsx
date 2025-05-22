@@ -1,15 +1,16 @@
-import React, {
+import type React from "react"
+import {
   createContext,
-  ReactNode,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
-} from 'react'
-import { Search } from 'lucide-react'
-import { cn } from '@/lib/utils'
+} from "react"
+import { Search } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 // Context for the command component
 type CommandContextType = {
@@ -29,7 +30,7 @@ const CommandContext = createContext<CommandContextType | undefined>(undefined)
 const useCommandContext = () => {
   const context = useContext(CommandContext)
   if (!context) {
-    throw new Error('Command components must be used within a CommandProvider')
+    throw new Error("Command components must be used within a CommandProvider")
   }
   return context
 }
@@ -77,7 +78,7 @@ interface CommandSeparatorProps {
 
 // Main Command component
 export function Command({ children, className, filter }: CommandProps) {
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState("")
   const [activeIndex, setActiveIndex] = useState(-1)
   const [items, setItems] = useState<string[]>([])
   const [filteredItems, setFilteredItems] = useState<string[]>([])
@@ -143,15 +144,15 @@ export function Command({ children, className, filter }: CommandProps) {
       if (filteredItems.length === 0) return
 
       switch (e.key) {
-        case 'ArrowDown':
+        case "ArrowDown":
           e.preventDefault()
           setActiveIndex((prev) => (prev + 1) % filteredItems.length)
           break
-        case 'ArrowUp':
+        case "ArrowUp":
           e.preventDefault()
           setActiveIndex((prev) => (prev - 1 + filteredItems.length) % filteredItems.length)
           break
-        case 'Enter':
+        case "Enter":
           if (activeIndex >= 0) {
             e.preventDefault()
             document.getElementById(filteredItems[activeIndex])?.click()
@@ -181,7 +182,7 @@ export function Command({ children, className, filter }: CommandProps) {
     <CommandContext.Provider value={contextValue}>
       <div
         className={cn(
-          'flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5',
+          "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5",
           className
         )}
         onKeyDown={handleKeyDown}
@@ -194,7 +195,7 @@ export function Command({ children, className, filter }: CommandProps) {
 
 // Command Input component
 export function CommandInput({
-  placeholder = 'Search...',
+  placeholder = "Search...",
   className,
   onValueChange,
 }: CommandInputProps) {
@@ -218,7 +219,7 @@ export function CommandInput({
       <input
         ref={inputRef}
         className={cn(
-          'flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
+          "flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
           className
         )}
         placeholder={placeholder}
@@ -232,7 +233,7 @@ export function CommandInput({
 // Command List component
 export function CommandList({ children, className }: CommandListProps) {
   return (
-    <div className={cn('max-h-[300px] overflow-y-auto overflow-x-hidden', className)}>
+    <div className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden", className)}>
       {children}
     </div>
   )
@@ -245,7 +246,7 @@ export function CommandEmpty({ children, className }: CommandEmptyProps) {
   if (filteredItems.length > 0) return null
 
   return (
-    <div className={cn('pt-3.5 pb-2 text-center text-sm text-muted-foreground', className)}>
+    <div className={cn("pt-3.5 pb-2 text-center text-muted-foreground text-sm", className)}>
       {children}
     </div>
   )
@@ -256,12 +257,12 @@ export function CommandGroup({ children, className, heading }: CommandGroupProps
   return (
     <div
       className={cn(
-        'overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground',
+        "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:text-xs",
         className
       )}
     >
       {heading && (
-        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">{heading}</div>
+        <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">{heading}</div>
       )}
       {children}
     </div>
@@ -298,8 +299,8 @@ export function CommandItem({
     <button
       id={value}
       className={cn(
-        'relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 hover:bg-accent hover:text-accent-foreground',
-        isActive && 'bg-accent text-accent-foreground',
+        "relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50",
+        isActive && "bg-accent text-accent-foreground",
         className
       )}
       onClick={() => !disabled && onSelect?.()}
@@ -316,7 +317,7 @@ export function CommandItem({
 
 // Command Separator component
 export function CommandSeparator({ className }: CommandSeparatorProps) {
-  return <div className={cn('-mx-1 h-px bg-border', className)} />
+  return <div className={cn("-mx-1 h-px bg-border", className)} />
 }
 
 // Export all components

@@ -1,30 +1,30 @@
-import { NextRequest } from 'next/server'
-import { and, eq } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
-import { z } from 'zod'
-import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
-import { encryptSecret } from '@/lib/utils'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { chat, workflow } from '@/db/schema'
+import type { NextRequest } from "next/server"
+import { and, eq } from "drizzle-orm"
+import { v4 as uuidv4 } from "uuid"
+import { z } from "zod"
+import { getSession } from "@/lib/auth"
+import { env } from "@/lib/env"
+import { createLogger } from "@/lib/logs/console-logger"
+import { encryptSecret } from "@/lib/utils"
+import { createErrorResponse, createSuccessResponse } from "@/app/api/workflows/utils"
+import { db } from "@/db"
+import { chat, workflow } from "@/db/schema"
 
-const logger = createLogger('ChatAPI')
+const logger = createLogger("ChatAPI")
 
 const chatSchema = z.object({
-  workflowId: z.string().min(1, 'Workflow ID is required'),
+  workflowId: z.string().min(1, "Workflow ID is required"),
   subdomain: z
     .string()
-    .min(1, 'Subdomain is required')
-    .regex(/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens'),
-  title: z.string().min(1, 'Title is required'),
+    .min(1, "Subdomain is required")
+    .regex(/^[a-z0-9-]+$/, "Subdomain can only contain lowercase letters, numbers, and hyphens"),
+  title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   customizations: z.object({
     primaryColor: z.string(),
     welcomeMessage: z.string(),
   }),
-  authType: z.enum(['public', 'password', 'email']).default('public'),
+  authType: z.enum(["public", "password", "email"]).default("public"),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional().default([]),
   outputConfigs: z
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     const session = await getSession()
 
     if (!session) {
-      return createErrorResponse('Unauthorized', 401)
+      return createErrorResponse("Unauthorized", 401)
     }
 
     // Get the user's chat deployments
@@ -51,8 +51,8 @@ export async function GET(request: NextRequest) {
 
     return createSuccessResponse({ deployments })
   } catch (error: any) {
-    logger.error('Error fetching chat deployments:', error)
-    return createErrorResponse(error.message || 'Failed to fetch chat deployments', 500)
+    logger.error("Error fetching chat deployments:", error)
+    return createErrorResponse(error.message || "Failed to fetch chat deployments", 500)
   }
 }
 
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     const session = await getSession()
 
     if (!session) {
-      return createErrorResponse('Unauthorized', 401)
+      return createErrorResponse("Unauthorized", 401)
     }
 
     // Parse and validate request body
@@ -75,22 +75,22 @@ export async function POST(request: NextRequest) {
         workflowId,
         subdomain,
         title,
-        description = '',
+        description = "",
         customizations,
-        authType = 'public',
+        authType = "public",
         password,
         allowedEmails = [],
         outputConfigs = [],
       } = validatedData
 
       // Perform additional validation specific to auth types
-      if (authType === 'password' && !password) {
-        return createErrorResponse('Password is required when using password protection', 400)
+      if (authType === "password" && !password) {
+        return createErrorResponse("Password is required when using password protection", 400)
       }
 
-      if (authType === 'email' && (!Array.isArray(allowedEmails) || allowedEmails.length === 0)) {
+      if (authType === "email" && (!Array.isArray(allowedEmails) || allowedEmails.length === 0)) {
         return createErrorResponse(
-          'At least one email or domain is required when using email access control',
+          "At least one email or domain is required when using email access control",
           400
         )
       }
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
         .limit(1)
 
       if (existingSubdomain.length > 0) {
-        return createErrorResponse('Subdomain already in use', 400)
+        return createErrorResponse("Subdomain already in use", 400)
       }
 
       // Verify the workflow exists and belongs to the user
@@ -114,17 +114,17 @@ export async function POST(request: NextRequest) {
         .limit(1)
 
       if (workflowExists.length === 0) {
-        return createErrorResponse('Workflow not found or access denied', 404)
+        return createErrorResponse("Workflow not found or access denied", 404)
       }
 
       // Verify the workflow is deployed (required for chat deployment)
       if (!workflowExists[0].isDeployed) {
-        return createErrorResponse('Workflow must be deployed before creating a chat', 400)
+        return createErrorResponse("Workflow must be deployed before creating a chat", 400)
       }
 
       // Encrypt password if provided
       let encryptedPassword = null
-      if (authType === 'password' && password) {
+      if (authType === "password" && password) {
         const { encrypted } = await encryptSecret(password)
         encryptedPassword = encrypted
       }
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
       const id = uuidv4()
 
       // Log the values we're inserting
-      logger.info('Creating chat deployment with values:', {
+      logger.info("Creating chat deployment with values:", {
         workflowId,
         subdomain,
         title,
@@ -146,8 +146,8 @@ export async function POST(request: NextRequest) {
       // Merge customizations with the additional fields
       const mergedCustomizations = {
         ...(customizations || {}),
-        primaryColor: customizations?.primaryColor || '#802FFF',
-        welcomeMessage: customizations?.welcomeMessage || 'Hi there! How can I help you today?',
+        primaryColor: customizations?.primaryColor || "#802FFF",
+        welcomeMessage: customizations?.welcomeMessage || "Hi there! How can I help you today?",
       }
 
       await db.insert(chat).values({
@@ -156,12 +156,12 @@ export async function POST(request: NextRequest) {
         userId: session.user.id,
         subdomain,
         title,
-        description: description || '',
+        description: description || "",
         customizations: mergedCustomizations,
         isActive: true,
         authType,
         password: encryptedPassword,
-        allowedEmails: authType === 'email' ? allowedEmails : [],
+        allowedEmails: authType === "email" ? allowedEmails : [],
         outputConfigs,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
 
       // Return successful response with chat URL
       // Check if we're in development or production
-      const isDevelopment = env.NODE_ENV === 'development'
+      const isDevelopment = env.NODE_ENV === "development"
       const chatUrl = isDevelopment
         ? `http://${subdomain}.localhost:3000`
         : `https://${subdomain}.simstudio.ai`
@@ -179,17 +179,17 @@ export async function POST(request: NextRequest) {
       return createSuccessResponse({
         id,
         chatUrl,
-        message: 'Chat deployment created successfully',
+        message: "Chat deployment created successfully",
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
-        const errorMessage = validationError.errors[0]?.message || 'Invalid request data'
-        return createErrorResponse(errorMessage, 400, 'VALIDATION_ERROR')
+        const errorMessage = validationError.errors[0]?.message || "Invalid request data"
+        return createErrorResponse(errorMessage, 400, "VALIDATION_ERROR")
       }
       throw validationError
     }
   } catch (error: any) {
-    logger.error('Error creating chat deployment:', error)
-    return createErrorResponse(error.message || 'Failed to create chat deployment', 500)
+    logger.error("Error creating chat deployment:", error)
+    return createErrorResponse(error.message || "Failed to create chat deployment", 500)
   }
 }

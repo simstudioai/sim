@@ -1,8 +1,8 @@
-import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, Play, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, Play, Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
+import { useWorkflowStore } from "@/stores/workflows/workflow/store"
 
 interface ActionBarProps {
   blockId: string
@@ -19,15 +19,15 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
     (state) => state.blocks[blockId]?.horizontalHandles ?? false
   )
 
-  const isStarterBlock = blockType === 'starter'
+  const isStarterBlock = blockType === "starter"
 
   return (
     <div
       className={cn(
-        'absolute top-0 -right-20',
-        'flex flex-col items-center gap-2 p-2',
-        'bg-background rounded-md shadow-sm border border-gray-200 dark:border-gray-800',
-        'opacity-0 group-hover:opacity-100 transition-opacity duration-200'
+        "-right-20 absolute top-0",
+        "flex flex-col items-center gap-2 p-2",
+        "rounded-md border border-gray-200 bg-background shadow-sm dark:border-gray-800",
+        "opacity-0 transition-opacity duration-200 group-hover:opacity-100"
       )}
     >
       {/* <Tooltip>
@@ -58,7 +58,7 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
             {isEnabled ? <Circle className="h-4 w-4" /> : <CircleOff className="h-4 w-4" />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="right">{isEnabled ? 'Disable Block' : 'Enable Block'}</TooltipContent>
+        <TooltipContent side="right">{isEnabled ? "Disable Block" : "Enable Block"}</TooltipContent>
       </Tooltip>
 
       {!isStarterBlock && (
@@ -93,7 +93,7 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
           </Button>
         </TooltipTrigger>
         <TooltipContent side="right">
-          {horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports'}
+          {horizontalHandles ? "Vertical Ports" : "Horizontal Ports"}
         </TooltipContent>
       </Tooltip>
 

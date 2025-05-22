@@ -1,12 +1,12 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, HelpCircle, Info, Trash, X } from 'lucide-react'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useEffect, useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Eye, HelpCircle, Info, Trash, X } from "lucide-react"
+import { useForm } from "react-hook-form"
+import { z } from "zod"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Form,
   FormControl,
@@ -14,33 +14,33 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { LoadingAgent } from '@/components/ui/loading-agent'
-import { Notice } from '@/components/ui/notice'
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { LoadingAgent } from "@/components/ui/loading-agent"
+import { Notice } from "@/components/ui/notice"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
-import { cn } from '@/lib/utils'
-import { useNotificationStore } from '@/stores/notifications/store'
-import { getWorkflowWithValues } from '@/stores/workflows'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { createLogger } from "@/lib/logs/console-logger"
+import { cn } from "@/lib/utils"
+import { useNotificationStore } from "@/stores/notifications/store"
+import { getWorkflowWithValues } from "@/stores/workflows"
+import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
 import {
   CATEGORIES,
   getCategoryColor,
   getCategoryIcon,
   getCategoryLabel,
-} from '@/app/w/marketplace/constants/categories'
+} from "@/app/w/marketplace/constants/categories"
 
-const logger = createLogger('MarketplaceModal')
+const logger = createLogger("MarketplaceModal")
 
 /**
  * Sanitizes sensitive data from workflow state before publishing
@@ -60,10 +60,10 @@ const sanitizeWorkflowData = (workflowData: any) => {
         Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
           // Check for API key related fields in any block type
           const isSensitiveField =
-            key.toLowerCase() === 'apikey' || key.toLowerCase().includes('api_key')
+            key.toLowerCase() === "apikey" || key.toLowerCase().includes("api_key")
 
           if (isSensitiveField && subBlock.value) {
-            subBlock.value = ''
+            subBlock.value = ""
             sanitizedCount++
           }
         })
@@ -84,25 +84,25 @@ interface MarketplaceModalProps {
 const marketplaceFormSchema = z.object({
   name: z
     .string()
-    .min(3, 'Name must be at least 3 characters')
-    .max(50, 'Name cannot exceed 50 characters'),
+    .min(3, "Name must be at least 3 characters")
+    .max(50, "Name cannot exceed 50 characters"),
   description: z
     .string()
-    .min(10, 'Description must be at least 10 characters')
-    .max(500, 'Description cannot exceed 500 characters'),
-  category: z.string().min(1, 'Please select a category'),
+    .min(10, "Description must be at least 10 characters")
+    .max(500, "Description cannot exceed 500 characters"),
+  category: z.string().min(1, "Please select a category"),
   authorName: z
     .string()
-    .min(2, 'Author name must be at least 2 characters')
-    .max(50, 'Author name cannot exceed 50 characters'),
+    .min(2, "Author name must be at least 2 characters")
+    .max(50, "Author name cannot exceed 50 characters"),
 })
 
 type MarketplaceFormValues = z.infer<typeof marketplaceFormSchema>
 
 // Tooltip texts
 const TOOLTIPS = {
-  category: 'Categorizing your workflow helps users find it more easily.',
-  authorName: 'The name you want to publish under (defaults to your account name if left empty).',
+  category: "Categorizing your workflow helps users find it more easily.",
+  authorName: "The name you want to publish under (defaults to your account name if left empty).",
 }
 
 interface MarketplaceInfo {
@@ -138,17 +138,17 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   // Check if the current user is the owner of the published workflow
   const isOwner = () => {
     const marketplaceData = getMarketplaceData()
-    return marketplaceData?.status === 'owner'
+    return marketplaceData?.status === "owner"
   }
 
   // Initialize form with react-hook-form
   const form = useForm<MarketplaceFormValues>({
     resolver: zodResolver(marketplaceFormSchema),
     defaultValues: {
-      name: '',
-      description: '',
-      category: 'marketing',
-      authorName: '',
+      name: "",
+      description: "",
+      category: "marketing",
+      authorName: "",
     },
   })
 
@@ -166,7 +166,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         // Get marketplace ID from the workflow's marketplaceData
         const marketplaceData = getMarketplaceData()
         if (!marketplaceData?.id) {
-          throw new Error('No marketplace ID found in workflow data')
+          throw new Error("No marketplace ID found in workflow data")
         }
 
         // Use the marketplace ID to fetch details instead of workflow ID
@@ -175,15 +175,15 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         )
 
         if (!response.ok) {
-          throw new Error('Failed to fetch marketplace information')
+          throw new Error("Failed to fetch marketplace information")
         }
 
         // The API returns the data directly without wrapping
         const marketplaceEntry = await response.json()
         setMarketplaceInfo(marketplaceEntry)
       } catch (error) {
-        console.error('Error fetching marketplace info:', error)
-        addNotification('error', 'Failed to fetch marketplace information', activeWorkflowId)
+        console.error("Error fetching marketplace info:", error)
+        addNotification("error", "Failed to fetch marketplace information", activeWorkflowId)
       } finally {
         setIsLoading(false)
       }
@@ -196,8 +196,8 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   useEffect(() => {
     if (open && activeWorkflowId && workflows[activeWorkflowId] && !isPublished()) {
       const workflow = workflows[activeWorkflowId]
-      form.setValue('name', workflow.name)
-      form.setValue('description', workflow.description || '')
+      form.setValue("name", workflow.name)
+      form.setValue("description", workflow.description || "")
     }
   }, [open, activeWorkflowId, workflows, form])
 
@@ -208,17 +208,17 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     }
 
     // Add event listener
-    window.addEventListener('open-marketplace', handleOpenMarketplace as EventListener)
+    window.addEventListener("open-marketplace", handleOpenMarketplace as EventListener)
 
     // Clean up
     return () => {
-      window.removeEventListener('open-marketplace', handleOpenMarketplace as EventListener)
+      window.removeEventListener("open-marketplace", handleOpenMarketplace as EventListener)
     }
   }, [onOpenChange])
 
   const onSubmit = async (data: MarketplaceFormValues) => {
     if (!activeWorkflowId) {
-      addNotification('error', 'No active workflow to publish', null)
+      addNotification("error", "No active workflow to publish", null)
       return
     }
 
@@ -228,22 +228,22 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
       // Get the complete workflow state client-side
       const workflowData = getWorkflowWithValues(activeWorkflowId)
       if (!workflowData) {
-        addNotification('error', 'Failed to retrieve workflow state', activeWorkflowId)
+        addNotification("error", "Failed to retrieve workflow state", activeWorkflowId)
         return
       }
 
       // Sanitize the workflow data
       const sanitizedWorkflowData = sanitizeWorkflowData(workflowData)
-      logger.info('Publishing sanitized workflow to marketplace', {
+      logger.info("Publishing sanitized workflow to marketplace", {
         workflowId: activeWorkflowId,
         workflowName: data.name,
         category: data.category,
       })
 
-      const response = await fetch('/api/marketplace/publish', {
-        method: 'POST',
+      const response = await fetch("/api/marketplace/publish", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           workflowId: activeWorkflowId,
@@ -257,7 +257,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to publish workflow')
+        throw new Error(errorData.error || "Failed to publish workflow")
       }
 
       // Get the marketplace ID from the response
@@ -266,12 +266,12 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
       // Update the marketplace data in the workflow registry
       updateWorkflow(activeWorkflowId, {
-        marketplaceData: { id: marketplaceId, status: 'owner' },
+        marketplaceData: { id: marketplaceId, status: "owner" },
       })
 
       // Add a marketplace notification with detailed information
       addNotification(
-        'marketplace',
+        "marketplace",
         `"${data.name}" successfully published to marketplace`,
         activeWorkflowId
       )
@@ -279,8 +279,8 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
       // Close the modal after successful submission
       onOpenChange(false)
     } catch (error: any) {
-      console.error('Error publishing workflow:', error)
-      addNotification('error', `Failed to publish workflow: ${error.message}`, activeWorkflowId)
+      console.error("Error publishing workflow:", error)
+      addNotification("error", `Failed to publish workflow: ${error.message}`, activeWorkflowId)
     } finally {
       setIsSubmitting(false)
     }
@@ -288,7 +288,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
   const handleUnpublish = async () => {
     if (!activeWorkflowId) {
-      addNotification('error', 'No active workflow to unpublish', null)
+      addNotification("error", "No active workflow to unpublish", null)
       return
     }
 
@@ -298,29 +298,29 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
       // Get marketplace ID from the workflow's marketplaceData
       const marketplaceData = getMarketplaceData()
       if (!marketplaceData?.id) {
-        throw new Error('No marketplace ID found in workflow data')
+        throw new Error("No marketplace ID found in workflow data")
       }
 
-      logger.info('Attempting to unpublish marketplace entry', {
+      logger.info("Attempting to unpublish marketplace entry", {
         marketplaceId: marketplaceData.id,
         workflowId: activeWorkflowId,
         status: marketplaceData.status,
       })
 
       const response = await fetch(`/api/marketplace/${marketplaceData.id}/unpublish`, {
-        method: 'POST',
+        method: "POST",
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        logger.error('Error response from unpublish endpoint', {
+        logger.error("Error response from unpublish endpoint", {
           status: response.status,
           data: errorData,
         })
-        throw new Error(errorData.error || 'Failed to unpublish workflow')
+        throw new Error(errorData.error || "Failed to unpublish workflow")
       }
 
-      logger.info('Successfully unpublished workflow from marketplace', {
+      logger.info("Successfully unpublished workflow from marketplace", {
         marketplaceId: marketplaceData.id,
         workflowId: activeWorkflowId,
       })
@@ -336,8 +336,8 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         })
       }, 100)
     } catch (error: any) {
-      console.error('Error unpublishing workflow:', error)
-      addNotification('error', `Failed to unpublish workflow: ${error.message}`, activeWorkflowId)
+      console.error("Error unpublishing workflow:", error)
+      addNotification("error", `Failed to unpublish workflow: ${error.message}`, activeWorkflowId)
     } finally {
       setIsUnpublishing(false)
     }
@@ -348,7 +348,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
       <FormLabel>{name}</FormLabel>
       <Tooltip>
         <TooltipTrigger asChild>
-          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+          <HelpCircle className="h-4 w-4 cursor-help text-muted-foreground" />
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[300px] p-3">
           <p className="text-sm">{tooltip}</p>
@@ -383,23 +383,23 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         {/* Header section with title and stats */}
         <div className="space-y-2.5">
           <div className="flex items-start justify-between">
-            <h3 className="text-xl font-medium leading-tight">{marketplaceInfo.name}</h3>
+            <h3 className="font-medium text-xl leading-tight">{marketplaceInfo.name}</h3>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5 rounded-md px-2 py-1">
                 <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">
+                <span className="font-medium text-muted-foreground text-xs">
                   {marketplaceInfo.views}
                 </span>
               </div>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">{marketplaceInfo.description}</p>
+          <p className="text-muted-foreground text-sm">{marketplaceInfo.description}</p>
         </div>
 
         {/* Category and Author Info */}
         <div className="flex items-center gap-6">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Category</Label>
+            <Label className="text-muted-foreground text-xs">Category</Label>
             <div
               className="flex items-center gap-1.5 rounded-md px-2.5 py-1"
               style={{
@@ -408,14 +408,14 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
               }}
             >
               {getCategoryIcon(marketplaceInfo.category)}
-              <span className="text-sm font-medium">
+              <span className="font-medium text-sm">
                 {getCategoryLabel(marketplaceInfo.category)}
               </span>
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Author</Label>
-            <div className="flex items-center text-sm font-medium">
+            <Label className="text-muted-foreground text-xs">Author</Label>
+            <div className="flex items-center font-medium text-sm">
               {marketplaceInfo.authorName}
             </div>
           </div>
@@ -432,11 +432,11 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
               className="gap-2"
             >
               {isUnpublishing ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent mr-2" />
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
               ) : (
-                <Trash className="h-4 w-4 mr-2" />
+                <Trash className="mr-2 h-4 w-4" />
               )}
-              {isUnpublishing ? 'Unpublishing...' : 'Unpublish'}
+              {isUnpublishing ? "Unpublishing..." : "Unpublish"}
             </Button>
           </div>
         )}
@@ -539,21 +539,21 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
             disabled={isSubmitting}
             className={cn(
               // Base styles
-              'gap-2 font-medium',
+              "gap-2 font-medium",
               // Brand color with hover states
-              'bg-[#802FFF] hover:bg-[#7028E6]',
+              "bg-[#802FFF] hover:bg-[#7028E6]",
               // Hover effect with brand color
-              'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+              "shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]",
               // Text color and transitions
-              'text-white transition-all duration-200',
+              "text-white transition-all duration-200",
               // Running state animation
               isSubmitting &&
-                'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
+                "relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20",
               // Disabled state
-              'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
+              "disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none"
             )}
           >
-            {isSubmitting ? 'Publishing...' : 'Publish Workflow'}
+            {isSubmitting ? "Publishing..." : "Publish Workflow"}
           </Button>
         </div>
       </form>
@@ -562,11 +562,11 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] flex flex-col p-0 gap-0" hideCloseButton>
-        <DialogHeader className="px-6 py-4 border-b">
+      <DialogContent className="flex flex-col gap-0 p-0 sm:max-w-[600px]" hideCloseButton>
+        <DialogHeader className="border-b px-6 py-4">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">
-              {isPublished() ? 'Marketplace Information' : 'Publish to Marketplace'}
+            <DialogTitle className="font-medium text-lg">
+              {isPublished() ? "Marketplace Information" : "Publish to Marketplace"}
             </DialogTitle>
             <Button
               variant="ghost"
@@ -580,7 +580,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
           </div>
         </DialogHeader>
 
-        <div className="pt-4 px-6 pb-6 overflow-y-auto">
+        <div className="overflow-y-auto px-6 pt-4 pb-6">
           {isPublished() ? renderMarketplaceInfo() : renderPublishForm()}
         </div>
       </DialogContent>

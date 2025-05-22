@@ -1,9 +1,9 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { SubBlockConfig } from '@/blocks/types'
-import { FolderInfo, FolderSelector } from '../folder-selector'
+import { useEffect, useState } from "react"
+import { useSubBlockStore } from "@/stores/workflows/subblock/store"
+import type { SubBlockConfig } from "@/blocks/types"
+import { type FolderInfo, FolderSelector } from "../folder-selector"
 
 interface FolderSelectorInputProps {
   blockId: string
@@ -17,16 +17,16 @@ export function FolderSelectorInput({
   disabled = false,
 }: FolderSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
-  const [selectedFolderId, setSelectedFolderId] = useState<string>('')
+  const [selectedFolderId, setSelectedFolderId] = useState<string>("")
   const [folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
 
   // Get the current value from the store
   useEffect(() => {
     const value = getValue(blockId, subBlock.id)
-    if (value && typeof value === 'string') {
+    if (value && typeof value === "string") {
       setSelectedFolderId(value)
     } else {
-      const defaultValue = 'INBOX'
+      const defaultValue = "INBOX"
       setSelectedFolderId(defaultValue)
       setValue(blockId, subBlock.id, defaultValue)
     }
@@ -43,9 +43,9 @@ export function FolderSelectorInput({
     <FolderSelector
       value={selectedFolderId}
       onChange={handleFolderChange}
-      provider={subBlock.provider || 'google-email'}
+      provider={subBlock.provider || "google-email"}
       requiredScopes={subBlock.requiredScopes || []}
-      label={subBlock.placeholder || 'Select folder'}
+      label={subBlock.placeholder || "Select folder"}
       disabled={disabled}
       serviceId={subBlock.serviceId}
       onFolderInfoChange={setFolderInfo}

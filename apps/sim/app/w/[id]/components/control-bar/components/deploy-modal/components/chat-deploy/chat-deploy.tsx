@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from "react"
 import {
   AlertTriangle,
   Check,
@@ -11,9 +11,9 @@ import {
   Plus,
   RefreshCw,
   Trash2,
-} from 'lucide-react'
-import { z } from 'zod'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+} from "lucide-react"
+import { z } from "zod"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,23 +23,23 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Textarea } from '@/components/ui/textarea'
-import { env } from '@/lib/env'
-import { getNodeEnv } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
-import { getBaseDomain } from '@/lib/urls/utils'
-import { cn } from '@/lib/utils'
-import { useNotificationStore } from '@/stores/notifications/store'
-import { OutputConfig } from '@/stores/panel/chat/types'
-import { OutputSelect } from '@/app/w/[id]/components/panel/components/chat/components/output-select/output-select'
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Textarea } from "@/components/ui/textarea"
+import { env } from "@/lib/env"
+import { getNodeEnv } from "@/lib/environment"
+import { createLogger } from "@/lib/logs/console-logger"
+import { getBaseDomain } from "@/lib/urls/utils"
+import { cn } from "@/lib/utils"
+import { useNotificationStore } from "@/stores/notifications/store"
+import type { OutputConfig } from "@/stores/panel/chat/types"
+import { OutputSelect } from "@/app/w/[id]/components/panel/components/chat/components/output-select/output-select"
 
-const logger = createLogger('ChatDeploy')
+const logger = createLogger("ChatDeploy")
 
 interface ChatDeployProps {
   workflowId: string
@@ -53,29 +53,29 @@ interface ChatDeployProps {
   onDeploymentComplete?: () => void
 }
 
-type AuthType = 'public' | 'password' | 'email'
+type AuthType = "public" | "password" | "email"
 
-const isDevelopment = getNodeEnv() === 'development'
+const isDevelopment = getNodeEnv() === "development"
 
 const getDomainSuffix = (() => {
-  const suffix = isDevelopment ? `.${getBaseDomain()}` : '.simstudio.ai'
+  const suffix = isDevelopment ? `.${getBaseDomain()}` : ".simstudio.ai"
   return () => suffix
 })()
 
 // Define Zod schema for API request validation
 const chatSchema = z.object({
-  workflowId: z.string().min(1, 'Workflow ID is required'),
+  workflowId: z.string().min(1, "Workflow ID is required"),
   subdomain: z
     .string()
-    .min(1, 'Subdomain is required')
-    .regex(/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens'),
-  title: z.string().min(1, 'Title is required'),
+    .min(1, "Subdomain is required")
+    .regex(/^[a-z0-9-]+$/, "Subdomain can only contain lowercase letters, numbers, and hyphens"),
+  title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   customizations: z.object({
     primaryColor: z.string(),
     welcomeMessage: z.string(),
   }),
-  authType: z.enum(['public', 'password', 'email']),
+  authType: z.enum(["public", "password", "email"]),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional(),
   outputBlockIds: z.array(z.string()).optional(),
@@ -95,11 +95,11 @@ export function ChatDeploy({
   const { addNotification } = useNotificationStore()
 
   // Form state
-  const [subdomain, setSubdomain] = useState('')
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
+  const [subdomain, setSubdomain] = useState("")
+  const [title, setTitle] = useState("")
+  const [description, setDescription] = useState("")
   const [isDeploying, setIsDeploying] = useState(false)
-  const [subdomainError, setSubdomainError] = useState('')
+  const [subdomainError, setSubdomainError] = useState("")
   const [deployedChatUrl, setDeployedChatUrl] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isCheckingSubdomain, setIsCheckingSubdomain] = useState(false)
@@ -107,12 +107,12 @@ export function ChatDeploy({
   const subdomainCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Authentication options
-  const [authType, setAuthType] = useState<AuthType>('public')
-  const [password, setPassword] = useState('')
+  const [authType, setAuthType] = useState<AuthType>("public")
+  const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [emails, setEmails] = useState<string[]>([])
-  const [newEmail, setNewEmail] = useState('')
-  const [emailError, setEmailError] = useState('')
+  const [newEmail, setNewEmail] = useState("")
+  const [emailError, setEmailError] = useState("")
   const [copySuccess, setCopySuccess] = useState(false)
 
   // Existing chat state
@@ -157,20 +157,20 @@ export function ChatDeploy({
     externalSetShowDeleteConfirmation || setInternalShowDeleteConfirmation
 
   // Welcome message state
-  const [welcomeMessage, setWelcomeMessage] = useState('Hi there! How can I help you today?')
+  const [welcomeMessage, setWelcomeMessage] = useState("Hi there! How can I help you today?")
 
   // Expose a method to handle external submission requests
   useEffect(() => {
     // This will run when the component mounts
     // Ensure hidden input for API deployment is set up
     if (formRef.current) {
-      let deployApiInput = formRef.current.querySelector('#deployApiEnabled') as HTMLInputElement
+      let deployApiInput = formRef.current.querySelector("#deployApiEnabled") as HTMLInputElement
       if (!deployApiInput) {
-        deployApiInput = document.createElement('input')
-        deployApiInput.type = 'hidden'
-        deployApiInput.id = 'deployApiEnabled'
-        deployApiInput.name = 'deployApiEnabled'
-        deployApiInput.value = 'true'
+        deployApiInput = document.createElement("input")
+        deployApiInput.type = "hidden"
+        deployApiInput.id = "deployApiEnabled"
+        deployApiInput.name = "deployApiEnabled"
+        deployApiInput.value = "true"
         formRef.current.appendChild(deployApiInput)
       }
     }
@@ -203,7 +203,7 @@ export function ChatDeploy({
       )
       const welcomeMessageChanged =
         welcomeMessage !==
-        (existingChat.customizations?.welcomeMessage || 'Hi there! How can I help you today?')
+        (existingChat.customizations?.welcomeMessage || "Hi there! How can I help you today?")
 
       // Check if emails have changed
       const emailsChanged =
@@ -260,17 +260,17 @@ export function ChatDeploy({
             }
 
             // Populate form with existing data
-            setSubdomain(chatDetail.subdomain || '')
-            setTitle(chatDetail.title || '')
-            setDescription(chatDetail.description || '')
-            setAuthType(chatDetail.authType || 'public')
+            setSubdomain(chatDetail.subdomain || "")
+            setTitle(chatDetail.title || "")
+            setDescription(chatDetail.description || "")
+            setAuthType(chatDetail.authType || "public")
 
             // Store original values for change detection
             setOriginalValues({
-              subdomain: chatDetail.subdomain || '',
-              title: chatDetail.title || '',
-              description: chatDetail.description || '',
-              authType: chatDetail.authType || 'public',
+              subdomain: chatDetail.subdomain || "",
+              title: chatDetail.title || "",
+              description: chatDetail.description || "",
+              authType: chatDetail.authType || "public",
               emails: Array.isArray(chatDetail.allowedEmails) ? [...chatDetail.allowedEmails] : [],
               selectedOutputIds: Array.isArray(chatDetail.outputConfigs)
                 ? chatDetail.outputConfigs.map(
@@ -280,7 +280,7 @@ export function ChatDeploy({
             })
 
             // Set emails if using email auth
-            if (chatDetail.authType === 'email' && Array.isArray(chatDetail.allowedEmails)) {
+            if (chatDetail.authType === "email" && Array.isArray(chatDetail.allowedEmails)) {
               setEmails(chatDetail.allowedEmails)
             }
 
@@ -300,7 +300,7 @@ export function ChatDeploy({
               setWelcomeMessage(chatDetail.customizations.welcomeMessage)
             }
           } else {
-            logger.error('Failed to fetch chat details')
+            logger.error("Failed to fetch chat details")
           }
         } else {
           setExistingChat(null)
@@ -313,7 +313,7 @@ export function ChatDeploy({
         }
       }
     } catch (error) {
-      logger.error('Error fetching chat status:', error)
+      logger.error("Error fetching chat status:", error)
     } finally {
       setIsLoading(false)
       setDataFetched(true)
@@ -334,14 +334,13 @@ export function ChatDeploy({
 
     // Validate subdomain format
     if (lowercaseValue && !/^[a-z0-9-]+$/.test(lowercaseValue)) {
-      setSubdomainError('Subdomain can only contain lowercase letters, numbers, and hyphens')
+      setSubdomainError("Subdomain can only contain lowercase letters, numbers, and hyphens")
       // Reset deploying states when validation errors occur
       setIsDeploying(false)
       setChatSubmitting(false)
       return
-    } else {
-      setSubdomainError('')
     }
+    setSubdomainError("")
 
     // Skip check if empty or same as original (for updates)
     if (!lowercaseValue || (originalValues && lowercaseValue === originalValues.subdomain)) {
@@ -371,23 +370,23 @@ export function ChatDeploy({
         if (response.ok) {
           setSubdomainAvailable(data.available)
           if (!data.available) {
-            setSubdomainError('This subdomain is already in use')
+            setSubdomainError("This subdomain is already in use")
             // Reset deploying states when subdomain is unavailable
             setIsDeploying(false)
             setChatSubmitting(false)
           } else {
-            setSubdomainError('')
+            setSubdomainError("")
           }
         } else {
-          setSubdomainError('Error checking subdomain availability')
+          setSubdomainError("Error checking subdomain availability")
           // Reset deploying states on API error
           setIsDeploying(false)
           setChatSubmitting(false)
         }
       }
     } catch (error) {
-      logger.error('Error checking subdomain availability:', error)
-      setSubdomainError('Error checking subdomain availability')
+      logger.error("Error checking subdomain availability:", error)
+      setSubdomainError("Error checking subdomain availability")
       // Reset deploying states on error
       setIsDeploying(false)
       setChatSubmitting(false)
@@ -399,18 +398,18 @@ export function ChatDeploy({
   // Validate and add email
   const handleAddEmail = () => {
     // Basic email validation
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail) && !newEmail.startsWith('@')) {
-      setEmailError('Please enter a valid email or domain (e.g., user@example.com or @example.com)')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail) && !newEmail.startsWith("@")) {
+      setEmailError("Please enter a valid email or domain (e.g., user@example.com or @example.com)")
       return
     }
 
     // Add email if it's not already in the list
     if (!emails.includes(newEmail)) {
       setEmails([...emails, newEmail])
-      setNewEmail('')
-      setEmailError('')
+      setNewEmail("")
+      setEmailError("")
     } else {
-      setEmailError('This email or domain is already in the list')
+      setEmailError("This email or domain is already in the list")
     }
   }
 
@@ -421,8 +420,8 @@ export function ChatDeploy({
 
   // Password generation and copy functionality
   const generatePassword = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
-    let result = ''
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+="
+    let result = ""
     const length = 24
 
     for (let i = 0; i < length; i++) {
@@ -447,19 +446,19 @@ export function ChatDeploy({
       setIsDeleting(true)
 
       const response = await fetch(`/api/chat/edit/${existingChat.id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to delete chat')
+        throw new Error(error.error || "Failed to delete chat")
       }
 
       // Close modal after successful deletion
       onClose()
     } catch (error: any) {
-      logger.error('Failed to delete chat:', error)
-      setErrorMessage(error.message || 'An unexpected error occurred while deleting')
+      logger.error("Failed to delete chat:", error)
+      setErrorMessage(error.message || "An unexpected error occurred while deleting")
     } finally {
       setIsDeleting(false)
       setShowDeleteConfirmation(false)
@@ -477,7 +476,7 @@ export function ChatDeploy({
     setErrorMessage(null)
 
     // Log form state to help debug
-    logger.info('Form submission triggered with values:', {
+    logger.info("Form submission triggered with values:", {
       subdomain,
       title,
       authType,
@@ -486,9 +485,9 @@ export function ChatDeploy({
 
     // Basic validation
     if (!workflowId || !subdomain.trim() || !title.trim()) {
-      logger.error('Missing required fields', { workflowId, subdomain, title })
+      logger.error("Missing required fields", { workflowId, subdomain, title })
       setChatSubmitting(false)
-      setErrorMessage('Please fill out all required fields')
+      setErrorMessage("Please fill out all required fields")
       return
     }
 
@@ -505,14 +504,14 @@ export function ChatDeploy({
         const data = await response.json()
 
         if (!response.ok || !data.available) {
-          setSubdomainError('This subdomain is already in use')
+          setSubdomainError("This subdomain is already in use")
           setChatSubmitting(false)
           setIsCheckingSubdomain(false)
           return
         }
       } catch (error) {
-        logger.error('Error checking subdomain availability:', error)
-        setSubdomainError('Error checking subdomain availability')
+        logger.error("Error checking subdomain availability:", error)
+        setSubdomainError("Error checking subdomain availability")
         setChatSubmitting(false)
         setIsCheckingSubdomain(false)
         return
@@ -522,8 +521,8 @@ export function ChatDeploy({
 
     // Verify output selection if it's set
     if (selectedOutputBlocks.length === 0) {
-      logger.error('No output blocks selected')
-      setErrorMessage('Please select at least one output block')
+      logger.error("No output blocks selected")
+      setErrorMessage("Please select at least one output block")
       setChatSubmitting(false)
       return
     }
@@ -534,24 +533,24 @@ export function ChatDeploy({
     }
 
     // Validate authentication options
-    if (authType === 'password' && !password.trim() && !existingChat) {
-      setErrorMessage('Password is required when using password protection')
+    if (authType === "password" && !password.trim() && !existingChat) {
+      setErrorMessage("Password is required when using password protection")
       setChatSubmitting(false)
       return
     }
 
-    if (authType === 'email' && emails.length === 0) {
-      setErrorMessage('At least one email or domain is required when using email access control')
+    if (authType === "email" && emails.length === 0) {
+      setErrorMessage("At least one email or domain is required when using email access control")
       setChatSubmitting(false)
       return
     }
 
     // If editing an existing chat, check if we should show confirmation
-    if (existingChat && existingChat.isActive) {
+    if (existingChat?.isActive) {
       const majorChanges =
         subdomain !== existingChat.subdomain ||
         authType !== existingChat.authType ||
-        (authType === 'email' &&
+        (authType === "email" &&
           JSON.stringify(emails) !== JSON.stringify(existingChat.allowedEmails))
 
       if (majorChanges) {
@@ -577,7 +576,7 @@ export function ChatDeploy({
         title: title.trim(),
         description: description.trim(),
         customizations: {
-          primaryColor: '#802FFF',
+          primaryColor: "#802FFF",
           welcomeMessage: welcomeMessage.trim(),
         },
         authType: authType,
@@ -585,25 +584,25 @@ export function ChatDeploy({
 
       // Always include auth specific fields regardless of authType
       // This ensures they're always properly handled
-      if (authType === 'password') {
+      if (authType === "password") {
         // For password auth, only send the password if:
         // 1. It's a new chat, or
         // 2. Creating a new password for an existing chat, or
         // 3. Changing from another auth type to password
         if (password) {
           payload.password = password
-        } else if (existingChat && existingChat.authType !== 'password') {
+        } else if (existingChat && existingChat.authType !== "password") {
           // If changing to password auth but no password provided for an existing chat,
           // this is an error - server will reject it
-          setErrorMessage('Password is required when using password protection')
+          setErrorMessage("Password is required when using password protection")
           setChatSubmitting(false)
           return // Stop the submission
         }
 
         payload.allowedEmails = [] // Clear emails when using password auth
-      } else if (authType === 'email') {
+      } else if (authType === "email") {
         payload.allowedEmails = emails
-      } else if (authType === 'public') {
+      } else if (authType === "public") {
         // Explicitly set empty values for public access
         payload.allowedEmails = []
       }
@@ -612,7 +611,7 @@ export function ChatDeploy({
       if (selectedOutputBlocks && selectedOutputBlocks.length > 0) {
         const outputConfigs = selectedOutputBlocks
           .map((outputId) => {
-            const firstUnderscoreIndex = outputId.indexOf('_')
+            const firstUnderscoreIndex = outputId.indexOf("_")
             // Only process IDs that have the correct blockId_path format
             if (firstUnderscoreIndex !== -1) {
               const blockId = outputId.substring(0, firstUnderscoreIndex)
@@ -636,12 +635,12 @@ export function ChatDeploy({
         if (outputConfigs.length > 0) {
           payload.outputConfigs = outputConfigs
 
-          logger.info('Added output configuration to payload:', {
+          logger.info("Added output configuration to payload:", {
             outputConfigsCount: outputConfigs.length,
             outputConfigs: outputConfigs,
           })
         } else {
-          logger.warn('No valid output configurations found in selection')
+          logger.warn("No valid output configurations found in selection")
           payload.outputConfigs = []
         }
       } else {
@@ -655,14 +654,14 @@ export function ChatDeploy({
       }
 
       // For existing chat updates, ensure API gets redeployed too
-      if (existingChat && existingChat.id) {
+      if (existingChat?.id) {
         // First ensure the API deployment is up-to-date
         try {
           // Make a direct call to redeploy the API
           const redeployResponse = await fetch(`/api/workflows/${workflowId}/deploy`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
+              "Content-Type": "application/json",
             },
             body: JSON.stringify({
               deployApiEnabled: true,
@@ -671,12 +670,12 @@ export function ChatDeploy({
           })
 
           if (!redeployResponse.ok) {
-            logger.warn('API redeployment failed, continuing with chat update')
+            logger.warn("API redeployment failed, continuing with chat update")
           } else {
-            logger.info('API successfully redeployed alongside chat update')
+            logger.info("API successfully redeployed alongside chat update")
           }
         } catch (error) {
-          logger.warn('Error redeploying API, continuing with chat update:', error)
+          logger.warn("Error redeploying API, continuing with chat update:", error)
         }
       } else {
         // For new chat deployments, set the flag for API deployment
@@ -684,7 +683,7 @@ export function ChatDeploy({
       }
 
       // Log the final payload (minus sensitive data) for debugging
-      logger.info('Submitting chat deployment with values:', {
+      logger.info("Submitting chat deployment with values:", {
         workflowId: payload.workflowId,
         subdomain: payload.subdomain,
         title: payload.title,
@@ -696,13 +695,13 @@ export function ChatDeploy({
       })
 
       // Make API request - different endpoints for create vs update
-      let endpoint = '/api/chat'
-      let method = 'POST'
+      let endpoint = "/api/chat"
+      let method = "POST"
 
       // If updating existing chat, use the edit/ID endpoint with PATCH method
-      if (existingChat && existingChat.id) {
+      if (existingChat?.id) {
         endpoint = `/api/chat/edit/${existingChat.id}`
-        method = 'PATCH'
+        method = "PATCH"
         // Ensure deployApiEnabled is included in updates too
         payload.deployApiEnabled = true
       }
@@ -712,7 +711,7 @@ export function ChatDeploy({
         chatSchema.parse(payload)
       } catch (validationError: any) {
         if (validationError instanceof z.ZodError) {
-          const errorMessage = validationError.errors[0]?.message || 'Invalid form data'
+          const errorMessage = validationError.errors[0]?.message || "Invalid form data"
           setErrorMessage(errorMessage)
           setChatSubmitting(false)
           return
@@ -722,7 +721,7 @@ export function ChatDeploy({
       const response = await fetch(endpoint, {
         method,
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
       })
@@ -730,13 +729,13 @@ export function ChatDeploy({
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.error || `Failed to ${existingChat ? 'update' : 'deploy'} chat`)
+        throw new Error(result.error || `Failed to ${existingChat ? "update" : "deploy"} chat`)
       }
 
       const { chatUrl } = result
 
       if (chatUrl) {
-        logger.info(`Chat ${existingChat ? 'updated' : 'deployed'} successfully:`, chatUrl)
+        logger.info(`Chat ${existingChat ? "updated" : "deployed"} successfully:`, chatUrl)
         setDeployedChatUrl(chatUrl)
 
         if (onDeploymentComplete) {
@@ -747,12 +746,12 @@ export function ChatDeploy({
           onChatExistsChange(true)
         }
       } else {
-        throw new Error('Response missing chatUrl')
+        throw new Error("Response missing chatUrl")
       }
     } catch (error: any) {
-      logger.error(`Failed to ${existingChat ? 'update' : 'deploy'} chat:`, error)
-      setErrorMessage(error.message || 'An unexpected error occurred')
-      addNotification('error', `Failed to deploy chat: ${error.message}`, workflowId)
+      logger.error(`Failed to ${existingChat ? "update" : "deploy"} chat:`, error)
+      setErrorMessage(error.message || "An unexpected error occurred")
+      addNotification("error", `Failed to deploy chat: ${error.message}`, workflowId)
     } finally {
       setChatSubmitting(false)
       setShowEditConfirmation(false)
@@ -761,7 +760,7 @@ export function ChatDeploy({
 
   // Determine button label based on state
   const getSubmitButtonLabel = () => {
-    return existingChat ? 'Update Chat' : 'Deploy Chat'
+    return existingChat ? "Update Chat" : "Deploy Chat"
   }
 
   // Check if form submission is possible
@@ -773,8 +772,8 @@ export function ChatDeploy({
       !title ||
       !!subdomainError ||
       isCheckingSubdomain ||
-      (authType === 'password' && !password && !existingChat) ||
-      (authType === 'email' && emails.length === 0) ||
+      (authType === "password" && !password && !existingChat) ||
+      (authType === "email" && emails.length === 0) ||
       (existingChat && !hasChanges)
     )
   }
@@ -809,7 +808,7 @@ export function ChatDeploy({
         {/* Access control section */}
         <div className="space-y-2">
           <Skeleton className="h-5 w-28" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <Skeleton className="h-24 w-full rounded-lg" />
             <Skeleton className="h-24 w-full rounded-lg" />
             <Skeleton className="h-24 w-full rounded-lg" />
@@ -826,44 +825,44 @@ export function ChatDeploy({
   if (deployedChatUrl) {
     const url = new URL(deployedChatUrl)
     const hostname = url.hostname
-    const isDevelopmentUrl = hostname.includes('localhost')
+    const isDevelopmentUrl = hostname.includes("localhost")
 
     let domainSuffix
     if (isDevelopmentUrl) {
       const baseDomain = getBaseDomain()
-      const baseHost = baseDomain.split(':')[0]
-      const port = url.port || (baseDomain.includes(':') ? baseDomain.split(':')[1] : '3000')
+      const baseHost = baseDomain.split(":")[0]
+      const port = url.port || (baseDomain.includes(":") ? baseDomain.split(":")[1] : "3000")
       domainSuffix = `.${baseHost}:${port}`
     } else {
-      domainSuffix = '.simstudio.ai'
+      domainSuffix = ".simstudio.ai"
     }
 
     const subdomainPart = isDevelopmentUrl
-      ? hostname.split('.')[0]
-      : hostname.split('.simstudio.ai')[0]
+      ? hostname.split(".")[0]
+      : hostname.split(".simstudio.ai")[0]
 
     // Success view - simplified with no buttons
     return (
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-sm font-medium">
-            Chat {existingChat ? 'Update' : 'Deployment'} Successful
+          <Label className="font-medium text-sm">
+            Chat {existingChat ? "Update" : "Deployment"} Successful
           </Label>
-          <div className="flex items-center relative ring-offset-background rounded-md">
+          <div className="relative flex items-center rounded-md ring-offset-background">
             <a
               href={deployedChatUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 rounded-l-md border border-r-0 p-2 h-10 flex items-center text-sm font-medium text-primary break-all"
+              className="flex h-10 flex-1 items-center break-all rounded-l-md border border-r-0 p-2 font-medium text-primary text-sm"
             >
               {subdomainPart}
             </a>
-            <div className="h-10 px-3 flex items-center border border-l-0 rounded-r-md bg-muted text-muted-foreground text-sm font-medium whitespace-nowrap">
+            <div className="flex h-10 items-center whitespace-nowrap rounded-r-md border border-l-0 bg-muted px-3 font-medium text-muted-foreground text-sm">
               {domainSuffix}
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Your chat is now live at{' '}
+          <p className="text-muted-foreground text-xs">
+            Your chat is now live at{" "}
             <a
               href={deployedChatUrl}
               target="_blank"
@@ -881,7 +880,7 @@ export function ChatDeploy({
   if (errorMessage) {
     return (
       <div className="space-y-4">
-        <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm">
           <div className="font-semibold">Chat Deployment Error</div>
           <div>{errorMessage}</div>
         </div>
@@ -911,7 +910,7 @@ export function ChatDeploy({
           e.preventDefault() // Prevent default form submission
           handleSubmit(e) // Call our submit handler directly
         }}
-        className="space-y-4 chat-deploy-form overflow-y-auto px-1 -mx-1"
+        className="chat-deploy-form -mx-1 space-y-4 overflow-y-auto px-1"
       >
         <div className="grid gap-4">
           {errorMessage && (
@@ -924,10 +923,10 @@ export function ChatDeploy({
           <div className="space-y-4">
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="subdomain" className="text-sm font-medium">
+                <Label htmlFor="subdomain" className="font-medium text-sm">
                   Subdomain
                 </Label>
-                <div className="flex items-center relative ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 rounded-md">
+                <div className="relative flex items-center rounded-md ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
                   <Input
                     id="subdomain"
                     placeholder="company-name"
@@ -935,15 +934,15 @@ export function ChatDeploy({
                     onChange={(e) => handleSubdomainChange(e.target.value)}
                     required
                     className={cn(
-                      'rounded-r-none border-r-0 focus-visible:ring-0 focus-visible:ring-offset-0',
+                      "rounded-r-none border-r-0 focus-visible:ring-0 focus-visible:ring-offset-0",
                       subdomainAvailable === true &&
-                        'border-green-500 focus-visible:border-green-500',
+                        "border-green-500 focus-visible:border-green-500",
                       subdomainAvailable === false &&
-                        'border-destructive focus-visible:border-destructive'
+                        "border-destructive focus-visible:border-destructive"
                     )}
                     disabled={isDeploying}
                   />
-                  <div className="h-10 px-3 flex items-center border border-l-0 rounded-r-md bg-muted text-muted-foreground text-sm font-medium whitespace-nowrap">
+                  <div className="flex h-10 items-center whitespace-nowrap rounded-r-md border border-l-0 bg-muted px-3 font-medium text-muted-foreground text-sm">
                     {getDomainSuffix()}
                   </div>
                   {!isCheckingSubdomain && subdomainAvailable === true && subdomain && (
@@ -953,15 +952,15 @@ export function ChatDeploy({
                   )}
                 </div>
                 {subdomainError && (
-                  <p className="text-sm text-destructive mt-1">{subdomainError}</p>
+                  <p className="mt-1 text-destructive text-sm">{subdomainError}</p>
                 )}
                 {!subdomainError && subdomainAvailable === true && subdomain && (
-                  <p className="text-sm text-green-500 mt-1">Subdomain is available</p>
+                  <p className="mt-1 text-green-500 text-sm">Subdomain is available</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="title" className="text-sm font-medium">
+                <Label htmlFor="title" className="font-medium text-sm">
                   Chat Title
                 </Label>
                 <Input
@@ -976,7 +975,7 @@ export function ChatDeploy({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description" className="text-sm font-medium">
+              <Label htmlFor="description" className="font-medium text-sm">
                 Description (Optional)
               </Label>
               <Textarea
@@ -993,10 +992,10 @@ export function ChatDeploy({
           {/* Output Configuration */}
           <div className="space-y-2">
             <div>
-              <Label className="text-sm font-medium">Chat Output</Label>
+              <Label className="font-medium text-sm">Chat Output</Label>
             </div>
 
-            <Card className="border-input rounded-md shadow-none">
+            <Card className="rounded-md border-input shadow-none">
               <CardContent className="p-1">
                 <OutputSelect
                   workflowId={workflowId}
@@ -1015,7 +1014,7 @@ export function ChatDeploy({
                 />
               </CardContent>
             </Card>
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="mt-2 text-muted-foreground text-xs">
               Select which block's output to return to the user in the chat interface
             </p>
           </div>
@@ -1023,72 +1022,72 @@ export function ChatDeploy({
           {/* Authentication Options */}
           <div className="space-y-2">
             <div>
-              <Label className="text-sm font-medium">Access Control</Label>
+              <Label className="font-medium text-sm">Access Control</Label>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <Card
                 className={cn(
-                  'cursor-pointer overflow-hidden transition-colors shadow-none hover:bg-accent/30',
-                  authType === 'public'
-                    ? 'hover:bg-accent/50 border border-muted-foreground'
-                    : 'border border-input'
+                  "cursor-pointer overflow-hidden shadow-none transition-colors hover:bg-accent/30",
+                  authType === "public"
+                    ? "border border-muted-foreground hover:bg-accent/50"
+                    : "border border-input"
                 )}
               >
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center relative">
+                <CardContent className="relative flex flex-col items-center justify-center p-4 text-center">
                   <button
                     type="button"
-                    className="w-full h-full cursor-pointer z-10 absolute inset-0"
-                    onClick={() => !isDeploying && setAuthType('public')}
+                    className="absolute inset-0 z-10 h-full w-full cursor-pointer"
+                    onClick={() => !isDeploying && setAuthType("public")}
                     aria-label="Select public access"
                   />
-                  <div className="text-center align-middle justify-center">
+                  <div className="justify-center text-center align-middle">
                     <h3 className="font-medium text-sm">Public Access</h3>
-                    <p className="text-xs text-muted-foreground">Anyone can access your chat</p>
+                    <p className="text-muted-foreground text-xs">Anyone can access your chat</p>
                   </div>
                 </CardContent>
               </Card>
 
               <Card
                 className={cn(
-                  'cursor-pointer overflow-hidden transition-colors shadow-none hover:bg-accent/30',
-                  authType === 'password'
-                    ? 'hover:bg-accent/50 border border-muted-foreground'
-                    : 'border border-input'
+                  "cursor-pointer overflow-hidden shadow-none transition-colors hover:bg-accent/30",
+                  authType === "password"
+                    ? "border border-muted-foreground hover:bg-accent/50"
+                    : "border border-input"
                 )}
               >
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center relative">
+                <CardContent className="relative flex flex-col items-center justify-center p-4 text-center">
                   <button
                     type="button"
-                    className="w-full h-full cursor-pointer z-10 absolute inset-0"
-                    onClick={() => !isDeploying && setAuthType('password')}
+                    className="absolute inset-0 z-10 h-full w-full cursor-pointer"
+                    onClick={() => !isDeploying && setAuthType("password")}
                     aria-label="Select password protected access"
                   />
-                  <div className="text-center align-middle justify-center">
+                  <div className="justify-center text-center align-middle">
                     <h3 className="font-medium text-sm">Password Protected</h3>
-                    <p className="text-xs text-muted-foreground">Secure with a single password</p>
+                    <p className="text-muted-foreground text-xs">Secure with a single password</p>
                   </div>
                 </CardContent>
               </Card>
 
               <Card
                 className={cn(
-                  'cursor-pointer overflow-hidden transition-colors shadow-none hover:bg-accent/30',
-                  authType === 'email'
-                    ? 'hover:bg-accent/50 border border-muted-foreground'
-                    : 'border border-input'
+                  "cursor-pointer overflow-hidden shadow-none transition-colors hover:bg-accent/30",
+                  authType === "email"
+                    ? "border border-muted-foreground hover:bg-accent/50"
+                    : "border border-input"
                 )}
               >
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center relative">
+                <CardContent className="relative flex flex-col items-center justify-center p-4 text-center">
                   <button
                     type="button"
-                    className="w-full h-full cursor-pointer z-10 absolute inset-0"
-                    onClick={() => !isDeploying && setAuthType('email')}
+                    className="absolute inset-0 z-10 h-full w-full cursor-pointer"
+                    onClick={() => !isDeploying && setAuthType("email")}
                     aria-label="Select email access"
                   />
-                  <div className="text-center align-middle justify-center">
+                  <div className="justify-center text-center align-middle">
                     <h3 className="font-medium text-sm">Email Access</h3>
-                    <p className="text-xs text-muted-foreground">Restrict to specific emails</p>
+                    <p className="text-muted-foreground text-xs">Restrict to specific emails</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1096,17 +1095,17 @@ export function ChatDeploy({
 
             {/* Auth settings */}
             <div>
-              {authType === 'password' && (
+              {authType === "password" && (
                 <Card className="shadow-none">
                   <CardContent className="p-4">
                     <div>
-                      <h3 className="text-sm font-medium mb-2">Password Settings</h3>
+                      <h3 className="mb-2 font-medium text-sm">Password Settings</h3>
                     </div>
                     <div className="relative">
                       {/* Add visual password indicator for existing passwords */}
-                      {existingChat && existingChat.authType === 'password' && !password && (
-                        <div className="mb-2 text-xs flex items-center text-muted-foreground">
-                          <div className="mr-2 bg-primary/10 text-primary font-medium rounded-full px-2 py-0.5">
+                      {existingChat && existingChat.authType === "password" && !password && (
+                        <div className="mb-2 flex items-center text-muted-foreground text-xs">
+                          <div className="mr-2 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">
                             Password set
                           </div>
                           <span>Current password is securely stored</span>
@@ -1114,19 +1113,19 @@ export function ChatDeploy({
                       )}
                       <div className="relative">
                         <Input
-                          type={showPassword ? 'text' : 'password'}
+                          type={showPassword ? "text" : "password"}
                           placeholder={
                             existingChat
-                              ? 'Enter new password (leave empty to keep current)'
-                              : 'Enter password'
+                              ? "Enter new password (leave empty to keep current)"
+                              : "Enter password"
                           }
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           disabled={isDeploying}
                           className="pr-28"
-                          required={!existingChat && authType === 'password'}
+                          required={!existingChat && authType === "password"}
                         />
-                        <div className="absolute right-0 top-0 h-full flex">
+                        <div className="absolute top-0 right-0 flex h-full">
                           <Button
                             type="button"
                             variant="ghost"
@@ -1167,27 +1166,27 @@ export function ChatDeploy({
                               <Eye className="h-4 w-4" />
                             )}
                             <span className="sr-only">
-                              {showPassword ? 'Hide password' : 'Show password'}
+                              {showPassword ? "Hide password" : "Show password"}
                             </span>
                           </Button>
                         </div>
                       </div>
                     </div>
                     {/* Add helper text to explain password behavior */}
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {existingChat && existingChat.authType === 'password'
-                        ? 'Leaving this empty will keep the current password. Enter a new password to change it.'
-                        : 'This password will be required to access your chat.'}
+                    <p className="mt-2 text-muted-foreground text-xs">
+                      {existingChat && existingChat.authType === "password"
+                        ? "Leaving this empty will keep the current password. Enter a new password to change it."
+                        : "This password will be required to access your chat."}
                     </p>
                   </CardContent>
                 </Card>
               )}
 
-              {authType === 'email' && (
+              {authType === "email" && (
                 <Card className="shadow-none">
                   <CardContent className="p-4">
                     <div>
-                      <h3 className="text-sm font-medium mb-2">Email Access Settings</h3>
+                      <h3 className="mb-2 font-medium text-sm">Email Access Settings</h3>
                     </div>
 
                     <div className="flex gap-2">
@@ -1209,14 +1208,14 @@ export function ChatDeploy({
                       </Button>
                     </div>
 
-                    {emailError && <p className="text-sm text-destructive">{emailError}</p>}
+                    {emailError && <p className="text-destructive text-sm">{emailError}</p>}
 
                     {emails.length > 0 && (
-                      <div className="mt-3 bg-background rounded-md border shadow-none px-2 py-0 max-h-[150px] overflow-y-auto">
+                      <div className="mt-3 max-h-[150px] overflow-y-auto rounded-md border bg-background px-2 py-0 shadow-none">
                         <ul className="divide-y divide-border">
                           {emails.map((email) => (
                             <li key={email} className="relative">
-                              <div className="flex justify-between items-center py-2 px-2 my-1 text-sm group rounded-sm">
+                              <div className="group my-1 flex items-center justify-between rounded-sm px-2 py-2 text-sm">
                                 <span className="font-medium text-foreground">{email}</span>
                                 <Button
                                   type="button"
@@ -1234,19 +1233,19 @@ export function ChatDeploy({
                         </ul>
                       </div>
                     )}
-                    <p className="text-xs text-muted-foreground mt-2">
+                    <p className="mt-2 text-muted-foreground text-xs">
                       Add specific emails or entire domains (@example.com)
                     </p>
                   </CardContent>
                 </Card>
               )}
 
-              {authType === 'public' && (
+              {authType === "public" && (
                 <Card className="shadow-none">
                   <CardContent className="p-4">
                     <div>
-                      <h3 className="text-sm font-medium mb-2">Public Access Settings</h3>
-                      <p className="text-xs text-muted-foreground">
+                      <h3 className="mb-2 font-medium text-sm">Public Access Settings</h3>
+                      <p className="text-muted-foreground text-xs">
                         This chat will be publicly accessible to anyone with the link.
                       </p>
                     </div>
@@ -1258,7 +1257,7 @@ export function ChatDeploy({
 
           {/* Welcome Message Section - Add this before the form closing div */}
           <div className="space-y-2">
-            <Label htmlFor="welcomeMessage" className="text-sm font-medium">
+            <Label htmlFor="welcomeMessage" className="font-medium text-sm">
               Welcome Message
             </Label>
             <Textarea
@@ -1269,7 +1268,7 @@ export function ChatDeploy({
               rows={3}
               disabled={isDeploying}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               This message will be displayed when users first open the chat
             </p>
           </div>
@@ -1300,7 +1299,7 @@ export function ChatDeploy({
                   Updating...
                 </span>
               ) : (
-                'Update Chat'
+                "Update Chat"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1313,7 +1312,7 @@ export function ChatDeploy({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Chat?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete your chat deployment at{' '}
+              This will permanently delete your chat deployment at{" "}
               <span className="font-mono text-destructive">{subdomain}.simstudio.ai</span>.
               <p className="mt-2">
                 All users will lose access immediately, and this action cannot be undone.
@@ -1333,7 +1332,7 @@ export function ChatDeploy({
                   Deleting...
                 </span>
               ) : (
-                'Delete'
+                "Delete"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

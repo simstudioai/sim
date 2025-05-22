@@ -1,24 +1,24 @@
-'use client'
+"use client"
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { client, useSubscription } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
-import { cn } from '@/lib/utils'
-import { useGeneralStore } from '@/stores/settings/general/store'
-import { Account } from './components/account/account'
-import { ApiKeys } from './components/api-keys/api-keys'
-import { Credentials } from './components/credentials/credentials'
-import { EnvironmentVariables } from './components/environment/environment'
-import { General } from './components/general/general'
-import { Privacy } from './components/privacy/privacy'
-import { SettingsNavigation } from './components/settings-navigation/settings-navigation'
-import { Subscription } from './components/subscription/subscription'
-import { TeamManagement } from './components/team-management/team-management'
+import { useEffect, useMemo, useRef, useState } from "react"
+import { X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { client, useSubscription } from "@/lib/auth-client"
+import { createLogger } from "@/lib/logs/console-logger"
+import { cn } from "@/lib/utils"
+import { useGeneralStore } from "@/stores/settings/general/store"
+import { Account } from "./components/account/account"
+import { ApiKeys } from "./components/api-keys/api-keys"
+import { Credentials } from "./components/credentials/credentials"
+import { EnvironmentVariables } from "./components/environment/environment"
+import { General } from "./components/general/general"
+import { Privacy } from "./components/privacy/privacy"
+import { SettingsNavigation } from "./components/settings-navigation/settings-navigation"
+import { Subscription } from "./components/subscription/subscription"
+import { TeamManagement } from "./components/team-management/team-management"
 
-const logger = createLogger('SettingsModal')
+const logger = createLogger("SettingsModal")
 
 interface SettingsModalProps {
   open: boolean
@@ -26,17 +26,17 @@ interface SettingsModalProps {
 }
 
 type SettingsSection =
-  | 'general'
-  | 'environment'
-  | 'account'
-  | 'credentials'
-  | 'apikeys'
-  | 'subscription'
-  | 'team'
-  | 'privacy'
+  | "general"
+  | "environment"
+  | "account"
+  | "credentials"
+  | "apikeys"
+  | "subscription"
+  | "team"
+  | "privacy"
 
 export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
-  const [activeSection, setActiveSection] = useState<SettingsSection>('general')
+  const [activeSection, setActiveSection] = useState<SettingsSection>("general")
   const [isPro, setIsPro] = useState(false)
   const [isTeam, setIsTeam] = useState(false)
   const [isEnterprise, setIsEnterprise] = useState(false)
@@ -58,7 +58,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       try {
         await loadSettings()
 
-        const proStatusResponse = await fetch('/api/user/subscription')
+        const proStatusResponse = await fetch("/api/user/subscription")
 
         if (proStatusResponse.ok) {
           const subData = await proStatusResponse.json()
@@ -67,7 +67,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           setIsEnterprise(subData.isEnterprise)
         }
 
-        const usageResponse = await fetch('/api/user/usage')
+        const usageResponse = await fetch("/api/user/usage")
         if (usageResponse.ok) {
           const usageData = await usageResponse.json()
           setUsageData(usageData)
@@ -78,7 +78,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
           if (isEnterprise) {
             try {
-              const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
+              const enterpriseResponse = await fetch("/api/user/subscription/enterprise")
               if (enterpriseResponse.ok) {
                 const enterpriseData = await enterpriseResponse.json()
                 if (enterpriseData.subscription) {
@@ -87,15 +87,15 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                 }
               }
             } catch (error) {
-              logger.error('Error fetching enterprise subscription', error)
+              logger.error("Error fetching enterprise subscription", error)
             }
           }
 
           if (result.data && result.data.length > 0) {
             const activeSubscription = result.data.find(
               (sub) =>
-                sub.status === 'active' &&
-                (sub.plan === 'team' || sub.plan === 'pro' || sub.plan === 'enterprise')
+                sub.status === "active" &&
+                (sub.plan === "team" || sub.plan === "pro" || sub.plan === "enterprise")
             )
 
             if (activeSubscription) {
@@ -103,12 +103,12 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             }
           }
         } catch (error) {
-          logger.error('Error fetching subscription information', error)
+          logger.error("Error fetching subscription information", error)
         }
 
         hasLoadedInitialData.current = true
       } catch (error) {
-        logger.error('Error loading settings data:', error)
+        logger.error("Error loading settings data:", error)
       } finally {
         setIsLoading(false)
       }
@@ -127,10 +127,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
       onOpenChange(true)
     }
 
-    window.addEventListener('open-settings', handleOpenSettings as EventListener)
+    window.addEventListener("open-settings", handleOpenSettings as EventListener)
 
     return () => {
-      window.removeEventListener('open-settings', handleOpenSettings as EventListener)
+      window.removeEventListener("open-settings", handleOpenSettings as EventListener)
     }
   }, [onOpenChange])
 
@@ -140,10 +140,10 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] h-[70vh] flex flex-col p-0 gap-0" hideCloseButton>
-        <DialogHeader className="px-6 py-4 border-b">
+      <DialogContent className="flex h-[70vh] flex-col gap-0 p-0 sm:max-w-[800px]" hideCloseButton>
+        <DialogHeader className="border-b px-6 py-4">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Settings</DialogTitle>
+            <DialogTitle className="font-medium text-lg">Settings</DialogTitle>
             <Button
               variant="ghost"
               size="icon"
@@ -156,7 +156,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           </div>
         </DialogHeader>
 
-        <div className="flex flex-1 min-h-0">
+        <div className="flex min-h-0 flex-1">
           {/* Navigation Sidebar */}
           <div className="w-[200px] border-r">
             <SettingsNavigation
@@ -169,23 +169,23 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto">
-            <div className={cn('h-full', activeSection === 'general' ? 'block' : 'hidden')}>
+            <div className={cn("h-full", activeSection === "general" ? "block" : "hidden")}>
               <General />
             </div>
-            <div className={cn('h-full', activeSection === 'environment' ? 'block' : 'hidden')}>
+            <div className={cn("h-full", activeSection === "environment" ? "block" : "hidden")}>
               <EnvironmentVariables onOpenChange={onOpenChange} />
             </div>
-            <div className={cn('h-full', activeSection === 'account' ? 'block' : 'hidden')}>
+            <div className={cn("h-full", activeSection === "account" ? "block" : "hidden")}>
               <Account onOpenChange={onOpenChange} />
             </div>
-            <div className={cn('h-full', activeSection === 'credentials' ? 'block' : 'hidden')}>
+            <div className={cn("h-full", activeSection === "credentials" ? "block" : "hidden")}>
               <Credentials onOpenChange={onOpenChange} />
             </div>
-            <div className={cn('h-full', activeSection === 'apikeys' ? 'block' : 'hidden')}>
+            <div className={cn("h-full", activeSection === "apikeys" ? "block" : "hidden")}>
               <ApiKeys onOpenChange={onOpenChange} />
             </div>
             {isSubscriptionEnabled && (
-              <div className={cn('h-full', activeSection === 'subscription' ? 'block' : 'hidden')}>
+              <div className={cn("h-full", activeSection === "subscription" ? "block" : "hidden")}>
                 <Subscription
                   onOpenChange={onOpenChange}
                   cachedIsPro={isPro}
@@ -198,11 +198,11 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               </div>
             )}
             {showTeamManagement && (
-              <div className={cn('h-full', activeSection === 'team' ? 'block' : 'hidden')}>
+              <div className={cn("h-full", activeSection === "team" ? "block" : "hidden")}>
                 <TeamManagement />
               </div>
             )}
-            <div className={cn('h-full', activeSection === 'privacy' ? 'block' : 'hidden')}>
+            <div className={cn("h-full", activeSection === "privacy" ? "block" : "hidden")}>
               <Privacy />
             </div>
           </div>

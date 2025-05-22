@@ -1,22 +1,22 @@
-import { useCallback, useState } from 'react'
-import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console-logger'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useNotificationStore } from '@/stores/notifications/store'
-import { useConsoleStore } from '@/stores/panel/console/store'
-import { usePanelStore } from '@/stores/panel/store'
-import { useVariablesStore } from '@/stores/panel/variables/store'
-import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { useGeneralStore } from '@/stores/settings/general/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { Executor } from '@/executor'
-import { ExecutionResult } from '@/executor/types'
-import { Serializer } from '@/serializer'
+import { useCallback, useState } from "react"
+import { v4 as uuidv4 } from "uuid"
+import { createLogger } from "@/lib/logs/console-logger"
+import { buildTraceSpans } from "@/lib/logs/trace-spans"
+import { useExecutionStore } from "@/stores/execution/store"
+import { useNotificationStore } from "@/stores/notifications/store"
+import { useConsoleStore } from "@/stores/panel/console/store"
+import { usePanelStore } from "@/stores/panel/store"
+import { useVariablesStore } from "@/stores/panel/variables/store"
+import { useEnvironmentStore } from "@/stores/settings/environment/store"
+import { useGeneralStore } from "@/stores/settings/general/store"
+import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
+import { mergeSubblockState } from "@/stores/workflows/utils"
+import { useWorkflowStore } from "@/stores/workflows/workflow/store"
+import { Executor } from "@/executor"
+import type { ExecutionResult } from "@/executor/types"
+import { Serializer } from "@/serializer"
 
-const logger = createLogger('useWorkflowExecution')
+const logger = createLogger("useWorkflowExecution")
 
 export function useWorkflowExecution() {
   const { blocks, edges, loops } = useWorkflowStore()
@@ -59,7 +59,7 @@ export function useWorkflowExecution() {
       }
 
       // If this was a streaming response and we have the final content, update it
-      if (streamContent && result.output?.response && typeof streamContent === 'string') {
+      if (streamContent && result.output?.response && typeof streamContent === "string") {
         // Update the content with the final streaming content
         enrichedResult.output.response.content = streamContent
 
@@ -71,7 +71,7 @@ export function useWorkflowExecution() {
           for (const log of enrichedResult.logs) {
             // Only update the specific agent block that was streamed
             const isStreamingBlock = streamingBlockId && log.blockId === streamingBlockId
-            if (isStreamingBlock && log.blockType === 'agent' && log.output?.response) {
+            if (isStreamingBlock && log.blockType === "agent" && log.output?.response) {
               log.output.response.content = streamContent
             }
           }
@@ -79,9 +79,9 @@ export function useWorkflowExecution() {
       }
 
       const response = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           executionId,
@@ -90,12 +90,12 @@ export function useWorkflowExecution() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to persist logs')
+        throw new Error("Failed to persist logs")
       }
 
       return executionId
     } catch (error) {
-      logger.error('Error persisting logs:', { error })
+      logger.error("Error persisting logs:", { error })
       return executionId
     }
   }
@@ -120,8 +120,8 @@ export function useWorkflowExecution() {
       }
 
       // Set active tab to console
-      if (activeTab !== 'console' && activeTab !== 'chat') {
-        setActiveTab('console')
+      if (activeTab !== "console" && activeTab !== "chat") {
+        setActiveTab("console")
       }
 
       const executionId = uuidv4()
@@ -130,18 +130,18 @@ export function useWorkflowExecution() {
       // Only true if the execution is initiated from the chat panel
       // or through a chat-specific execution path
       const isChatExecution =
-        activeTab === 'chat' &&
+        activeTab === "chat" &&
         workflowInput &&
-        typeof workflowInput === 'object' &&
-        'input' in workflowInput
+        typeof workflowInput === "object" &&
+        "input" in workflowInput
 
       // If this is a chat execution, get the selected outputs
       let selectedOutputIds: string[] | undefined = undefined
       if (isChatExecution && activeWorkflowId) {
         // Get selected outputs from chat store
-        const chatStore = await import('@/stores/panel/chat/store').then((mod) => mod.useChatStore)
+        const chatStore = await import("@/stores/panel/chat/store").then((mod) => mod.useChatStore)
         selectedOutputIds = chatStore.getState().getSelectedWorkflowOutput(activeWorkflowId)
-        logger.info('Chat execution with selected outputs:', selectedOutputIds)
+        logger.info("Chat execution with selected outputs:", selectedOutputIds)
       }
 
       try {
@@ -218,7 +218,7 @@ export function useWorkflowExecution() {
 
         // Streaming results are handled differently - they won't have a standard result
         if (result instanceof ReadableStream) {
-          logger.info('Received streaming result from executor')
+          logger.info("Received streaming result from executor")
 
           // For streaming results, we need to handle them in the component
           // that initiated the execution (chat panel)
@@ -229,8 +229,8 @@ export function useWorkflowExecution() {
         }
 
         // Handle StreamingExecution format (combined stream + execution result)
-        if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
-          logger.info('Received combined stream+execution result from executor')
+        if (result && typeof result === "object" && "stream" in result && "execution" in result) {
+          logger.info("Received combined stream+execution result from executor")
 
           // Generate an executionId and store it in the execution metadata so that
           // the chat component can persist the logs *after* the stream finishes.
@@ -242,7 +242,7 @@ export function useWorkflowExecution() {
             // Find the agent block in the logs that matches one of our selected outputs
             const streamingBlock = result.execution.logs.find(
               (log) =>
-                log.blockType === 'agent' &&
+                log.blockType === "agent" &&
                 selectedOutputIds.some(
                   (id) => id === log.blockId || id.startsWith(`${log.blockId}_`)
                 )
@@ -257,14 +257,14 @@ export function useWorkflowExecution() {
           result.execution.metadata = {
             ...(result.execution.metadata || {}),
             executionId,
-            source: isChatExecution ? 'chat' : 'manual',
+            source: isChatExecution ? "chat" : "manual",
             streamingBlockId, // Add the block ID to the metadata
           } as any
 
           // Clean up any response objects with zero tokens in agent blocks to avoid confusion in console
           if (result.execution.logs && Array.isArray(result.execution.logs)) {
             result.execution.logs.forEach((log: any) => {
-              if (log.blockType === 'agent' && log.output?.response) {
+              if (log.blockType === "agent" && log.output?.response) {
                 const response = log.output.response
 
                 // Check for zero tokens that will be estimated later
@@ -277,12 +277,11 @@ export function useWorkflowExecution() {
                 ) {
                   // Remove tokens from console display to avoid confusion
                   // They'll be properly estimated in the execution logger
-                  delete response.tokens
+                  response.tokens = undefined
                 }
               }
             })
           }
-
           // Mark the execution as streaming so that downstream code can recognise it
           ;(result.execution as any).isStreaming = true
 
@@ -302,7 +301,7 @@ export function useWorkflowExecution() {
           // Use type assertion for adding custom metadata
           ;(result as any).metadata = {
             ...(result.metadata || {}),
-            source: 'chat',
+            source: "chat",
           }
         }
 
@@ -328,9 +327,9 @@ export function useWorkflowExecution() {
 
           // Show notification
           addNotification(
-            result.success ? 'console' : 'error',
+            result.success ? "console" : "error",
             result.success
-              ? 'Workflow completed successfully'
+              ? "Workflow completed successfully"
               : `Workflow execution failed: ${result.error}`,
             activeWorkflowId
           )
@@ -338,51 +337,51 @@ export function useWorkflowExecution() {
           // In non-debug mode, persist logs (no need to wait for this)
           // We explicitly don't await this to avoid blocking UI updates
           persistLogs(executionId, result).catch((err) => {
-            logger.error('Error persisting logs:', { error: err })
+            logger.error("Error persisting logs:", { error: err })
           })
         }
 
         return result
       } catch (error: any) {
-        logger.error('Workflow Execution Error:', error)
+        logger.error("Workflow Execution Error:", error)
 
         // Properly extract error message ensuring it's never undefined
-        let errorMessage = 'Unknown error'
+        let errorMessage = "Unknown error"
 
         if (error instanceof Error) {
           errorMessage = error.message || `Error: ${String(error)}`
-        } else if (typeof error === 'string') {
+        } else if (typeof error === "string") {
           errorMessage = error
-        } else if (error && typeof error === 'object') {
+        } else if (error && typeof error === "object") {
           // Fix the "undefined (undefined)" pattern specifically
           if (
-            error.message === 'undefined (undefined)' ||
+            error.message === "undefined (undefined)" ||
             (error.error &&
-              typeof error.error === 'object' &&
-              error.error.message === 'undefined (undefined)')
+              typeof error.error === "object" &&
+              error.error.message === "undefined (undefined)")
           ) {
-            errorMessage = 'API request failed - no specific error details available'
+            errorMessage = "API request failed - no specific error details available"
           }
           // Try to extract error details from potential API or execution errors
           else if (error.message) {
             errorMessage = error.message
-          } else if (error.error && typeof error.error === 'string') {
+          } else if (error.error && typeof error.error === "string") {
             errorMessage = error.error
-          } else if (error.error && typeof error.error === 'object' && error.error.message) {
+          } else if (error.error && typeof error.error === "object" && error.error.message) {
             errorMessage = error.error.message
           } else {
             // Last resort: stringify the whole object
             try {
               errorMessage = `Error details: ${JSON.stringify(error)}`
             } catch {
-              errorMessage = 'Error occurred but details could not be displayed'
+              errorMessage = "Error occurred but details could not be displayed"
             }
           }
         }
 
         // Ensure errorMessage is never "undefined (undefined)"
-        if (errorMessage === 'undefined (undefined)') {
-          errorMessage = 'API request failed - no specific error details available'
+        if (errorMessage === "undefined (undefined)") {
+          errorMessage = "API request failed - no specific error details available"
         }
 
         // Set error result and show notification immediately
@@ -400,12 +399,12 @@ export function useWorkflowExecution() {
         setActiveBlocks(new Set())
 
         // Create a more user-friendly notification message
-        let notificationMessage = `Workflow execution failed`
+        let notificationMessage = "Workflow execution failed"
 
         // Add URL for HTTP errors
-        if (error && error.request && error.request.url) {
+        if (error?.request?.url) {
           // Don't show empty URL errors
-          if (error.request.url && error.request.url.trim() !== '') {
+          if (error.request.url && error.request.url.trim() !== "") {
             notificationMessage += `: Request to ${error.request.url} failed`
 
             // Add status if available
@@ -420,16 +419,16 @@ export function useWorkflowExecution() {
 
         // Safely show error notification
         try {
-          addNotification('error', notificationMessage, activeWorkflowId)
+          addNotification("error", notificationMessage, activeWorkflowId)
         } catch (notificationError) {
-          logger.error('Error showing error notification:', notificationError)
+          logger.error("Error showing error notification:", notificationError)
           // Fallback console error
-          console.error('Workflow execution failed:', errorMessage)
+          console.error("Workflow execution failed:", errorMessage)
         }
 
         // Also send the error result to the API (don't await to keep UI responsive)
         persistLogs(executionId, errorResult).catch((err) => {
-          logger.error('Error persisting logs:', { error: err })
+          logger.error("Error persisting logs:", { error: err })
         })
 
         return errorResult
@@ -459,14 +458,14 @@ export function useWorkflowExecution() {
    */
   const handleStepDebug = useCallback(async () => {
     // Log debug information
-    logger.info('Step Debug requested', {
+    logger.info("Step Debug requested", {
       hasExecutor: !!executor,
       hasContext: !!debugContext,
       pendingBlockCount: pendingBlocks.length,
     })
 
     if (!executor || !debugContext || pendingBlocks.length === 0) {
-      logger.error('Cannot step debug - missing required state', {
+      logger.error("Cannot step debug - missing required state", {
         executor: !!executor,
         debugContext: !!debugContext,
         pendingBlocks: pendingBlocks.length,
@@ -474,9 +473,9 @@ export function useWorkflowExecution() {
 
       // Show error notification
       addNotification(
-        'error',
-        'Cannot step through debugging - missing execution state. Try restarting debug mode.',
-        activeWorkflowId || ''
+        "error",
+        "Cannot step through debugging - missing execution state. Try restarting debug mode.",
+        activeWorkflowId || ""
       )
 
       // Reset debug state
@@ -487,12 +486,12 @@ export function useWorkflowExecution() {
     }
 
     try {
-      console.log('Executing debug step with blocks:', pendingBlocks)
+      console.log("Executing debug step with blocks:", pendingBlocks)
 
       // Execute the next step with the pending blocks
       const result = await executor.continueExecution(pendingBlocks, debugContext)
 
-      console.log('Debug step execution result:', result)
+      console.log("Debug step execution result:", result)
 
       // Save the new context in the store
       if (result.metadata?.context) {
@@ -505,17 +504,17 @@ export function useWorkflowExecution() {
         !result.metadata.pendingBlocks ||
         result.metadata.pendingBlocks.length === 0
       ) {
-        logger.info('Debug session complete')
+        logger.info("Debug session complete")
         // Debug session complete
         setExecutionResult(result)
 
         // Show completion notification
         addNotification(
-          result.success ? 'console' : 'error',
+          result.success ? "console" : "error",
           result.success
-            ? 'Workflow completed successfully'
+            ? "Workflow completed successfully"
             : `Workflow execution failed: ${result.error}`,
-          activeWorkflowId || ''
+          activeWorkflowId || ""
         )
 
         // Persist logs
@@ -530,7 +529,7 @@ export function useWorkflowExecution() {
         setActiveBlocks(new Set())
       } else {
         // Debug session continues - update UI with new pending blocks
-        logger.info('Debug step completed, next blocks pending', {
+        logger.info("Debug step completed, next blocks pending", {
           nextPendingBlocks: result.metadata.pendingBlocks.length,
         })
 
@@ -538,7 +537,7 @@ export function useWorkflowExecution() {
         setPendingBlocks(result.metadata.pendingBlocks)
       }
     } catch (error: any) {
-      logger.error('Debug Step Error:', error)
+      logger.error("Debug Step Error:", error)
 
       const errorMessage = error instanceof Error ? error.message : String(error)
 
@@ -554,10 +553,10 @@ export function useWorkflowExecution() {
 
       // Safely show error notification
       try {
-        addNotification('error', `Debug step failed: ${errorMessage}`, activeWorkflowId || '')
+        addNotification("error", `Debug step failed: ${errorMessage}`, activeWorkflowId || "")
       } catch (notificationError) {
-        logger.error('Error showing step error notification:', notificationError)
-        console.error('Debug step failed:', errorMessage)
+        logger.error("Error showing step error notification:", notificationError)
+        console.error("Debug step failed:", errorMessage)
       }
 
       // Persist logs
@@ -590,14 +589,14 @@ export function useWorkflowExecution() {
    */
   const handleResumeDebug = useCallback(async () => {
     // Log debug information
-    logger.info('Resume Debug requested', {
+    logger.info("Resume Debug requested", {
       hasExecutor: !!executor,
       hasContext: !!debugContext,
       pendingBlockCount: pendingBlocks.length,
     })
 
     if (!executor || !debugContext || pendingBlocks.length === 0) {
-      logger.error('Cannot resume debug - missing required state', {
+      logger.error("Cannot resume debug - missing required state", {
         executor: !!executor,
         debugContext: !!debugContext,
         pendingBlocks: pendingBlocks.length,
@@ -605,9 +604,9 @@ export function useWorkflowExecution() {
 
       // Show error notification
       addNotification(
-        'error',
-        'Cannot resume debugging - missing execution state. Try restarting debug mode.',
-        activeWorkflowId || ''
+        "error",
+        "Cannot resume debugging - missing execution state. Try restarting debug mode.",
+        activeWorkflowId || ""
       )
 
       // Reset debug state
@@ -621,13 +620,13 @@ export function useWorkflowExecution() {
       // Show a notification that we're resuming execution
       try {
         addNotification(
-          'info',
-          'Resuming workflow execution until completion',
-          activeWorkflowId || ''
+          "info",
+          "Resuming workflow execution until completion",
+          activeWorkflowId || ""
         )
       } catch (notificationError) {
-        logger.error('Error showing resume notification:', notificationError)
-        console.info('Resuming workflow execution until completion')
+        logger.error("Error showing resume notification:", notificationError)
+        console.info("Resuming workflow execution until completion")
       }
 
       let currentResult: ExecutionResult = {
@@ -640,7 +639,7 @@ export function useWorkflowExecution() {
       let currentContext = { ...debugContext }
       let currentPendingBlocks = [...pendingBlocks]
 
-      console.log('Starting resume execution with blocks:', currentPendingBlocks)
+      console.log("Starting resume execution with blocks:", currentPendingBlocks)
 
       // Continue execution until there are no more pending blocks
       let iterationCount = 0
@@ -653,7 +652,7 @@ export function useWorkflowExecution() {
 
         currentResult = await executor.continueExecution(currentPendingBlocks, currentContext)
 
-        logger.info(`Resume iteration result:`, {
+        logger.info("Resume iteration result:", {
           success: currentResult.success,
           hasPendingBlocks: !!currentResult.metadata?.pendingBlocks,
           pendingBlockCount: currentResult.metadata?.pendingBlocks?.length || 0,
@@ -663,7 +662,7 @@ export function useWorkflowExecution() {
         if (currentResult.metadata?.context) {
           currentContext = currentResult.metadata.context
         } else {
-          logger.info('No context in result, ending resume')
+          logger.info("No context in result, ending resume")
           break // No context means we're done
         }
 
@@ -671,13 +670,13 @@ export function useWorkflowExecution() {
         if (currentResult.metadata?.pendingBlocks) {
           currentPendingBlocks = currentResult.metadata.pendingBlocks
         } else {
-          logger.info('No pending blocks in result, ending resume')
+          logger.info("No pending blocks in result, ending resume")
           break // No pending blocks means we're done
         }
 
         // If we don't have a debug session anymore, we're done
         if (!currentResult.metadata?.isDebugSession) {
-          logger.info('Debug session ended, ending resume')
+          logger.info("Debug session ended, ending resume")
           break
         }
 
@@ -685,10 +684,10 @@ export function useWorkflowExecution() {
       }
 
       if (iterationCount >= maxIterations) {
-        logger.warn('Resume execution reached maximum iteration limit')
+        logger.warn("Resume execution reached maximum iteration limit")
       }
 
-      logger.info('Resume execution complete', {
+      logger.info("Resume execution complete", {
         iterationCount,
         success: currentResult.success,
       })
@@ -699,15 +698,15 @@ export function useWorkflowExecution() {
       // Show completion notification
       try {
         addNotification(
-          currentResult.success ? 'console' : 'error',
+          currentResult.success ? "console" : "error",
           currentResult.success
-            ? 'Workflow completed successfully'
+            ? "Workflow completed successfully"
             : `Workflow execution failed: ${currentResult.error}`,
-          activeWorkflowId || ''
+          activeWorkflowId || ""
         )
       } catch (notificationError) {
-        logger.error('Error showing completion notification:', notificationError)
-        console.info('Workflow execution completed')
+        logger.error("Error showing completion notification:", notificationError)
+        console.info("Workflow execution completed")
       }
 
       // Persist logs
@@ -721,7 +720,7 @@ export function useWorkflowExecution() {
       setPendingBlocks([])
       setActiveBlocks(new Set())
     } catch (error: any) {
-      logger.error('Debug Resume Error:', error)
+      logger.error("Debug Resume Error:", error)
 
       const errorMessage = error instanceof Error ? error.message : String(error)
 
@@ -737,10 +736,10 @@ export function useWorkflowExecution() {
 
       // Safely show error notification
       try {
-        addNotification('error', `Resume execution failed: ${errorMessage}`, activeWorkflowId || '')
+        addNotification("error", `Resume execution failed: ${errorMessage}`, activeWorkflowId || "")
       } catch (notificationError) {
-        logger.error('Error showing resume error notification:', notificationError)
-        console.error('Resume execution failed:', errorMessage)
+        logger.error("Error showing resume error notification:", notificationError)
+        console.error("Resume execution failed:", errorMessage)
       }
 
       // Persist logs

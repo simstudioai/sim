@@ -1,66 +1,66 @@
-import { ToolConfig } from '../types'
-import { ConfluenceUpdateParams, ConfluenceUpdateResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { ConfluenceUpdateParams, ConfluenceUpdateResponse } from "./types"
 
 export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, ConfluenceUpdateResponse> = {
-  id: 'confluence_update',
-  name: 'Confluence Update',
-  description: 'Update a Confluence page using the Confluence API.',
-  version: '1.0.0',
+  id: "confluence_update",
+  name: "Confluence Update",
+  description: "Update a Confluence page using the Confluence API.",
+  version: "1.0.0",
 
   oauth: {
     required: true,
-    provider: 'confluence',
+    provider: "confluence",
   },
 
   params: {
     accessToken: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'OAuth access token for Confluence',
+      description: "OAuth access token for Confluence",
     },
     domain: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Your Confluence domain (e.g., yourcompany.atlassian.net)',
+      description: "Your Confluence domain (e.g., yourcompany.atlassian.net)",
     },
     pageId: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Confluence page ID to update',
+      description: "Confluence page ID to update",
     },
     title: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'New title for the page',
+      description: "New title for the page",
     },
     content: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'New content for the page in Confluence storage format',
+      description: "New content for the page in Confluence storage format",
     },
     version: {
-      type: 'number',
+      type: "number",
       required: false,
-      description: 'Version number of the page (required for preventing conflicts)',
+      description: "Version number of the page (required for preventing conflicts)",
     },
     cloudId: {
-      type: 'string',
+      type: "string",
       required: false,
       description:
-        'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
+        "Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.",
     },
   },
 
   request: {
     url: (params: ConfluenceUpdateParams) => {
-      return '/api/auth/oauth/confluence/page'
+      return "/api/auth/oauth/confluence/page"
     },
-    method: 'PUT',
+    method: "PUT",
     headers: (params: ConfluenceUpdateParams) => {
       return {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
@@ -73,13 +73,13 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
         title: params.title,
         body: params.content
           ? {
-              representation: 'storage',
+              representation: "storage",
               value: params.content,
             }
           : undefined,
         version: {
           number: params.version || 1,
-          message: params.version ? 'Updated via Sim Studio' : 'Initial update via Sim Studio',
+          message: params.version ? "Updated via Sim Studio" : "Initial update via Sim Studio",
         },
       }
       return body
@@ -89,7 +89,7 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorData = await response.json().catch(() => null)
-      console.error('Update tool error response:', {
+      console.error("Update tool error response:", {
         status: response.status,
         statusText: response.statusText,
         error: errorData,
@@ -114,6 +114,6 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
   },
 
   transformError: (error: any) => {
-    return error.message || 'Failed to update Confluence page'
+    return error.message || "Failed to update Confluence page"
   },
 }

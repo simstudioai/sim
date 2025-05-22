@@ -1,18 +1,18 @@
-'use client'
+"use client"
 
-import { useEffect, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, ChevronDown, ExternalLink, Plus, RefreshCw } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { client, useSession } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
-import { OAUTH_PROVIDERS, OAuthServiceConfig } from '@/lib/oauth'
-import { cn } from '@/lib/utils'
-import { loadFromStorage, removeFromStorage, saveToStorage } from '@/stores/workflows/persistence'
+import { useEffect, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Check, ChevronDown, ExternalLink, Plus, RefreshCw } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { client, useSession } from "@/lib/auth-client"
+import { createLogger } from "@/lib/logs/console-logger"
+import { OAUTH_PROVIDERS, type OAuthServiceConfig } from "@/lib/oauth"
+import { cn } from "@/lib/utils"
+import { loadFromStorage, removeFromStorage, saveToStorage } from "@/stores/workflows/persistence"
 
-const logger = createLogger('Credentials')
+const logger = createLogger("Credentials")
 
 interface CredentialsProps {
   onOpenChange?: (open: boolean) => void
@@ -67,7 +67,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       const serviceDefinitions = defineServices()
 
       // Fetch all OAuth connections for the user
-      const response = await fetch('/api/auth/oauth/connections')
+      const response = await fetch("/api/auth/oauth/connections")
       if (response.ok) {
         const data = await response.json()
         const connections = data.connections || []
@@ -123,7 +123,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         setServices(serviceDefinitions)
       }
     } catch (error) {
-      logger.error('Error fetching services:', { error })
+      logger.error("Error fetching services:", { error })
       // Use base definitions on error
       setServices(defineServices())
     } finally {
@@ -133,9 +133,9 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 
   // Check for OAuth callback
   useEffect(() => {
-    const code = searchParams.get('code')
-    const state = searchParams.get('state')
-    const error = searchParams.get('error')
+    const code = searchParams.get("code")
+    const state = searchParams.get("state")
+    const error = searchParams.get("error")
 
     // Handle OAuth callback
     if (code && state) {
@@ -148,22 +148,22 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       }
 
       // Clear the URL parameters
-      router.replace('/w')
+      router.replace("/w")
     } else if (error) {
-      logger.error('OAuth error:', { error })
-      router.replace('/w')
+      logger.error("OAuth error:", { error })
+      router.replace("/w")
     }
   }, [searchParams, router, userId])
 
   // Check for pending OAuth connections and return URL
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === "undefined") return
 
     // Check if there's a pending OAuth connection
-    const serviceId = loadFromStorage<string>('pending_service_id')
-    const scopes = loadFromStorage<string[]>('pending_oauth_scopes') || []
-    const returnUrl = loadFromStorage<string>('pending_oauth_return_url')
-    const fromOAuthModal = loadFromStorage<boolean>('from_oauth_modal')
+    const serviceId = loadFromStorage<string>("pending_service_id")
+    const scopes = loadFromStorage<string[]>("pending_oauth_scopes") || []
+    const returnUrl = loadFromStorage<string>("pending_oauth_return_url")
+    const fromOAuthModal = loadFromStorage<boolean>("from_oauth_modal")
 
     if (serviceId) {
       setPendingService(serviceId)
@@ -175,9 +175,9 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       // Clear the pending connection after a short delay
       // This gives the user time to see the highlighted connection
       setTimeout(() => {
-        removeFromStorage('pending_service_id')
-        removeFromStorage('pending_oauth_scopes')
-        removeFromStorage('from_oauth_modal')
+        removeFromStorage("pending_service_id")
+        removeFromStorage("pending_oauth_scopes")
+        removeFromStorage("from_oauth_modal")
       }, 500)
     }
 
@@ -185,7 +185,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
     if (authSuccess && returnUrl && onOpenChange) {
       // Clear the success flag
       setAuthSuccess(false)
-      removeFromStorage('pending_oauth_return_url')
+      removeFromStorage("pending_oauth_return_url")
 
       // Close the settings modal and return to workflow
       setTimeout(() => {
@@ -212,12 +212,12 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       setIsConnecting(service.id)
 
       // Store information about the connection
-      saveToStorage<string>('pending_service_id', service.id)
-      saveToStorage<string[]>('pending_oauth_scopes', service.scopes)
-      saveToStorage<string>('pending_oauth_return_url', window.location.href)
-      saveToStorage<string>('pending_oauth_provider_id', service.providerId)
+      saveToStorage<string>("pending_service_id", service.id)
+      saveToStorage<string[]>("pending_oauth_scopes", service.scopes)
+      saveToStorage<string>("pending_oauth_return_url", window.location.href)
+      saveToStorage<string>("pending_oauth_provider_id", service.providerId)
 
-      logger.info('Connecting service:', {
+      logger.info("Connecting service:", {
         serviceId: service.id,
         providerId: service.providerId,
         scopes: service.scopes,
@@ -228,7 +228,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
         callbackURL: window.location.href,
       })
     } catch (error) {
-      logger.error('OAuth connection error:', { error })
+      logger.error("OAuth connection error:", { error })
       setIsConnecting(null)
     }
   }
@@ -238,13 +238,13 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
     setIsConnecting(`${service.id}-${accountId}`)
     try {
       // Call the API to disconnect the account
-      const response = await fetch('/api/auth/oauth/disconnect', {
-        method: 'POST',
+      const response = await fetch("/api/auth/oauth/disconnect", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          provider: service.providerId.split('-')[0],
+          provider: service.providerId.split("-")[0],
           providerId: service.providerId,
         }),
       })
@@ -264,10 +264,10 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
           })
         )
       } else {
-        logger.error('Error disconnecting service')
+        logger.error("Error disconnecting service")
       }
     } catch (error) {
-      logger.error('Error disconnecting service:', { error })
+      logger.error("Error disconnecting service:", { error })
     } finally {
       setIsConnecting(null)
     }
@@ -280,7 +280,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       const providerKey =
         Object.keys(OAUTH_PROVIDERS).find((key) =>
           Object.keys(OAUTH_PROVIDERS[key].services).includes(service.id)
-        ) || 'other'
+        ) || "other"
 
       if (!acc[providerKey]) {
         acc[providerKey] = []
@@ -295,30 +295,30 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   const scrollToHighlightedService = () => {
     if (pendingServiceRef.current) {
       pendingServiceRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
+        behavior: "smooth",
+        block: "center",
       })
     }
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
       <div>
-        <h3 className="text-lg font-medium mb-1">Credentials</h3>
-        <p className="text-sm text-muted-foreground mb-6">
+        <h3 className="mb-1 font-medium text-lg">Credentials</h3>
+        <p className="mb-6 text-muted-foreground text-sm">
           Connect your accounts to use tools that require authentication.
         </p>
       </div>
 
       {/* Success message */}
       {authSuccess && (
-        <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
+        <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
               <Check className="h-5 w-5 text-green-400" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-green-800">Account connected successfully!</p>
+              <p className="font-medium text-green-800 text-sm">Account connected successfully!</p>
             </div>
           </div>
         </div>
@@ -326,11 +326,11 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 
       {/* Pending service message - only shown when coming from OAuth required modal */}
       {pendingService && showActionRequired && (
-        <div className="mb-6 p-5 bg-primary/5 border border-primary/20 rounded-md text-sm flex items-start gap-3 shadow-sm">
-          <div className="min-w-5 mt-0.5">
+        <div className="mb-6 flex items-start gap-3 rounded-md border border-primary/20 bg-primary/5 p-5 text-sm shadow-sm">
+          <div className="mt-0.5 min-w-5">
             <ExternalLink className="h-4 w-4 text-primary" />
           </div>
-          <div className="flex flex-col flex-1">
+          <div className="flex flex-1 flex-col">
             <p className="text-muted-foreground">
               <span className="font-medium text-primary">Action Required:</span> Please connect your
               account to enable the requested features. The required service is highlighted below.
@@ -339,7 +339,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
               variant="outline"
               size="sm"
               onClick={scrollToHighlightedService}
-              className="mt-3 self-start text-sm font-medium text-primary border-primary/20 hover:bg-primary/10 hover:text-primary hover:border-primary transition-colors flex items-center gap-1.5 px-3 h-8"
+              className="mt-3 flex h-8 items-center gap-1.5 self-start border-primary/20 px-3 font-medium text-primary text-sm transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
             >
               <span>Go to service</span>
               <ChevronDown className="h-3.5 w-3.5" />
@@ -361,45 +361,45 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
           {/* Group services by provider */}
           {Object.entries(groupedServices).map(([providerKey, providerServices]) => (
             <div key={providerKey} className="space-y-4">
-              <h4 className="text-sm font-medium text-muted-foreground">
-                {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
+              <h4 className="font-medium text-muted-foreground text-sm">
+                {OAUTH_PROVIDERS[providerKey]?.name || "Other Services"}
               </h4>
               <div className="space-y-4">
                 {providerServices.map((service) => (
                   <Card
                     key={service.id}
                     className={cn(
-                      'p-6 transition-all hover:shadow-md',
-                      pendingService === service.id && 'border-primary shadow-md'
+                      "p-6 transition-all hover:shadow-md",
+                      pendingService === service.id && "border-primary shadow-md"
                     )}
                     ref={pendingService === service.id ? pendingServiceRef : undefined}
                   >
-                    <div className="flex items-start w-full gap-4">
-                      <div className="flex items-start gap-4 w-full">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted shrink-0">
-                          {typeof service.icon === 'function'
-                            ? service.icon({ className: 'h-5 w-5' })
+                    <div className="flex w-full items-start gap-4">
+                      <div className="flex w-full items-start gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted">
+                          {typeof service.icon === "function"
+                            ? service.icon({ className: "h-5 w-5" })
                             : service.icon}
                         </div>
-                        <div className="space-y-1 w-full">
+                        <div className="w-full space-y-1">
                           <div>
                             <h4 className="font-medium leading-none">{service.name}</h4>
-                            <p className="text-sm text-muted-foreground mt-1">
+                            <p className="mt-1 text-muted-foreground text-sm">
                               {service.description}
                             </p>
                           </div>
                           {service.accounts && service.accounts.length > 0 && (
-                            <div className="pt-3 space-y-2 w-full">
+                            <div className="w-full space-y-2 pt-3">
                               {service.accounts.map((account) => (
                                 <div
                                   key={account.id}
-                                  className="flex items-center justify-between gap-2 rounded-md border bg-card/50 p-2 w-full"
+                                  className="flex w-full items-center justify-between gap-2 rounded-md border bg-card/50 p-2"
                                 >
                                   <div className="flex items-center gap-2">
-                                    <div className="h-6 w-6 rounded-full bg-green-500/10 flex items-center justify-center">
+                                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-green-500/10">
                                       <Check className="h-3 w-3 text-green-600" />
                                     </div>
-                                    <span className="text-sm font-medium">{account.name}</span>
+                                    <span className="font-medium text-sm">{account.name}</span>
                                   </div>
                                   <Button
                                     variant="ghost"
@@ -411,7 +411,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                                     {isConnecting === `${service.id}-${account.id}` ? (
                                       <RefreshCw className="h-3 w-3 animate-spin" />
                                     ) : (
-                                      'Disconnect'
+                                      "Disconnect"
                                     )}
                                   </Button>
                                 </div>
@@ -441,7 +441,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                       </div>
 
                       {!service.accounts?.length && (
-                        <div className="flex justify-end ml-auto">
+                        <div className="ml-auto flex justify-end">
                           <Button
                             variant="default"
                             size="sm"
@@ -451,11 +451,11 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                           >
                             {isConnecting === service.id ? (
                               <>
-                                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                                 Connecting...
                               </>
                             ) : (
-                              'Connect'
+                              "Connect"
                             )}
                           </Button>
                         </div>

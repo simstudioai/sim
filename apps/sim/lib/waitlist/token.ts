@@ -1,10 +1,10 @@
-import { jwtVerify, SignJWT } from 'jose'
-import { nanoid } from 'nanoid'
-import { env } from '../env'
+import { jwtVerify, SignJWT } from "jose"
+import { nanoid } from "nanoid"
+import { env } from "../env"
 
 interface TokenPayload {
   email: string
-  type: 'waitlist-approval' | 'password-reset'
+  type: "waitlist-approval" | "password-reset"
   expiresIn: string
 }
 
@@ -20,7 +20,7 @@ interface DecodedToken {
 const getJwtSecret = () => {
   const secret = env.JWT_SECRET
   if (!secret) {
-    throw new Error('JWT_SECRET environment variable is not set')
+    throw new Error("JWT_SECRET environment variable is not set")
   }
   return new TextEncoder().encode(secret)
 }
@@ -30,7 +30,7 @@ const getJwtSecret = () => {
  */
 export async function createToken({ email, type, expiresIn }: TokenPayload): Promise<string> {
   const jwt = await new SignJWT({ email, type })
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(expiresIn)
     .setJti(nanoid())
@@ -48,7 +48,7 @@ export async function verifyToken(token: string): Promise<DecodedToken | null> {
 
     return payload as unknown as DecodedToken
   } catch (error) {
-    console.error('Error verifying token:', error)
+    console.error("Error verifying token:", error)
     return null
   }
 }

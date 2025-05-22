@@ -17,7 +17,7 @@ import {
   getCurrentScope,
   linkedErrorsIntegration,
   makeFetchTransport,
-} from '@sentry/nextjs'
+} from "@sentry/nextjs"
 
 const clientEnv = {
   NODE_ENV: process.env.NODE_ENV,
@@ -26,15 +26,15 @@ const clientEnv = {
 }
 
 // Only in production
-if (typeof window !== 'undefined' && clientEnv.NODE_ENV === 'production') {
+if (typeof window !== "undefined" && clientEnv.NODE_ENV === "production") {
   const client = new BrowserClient({
     dsn: clientEnv.NEXT_PUBLIC_SENTRY_DSN || undefined,
-    environment: clientEnv.NODE_ENV || 'development',
+    environment: clientEnv.NODE_ENV || "development",
     transport: makeFetchTransport,
     stackParser: defaultStackParser,
     integrations: [breadcrumbsIntegration(), dedupeIntegration(), linkedErrorsIntegration()],
     beforeSend(event) {
-      if (event.request && typeof event.request === 'object') {
+      if (event.request && typeof event.request === "object") {
         ;(event.request as any).ip = null
       }
       return event
@@ -46,14 +46,14 @@ if (typeof window !== 'undefined' && clientEnv.NODE_ENV === 'production') {
 }
 
 export const onRouterTransitionStart =
-  clientEnv.NODE_ENV === 'production' ? captureRouterTransitionStart : () => {}
+  clientEnv.NODE_ENV === "production" ? captureRouterTransitionStart : () => {}
 
-if (typeof window !== 'undefined') {
-  const TELEMETRY_STATUS_KEY = 'simstudio-telemetry-status'
+if (typeof window !== "undefined") {
+  const TELEMETRY_STATUS_KEY = "simstudio-telemetry-status"
   let telemetryEnabled = true
 
   try {
-    if (clientEnv.NEXT_TELEMETRY_DISABLED === '1') {
+    if (clientEnv.NEXT_TELEMETRY_DISABLED === "1") {
       telemetryEnabled = false
     } else {
       const storedPreference = localStorage.getItem(TELEMETRY_STATUS_KEY)
@@ -71,7 +71,7 @@ if (typeof window !== 'undefined') {
    */
   function safeSerialize(obj: any): any {
     if (obj === null || obj === undefined) return null
-    if (typeof obj !== 'object') return obj
+    if (typeof obj !== "object") return obj
 
     if (Array.isArray(obj)) {
       return obj.map((item) => safeSerialize(item))
@@ -85,8 +85,8 @@ if (typeof window !== 'undefined') {
         if (
           value === undefined ||
           value === null ||
-          typeof value === 'function' ||
-          typeof value === 'symbol'
+          typeof value === "function" ||
+          typeof value === "symbol"
         ) {
           continue
         }
@@ -103,7 +103,6 @@ if (typeof window !== 'undefined') {
 
     return result
   }
-
   ;(window as any).__SIM_TELEMETRY_ENABLED = telemetryEnabled
   ;(window as any).__SIM_TRACK_EVENT = (eventName: string, properties?: any) => {
     if (!telemetryEnabled) return
@@ -111,15 +110,15 @@ if (typeof window !== 'undefined') {
     const safeProps = properties || {}
 
     const payload = {
-      category: 'feature_usage',
-      action: eventName || 'unknown_event',
+      category: "feature_usage",
+      action: eventName || "unknown_event",
       timestamp: Date.now(),
       ...safeSerialize(safeProps),
     }
 
-    fetch('/api/telemetry', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    fetch("/api/telemetry", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }).catch(() => {
       // Silently fail if sending metrics fails
@@ -127,7 +126,7 @@ if (typeof window !== 'undefined') {
   }
 
   if (telemetryEnabled) {
-    performance.mark('sim-studio-init')
+    performance.mark("sim-studio-init")
 
     let telemetryConfig
     try {
@@ -138,40 +137,40 @@ if (typeof window !== 'undefined') {
       telemetryConfig = { clientSide: { enabled: true } }
     }
 
-    window.addEventListener('load', () => {
-      performance.mark('sim-studio-loaded')
-      performance.measure('page-load', 'sim-studio-init', 'sim-studio-loaded')
+    window.addEventListener("load", () => {
+      performance.mark("sim-studio-loaded")
+      performance.measure("page-load", "sim-studio-init", "sim-studio-loaded")
 
-      if (typeof PerformanceObserver !== 'undefined') {
+      if (typeof PerformanceObserver !== "undefined") {
         const lcpObserver = new PerformanceObserver((list) => {
           const entries = list.getEntries()
 
           entries.forEach((entry) => {
             const value =
-              entry.entryType === 'largest-contentful-paint'
+              entry.entryType === "largest-contentful-paint"
                 ? (entry as any).startTime
                 : (entry as any).value || 0
 
             // Ensure we have non-null values for all fields
             const metric = {
-              name: entry.name || 'unknown',
+              name: entry.name || "unknown",
               value: value || 0,
-              entryType: entry.entryType || 'unknown',
+              entryType: entry.entryType || "unknown",
             }
 
             if (telemetryEnabled && telemetryConfig?.clientSide?.enabled) {
               const safePayload = {
-                category: 'performance',
-                action: 'web_vital',
+                category: "performance",
+                action: "web_vital",
                 label: metric.name,
                 value: metric.value,
                 entryType: metric.entryType,
                 timestamp: Date.now(),
               }
 
-              fetch('/api/telemetry', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+              fetch("/api/telemetry", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(safePayload),
               }).catch(() => {
                 // Silently fail if sending metrics fails
@@ -192,17 +191,17 @@ if (typeof window !== 'undefined') {
 
           if (telemetryEnabled && telemetryConfig?.clientSide?.enabled) {
             const safePayload = {
-              category: 'performance',
-              action: 'web_vital',
-              label: 'CLS',
+              category: "performance",
+              action: "web_vital",
+              label: "CLS",
               value: clsValue || 0,
-              entryType: 'layout-shift',
+              entryType: "layout-shift",
               timestamp: Date.now(),
             }
 
-            fetch('/api/telemetry', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+            fetch("/api/telemetry", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify(safePayload),
             }).catch(() => {
               // Silently fail if sending metrics fails
@@ -220,24 +219,24 @@ if (typeof window !== 'undefined') {
             const startTime = (entry as any).startTime || 0
 
             const metric = {
-              name: entry.name || 'unknown',
+              name: entry.name || "unknown",
               value: processingStart - startTime,
-              entryType: entry.entryType || 'unknown',
+              entryType: entry.entryType || "unknown",
             }
 
             if (telemetryEnabled && telemetryConfig?.clientSide?.enabled) {
               const safePayload = {
-                category: 'performance',
-                action: 'web_vital',
-                label: 'FID',
+                category: "performance",
+                action: "web_vital",
+                label: "FID",
                 value: metric.value,
                 entryType: metric.entryType,
                 timestamp: Date.now(),
               }
 
-              fetch('/api/telemetry', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+              fetch("/api/telemetry", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(safePayload),
               }).catch(() => {
                 // Silently fail if sending metrics fails
@@ -248,33 +247,33 @@ if (typeof window !== 'undefined') {
           fidObserver.disconnect()
         })
 
-        lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true })
-        clsObserver.observe({ type: 'layout-shift', buffered: true })
-        fidObserver.observe({ type: 'first-input', buffered: true })
+        lcpObserver.observe({ type: "largest-contentful-paint", buffered: true })
+        clsObserver.observe({ type: "layout-shift", buffered: true })
+        fidObserver.observe({ type: "first-input", buffered: true })
       }
     })
 
-    window.addEventListener('error', (event) => {
+    window.addEventListener("error", (event) => {
       if (telemetryEnabled && telemetryConfig?.clientSide?.enabled) {
         const errorDetails = {
-          message: event.error?.message || 'Unknown error',
-          stack: event.error?.stack?.split('\n')[0] || '',
+          message: event.error?.message || "Unknown error",
+          stack: event.error?.stack?.split("\n")[0] || "",
           url: window.location.pathname,
           timestamp: Date.now(),
         }
 
         const safePayload = {
-          category: 'error',
-          action: 'client_error',
+          category: "error",
+          action: "client_error",
           label: errorDetails.message,
           stack: errorDetails.stack,
           url: errorDetails.url,
           timestamp: errorDetails.timestamp,
         }
 
-        fetch('/api/telemetry', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        fetch("/api/telemetry", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(safePayload),
         }).catch(() => {
           // Silently fail if sending error fails

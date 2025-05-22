@@ -1,20 +1,20 @@
-'use client'
+"use client"
 
-import { KeyboardEvent, useEffect, useMemo, useRef } from 'react'
-import { ArrowUp } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useChatStore } from '@/stores/panel/chat/store'
-import { useConsoleStore } from '@/stores/panel/console/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { BlockLog } from '@/executor/types'
-import { calculateCost } from '@/providers/utils'
-import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
-import { ChatMessage } from './components/chat-message/chat-message'
-import { OutputSelect } from './components/output-select/output-select'
+import { type KeyboardEvent, useEffect, useMemo, useRef } from "react"
+import { ArrowUp } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { buildTraceSpans } from "@/lib/logs/trace-spans"
+import { useExecutionStore } from "@/stores/execution/store"
+import { useChatStore } from "@/stores/panel/chat/store"
+import { useConsoleStore } from "@/stores/panel/console/store"
+import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
+import type { BlockLog } from "@/executor/types"
+import { calculateCost } from "@/providers/utils"
+import { useWorkflowExecution } from "../../../../hooks/use-workflow-execution"
+import { ChatMessage } from "./components/chat-message/chat-message"
+import { OutputSelect } from "./components/output-select/output-select"
 
 interface ChatProps {
   panelWidth: number
@@ -80,7 +80,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
     }
   }, [workflowMessages])
 
@@ -95,38 +95,38 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     addMessage({
       content: sentMessage,
       workflowId: activeWorkflowId,
-      type: 'user',
+      type: "user",
     })
 
     // Clear input
-    setChatMessage('')
+    setChatMessage("")
 
     // Execute the workflow to generate a response, passing the chat message as input
     const result = await handleRunWorkflow({ input: sentMessage })
 
     // Check if we got a streaming response
-    if (result && 'stream' in result && result.stream instanceof ReadableStream) {
+    if (result && "stream" in result && result.stream instanceof ReadableStream) {
       // Generate a unique ID for the message
       const messageId = crypto.randomUUID()
 
       // Create a content buffer to collect initial content
-      let initialContent = ''
-      let fullContent = '' // Store the complete content for updating logs later
+      let initialContent = ""
+      let fullContent = "" // Store the complete content for updating logs later
       let hasAddedMessage = false
-      let executionResult = (result as any).execution // Store the execution result with type assertion
+      const executionResult = (result as any).execution // Store the execution result with type assertion
 
       try {
         // Process the stream
         const reader = result.stream.getReader()
         const decoder = new TextDecoder()
 
-        console.log('Starting to read from stream')
+        console.log("Starting to read from stream")
 
         while (true) {
           try {
             const { done, value } = await reader.read()
             if (done) {
-              console.log('Stream complete')
+              console.log("Stream complete")
               break
             }
 
@@ -143,7 +143,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                 addMessage({
                   content: initialContent,
                   workflowId: activeWorkflowId,
-                  type: 'workflow',
+                  type: "workflow",
                   isStreaming: true,
                   id: messageId,
                 } as any)
@@ -154,7 +154,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
               }
             }
           } catch (streamError) {
-            console.error('Error reading from stream:', streamError)
+            console.error("Error reading from stream:", streamError)
             // Break the loop on error
             break
           }
@@ -165,7 +165,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
           addMessage({
             content: initialContent,
             workflowId: activeWorkflowId,
-            type: 'workflow',
+            type: "workflow",
             id: messageId,
           } as any)
         }
@@ -182,7 +182,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
             if (executionResult.output?.response?.tokens) {
               const tokens = executionResult.output.response.tokens
-              const model = executionResult.output?.response?.model || 'gpt-4o'
+              const model = executionResult.output?.response?.model || "gpt-4o"
               const cost = calculateCost(
                 model,
                 tokens.prompt || 0,
@@ -201,9 +201,9 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
             // Import the workflow execution hook for direct access to the workflow service
             const workflowExecutionApi = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
-              method: 'POST',
+              method: "POST",
               headers: {
-                'Content-Type': 'application/json',
+                "Content-Type": "application/json",
               },
               body: JSON.stringify({
                 executionId: completedExecutionId,
@@ -231,7 +231,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                         outputId === log.blockId || outputId.startsWith(`${log.blockId}_`)
                     )
 
-                    if (isStreamingBlock && log.blockType === 'agent' && log.output?.response) {
+                    if (isStreamingBlock && log.blockType === "agent" && log.output?.response) {
                       return {
                         ...log,
                         output: {
@@ -249,7 +249,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                   }),
                   metadata: {
                     ...executionResult.metadata,
-                    source: 'chat',
+                    source: "chat",
                     completedAt: new Date().toISOString(),
                     isStreamingComplete: true,
                     cost: costData || executionResult.metadata?.cost,
@@ -262,29 +262,29 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
             })
 
             if (!workflowExecutionApi.ok) {
-              console.error('Failed to log complete streaming execution')
+              console.error("Failed to log complete streaming execution")
             }
           } catch (logError) {
-            console.error('Error logging complete streaming execution:', logError)
+            console.error("Error logging complete streaming execution:", logError)
           }
         }
       } catch (error) {
-        console.error('Error processing stream:', error)
+        console.error("Error processing stream:", error)
 
         // If there's an error and we haven't added a message yet, add an error message
         if (!hasAddedMessage) {
           addMessage({
-            content: 'Error: Failed to process the streaming response.',
+            content: "Error: Failed to process the streaming response.",
             workflowId: activeWorkflowId,
-            type: 'workflow',
+            type: "workflow",
             id: messageId,
           } as any)
         } else {
           // Otherwise append the error to the existing message
-          appendMessageContent(messageId, '\n\nError: Failed to process the streaming response.')
+          appendMessageContent(messageId, "\n\nError: Failed to process the streaming response.")
         }
       } finally {
-        console.log('Finalizing stream')
+        console.log("Finalizing stream")
         if (hasAddedMessage) {
           finalizeMessageStream(messageId)
         }
@@ -294,7 +294,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
   // Handle key press
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
     }
@@ -316,7 +316,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Output Source Dropdown */}
       <div className="flex-none border-b px-4 py-2">
         <OutputSelect
@@ -329,13 +329,13 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
       </div>
 
       {/* Main layout with fixed heights to ensure input stays visible */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden">
         {/* Chat messages section - Scrollable area */}
         <div className="flex-1 overflow-hidden">
           <ScrollArea className="h-full">
             <div>
               {workflowMessages.length === 0 ? (
-                <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                <div className="flex h-32 items-center justify-center text-muted-foreground text-sm">
                   No messages yet
                 </div>
               ) : (
@@ -349,21 +349,21 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         </div>
 
         {/* Input section - Fixed height */}
-        <div className="flex-none border-t bg-background pt-4 px-4 pb-4 relative -mt-[1px]">
+        <div className="-mt-[1px] relative flex-none border-t bg-background px-4 pt-4 pb-4">
           <div className="flex gap-2">
             <Input
               value={chatMessage}
               onChange={(e) => setChatMessage(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder="Type a message..."
-              className="flex-1 focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
+              className="h-10 flex-1 focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={!activeWorkflowId || isExecuting}
             />
             <Button
               onClick={handleSendMessage}
               size="icon"
               disabled={!chatMessage.trim() || !activeWorkflowId || isExecuting}
-              className="h-10 w-10 bg-[#802FFF] hover:bg-[#7028E6] text-white"
+              className="h-10 w-10 bg-[#802FFF] text-white hover:bg-[#7028E6]"
             >
               <ArrowUp className="h-4 w-4" />
             </Button>

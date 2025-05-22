@@ -55,7 +55,7 @@
   "features": {
     "ghcr.io/devcontainers/features/git:1": {},
     "ghcr.io/prulloac/devcontainer-features/bun:1": {
-       "version": "latest"
-     }
+      "version": "latest"
+    }
   }
 }

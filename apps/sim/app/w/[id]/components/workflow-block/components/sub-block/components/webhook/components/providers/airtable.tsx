@@ -1,16 +1,16 @@
-import React from 'react'
-import { Info } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
-import { WebhookConfigField } from '../ui/webhook-config-field'
+import React from "react"
+import { Info } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Switch } from "@/components/ui/switch"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { ConfigField } from "../ui/config-field"
+import { ConfigSection } from "../ui/config-section"
+import { InstructionsSection } from "../ui/instructions-section"
+import { TestResultDisplay as WebhookTestResult } from "../ui/test-result"
+import { WebhookConfigField } from "../ui/webhook-config-field"
 
 interface AirtableConfigProps {
   baseId: string
@@ -94,7 +94,7 @@ export function AirtableConfig({
           )}
         </ConfigField>
 
-        <div className="flex items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-background">
+        <div className="flex items-center justify-between rounded-lg border border-border bg-background p-3 shadow-sm">
           <div className="flex items-center gap-2">
             <Label htmlFor="include-cell-values" className="font-normal">
               Include Full Record Data
@@ -104,7 +104,7 @@ export function AirtableConfig({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-gray-500 p-1 h-6 w-6"
+                  className="h-6 w-6 p-1 text-gray-500"
                   aria-label="Learn more about including full record data"
                 >
                   <Info className="h-4 w-4" />
@@ -113,7 +113,7 @@ export function AirtableConfig({
               <TooltipContent
                 side="right"
                 align="center"
-                className="max-w-[300px] p-3 z-[100]"
+                className="z-[100] max-w-[300px] p-3"
                 role="tooltip"
               >
                 <p className="text-sm">
@@ -144,7 +144,7 @@ export function AirtableConfig({
       )}
 
       <InstructionsSection tip="Airtable webhooks monitor changes in your base/table and trigger your workflow.">
-        <ol className="list-decimal list-inside space-y-1">
+        <ol className="list-inside list-decimal space-y-1">
           <li>Ensure you have provided the correct Base ID and Table ID above.</li>
           <li>
             Sim Studio will automatically configure the webhook in your Airtable account when you

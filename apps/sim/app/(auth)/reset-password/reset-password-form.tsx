@@ -1,18 +1,18 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { useState } from "react"
+import { Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 
 interface RequestResetFormProps {
   email: string
   onEmailChange: (email: string) => void
   onSubmit: (email: string) => Promise<void>
   isSubmitting: boolean
-  statusType: 'success' | 'error' | null
+  statusType: "success" | "error" | null
   statusMessage: string
   className?: string
 }
@@ -46,7 +46,7 @@ export function RequestResetForm({
             required
             className="placeholder:text-white/60"
           />
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             We'll send a password reset link to this email address.
           </p>
         </div>
@@ -55,10 +55,10 @@ export function RequestResetForm({
         {statusType && (
           <div
             className={cn(
-              'p-3 rounded-md text-sm border',
-              statusType === 'success'
-                ? 'bg-green-50 text-green-700 border-green-200'
-                : 'bg-red-50 text-red-700 border-red-200'
+              "rounded-md border p-3 text-sm",
+              statusType === "success"
+                ? "border-green-200 bg-green-50 text-green-700"
+                : "border-red-200 bg-red-50 text-red-700"
             )}
           >
             {statusMessage}
@@ -72,7 +72,7 @@ export function RequestResetForm({
               Sending...
             </>
           ) : (
-            'Send Reset Link'
+            "Send Reset Link"
           )}
         </Button>
       </div>
@@ -84,7 +84,7 @@ interface SetNewPasswordFormProps {
   token: string | null
   onSubmit: (password: string) => Promise<void>
   isSubmitting: boolean
-  statusType: 'success' | 'error' | null
+  statusType: "success" | "error" | null
   statusMessage: string
   className?: string
 }
@@ -97,25 +97,25 @@ export function SetNewPasswordForm({
   statusMessage,
   className,
 }: SetNewPasswordFormProps) {
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [validationMessage, setValidationMessage] = useState('')
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [validationMessage, setValidationMessage] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     // Simple validation
     if (password.length < 8) {
-      setValidationMessage('Password must be at least 8 characters long')
+      setValidationMessage("Password must be at least 8 characters long")
       return
     }
 
     if (password !== confirmPassword) {
-      setValidationMessage('Passwords do not match')
+      setValidationMessage("Passwords do not match")
       return
     }
 
-    setValidationMessage('')
+    setValidationMessage("")
     onSubmit(password)
   }
 
@@ -156,7 +156,7 @@ export function SetNewPasswordForm({
         </div>
 
         {validationMessage && (
-          <div className="p-3 rounded-md text-sm border bg-red-50 text-red-700 border-red-200">
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-red-700 text-sm">
             {validationMessage}
           </div>
         )}
@@ -164,10 +164,10 @@ export function SetNewPasswordForm({
         {statusType && (
           <div
             className={cn(
-              'p-3 rounded-md text-sm border',
-              statusType === 'success'
-                ? 'bg-green-50 text-green-700 border-green-200'
-                : 'bg-red-50 text-red-700 border-red-200'
+              "rounded-md border p-3 text-sm",
+              statusType === "success"
+                ? "border-green-200 bg-green-50 text-green-700"
+                : "border-red-200 bg-red-50 text-red-700"
             )}
           >
             {statusMessage}
@@ -181,7 +181,7 @@ export function SetNewPasswordForm({
               Resetting...
             </>
           ) : (
-            'Reset Password'
+            "Reset Password"
           )}
         </Button>
       </div>

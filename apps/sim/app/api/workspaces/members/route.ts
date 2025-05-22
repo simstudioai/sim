@@ -1,23 +1,23 @@
-import { NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
-import { getSession } from '@/lib/auth'
-import { db } from '@/db'
-import { user, workspaceMember } from '@/db/schema'
+import { NextResponse } from "next/server"
+import { and, eq } from "drizzle-orm"
+import { getSession } from "@/lib/auth"
+import { db } from "@/db"
+import { user, workspaceMember } from "@/db/schema"
 
 // Add a member to a workspace
 export async function POST(req: Request) {
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {
-    const { workspaceId, userEmail, role = 'member' } = await req.json()
+    const { workspaceId, userEmail, role = "member" } = await req.json()
 
     if (!workspaceId || !userEmail) {
       return NextResponse.json(
-        { error: 'Workspace ID and user email are required' },
+        { error: "Workspace ID and user email are required" },
         { status: 400 }
       )
     }
@@ -34,8 +34,8 @@ export async function POST(req: Request) {
       )
       .then((rows) => rows[0])
 
-    if (!currentUserMembership || currentUserMembership.role !== 'owner') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    if (!currentUserMembership || currentUserMembership.role !== "owner") {
+      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
     }
 
     // Find user by email
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       .then((rows) => rows[0])
 
     if (!targetUser) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     // Check if user is already a member
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
 
     if (existingMembership) {
       return NextResponse.json(
-        { error: 'User is already a member of this workspace' },
+        { error: "User is already a member of this workspace" },
         { status: 400 }
       )
     }
@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error adding workspace member:', error)
-    return NextResponse.json({ error: 'Failed to add workspace member' }, { status: 500 })
+    console.error("Error adding workspace member:", error)
+    return NextResponse.json({ error: "Failed to add workspace member" }, { status: 500 })
   }
 }

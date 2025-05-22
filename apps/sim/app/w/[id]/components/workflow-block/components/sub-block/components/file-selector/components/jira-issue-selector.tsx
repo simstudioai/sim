@@ -1,9 +1,9 @@
-'use client'
+"use client"
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
-import { JiraIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Check, ChevronDown, ExternalLink, RefreshCw, X } from "lucide-react"
+import { JiraIcon } from "@/components/icons"
+import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandEmpty,
@@ -11,19 +11,19 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Logger } from '@/lib/logs/console-logger'
+} from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Logger } from "@/lib/logs/console-logger"
 import {
-  Credential,
+  type Credential,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
-  OAuthProvider,
-} from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
-import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
+  type OAuthProvider,
+} from "@/lib/oauth"
+import { saveToStorage } from "@/stores/workflows/persistence"
+import { OAuthRequiredModal } from "../../credential-selector/components/oauth-required-modal"
 
-const logger = new Logger('jira_issue_selector')
+const logger = new Logger("jira_issue_selector")
 
 export interface JiraIssueInfo {
   id: string
@@ -54,7 +54,7 @@ export function JiraIssueSelector({
   onChange,
   provider,
   requiredScopes = [],
-  label = 'Select Jira issue',
+  label = "Select Jira issue",
   disabled = false,
   serviceId,
   domain,
@@ -65,7 +65,7 @@ export function JiraIssueSelector({
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [issues, setIssues] = useState<JiraIssueInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>("")
   const [selectedIssueId, setSelectedIssueId] = useState(value)
   const [selectedIssue, setSelectedIssue] = useState<JiraIssueInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -146,7 +146,7 @@ export function JiraIssueSelector({
         }
       }
     } catch (error) {
-      logger.error('Error fetching credentials:', error)
+      logger.error("Error fetching credentials:", error)
     } finally {
       setIsLoading(false)
     }
@@ -157,9 +157,9 @@ export function JiraIssueSelector({
     async (issueId: string) => {
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
-      if (!trimmedDomain.includes('.')) {
+      if (!trimmedDomain.includes(".")) {
         setError(
-          'Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)'
+          "Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)"
         )
         return
       }
@@ -169,10 +169,10 @@ export function JiraIssueSelector({
 
       try {
         // Get the access token from the selected credential
-        const tokenResponse = await fetch('/api/auth/oauth/token', {
-          method: 'POST',
+        const tokenResponse = await fetch("/api/auth/oauth/token", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
@@ -181,21 +181,21 @@ export function JiraIssueSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          throw new Error(errorData.error || 'Failed to get access token')
+          throw new Error(errorData.error || "Failed to get access token")
         }
 
         const tokenData = await tokenResponse.json()
         const accessToken = tokenData.accessToken
 
         if (!accessToken) {
-          throw new Error('No access token received')
+          throw new Error("No access token received")
         }
 
         // Use the access token to fetch the issue info
-        const response = await fetch('/api/auth/oauth/jira/issue', {
-          method: 'POST',
+        const response = await fetch("/api/auth/oauth/jira/issue", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             domain,
@@ -207,27 +207,27 @@ export function JiraIssueSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
-          logger.error('Failed to fetch issue info:', errorData)
-          throw new Error(errorData.error || 'Failed to fetch issue info')
+          logger.error("Failed to fetch issue info:", errorData)
+          throw new Error(errorData.error || "Failed to fetch issue info")
         }
 
         const data = await response.json()
         if (data.cloudId) {
-          logger.info('Using cloud ID:', data.cloudId)
+          logger.info("Using cloud ID:", data.cloudId)
           setCloudId(data.cloudId)
         }
 
         if (data.issue) {
-          logger.info('Successfully fetched issue:', data.issue.name)
+          logger.info("Successfully fetched issue:", data.issue.name)
           setSelectedIssue(data.issue)
           onIssueInfoChange?.(data.issue)
         } else {
-          logger.warn('No issue data received in response')
+          logger.warn("No issue data received in response")
           setSelectedIssue(null)
           onIssueInfoChange?.(null)
         }
       } catch (error) {
-        logger.error('Error fetching issue info:', error)
+        logger.error("Error fetching issue info:", error)
         setError((error as Error).message)
         // Clear selection on error to prevent infinite retry loops
         setSelectedIssue(null)
@@ -246,9 +246,9 @@ export function JiraIssueSelector({
 
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
-      if (!trimmedDomain.includes('.')) {
+      if (!trimmedDomain.includes(".")) {
         setError(
-          'Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)'
+          "Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)"
         )
         setIssues([])
         setIsLoading(false)
@@ -260,10 +260,10 @@ export function JiraIssueSelector({
 
       try {
         // Get the access token from the selected credential
-        const tokenResponse = await fetch('/api/auth/oauth/token', {
-          method: 'POST',
+        const tokenResponse = await fetch("/api/auth/oauth/token", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
@@ -272,10 +272,10 @@ export function JiraIssueSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          logger.error('Access token error:', errorData)
+          logger.error("Access token error:", errorData)
 
           // If there's a token error, we might need to reconnect the account
-          setError('Authentication failed. Please reconnect your Jira account.')
+          setError("Authentication failed. Please reconnect your Jira account.")
           setIsLoading(false)
           return
         }
@@ -284,8 +284,8 @@ export function JiraIssueSelector({
         const accessToken = tokenData.accessToken
 
         if (!accessToken) {
-          logger.error('No access token returned')
-          setError('Authentication failed. Please reconnect your Jira account.')
+          logger.error("No access token returned")
+          setError("Authentication failed. Please reconnect your Jira account.")
           setIsLoading(false)
           return
         }
@@ -300,16 +300,16 @@ export function JiraIssueSelector({
         })
 
         const response = await fetch(`/api/auth/oauth/jira/issues?${queryParams.toString()}`, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
         })
 
         if (!response.ok) {
           const errorData = await response.json()
-          logger.error('Jira API error:', errorData)
-          throw new Error(errorData.error || 'Failed to fetch issues')
+          logger.error("Jira API error:", errorData)
+          throw new Error(errorData.error || "Failed to fetch issues")
         }
 
         const data = await response.json()
@@ -329,7 +329,7 @@ export function JiraIssueSelector({
               const sectionIssues = section.issues.map((issue: any) => ({
                 id: issue.key,
                 name: issue.summary || issue.summaryText || issue.key,
-                mimeType: 'jira/issue',
+                mimeType: "jira/issue",
                 url: `https://${domain}/browse/${issue.key}`,
                 webViewLink: `https://${domain}/browse/${issue.key}`,
               }))
@@ -353,7 +353,7 @@ export function JiraIssueSelector({
           }
         }
       } catch (error) {
-        logger.error('Error fetching issues:', error)
+        logger.error("Error fetching issues:", error)
         setError((error as Error).message)
         setIssues([])
       } finally {
@@ -384,8 +384,8 @@ export function JiraIssueSelector({
     setOpen(isOpen)
 
     // Only fetch recent/default issues when opening the dropdown
-    if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
-      fetchIssues('') // Pass empty string to get recent or default issues
+    if (isOpen && selectedCredentialId && domain && domain.includes(".")) {
+      fetchIssues("") // Pass empty string to get recent or default issues
     }
   }
 
@@ -395,7 +395,7 @@ export function JiraIssueSelector({
       value &&
       selectedCredentialId &&
       domain &&
-      domain.includes('.') &&
+      domain.includes(".") &&
       (!selectedIssue || selectedIssue.id !== value)
     ) {
       fetchIssueInfo(value)
@@ -424,10 +424,10 @@ export function JiraIssueSelector({
     const providerId = getProviderId()
 
     // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', providerId)
+    saveToStorage<string>("pending_service_id", effectiveServiceId)
+    saveToStorage<string[]>("pending_oauth_scopes", requiredScopes)
+    saveToStorage<string>("pending_oauth_return_url", window.location.href)
+    saveToStorage<string>("pending_oauth_provider_id", providerId)
 
     // Show the OAuth modal
     setShowOAuthModal(true)
@@ -436,10 +436,10 @@ export function JiraIssueSelector({
 
   // Clear selection
   const handleClearSelection = () => {
-    setSelectedIssueId('')
+    setSelectedIssueId("")
     setSelectedIssue(null)
     setError(null) // Clear any existing errors
-    onChange('', undefined)
+    onChange("", undefined)
     onIssueInfoChange?.(null)
   }
 
@@ -458,7 +458,7 @@ export function JiraIssueSelector({
               {selectedIssue ? (
                 <div className="flex items-center gap-2 overflow-hidden">
                   <JiraIcon className="h-4 w-4" />
-                  <span className="font-normal truncate">{selectedIssue.name}</span>
+                  <span className="truncate font-normal">{selectedIssue.name}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -469,15 +469,15 @@ export function JiraIssueSelector({
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[300px]" align="start">
+          <PopoverContent className="w-[300px] p-0" align="start">
             {/* Current account indicator */}
             {selectedCredentialId && credentials.length > 0 && (
-              <div className="px-3 py-2 border-b flex items-center justify-between">
+              <div className="flex items-center justify-between border-b px-3 py-2">
                 <div className="flex items-center gap-2">
                   <JiraIcon className="h-4 w-4" />
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
-                      'Unknown'}
+                      "Unknown"}
                   </span>
                 </div>
                 {credentials.length > 1 && (
@@ -504,19 +504,19 @@ export function JiraIssueSelector({
                     </div>
                   ) : error ? (
                     <div className="p-4 text-center">
-                      <p className="text-sm text-destructive">{error}</p>
+                      <p className="text-destructive text-sm">{error}</p>
                     </div>
                   ) : credentials.length === 0 ? (
                     <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No accounts connected.</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-medium text-sm">No accounts connected.</p>
+                      <p className="text-muted-foreground text-xs">
                         Connect a Jira account to continue.
                       </p>
                     </div>
                   ) : (
                     <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No issues found.</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-medium text-sm">No issues found.</p>
+                      <p className="text-muted-foreground text-xs">
                         Try a different search or account.
                       </p>
                     </div>
@@ -526,7 +526,7 @@ export function JiraIssueSelector({
                 {/* Account selection - only show if we have multiple accounts */}
                 {credentials.length > 1 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
                       Switch Account
                     </div>
                     {credentials.map((cred) => (
@@ -548,7 +548,7 @@ export function JiraIssueSelector({
                 {/* Issues list */}
                 {issues.length > 0 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
                       Issues
                     </div>
                     {issues.map((issue) => (
@@ -559,7 +559,7 @@ export function JiraIssueSelector({
                       >
                         <div className="flex items-center gap-2 overflow-hidden">
                           <JiraIcon className="h-4 w-4" />
-                          <span className="font-normal truncate">{issue.name}</span>
+                          <span className="truncate font-normal">{issue.name}</span>
                         </div>
                         {issue.id === selectedIssueId && <Check className="ml-auto h-4 w-4" />}
                       </CommandItem>
@@ -585,7 +585,7 @@ export function JiraIssueSelector({
 
         {/* Issue preview */}
         {showPreview && selectedIssue && (
-          <div className="mt-2 rounded-md border border-muted bg-muted/10 p-2 relative">
+          <div className="relative mt-2 rounded-md border border-muted bg-muted/10 p-2">
             <div className="absolute top-2 right-2">
               <Button
                 variant="ghost"
@@ -597,14 +597,14 @@ export function JiraIssueSelector({
               </Button>
             </div>
             <div className="flex items-center gap-3 pr-4">
-              <div className="flex-shrink-0 flex items-center justify-center h-6 w-6 bg-muted/20 rounded">
+              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20">
                 <JiraIcon className="h-4 w-4" />
               </div>
-              <div className="overflow-hidden flex-1 min-w-0">
+              <div className="min-w-0 flex-1 overflow-hidden">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-xs font-medium truncate">{selectedIssue.name}</h4>
+                  <h4 className="truncate font-medium text-xs">{selectedIssue.name}</h4>
                   {selectedIssue.modifiedTime && (
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    <span className="whitespace-nowrap text-muted-foreground text-xs">
                       {new Date(selectedIssue.modifiedTime).toLocaleDateString()}
                     </span>
                   )}
@@ -614,7 +614,7 @@ export function JiraIssueSelector({
                     href={selectedIssue.webViewLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                    className="flex items-center gap-1 text-primary text-xs hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>Open in Jira</span>

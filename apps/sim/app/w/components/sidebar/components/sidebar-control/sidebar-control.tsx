@@ -1,11 +1,11 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { PanelRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { cn } from '@/lib/utils'
-import { SidebarMode, useSidebarStore } from '@/stores/sidebar/store'
+import { useState } from "react"
+import { PanelRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { type SidebarMode, useSidebarStore } from "@/stores/sidebar/store"
 
 // This component ONLY controls sidebar state, not toolbar state
 export function SidebarControl() {
@@ -14,7 +14,7 @@ export function SidebarControl() {
 
   const handleModeChange = (value: SidebarMode) => {
     // When selecting expanded mode, ensure it's expanded
-    if (value === 'expanded' && !isExpanded) {
+    if (value === "expanded" && !isExpanded) {
       toggleExpanded()
     }
 
@@ -29,68 +29,68 @@ export function SidebarControl() {
         <Button
           variant="ghost"
           size="icon"
-          className="flex h-8 w-8 p-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent/50 cursor-pointer"
+          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md p-0 text-muted-foreground hover:bg-accent/50"
         >
           <PanelRight className="h-[18px] w-[18px] text-muted-foreground" />
           <span className="sr-only text-sm">Sidebar control</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-44 p-0 shadow-md border overflow-hidden rounded-lg bg-background"
+        className="w-44 overflow-hidden rounded-lg border bg-background p-0 shadow-md"
         side="top"
         align="start"
         sideOffset={5}
       >
-        <div className="border-b py-[10px] px-4">
-          <h4 className="text-xs font-[480] text-muted-foreground">Sidebar control</h4>
+        <div className="border-b px-4 py-[10px]">
+          <h4 className="font-[480] text-muted-foreground text-xs">Sidebar control</h4>
         </div>
         <div className="px-2 pt-1 pb-2">
           <div className="flex flex-col gap-[1px]">
             <button
               className={cn(
-                'w-full text-left py-1.5 px-2 text-xs rounded hover:bg-accent/50 text-muted-foreground font-medium'
+                "w-full rounded px-2 py-1.5 text-left font-medium text-muted-foreground text-xs hover:bg-accent/50"
               )}
-              onClick={() => handleModeChange('expanded')}
+              onClick={() => handleModeChange("expanded")}
             >
               <span className="flex items-center">
                 <span
                   className={cn(
-                    'h-1 w-1 rounded-full mr-1.5',
-                    mode === 'expanded' ? 'bg-muted-foreground' : 'bg-transparent'
+                    "mr-1.5 h-1 w-1 rounded-full",
+                    mode === "expanded" ? "bg-muted-foreground" : "bg-transparent"
                   )}
-                ></span>
+                />
                 Expanded
               </span>
             </button>
             <button
               className={cn(
-                'w-full text-left py-1.5 px-2 text-xs rounded hover:bg-accent/50 text-muted-foreground font-medium'
+                "w-full rounded px-2 py-1.5 text-left font-medium text-muted-foreground text-xs hover:bg-accent/50"
               )}
-              onClick={() => handleModeChange('collapsed')}
+              onClick={() => handleModeChange("collapsed")}
             >
               <span className="flex items-center">
                 <span
                   className={cn(
-                    'h-1 w-1 rounded-full mr-1.5',
-                    mode === 'collapsed' ? 'bg-muted-foreground' : 'bg-transparent'
+                    "mr-1.5 h-1 w-1 rounded-full",
+                    mode === "collapsed" ? "bg-muted-foreground" : "bg-transparent"
                   )}
-                ></span>
+                />
                 Collapsed
               </span>
             </button>
             <button
               className={cn(
-                'w-full text-left py-1.5 px-2 text-xs rounded hover:bg-accent/50 text-muted-foreground font-medium'
+                "w-full rounded px-2 py-1.5 text-left font-medium text-muted-foreground text-xs hover:bg-accent/50"
               )}
-              onClick={() => handleModeChange('hover')}
+              onClick={() => handleModeChange("hover")}
             >
               <span className="flex items-center">
                 <span
                   className={cn(
-                    'h-1 w-1 rounded-full mr-1.5',
-                    mode === 'hover' ? 'bg-muted-foreground' : 'bg-transparent'
+                    "mr-1.5 h-1 w-1 rounded-full",
+                    mode === "hover" ? "bg-muted-foreground" : "bg-transparent"
                   )}
-                ></span>
+                />
                 Expand on hover
               </span>
             </button>

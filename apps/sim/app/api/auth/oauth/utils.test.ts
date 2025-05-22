@@ -3,10 +3,10 @@
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-describe('OAuth Utils', () => {
-  const mockSession = { user: { id: 'test-user-id' } }
+describe("OAuth Utils", () => {
+  const mockSession = { user: { id: "test-user-id" } }
   const mockDb = {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
@@ -27,19 +27,19 @@ describe('OAuth Utils', () => {
   beforeEach(() => {
     vi.resetModules()
 
-    vi.doMock('@/lib/auth', () => ({
+    vi.doMock("@/lib/auth", () => ({
       getSession: vi.fn().mockResolvedValue(mockSession),
     }))
 
-    vi.doMock('@/db', () => ({
+    vi.doMock("@/db", () => ({
       db: mockDb,
     }))
 
-    vi.doMock('@/lib/oauth', () => ({
+    vi.doMock("@/lib/oauth", () => ({
       refreshOAuthToken: mockRefreshOAuthToken,
     }))
 
-    vi.doMock('@/lib/logs/console-logger', () => ({
+    vi.doMock("@/lib/logs/console-logger", () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
   })
@@ -48,62 +48,62 @@ describe('OAuth Utils', () => {
     vi.clearAllMocks()
   })
 
-  describe('getUserId', () => {
-    it('should get user ID from session when no workflowId is provided', async () => {
-      const { getUserId } = await import('./utils')
+  describe("getUserId", () => {
+    it("should get user ID from session when no workflowId is provided", async () => {
+      const { getUserId } = await import("./utils")
 
-      const userId = await getUserId('request-id')
+      const userId = await getUserId("request-id")
 
-      expect(userId).toBe('test-user-id')
+      expect(userId).toBe("test-user-id")
     })
 
-    it('should get user ID from workflow when workflowId is provided', async () => {
-      mockDb.limit.mockReturnValueOnce([{ userId: 'workflow-owner-id' }])
+    it("should get user ID from workflow when workflowId is provided", async () => {
+      mockDb.limit.mockReturnValueOnce([{ userId: "workflow-owner-id" }])
 
-      const { getUserId } = await import('./utils')
+      const { getUserId } = await import("./utils")
 
-      const userId = await getUserId('request-id', 'workflow-id')
+      const userId = await getUserId("request-id", "workflow-id")
 
       expect(mockDb.select).toHaveBeenCalled()
       expect(mockDb.from).toHaveBeenCalled()
       expect(mockDb.where).toHaveBeenCalled()
       expect(mockDb.limit).toHaveBeenCalledWith(1)
-      expect(userId).toBe('workflow-owner-id')
+      expect(userId).toBe("workflow-owner-id")
     })
 
-    it('should return undefined if no session is found', async () => {
-      vi.doMock('@/lib/auth', () => ({
+    it("should return undefined if no session is found", async () => {
+      vi.doMock("@/lib/auth", () => ({
         getSession: vi.fn().mockResolvedValue(null),
       }))
 
-      const { getUserId } = await import('./utils')
+      const { getUserId } = await import("./utils")
 
-      const userId = await getUserId('request-id')
+      const userId = await getUserId("request-id")
 
       expect(userId).toBeUndefined()
       expect(mockLogger.warn).toHaveBeenCalled()
     })
 
-    it('should return undefined if workflow is not found', async () => {
+    it("should return undefined if workflow is not found", async () => {
       mockDb.limit.mockReturnValueOnce([])
 
-      const { getUserId } = await import('./utils')
+      const { getUserId } = await import("./utils")
 
-      const userId = await getUserId('request-id', 'nonexistent-workflow-id')
+      const userId = await getUserId("request-id", "nonexistent-workflow-id")
 
       expect(userId).toBeUndefined()
       expect(mockLogger.warn).toHaveBeenCalled()
     })
   })
 
-  describe('getCredential', () => {
-    it('should return credential when found', async () => {
-      const mockCredential = { id: 'credential-id', userId: 'test-user-id' }
+  describe("getCredential", () => {
+    it("should return credential when found", async () => {
+      const mockCredential = { id: "credential-id", userId: "test-user-id" }
       mockDb.limit.mockReturnValueOnce([mockCredential])
 
-      const { getCredential } = await import('./utils')
+      const { getCredential } = await import("./utils")
 
-      const credential = await getCredential('request-id', 'credential-id', 'test-user-id')
+      const credential = await getCredential("request-id", "credential-id", "test-user-id")
 
       expect(mockDb.select).toHaveBeenCalled()
       expect(mockDb.from).toHaveBeenCalled()
@@ -113,177 +113,177 @@ describe('OAuth Utils', () => {
       expect(credential).toEqual(mockCredential)
     })
 
-    it('should return undefined when credential is not found', async () => {
+    it("should return undefined when credential is not found", async () => {
       mockDb.limit.mockReturnValueOnce([])
 
-      const { getCredential } = await import('./utils')
+      const { getCredential } = await import("./utils")
 
-      const credential = await getCredential('request-id', 'nonexistent-id', 'test-user-id')
+      const credential = await getCredential("request-id", "nonexistent-id", "test-user-id")
 
       expect(credential).toBeUndefined()
       expect(mockLogger.warn).toHaveBeenCalled()
     })
   })
 
-  describe('refreshTokenIfNeeded', () => {
-    it('should return valid token without refresh if not expired', async () => {
+  describe("refreshTokenIfNeeded", () => {
+    it("should return valid token without refresh if not expired", async () => {
       const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'valid-token',
-        refreshToken: 'refresh-token',
+        id: "credential-id",
+        accessToken: "valid-token",
+        refreshToken: "refresh-token",
         accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000), // 1 hour in the future
-        providerId: 'google',
+        providerId: "google",
       }
 
-      const { refreshTokenIfNeeded } = await import('./utils')
+      const { refreshTokenIfNeeded } = await import("./utils")
 
-      const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
+      const result = await refreshTokenIfNeeded("request-id", mockCredential, "credential-id")
 
       expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
-      expect(result).toEqual({ accessToken: 'valid-token', refreshed: false })
-      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('Access token is valid'))
+      expect(result).toEqual({ accessToken: "valid-token", refreshed: false })
+      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining("Access token is valid"))
     })
 
-    it('should refresh token when expired', async () => {
+    it("should refresh token when expired", async () => {
       const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
+        id: "credential-id",
+        accessToken: "expired-token",
+        refreshToken: "refresh-token",
         accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000), // 1 hour in the past
-        providerId: 'google',
+        providerId: "google",
       }
 
       mockRefreshOAuthToken.mockResolvedValueOnce({
-        accessToken: 'new-token',
+        accessToken: "new-token",
         expiresIn: 3600,
-        refreshToken: 'new-refresh-token',
+        refreshToken: "new-refresh-token",
       })
 
-      const { refreshTokenIfNeeded } = await import('./utils')
+      const { refreshTokenIfNeeded } = await import("./utils")
 
-      const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
+      const result = await refreshTokenIfNeeded("request-id", mockCredential, "credential-id")
 
-      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
+      expect(mockRefreshOAuthToken).toHaveBeenCalledWith("google", "refresh-token")
       expect(mockDb.update).toHaveBeenCalled()
       expect(mockDb.set).toHaveBeenCalled()
-      expect(result).toEqual({ accessToken: 'new-token', refreshed: true })
+      expect(result).toEqual({ accessToken: "new-token", refreshed: true })
       expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Successfully refreshed')
+        expect.stringContaining("Successfully refreshed")
       )
     })
 
-    it('should handle refresh token error', async () => {
+    it("should handle refresh token error", async () => {
       const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
+        id: "credential-id",
+        accessToken: "expired-token",
+        refreshToken: "refresh-token",
         accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000), // 1 hour in the past
-        providerId: 'google',
+        providerId: "google",
       }
 
-      mockRefreshOAuthToken.mockRejectedValueOnce(new Error('Refresh failed'))
+      mockRefreshOAuthToken.mockRejectedValueOnce(new Error("Refresh failed"))
 
-      const { refreshTokenIfNeeded } = await import('./utils')
+      const { refreshTokenIfNeeded } = await import("./utils")
 
       await expect(
-        refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
+        refreshTokenIfNeeded("request-id", mockCredential, "credential-id")
       ).rejects.toThrow()
 
       expect(mockLogger.error).toHaveBeenCalled()
     })
 
-    it('should not attempt refresh if no refresh token', async () => {
+    it("should not attempt refresh if no refresh token", async () => {
       const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'token',
+        id: "credential-id",
+        accessToken: "token",
         refreshToken: null,
         accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000), // 1 hour in the past
-        providerId: 'google',
+        providerId: "google",
       }
 
-      const { refreshTokenIfNeeded } = await import('./utils')
+      const { refreshTokenIfNeeded } = await import("./utils")
 
-      const result = await refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
+      const result = await refreshTokenIfNeeded("request-id", mockCredential, "credential-id")
 
       expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
-      expect(result).toEqual({ accessToken: 'token', refreshed: false })
+      expect(result).toEqual({ accessToken: "token", refreshed: false })
     })
   })
 
-  describe('refreshAccessTokenIfNeeded', () => {
-    it('should return valid access token without refresh if not expired', async () => {
+  describe("refreshAccessTokenIfNeeded", () => {
+    it("should return valid access token without refresh if not expired", async () => {
       const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'valid-token',
-        refreshToken: 'refresh-token',
+        id: "credential-id",
+        accessToken: "valid-token",
+        refreshToken: "refresh-token",
         accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000), // 1 hour in the future
-        providerId: 'google',
-        userId: 'test-user-id',
+        providerId: "google",
+        userId: "test-user-id",
       }
       mockDb.limit.mockReturnValueOnce([mockCredential])
 
-      const { refreshAccessTokenIfNeeded } = await import('./utils')
+      const { refreshAccessTokenIfNeeded } = await import("./utils")
 
-      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
+      const token = await refreshAccessTokenIfNeeded("credential-id", "test-user-id", "request-id")
 
       expect(mockRefreshOAuthToken).not.toHaveBeenCalled()
-      expect(token).toBe('valid-token')
+      expect(token).toBe("valid-token")
     })
 
-    it('should refresh token when expired', async () => {
+    it("should refresh token when expired", async () => {
       const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
+        id: "credential-id",
+        accessToken: "expired-token",
+        refreshToken: "refresh-token",
         accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000), // 1 hour in the past
-        providerId: 'google',
-        userId: 'test-user-id',
+        providerId: "google",
+        userId: "test-user-id",
       }
       mockDb.limit.mockReturnValueOnce([mockCredential])
 
       mockRefreshOAuthToken.mockResolvedValueOnce({
-        accessToken: 'new-token',
+        accessToken: "new-token",
         expiresIn: 3600,
-        refreshToken: 'new-refresh-token',
+        refreshToken: "new-refresh-token",
       })
 
-      const { refreshAccessTokenIfNeeded } = await import('./utils')
+      const { refreshAccessTokenIfNeeded } = await import("./utils")
 
-      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
+      const token = await refreshAccessTokenIfNeeded("credential-id", "test-user-id", "request-id")
 
-      expect(mockRefreshOAuthToken).toHaveBeenCalledWith('google', 'refresh-token')
+      expect(mockRefreshOAuthToken).toHaveBeenCalledWith("google", "refresh-token")
       expect(mockDb.update).toHaveBeenCalled()
       expect(mockDb.set).toHaveBeenCalled()
-      expect(token).toBe('new-token')
+      expect(token).toBe("new-token")
     })
 
-    it('should return null if credential not found', async () => {
+    it("should return null if credential not found", async () => {
       mockDb.limit.mockReturnValueOnce([])
 
-      const { refreshAccessTokenIfNeeded } = await import('./utils')
+      const { refreshAccessTokenIfNeeded } = await import("./utils")
 
-      const token = await refreshAccessTokenIfNeeded('nonexistent-id', 'test-user-id', 'request-id')
+      const token = await refreshAccessTokenIfNeeded("nonexistent-id", "test-user-id", "request-id")
 
       expect(token).toBeNull()
       expect(mockLogger.warn).toHaveBeenCalled()
     })
 
-    it('should return null if refresh fails', async () => {
+    it("should return null if refresh fails", async () => {
       const mockCredential = {
-        id: 'credential-id',
-        accessToken: 'expired-token',
-        refreshToken: 'refresh-token',
+        id: "credential-id",
+        accessToken: "expired-token",
+        refreshToken: "refresh-token",
         accessTokenExpiresAt: new Date(Date.now() - 3600 * 1000), // 1 hour in the past
-        providerId: 'google',
-        userId: 'test-user-id',
+        providerId: "google",
+        userId: "test-user-id",
       }
       mockDb.limit.mockReturnValueOnce([mockCredential])
 
       mockRefreshOAuthToken.mockResolvedValueOnce(null)
 
-      const { refreshAccessTokenIfNeeded } = await import('./utils')
+      const { refreshAccessTokenIfNeeded } = await import("./utils")
 
-      const token = await refreshAccessTokenIfNeeded('credential-id', 'test-user-id', 'request-id')
+      const token = await refreshAccessTokenIfNeeded("credential-id", "test-user-id", "request-id")
 
       expect(token).toBeNull()
       expect(mockLogger.error).toHaveBeenCalled()

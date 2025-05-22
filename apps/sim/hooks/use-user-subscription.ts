@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState } from "react"
 
 interface UserSubscription {
   isPaid: boolean
@@ -22,10 +22,10 @@ export function useUserSubscription(): UserSubscription {
 
     const fetchSubscription = async () => {
       try {
-        const response = await fetch('/api/user/subscription')
+        const response = await fetch("/api/user/subscription")
 
         if (!response.ok) {
-          throw new Error('Failed to fetch subscription data')
+          throw new Error("Failed to fetch subscription data")
         }
 
         const data = await response.json()
@@ -45,7 +45,7 @@ export function useUserSubscription(): UserSubscription {
             isPaid: false,
             isLoading: false,
             plan: null,
-            error: error instanceof Error ? error : new Error('Unknown error'),
+            error: error instanceof Error ? error : new Error("Unknown error"),
             isEnterprise: false,
           })
         }

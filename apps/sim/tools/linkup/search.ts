@@ -1,41 +1,41 @@
-import { ToolConfig } from '../types'
-import { LinkupSearchParams, LinkupSearchResponse, LinkupSearchToolResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { LinkupSearchParams, LinkupSearchResponse, LinkupSearchToolResponse } from "./types"
 
 export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse> = {
-  id: 'linkup_search',
-  name: 'Linkup Search',
-  description: 'Search the web for information using Linkup',
-  version: '1.0.0',
+  id: "linkup_search",
+  name: "Linkup Search",
+  description: "Search the web for information using Linkup",
+  version: "1.0.0",
 
   params: {
     q: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'The search query',
+      description: "The search query",
     },
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Enter your Linkup API key',
+      description: "Enter your Linkup API key",
       requiredForToolCall: true,
     },
     depth: {
-      type: 'string',
+      type: "string",
       required: true,
       description: 'Search depth (has to either be "standard" or "deep")',
     },
     outputType: {
-      type: 'string',
+      type: "string",
       required: true,
       description: 'Type of output to return (has to either be "sourcedAnswer" or "searchResults")',
     },
   },
 
   request: {
-    url: 'https://api.linkup.so/v1/search',
-    method: 'POST',
+    url: "https://api.linkup.so/v1/search",
+    method: "POST",
     headers: (params) => ({
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {

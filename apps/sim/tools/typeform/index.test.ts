@@ -6,12 +6,12 @@
  * This file contains integration tests that verify the Typeform tools
  * work correctly together and can be properly used from the block.
  */
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { ToolTester } from '../__test-utils__/test-tools'
-import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './index'
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
+import { ToolTester } from "../__test-utils__/test-tools"
+import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from "./index"
 
-describe('Typeform Tools Integration', () => {
-  describe('Typeform Responses Tool Export', () => {
+describe("Typeform Tools Integration", () => {
+  describe("Typeform Responses Tool Export", () => {
     let tester: ToolTester
 
     beforeEach(() => {
@@ -23,20 +23,20 @@ describe('Typeform Tools Integration', () => {
       vi.resetAllMocks()
     })
 
-    test('should use the correct tool ID', () => {
-      expect(typeformResponsesTool.id).toBe('typeform_responses')
+    test("should use the correct tool ID", () => {
+      expect(typeformResponsesTool.id).toBe("typeform_responses")
     })
 
-    test('should handle basic responses request', async () => {
+    test("should handle basic responses request", async () => {
       // Setup mock response data
       const mockData = {
         total_items: 1,
         page_count: 1,
         items: [
           {
-            landing_id: 'test-landing',
-            token: 'test-token',
-            submitted_at: '2023-01-01T00:00:00Z',
+            landing_id: "test-landing",
+            token: "test-token",
+            submitted_at: "2023-01-01T00:00:00Z",
             answers: [],
           },
         ],
@@ -46,8 +46,8 @@ describe('Typeform Tools Integration', () => {
 
       // Execute the tool
       const result = await tester.execute({
-        formId: 'test-form',
-        apiKey: 'test-api-key',
+        formId: "test-form",
+        apiKey: "test-api-key",
       })
 
       expect(result.success).toBe(true)
@@ -55,7 +55,7 @@ describe('Typeform Tools Integration', () => {
     })
   })
 
-  describe('Typeform Files Tool Export', () => {
+  describe("Typeform Files Tool Export", () => {
     let tester: ToolTester
 
     beforeEach(() => {
@@ -67,35 +67,35 @@ describe('Typeform Tools Integration', () => {
       vi.resetAllMocks()
     })
 
-    test('should use the correct tool ID', () => {
-      expect(typeformFilesTool.id).toBe('typeform_files')
+    test("should use the correct tool ID", () => {
+      expect(typeformFilesTool.id).toBe("typeform_files")
     })
 
-    test('should handle basic file request', async () => {
+    test("should handle basic file request", async () => {
       // Setup mock response with file headers
-      tester.setup('binary-file-content', {
+      tester.setup("binary-file-content", {
         headers: {
-          'content-type': 'application/pdf',
-          'content-disposition': 'attachment; filename="test.pdf"',
+          "content-type": "application/pdf",
+          "content-disposition": 'attachment; filename="test.pdf"',
         },
       })
 
       // Execute the tool
       const result = await tester.execute({
-        formId: 'test-form',
-        responseId: 'test-response',
-        fieldId: 'test-field',
-        filename: 'test.pdf',
-        apiKey: 'test-api-key',
+        formId: "test-form",
+        responseId: "test-response",
+        fieldId: "test-field",
+        filename: "test.pdf",
+        apiKey: "test-api-key",
       })
 
       expect(result.success).toBe(true)
-      expect(result.output.contentType).toBe('application/pdf')
-      expect(result.output.filename).toBe('test.pdf')
+      expect(result.output.contentType).toBe("application/pdf")
+      expect(result.output.filename).toBe("test.pdf")
     })
   })
 
-  describe('Typeform Insights Tool Export', () => {
+  describe("Typeform Insights Tool Export", () => {
     let tester: ToolTester
 
     beforeEach(() => {
@@ -107,21 +107,21 @@ describe('Typeform Tools Integration', () => {
       vi.resetAllMocks()
     })
 
-    test('should use the correct tool ID', () => {
-      expect(typeformInsightsTool.id).toBe('typeform_insights')
+    test("should use the correct tool ID", () => {
+      expect(typeformInsightsTool.id).toBe("typeform_insights")
     })
 
-    test('should handle basic insights request', async () => {
+    test("should handle basic insights request", async () => {
       // Setup mock response data
       const mockData = {
         fields: [
           {
             dropoffs: 5,
-            id: 'field123',
-            label: '1',
-            ref: 'ref123',
-            title: 'What is your name?',
-            type: 'short_text',
+            id: "field123",
+            label: "1",
+            ref: "ref123",
+            title: "What is your name?",
+            type: "short_text",
             views: 100,
           },
         ],
@@ -130,7 +130,7 @@ describe('Typeform Tools Integration', () => {
             {
               average_time: 120000,
               completion_rate: 75.5,
-              platform: 'desktop',
+              platform: "desktop",
               responses_count: 80,
               total_visits: 120,
               unique_visits: 100,
@@ -150,8 +150,8 @@ describe('Typeform Tools Integration', () => {
 
       // Execute the tool
       const result = await tester.execute({
-        formId: 'test-form',
-        apiKey: 'test-api-key',
+        formId: "test-form",
+        apiKey: "test-api-key",
       })
 
       expect(result.success).toBe(true)
@@ -160,10 +160,10 @@ describe('Typeform Tools Integration', () => {
     })
   })
 
-  describe('End-to-End Flow', () => {
+  describe("End-to-End Flow", () => {
     // This test simulates using both tools together in a workflow
 
-    test('should be able to get responses and then file', async () => {
+    test("should be able to get responses and then file", async () => {
       // First set up responses tester
       const responsesTester = new ToolTester(typeformResponsesTool)
 
@@ -173,17 +173,17 @@ describe('Typeform Tools Integration', () => {
         page_count: 1,
         items: [
           {
-            landing_id: 'landing-id',
-            token: 'response-id',
-            submitted_at: '2023-01-01T00:00:00Z',
+            landing_id: "landing-id",
+            token: "response-id",
+            submitted_at: "2023-01-01T00:00:00Z",
             answers: [
               {
                 field: {
-                  id: 'file-field',
-                  type: 'file_upload',
+                  id: "file-field",
+                  type: "file_upload",
                 },
-                type: 'file_url',
-                file_url: 'https://example.com/placeholder.pdf',
+                type: "file_url",
+                file_url: "https://example.com/placeholder.pdf",
               },
             ],
           },
@@ -194,49 +194,49 @@ describe('Typeform Tools Integration', () => {
 
       // Get responses
       const responsesResult = await responsesTester.execute({
-        formId: 'test-form',
-        apiKey: 'test-api-key',
+        formId: "test-form",
+        apiKey: "test-api-key",
       })
 
       expect(responsesResult.success).toBe(true)
 
       // Now get the response ID and field ID
       const responseId = responsesResult.output.items[0].token
-      expect(responseId).toBe('response-id')
+      expect(responseId).toBe("response-id")
 
       const fieldId = responsesResult.output.items[0].answers[0].field.id
-      expect(fieldId).toBe('file-field')
+      expect(fieldId).toBe("file-field")
 
       // Now set up files tester
       const filesTester = new ToolTester(typeformFilesTool)
 
       // Mock file data
-      filesTester.setup('binary-file-data', {
+      filesTester.setup("binary-file-data", {
         headers: {
-          'content-type': 'application/pdf',
-          'content-disposition': 'attachment; filename="uploaded.pdf"',
+          "content-type": "application/pdf",
+          "content-disposition": 'attachment; filename="uploaded.pdf"',
         },
       })
 
       // Get file using the response ID and field ID from previous request
       const filesResult = await filesTester.execute({
-        formId: 'test-form',
+        formId: "test-form",
         responseId,
         fieldId,
-        filename: 'uploaded.pdf',
-        apiKey: 'test-api-key',
+        filename: "uploaded.pdf",
+        apiKey: "test-api-key",
       })
 
       expect(filesResult.success).toBe(true)
-      expect(filesResult.output.contentType).toBe('application/pdf')
-      expect(filesResult.output.filename).toBe('uploaded.pdf')
+      expect(filesResult.output.contentType).toBe("application/pdf")
+      expect(filesResult.output.filename).toBe("uploaded.pdf")
 
       // Clean up
       responsesTester.cleanup()
       filesTester.cleanup()
     })
 
-    test('should be able to get responses and then insights', async () => {
+    test("should be able to get responses and then insights", async () => {
       // First set up responses tester
       const responsesTester = new ToolTester(typeformResponsesTool)
 
@@ -246,9 +246,9 @@ describe('Typeform Tools Integration', () => {
         page_count: 1,
         items: [
           {
-            landing_id: 'landing-id',
-            token: 'response-id',
-            submitted_at: '2023-01-01T00:00:00Z',
+            landing_id: "landing-id",
+            token: "response-id",
+            submitted_at: "2023-01-01T00:00:00Z",
             answers: [],
           },
         ],
@@ -258,8 +258,8 @@ describe('Typeform Tools Integration', () => {
 
       // Get responses
       const responsesResult = await responsesTester.execute({
-        formId: 'test-form',
-        apiKey: 'test-api-key',
+        formId: "test-form",
+        apiKey: "test-api-key",
       })
 
       expect(responsesResult.success).toBe(true)
@@ -273,11 +273,11 @@ describe('Typeform Tools Integration', () => {
         fields: [
           {
             dropoffs: 5,
-            id: 'field123',
-            label: '1',
-            ref: 'ref123',
-            title: 'What is your name?',
-            type: 'short_text',
+            id: "field123",
+            label: "1",
+            ref: "ref123",
+            title: "What is your name?",
+            type: "short_text",
             views: 100,
           },
         ],
@@ -286,7 +286,7 @@ describe('Typeform Tools Integration', () => {
             {
               average_time: 120000,
               completion_rate: 75.5,
-              platform: 'desktop',
+              platform: "desktop",
               responses_count: 80,
               total_visits: 120,
               unique_visits: 100,
@@ -306,8 +306,8 @@ describe('Typeform Tools Integration', () => {
 
       // Get insights for the same form
       const insightsResult = await insightsTester.execute({
-        formId: 'test-form',
-        apiKey: 'test-api-key',
+        formId: "test-form",
+        apiKey: "test-api-key",
       })
 
       expect(insightsResult.success).toBe(true)
@@ -315,7 +315,7 @@ describe('Typeform Tools Integration', () => {
 
       // Verify we can analyze the data by looking at completion rates
       expect(insightsResult.output.form.summary.completion_rate).toBe(72.3)
-      expect(insightsResult.output.form.platforms[0].platform).toBe('desktop')
+      expect(insightsResult.output.form.platforms[0].platform).toBe("desktop")
 
       // Clean up
       responsesTester.cleanup()

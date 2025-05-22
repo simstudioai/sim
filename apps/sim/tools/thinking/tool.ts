@@ -1,20 +1,20 @@
-import { ToolConfig } from '../types'
-import { ThinkingToolParams, ThinkingToolResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { ThinkingToolParams, ThinkingToolResponse } from "./types"
 
 export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> = {
-  id: 'thinking_tool',
-  name: 'Thinking Tool',
+  id: "thinking_tool",
+  name: "Thinking Tool",
   description:
-    'Processes a provided thought/instruction, making it available for subsequent steps.',
-  version: '1.0.0',
+    "Processes a provided thought/instruction, making it available for subsequent steps.",
+  version: "1.0.0",
 
   // Define the input parameter
   params: {
     thought: {
-      type: 'string',
+      type: "string",
       required: true,
       description:
-        'The thought process or instruction provided by the user in the Thinking Step block.',
+        "The thought process or instruction provided by the user in the Thinking Step block.",
     },
   },
 
@@ -32,8 +32,8 @@ export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> 
   // Request configuration is not needed due to directExecution, but the type requires it.
   // Provide minimal valid configuration.
   request: {
-    url: '', // Not used
-    method: 'POST', // Not used
+    url: "", // Not used
+    method: "POST", // Not used
     headers: () => ({}), // Not used
   },
 }

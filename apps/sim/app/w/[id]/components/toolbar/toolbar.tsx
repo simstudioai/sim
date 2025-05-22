@@ -1,23 +1,23 @@
-'use client'
+"use client"
 
-import { useMemo, useState } from 'react'
-import { PanelLeftClose, PanelRight, PanelRightClose, Search } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useSidebarStore } from '@/stores/sidebar/store'
-import { getAllBlocks, getBlocksByCategory } from '@/blocks'
-import { BlockCategory } from '@/blocks/types'
-import { ToolbarBlock } from './components/toolbar-block/toolbar-block'
-import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
+import { useMemo, useState } from "react"
+import { PanelLeftClose, PanelRight, PanelRightClose, Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useSidebarStore } from "@/stores/sidebar/store"
+import { getAllBlocks, getBlocksByCategory } from "@/blocks"
+import type { BlockCategory } from "@/blocks/types"
+import { ToolbarBlock } from "./components/toolbar-block/toolbar-block"
+import { ToolbarTabs } from "./components/toolbar-tabs/toolbar-tabs"
 
 export function Toolbar() {
-  const [activeTab, setActiveTab] = useState<BlockCategory>('blocks')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [activeTab, setActiveTab] = useState<BlockCategory>("blocks")
+  const [searchQuery, setSearchQuery] = useState("")
   const { mode, isExpanded } = useSidebarStore()
   // In hover mode, act as if sidebar is always collapsed for layout purposes
   const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
+    mode === "expanded" ? !isExpanded : mode === "collapsed" || mode === "hover"
 
   // State to track if toolbar is open - independent of sidebar state
   const [isToolbarOpen, setIsToolbarOpen] = useState(true)
@@ -26,7 +26,7 @@ export function Toolbar() {
     const filteredBlocks = !searchQuery.trim() ? getBlocksByCategory(activeTab) : getAllBlocks()
 
     return filteredBlocks.filter((block) => {
-      if (block.type === 'starter' || block.hideFromToolbar) return false
+      if (block.type === "starter" || block.hideFromToolbar) return false
 
       return (
         !searchQuery.trim() ||
@@ -43,7 +43,7 @@ export function Toolbar() {
         <TooltipTrigger asChild>
           <button
             onClick={() => setIsToolbarOpen(true)}
-            className={`fixed transition-all duration-200 ${isSidebarCollapsed ? 'left-20' : 'left-64'} bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-background text-muted-foreground hover:text-foreground hover:bg-accent border`}
+            className={`fixed transition-all duration-200 ${isSidebarCollapsed ? "left-20" : "left-64"} bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-accent hover:text-foreground`}
           >
             <PanelRight className="h-5 w-5" />
             <span className="sr-only">Open Toolbar</span>
@@ -56,15 +56,15 @@ export function Toolbar() {
 
   return (
     <div
-      className={`fixed transition-all duration-200 ${isSidebarCollapsed ? 'left-14' : 'left-60'} top-16 z-10 h-[calc(100vh-4rem)] w-60 border-r bg-background sm:block`}
+      className={`fixed transition-all duration-200 ${isSidebarCollapsed ? "left-14" : "left-60"} top-16 z-10 h-[calc(100vh-4rem)] w-60 border-r bg-background sm:block`}
     >
-      <div className="flex flex-col h-full">
-        <div className="px-4 pt-4 pb-1 sticky top-0 bg-background z-20">
+      <div className="flex h-full flex-col">
+        <div className="sticky top-0 z-20 bg-background px-4 pt-4 pb-1">
           <div className="relative">
-            <Search className="absolute left-3 top-[50%] h-4 w-4 -translate-y-[50%] text-muted-foreground" />
+            <Search className="-translate-y-[50%] absolute top-[50%] left-3 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search..."
-              className="pl-9 rounded-md"
+              className="rounded-md pl-9"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               autoComplete="off"
@@ -76,7 +76,7 @@ export function Toolbar() {
         </div>
 
         {!searchQuery && (
-          <div className="sticky top-[72px] bg-background z-20">
+          <div className="sticky top-[72px] z-20 bg-background">
             <ToolbarTabs activeTab={activeTab} onTabChange={setActiveTab} />
           </div>
         )}
@@ -91,12 +91,12 @@ export function Toolbar() {
           </div>
         </ScrollArea>
 
-        <div className="absolute left-0 right-0 bottom-0 h-16 bg-background border-t">
+        <div className="absolute right-0 bottom-0 left-0 h-16 border-t bg-background">
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={() => setIsToolbarOpen(false)}
-                className="absolute right-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
+                className="absolute right-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
               >
                 <PanelLeftClose className="h-5 w-5" />
                 <span className="sr-only">Close Toolbar</span>

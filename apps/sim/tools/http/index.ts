@@ -1,3 +1,3 @@
-import { requestTool } from './request'
+import { requestTool } from "./request"
 
 export { requestTool }

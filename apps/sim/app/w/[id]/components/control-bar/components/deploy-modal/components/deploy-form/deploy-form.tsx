@@ -1,11 +1,11 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Copy, KeySquare, Loader2, Plus, X } from 'lucide-react'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { Button } from '@/components/ui/button'
+import { useEffect, useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Check, Copy, KeySquare, Loader2, Plus, X } from "lucide-react"
+import { useForm } from "react-hook-form"
+import { z } from "zod"
+import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog"
 import {
   Form,
   FormControl,
@@ -21,19 +21,19 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { createLogger } from '@/lib/logs/console-logger'
+} from "@/components/ui/select"
+import { createLogger } from "@/lib/logs/console-logger"
 
-const logger = createLogger('DeployForm')
+const logger = createLogger("DeployForm")
 
 interface ApiKey {
   id: string
@@ -46,7 +46,7 @@ interface ApiKey {
 
 // Form schema for API key selection or creation
 const deployFormSchema = z.object({
-  apiKey: z.string().min(1, 'Please select an API key'),
+  apiKey: z.string().min(1, "Please select an API key"),
   newKeyName: z.string().optional(),
 })
 
@@ -73,7 +73,7 @@ export function DeployForm({
 }: DeployFormProps) {
   // State
   const [isCreatingKey, setIsCreatingKey] = useState(false)
-  const [newKeyName, setNewKeyName] = useState('')
+  const [newKeyName, setNewKeyName] = useState("")
   const [newKey, setNewKey] = useState<ApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const [copySuccess, setCopySuccess] = useState(false)
@@ -83,8 +83,8 @@ export function DeployForm({
   const form = useForm<DeployFormValues>({
     resolver: zodResolver(deployFormSchema),
     defaultValues: {
-      apiKey: apiKeys.length > 0 ? apiKeys[0].key : '',
-      newKeyName: '',
+      apiKey: apiKeys.length > 0 ? apiKeys[0].key : "",
+      newKeyName: "",
     },
   })
 
@@ -92,7 +92,7 @@ export function DeployForm({
   useEffect(() => {
     if (keysLoaded && apiKeys.length > 0) {
       // Ensure that form has a value after loading
-      form.setValue('apiKey', form.getValues().apiKey || apiKeys[0].key)
+      form.setValue("apiKey", form.getValues().apiKey || apiKeys[0].key)
     }
   }, [keysLoaded, apiKeys, form])
 
@@ -102,10 +102,10 @@ export function DeployForm({
 
     setIsCreating(true)
     try {
-      const response = await fetch('/api/user/api-keys', {
-        method: 'POST',
+      const response = await fetch("/api/user/api-keys", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name: newKeyName.trim(),
@@ -113,7 +113,7 @@ export function DeployForm({
       })
 
       if (!response.ok) {
-        throw new Error('Failed to create new API key')
+        throw new Error("Failed to create new API key")
       }
 
       const data = await response.json()
@@ -121,19 +121,19 @@ export function DeployForm({
       setNewKey(data.key)
       setShowNewKeyDialog(true)
       // Reset form
-      setNewKeyName('')
+      setNewKeyName("")
       // Close the create dialog
       setIsCreatingKey(false)
 
       // Update the form with the new key
-      form.setValue('apiKey', data.key.key)
+      form.setValue("apiKey", data.key.key)
 
       // Trigger a refresh of the keys list in the parent component
       if (onApiKeyCreated) {
         onApiKeyCreated()
       }
     } catch (error) {
-      logger.error('Error creating API key:', { error })
+      logger.error("Error creating API key:", { error })
     } finally {
       setIsCreating(false)
     }
@@ -167,7 +167,7 @@ export function DeployForm({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-xs gap-1 text-primary"
+                  className="h-7 gap-1 px-2 text-primary text-xs"
                   onClick={() => setIsCreatingKey(true)}
                 >
                   <Plus className="h-3.5 w-3.5" />
@@ -176,7 +176,7 @@ export function DeployForm({
               </div>
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
-                  <SelectTrigger className={!keysLoaded ? 'opacity-70' : ''}>
+                  <SelectTrigger className={!keysLoaded ? "opacity-70" : ""}>
                     {!keysLoaded ? (
                       <div className="flex items-center space-x-2">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -192,12 +192,12 @@ export function DeployForm({
                     <SelectItem
                       key={apiKey.id}
                       value={apiKey.key}
-                      className="flex items-center px-3 py-2.5 my-0.5 rounded-sm cursor-pointer data-[state=checked]:bg-muted [&>span.absolute]:hidden"
+                      className="my-0.5 flex cursor-pointer items-center rounded-sm px-3 py-2.5 data-[state=checked]:bg-muted [&>span.absolute]:hidden"
                     >
-                      <div className="flex items-center w-full">
-                        <div className="flex items-center justify-between w-full">
-                          <span className="text-sm truncate mr-2">{apiKey.name}</span>
-                          <span className="text-xs text-muted-foreground font-mono flex-shrink-0 bg-muted px-1.5 py-0.5 mt-[1px] rounded">
+                      <div className="flex w-full items-center">
+                        <div className="flex w-full items-center justify-between">
+                          <span className="mr-2 truncate text-sm">{apiKey.name}</span>
+                          <span className="mt-[1px] flex-shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground text-xs">
                             {apiKey.key.slice(-5)}
                           </span>
                         </div>
@@ -213,10 +213,10 @@ export function DeployForm({
 
         {/* Create API Key Dialog */}
         <Dialog open={isCreatingKey} onOpenChange={setIsCreatingKey}>
-          <DialogContent className="sm:max-w-md flex flex-col p-0 gap-0" hideCloseButton>
-            <DialogHeader className="px-6 py-4 border-b">
+          <DialogContent className="flex flex-col gap-0 p-0 sm:max-w-md" hideCloseButton>
+            <DialogHeader className="border-b px-6 py-4">
               <div className="flex items-center justify-between">
-                <DialogTitle className="text-lg font-medium">Create new API key</DialogTitle>
+                <DialogTitle className="font-medium text-lg">Create new API key</DialogTitle>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -229,7 +229,7 @@ export function DeployForm({
               </div>
             </DialogHeader>
 
-            <div className="pt-4 px-6 pb-6 flex-1">
+            <div className="flex-1 px-6 pt-4 pb-6">
               <div className="space-y-2">
                 <Label htmlFor="keyName">API Key Name</Label>
                 <Input
@@ -242,18 +242,18 @@ export function DeployForm({
               </div>
             </div>
 
-            <div className="border-t px-6 py-4 flex justify-end gap-2">
+            <div className="flex justify-end gap-2 border-t px-6 py-4">
               <Button variant="outline" onClick={() => setIsCreatingKey(false)}>
                 Cancel
               </Button>
               <Button onClick={handleCreateKey} disabled={!newKeyName.trim() || isCreating}>
                 {isCreating ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     Creating...
                   </>
                 ) : (
-                  'Create'
+                  "Create"
                 )}
               </Button>
             </div>
@@ -268,10 +268,10 @@ export function DeployForm({
             if (!open) setNewKey(null)
           }}
         >
-          <DialogContent className="sm:max-w-md flex flex-col p-0 gap-0" hideCloseButton>
-            <DialogHeader className="px-6 py-4 border-b">
+          <DialogContent className="flex flex-col gap-0 p-0 sm:max-w-md" hideCloseButton>
+            <DialogHeader className="border-b px-6 py-4">
               <div className="flex items-center justify-between">
-                <DialogTitle className="text-lg font-medium">
+                <DialogTitle className="font-medium text-lg">
                   Your API key has been created
                 </DialogTitle>
                 <Button
@@ -293,19 +293,19 @@ export function DeployForm({
             </DialogHeader>
 
             {newKey && (
-              <div className="pt-4 px-6 pb-6 flex-1">
+              <div className="flex-1 px-6 pt-4 pb-6">
                 <div className="space-y-2">
                   <Label>API Key</Label>
                   <div className="relative">
                     <Input
                       readOnly
                       value={newKey.key}
-                      className="font-mono text-sm pr-10 bg-muted/50 border-slate-300"
+                      className="border-slate-300 bg-muted/50 pr-10 font-mono text-sm"
                     />
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                      className="-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7"
                       onClick={() => copyToClipboard(newKey.key)}
                     >
                       {copySuccess ? (
@@ -316,7 +316,7 @@ export function DeployForm({
                       <span className="sr-only">Copy to clipboard</span>
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="mt-1 text-muted-foreground text-xs">
                     For security, we don&apos;t store the complete key. You won&apos;t be able to
                     view it again.
                   </p>
@@ -324,7 +324,7 @@ export function DeployForm({
               </div>
             )}
 
-            <div className="border-t px-6 py-4 flex justify-end">
+            <div className="flex justify-end border-t px-6 py-4">
               <Button
                 onClick={() => {
                   setShowNewKeyDialog(false)

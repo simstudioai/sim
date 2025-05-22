@@ -1,12 +1,12 @@
-import { ChartBarIcon } from '@/components/icons'
-import { createLogger } from '@/lib/logs/console-logger'
-import { useOllamaStore } from '@/stores/ollama/store'
-import { ProviderId } from '@/providers/types'
-import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
-import { ToolResponse } from '@/tools/types'
-import { BlockConfig, ParamType } from '../types'
+import { ChartBarIcon } from "@/components/icons"
+import { createLogger } from "@/lib/logs/console-logger"
+import { useOllamaStore } from "@/stores/ollama/store"
+import type { ProviderId } from "@/providers/types"
+import { getAllModelProviders, getBaseModelProviders } from "@/providers/utils"
+import type { ToolResponse } from "@/tools/types"
+import type { BlockConfig, ParamType } from "../types"
 
-const logger = createLogger('EvaluatorBlock')
+const logger = createLogger("EvaluatorBlock")
 
 interface Metric {
   name: string
@@ -32,34 +32,34 @@ interface EvaluatorResponse extends ToolResponse {
 
 export const generateEvaluatorPrompt = (metrics: Metric[], content: string): string => {
   // Filter out invalid/incomplete metrics first
-  const validMetrics = metrics.filter((m) => m && m.name && m.range)
+  const validMetrics = metrics.filter((m) => m?.name && m.range)
 
   // Create a clear metrics description with name, range, and description
   const metricsDescription = validMetrics
     .map(
       (metric) =>
-        `"${metric.name}" (${metric.range.min}-${metric.range.max}): ${metric.description || ''}` // Handle potentially missing description
+        `"${metric.name}" (${metric.range.min}-${metric.range.max}): ${metric.description || ""}` // Handle potentially missing description
     )
-    .join('\n')
+    .join("\n")
 
   // Format the content properly - try to detect and format JSON
   let formattedContent = content
   try {
     // If content looks like JSON (starts with { or [)
     if (
-      typeof content === 'string' &&
-      (content.trim().startsWith('{') || content.trim().startsWith('['))
+      typeof content === "string" &&
+      (content.trim().startsWith("{") || content.trim().startsWith("["))
     ) {
       // Try to parse and pretty-print
       const parsedContent = JSON.parse(content)
       formattedContent = JSON.stringify(parsedContent, null, 2)
     }
     // If it's already an object (shouldn't happen here but just in case)
-    else if (typeof content === 'object') {
+    else if (typeof content === "object") {
       formattedContent = JSON.stringify(content, null, 2)
     }
   } catch (e) {
-    logger.warn('Warning: Content may not be valid JSON, using as-is', { e })
+    logger.warn("Warning: Content may not be valid JSON, using as-is", { e })
     formattedContent = content
   }
 
@@ -67,10 +67,10 @@ export const generateEvaluatorPrompt = (metrics: Metric[], content: string): str
   const exampleOutput = validMetrics.reduce(
     (acc, metric) => {
       // Ensure metric and name are valid before using them
-      if (metric && metric.name) {
+      if (metric?.name) {
         acc[metric.name.toLowerCase()] = Math.floor((metric.range.min + metric.range.max) / 2) // Use middle of range as example
       } else {
-        logger.warn('Skipping invalid metric during example generation:', metric)
+        logger.warn("Skipping invalid metric during example generation:", metric)
       }
       return acc
     },
@@ -104,7 +104,7 @@ Remember: Your response MUST be a valid JSON object containing only the lowercas
 // Simplified response format generator that matches the agent block schema structure
 const generateResponseFormat = (metrics: Metric[]) => {
   // Filter out invalid/incomplete metrics first
-  const validMetrics = metrics.filter((m) => m && m.name)
+  const validMetrics = metrics.filter((m) => m?.name)
 
   // Create properties for each metric
   const properties: Record<string, any> = {}
@@ -112,25 +112,25 @@ const generateResponseFormat = (metrics: Metric[]) => {
   // Add each metric as a property
   validMetrics.forEach((metric) => {
     // We've already filtered, but double-check just in case
-    if (metric && metric.name) {
+    if (metric?.name) {
       properties[metric.name.toLowerCase()] = {
-        type: 'number',
-        description: `${metric.description || ''} (Score between ${metric.range?.min ?? 0}-${metric.range?.max ?? 'N/A'})`, // Safely access range
+        type: "number",
+        description: `${metric.description || ""} (Score between ${metric.range?.min ?? 0}-${metric.range?.max ?? "N/A"})`, // Safely access range
       }
     } else {
-      logger.warn('Skipping invalid metric during response format property generation:', metric)
+      logger.warn("Skipping invalid metric during response format property generation:", metric)
     }
   })
 
   // Return a proper JSON Schema format
   return {
-    name: 'evaluation_response',
+    name: "evaluation_response",
     schema: {
-      type: 'object',
+      type: "object",
       properties,
       // Use only valid, lowercase metric names for the required array
       required: validMetrics
-        .filter((metric) => metric && metric.name)
+        .filter((metric) => metric?.name)
         .map((metric) => metric.name.toLowerCase()),
       additionalProperties: false,
     },
@@ -139,34 +139,34 @@ const generateResponseFormat = (metrics: Metric[]) => {
 }
 
 export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
-  type: 'evaluator',
-  name: 'Evaluator',
-  description: 'Evaluate content',
+  type: "evaluator",
+  name: "Evaluator",
+  description: "Evaluate content",
   longDescription:
-    'Assess content quality using customizable evaluation metrics and scoring criteria. Create objective evaluation frameworks with numeric scoring to measure performance across multiple dimensions.',
-  docsLink: 'https://docs.simstudio.ai/blocks/evaluator',
-  category: 'tools',
-  bgColor: '#4D5FFF',
+    "Assess content quality using customizable evaluation metrics and scoring criteria. Create objective evaluation frameworks with numeric scoring to measure performance across multiple dimensions.",
+  docsLink: "https://docs.simstudio.ai/blocks/evaluator",
+  category: "tools",
+  bgColor: "#4D5FFF",
   icon: ChartBarIcon,
   subBlocks: [
     {
-      id: 'metrics',
-      title: 'Evaluation Metrics',
-      type: 'eval-input',
-      layout: 'full',
+      id: "metrics",
+      title: "Evaluation Metrics",
+      type: "eval-input",
+      layout: "full",
     },
     {
-      id: 'content',
-      title: 'Content',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter the content to evaluate',
+      id: "content",
+      title: "Content",
+      type: "short-input",
+      layout: "full",
+      placeholder: "Enter the content to evaluate",
     },
     {
-      id: 'model',
-      title: 'Model',
-      type: 'dropdown',
-      layout: 'half',
+      id: "model",
+      title: "Model",
+      type: "dropdown",
+      layout: "half",
       options: () => {
         const ollamaModels = useOllamaStore.getState().models
         const baseModels = Object.keys(getBaseModelProviders())
@@ -174,30 +174,30 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
       },
     },
     {
-      id: 'apiKey',
-      title: 'API Key',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Enter your API key',
+      id: "apiKey",
+      title: "API Key",
+      type: "short-input",
+      layout: "full",
+      placeholder: "Enter your API key",
       password: true,
       connectionDroppable: false,
     },
     {
-      id: 'systemPrompt',
-      title: 'System Prompt',
-      type: 'code',
-      layout: 'full',
+      id: "systemPrompt",
+      title: "System Prompt",
+      type: "code",
+      layout: "full",
       hidden: true,
       value: (params: Record<string, any>) => {
         try {
           const metrics = params.metrics || []
 
           // Process content safely
-          let processedContent = ''
-          if (typeof params.content === 'object') {
+          let processedContent = ""
+          if (typeof params.content === "object") {
             processedContent = JSON.stringify(params.content, null, 2)
           } else {
-            processedContent = String(params.content || '')
+            processedContent = String(params.content || "")
           }
 
           // Generate prompt and response format directly
@@ -212,13 +212,13 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
 
           return JSON.stringify(result)
         } catch (e) {
-          logger.error('Error in systemPrompt value function:', { e })
+          logger.error("Error in systemPrompt value function:", { e })
           // Return a minimal valid JSON as fallback
           return JSON.stringify({
-            systemPrompt: 'Evaluate the content and return a JSON with metric scores.',
+            systemPrompt: "Evaluate the content and return a JSON with metric scores.",
             responseFormat: {
               schema: {
-                type: 'object',
+                type: "object",
                 properties: {},
                 additionalProperties: true,
               },
@@ -230,18 +230,18 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
   ],
   tools: {
     access: [
-      'openai_chat',
-      'anthropic_chat',
-      'google_chat',
-      'xai_chat',
-      'deepseek_chat',
-      'deepseek_reasoner',
+      "openai_chat",
+      "anthropic_chat",
+      "google_chat",
+      "xai_chat",
+      "deepseek_chat",
+      "deepseek_reasoner",
     ],
     config: {
       tool: (params: Record<string, any>) => {
-        const model = params.model || 'gpt-4o'
+        const model = params.model || "gpt-4o"
         if (!model) {
-          throw new Error('No model selected')
+          throw new Error("No model selected")
         }
         const tool = getAllModelProviders()[model as ProviderId]
         if (!tool) {
@@ -253,62 +253,62 @@ export const EvaluatorBlock: BlockConfig<EvaluatorResponse> = {
   },
   inputs: {
     metrics: {
-      type: 'json' as ParamType,
+      type: "json" as ParamType,
       required: true,
-      description: 'Array of metrics to evaluate against',
+      description: "Array of metrics to evaluate against",
       schema: {
-        type: 'array',
+        type: "array",
         properties: {},
         items: {
-          type: 'object',
+          type: "object",
           properties: {
             name: {
-              type: 'string',
-              description: 'Name of the metric',
+              type: "string",
+              description: "Name of the metric",
             },
             description: {
-              type: 'string',
-              description: 'Description of what this metric measures',
+              type: "string",
+              description: "Description of what this metric measures",
             },
             range: {
-              type: 'object',
+              type: "object",
               properties: {
                 min: {
-                  type: 'number',
-                  description: 'Minimum possible score',
+                  type: "number",
+                  description: "Minimum possible score",
                 },
                 max: {
-                  type: 'number',
-                  description: 'Maximum possible score',
+                  type: "number",
+                  description: "Maximum possible score",
                 },
               },
-              required: ['min', 'max'],
+              required: ["min", "max"],
             },
           },
-          required: ['name', 'description', 'range'],
+          required: ["name", "description", "range"],
         },
       },
     },
-    model: { type: 'string' as ParamType, required: true },
-    apiKey: { type: 'string' as ParamType, required: true },
-    content: { type: 'string' as ParamType, required: true },
+    model: { type: "string" as ParamType, required: true },
+    apiKey: { type: "string" as ParamType, required: true },
+    content: { type: "string" as ParamType, required: true },
   },
   outputs: {
     response: {
       type: {
-        content: 'string',
-        model: 'string',
-        tokens: 'any',
+        content: "string",
+        model: "string",
+        tokens: "any",
       },
       dependsOn: {
-        subBlockId: 'metrics',
+        subBlockId: "metrics",
         condition: {
           whenEmpty: {
-            content: 'string',
-            model: 'string',
-            tokens: 'any',
+            content: "string",
+            model: "string",
+            tokens: "any",
           },
-          whenFilled: 'json',
+          whenFilled: "json",
         },
       },
     },

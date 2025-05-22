@@ -1,47 +1,47 @@
-import { ToolConfig } from '../types'
-import { ExaFindSimilarLinksParams, ExaFindSimilarLinksResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { ExaFindSimilarLinksParams, ExaFindSimilarLinksResponse } from "./types"
 
 export const findSimilarLinksTool: ToolConfig<
   ExaFindSimilarLinksParams,
   ExaFindSimilarLinksResponse
 > = {
-  id: 'exa_find_similar_links',
-  name: 'Exa Find Similar Links',
+  id: "exa_find_similar_links",
+  name: "Exa Find Similar Links",
   description:
-    'Find webpages similar to a given URL using Exa AI. Returns a list of similar links with titles and text snippets.',
-  version: '1.0.0',
+    "Find webpages similar to a given URL using Exa AI. Returns a list of similar links with titles and text snippets.",
+  version: "1.0.0",
 
   params: {
     url: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'The URL to find similar links for',
+      description: "The URL to find similar links for",
     },
     numResults: {
-      type: 'number',
+      type: "number",
       required: false,
-      description: 'Number of similar links to return (default: 10, max: 25)',
+      description: "Number of similar links to return (default: 10, max: 25)",
     },
     text: {
-      type: 'boolean',
+      type: "boolean",
       required: false,
-      description: 'Whether to include the full text of the similar pages',
+      description: "Whether to include the full text of the similar pages",
     },
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Exa AI API Key',
+      description: "Exa AI API Key",
     },
   },
 
   request: {
-    url: 'https://api.exa.ai/findSimilar',
-    method: 'POST',
+    url: "https://api.exa.ai/findSimilar",
+    method: "POST",
     isInternalRoute: false,
     headers: (params) => ({
-      'Content-Type': 'application/json',
-      'x-api-key': params.apiKey,
+      "Content-Type": "application/json",
+      "x-api-key": params.apiKey,
     }),
     body: (params) => {
       const body: Record<string, any> = {
@@ -66,16 +66,16 @@ export const findSimilarLinksTool: ToolConfig<
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.message || data.error || 'Failed to find similar links')
+      throw new Error(data.message || data.error || "Failed to find similar links")
     }
 
     return {
       success: true,
       output: {
         similarLinks: data.results.map((result: any) => ({
-          title: result.title || '',
+          title: result.title || "",
           url: result.url,
-          text: result.text || '',
+          text: result.text || "",
           score: result.score || 0,
         })),
       },
@@ -83,6 +83,6 @@ export const findSimilarLinksTool: ToolConfig<
   },
 
   transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while finding similar links'
+    return error instanceof Error ? error.message : "An error occurred while finding similar links"
   },
 }

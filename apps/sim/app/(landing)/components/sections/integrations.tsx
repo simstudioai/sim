@@ -1,44 +1,44 @@
-'use client'
+"use client"
 
-import React from 'react'
-import Image from 'next/image'
-import { motion } from 'framer-motion'
-import { File, FileArchive, GitBranch, RefreshCcw, Settings } from 'lucide-react'
-import ReactFlow, { ConnectionLineType, Position, ReactFlowProvider } from 'reactflow'
-import { OrbitingCircles } from '@/app/(landing)/components/magicui/orbiting-circles'
-import { DotPattern } from '../dot-pattern'
-import { HeroBlock } from '../hero-block'
+import React from "react"
+import Image from "next/image"
+import { motion } from "framer-motion"
+import { File, FileArchive, GitBranch, RefreshCcw, Settings } from "lucide-react"
+import ReactFlow, { ConnectionLineType, Position, ReactFlowProvider } from "reactflow"
+import { OrbitingCircles } from "@/app/(landing)/components/magicui/orbiting-circles"
+import { DotPattern } from "../dot-pattern"
+import { HeroBlock } from "../hero-block"
 
 function Integrations() {
   return (
-    <section className="flex flex-col py-12 w-full gap-10 px-8 md:px-16 lg:px-28 xl:px-32">
+    <section className="flex w-full flex-col gap-10 px-8 py-12 md:px-16 lg:px-28 xl:px-32">
       <div className="flex flex-col gap-5">
         <motion.p
-          className="text-white font-medium tracking-normal text-[42px] md:text-5xl md:leading-tight leading-none"
+          className="font-medium text-[42px] text-white leading-none tracking-normal md:text-5xl md:leading-tight"
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.7, delay: 0.05, ease: 'easeOut' }}
+          transition={{ duration: 0.7, delay: 0.05, ease: "easeOut" }}
         >
           Everything you need,
           <br />
           connected
         </motion.p>
         <motion.p
-          className="text-white/60 text-xl tracking-normal max-w-md font-light"
+          className="max-w-md font-light text-white/60 text-xl tracking-normal"
           initial={{ opacity: 0, y: 40 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.2 }}
-          transition={{ duration: 0.7, delay: 0.15, ease: 'easeOut' }}
+          transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
         >
           Seamlessly connect your agents with the tools you already use—no extra setup required.
         </motion.p>
       </div>
 
       {/* Desktop view */}
-      <div className="md:flex relative w-full hidden justify-center items-center bg-[#0f0f0f] border border-[#606060]/30 rounded-3xl min-h-[36rem] z-10 overflow-hidden">
+      <div className="relative z-10 hidden min-h-[36rem] w-full items-center justify-center overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f] md:flex">
         <DotPattern className="rounded-3xl opacity-10" x={-5} y={-5} />
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
+        <div className="-translate-x-1/2 absolute bottom-0 left-1/2">
           <svg
             width="800"
             height="450"
@@ -171,42 +171,42 @@ function Integrations() {
           </svg>
         </div>
         <OrbitingCircles radius={160}>
-          <div className="p-1 w-16 h-16 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.pinecone />
           </div>
-          <div className="p-1 w-16 h-16 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.slack />
           </div>
         </OrbitingCircles>
         <OrbitingCircles iconSize={40} radius={320} reverse>
-          <div className="p-2 w-16 h-16 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-2 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.gitHub />
           </div>
-          <div className="p-1 w-16 h-16 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.supabase />
           </div>
-          <div className="p-1 w-16 h-16 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.perplexity />
           </div>
         </OrbitingCircles>
         <OrbitingCircles iconSize={40} radius={480}>
-          <div className="p-2 w-16 h-16 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-2 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.youtube />
           </div>
-          <div className="p-1 w-16 h-16 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.reddit />
           </div>
-          <div className="p-1 w-16 h-16 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-16 w-16 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.notion />
           </div>
         </OrbitingCircles>
       </div>
 
       {/* Mobile view */}
-      <div className="md:hidden relative w-full flex justify-center items-center bg-[#0f0f0f] border border-[#606060]/30 rounded-3xl min-h-[28rem] z-10 overflow-hidden">
+      <div className="relative z-10 flex min-h-[28rem] w-full items-center justify-center overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f] md:hidden">
         <DotPattern className="rounded-3xl opacity-10" x={-5} y={-5} />
         <div className="absolute inset-0 z-0 flex items-center justify-center">
-          <div className="absolute bottom-[-80px] left-[45%] -translate-x-1/2 w-[130%]">
+          <div className="-translate-x-1/2 absolute bottom-[-80px] left-[45%] w-[130%]">
             <svg
               width="100%"
               height="350"
@@ -289,92 +289,92 @@ function Integrations() {
           </div>
         </div>
         <OrbitingCircles radius={100}>
-          <div className="p-1 w-12 h-12 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-12 w-12 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.pinecone />
           </div>
-          <div className="p-1 w-12 h-12 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-12 w-12 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.slack />
           </div>
         </OrbitingCircles>
         <OrbitingCircles iconSize={32} radius={180} reverse>
-          <div className="p-1 w-12 h-12 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-12 w-12 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.gitHub />
           </div>
-          <div className="p-1 w-12 h-12 aspect-square flex rounded-xl bg-[#242424] border border-[#353535] justify-center items-center shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
+          <div className="flex aspect-square h-12 w-12 items-center justify-center rounded-xl border border-[#353535] bg-[#242424] p-1 shadow-[0px_2px_6px_0px_rgba(126,_48,_252,_0.1)]">
             <Icons.notion />
           </div>
         </OrbitingCircles>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-20 w-full relative text-white">
-        <div className="flex flex-col w-full gap-8">
+      <div className="relative flex w-full flex-col gap-20 text-white lg:flex-row">
+        <div className="flex w-full flex-col gap-8">
           <div className="flex flex-col gap-6">
             <motion.div
-              className="flex gap-6 items-center"
+              className="flex items-center gap-6"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.1, ease: 'easeOut' }}
+              transition={{ duration: 0.7, delay: 0.1, ease: "easeOut" }}
             >
               <RefreshCcw size={24} />
               <span className="text-2xl">Sync Knowledge in Seconds</span>
             </motion.div>
             <motion.p
-              className="font-light text-lg text-white/60 max-w-lg"
+              className="max-w-lg font-light text-lg text-white/60"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.18, ease: 'easeOut' }}
+              transition={{ duration: 0.7, delay: 0.18, ease: "easeOut" }}
             >
               Import data from your favorite tools to power your AI agents&apos; knowledge bases—no
               manual uploads needed.
             </motion.p>
           </div>
-          <div className="relative w-full flex justify-center items-center bg-[#0f0f0f] border border-[#606060]/30 rounded-3xl h-80 z-10 overflow-hidden">
-            <DotPattern className="rounded-3xl opacity-10 z-0" x={-5} y={-5} />
+          <div className="relative z-10 flex h-80 w-full items-center justify-center overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f]">
+            <DotPattern className="z-0 rounded-3xl opacity-10" x={-5} y={-5} />
             <motion.div
-              className="w-full h-full flex justify-end z-10"
+              className="z-10 flex h-full w-full justify-end"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+              transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
             >
               <ReactFlowProvider>
                 <ReactFlow
                   nodes={[
                     {
-                      id: 'agent1',
-                      type: 'heroBlock',
+                      id: "agent1",
+                      type: "heroBlock",
                       position: { x: 50, y: 100 },
-                      data: { type: 'agent' },
+                      data: { type: "agent" },
                       sourcePosition: Position.Right,
                       targetPosition: Position.Left,
                     },
                     {
-                      id: 'slack1',
-                      type: 'heroBlock',
+                      id: "slack1",
+                      type: "heroBlock",
                       position: { x: 450, y: -30 },
-                      data: { type: 'slack' },
+                      data: { type: "slack" },
                       sourcePosition: Position.Left,
                       targetPosition: Position.Right,
                     },
                   ]}
                   edges={[
                     {
-                      id: 'agent1-slack1',
-                      source: 'agent1',
-                      target: 'slack1',
-                      type: 'smoothstep',
-                      style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' },
+                      id: "agent1-slack1",
+                      source: "agent1",
+                      target: "slack1",
+                      type: "smoothstep",
+                      style: { stroke: "#404040", strokeWidth: 1.5, strokeDasharray: "4 4" },
                       animated: true,
                     },
                   ]}
                   nodeTypes={{ heroBlock: HeroBlock }}
                   connectionLineType={ConnectionLineType.SmoothStep}
                   connectionLineStyle={{
-                    stroke: '#404040',
+                    stroke: "#404040",
                     strokeWidth: 1.5,
-                    strokeDasharray: '4 4',
+                    strokeDasharray: "4 4",
                   }}
                   defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                   nodesDraggable={false}
@@ -388,81 +388,81 @@ function Integrations() {
                   selectionOnDrag={false}
                   preventScrolling={true}
                   proOptions={{ hideAttribution: true }}
-                  className="pointer-events-none w-full h-full"
-                  style={{ width: '100%', height: '100%' }}
+                  className="pointer-events-none h-full w-full"
+                  style={{ width: "100%", height: "100%" }}
                 />
               </ReactFlowProvider>
             </motion.div>
           </div>
         </div>
-        <div className="flex flex-col w-full gap-8">
+        <div className="flex w-full flex-col gap-8">
           <div className="flex flex-col gap-6">
             <motion.div
-              className="flex gap-6 items-center"
+              className="flex items-center gap-6"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
+              transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
             >
               <GitBranch size={24} />
               <span className="text-2xl">Automate Workflows with Ease</span>
             </motion.div>
             <motion.p
-              className="font-light text-lg text-white/60 max-w-lg"
+              className="max-w-lg font-light text-lg text-white/60"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.28, ease: 'easeOut' }}
+              transition={{ duration: 0.7, delay: 0.28, ease: "easeOut" }}
             >
               Trigger actions and automate tasks across your apps with pre-built integrations.
             </motion.p>
           </div>
-          <div className="relative w-full flex justify-center items-center bg-[#0f0f0f] border border-[#606060]/30 rounded-3xl h-80 z-10 overflow-hidden">
-            <DotPattern className="rounded-3xl opacity-10 z-0" x={-5} y={-5} />
+          <div className="relative z-10 flex h-80 w-full items-center justify-center overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f]">
+            <DotPattern className="z-0 rounded-3xl opacity-10" x={-5} y={-5} />
 
             <motion.div
-              className="w-full h-full flex justify-end z-10"
+              className="z-10 flex h-full w-full justify-end"
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.7, delay: 0.4, ease: 'easeOut' }}
+              transition={{ duration: 0.7, delay: 0.4, ease: "easeOut" }}
             >
               <ReactFlowProvider>
                 <ReactFlow
                   nodes={[
                     {
-                      id: 'start',
-                      type: 'heroBlock',
+                      id: "start",
+                      type: "heroBlock",
                       position: { x: 50, y: 120 },
-                      data: { type: 'start' },
+                      data: { type: "start" },
                       sourcePosition: Position.Right,
                       targetPosition: Position.Left,
                     },
                     {
-                      id: 'function1',
-                      type: 'heroBlock',
+                      id: "function1",
+                      type: "heroBlock",
                       position: { x: 450, y: 80 },
-                      data: { type: 'function', isHeroSection: false },
+                      data: { type: "function", isHeroSection: false },
                       sourcePosition: Position.Right,
                       targetPosition: Position.Left,
                     },
                   ]}
                   edges={[
                     {
-                      id: 'start-func1',
-                      source: 'start',
-                      target: 'function1',
-                      type: 'smoothstep',
-                      style: { stroke: '#404040', strokeWidth: 1.5, strokeDasharray: '4 4' },
+                      id: "start-func1",
+                      source: "start",
+                      target: "function1",
+                      type: "smoothstep",
+                      style: { stroke: "#404040", strokeWidth: 1.5, strokeDasharray: "4 4" },
                       animated: true,
                     },
                   ]}
                   nodeTypes={{ heroBlock: HeroBlock }}
                   connectionLineType={ConnectionLineType.SmoothStep}
                   connectionLineStyle={{
-                    stroke: '#404040',
+                    stroke: "#404040",
                     strokeWidth: 1.5,
-                    strokeDasharray: '4 4',
+                    strokeDasharray: "4 4",
                   }}
                   defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                   nodesDraggable={false}
@@ -476,8 +476,8 @@ function Integrations() {
                   selectionOnDrag={false}
                   preventScrolling={true}
                   proOptions={{ hideAttribution: true }}
-                  className="pointer-events-none w-full h-full"
-                  style={{ width: '100%', height: '100%' }}
+                  className="pointer-events-none h-full w-full"
+                  style={{ width: "100%", height: "100%" }}
                 />
               </ReactFlowProvider>
             </motion.div>

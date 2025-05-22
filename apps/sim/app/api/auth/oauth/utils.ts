@@ -1,11 +1,11 @@
-import { and, eq } from 'drizzle-orm'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
-import { refreshOAuthToken } from '@/lib/oauth'
-import { db } from '@/db'
-import { account, workflow } from '@/db/schema'
+import { and, eq } from "drizzle-orm"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { refreshOAuthToken } from "@/lib/oauth"
+import { db } from "@/db"
+import { account, workflow } from "@/db/schema"
 
-const logger = createLogger('OAuthUtilsAPI')
+const logger = createLogger("OAuthUtilsAPI")
 
 /**
  * Get the user ID based on either a session or a workflow ID
@@ -29,18 +29,17 @@ export async function getUserId(
     }
 
     return workflows[0].userId
-  } else {
-    // This is a client-side request, use the session
-    const session = await getSession()
-
-    // Check if the user is authenticated
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthenticated request rejected`)
-      return undefined
-    }
-
-    return session.user.id
   }
+  // This is a client-side request, use the session
+  const session = await getSession()
+
+  // Check if the user is authenticated
+  if (!session?.user?.id) {
+    logger.warn(`[${requestId}] Unauthenticated request rejected`)
+    return undefined
+  }
+
+  return session.user.id
 }
 
 /**
@@ -169,7 +168,7 @@ export async function refreshAccessTokenIfNeeded(
   const now = new Date()
   const needsRefresh = !expiresAt || expiresAt <= now
 
-  let accessToken = credential.accessToken
+  const accessToken = credential.accessToken
 
   if (needsRefresh && credential.refreshToken) {
     logger.info(`[${requestId}] Token expired, attempting to refresh for credential`)
@@ -247,7 +246,7 @@ export async function refreshTokenIfNeeded(
 
     if (!refreshResult) {
       logger.error(`[${requestId}] Failed to refresh token for credential`)
-      throw new Error('Failed to refresh token')
+      throw new Error("Failed to refresh token")
     }
 
     const { accessToken: refreshedToken, expiresIn, refreshToken: newRefreshToken } = refreshResult

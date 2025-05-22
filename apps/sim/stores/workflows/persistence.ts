@@ -2,13 +2,13 @@
  * Centralized persistence layer for workflow stores
  * Handles localStorage interactions and synchronization
  */
-import { createLogger } from '@/lib/logs/console-logger'
-import { STORAGE_KEYS } from '../constants'
-import { useWorkflowRegistry } from './registry/store'
-import { useSubBlockStore } from './subblock/store'
-import { useWorkflowStore } from './workflow/store'
+import { createLogger } from "@/lib/logs/console-logger"
+import { STORAGE_KEYS } from "../constants"
+import { useWorkflowRegistry } from "./registry/store"
+import { useSubBlockStore } from "./subblock/store"
+import { useWorkflowStore } from "./workflow/store"
 
-const logger = createLogger('WorkflowsPersistence')
+const logger = createLogger("WorkflowsPersistence")
 
 /**
  * Save data to localStorage with error handling
@@ -97,7 +97,7 @@ export function loadRegistry(): any {
  * This is the main initialization function that should be called once at app startup
  */
 export function initializeStores(): void {
-  if (typeof window === 'undefined') return
+  if (typeof window === "undefined") return
 
   // Initialize registry first
   const workflows = loadRegistry()
@@ -138,17 +138,17 @@ export function initializeStores(): void {
  * Setup persistence for page unload events
  */
 export function setupUnloadPersistence(): void {
-  if (typeof window === 'undefined') return
+  if (typeof window === "undefined") return
 
-  window.addEventListener('beforeunload', (event) => {
+  window.addEventListener("beforeunload", (event) => {
     // Check if we're on an authentication page and skip confirmation if we are
     const path = window.location.pathname
     // Skip confirmation for auth-related pages
     if (
-      path === '/login' ||
-      path === '/signup' ||
-      path === '/reset-password' ||
-      path === '/verify'
+      path === "/login" ||
+      path === "/signup" ||
+      path === "/reset-password" ||
+      path === "/verify"
     ) {
       return
     }
@@ -181,6 +181,6 @@ export function setupUnloadPersistence(): void {
 
     // Only prevent navigation on non-auth pages
     event.preventDefault()
-    event.returnValue = ''
+    event.returnValue = ""
   })
 }

@@ -1,86 +1,86 @@
-import { ToolConfig } from '../types'
-import { NotionCreatePageParams, NotionResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { NotionCreatePageParams, NotionResponse } from "./types"
 
 export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResponse> = {
-  id: 'notion_create_page',
-  name: 'Notion Page Creator',
-  description: 'Create a new page in Notion',
-  version: '1.0.0',
+  id: "notion_create_page",
+  name: "Notion Page Creator",
+  description: "Create a new page in Notion",
+  version: "1.0.0",
   oauth: {
     required: true,
-    provider: 'notion',
-    additionalScopes: ['workspace.content', 'page.write'],
+    provider: "notion",
+    additionalScopes: ["workspace.content", "page.write"],
   },
   params: {
     parentType: {
-      type: 'string',
+      type: "string",
       required: true,
       description: 'Type of parent: "page" or "database"',
     },
     parentId: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'ID of the parent page or database',
+      description: "ID of the parent page or database",
     },
     title: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Title of the page (required for parent pages, not for databases)',
+      description: "Title of the page (required for parent pages, not for databases)",
     },
     properties: {
-      type: 'json',
+      type: "json",
       required: false,
-      description: 'JSON object of properties for database pages',
+      description: "JSON object of properties for database pages",
     },
     content: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Optional content to add to the page upon creation',
+      description: "Optional content to add to the page upon creation",
     },
     accessToken: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Notion OAuth access token',
+      description: "Notion OAuth access token",
     },
   },
 
   request: {
-    url: () => 'https://api.notion.com/v1/pages',
-    method: 'POST',
+    url: () => "https://api.notion.com/v1/pages",
+    method: "POST",
     headers: (params: NotionCreatePageParams) => {
       if (!params.accessToken) {
-        throw new Error('Access token is required')
+        throw new Error("Access token is required")
       }
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        'Notion-Version': '2022-06-28',
-        'Content-Type': 'application/json',
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json",
       }
     },
     body: (params: NotionCreatePageParams) => {
       // Format parent ID with hyphens if needed
       const formattedParentId = params.parentId.replace(
         /(.{8})(.{4})(.{4})(.{4})(.{12})/,
-        '$1-$2-$3-$4-$5'
+        "$1-$2-$3-$4-$5"
       )
 
       // Prepare the body based on parent type
       const body: any = {
         parent: {
-          type: params.parentType === 'page' ? 'page_id' : 'database_id',
-          [params.parentType === 'page' ? 'page_id' : 'database_id']: formattedParentId,
+          type: params.parentType === "page" ? "page_id" : "database_id",
+          [params.parentType === "page" ? "page_id" : "database_id"]: formattedParentId,
         },
       }
 
       // For child pages, properties only have title
-      if (params.parentType === 'page' && params.title) {
+      if (params.parentType === "page" && params.title) {
         body.properties = {
           title: {
-            type: 'title',
+            type: "title",
             title: [
               {
-                type: 'text',
+                type: "text",
                 text: {
                   content: params.title,
                 },
@@ -90,7 +90,7 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
         }
       }
       // For database pages, use the provided properties
-      else if (params.parentType === 'database' && params.properties) {
+      else if (params.parentType === "database" && params.properties) {
         body.properties = params.properties
       }
       // If neither, add an empty properties object
@@ -102,12 +102,12 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
       if (params.content) {
         body.children = [
           {
-            object: 'block',
-            type: 'paragraph',
+            object: "block",
+            type: "paragraph",
             paragraph: {
               rich_text: [
                 {
-                  type: 'text',
+                  type: "text",
                   text: {
                     content: params.content,
                   },
@@ -125,21 +125,21 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorData = await response.json()
-      throw new Error(`Failed to create Notion page: ${errorData.message || 'Unknown error'}`)
+      throw new Error(`Failed to create Notion page: ${errorData.message || "Unknown error"}`)
     }
 
     const data = await response.json()
-    let pageTitle = 'Untitled'
+    let pageTitle = "Untitled"
 
     // Try to extract the title from properties
-    if (data.properties && data.properties.title) {
+    if (data.properties?.title) {
       const titleProperty = data.properties.title
       if (
         titleProperty.title &&
         Array.isArray(titleProperty.title) &&
         titleProperty.title.length > 0
       ) {
-        pageTitle = titleProperty.title.map((t: any) => t.plain_text || '').join('')
+        pageTitle = titleProperty.title.map((t: any) => t.plain_text || "").join("")
       }
     }
 
@@ -159,6 +159,6 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
   },
 
   transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to create Notion page'
+    return error instanceof Error ? error.message : "Failed to create Notion page"
   },
 }

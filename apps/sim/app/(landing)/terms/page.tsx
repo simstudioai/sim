@@ -1,23 +1,23 @@
-'use client'
+"use client"
 
-import Link from 'next/link'
-import { GridPattern } from '../components/grid-pattern'
-import NavWrapper from '../components/nav-wrapper'
-import Footer from '../components/sections/footer'
+import Link from "next/link"
+import { GridPattern } from "../components/grid-pattern"
+import NavWrapper from "../components/nav-wrapper"
+import Footer from "../components/sections/footer"
 
 export default function TermsOfService() {
   const handleOpenTypeformLink = () => {
-    window.open('https://form.typeform.com/to/jqCO12pF', '_blank')
+    window.open("https://form.typeform.com/to/jqCO12pF", "_blank")
   }
 
   return (
-    <main className="bg-[#0C0C0C] min-h-screen text-white relative overflow-hidden">
+    <main className="relative min-h-screen overflow-hidden bg-[#0C0C0C] text-white">
       {/* Grid pattern background */}
       <div className="absolute inset-0 bottom-[400px] z-0 overflow-hidden">
         <GridPattern
           x={-5}
           y={-5}
-          className="stroke-[#ababab]/5 absolute inset-0"
+          className="absolute inset-0 stroke-[#ababab]/5"
           width={90}
           height={90}
           aria-hidden="true"
@@ -29,7 +29,7 @@ export default function TermsOfService() {
 
       {/* background blur */}
       <div
-        className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[95%] md:w-[90%] lg:w-[80%] max-w-5xl z-[1] h-full"
+        className="-translate-x-1/2 absolute top-0 bottom-0 left-1/2 z-[1] h-full w-[95%] max-w-5xl md:w-[90%] lg:w-[80%]"
         aria-hidden="true"
       >
         <svg
@@ -62,9 +62,9 @@ export default function TermsOfService() {
 
       {/* Content */}
       <div className="relative z-10">
-        <div className="max-w-4xl mx-auto px-4 py-16 pt-36">
-          <div className="relative px-4 sm:px-8 py-4">
-            <h1 className="text-4xl font-bold mb-8 text-white">Terms of Service</h1>
+        <div className="mx-auto max-w-4xl px-4 py-16 pt-36">
+          <div className="relative px-4 py-4 sm:px-8">
+            <h1 className="mb-8 font-bold text-4xl text-white">Terms of Service</h1>
 
             <div className="space-y-8 text-white/80">
               <section>
@@ -80,7 +80,7 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">1. Accounts</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">1. Accounts</h2>
                 <p className="mb-4">
                   When you create an account with us, you must provide accurate, complete, and
                   current information. Failure to do so constitutes a breach of the Terms, which may
@@ -98,7 +98,7 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">2. Intellectual Property</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">2. Intellectual Property</h2>
                 <p className="mb-4">
                   The Service and its original content, features, and functionality are and will
                   remain the exclusive property of Sim Studio, Inc and its licensors. The Service is
@@ -112,7 +112,7 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">3. User Content</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">3. User Content</h2>
                 <p className="mb-4">
                   Our Service allows you to post, link, store, share and otherwise make available
                   certain information, text, graphics, videos, or other material ("User Content").
@@ -122,7 +122,7 @@ export default function TermsOfService() {
                 <p className="mb-4">
                   By posting User Content on or through the Service, you represent and warrant that:
                 </p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>
                     The User Content is yours (you own it) or you have the right to use it and grant
                     us the rights and license as provided in these Terms.
@@ -140,9 +140,9 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">4. Acceptable Use</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">4. Acceptable Use</h2>
                 <p className="mb-4">You agree not to use the Service:</p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>
                     In any way that violates any applicable national or international law or
                     regulation.
@@ -173,7 +173,7 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">5. Termination</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">5. Termination</h2>
                 <p className="mb-4">
                   We may terminate or suspend your account immediately, without prior notice or
                   liability, for any reason whatsoever, including without limitation if you breach
@@ -186,7 +186,7 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   6. Limitation of Liability
                 </h2>
                 <p className="mb-4">
@@ -195,7 +195,7 @@ export default function TermsOfService() {
                   consequential or punitive damages, including without limitation, loss of profits,
                   data, use, goodwill, or other intangible losses, resulting from:
                 </p>
-                <ul className="list-disc pl-6 space-y-2 marker:text-[#B5A1D4]">
+                <ul className="list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>Your access to or use of or inability to access or use the Service;</li>
                   <li>Any conduct or content of any third party on the Service;</li>
                   <li>Any content obtained from the Service; and</li>
@@ -208,7 +208,7 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">7. Disclaimer</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">7. Disclaimer</h2>
                 <p className="mb-4">
                   Your use of the Service is at your sole risk. The Service is provided on an "AS
                   IS" and "AS AVAILABLE" basis. The Service is provided without warranties of any
@@ -220,7 +220,7 @@ export default function TermsOfService() {
                   Sim Studio, Inc, its subsidiaries, affiliates, and its licensors do not warrant
                   that:
                 </p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>
                     The Service will function uninterrupted, secure or available at any particular
                     time or location;
@@ -232,7 +232,7 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">8. Governing Law</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">8. Governing Law</h2>
                 <p>
                   These Terms shall be governed and construed in accordance with the laws of the
                   United States, without regard to its conflict of law provisions.
@@ -246,12 +246,12 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">9. Arbitration Agreement</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">9. Arbitration Agreement</h2>
                 <p className="mb-4">
                   Please read the following arbitration agreement carefully. It requires you to
                   arbitrate disputes with Sim Studio, Inc, its parent companies, subsidiaries,
                   affiliates, successors and assigns and all of their respective officers,
-                  directors, employees, agents, and representatives (collectively, the{' '}
+                  directors, employees, agents, and representatives (collectively, the{" "}
                   <span className="text-[#B5A1D4]">"Company Parties"</span>) and limits the manner
                   in which you can seek relief from the Company Parties.
                 </p>
@@ -269,7 +269,7 @@ export default function TermsOfService() {
                   Arbitration Agreement. The arbitration will be conducted by JAMS, an established
                   alternative dispute resolution provider.
                 </p>
-                <p className="mb-4 bg-[#701ffc]/10 p-3 border-l-4 border-[#701ffc]">
+                <p className="mb-4 border-[#701ffc] border-l-4 bg-[#701ffc]/10 p-3">
                   YOU AND COMPANY AGREE THAT EACH OF US MAY BRING CLAIMS AGAINST THE OTHER ONLY ON
                   AN INDIVIDUAL BASIS AND NOT ON A CLASS, REPRESENTATIVE, OR COLLECTIVE BASIS. ONLY
                   INDIVIDUAL RELIEF IS AVAILABLE, AND DISPUTES OF MORE THAN ONE CUSTOMER OR USER
@@ -277,19 +277,19 @@ export default function TermsOfService() {
                 </p>
                 <p className="mb-4">
                   You have the right to opt out of the provisions of this Arbitration Agreement by
-                  sending a timely written notice of your decision to opt out to:{' '}
+                  sending a timely written notice of your decision to opt out to:{" "}
                   <Link
                     href="mailto:legal@simstudio.ai"
                     className="text-[#B5A1D4] hover:text-[#701ffc]"
                   >
-                    legal@simstudio.ai{' '}
+                    legal@simstudio.ai{" "}
                   </Link>
                   within 30 days after first becoming subject to this Arbitration Agreement.
                 </p>
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">10. Changes to Terms</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">10. Changes to Terms</h2>
                 <p>
                   We reserve the right, at our sole discretion, to modify or replace these Terms at
                   any time. If a revision is material, we will try to provide at least 30 days'
@@ -304,14 +304,14 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">11. Copyright Policy</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">11. Copyright Policy</h2>
                 <p className="mb-4">
                   We respect the intellectual property of others and ask that users of our Service
                   do the same. If you believe that one of our users is, through the use of our
                   Service, unlawfully infringing the copyright(s) in a work, please send a notice to
                   our designated Copyright Agent, including the following information:
                 </p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>Your physical or electronic signature;</li>
                   <li>
                     Identification of the copyrighted work(s) that you claim to have been infringed;
@@ -331,7 +331,7 @@ export default function TermsOfService() {
                   </li>
                 </ul>
                 <p>
-                  Our Copyright Agent can be reached at:{' '}
+                  Our Copyright Agent can be reached at:{" "}
                   <Link
                     href="mailto:copyright@simstudio.ai"
                     className="text-[#B5A1D4] hover:text-[#701ffc]"
@@ -342,9 +342,9 @@ export default function TermsOfService() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">12. Contact Us</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">12. Contact Us</h2>
                 <p>
-                  If you have any questions about these Terms, please contact us at:{' '}
+                  If you have any questions about these Terms, please contact us at:{" "}
                   <Link
                     href="mailto:legal@simstudio.ai"
                     className="text-[#B5A1D4] hover:text-[#701ffc]"

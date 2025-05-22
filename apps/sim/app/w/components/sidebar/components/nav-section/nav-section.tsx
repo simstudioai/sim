@@ -1,10 +1,10 @@
-'use client'
+"use client"
 
-import { ReactNode } from 'react'
-import Link from 'next/link'
-import clsx from 'clsx'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import type { ReactNode } from "react"
+import Link from "next/link"
+import clsx from "clsx"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface NavSectionProps {
   children: ReactNode
@@ -21,7 +21,7 @@ interface NavItemProps {
   onClick?: () => void
   isCollapsed?: boolean
   shortcutCommand?: string
-  shortcutCommandPosition?: 'inline' | 'below'
+  shortcutCommandPosition?: "inline" | "below"
 }
 
 export function NavSection({
@@ -53,16 +53,16 @@ function NavItem({
   onClick,
   isCollapsed,
   shortcutCommand,
-  shortcutCommandPosition = 'inline',
+  shortcutCommandPosition = "inline",
 }: NavItemProps) {
   const className = clsx(
-    'flex items-center gap-2 rounded-md px-2 py-[6px] text-sm font-medium',
-    active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50',
+    "flex items-center gap-2 rounded-md px-2 py-[6px] text-sm font-medium",
+    active ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50",
     {
-      'cursor-pointer': onClick,
-      'justify-center': isCollapsed,
-      'w-full': !isCollapsed,
-      'w-8 mx-auto': isCollapsed,
+      "cursor-pointer": onClick,
+      "justify-center": isCollapsed,
+      "w-full": !isCollapsed,
+      "w-8 mx-auto": isCollapsed,
     }
   )
 
@@ -129,7 +129,7 @@ function NavItem({
 function NavItemSkeleton({ isCollapsed }: { isCollapsed?: boolean }) {
   if (isCollapsed) {
     return (
-      <div className="w-8 h-8 mx-auto flex items-center justify-center">
+      <div className="mx-auto flex h-8 w-8 items-center justify-center">
         <Skeleton className="h-[18px] w-[18px]" />
       </div>
     )

@@ -1,39 +1,39 @@
-import { ToolConfig } from '../types'
-import { GoogleDocsReadResponse, GoogleDocsToolParams } from './types'
+import type { ToolConfig } from "../types"
+import type { GoogleDocsReadResponse, GoogleDocsToolParams } from "./types"
 
 export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> = {
-  id: 'google_docs_read',
-  name: 'Read Google Docs Document',
-  description: 'Read content from a Google Docs document',
-  version: '1.0',
+  id: "google_docs_read",
+  name: "Read Google Docs Document",
+  description: "Read content from a Google Docs document",
+  version: "1.0",
   oauth: {
     required: true,
-    provider: 'google-docs',
-    additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
+    provider: "google-docs",
+    additionalScopes: ["https://www.googleapis.com/auth/drive.file"],
   },
   params: {
     accessToken: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'The access token for the Google Docs API',
+      description: "The access token for the Google Docs API",
     },
-    documentId: { type: 'string', required: true, description: 'The ID of the document to read' },
+    documentId: { type: "string", required: true, description: "The ID of the document to read" },
   },
   request: {
     url: (params) => {
       // Ensure documentId is valid
       const documentId = params.documentId?.trim() || params.manualDocumentId?.trim()
       if (!documentId) {
-        throw new Error('Document ID is required')
+        throw new Error("Document ID is required")
       }
 
       return `https://docs.googleapis.com/v1/documents/${documentId}`
     },
-    method: 'GET',
+    method: "GET",
     headers: (params) => {
       // Validate access token
       if (!params.accessToken) {
-        throw new Error('Access token is required')
+        throw new Error("Access token is required")
       }
 
       return {
@@ -50,16 +50,16 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
     const data = await response.json()
 
     // Extract document content from the response
-    let content = ''
-    if (data.body && data.body.content) {
+    let content = ""
+    if (data.body?.content) {
       content = extractTextFromDocument(data)
     }
 
     // Create document metadata
     const metadata = {
       documentId: data.documentId,
-      title: data.title || 'Untitled Document',
-      mimeType: 'application/vnd.google-apps.document',
+      title: data.title || "Untitled Document",
+      mimeType: "application/vnd.google-apps.document",
       url: `https://docs.google.com/document/d/${data.documentId}/edit`,
     }
 
@@ -78,9 +78,9 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
     }
 
     // If it's an object with an error or message property
-    if (typeof error === 'object' && error !== null) {
+    if (typeof error === "object" && error !== null) {
       if (error.error) {
-        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
+        return typeof error.error === "string" ? error.error : JSON.stringify(error.error)
       }
       if (error.message) {
         return error.message
@@ -88,13 +88,13 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
     }
 
     // Default fallback message
-    return 'An error occurred while reading Google Docs document'
+    return "An error occurred while reading Google Docs document"
   },
 }
 
 // Helper function to extract text content from Google Docs document structure
 function extractTextFromDocument(document: any): string {
-  let text = ''
+  let text = ""
 
   if (!document.body || !document.body.content) {
     return text
@@ -104,7 +104,7 @@ function extractTextFromDocument(document: any): string {
   for (const element of document.body.content) {
     if (element.paragraph) {
       for (const paragraphElement of element.paragraph.elements) {
-        if (paragraphElement.textRun && paragraphElement.textRun.content) {
+        if (paragraphElement.textRun?.content) {
           text += paragraphElement.textRun.content
         }
       }
@@ -116,7 +116,7 @@ function extractTextFromDocument(document: any): string {
             for (const cellContent of tableCell.content) {
               if (cellContent.paragraph) {
                 for (const paragraphElement of cellContent.paragraph.elements) {
-                  if (paragraphElement.textRun && paragraphElement.textRun.content) {
+                  if (paragraphElement.textRun?.content) {
                     text += paragraphElement.textRun.content
                   }
                 }

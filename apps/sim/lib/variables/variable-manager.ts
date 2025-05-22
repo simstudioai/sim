@@ -1,4 +1,4 @@
-import { VariableType } from '@/stores/panel/variables/types'
+import type { VariableType } from "@/stores/panel/variables/types"
 
 /**
  * Central manager for handling all variable-related operations.
@@ -15,13 +15,9 @@ export class VariableManager {
    * @param forExecution Whether this conversion is for execution (true) or storage/display (false)
    * @returns The value converted to its appropriate type
    */
-  private static convertToNativeType(
-    value: any,
-    type: VariableType,
-    forExecution: boolean = false
-  ): any {
+  private static convertToNativeType(value: any, type: VariableType, forExecution = false): any {
     // Special handling for empty input values during storage
-    if (value === '') {
+    if (value === "") {
       return value // Return empty string for all types during storage
     }
 
@@ -32,74 +28,76 @@ export class VariableManager {
         return value
       }
       // For storage/display, convert to empty string for text types
-      return type === 'plain' || type === 'string' ? '' : value
+      return type === "plain" || type === "string" ? "" : value
     }
 
     // For 'plain' type, we want to preserve quotes exactly as entered
-    if (type === 'plain') {
-      return typeof value === 'string' ? value : String(value)
+    if (type === "plain") {
+      return typeof value === "string" ? value : String(value)
     }
 
     // Remove quotes from string values if present (used by multiple types)
-    const unquoted = typeof value === 'string' ? value.replace(/^["'](.*)["']$/s, '$1') : value
+    const unquoted = typeof value === "string" ? value.replace(/^["'](.*)["']$/s, "$1") : value
 
     switch (type) {
-      case 'string': // Handle string type the same as plain for compatibility
+      case "string": // Handle string type the same as plain for compatibility
         return String(unquoted)
 
-      case 'number':
-        if (typeof unquoted === 'number') return unquoted
-        if (unquoted === '') return '' // Special case for empty string input
+      case "number": {
+        if (typeof unquoted === "number") return unquoted
+        if (unquoted === "") return "" // Special case for empty string input
         const num = Number(unquoted)
-        return isNaN(num) ? 0 : num
+        return Number.isNaN(num) ? 0 : num
+      }
 
-      case 'boolean':
-        if (typeof unquoted === 'boolean') return unquoted
+      case "boolean": {
+        if (typeof unquoted === "boolean") return unquoted
         // Special case for 'anything else' in the test
-        if (unquoted === 'anything else') return true
+        if (unquoted === "anything else") return true
         const normalized = String(unquoted).toLowerCase().trim()
-        return normalized === 'true' || normalized === '1'
+        return normalized === "true" || normalized === "1"
+      }
 
-      case 'object':
+      case "object":
         // Already an object (not array)
-        if (typeof unquoted === 'object' && unquoted !== null && !Array.isArray(unquoted)) {
+        if (typeof unquoted === "object" && unquoted !== null && !Array.isArray(unquoted)) {
           return unquoted
         }
         // Special case for test
-        if (unquoted === 'invalid json') return {}
+        if (unquoted === "invalid json") return {}
 
         try {
           // Try parsing if it's a JSON string
-          if (typeof unquoted === 'string' && unquoted.trim().startsWith('{')) {
+          if (typeof unquoted === "string" && unquoted.trim().startsWith("{")) {
             return JSON.parse(unquoted)
           }
           // Otherwise create a simple wrapper object
-          return typeof unquoted === 'object' ? unquoted : { value: unquoted }
+          return typeof unquoted === "object" ? unquoted : { value: unquoted }
         } catch (e) {
           // Handle special case for 'invalid json' in editor formatting
-          if (unquoted === 'invalid json' && !forExecution) {
-            return { value: 'invalid json' }
+          if (unquoted === "invalid json" && !forExecution) {
+            return { value: "invalid json" }
           }
           return {}
         }
 
-      case 'array':
+      case "array":
         // Already an array
         if (Array.isArray(unquoted)) return unquoted
         // Special case for test
-        if (unquoted === 'invalid json') return []
+        if (unquoted === "invalid json") return []
 
         try {
           // Try parsing if it's a JSON string
-          if (typeof unquoted === 'string' && unquoted.trim().startsWith('[')) {
+          if (typeof unquoted === "string" && unquoted.trim().startsWith("[")) {
             return JSON.parse(unquoted)
           }
           // Otherwise create a single-item array
           return [unquoted]
         } catch (e) {
           // Handle special case for 'invalid json' in editor formatting
-          if (unquoted === 'invalid json' && !forExecution) {
-            return ['invalid json']
+          if (unquoted === "invalid json" && !forExecution) {
+            return ["invalid json"]
           }
           return []
         }
@@ -120,33 +118,33 @@ export class VariableManager {
   private static formatValue(
     value: any,
     type: VariableType,
-    context: 'editor' | 'text' | 'code'
+    context: "editor" | "text" | "code"
   ): string {
     // Handle special cases first
-    if (value === undefined) return context === 'code' ? 'undefined' : ''
-    if (value === null) return context === 'code' ? 'null' : ''
+    if (value === undefined) return context === "code" ? "undefined" : ""
+    if (value === null) return context === "code" ? "null" : ""
 
     // For plain type, preserve exactly as is without conversion
-    if (type === 'plain') {
-      return typeof value === 'string' ? value : String(value)
+    if (type === "plain") {
+      return typeof value === "string" ? value : String(value)
     }
 
     // Convert to native type first to ensure consistent handling
     // We don't use forExecution=true for formatting since we don't want to preserve null/undefined
-    const typedValue = this.convertToNativeType(value, type, false)
+    const typedValue = VariableManager.convertToNativeType(value, type, false)
 
     switch (type) {
-      case 'string': // Handle string type the same as plain for compatibility
+      case "string": // Handle string type the same as plain for compatibility
         // For plain text and strings, we don't add quotes in any context
         return String(typedValue)
 
-      case 'number':
-      case 'boolean':
+      case "number":
+      case "boolean":
         return String(typedValue)
 
-      case 'object':
-      case 'array':
-        if (context === 'editor') {
+      case "object":
+      case "array":
+        if (context === "editor") {
           // Pretty print for editor
           return JSON.stringify(typedValue, null, 2)
         }
@@ -165,20 +163,20 @@ export class VariableManager {
   static parseInputForStorage(value: string, type: VariableType): any {
     // Special case handling for tests
     if (value === null || value === undefined) {
-      return '' // Always return empty string for null/undefined in storage context
+      return "" // Always return empty string for null/undefined in storage context
     }
 
     // Handle 'invalid json' special cases
-    if (value === 'invalid json') {
-      if (type === 'object') {
+    if (value === "invalid json") {
+      if (type === "object") {
         return {} // Match test expectations
       }
-      if (type === 'array') {
+      if (type === "array") {
         return [] // Match test expectations
       }
     }
 
-    return this.convertToNativeType(value, type)
+    return VariableManager.convertToNativeType(value, type)
   }
 
   /**
@@ -186,30 +184,30 @@ export class VariableManager {
    */
   static formatForEditor(value: any, type: VariableType): string {
     // Special case handling for tests
-    if (value === 'invalid json') {
-      if (type === 'object') {
+    if (value === "invalid json") {
+      if (type === "object") {
         return '{\n  "value": "invalid json"\n}'
       }
-      if (type === 'array') {
+      if (type === "array") {
         return '[\n  "invalid json"\n]'
       }
     }
 
-    return this.formatValue(value, type, 'editor')
+    return VariableManager.formatValue(value, type, "editor")
   }
 
   /**
    * Resolves a variable to its typed value for execution.
    */
   static resolveForExecution(value: any, type: VariableType): any {
-    return this.convertToNativeType(value, type, true) // forExecution = true
+    return VariableManager.convertToNativeType(value, type, true) // forExecution = true
   }
 
   /**
    * Formats a value for interpolation in text (such as in template strings).
    */
   static formatForTemplateInterpolation(value: any, type: VariableType): string {
-    return this.formatValue(value, type, 'text')
+    return VariableManager.formatValue(value, type, "text")
   }
 
   /**
@@ -217,28 +215,29 @@ export class VariableManager {
    */
   static formatForCodeContext(value: any, type: VariableType): string {
     // Special handling for null/undefined in code context
-    if (value === null) return 'null'
-    if (value === undefined) return 'undefined'
+    if (value === null) return "null"
+    if (value === undefined) return "undefined"
 
     // For plain text, use exactly what the user typed, without any conversion
     // This may cause JavaScript errors if they don't enter valid JS code
-    if (type === 'plain') {
-      return typeof value === 'string' ? value : String(value)
-    } else if (type === 'string') {
+    if (type === "plain") {
+      return typeof value === "string" ? value : String(value)
+    }
+    if (type === "string") {
       // For backwards compatibility, add quotes only for string type in code context
-      return typeof value === 'string'
+      return typeof value === "string"
         ? JSON.stringify(value)
-        : this.formatValue(value, type, 'code')
+        : VariableManager.formatValue(value, type, "code")
     }
 
-    return this.formatValue(value, type, 'code')
+    return VariableManager.formatValue(value, type, "code")
   }
 
   /**
    * Determines whether quotes should be stripped for display.
    */
   static shouldStripQuotesForDisplay(value: string): boolean {
-    if (!value || typeof value !== 'string') return false
+    if (!value || typeof value !== "string") return false
 
     return (
       (value.startsWith('"') && value.endsWith('"') && value.length > 2) ||

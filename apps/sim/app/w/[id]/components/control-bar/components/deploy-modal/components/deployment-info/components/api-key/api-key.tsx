@@ -1,8 +1,8 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { CopyButton } from '@/components/ui/copy-button'
-import { Label } from '@/components/ui/label'
+import { useState } from "react"
+import { CopyButton } from "@/components/ui/copy-button"
+import { Label } from "@/components/ui/label"
 
 interface ApiKeyProps {
   apiKey: string
@@ -14,9 +14,9 @@ export function ApiKey({ apiKey, showLabel = true }: ApiKeyProps) {
 
   // Function to mask API key with asterisks but keep first and last 4 chars visible
   const maskApiKey = (key: string) => {
-    if (!key || key.includes('No API key found')) return key
+    if (!key || key.includes("No API key found")) return key
     if (key.length <= 8) return key
-    return `${key.substring(0, 4)}${'*'.repeat(key.length - 8)}${key.substring(key.length - 4)}`
+    return `${key.substring(0, 4)}${"*".repeat(key.length - 8)}${key.substring(key.length - 4)}`
   }
 
   return (
@@ -26,11 +26,11 @@ export function ApiKey({ apiKey, showLabel = true }: ApiKeyProps) {
           <Label className="font-medium text-sm">API Key</Label>
         </div>
       )}
-      <div className="relative group rounded-md border bg-background hover:bg-muted/50 transition-colors">
+      <div className="group relative rounded-md border bg-background transition-colors hover:bg-muted/50">
         <pre
-          className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto cursor-pointer"
+          className="cursor-pointer overflow-x-auto whitespace-pre-wrap p-3 font-mono text-xs"
           onClick={() => setShowKey(!showKey)}
-          title={showKey ? 'Click to hide API Key' : 'Click to reveal API Key'}
+          title={showKey ? "Click to hide API Key" : "Click to reveal API Key"}
         >
           {showKey ? apiKey : maskApiKey(apiKey)}
         </pre>

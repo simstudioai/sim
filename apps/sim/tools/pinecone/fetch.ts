@@ -1,52 +1,52 @@
-import { ToolConfig } from '../types'
-import { PineconeFetchParams, PineconeResponse, PineconeVector } from './types'
+import type { ToolConfig } from "../types"
+import type { PineconeFetchParams, PineconeResponse, PineconeVector } from "./types"
 
 export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
-  id: 'pinecone_fetch',
-  name: 'Pinecone Fetch',
-  description: 'Fetch vectors by ID from a Pinecone index',
-  version: '1.0',
+  id: "pinecone_fetch",
+  name: "Pinecone Fetch",
+  description: "Fetch vectors by ID from a Pinecone index",
+  version: "1.0",
 
   params: {
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Pinecone API key',
+      description: "Pinecone API key",
     },
     indexHost: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Full Pinecone index host URL',
+      description: "Full Pinecone index host URL",
     },
     ids: {
-      type: 'array',
+      type: "array",
       required: true,
       requiredForToolCall: true,
-      description: 'Array of vector IDs to fetch',
+      description: "Array of vector IDs to fetch",
     },
     namespace: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Namespace to fetch vectors from',
+      description: "Namespace to fetch vectors from",
     },
   },
 
   request: {
-    method: 'GET',
+    method: "GET",
     url: (params) => {
       const baseUrl = `${params.indexHost}/vectors/fetch`
       const queryParams = new URLSearchParams()
-      queryParams.append('ids', params.ids.join(','))
+      queryParams.append("ids", params.ids.join(","))
       if (params.namespace) {
-        queryParams.append('namespace', params.namespace)
+        queryParams.append("namespace", params.namespace)
       }
       return `${baseUrl}?${queryParams.toString()}`
     },
     headers: (params) => ({
-      'Api-Key': params.apiKey,
-      'Content-Type': 'application/json',
+      "Api-Key": params.apiKey,
+      "Content-Type": "application/json",
     }),
   },
 
@@ -65,7 +65,7 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
         })),
         data: Object.values(vectors).map((vector) => ({
           values: vector.values,
-          vector_type: 'dense' as const,
+          vector_type: "dense" as const,
         })),
         usage: {
           total_tokens: data.usage?.readUnits || 0,

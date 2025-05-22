@@ -1,10 +1,10 @@
-'use client'
+"use client"
 
-import { useEffect } from 'react'
-import { X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { HelpForm } from './components/help-form/help-form'
+import { useEffect } from "react"
+import { X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { HelpForm } from "./components/help-form/help-form"
 
 interface HelpModalProps {
   open: boolean
@@ -19,23 +19,23 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
     }
 
     // Add event listener
-    window.addEventListener('open-help', handleOpenHelp as EventListener)
+    window.addEventListener("open-help", handleOpenHelp as EventListener)
 
     // Clean up
     return () => {
-      window.removeEventListener('open-help', handleOpenHelp as EventListener)
+      window.removeEventListener("open-help", handleOpenHelp as EventListener)
     }
   }, [onOpenChange])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[700px] h-[80vh] flex flex-col p-0 gap-0 overflow-hidden"
+        className="flex h-[80vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[700px]"
         hideCloseButton
       >
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+        <DialogHeader className="flex-shrink-0 border-b px-6 py-4">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Help & Support</DialogTitle>
+            <DialogTitle className="font-medium text-lg">Help & Support</DialogTitle>
             <Button
               variant="ghost"
               size="icon"
@@ -48,7 +48,7 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex flex-1 flex-col overflow-hidden">
           <HelpForm onClose={() => onOpenChange(false)} />
         </div>
       </DialogContent>

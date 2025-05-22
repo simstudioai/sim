@@ -1,53 +1,53 @@
-import { ToolConfig } from '../types'
-import { PineconeResponse, PineconeUpsertTextParams, PineconeUpsertTextRecord } from './types'
+import type { ToolConfig } from "../types"
+import type { PineconeResponse, PineconeUpsertTextParams, PineconeUpsertTextRecord } from "./types"
 
 export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeResponse> = {
-  id: 'pinecone_upsert_text',
-  name: 'Pinecone Upsert Text',
-  description: 'Insert or update text records in a Pinecone index',
-  version: '1.0',
+  id: "pinecone_upsert_text",
+  name: "Pinecone Upsert Text",
+  description: "Insert or update text records in a Pinecone index",
+  version: "1.0",
 
   params: {
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Pinecone API key',
+      description: "Pinecone API key",
     },
     indexHost: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Full Pinecone index host URL',
+      description: "Full Pinecone index host URL",
     },
     namespace: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Namespace to upsert records into',
+      description: "Namespace to upsert records into",
     },
     records: {
-      type: 'array',
+      type: "array",
       required: true,
       description:
-        'Record or array of records to upsert, each containing _id, text, and optional metadata',
+        "Record or array of records to upsert, each containing _id, text, and optional metadata",
     },
   },
 
   request: {
-    method: 'POST',
+    method: "POST",
     url: (params) => `${params.indexHost}/records/namespaces/${params.namespace}/upsert`,
     headers: (params) => ({
-      'Api-Key': params.apiKey,
-      'Content-Type': 'application/x-ndjson',
-      'X-Pinecone-API-Version': '2025-01',
+      "Api-Key": params.apiKey,
+      "Content-Type": "application/x-ndjson",
+      "X-Pinecone-API-Version": "2025-01",
     }),
     body: (params) => {
       // If records is a string, parse it line by line
       let records: PineconeUpsertTextRecord[]
-      if (typeof params.records === 'string') {
+      if (typeof params.records === "string") {
         // Split by newlines and parse each line
         records = (params.records as string)
-          .split('\n')
+          .split("\n")
           .filter((line: string) => line.trim()) // Remove empty lines
           .map((line: string) => {
             // Clean and parse each line
@@ -59,7 +59,7 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
       }
 
       // Convert to NDJSON format
-      const ndjson = records.map((r: PineconeUpsertTextRecord) => JSON.stringify(r)).join('\n')
+      const ndjson = records.map((r: PineconeUpsertTextRecord) => JSON.stringify(r)).join("\n")
       return { body: ndjson }
     },
   },
@@ -70,7 +70,7 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
       return {
         success: true,
         output: {
-          statusText: 'Created',
+          statusText: "Created",
         },
       }
     }

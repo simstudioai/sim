@@ -1,42 +1,42 @@
-import { ToolConfig } from '../types'
-import { PROperationParams, PullRequestResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { PROperationParams, PullRequestResponse } from "./types"
 
 export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
-  id: 'github_pr',
-  name: 'GitHub PR Reader',
-  description: 'Fetch PR details including diff and files changed',
-  version: '1.0.0',
+  id: "github_pr",
+  name: "GitHub PR Reader",
+  description: "Fetch PR details including diff and files changed",
+  version: "1.0.0",
 
   params: {
     owner: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Repository owner',
+      description: "Repository owner",
     },
     repo: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Repository name',
+      description: "Repository name",
     },
     pullNumber: {
-      type: 'number',
+      type: "number",
       required: true,
-      description: 'Pull request number',
+      description: "Pull request number",
     },
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'GitHub API token',
+      description: "GitHub API token",
     },
   },
 
   request: {
     url: (params) =>
       `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}`,
-    method: 'GET',
+    method: "GET",
     headers: (params) => ({
-      Accept: 'application/vnd.github.v3+json',
+      Accept: "application/vnd.github.v3+json",
       Authorization: `Bearer ${params.apiKey}`,
     }),
   },
@@ -56,7 +56,7 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
 
     // Create a human-readable content string
     const content = `PR #${pr.number}: "${pr.title}" (${pr.state}) - Created: ${pr.created_at}, Updated: ${pr.updated_at}
-Description: ${pr.body || 'No description'}
+Description: ${pr.body || "No description"}
 Files changed: ${files.length}
 URL: ${pr.html_url}`
 
@@ -88,6 +88,6 @@ URL: ${pr.html_url}`
   },
 
   transformError: (error) => {
-    return error instanceof Error ? error.message : 'Failed to fetch PR details'
+    return error instanceof Error ? error.message : "Failed to fetch PR details"
   },
 }

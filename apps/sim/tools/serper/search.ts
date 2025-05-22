@@ -1,53 +1,53 @@
-import { ToolConfig } from '../types'
-import { SearchParams, SearchResponse, SearchResult } from './types'
+import type { ToolConfig } from "../types"
+import type { SearchParams, SearchResponse, SearchResult } from "./types"
 
 export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
-  id: 'serper_search',
-  name: 'Web Search',
+  id: "serper_search",
+  name: "Web Search",
   description:
-    'A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, and images, with each result containing relevant metadata like titles, URLs, snippets, and type-specific information.',
-  version: '1.0.0',
+    "A powerful web search tool that provides access to Google search results through Serper.dev API. Supports different types of searches including regular web search, news, places, and images, with each result containing relevant metadata like titles, URLs, snippets, and type-specific information.",
+  version: "1.0.0",
 
   params: {
     query: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'The search query',
+      description: "The search query",
     },
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Serper API Key',
+      description: "Serper API Key",
     },
     num: {
-      type: 'number',
+      type: "number",
       required: false,
-      description: 'Number of results to return',
+      description: "Number of results to return",
     },
     gl: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Country code for search results',
+      description: "Country code for search results",
     },
     hl: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Language code for search results',
+      description: "Language code for search results",
     },
     type: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Type of search to perform',
+      description: "Type of search to perform",
     },
   },
 
   request: {
-    url: (params) => `https://google.serper.dev/${params.type || 'search'}`,
-    method: 'POST',
+    url: (params) => `https://google.serper.dev/${params.type || "search"}`,
+    method: "POST",
     headers: (params) => ({
-      'X-API-KEY': params.apiKey,
-      'Content-Type': 'application/json',
+      "X-API-KEY": params.apiKey,
+      "Content-Type": "application/json",
     }),
     body: (params) => {
       const body: Record<string, any> = {
@@ -67,13 +67,13 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.message || 'Failed to perform search')
+      throw new Error(data.message || "Failed to perform search")
     }
 
-    const searchType = response.url.split('/').pop() || 'search'
+    const searchType = response.url.split("/").pop() || "search"
     let searchResults: SearchResult[] = []
 
-    if (searchType === 'news') {
+    if (searchType === "news") {
       searchResults =
         data.news?.map((item: any, index: number) => ({
           title: item.title,
@@ -83,7 +83,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
           date: item.date,
           imageUrl: item.imageUrl,
         })) || []
-    } else if (searchType === 'places') {
+    } else if (searchType === "places") {
       searchResults =
         data.places?.map((item: any, index: number) => ({
           title: item.title,
@@ -94,7 +94,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
           reviews: item.reviews,
           address: item.address,
         })) || []
-    } else if (searchType === 'images') {
+    } else if (searchType === "images") {
       searchResults =
         data.images?.map((item: any, index: number) => ({
           title: item.title,
@@ -122,6 +122,6 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   },
 
   transformError: (error) => {
-    return error instanceof Error ? error.message : 'An error occurred while performing the search'
+    return error instanceof Error ? error.message : "An error occurred while performing the search"
   },
 }

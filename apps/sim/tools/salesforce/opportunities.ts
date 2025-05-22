@@ -1,8 +1,8 @@
-import { ToolConfig, ToolResponse } from '../types'
+import type { ToolConfig, ToolResponse } from "../types"
 
 export interface OpportunityParams {
   apiKey: string
-  action: 'create' | 'update' | 'search' | 'delete'
+  action: "create" | "update" | "search" | "delete"
   id?: string
   name?: string
   accountId?: string
@@ -28,68 +28,68 @@ export interface OpportunityResponse extends ToolResponse {
 }
 
 export const opportunitiesTool: ToolConfig<OpportunityParams, OpportunityResponse> = {
-  id: 'salesforce_opportunities',
-  name: 'Salesforce Opportunities',
+  id: "salesforce_opportunities",
+  name: "Salesforce Opportunities",
   description:
-    'Manage Salesforce sales opportunities with comprehensive CRUD operations. Track stages, amounts, probabilities, and related account data with support for custom fields and paginated results.',
-  version: '1.0.0',
+    "Manage Salesforce sales opportunities with comprehensive CRUD operations. Track stages, amounts, probabilities, and related account data with support for custom fields and paginated results.",
+  version: "1.0.0",
 
   params: {
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Salesforce API key',
+      description: "Salesforce API key",
     },
     action: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Action to perform (create, update, search, delete)',
+      description: "Action to perform (create, update, search, delete)",
     },
     id: {
-      type: 'string',
-      description: 'Opportunity ID (required for updates)',
+      type: "string",
+      description: "Opportunity ID (required for updates)",
     },
     name: {
-      type: 'string',
-      description: 'Opportunity name',
+      type: "string",
+      description: "Opportunity name",
     },
     accountId: {
-      type: 'string',
-      description: 'Associated account ID',
+      type: "string",
+      description: "Associated account ID",
     },
     stage: {
-      type: 'string',
-      description: 'Opportunity stage',
+      type: "string",
+      description: "Opportunity stage",
     },
     amount: {
-      type: 'number',
-      description: 'Opportunity amount',
+      type: "number",
+      description: "Opportunity amount",
     },
     closeDate: {
-      type: 'string',
-      description: 'Expected close date (YYYY-MM-DD)',
+      type: "string",
+      description: "Expected close date (YYYY-MM-DD)",
     },
     probability: {
-      type: 'number',
-      description: 'Probability of closing (%)',
+      type: "number",
+      description: "Probability of closing (%)",
     },
     properties: {
-      type: 'object',
-      description: 'Additional opportunity fields',
+      type: "object",
+      description: "Additional opportunity fields",
     },
     limit: {
-      type: 'number',
+      type: "number",
       default: 100,
-      description: 'Maximum number of records to return',
+      description: "Maximum number of records to return",
     },
     offset: {
-      type: 'number',
-      description: 'Offset for pagination',
+      type: "number",
+      description: "Offset for pagination",
     },
     data: {
-      type: 'object',
-      description: 'Data for the action',
+      type: "object",
+      description: "Data for the action",
     },
   },
 
@@ -101,9 +101,9 @@ export const opportunitiesTool: ToolConfig<OpportunityParams, OpportunityRespons
       }
       return baseUrl
     },
-    method: 'POST',
+    method: "POST",
     headers: (params) => ({
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
@@ -130,7 +130,7 @@ export const opportunitiesTool: ToolConfig<OpportunityParams, OpportunityRespons
         totalResults: data.totalSize,
         pagination: {
           hasMore: !data.done,
-          offset: data.nextRecordsUrl ? parseInt(data.nextRecordsUrl.split('-')[1]) : 0,
+          offset: data.nextRecordsUrl ? Number.parseInt(data.nextRecordsUrl.split("-")[1]) : 0,
         },
       },
     }

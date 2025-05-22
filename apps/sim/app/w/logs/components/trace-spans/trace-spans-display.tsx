@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState } from "react"
 import {
   ChevronDown,
   ChevronDownSquare,
@@ -9,7 +9,7 @@ import {
   Code,
   Cpu,
   ExternalLink,
-} from 'lucide-react'
+} from "lucide-react"
 import {
   AgentIcon,
   ApiIcon,
@@ -17,9 +17,9 @@ import {
   CodeIcon,
   ConditionalIcon,
   ConnectIcon,
-} from '@/components/icons'
-import { cn } from '@/lib/utils'
-import { TraceSpan } from '../../stores/types'
+} from "@/components/icons"
+import { cn } from "@/lib/utils"
+import type { TraceSpan } from "../../stores/types"
 
 interface TraceSpansDisplayProps {
   traceSpans?: TraceSpan[]
@@ -36,7 +36,7 @@ export function TraceSpansDisplay({
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set())
 
   if (!traceSpans || traceSpans.length === 0) {
-    return <div className="text-sm text-muted-foreground">No trace data available</div>
+    return <div className="text-muted-foreground text-sm">No trace data available</div>
   }
 
   // Format total duration for better readability
@@ -49,7 +49,7 @@ export function TraceSpansDisplay({
   const workflowStartTime = traceSpans.reduce((earliest, span) => {
     const startTime = new Date(span.startTime).getTime()
     return startTime < earliest ? startTime : earliest
-  }, Infinity)
+  }, Number.POSITIVE_INFINITY)
 
   // Find the latest end time among all spans
   const workflowEndTime = traceSpans.reduce((latest, span) => {
@@ -120,12 +120,12 @@ export function TraceSpansDisplay({
 
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-2">
-        <div className="text-xs font-medium text-muted-foreground">Trace Spans</div>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="font-medium text-muted-foreground text-xs">Trace Spans</div>
         <button
           onClick={allExpanded ? handleCollapseAll : handleExpandAll}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          title={allExpanded ? 'Collapse all spans' : 'Expand all spans'}
+          className="flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+          title={allExpanded ? "Collapse all spans" : "Expand all spans"}
         >
           {allExpanded ? (
             <>
@@ -140,7 +140,7 @@ export function TraceSpansDisplay({
           )}
         </button>
       </div>
-      <div className="rounded-md border shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-md border shadow-sm">
         {traceSpans.map((span, index) => {
           const hasSubItems =
             (span.children && span.children.length > 0) ||
@@ -234,35 +234,35 @@ function TraceSpanItem({
     }
 
     // Block type specific icons
-    if (type === 'agent') {
+    if (type === "agent") {
       return <AgentIcon className="h-3 w-3 text-[#802FFF]" />
     }
 
-    if (type === 'evaluator') {
+    if (type === "evaluator") {
       return <ChartBarIcon className="h-3 w-3 text-[#2FA1FF]" />
     }
 
-    if (type === 'condition') {
+    if (type === "condition") {
       return <ConditionalIcon className="h-3 w-3 text-[#FF972F]" />
     }
 
-    if (type === 'router') {
+    if (type === "router") {
       return <ConnectIcon className="h-3 w-3 text-[#2FA1FF]" />
     }
 
-    if (type === 'model') {
+    if (type === "model") {
       return <Cpu className="h-3 w-3 text-[#10a37f]" />
     }
 
-    if (type === 'function') {
+    if (type === "function") {
       return <CodeIcon className="h-3 w-3 text-[#FF402F]" />
     }
 
-    if (type === 'tool') {
+    if (type === "tool") {
       return <ExternalLink className="h-3 w-3 text-[#f97316]" />
     }
 
-    if (type === 'api') {
+    if (type === "api") {
       return <ApiIcon className="h-3 w-3 text-[#2F55FF]" />
     }
 
@@ -271,33 +271,33 @@ function TraceSpanItem({
 
   // Format milliseconds as +XXms for relative timing
   const formatRelativeTime = (ms: number) => {
-    if (ms === 0) return 'start'
+    if (ms === 0) return "start"
     return `+${ms}ms`
   }
 
   // Get color based on span type
   const getSpanColor = (type: string) => {
     switch (type.toLowerCase()) {
-      case 'agent':
-        return '#802FFF' // Purple from AgentBlock
-      case 'provider':
-        return '#818cf8' // Indigo for provider
-      case 'model':
-        return '#10a37f' // Green from OpenAIBlock
-      case 'function':
-        return '#FF402F' // Orange-red from FunctionBlock
-      case 'tool':
-        return '#f97316' // Orange for tools
-      case 'router':
-        return '#2FA1FF' // Blue from RouterBlock
-      case 'condition':
-        return '#FF972F' // Orange from ConditionBlock
-      case 'evaluator':
-        return '#2FA1FF' // Blue from EvaluatorBlock
-      case 'api':
-        return '#2F55FF' // Blue from ApiBlock
+      case "agent":
+        return "#802FFF" // Purple from AgentBlock
+      case "provider":
+        return "#818cf8" // Indigo for provider
+      case "model":
+        return "#10a37f" // Green from OpenAIBlock
+      case "function":
+        return "#FF402F" // Orange-red from FunctionBlock
+      case "tool":
+        return "#f97316" // Orange for tools
+      case "router":
+        return "#2FA1FF" // Blue from RouterBlock
+      case "condition":
+        return "#FF972F" // Orange from ConditionBlock
+      case "evaluator":
+        return "#2FA1FF" // Blue from EvaluatorBlock
+      case "api":
+        return "#2F55FF" // Blue from ApiBlock
       default:
-        return '#6b7280' // Gray for others
+        return "#6b7280" // Gray for others
     }
   }
 
@@ -313,35 +313,37 @@ function TraceSpanItem({
   const extractModelName = (spanName: string) => {
     // Try to match model name in parentheses
     const modelMatch = spanName.match(/\(([\w\.-]+)\)/i)
-    return modelMatch ? modelMatch[1] : ''
+    return modelMatch ? modelMatch[1] : ""
   }
 
   // Format span name for display
   const formatSpanName = (span: TraceSpan) => {
-    if (span.type === 'model') {
+    if (span.type === "model") {
       const modelName = extractModelName(span.name)
 
-      if (span.name.includes('Initial response')) {
+      if (span.name.includes("Initial response")) {
         return (
           <>
-            Initial response{' '}
+            Initial response{" "}
             {modelName && <span className="text-xs opacity-75">({modelName})</span>}
           </>
         )
-      } else if (span.name.includes('(iteration')) {
+      }
+      if (span.name.includes("(iteration")) {
         const iterMatch = span.name.match(/\(iteration (\d+)\)/)
-        const iterNum = iterMatch ? iterMatch[1] : ''
+        const iterNum = iterMatch ? iterMatch[1] : ""
         return (
           <>
-            Model response{' '}
-            {iterNum && <span className="text-xs opacity-75">(iteration {iterNum})</span>}{' '}
+            Model response{" "}
+            {iterNum && <span className="text-xs opacity-75">(iteration {iterNum})</span>}{" "}
             {modelName && <span className="text-xs opacity-75">({modelName})</span>}
           </>
         )
-      } else if (span.name.includes('Model Generation')) {
+      }
+      if (span.name.includes("Model Generation")) {
         return (
           <>
-            Model Generation{' '}
+            Model Generation{" "}
             {modelName && <span className="text-xs opacity-75">({modelName})</span>}
           </>
         )
@@ -354,36 +356,36 @@ function TraceSpanItem({
   return (
     <div
       className={cn(
-        'border-b last:border-b-0 transition-colors',
-        expanded ? 'bg-accent/30' : 'hover:bg-accent/20'
+        "border-b transition-colors last:border-b-0",
+        expanded ? "bg-accent/30" : "hover:bg-accent/20"
       )}
     >
       {/* Span header */}
       <div
         className={cn(
-          'flex items-center py-1.5 px-2',
-          hasNestedItems ? 'cursor-pointer' : 'cursor-default'
+          "flex items-center px-2 py-1.5",
+          hasNestedItems ? "cursor-pointer" : "cursor-default"
         )}
         onClick={handleSpanClick}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
-        <div className="mr-2 flex-shrink-0 flex items-center justify-center w-5">
+        <div className="mr-2 flex w-5 flex-shrink-0 items-center justify-center">
           {getSpanIcon()}
         </div>
 
-        <div className="flex-1 flex items-center min-w-0 overflow-hidden gap-2">
-          <div className="min-w-0 overflow-hidden flex-shrink">
-            <div className="flex items-center space-x-2 mb-0.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+          <div className="min-w-0 flex-shrink overflow-hidden">
+            <div className="mb-0.5 flex items-center space-x-2">
               <span
                 className={cn(
-                  'text-sm font-medium truncate',
-                  span.status === 'error' && 'text-red-500'
+                  "truncate font-medium text-sm",
+                  span.status === "error" && "text-red-500"
                 )}
               >
                 {formatSpanName(span)}
               </span>
               {depth > 0 && (
-                <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                <span className="flex-shrink-0 whitespace-nowrap text-muted-foreground text-xs">
                   {span.relativeStartMs !== undefined
                     ? `+${span.relativeStartMs}ms`
                     : formatRelativeTime(startOffset)}
@@ -391,26 +393,26 @@ function TraceSpanItem({
               )}
               {depth === 0 && (
                 <span
-                  className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0"
+                  className="flex-shrink-0 whitespace-nowrap text-muted-foreground text-xs"
                   title={`Start time: ${new Date(span.startTime).toLocaleTimeString()}`}
                 >
                   {new Date(span.startTime).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
                     hour12: false,
                   })}
                 </span>
               )}
             </div>
-            <span className="text-xs text-muted-foreground block">{formatDuration(duration)}</span>
+            <span className="block text-muted-foreground text-xs">{formatDuration(duration)}</span>
           </div>
 
-          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+          <div className="ml-auto flex flex-shrink-0 items-center gap-2">
             {/* Timeline visualization - responsive width based on container size */}
-            <div className="h-2 bg-accent/40 rounded-full overflow-hidden relative flex-shrink-0 hidden sm:block sm:w-24 md:w-32 lg:w-40 xl:w-56">
+            <div className="relative hidden h-2 flex-shrink-0 overflow-hidden rounded-full bg-accent/40 sm:block sm:w-24 md:w-32 lg:w-40 xl:w-56">
               <div
-                className="h-full rounded-full absolute"
+                className="absolute h-full rounded-full"
                 style={{
                   left: `${safeStartPercent}%`,
                   width: `${safeWidthPercent}%`,
@@ -421,7 +423,7 @@ function TraceSpanItem({
             </div>
 
             {/* Duration text - always show in ms */}
-            <span className="text-xs text-muted-foreground w-[65px] text-right font-mono tabular-nums flex-shrink-0">
+            <span className="w-[65px] flex-shrink-0 text-right font-mono text-muted-foreground text-xs tabular-nums">
               {`${duration}ms`}
             </span>
           </div>
@@ -434,7 +436,7 @@ function TraceSpanItem({
           {/* Render child spans */}
           {hasChildren && (
             <div>
-              {span.children!.map((childSpan, index) => {
+              {span.children?.map((childSpan, index) => {
                 const childHasSubItems =
                   (childSpan.children && childSpan.children.length > 0) ||
                   (childSpan.toolCalls && childSpan.toolCalls.length > 0)
@@ -445,7 +447,7 @@ function TraceSpanItem({
                     span={childSpan}
                     depth={depth + 1}
                     totalDuration={totalDuration}
-                    isLast={index === span.children!.length - 1}
+                    isLast={index === span.children?.length - 1}
                     parentStartTime={spanStartTime}
                     workflowStartTime={workflowStartTime}
                     onToggle={onToggle}
@@ -460,7 +462,7 @@ function TraceSpanItem({
           {/* Render tool calls as spans */}
           {hasToolCalls && (
             <div>
-              {span.toolCalls!.map((toolCall, index) => {
+              {span.toolCalls?.map((toolCall, index) => {
                 // Create a pseudo-span for each tool call
                 const toolStartTime = toolCall.startTime
                   ? new Date(toolCall.startTime).getTime()
@@ -472,11 +474,11 @@ function TraceSpanItem({
                 const toolSpan: TraceSpan = {
                   id: `${spanId}-tool-${index}`,
                   name: toolCall.name,
-                  type: 'tool',
+                  type: "tool",
                   duration: toolCall.duration || toolEndTime - toolStartTime,
                   startTime: new Date(toolStartTime).toISOString(),
                   endTime: new Date(toolEndTime).toISOString(),
-                  status: toolCall.error ? 'error' : 'success',
+                  status: toolCall.error ? "error" : "success",
                 }
 
                 // Tool calls typically don't have sub-items
@@ -486,7 +488,7 @@ function TraceSpanItem({
                     span={toolSpan}
                     depth={depth + 1}
                     totalDuration={totalDuration}
-                    isLast={index === span.toolCalls!.length - 1}
+                    isLast={index === span.toolCalls?.length - 1}
                     parentStartTime={spanStartTime}
                     workflowStartTime={workflowStartTime}
                     onToggle={onToggle}
