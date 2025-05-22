@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@next/env": "^15.3.2",
+    "@tailwindcss/typography": "0.5.16",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "dotenv-cli": "^8.0.0",
     "prettier": "^3.5.3",
