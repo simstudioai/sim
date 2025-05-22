@@ -1,8 +1,8 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { Check, Copy } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useState } from "react"
+import { Check, Copy } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 interface CopyButtonProps {
   text: string
@@ -10,7 +10,7 @@ interface CopyButtonProps {
   showLabel?: boolean
 }
 
-export function CopyButton({ text, className = '', showLabel = true }: CopyButtonProps) {
+export function CopyButton({ text, className = "", showLabel = true }: CopyButtonProps) {
   const [copied, setCopied] = useState(false)
 
   const copyToClipboard = () => {
@@ -20,10 +20,10 @@ export function CopyButton({ text, className = '', showLabel = true }: CopyButto
   }
 
   return (
-    <div className="absolute top-1 right-1 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+    <div className="absolute top-1 right-1 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
       {showLabel && (
-        <div className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded-md">
-          {copied ? 'Copied!' : 'Click to copy'}
+        <div className="rounded-md bg-background/80 px-2 py-1 text-muted-foreground text-xs">
+          {copied ? "Copied!" : "Click to copy"}
         </div>
       )}
       <Button

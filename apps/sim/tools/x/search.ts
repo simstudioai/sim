@@ -1,48 +1,48 @@
-import { ToolConfig } from '../types'
-import { XSearchParams, XSearchResponse, XTweet, XUser } from './types'
+import type { ToolConfig } from "../types"
+import type { XSearchParams, XSearchResponse, XTweet, XUser } from "./types"
 
 export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
-  id: 'x_search',
-  name: 'X Search',
-  description: 'Search for tweets using keywords, hashtags, or advanced queries',
-  version: '1.0.0',
+  id: "x_search",
+  name: "X Search",
+  description: "Search for tweets using keywords, hashtags, or advanced queries",
+  version: "1.0.0",
 
   oauth: {
     required: true,
-    provider: 'x',
-    additionalScopes: ['tweet.read', 'users.read'],
+    provider: "x",
+    additionalScopes: ["tweet.read", "users.read"],
   },
 
   params: {
     accessToken: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'X OAuth access token',
+      description: "X OAuth access token",
     },
     query: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Search query (supports X search operators)',
+      description: "Search query (supports X search operators)",
     },
     maxResults: {
-      type: 'number',
+      type: "number",
       required: false,
-      description: 'Maximum number of results to return (default: 10, max: 100)',
+      description: "Maximum number of results to return (default: 10, max: 100)",
     },
     startTime: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Start time for search (ISO 8601 format)',
+      description: "Start time for search (ISO 8601 format)",
     },
     endTime: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'End time for search (ISO 8601 format)',
+      description: "End time for search (ISO 8601 format)",
     },
     sortOrder: {
-      type: 'string',
+      type: "string",
       required: false,
-      description: 'Sort order for results (recency or relevancy)',
+      description: "Sort order for results (recency or relevancy)",
     },
   },
 
@@ -50,34 +50,34 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     url: (params) => {
       const query = params.query
       const expansions = [
-        'author_id',
-        'referenced_tweets.id',
-        'attachments.media_keys',
-        'attachments.poll_ids',
-      ].join(',')
+        "author_id",
+        "referenced_tweets.id",
+        "attachments.media_keys",
+        "attachments.poll_ids",
+      ].join(",")
 
       const queryParams = new URLSearchParams({
         query,
         expansions,
-        'tweet.fields': 'created_at,conversation_id,in_reply_to_user_id,attachments',
-        'user.fields': 'name,username,description,profile_image_url,verified,public_metrics',
+        "tweet.fields": "created_at,conversation_id,in_reply_to_user_id,attachments",
+        "user.fields": "name,username,description,profile_image_url,verified,public_metrics",
       })
 
       if (params.maxResults && params.maxResults < 10) {
-        queryParams.append('max_results', '10')
+        queryParams.append("max_results", "10")
       } else if (params.maxResults) {
-        queryParams.append('max_results', params.maxResults.toString())
+        queryParams.append("max_results", params.maxResults.toString())
       }
-      if (params.startTime) queryParams.append('start_time', params.startTime)
-      if (params.endTime) queryParams.append('end_time', params.endTime)
-      if (params.sortOrder) queryParams.append('sort_order', params.sortOrder)
+      if (params.startTime) queryParams.append("start_time", params.startTime)
+      if (params.endTime) queryParams.append("end_time", params.endTime)
+      if (params.sortOrder) queryParams.append("sort_order", params.sortOrder)
 
       return `https://api.twitter.com/2/tweets/search/recent?${queryParams.toString()}`
     },
-    method: 'GET',
+    method: "GET",
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     }),
   },
 
@@ -86,13 +86,13 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
 
     // Check if data.data is undefined/null or not an array
     if (!data.data || !Array.isArray(data.data)) {
-      console.error('X Search API Error:', JSON.stringify(data, null, 2))
+      console.error("X Search API Error:", JSON.stringify(data, null, 2))
       return {
         success: false,
         error:
           data.error?.detail ||
           data.error?.title ||
-          'No results found or invalid response from X API',
+          "No results found or invalid response from X API",
         output: {
           tweets: [],
           includes: {
@@ -158,20 +158,20 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
 
   transformError: (error) => {
     // Log the full error object for debugging
-    console.error('X Search API Error:', JSON.stringify(error, null, 2))
+    console.error("X Search API Error:", JSON.stringify(error, null, 2))
 
-    if (error.title === 'Unauthorized') {
-      return 'Invalid or expired access token. Please reconnect your X account.'
+    if (error.title === "Unauthorized") {
+      return "Invalid or expired access token. Please reconnect your X account."
     }
-    if (error.title === 'Invalid Request') {
-      return 'Invalid search query. Please check your search parameters.'
+    if (error.title === "Invalid Request") {
+      return "Invalid search query. Please check your search parameters."
     }
     if (error.status === 429) {
-      return 'Rate limit exceeded. Please try again later.'
+      return "Rate limit exceeded. Please try again later."
     }
-    if (error.detail && typeof error.detail === 'string') {
+    if (error.detail && typeof error.detail === "string") {
       return `X API error: ${error.detail}`
     }
-    return error.detail || error.message || `An error occurred while searching X`
+    return error.detail || error.message || "An error occurred while searching X"
   },
 }

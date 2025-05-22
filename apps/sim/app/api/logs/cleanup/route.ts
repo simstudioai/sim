@@ -1,41 +1,41 @@
-import { NextResponse } from 'next/server'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
-import { and, eq, inArray, lt, sql } from 'drizzle-orm'
-import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
-import { getS3Client } from '@/lib/uploads/s3-client'
-import { db } from '@/db'
-import { subscription, user, workflow, workflowLogs } from '@/db/schema'
+import { NextResponse } from "next/server"
+import { PutObjectCommand } from "@aws-sdk/client-s3"
+import { and, eq, inArray, lt, sql } from "drizzle-orm"
+import { env } from "@/lib/env"
+import { createLogger } from "@/lib/logs/console-logger"
+import { getS3Client } from "@/lib/uploads/s3-client"
+import { db } from "@/db"
+import { subscription, user, workflow, workflowLogs } from "@/db/schema"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
-const logger = createLogger('LogsCleanup')
+const logger = createLogger("LogsCleanup")
 
 const BATCH_SIZE = 2000
 const S3_CONFIG = {
-  bucket: env.S3_LOGS_BUCKET_NAME || '',
-  region: env.AWS_REGION || '',
+  bucket: env.S3_LOGS_BUCKET_NAME || "",
+  region: env.AWS_REGION || "",
 }
 
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get('authorization')
+    const authHeader = request.headers.get("authorization")
 
     if (!env.CRON_SECRET) {
-      return new NextResponse('Configuration error: Cron secret is not set', { status: 500 })
+      return new NextResponse("Configuration error: Cron secret is not set", { status: 500 })
     }
 
     if (!authHeader || authHeader !== `Bearer ${env.CRON_SECRET}`) {
-      logger.warn(`Unauthorized access attempt to logs cleanup endpoint`)
-      return new NextResponse('Unauthorized', { status: 401 })
+      logger.warn("Unauthorized access attempt to logs cleanup endpoint")
+      return new NextResponse("Unauthorized", { status: 401 })
     }
 
     if (!S3_CONFIG.bucket || !S3_CONFIG.region) {
-      return new NextResponse('Configuration error: S3 bucket or region not set', { status: 500 })
+      return new NextResponse("Configuration error: S3 bucket or region not set", { status: 500 })
     }
 
     const retentionDate = new Date()
-    retentionDate.setDate(retentionDate.getDate() - Number(env.FREE_PLAN_LOG_RETENTION_DAYS || '7'))
+    retentionDate.setDate(retentionDate.getDate() - Number(env.FREE_PLAN_LOG_RETENTION_DAYS || "7"))
 
     const freeUsers = await db
       .select({ userId: user.id })
@@ -47,8 +47,8 @@ export async function GET(request: Request) {
       .where(sql`${subscription.id} IS NULL`)
 
     if (freeUsers.length === 0) {
-      logger.info('No free users found for log cleanup')
-      return NextResponse.json({ message: 'No free users found for cleanup' })
+      logger.info("No free users found for log cleanup")
+      return NextResponse.json({ message: "No free users found for cleanup" })
     }
 
     const freeUserIds = freeUsers.map((u) => u.userId)
@@ -59,8 +59,8 @@ export async function GET(request: Request) {
       .where(inArray(workflow.userId, freeUserIds))
 
     if (workflowsQuery.length === 0) {
-      logger.info('No workflows found for free users')
-      return NextResponse.json({ message: 'No workflows found for cleanup' })
+      logger.info("No workflows found for free users")
+      return NextResponse.json({ message: "No workflows found for cleanup" })
     }
 
     const workflowIds = workflowsQuery.map((w) => w.id)
@@ -104,7 +104,7 @@ export async function GET(request: Request) {
       results.total += oldLogs.length
 
       for (const log of oldLogs) {
-        const today = new Date().toISOString().split('T')[0]
+        const today = new Date().toISOString().split("T")[0]
 
         const logKey = `archived-logs/${today}/${log.id}.json`
         const logData = JSON.stringify(log)
@@ -115,7 +115,7 @@ export async function GET(request: Request) {
               Bucket: S3_CONFIG.bucket,
               Key: logKey,
               Body: logData,
-              ContentType: 'application/json',
+              ContentType: "application/json",
               Metadata: {
                 logId: String(log.id),
                 workflowId: String(log.workflowId),
@@ -158,13 +158,13 @@ export async function GET(request: Request) {
     const reachedLimit = batchesProcessed >= MAX_BATCHES && hasMoreLogs
 
     return NextResponse.json({
-      message: `Processed ${batchesProcessed} batches (${results.total} logs) in ${timeElapsed.toFixed(2)}s${reachedLimit ? ' (batch limit reached)' : ''}`,
+      message: `Processed ${batchesProcessed} batches (${results.total} logs) in ${timeElapsed.toFixed(2)}s${reachedLimit ? " (batch limit reached)" : ""}`,
       results,
       complete: !hasMoreLogs,
       batchLimitReached: reachedLimit,
     })
   } catch (error) {
-    logger.error('Error in log cleanup process:', { error })
-    return NextResponse.json({ error: 'Failed to process log cleanup' }, { status: 500 })
+    logger.error("Error in log cleanup process:", { error })
+    return NextResponse.json({ error: "Failed to process log cleanup" }, { status: 500 })
   }
 }

@@ -1,18 +1,18 @@
-import { createLogger } from '@/lib/logs/console-logger'
-import { BlockOutput } from '@/blocks/types'
-import { SerializedBlock } from '@/serializer/types'
-import { executeTool } from '@/tools'
-import { getTool } from '@/tools/utils'
-import { BlockHandler, ExecutionContext } from '../../types'
+import { createLogger } from "@/lib/logs/console-logger"
+import type { BlockOutput } from "@/blocks/types"
+import type { SerializedBlock } from "@/serializer/types"
+import { executeTool } from "@/tools"
+import { getTool } from "@/tools/utils"
+import type { BlockHandler, ExecutionContext } from "../../types"
 
-const logger = createLogger('ApiBlockHandler')
+const logger = createLogger("ApiBlockHandler")
 
 /**
  * Handler for API blocks that make external HTTP requests.
  */
 export class ApiBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === 'api'
+    return block.metadata?.id === "api"
   }
 
   async execute(
@@ -26,15 +26,15 @@ export class ApiBlockHandler implements BlockHandler {
     }
 
     // Early return with empty success response if URL is not provided or empty
-    if (tool.name && tool.name.includes('HTTP') && (!inputs.url || inputs.url.trim() === '')) {
-      return { response: { content: '', success: true } }
+    if (tool.name?.includes("HTTP") && (!inputs.url || inputs.url.trim() === "")) {
+      return { response: { content: "", success: true } }
     }
 
     // Pre-validate common HTTP request issues to provide better error messages
-    if (tool.name && tool.name.includes('HTTP') && inputs.url) {
+    if (tool.name?.includes("HTTP") && inputs.url) {
       // Strip any surrounding quotes that might have been added during resolution
       let urlToValidate = inputs.url
-      if (typeof urlToValidate === 'string') {
+      if (typeof urlToValidate === "string") {
         if (
           (urlToValidate.startsWith('"') && urlToValidate.endsWith('"')) ||
           (urlToValidate.startsWith("'") && urlToValidate.endsWith("'"))
@@ -61,24 +61,24 @@ export class ApiBlockHandler implements BlockHandler {
     }
 
     try {
-      let processedInputs = { ...inputs }
+      const processedInputs = { ...inputs }
 
       // Handle body specifically to ensure it's properly processed for API requests
       if (processedInputs.body !== undefined) {
         // If body is a string that looks like JSON, parse it
-        if (typeof processedInputs.body === 'string') {
+        if (typeof processedInputs.body === "string") {
           try {
             // Trim whitespace before checking for JSON pattern
             const trimmedBody = processedInputs.body.trim()
-            if (trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
+            if (trimmedBody.startsWith("{") || trimmedBody.startsWith("[")) {
               processedInputs.body = JSON.parse(trimmedBody)
               logger.info(
-                '[ApiBlockHandler] Parsed JSON body:',
+                "[ApiBlockHandler] Parsed JSON body:",
                 JSON.stringify(processedInputs.body, null, 2)
               )
             }
           } catch (e) {
-            logger.info('[ApiBlockHandler] Failed to parse body as JSON, using as string:', e)
+            logger.info("[ApiBlockHandler] Failed to parse body as JSON, using as string:", e)
             // Keep as string if parsing fails
           }
         } else if (processedInputs.body === null) {
@@ -89,7 +89,7 @@ export class ApiBlockHandler implements BlockHandler {
 
       // Ensure the final processed body is logged
       logger.info(
-        '[ApiBlockHandler] Final processed request body:',
+        "[ApiBlockHandler] Final processed request body:",
         JSON.stringify(processedInputs.body, null, 2)
       )
 
@@ -111,26 +111,26 @@ export class ApiBlockHandler implements BlockHandler {
         if (result.output?.statusText) errorDetails.push(`Status text: ${result.output.statusText}`)
 
         // Add specific suggestions for common error codes
-        let suggestion = ''
+        let suggestion = ""
         if (result.output?.status === 403) {
-          suggestion = ' - This may be due to CORS restrictions or authorization issues'
+          suggestion = " - This may be due to CORS restrictions or authorization issues"
         } else if (result.output?.status === 404) {
-          suggestion = ' - The requested resource was not found'
+          suggestion = " - The requested resource was not found"
         } else if (result.output?.status === 429) {
-          suggestion = ' - Too many requests, you may need to implement rate limiting'
+          suggestion = " - Too many requests, you may need to implement rate limiting"
         } else if (result.output?.status >= 500) {
-          suggestion = ' - Server error, the target server is experiencing issues'
-        } else if (result.error && result.error.includes('CORS')) {
+          suggestion = " - Server error, the target server is experiencing issues"
+        } else if (result.error?.includes("CORS")) {
           suggestion =
-            ' - CORS policy prevented the request, try using a proxy or server-side request'
-        } else if (result.error && result.error.includes('Failed to fetch')) {
+            " - CORS policy prevented the request, try using a proxy or server-side request"
+        } else if (result.error?.includes("Failed to fetch")) {
           suggestion =
-            ' - Network error, check if the URL is accessible and if you have internet connectivity'
+            " - Network error, check if the URL is accessible and if you have internet connectivity"
         }
 
         const errorMessage =
           errorDetails.length > 0
-            ? `HTTP Request failed: ${errorDetails.join(' | ')}${suggestion}`
+            ? `HTTP Request failed: ${errorDetails.join(" | ")}${suggestion}`
             : `API request to ${tool.name || block.config.tool} failed with no error message`
 
         // Create a detailed error object with formatted message
@@ -139,14 +139,14 @@ export class ApiBlockHandler implements BlockHandler {
         // Add additional properties for debugging
         Object.assign(error, {
           toolId: block.config.tool,
-          toolName: tool.name || 'Unknown tool',
+          toolName: tool.name || "Unknown tool",
           blockId: block.id,
-          blockName: block.metadata?.name || 'Unnamed Block',
+          blockName: block.metadata?.name || "Unnamed Block",
           output: result.output || {},
           status: result.output?.status || null,
           request: {
             url: inputs.url,
-            method: inputs.method || 'GET',
+            method: inputs.method || "GET",
           },
           timestamp: new Date().toISOString(),
         })
@@ -157,7 +157,7 @@ export class ApiBlockHandler implements BlockHandler {
       return { response: result.output }
     } catch (error: any) {
       // Ensure we have a meaningful error message
-      if (!error.message || error.message === 'undefined (undefined)') {
+      if (!error.message || error.message === "undefined (undefined)") {
         // Construct a detailed error message with available information
         let errorMessage = `API request to ${tool.name || block.config.tool} failed`
 
@@ -168,22 +168,22 @@ export class ApiBlockHandler implements BlockHandler {
 
         // If we still have no details, give a generic but helpful message
         if (errorMessage === `API request to ${tool.name || block.config.tool} failed`) {
-          errorMessage += ` - ${block.metadata?.name || 'Unknown error'}`
+          errorMessage += ` - ${block.metadata?.name || "Unknown error"}`
         }
 
         error.message = errorMessage
       }
 
       // Add additional context to the error
-      if (typeof error === 'object' && error !== null) {
+      if (typeof error === "object" && error !== null) {
         if (!error.toolId) error.toolId = block.config.tool
-        if (!error.blockName) error.blockName = block.metadata?.name || 'Unnamed Block'
+        if (!error.blockName) error.blockName = block.metadata?.name || "Unnamed Block"
 
         // Add request details if missing
         if (inputs && !error.request) {
           error.request = {
             url: inputs.url,
-            method: inputs.method || 'GET',
+            method: inputs.method || "GET",
           }
         }
       }

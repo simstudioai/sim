@@ -1,11 +1,11 @@
-import { NextRequest } from 'next/server'
-import { eq, sql } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import * as schema from '@/db/schema'
+import type { NextRequest } from "next/server"
+import { eq, sql } from "drizzle-orm"
+import { createLogger } from "@/lib/logs/console-logger"
+import { createErrorResponse, createSuccessResponse } from "@/app/api/workflows/utils"
+import { db } from "@/db"
+import * as schema from "@/db/schema"
 
-const logger = createLogger('PublicWorkflowAPI')
+const logger = createLogger("PublicWorkflowAPI")
 
 // Cache response for performance
 export const revalidate = 3600
@@ -43,11 +43,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       if (!workflowExists) {
         logger.warn(`[${requestId}] Workflow not found: ${id}`)
-        return createErrorResponse('Workflow not found', 404)
+        return createErrorResponse("Workflow not found", 404)
       }
 
       logger.warn(`[${requestId}] Workflow exists but is not published: ${id}`)
-      return createErrorResponse('Workflow is not published', 403)
+      return createErrorResponse("Workflow is not published", 403)
     }
 
     logger.info(`[${requestId}] Retrieved public workflow: ${id}`)
@@ -63,6 +63,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     })
   } catch (error) {
     logger.error(`[${requestId}] Error getting public workflow: ${(await params).id}`, error)
-    return createErrorResponse('Failed to get public workflow', 500)
+    return createErrorResponse("Failed to get public workflow", 500)
   }
 }

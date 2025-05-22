@@ -1,11 +1,11 @@
-import { NextRequest } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
-import { getWorkflowById } from '@/lib/workflows/utils'
-import { db } from '@/db'
-import { apiKey } from '@/db/schema'
+import type { NextRequest } from "next/server"
+import { eq } from "drizzle-orm"
+import { createLogger } from "@/lib/logs/console-logger"
+import { getWorkflowById } from "@/lib/workflows/utils"
+import { db } from "@/db"
+import { apiKey } from "@/db/schema"
 
-const logger = createLogger('WorkflowMiddleware')
+const logger = createLogger("WorkflowMiddleware")
 
 export interface ValidationResult {
   error?: { message: string; status: number }
@@ -22,7 +22,7 @@ export async function validateWorkflowAccess(
     if (!workflow) {
       return {
         error: {
-          message: 'Workflow not found',
+          message: "Workflow not found",
           status: 404,
         },
       }
@@ -32,7 +32,7 @@ export async function validateWorkflowAccess(
       if (!workflow.isDeployed) {
         return {
           error: {
-            message: 'Workflow is not deployed',
+            message: "Workflow is not deployed",
             status: 403,
           },
         }
@@ -41,7 +41,7 @@ export async function validateWorkflowAccess(
       // API key authentication
       let apiKeyHeader = null
       for (const [key, value] of request.headers.entries()) {
-        if (key.toLowerCase() === 'x-api-key' && value) {
+        if (key.toLowerCase() === "x-api-key" && value) {
           apiKeyHeader = value
           break
         }
@@ -50,7 +50,7 @@ export async function validateWorkflowAccess(
       if (!apiKeyHeader) {
         return {
           error: {
-            message: 'Unauthorized: API key required',
+            message: "Unauthorized: API key required",
             status: 401,
           },
         }
@@ -69,7 +69,7 @@ export async function validateWorkflowAccess(
       if (!validApiKey) {
         return {
           error: {
-            message: 'Unauthorized: Invalid API key',
+            message: "Unauthorized: Invalid API key",
             status: 401,
           },
         }
@@ -77,10 +77,10 @@ export async function validateWorkflowAccess(
     }
     return { workflow }
   } catch (error) {
-    logger.error('Validation error:', { error })
+    logger.error("Validation error:", { error })
     return {
       error: {
-        message: 'Internal server error',
+        message: "Internal server error",
         status: 500,
       },
     }

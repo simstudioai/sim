@@ -1,28 +1,28 @@
-import * as React from 'react'
-import { Container, Img, Link, Section, Text } from '@react-email/components'
-import { env } from '@/lib/env'
+import * as React from "react"
+import { Container, Img, Link, Section, Text } from "@react-email/components"
+import { env } from "@/lib/env"
 
 interface EmailFooterProps {
   baseUrl?: string
 }
 
 export const EmailFooter = ({
-  baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai',
+  baseUrl = env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai",
 }: EmailFooterProps) => {
   return (
     <Container>
-      <Section style={{ maxWidth: '580px', margin: '0 auto', padding: '20px 0' }}>
-        <table style={{ width: '100%' }}>
+      <Section style={{ maxWidth: "580px", margin: "0 auto", padding: "20px 0" }}>
+        <table style={{ width: "100%" }}>
           <tr>
             <td align="center">
               <table cellPadding={0} cellSpacing={0} style={{ border: 0 }}>
                 <tr>
-                  <td align="center" style={{ padding: '0 8px' }}>
+                  <td align="center" style={{ padding: "0 8px" }}>
                     <Link href="https://x.com/simstudioai" rel="noopener noreferrer">
                       <Img src={`${baseUrl}/static/x-icon.png`} width="24" height="24" alt="X" />
                     </Link>
                   </td>
-                  <td align="center" style={{ padding: '0 8px' }}>
+                  <td align="center" style={{ padding: "0 8px" }}>
                     <Link href="https://discord.gg/Hr4UWYEcTT" rel="noopener noreferrer">
                       <Img
                         src={`${baseUrl}/static/discord-icon.png`}
@@ -32,7 +32,7 @@ export const EmailFooter = ({
                       />
                     </Link>
                   </td>
-                  <td align="center" style={{ padding: '0 8px' }}>
+                  <td align="center" style={{ padding: "0 8px" }}>
                     <Link href="https://github.com/simstudioai/sim" rel="noopener noreferrer">
                       <Img
                         src={`${baseUrl}/static/github-icon.png`}
@@ -47,60 +47,60 @@ export const EmailFooter = ({
             </td>
           </tr>
           <tr>
-            <td align="center" style={{ paddingTop: '12px' }}>
+            <td align="center" style={{ paddingTop: "12px" }}>
               <Text
                 style={{
-                  fontSize: '12px',
-                  color: '#706a7b',
-                  margin: '8px 0 0 0',
+                  fontSize: "12px",
+                  color: "#706a7b",
+                  margin: "8px 0 0 0",
                 }}
               >
                 © {new Date().getFullYear()} Sim Studio, All Rights Reserved
                 <br />
-                If you have any questions, please contact us at{' '}
+                If you have any questions, please contact us at{" "}
                 <a
                   href="mailto:help@simstudio.ai"
                   style={{
-                    color: '#706a7b !important',
-                    textDecoration: 'underline',
-                    fontWeight: 'normal',
-                    fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
+                    color: "#706a7b !important",
+                    textDecoration: "underline",
+                    fontWeight: "normal",
+                    fontFamily: "HelveticaNeue, Helvetica, Arial, sans-serif",
                   }}
                 >
                   help@simstudio.ai
                 </a>
               </Text>
-              <table cellPadding={0} cellSpacing={0} style={{ width: '100%', marginTop: '4px' }}>
+              <table cellPadding={0} cellSpacing={0} style={{ width: "100%", marginTop: "4px" }}>
                 <tr>
                   <td align="center">
                     <p
                       style={{
-                        fontSize: '12px',
-                        color: '#706a7b',
-                        margin: '8px 0 0 0',
-                        fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
+                        fontSize: "12px",
+                        color: "#706a7b",
+                        margin: "8px 0 0 0",
+                        fontFamily: "HelveticaNeue, Helvetica, Arial, sans-serif",
                       }}
                     >
                       <a
                         href={`${baseUrl}/privacy`}
                         style={{
-                          color: '#706a7b !important',
-                          textDecoration: 'underline',
-                          fontWeight: 'normal',
-                          fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
+                          color: "#706a7b !important",
+                          textDecoration: "underline",
+                          fontWeight: "normal",
+                          fontFamily: "HelveticaNeue, Helvetica, Arial, sans-serif",
                         }}
                         rel="noopener noreferrer"
                       >
                         Privacy Policy
-                      </a>{' '}
-                      •{' '}
+                      </a>{" "}
+                      •{" "}
                       <a
                         href={`${baseUrl}/terms`}
                         style={{
-                          color: '#706a7b !important',
-                          textDecoration: 'underline',
-                          fontWeight: 'normal',
-                          fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
+                          color: "#706a7b !important",
+                          textDecoration: "underline",
+                          fontWeight: "normal",
+                          fontFamily: "HelveticaNeue, Helvetica, Arial, sans-serif",
                         }}
                         rel="noopener noreferrer"
                       >

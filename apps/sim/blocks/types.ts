@@ -1,60 +1,59 @@
-import type { SVGProps } from 'react'
-import type { JSX } from 'react'
-import { ToolResponse } from '@/tools/types'
+import type { SVGProps } from "react"
+import type { JSX } from "react"
+import type { ToolResponse } from "@/tools/types"
 
 // Basic types
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element
-export type ParamType = 'string' | 'number' | 'boolean' | 'json'
-export type PrimitiveValueType = 'string' | 'number' | 'boolean' | 'json' | 'any'
+export type ParamType = "string" | "number" | "boolean" | "json"
+export type PrimitiveValueType = "string" | "number" | "boolean" | "json" | "any"
 
 // Block classification
-export type BlockCategory = 'blocks' | 'tools'
+export type BlockCategory = "blocks" | "tools"
 
 // SubBlock types
 export type SubBlockType =
-  | 'short-input' // Single line input
-  | 'long-input' // Multi-line input
-  | 'dropdown' // Select menu
-  | 'slider' // Range input
-  | 'table' // Grid layout
-  | 'code' // Code editor
-  | 'switch' // Toggle button
-  | 'tool-input' // Tool configuration
-  | 'checkbox-list' // Multiple selection
-  | 'condition-input' // Conditional logic
-  | 'eval-input' // Evaluation input
-  | 'date-input' // Date input
-  | 'time-input' // Time input
-  | 'oauth-input' // OAuth credential selector
-  | 'webhook-config' // Webhook configuration
-  | 'schedule-config' // Schedule status and information
-  | 'file-selector' // File selector for Google Drive, etc.
-  | 'project-selector' // Project selector for Jira, Discord, etc.
-  | 'folder-selector' // Folder selector for Gmail, etc.
-  | 'input-format' // Input structure format
-  | 'file-upload' // File uploader
+  | "short-input" // Single line input
+  | "long-input" // Multi-line input
+  | "dropdown" // Select menu
+  | "slider" // Range input
+  | "table" // Grid layout
+  | "code" // Code editor
+  | "switch" // Toggle button
+  | "tool-input" // Tool configuration
+  | "checkbox-list" // Multiple selection
+  | "condition-input" // Conditional logic
+  | "eval-input" // Evaluation input
+  | "date-input" // Date input
+  | "time-input" // Time input
+  | "oauth-input" // OAuth credential selector
+  | "webhook-config" // Webhook configuration
+  | "schedule-config" // Schedule status and information
+  | "file-selector" // File selector for Google Drive, etc.
+  | "project-selector" // Project selector for Jira, Discord, etc.
+  | "folder-selector" // Folder selector for Gmail, etc.
+  | "input-format" // Input structure format
+  | "file-upload" // File uploader
 
 // Component width setting
-export type SubBlockLayout = 'full' | 'half'
+export type SubBlockLayout = "full" | "half"
 
 // Tool result extraction
-export type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never
+export type ExtractToolOutput<T> = T extends ToolResponse ? T["output"] : never
 
 // Convert tool output to types
-export type ToolOutputToValueType<T> =
-  T extends Record<string, any>
-    ? {
-        [K in keyof T]: T[K] extends string
-          ? 'string'
-          : T[K] extends number
-            ? 'number'
-            : T[K] extends boolean
-              ? 'boolean'
-              : T[K] extends object
-                ? 'json'
-                : 'any'
-      }
-    : never
+export type ToolOutputToValueType<T> = T extends Record<string, any>
+  ? {
+      [K in keyof T]: T[K] extends string
+        ? "string"
+        : T[K] extends number
+          ? "number"
+          : T[K] extends boolean
+            ? "boolean"
+            : T[K] extends object
+              ? "json"
+              : "any"
+    }
+  : never
 
 // Block output definition
 export type BlockOutput =
@@ -87,7 +86,7 @@ export interface SubBlockConfig {
   title?: string
   type: SubBlockType
   layout?: SubBlockLayout
-  mode?: 'basic' | 'advanced' | 'both' // Default is 'both' if not specified
+  mode?: "basic" | "advanced" | "both" // Default is 'both' if not specified
   options?:
     | string[]
     | { label: string; id: string }[]
@@ -112,8 +111,8 @@ export interface SubBlockConfig {
     }
   }
   // Props specific to 'code' sub-block type
-  language?: 'javascript' | 'json'
-  generationType?: 'javascript-function-body' | 'json-schema'
+  language?: "javascript" | "json"
+  generationType?: "javascript-function-body" | "json-schema"
   // OAuth specific properties
   provider?: string
   serviceId?: string
@@ -157,11 +156,11 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
         subBlockId: string
         condition: {
           whenEmpty: ToolOutputToValueType<ExtractToolOutput<T>>
-          whenFilled: 'json'
+          whenFilled: "json"
         }
       }
       visualization?: {
-        type: 'image'
+        type: "image"
         url: string
       }
     }

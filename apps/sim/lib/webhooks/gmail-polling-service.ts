@@ -1,17 +1,17 @@
-import { and, eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
-import { Logger } from '@/lib/logs/console-logger'
-import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
-import { getBaseUrl } from '@/lib/urls/utils'
-import { getOAuthToken } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { webhook } from '@/db/schema'
+import { and, eq } from "drizzle-orm"
+import { nanoid } from "nanoid"
+import { Logger } from "@/lib/logs/console-logger"
+import { hasProcessedMessage, markMessageAsProcessed } from "@/lib/redis"
+import { getBaseUrl } from "@/lib/urls/utils"
+import { getOAuthToken } from "@/app/api/auth/oauth/utils"
+import { db } from "@/db"
+import { webhook } from "@/db/schema"
 
-const logger = new Logger('GmailPollingService')
+const logger = new Logger("GmailPollingService")
 
 interface GmailWebhookConfig {
   labelIds: string[]
-  labelFilterBehavior: 'INCLUDE' | 'EXCLUDE'
+  labelFilterBehavior: "INCLUDE" | "EXCLUDE"
   markAsRead: boolean
   maxEmailsPerPoll?: number
   lastCheckedTimestamp?: string
@@ -46,17 +46,17 @@ export interface SimplifiedEmail {
 }
 
 export async function pollGmailWebhooks() {
-  logger.info('Starting Gmail webhook polling')
+  logger.info("Starting Gmail webhook polling")
 
   try {
     // Get all active Gmail webhooks
     const activeWebhooks = await db
       .select()
       .from(webhook)
-      .where(and(eq(webhook.provider, 'gmail'), eq(webhook.isActive, true)))
+      .where(and(eq(webhook.provider, "gmail"), eq(webhook.isActive, true)))
 
     if (!activeWebhooks.length) {
-      logger.info('No active Gmail webhooks found')
+      logger.info("No active Gmail webhooks found")
       return { total: 0, successful: 0, failed: 0, details: [] }
     }
 
@@ -80,15 +80,15 @@ export async function pollGmailWebhooks() {
 
         if (!userId) {
           logger.error(`[${requestId}] No user ID found for webhook ${webhookId}`)
-          return { success: false, webhookId, error: 'No user ID' }
+          return { success: false, webhookId, error: "No user ID" }
         }
 
         // Get OAuth token for Gmail API
-        const accessToken = await getOAuthToken(userId, 'google-email')
+        const accessToken = await getOAuthToken(userId, "google-email")
 
         if (!accessToken) {
           logger.error(`[${requestId}] Failed to get Gmail access token for webhook ${webhookId}`)
-          return { success: false, webhookId, error: 'No access token' }
+          return { success: false, webhookId, error: "No access token" }
         }
 
         // Get webhook configuration
@@ -109,7 +109,7 @@ export async function pollGmailWebhooks() {
             latestHistoryId || config.historyId
           )
           logger.info(`[${requestId}] No new emails found for webhook ${webhookId}`)
-          return { success: true, webhookId, status: 'no_emails' }
+          return { success: true, webhookId, status: "no_emails" }
         }
 
         logger.info(`[${requestId}] Found ${emails.length} new emails for webhook ${webhookId}`)
@@ -129,7 +129,7 @@ export async function pollGmailWebhooks() {
             now.toISOString(),
             latestHistoryId || config.historyId
           )
-          return { success: true, webhookId, status: 'already_processed' }
+          return { success: true, webhookId, status: "already_processed" }
         }
 
         logger.info(
@@ -169,7 +169,7 @@ export async function pollGmailWebhooks() {
           emailsProcessed: processed,
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
         logger.error(`[${requestId}] Error processing Gmail webhook ${webhookId}:`, error)
         return { success: false, webhookId, error: errorMessage }
       }
@@ -195,16 +195,16 @@ export async function pollGmailWebhooks() {
 
     const summary = {
       total: results.length,
-      successful: results.filter((r) => r.status === 'fulfilled' && r.value.success).length,
+      successful: results.filter((r) => r.status === "fulfilled" && r.value.success).length,
       failed: results.filter(
-        (r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)
+        (r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.success)
       ).length,
       details: results.map((r) =>
-        r.status === 'fulfilled' ? r.value : { success: false, error: r.reason }
+        r.status === "fulfilled" ? r.value : { success: false, error: r.reason }
       ),
     }
 
-    logger.info('Gmail polling completed', {
+    logger.info("Gmail polling completed", {
       total: summary.total,
       successful: summary.successful,
       failed: summary.failed,
@@ -212,8 +212,8 @@ export async function pollGmailWebhooks() {
 
     return summary
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    logger.error('Error in Gmail polling service:', errorMessage)
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    logger.error("Error in Gmail polling service:", errorMessage)
     throw error
   }
 }
@@ -293,7 +293,7 @@ async function fetchNewEmails(accessToken: string, config: GmailWebhookConfig, r
       const emailResults = await Promise.allSettled(emailPromises)
       emails = emailResults
         .filter(
-          (result): result is PromiseFulfilledResult<GmailEmail> => result.status === 'fulfilled'
+          (result): result is PromiseFulfilledResult<GmailEmail> => result.status === "fulfilled"
         )
         .map((result) => result.value)
 
@@ -307,7 +307,7 @@ async function fetchNewEmails(accessToken: string, config: GmailWebhookConfig, r
 
     return { emails, latestHistoryId }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
     logger.error(`[${requestId}] Error fetching new emails:`, errorMessage)
     return { emails: [], latestHistoryId: config.historyId }
   }
@@ -318,11 +318,11 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
     // Build query parameters for label filtering
     const labelQuery =
       config.labelIds && config.labelIds.length > 0
-        ? config.labelIds.map((label) => `label:${label}`).join(' ')
-        : 'in:inbox'
+        ? config.labelIds.map((label) => `label:${label}`).join(" ")
+        : "in:inbox"
 
     // Improved time-based filtering with dynamic buffer
-    let timeConstraint = ''
+    let timeConstraint = ""
 
     if (config.lastCheckedTimestamp) {
       // Parse the last check time
@@ -364,13 +364,13 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
       }
     } else {
       // If there's no last checked timestamp, default to recent emails (last 24h)
-      timeConstraint = ' newer_than:1d'
+      timeConstraint = " newer_than:1d"
       logger.debug(`[${requestId}] No last check time, using default: newer_than:1d`)
     }
 
     // Combine label and time constraints
     const query =
-      config.labelFilterBehavior === 'INCLUDE'
+      config.labelFilterBehavior === "INCLUDE"
         ? `${labelQuery}${timeConstraint}`
         : `-${labelQuery}${timeConstraint}`
 
@@ -404,7 +404,7 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
     }
 
     // Process emails within the limit
-    let idsToFetch = searchData.messages.slice(0, config.maxEmailsPerPoll || 25)
+    const idsToFetch = searchData.messages.slice(0, config.maxEmailsPerPoll || 25)
     let latestHistoryId = config.historyId
 
     logger.info(
@@ -419,7 +419,7 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
     const emailResults = await Promise.allSettled(emailPromises)
     const emails = emailResults
       .filter(
-        (result): result is PromiseFulfilledResult<GmailEmail> => result.status === 'fulfilled'
+        (result): result is PromiseFulfilledResult<GmailEmail> => result.status === "fulfilled"
       )
       .map((result) => result.value)
 
@@ -431,7 +431,7 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
 
     return { emails, latestHistoryId }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
     logger.error(`[${requestId}] Error searching emails:`, errorMessage)
     return { emails: [], latestHistoryId: config.historyId }
   }
@@ -467,7 +467,7 @@ function filterEmailsByLabels(emails: GmailEmail[], config: GmailWebhookConfig):
       emailLabels.includes(configLabel)
     )
 
-    return config.labelFilterBehavior === 'INCLUDE'
+    return config.labelFilterBehavior === "INCLUDE"
       ? hasMatchingLabel // Include emails with matching labels
       : !hasMatchingLabel // Exclude emails with matching labels
   })
@@ -508,18 +508,18 @@ async function processEmails(
       }
 
       // Extract and decode email body content
-      let textContent = ''
-      let htmlContent = ''
+      let textContent = ""
+      let htmlContent = ""
 
       // Function to extract content from parts recursively
       const extractContent = (part: any) => {
         if (!part) return
 
         // Extract current part content if it exists
-        if (part.mimeType === 'text/plain' && part.body?.data) {
-          textContent = Buffer.from(part.body.data, 'base64').toString('utf-8')
-        } else if (part.mimeType === 'text/html' && part.body?.data) {
-          htmlContent = Buffer.from(part.body.data, 'base64').toString('utf-8')
+        if (part.mimeType === "text/plain" && part.body?.data) {
+          textContent = Buffer.from(part.body.data, "base64").toString("utf-8")
+        } else if (part.mimeType === "text/html" && part.body?.data) {
+          htmlContent = Buffer.from(part.body.data, "base64").toString("utf-8")
         }
 
         // Process nested parts
@@ -545,7 +545,7 @@ async function processEmails(
         }
       } else if (email.internalDate) {
         // Use internalDate as fallback (convert from timestamp to ISO string)
-        date = new Date(parseInt(email.internalDate)).toISOString()
+        date = new Date(Number.parseInt(email.internalDate)).toISOString()
       }
 
       // Extract attachment information if present
@@ -557,7 +557,7 @@ async function processEmails(
         if (part.filename && part.filename.length > 0) {
           attachments.push({
             filename: part.filename,
-            mimeType: part.mimeType || 'application/octet-stream',
+            mimeType: part.mimeType || "application/octet-stream",
             size: part.body?.size || 0,
           })
         }
@@ -578,10 +578,10 @@ async function processEmails(
       const simplifiedEmail: SimplifiedEmail = {
         id: email.id,
         threadId: email.threadId,
-        subject: headers.subject || '[No Subject]',
-        from: headers.from || '',
-        to: headers.to || '',
-        cc: headers.cc || '',
+        subject: headers.subject || "[No Subject]",
+        from: headers.from || "",
+        to: headers.to || "",
+        cc: headers.cc || "",
         date: date,
         bodyText: textContent,
         bodyHtml: htmlContent,
@@ -602,11 +602,11 @@ async function processEmails(
       const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
 
       const response = await fetch(webhookUrl, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'X-Webhook-Secret': webhookData.secret || '',
-          'User-Agent': 'SimStudio/1.0',
+          "Content-Type": "application/json",
+          "X-Webhook-Secret": webhookData.secret || "",
+          "User-Agent": "SimStudio/1.0",
         },
         body: JSON.stringify(payload),
       })
@@ -629,7 +629,7 @@ async function processEmails(
 
       await markMessageAsProcessed(dedupeKey)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
       logger.error(`[${requestId}] Error processing email ${email.id}:`, errorMessage)
     }
   }
@@ -642,13 +642,13 @@ async function markEmailAsRead(accessToken: string, messageId: string) {
 
   try {
     const response = await fetch(modifyUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        removeLabelIds: ['UNREAD'],
+        removeLabelIds: ["UNREAD"],
       }),
     })
 

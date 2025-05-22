@@ -1,17 +1,17 @@
-import { ShieldCheck } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { ShieldCheck } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { CopyableField } from '../ui/copyable'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay } from '../ui/test-result'
+} from "@/components/ui/select"
+import { ConfigField } from "../ui/config-field"
+import { ConfigSection } from "../ui/config-section"
+import { CopyableField } from "../ui/copyable"
+import { InstructionsSection } from "../ui/instructions-section"
+import { TestResultDisplay } from "../ui/test-result"
 
 interface GithubConfigProps {
   contentType: string
@@ -107,9 +107,9 @@ export function GithubConfig({
       />
 
       <InstructionsSection tip="GitHub will send a ping event to verify after you add the webhook.">
-        <ol className="list-decimal list-inside space-y-1">
+        <ol className="list-inside list-decimal space-y-1">
           <li>
-            Go to your GitHub Repository {'>'} Settings {'>'} Webhooks.
+            Go to your GitHub Repository {">"} Settings {">"} Webhooks.
           </li>
           <li>Click "Add webhook".</li>
           <li>

@@ -1,4 +1,4 @@
-import { ToolResponse } from '../types'
+import type { ToolResponse } from "../types"
 
 // Base parameters shared by all GitHub operations
 export interface BaseGitHubParams {
@@ -20,7 +20,7 @@ export interface CreateCommentParams extends PROperationParams {
   line?: number
   side?: string
   commitId?: string
-  commentType?: 'pr_comment' | 'file_comment'
+  commentType?: "pr_comment" | "file_comment"
 }
 
 // Latest commit parameters

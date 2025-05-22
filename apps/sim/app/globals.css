@@ -15,7 +15,7 @@
   z-index: 30 !important;
 }
 
-.workflow-container .react-flow__edge [data-testid='workflow-edge'] {
+.workflow-container .react-flow__edge [data-testid="workflow-edge"] {
   z-index: 0 !important;
 }
 
@@ -240,7 +240,7 @@
   }
 
   .streaming-effect::after {
-    content: '';
+    content: "";
     @apply pointer-events-none absolute left-0 top-0 h-full w-full;
     background: linear-gradient(
       90deg,
@@ -286,18 +286,18 @@
 
 /* Input Overrides */
 /* Chrome, Safari, Edge, Opera */
-input[type='search']::-webkit-search-cancel-button {
+input[type="search"]::-webkit-search-cancel-button {
   -webkit-appearance: none;
   appearance: none;
 }
 
 /* Firefox */
-input[type='search']::-moz-search-cancel-button {
+input[type="search"]::-moz-search-cancel-button {
   display: none;
 }
 
 /* Microsoft Edge */
-input[type='search']::-ms-clear {
+input[type="search"]::-ms-clear {
   display: none;
 }
 

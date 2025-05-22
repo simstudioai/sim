@@ -1,25 +1,25 @@
-import { NextResponse } from 'next/server'
-import { Logger } from '@/lib/logs/console-logger'
-import { getJiraCloudId } from '@/tools/jira/utils'
+import { NextResponse } from "next/server"
+import { Logger } from "@/lib/logs/console-logger"
+import { getJiraCloudId } from "@/tools/jira/utils"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
-const logger = new Logger('jira_projects')
+const logger = new Logger("jira_projects")
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url)
-    const domain = url.searchParams.get('domain')?.trim()
-    const accessToken = url.searchParams.get('accessToken')
-    const providedCloudId = url.searchParams.get('cloudId')
-    let query = url.searchParams.get('query') || ''
+    const domain = url.searchParams.get("domain")?.trim()
+    const accessToken = url.searchParams.get("accessToken")
+    const providedCloudId = url.searchParams.get("cloudId")
+    const query = url.searchParams.get("query") || ""
 
     if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+      return NextResponse.json({ error: "Domain is required" }, { status: 400 })
     }
 
     if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
+      return NextResponse.json({ error: "Access token is required" }, { status: 400 })
     }
 
     // Use provided cloudId or fetch it if not provided
@@ -32,20 +32,20 @@ export async function GET(request: Request) {
     // Add query parameters if searching
     const queryParams = new URLSearchParams()
     if (query) {
-      queryParams.append('query', query)
+      queryParams.append("query", query)
     }
     // Add other useful parameters
-    queryParams.append('orderBy', 'name')
-    queryParams.append('expand', 'description,lead,url,projectKeys')
+    queryParams.append("orderBy", "name")
+    queryParams.append("expand", "description,lead,url,projectKeys")
 
     const finalUrl = `${apiUrl}?${queryParams.toString()}`
     logger.info(`Fetching Jira projects from: ${finalUrl}`)
 
     const response = await fetch(finalUrl, {
-      method: 'GET',
+      method: "GET",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
+        Accept: "application/json",
       },
     })
 
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
       let errorMessage
       try {
         const errorData = await response.json()
-        logger.error('Error details:', errorData)
+        logger.error("Error details:", errorData)
         errorMessage = errorData.message || `Failed to fetch projects (${response.status})`
       } catch (e) {
         errorMessage = `Failed to fetch projects: ${response.status} ${response.statusText}`
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
         key: project.key,
         name: project.name,
         url: project.self,
-        avatarUrl: project.avatarUrls?.['48x48'], // Use the medium size avatar
+        avatarUrl: project.avatarUrls?.["48x48"], // Use the medium size avatar
         description: project.description,
         projectTypeKey: project.projectTypeKey,
         simplified: project.simplified,
@@ -90,9 +90,9 @@ export async function GET(request: Request) {
       cloudId, // Return the cloudId so it can be cached
     })
   } catch (error) {
-    logger.error('Error fetching Jira projects:', error)
+    logger.error("Error fetching Jira projects:", error)
     return NextResponse.json(
-      { error: (error as Error).message || 'Internal server error' },
+      { error: (error as Error).message || "Internal server error" },
       { status: 500 }
     )
   }
@@ -104,15 +104,15 @@ export async function POST(request: Request) {
     const { domain, accessToken, projectId, cloudId: providedCloudId } = await request.json()
 
     if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+      return NextResponse.json({ error: "Domain is required" }, { status: 400 })
     }
 
     if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
+      return NextResponse.json({ error: "Access token is required" }, { status: 400 })
     }
 
     if (!projectId) {
-      return NextResponse.json({ error: 'Project ID is required' }, { status: 400 })
+      return NextResponse.json({ error: "Project ID is required" }, { status: 400 })
     }
 
     // Use provided cloudId or fetch it if not provided
@@ -121,16 +121,16 @@ export async function POST(request: Request) {
     const apiUrl = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/project/${projectId}`
 
     const response = await fetch(apiUrl, {
-      method: 'GET',
+      method: "GET",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
+        Accept: "application/json",
       },
     })
 
     if (!response.ok) {
       const errorData = await response.json()
-      logger.error('Error details:', errorData)
+      logger.error("Error details:", errorData)
       return NextResponse.json(
         { error: errorData.message || `Failed to fetch project (${response.status})` },
         { status: response.status }
@@ -145,7 +145,7 @@ export async function POST(request: Request) {
         key: project.key,
         name: project.name,
         url: project.self,
-        avatarUrl: project.avatarUrls?.['48x48'],
+        avatarUrl: project.avatarUrls?.["48x48"],
         description: project.description,
         projectTypeKey: project.projectTypeKey,
         simplified: project.simplified,
@@ -155,9 +155,9 @@ export async function POST(request: Request) {
       cloudId,
     })
   } catch (error) {
-    logger.error('Error fetching Jira project:', error)
+    logger.error("Error fetching Jira project:", error)
     return NextResponse.json(
-      { error: (error as Error).message || 'Internal server error' },
+      { error: (error as Error).message || "Internal server error" },
       { status: 500 }
     )
   }

@@ -1,11 +1,11 @@
-import { NextRequest } from 'next/server'
-import { eq, sql } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import * as schema from '@/db/schema'
+import type { NextRequest } from "next/server"
+import { eq, sql } from "drizzle-orm"
+import { createLogger } from "@/lib/logs/console-logger"
+import { createErrorResponse, createSuccessResponse } from "@/app/api/workflows/utils"
+import { db } from "@/db"
+import * as schema from "@/db/schema"
 
-const logger = createLogger('MarketplaceViewAPI')
+const logger = createLogger("MarketplaceViewAPI")
 
 /**
  * POST handler for incrementing the view count when a workflow card is clicked
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (!marketplaceEntry) {
       logger.warn(`[${requestId}] No marketplace entry found with ID: ${id}`)
-      return createErrorResponse('Marketplace entry not found', 404)
+      return createErrorResponse("Marketplace entry not found", 404)
     }
 
     // Increment the view count for this workflow
@@ -52,6 +52,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       `[${requestId}] Error incrementing view count for marketplace entry: ${(await params).id}`,
       error
     )
-    return createErrorResponse('Failed to track view', 500)
+    return createErrorResponse("Failed to track view", 500)
   }
 }

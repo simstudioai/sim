@@ -1,21 +1,21 @@
-import { ToolConfig } from '../types'
-import { TypeformInsightsParams, TypeformInsightsResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { TypeformInsightsParams, TypeformInsightsResponse } from "./types"
 
 export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsResponse> = {
-  id: 'typeform_insights',
-  name: 'Typeform Insights',
-  description: 'Retrieve insights and analytics for Typeform forms',
-  version: '1.0.0',
+  id: "typeform_insights",
+  name: "Typeform Insights",
+  description: "Retrieve insights and analytics for Typeform forms",
+  version: "1.0.0",
   params: {
     formId: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Typeform form ID',
+      description: "Typeform form ID",
     },
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Typeform Personal Access Token',
+      description: "Typeform Personal Access Token",
     },
   },
   request: {
@@ -23,31 +23,31 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
       const encodedFormId = encodeURIComponent(params.formId)
       return `https://api.typeform.com/insights/${encodedFormId}/summary`
     },
-    method: 'GET',
+    method: "GET",
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     }),
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let errorMessage = response.statusText || 'Unknown error'
-      let errorDetails = ''
+      let errorMessage = response.statusText || "Unknown error"
+      let errorDetails = ""
 
       try {
         const errorData = await response.json()
-        console.log('Typeform API error response:', JSON.stringify(errorData, null, 2))
+        console.log("Typeform API error response:", JSON.stringify(errorData, null, 2))
 
-        if (errorData && errorData.message) {
+        if (errorData?.message) {
           errorMessage = errorData.message
-        } else if (errorData && errorData.description) {
+        } else if (errorData?.description) {
           errorMessage = errorData.description
-        } else if (typeof errorData === 'string') {
+        } else if (typeof errorData === "string") {
           errorMessage = errorData
         }
 
         // Extract more details if available
-        if (errorData && errorData.details) {
+        if (errorData?.details) {
           errorDetails = ` Details: ${JSON.stringify(errorData.details)}`
         }
 
@@ -66,7 +66,7 @@ Details from API: ${errorMessage}${errorDetails}`,
         }
       } catch (e) {
         // If we can't parse the error as JSON, just use the status text
-        console.log('Error parsing Typeform API error:', e)
+        console.log("Error parsing Typeform API error:", e)
       }
 
       throw new Error(`Typeform API error (${response.status}): ${errorMessage}${errorDetails}`)
@@ -84,10 +84,10 @@ Details from API: ${errorMessage}${errorDetails}`,
       return `Failed to retrieve Typeform insights: ${error.message}`
     }
 
-    if (typeof error === 'object' && error !== null) {
+    if (typeof error === "object" && error !== null) {
       return `Failed to retrieve Typeform insights: ${JSON.stringify(error)}`
     }
 
-    return `Failed to retrieve Typeform insights: An unknown error occurred`
+    return "Failed to retrieve Typeform insights: An unknown error occurred"
   },
 }

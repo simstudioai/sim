@@ -1,16 +1,16 @@
-'use client'
+"use client"
 
-import { createLogger } from '@/lib/logs/console-logger'
-import { getAllWorkflowsWithValues } from '.'
-import { API_ENDPOINTS } from '../constants'
-import { createSingletonSyncManager } from '../sync'
-import { useWorkflowRegistry } from './registry/store'
-import { WorkflowMetadata } from './registry/types'
-import { useSubBlockStore } from './subblock/store'
-import { useWorkflowStore } from './workflow/store'
-import { BlockState } from './workflow/types'
+import { createLogger } from "@/lib/logs/console-logger"
+import { getAllWorkflowsWithValues } from "."
+import { API_ENDPOINTS } from "../constants"
+import { createSingletonSyncManager } from "../sync"
+import { useWorkflowRegistry } from "./registry/store"
+import type { WorkflowMetadata } from "./registry/types"
+import { useSubBlockStore } from "./subblock/store"
+import { useWorkflowStore } from "./workflow/store"
+import type { BlockState } from "./workflow/types"
 
-const logger = createLogger('WorkflowsSync')
+const logger = createLogger("WorkflowsSync")
 
 // Add debounce utility
 let syncDebounceTimer: NodeJS.Timeout | null = null
@@ -59,7 +59,7 @@ export function isRegistryInitialized(): boolean {
  */
 function setRegistryInitialized(): void {
   registryFullyInitialized = true
-  logger.info('Workflow registry fully initialized')
+  logger.info("Workflow registry fully initialized")
 }
 
 /**
@@ -67,7 +67,7 @@ function setRegistryInitialized(): void {
  */
 export function resetRegistryInitialization(): void {
   registryFullyInitialized = false
-  logger.info('Workflow registry initialization reset')
+  logger.info("Workflow registry initialization reset")
 }
 
 // Enhanced workflow state tracking
@@ -120,7 +120,7 @@ function hasWorkflowChanges(currentState: Record<string, any>): boolean {
  */
 export function markWorkflowsDirty(): void {
   isDirty = true
-  logger.info('Workflows marked as dirty, will sync on next opportunity')
+  logger.info("Workflows marked as dirty, will sync on next opportunity")
 }
 
 /**
@@ -143,7 +143,7 @@ export function resetDirtyFlag(): void {
  * This function handles backwards syncing on initialization
  */
 export async function fetchWorkflowsFromDB(): Promise<void> {
-  if (typeof window === 'undefined') return
+  if (typeof window === "undefined") return
 
   try {
     // Reset registry initialization state
@@ -154,7 +154,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 
     // Set flag to prevent sync back to DB during loading
     isLoadingFromDB = true
-    loadingFromDBToken = 'loading'
+    loadingFromDBToken = "loading"
     loadingFromDBStartTime = Date.now()
 
     // Get active workspace ID to filter workflows
@@ -163,30 +163,30 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     // Call the API endpoint to get workflows from DB with workspace filter
     const url = new URL(API_ENDPOINTS.SYNC, window.location.origin)
     if (activeWorkspaceId) {
-      url.searchParams.append('workspaceId', activeWorkspaceId)
+      url.searchParams.append("workspaceId", activeWorkspaceId)
       logger.info(`Fetching workflows for workspace: ${activeWorkspaceId}`)
     } else {
-      logger.info('Fetching workflows without workspace filter')
+      logger.info("Fetching workflows without workspace filter")
     }
 
     const response = await fetch(url.toString(), {
-      method: 'GET',
+      method: "GET",
     })
 
     if (!response.ok) {
       if (response.status === 401) {
-        logger.warn('User not authenticated for workflow fetch')
+        logger.warn("User not authenticated for workflow fetch")
         return
       }
 
       // Handle case when workspace not found
       if (response.status === 404) {
         const responseData = await response.json()
-        if (responseData.code === 'WORKSPACE_NOT_FOUND' && activeWorkspaceId) {
+        if (responseData.code === "WORKSPACE_NOT_FOUND" && activeWorkspaceId) {
           logger.warn(`Workspace ${activeWorkspaceId} not found, it may have been deleted`)
 
           // Fetch user's available workspaces to switch to a valid one
-          const workspacesResponse = await fetch('/api/workspaces', { method: 'GET' })
+          const workspacesResponse = await fetch("/api/workspaces", { method: "GET" })
           if (workspacesResponse.ok) {
             const { workspaces } = await workspacesResponse.json()
 
@@ -201,7 +201,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         }
       }
 
-      logger.error('Failed to fetch workflows:', response.statusText)
+      logger.error("Failed to fetch workflows:", response.statusText)
       return
     }
 
@@ -209,7 +209,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 
     if (!data || !Array.isArray(data) || data.length === 0) {
       logger.info(
-        `No workflows found in database for ${activeWorkspaceId ? `workspace ${activeWorkspaceId}` : 'user'}`
+        `No workflows found in database for ${activeWorkspaceId ? `workspace ${activeWorkspaceId}` : "user"}`
       )
       // Clear any existing workflows to ensure a clean state
       useWorkflowRegistry.setState({ workflows: {} })
@@ -251,8 +251,8 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       registryWorkflows[id] = {
         id,
         name,
-        description: description || '',
-        color: color || '#3972F6',
+        description: description || "",
+        color: color || "#3972F6",
         // Use createdAt for sorting if available, otherwise fall back to lastSynced
         lastModified: createdAt ? new Date(createdAt) : new Date(lastSynced),
         marketplaceData: marketplaceData || null,
@@ -317,7 +317,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     })
 
     logger.info(
-      `Loaded ${Object.keys(registryWorkflows).length} workflows for ${activeWorkspaceId ? `workspace ${activeWorkspaceId}` : 'user'}`
+      `Loaded ${Object.keys(registryWorkflows).length} workflows for ${activeWorkspaceId ? `workspace ${activeWorkspaceId}` : "user"}`
     )
 
     // 8. Update registry store with all workflows
@@ -332,7 +332,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       const firstWorkflowId = Object.keys(registryWorkflows)[0]
 
       // Load the first workflow as active
-      const workflowState = JSON.parse(localStorage.getItem(`workflow-${firstWorkflowId}`) || '{}')
+      const workflowState = JSON.parse(localStorage.getItem(`workflow-${firstWorkflowId}`) || "{}")
 
       if (Object.keys(workflowState).length > 0) {
         useWorkflowStore.setState(workflowState)
@@ -344,7 +344,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     // Mark registry as fully initialized now that all data is loaded
     setRegistryInitialized()
   } catch (error) {
-    logger.error('Error fetching workflows from DB:', { error })
+    logger.error("Error fetching workflows from DB:", { error })
 
     // Mark registry as initialized even on error to allow fallback mechanisms
     setRegistryInitialized()
@@ -380,12 +380,12 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 function activeDBSyncNeeded(): boolean {
   // In most cases after initial load, we don't need to sync back to DB
   // Only sync if we have detected a change that needs to be persisted
-  const lastSynced = localStorage.getItem('last_db_sync_timestamp')
+  const lastSynced = localStorage.getItem("last_db_sync_timestamp")
   const currentTime = Date.now()
 
   if (!lastSynced) {
     // First sync - record it and return true
-    localStorage.setItem('last_db_sync_timestamp', currentTime.toString())
+    localStorage.setItem("last_db_sync_timestamp", currentTime.toString())
     return true
   }
 
@@ -398,17 +398,17 @@ function activeDBSyncNeeded(): boolean {
 const workflowSyncConfig = {
   endpoint: API_ENDPOINTS.SYNC,
   preparePayload: () => {
-    if (typeof window === 'undefined') return {}
+    if (typeof window === "undefined") return {}
 
     // Skip sync if registry is not fully initialized yet
     if (!isRegistryInitialized()) {
-      logger.info('Skipping workflow sync while registry is not fully initialized')
+      logger.info("Skipping workflow sync while registry is not fully initialized")
       return { skipSync: true }
     }
 
     // Skip sync if we're currently loading from DB to prevent overwriting DB data
     if (isActivelyLoadingFromDB()) {
-      logger.info('Skipping workflow sync while loading from DB')
+      logger.info("Skipping workflow sync while loading from DB")
       return { skipSync: true }
     }
 
@@ -417,7 +417,7 @@ const workflowSyncConfig = {
 
     // Only sync if there are actually changes
     if (!isDirty && !hasWorkflowChanges(allWorkflowsData)) {
-      logger.info('Skipping workflow sync - no changes detected')
+      logger.info("Skipping workflow sync - no changes detected")
       return { skipSync: true }
     }
 
@@ -433,12 +433,12 @@ const workflowSyncConfig = {
       const registryWorkflows = useWorkflowRegistry.getState().workflows
       if (Object.keys(registryWorkflows).length > 0) {
         logger.warn(
-          'Potential data loss prevented: Registry has workflows but sync payload is empty'
+          "Potential data loss prevented: Registry has workflows but sync payload is empty"
         )
         return { skipSync: true }
       }
 
-      logger.info('Skipping workflow sync - no workflows to sync')
+      logger.info("Skipping workflow sync - no workflows to sync")
       return { skipSync: true }
     }
 
@@ -465,7 +465,7 @@ const workflowSyncConfig = {
 
     // Skip sync if after filtering there are no workflows to sync
     if (Object.keys(workflowsData).length === 0) {
-      logger.info('Skipping workflow sync - no workflows for active workspace to sync')
+      logger.info("Skipping workflow sync - no workflows for active workspace to sync")
       return { skipSync: true }
     }
 
@@ -475,13 +475,13 @@ const workflowSyncConfig = {
       workspaceId: activeWorkspaceId, // Include active workspace ID in the payload
     }
   },
-  method: 'POST' as const,
+  method: "POST" as const,
   syncOnInterval: true,
   syncOnExit: true,
 }
 
 // Create the sync manager
-const baseWorkflowSync = createSingletonSyncManager('workflow-sync', () => workflowSyncConfig)
+const baseWorkflowSync = createSingletonSyncManager("workflow-sync", () => workflowSyncConfig)
 
 // Create a debounced version of the sync manager
 export const workflowSync = {
@@ -489,7 +489,7 @@ export const workflowSync = {
   sync: () => {
     // Skip sync if not initialized
     if (!isRegistryInitialized()) {
-      logger.info('Sync requested but registry not fully initialized yet - delaying')
+      logger.info("Sync requested but registry not fully initialized yet - delaying")
       // If we're not initialized, mark dirty and check again later
       isDirty = true
       return
@@ -506,8 +506,8 @@ export const workflowSync = {
       baseWorkflowSync.sync()
 
       // Update the last sync timestamp
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('last_db_sync_timestamp', Date.now().toString())
+      if (typeof window !== "undefined") {
+        localStorage.setItem("last_db_sync_timestamp", Date.now().toString())
       }
     }, DEBOUNCE_DELAY)
   },

@@ -1,30 +1,30 @@
-'use client'
+"use client"
 
 import {
   Children,
   isValidElement,
-  KeyboardEvent,
+  type KeyboardEvent,
   useEffect,
   useMemo,
   useRef,
   useState,
-} from 'react'
-import { ArrowUp, Loader2, Lock, Mail } from 'lucide-react'
-import { v4 as uuidv4 } from 'uuid'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { OTPInputForm } from '@/components/ui/input-otp-form'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { cn } from '@/lib/utils'
-import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
-import HeaderLinks from './components/header-links/header-links'
-import MarkdownRenderer from './components/markdown-renderer/markdown-renderer'
+} from "react"
+import { ArrowUp, Loader2, Lock, Mail } from "lucide-react"
+import { v4 as uuidv4 } from "uuid"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { OTPInputForm } from "@/components/ui/input-otp-form"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { cn } from "@/lib/utils"
+import { getFormattedGitHubStars } from "@/app/(landing)/actions/github"
+import HeaderLinks from "./components/header-links/header-links"
+import MarkdownRenderer from "./components/markdown-renderer/markdown-renderer"
 
 // Define message type
 interface ChatMessage {
   id: string
   content: string
-  type: 'user' | 'assistant'
+  type: "user" | "assistant"
   timestamp: Date
 }
 
@@ -39,24 +39,24 @@ interface ChatConfig {
     welcomeMessage?: string
     headerText?: string
   }
-  authType?: 'public' | 'password' | 'email'
+  authType?: "public" | "password" | "email"
 }
 
 // ChatGPT-style message component
 function ClientChatMessage({ message }: { message: ChatMessage }) {
   // Check if content is a JSON object
   const isJsonObject = useMemo(() => {
-    return typeof message.content === 'object' && message.content !== null
+    return typeof message.content === "object" && message.content !== null
   }, [message.content])
 
   // For user messages (on the right)
-  if (message.type === 'user') {
+  if (message.type === "user") {
     return (
-      <div className="py-5 px-4">
-        <div className="max-w-3xl mx-auto">
+      <div className="px-4 py-5">
+        <div className="mx-auto max-w-3xl">
           <div className="flex justify-end">
-            <div className="bg-[#F4F4F4] dark:bg-gray-600 rounded-3xl max-w-[80%] py-3 px-4">
-              <div className="whitespace-pre-wrap break-words text-base leading-relaxed text-[#0D0D0D]">
+            <div className="max-w-[80%] rounded-3xl bg-[#F4F4F4] px-4 py-3 dark:bg-gray-600">
+              <div className="whitespace-pre-wrap break-words text-[#0D0D0D] text-base leading-relaxed">
                 {isJsonObject ? (
                   <pre>{JSON.stringify(message.content, null, 2)}</pre>
                 ) : (
@@ -72,8 +72,8 @@ function ClientChatMessage({ message }: { message: ChatMessage }) {
 
   // For assistant messages (on the left)
   return (
-    <div className="py-5 px-4">
-      <div className="max-w-3xl mx-auto">
+    <div className="px-4 py-5">
+      <div className="mx-auto max-w-3xl">
         <div className="flex">
           <div className="max-w-[80%]">
             <div className="whitespace-pre-wrap break-words text-base leading-relaxed">
@@ -92,26 +92,26 @@ function ClientChatMessage({ message }: { message: ChatMessage }) {
 
 export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [inputValue, setInputValue] = useState('')
+  const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [chatConfig, setChatConfig] = useState<ChatConfig | null>(null)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [starCount, setStarCount] = useState('3.4k')
-  const [conversationId, setConversationId] = useState('')
+  const [starCount, setStarCount] = useState("3.4k")
+  const [conversationId, setConversationId] = useState("")
 
   // Authentication state
-  const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
-  const [password, setPassword] = useState('')
-  const [email, setEmail] = useState('')
+  const [authRequired, setAuthRequired] = useState<"password" | "email" | null>(null)
+  const [password, setPassword] = useState("")
+  const [email, setEmail] = useState("")
   const [authError, setAuthError] = useState<string | null>(null)
   const [isAuthenticating, setIsAuthenticating] = useState(false)
 
   // OTP verification state
   const [showOtpVerification, setShowOtpVerification] = useState(false)
-  const [otpValue, setOtpValue] = useState('')
+  const [otpValue, setOtpValue] = useState("")
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
 
@@ -120,9 +120,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     try {
       // Use relative URL instead of absolute URL with env.NEXT_PUBLIC_APP_URL
       const response = await fetch(`/api/chat/${subdomain}`, {
-        credentials: 'same-origin',
+        credentials: "same-origin",
         headers: {
-          'X-Requested-With': 'XMLHttpRequest',
+          "X-Requested-With": "XMLHttpRequest",
         },
       })
 
@@ -131,11 +131,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         if (response.status === 401) {
           const errorData = await response.json()
 
-          if (errorData.error === 'auth_required_password') {
-            setAuthRequired('password')
+          if (errorData.error === "auth_required_password") {
+            setAuthRequired("password")
             return
-          } else if (errorData.error === 'auth_required_email') {
-            setAuthRequired('email')
+          }
+          if (errorData.error === "auth_required_email") {
+            setAuthRequired("email")
             return
           }
         }
@@ -152,16 +153,16 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       if (data?.customizations?.welcomeMessage) {
         setMessages([
           {
-            id: 'welcome',
+            id: "welcome",
             content: data.customizations.welcomeMessage,
-            type: 'assistant',
+            type: "assistant",
             timestamp: new Date(),
           },
         ])
       }
     } catch (error) {
-      console.error('Error fetching chat config:', error)
-      setError('This chat is currently unavailable. Please try again later.')
+      console.error("Error fetching chat config:", error)
+      setError("This chat is currently unavailable. Please try again later.")
     }
   }
 
@@ -177,13 +178,13 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         setStarCount(formattedStars)
       })
       .catch((err) => {
-        console.error('Failed to fetch GitHub stars:', err)
+        console.error("Failed to fetch GitHub stars:", err)
       })
   }, [subdomain])
 
   // Handle keyboard input for message sending
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
     }
@@ -191,7 +192,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   // Handle keyboard input for auth forms
   const handleAuthKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault()
       handleAuthenticate()
     }
@@ -199,7 +200,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   // Handle authentication
   const handleAuthenticate = async () => {
-    if (authRequired === 'password') {
+    if (authRequired === "password") {
       // Password auth remains the same
       setAuthError(null)
       setIsAuthenticating(true)
@@ -208,18 +209,18 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         const payload = { password }
 
         const response = await fetch(`/api/chat/${subdomain}`, {
-          method: 'POST',
-          credentials: 'same-origin',
+          method: "POST",
+          credentials: "same-origin",
           headers: {
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
           },
           body: JSON.stringify(payload),
         })
 
         if (!response.ok) {
           const errorData = await response.json()
-          setAuthError(errorData.error || 'Authentication failed')
+          setAuthError(errorData.error || "Authentication failed")
           return
         }
 
@@ -230,14 +231,14 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
         // Reset auth state
         setAuthRequired(null)
-        setPassword('')
+        setPassword("")
       } catch (error) {
-        console.error('Authentication error:', error)
-        setAuthError('An error occurred during authentication')
+        console.error("Authentication error:", error)
+        setAuthError("An error occurred during authentication")
       } finally {
         setIsAuthenticating(false)
       }
-    } else if (authRequired === 'email') {
+    } else if (authRequired === "email") {
       // For email auth, we now send an OTP first
       if (!showOtpVerification) {
         // Step 1: User has entered email, send OTP
@@ -246,25 +247,25 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
         try {
           const response = await fetch(`/api/chat/${subdomain}/otp`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest',
+              "Content-Type": "application/json",
+              "X-Requested-With": "XMLHttpRequest",
             },
             body: JSON.stringify({ email }),
           })
 
           if (!response.ok) {
             const errorData = await response.json()
-            setAuthError(errorData.error || 'Failed to send verification code')
+            setAuthError(errorData.error || "Failed to send verification code")
             return
           }
 
           // OTP sent successfully, show OTP input
           setShowOtpVerification(true)
         } catch (error) {
-          console.error('Error sending OTP:', error)
-          setAuthError('An error occurred while sending the verification code')
+          console.error("Error sending OTP:", error)
+          setAuthError("An error occurred while sending the verification code")
         } finally {
           setIsSendingOtp(false)
         }
@@ -275,17 +276,17 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
         try {
           const response = await fetch(`/api/chat/${subdomain}/otp`, {
-            method: 'PUT',
+            method: "PUT",
             headers: {
-              'Content-Type': 'application/json',
-              'X-Requested-With': 'XMLHttpRequest',
+              "Content-Type": "application/json",
+              "X-Requested-With": "XMLHttpRequest",
             },
             body: JSON.stringify({ email, otp: otpValue }),
           })
 
           if (!response.ok) {
             const errorData = await response.json()
-            setAuthError(errorData.error || 'Invalid verification code')
+            setAuthError(errorData.error || "Invalid verification code")
             return
           }
 
@@ -296,12 +297,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
           // Reset auth state
           setAuthRequired(null)
-          setEmail('')
-          setOtpValue('')
+          setEmail("")
+          setOtpValue("")
           setShowOtpVerification(false)
         } catch (error) {
-          console.error('Error verifying OTP:', error)
-          setAuthError('An error occurred during verification')
+          console.error("Error verifying OTP:", error)
+          setAuthError("An error occurred during verification")
         } finally {
           setIsVerifyingOtp(false)
         }
@@ -316,25 +317,25 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
     try {
       const response = await fetch(`/api/chat/${subdomain}/otp`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
         },
         body: JSON.stringify({ email }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        setAuthError(errorData.error || 'Failed to resend verification code')
+        setAuthError(errorData.error || "Failed to resend verification code")
         return
       }
 
       // Show a message that OTP was sent
-      setAuthError('Verification code sent. Please check your email.')
+      setAuthError("Verification code sent. Please check your email.")
     } catch (error) {
-      console.error('Error resending OTP:', error)
-      setAuthError('An error occurred while resending the verification code')
+      console.error("Error resending OTP:", error)
+      setAuthError("An error occurred while resending the verification code")
     } finally {
       setIsSendingOtp(false)
     }
@@ -342,7 +343,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   // Add a function to handle email input key down
   const handleEmailKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault()
       handleAuthenticate()
     }
@@ -350,7 +351,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   // Add a function to handle OTP input key down
   const handleOtpKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault()
       handleAuthenticate()
     }
@@ -359,7 +360,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Scroll to bottom of messages
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
     }
   }, [messages])
 
@@ -370,12 +371,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       content: inputValue,
-      type: 'user',
+      type: "user",
       timestamp: new Date(),
     }
 
     setMessages((prev) => [...prev, userMessage])
-    setInputValue('')
+    setInputValue("")
     setIsLoading(true)
 
     // Ensure focus remains on input field
@@ -392,23 +393,23 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       // Use relative URL with credentials
       const response = await fetch(`/api/chat/${subdomain}`, {
-        method: 'POST',
-        credentials: 'same-origin',
+        method: "POST",
+        credentials: "same-origin",
         headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
         },
         body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to get response')
+        throw new Error("Failed to get response")
       }
 
       // Detect streaming response via content-type (text/plain) or absence of JSON content-type
-      const contentType = response.headers.get('Content-Type') || ''
+      const contentType = response.headers.get("Content-Type") || ""
 
-      if (contentType.includes('text/plain')) {
+      if (contentType.includes("text/plain")) {
         // Handle streaming response
         const messageId = crypto.randomUUID()
 
@@ -417,8 +418,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           ...prev,
           {
             id: messageId,
-            content: '',
-            type: 'assistant',
+            content: "",
+            type: "assistant",
             timestamp: new Date(),
           },
         ])
@@ -449,7 +450,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       } else {
         // Fallback to JSON response handling
         const responseData = await response.json()
-        console.log('Message response:', responseData)
+        console.log("Message response:", responseData)
 
         // Handle different response formats from API
         if (
@@ -463,18 +464,18 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             let formattedContent = content
 
             // Convert objects to strings for display
-            if (typeof formattedContent === 'object' && formattedContent !== null) {
+            if (typeof formattedContent === "object" && formattedContent !== null) {
               try {
                 formattedContent = JSON.stringify(formattedContent)
               } catch (e) {
-                formattedContent = 'Received structured data response'
+                formattedContent = "Received structured data response"
               }
             }
 
             return {
               id: crypto.randomUUID(),
-              content: formattedContent || 'No content found',
-              type: 'assistant' as const,
+              content: formattedContent || "No content found",
+              type: "assistant" as const,
               timestamp: new Date(),
             }
           })
@@ -486,14 +487,14 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           let messageContent = responseData.output
 
           if (!messageContent && responseData.content) {
-            if (typeof responseData.content === 'object') {
+            if (typeof responseData.content === "object") {
               if (responseData.content.text) {
                 messageContent = responseData.content.text
               } else {
                 try {
                   messageContent = JSON.stringify(responseData.content)
                 } catch (e) {
-                  messageContent = 'Received structured data response'
+                  messageContent = "Received structured data response"
                 }
               }
             } else {
@@ -504,7 +505,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           const assistantMessage: ChatMessage = {
             id: crypto.randomUUID(),
             content: messageContent || "Sorry, I couldn't process your request.",
-            type: 'assistant',
+            type: "assistant",
             timestamp: new Date(),
           }
 
@@ -512,12 +513,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         }
       }
     } catch (error) {
-      console.error('Error sending message:', error)
+      console.error("Error sending message:", error)
 
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        content: 'Sorry, there was an error processing your message. Please try again.',
-        type: 'assistant',
+        content: "Sorry, there was an error processing your message. Please try again.",
+        type: "assistant",
         timestamp: new Date(),
       }
 
@@ -534,9 +535,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // If error, show error message
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="p-6 max-w-md mx-auto bg-white rounded-xl shadow-md">
-          <div className="flex justify-between items-center mb-2">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="mx-auto max-w-md rounded-xl bg-white p-6 shadow-md">
+          <div className="mb-2 flex items-center justify-between">
             <a href="https://simstudio.ai" target="_blank" rel="noopener noreferrer">
               <svg
                 width="32"
@@ -579,7 +580,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             </a>
             <HeaderLinks stars={starCount} />
           </div>
-          <h2 className="text-xl font-bold text-red-500 mb-2">Error</h2>
+          <h2 className="mb-2 font-bold text-red-500 text-xl">Error</h2>
           <p className="text-gray-700">{error}</p>
         </div>
       </div>
@@ -589,13 +590,13 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // If authentication is required, show auth form
   if (authRequired) {
     // Get title and description from the URL params or use defaults
-    const title = new URLSearchParams(window.location.search).get('title') || 'chat'
-    const primaryColor = new URLSearchParams(window.location.search).get('color') || '#802FFF'
+    const title = new URLSearchParams(window.location.search).get("title") || "chat"
+    const primaryColor = new URLSearchParams(window.location.search).get("color") || "#802FFF"
 
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="p-6 max-w-md w-full mx-auto bg-white rounded-xl shadow-md">
-          <div className="flex justify-between items-center w-full mb-4">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="mx-auto w-full max-w-md rounded-xl bg-white p-6 shadow-md">
+          <div className="mb-4 flex w-full items-center justify-between">
             <a href="https://simstudio.ai" target="_blank" rel="noopener noreferrer">
               <svg
                 width="32"
@@ -638,33 +639,33 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             </a>
             <HeaderLinks stars={starCount} />
           </div>
-          <div className="text-center mb-6">
-            <h2 className="text-xl font-bold mb-2">{title}</h2>
+          <div className="mb-6 text-center">
+            <h2 className="mb-2 font-bold text-xl">{title}</h2>
             <p className="text-gray-600">
-              {authRequired === 'password'
-                ? 'This chat is password-protected. Please enter the password to continue.'
-                : 'This chat requires email verification. Please enter your email to continue.'}
+              {authRequired === "password"
+                ? "This chat is password-protected. Please enter the password to continue."
+                : "This chat requires email verification. Please enter your email to continue."}
             </p>
           </div>
 
           {authError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md">
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-red-600">
               {authError}
             </div>
           )}
 
           <div className="space-y-4">
-            {authRequired === 'password' ? (
-              <div className="w-full max-w-sm mx-auto">
-                <div className="bg-white dark:bg-black/10 rounded-lg shadow-sm p-6 space-y-4 border border-neutral-200 dark:border-neutral-800">
+            {authRequired === "password" ? (
+              <div className="mx-auto w-full max-w-sm">
+                <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-black/10">
                   <div className="flex items-center justify-center">
-                    <div className="p-2 rounded-full bg-primary/10 text-primary">
+                    <div className="rounded-full bg-primary/10 p-2 text-primary">
                       <Lock className="h-5 w-5" />
                     </div>
                   </div>
 
-                  <h2 className="text-lg font-medium text-center">Password Required</h2>
-                  <p className="text-neutral-500 dark:text-neutral-400 text-sm text-center">
+                  <h2 className="text-center font-medium text-lg">Password Required</h2>
+                  <p className="text-center text-neutral-500 text-sm dark:text-neutral-400">
                     Enter the password to access this chat
                   </p>
 
@@ -676,7 +677,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                   >
                     <div className="space-y-3">
                       <div className="space-y-1">
-                        <label htmlFor="password" className="text-sm font-medium sr-only">
+                        <label htmlFor="password" className="sr-only font-medium text-sm">
                           Password
                         </label>
                         <Input
@@ -691,7 +692,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                       </div>
 
                       {authError && (
-                        <div className="text-sm text-red-600 dark:text-red-500">{authError}</div>
+                        <div className="text-red-600 text-sm dark:text-red-500">{authError}</div>
                       )}
 
                       <Button
@@ -699,7 +700,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                         disabled={!password || isAuthenticating}
                         className="w-full"
                         style={{
-                          backgroundColor: chatConfig?.customizations?.primaryColor || '#802FFF',
+                          backgroundColor: chatConfig?.customizations?.primaryColor || "#802FFF",
                         }}
                       >
                         {isAuthenticating ? (
@@ -708,7 +709,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                             Authenticating...
                           </div>
                         ) : (
-                          'Continue'
+                          "Continue"
                         )}
                       </Button>
                     </div>
@@ -716,26 +717,26 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                 </div>
               </div>
             ) : (
-              <div className="w-full max-w-sm mx-auto">
-                <div className="bg-white dark:bg-black/10 rounded-lg shadow-md p-6 space-y-4 border border-neutral-200 dark:border-neutral-800">
+              <div className="mx-auto w-full max-w-sm">
+                <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-md dark:border-neutral-800 dark:bg-black/10">
                   <div className="flex items-center justify-center">
-                    <div className="p-2 rounded-full bg-primary/10 text-primary">
+                    <div className="rounded-full bg-primary/10 p-2 text-primary">
                       <Mail className="h-5 w-5" />
                     </div>
                   </div>
 
-                  <h2 className="text-lg font-medium text-center">Email Verification</h2>
+                  <h2 className="text-center font-medium text-lg">Email Verification</h2>
 
                   {!showOtpVerification ? (
                     // Step 1: Email Input
                     <>
-                      <p className="text-neutral-500 dark:text-neutral-400 text-sm text-center">
+                      <p className="text-center text-neutral-500 text-sm dark:text-neutral-400">
                         Enter your email address to access this chat
                       </p>
 
                       <div className="space-y-3">
                         <div className="space-y-1">
-                          <label htmlFor="email" className="text-sm font-medium sr-only">
+                          <label htmlFor="email" className="sr-only font-medium text-sm">
                             Email
                           </label>
                           <Input
@@ -751,7 +752,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                         </div>
 
                         {authError && (
-                          <div className="text-sm text-red-600 dark:text-red-500">{authError}</div>
+                          <div className="text-red-600 text-sm dark:text-red-500">{authError}</div>
                         )}
 
                         <Button
@@ -759,7 +760,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                           disabled={!email || isSendingOtp || isAuthenticating}
                           className="w-full"
                           style={{
-                            backgroundColor: chatConfig?.customizations?.primaryColor || '#802FFF',
+                            backgroundColor: chatConfig?.customizations?.primaryColor || "#802FFF",
                           }}
                         >
                           {isSendingOtp ? (
@@ -768,7 +769,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                               Sending Code...
                             </div>
                           ) : (
-                            'Continue'
+                            "Continue"
                           )}
                         </Button>
                       </div>
@@ -776,10 +777,10 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                   ) : (
                     // Step 2: OTP Verification with OTPInputForm
                     <>
-                      <p className="text-neutral-500 dark:text-neutral-400 text-sm text-center">
+                      <p className="text-center text-neutral-500 text-sm dark:text-neutral-400">
                         Enter the verification code sent to
                       </p>
-                      <p className="text-center font-medium text-sm break-all mb-3">{email}</p>
+                      <p className="mb-3 break-all text-center font-medium text-sm">{email}</p>
 
                       <OTPInputForm
                         onSubmit={(value) => {
@@ -795,19 +796,19 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                           type="button"
                           onClick={() => handleResendOtp()}
                           disabled={isSendingOtp}
-                          className="text-sm text-primary hover:underline disabled:opacity-50"
+                          className="text-primary text-sm hover:underline disabled:opacity-50"
                         >
-                          {isSendingOtp ? 'Sending...' : 'Resend code'}
+                          {isSendingOtp ? "Sending..." : "Resend code"}
                         </button>
                         <span className="mx-2 text-neutral-300 dark:text-neutral-600">•</span>
                         <button
                           type="button"
                           onClick={() => {
                             setShowOtpVerification(false)
-                            setOtpValue('')
+                            setOtpValue("")
                             setAuthError(null)
                           }}
-                          className="text-sm text-primary hover:underline"
+                          className="text-primary text-sm hover:underline"
                         >
                           Change email
                         </button>
@@ -826,17 +827,17 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Loading state while fetching config
   if (!chatConfig) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
         <div className="animate-pulse text-center">
-          <div className="h-8 w-48 bg-gray-200 rounded mx-auto mb-4"></div>
-          <div className="h-4 w-64 bg-gray-200 rounded mx-auto"></div>
+          <div className="mx-auto mb-4 h-8 w-48 rounded bg-gray-200" />
+          <div className="mx-auto h-4 w-64 rounded bg-gray-200" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+    <div className="fixed inset-0 z-[100] flex flex-col bg-background">
       <style jsx>{`
         @keyframes growShrink {
           0%,
@@ -858,12 +859,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           {chatConfig?.customizations?.logoUrl && (
             <img
               src={chatConfig.customizations.logoUrl}
-              alt={`${chatConfig?.title || 'Chat'} logo`}
+              alt={`${chatConfig?.title || "Chat"} logo`}
               className="h-6 w-6 object-contain"
             />
           )}
-          <h2 className="text-lg font-medium">
-            {chatConfig?.customizations?.headerText || chatConfig?.title || 'Chat'}
+          <h2 className="font-medium text-lg">
+            {chatConfig?.customizations?.headerText || chatConfig?.title || "Chat"}
           </h2>
         </div>
         <div className="flex items-center gap-3">
@@ -915,13 +916,13 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       {/* Messages container */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto">
+        <div className="mx-auto max-w-3xl">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full py-10 px-4">
-              <div className="text-center space-y-2">
-                <h3 className="text-lg font-medium">How can I help you today?</h3>
+            <div className="flex h-full flex-col items-center justify-center px-4 py-10">
+              <div className="space-y-2 text-center">
+                <h3 className="font-medium text-lg">How can I help you today?</h3>
                 <p className="text-muted-foreground text-sm">
-                  {chatConfig.description || 'Ask me anything.'}
+                  {chatConfig.description || "Ask me anything."}
                 </p>
               </div>
             </div>
@@ -931,12 +932,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
           {/* Loading indicator (shows only when executing) */}
           {isLoading && (
-            <div className="py-5 px-4">
-              <div className="max-w-3xl mx-auto">
+            <div className="px-4 py-5">
+              <div className="mx-auto max-w-3xl">
                 <div className="flex">
                   <div className="max-w-[80%]">
-                    <div className="flex items-center h-6">
-                      <div className="w-3 h-3 rounded-full bg-black dark:bg-black loading-dot"></div>
+                    <div className="flex h-6 items-center">
+                      <div className="loading-dot h-3 w-3 rounded-full bg-black dark:bg-black" />
                     </div>
                   </div>
                 </div>
@@ -950,7 +951,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       {/* Input area (fixed at bottom) */}
       <div className="bg-background p-6">
-        <div className="max-w-3xl mx-auto">
+        <div className="mx-auto max-w-3xl">
           <div className="relative rounded-2xl border bg-background shadow-sm">
             <Input
               ref={inputRef}
@@ -958,13 +959,13 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Message..."
-              className="flex-1 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-7 pr-16 bg-transparent pl-6 text-base min-h-[50px] rounded-2xl"
+              className="min-h-[50px] flex-1 rounded-2xl border-0 bg-transparent py-7 pr-16 pl-6 text-base focus-visible:ring-0 focus-visible:ring-offset-0"
             />
             <Button
               onClick={handleSendMessage}
               size="icon"
               disabled={!inputValue.trim() || isLoading}
-              className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-xl bg-black text-white hover:bg-gray-800"
+              className="-translate-y-1/2 absolute top-1/2 right-3 h-10 w-10 rounded-xl bg-black p-0 text-white hover:bg-gray-800"
             >
               <ArrowUp className="h-4 w-4" />
             </Button>

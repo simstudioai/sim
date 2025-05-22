@@ -1,24 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { z } from 'zod'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
-import { getUserId } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { customTools } from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { eq } from "drizzle-orm"
+import { z } from "zod"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { getUserId } from "@/app/api/auth/oauth/utils"
+import { db } from "@/db"
+import { customTools } from "@/db/schema"
 
-const logger = createLogger('CustomToolsAPI')
+const logger = createLogger("CustomToolsAPI")
 
 // Define validation schema for custom tools
 const CustomToolSchema = z.object({
   tools: z.array(
     z.object({
       id: z.string().optional(),
-      title: z.string().min(1, 'Tool title is required'),
+      title: z.string().min(1, "Tool title is required"),
       schema: z.object({
-        type: z.literal('function'),
+        type: z.literal("function"),
         function: z.object({
-          name: z.string().min(1, 'Function name is required'),
+          name: z.string().min(1, "Function name is required"),
           description: z.string().optional(),
           parameters: z.object({
             type: z.string(),
@@ -36,7 +36,7 @@ const CustomToolSchema = z.object({
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const searchParams = request.nextUrl.searchParams
-  const workflowId = searchParams.get('workflowId')
+  const workflowId = searchParams.get("workflowId")
 
   try {
     let userId: string | undefined
@@ -47,14 +47,14 @@ export async function GET(request: NextRequest) {
 
       if (!userId) {
         logger.warn(`[${requestId}] No valid user found for workflow: ${workflowId}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
       }
     } else {
       // Otherwise use session-based auth (for client-side)
       const session = await getSession()
       if (!session?.user?.id) {
         logger.warn(`[${requestId}] Unauthorized custom tools access attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
       }
       userId = session.user.id
     }
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: result }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching custom tools:`, error)
-    return NextResponse.json({ error: 'Failed to fetch custom tools' }, { status: 500 })
+    return NextResponse.json({ error: "Failed to fetch custom tools" }, { status: 500 })
   }
 }
 
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized custom tools update attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const body = await req.json()
@@ -126,7 +126,6 @@ export async function POST(req: NextRequest) {
               logger.warn(
                 `[${requestId}] Silent continuation on unauthorized tool update attempt: ${tool.id}`
               )
-              continue
             }
           } else {
             // No ID provided, create a new tool
@@ -150,7 +149,7 @@ export async function POST(req: NextRequest) {
           errors: validationError.errors,
         })
         return NextResponse.json(
-          { error: 'Invalid request data', details: validationError.errors },
+          { error: "Invalid request data", details: validationError.errors },
           { status: 400 }
         )
       }
@@ -158,7 +157,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     logger.error(`[${requestId}] Error updating custom tools`, error)
-    return NextResponse.json({ error: 'Failed to update custom tools' }, { status: 500 })
+    return NextResponse.json({ error: "Failed to update custom tools" }, { status: 500 })
   }
 }
 
@@ -166,18 +165,18 @@ export async function POST(req: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const searchParams = request.nextUrl.searchParams
-  const toolId = searchParams.get('id')
+  const toolId = searchParams.get("id")
 
   if (!toolId) {
     logger.warn(`[${requestId}] Missing tool ID for deletion`)
-    return NextResponse.json({ error: 'Tool ID is required' }, { status: 400 })
+    return NextResponse.json({ error: "Tool ID is required" }, { status: 400 })
   }
 
   try {
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized custom tool deletion attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     // Check if the tool exists and belongs to the user
@@ -189,12 +188,12 @@ export async function DELETE(request: NextRequest) {
 
     if (existingTool.length === 0) {
       logger.warn(`[${requestId}] Tool not found: ${toolId}`)
-      return NextResponse.json({ error: 'Tool not found' }, { status: 404 })
+      return NextResponse.json({ error: "Tool not found" }, { status: 404 })
     }
 
     if (existingTool[0].userId !== session.user.id) {
       logger.warn(`[${requestId}] User attempted to delete a tool they don't own: ${toolId}`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
     // Delete the tool
@@ -204,6 +203,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (error) {
     logger.error(`[${requestId}] Error deleting custom tool:`, error)
-    return NextResponse.json({ error: 'Failed to delete custom tool' }, { status: 500 })
+    return NextResponse.json({ error: "Failed to delete custom tool" }, { status: 500 })
   }
 }

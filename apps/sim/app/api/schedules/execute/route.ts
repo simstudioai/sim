@@ -1,32 +1,32 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { Cron } from 'croner'
-import { and, eq, lte, not } from 'drizzle-orm'
-import { sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
-import { z } from 'zod'
-import { createLogger } from '@/lib/logs/console-logger'
-import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { type NextRequest, NextResponse } from "next/server"
+import { Cron } from "croner"
+import { and, eq, lte, not } from "drizzle-orm"
+import { sql } from "drizzle-orm"
+import { v4 as uuidv4 } from "uuid"
+import { z } from "zod"
+import { createLogger } from "@/lib/logs/console-logger"
+import { persistExecutionError, persistExecutionLogs } from "@/lib/logs/execution-logger"
+import { buildTraceSpans } from "@/lib/logs/trace-spans"
 import {
-  BlockState,
+  type BlockState,
   calculateNextRunTime as calculateNextTime,
   getScheduleTimeValues,
   getSubBlockValue,
-} from '@/lib/schedules/utils'
-import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
-import { decryptSecret } from '@/lib/utils'
-import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import { WorkflowState } from '@/stores/workflows/workflow/types'
-import { db } from '@/db'
-import { environment, userStats, workflow, workflowSchedule } from '@/db/schema'
-import { Executor } from '@/executor'
-import { Serializer } from '@/serializer'
+} from "@/lib/schedules/utils"
+import { checkServerSideUsageLimits } from "@/lib/usage-monitor"
+import { decryptSecret } from "@/lib/utils"
+import { updateWorkflowRunCounts } from "@/lib/workflows/utils"
+import { mergeSubblockState } from "@/stores/workflows/utils"
+import type { WorkflowState } from "@/stores/workflows/workflow/types"
+import { db } from "@/db"
+import { environment, userStats, workflow, workflowSchedule } from "@/db/schema"
+import { Executor } from "@/executor"
+import { Serializer } from "@/serializer"
 
 // Add dynamic export to prevent caching
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
-const logger = createLogger('ScheduledExecuteAPI')
+const logger = createLogger("ScheduledExecuteAPI")
 
 // Maximum number of consecutive failures before disabling a schedule
 const MAX_CONSECUTIVE_FAILURES = 3
@@ -39,15 +39,15 @@ function calculateNextRunTime(
   schedule: typeof workflowSchedule.$inferSelect,
   blocks: Record<string, BlockState>
 ): Date {
-  const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
-  if (!starterBlock) throw new Error('No starter block found')
-  const scheduleType = getSubBlockValue(starterBlock, 'scheduleType')
+  const starterBlock = Object.values(blocks).find((block) => block.type === "starter")
+  if (!starterBlock) throw new Error("No starter block found")
+  const scheduleType = getSubBlockValue(starterBlock, "scheduleType")
   const scheduleValues = getScheduleTimeValues(starterBlock)
 
   if (schedule.cronExpression) {
     const cron = new Cron(schedule.cronExpression)
     const nextDate = cron.nextRun()
-    if (!nextDate) throw new Error('Invalid cron expression or no future occurrences')
+    if (!nextDate) throw new Error("Invalid cron expression or no future occurrences")
     return nextDate
   }
 
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
         .select()
         .from(workflowSchedule)
         .where(
-          and(lte(workflowSchedule.nextRunAt, now), not(eq(workflowSchedule.status, 'disabled')))
+          and(lte(workflowSchedule.nextRunAt, now), not(eq(workflowSchedule.status, "disabled")))
         )
         .limit(10)
 
@@ -124,9 +124,9 @@ export async function GET(req: NextRequest) {
             executionId,
             new Error(
               usageCheck.message ||
-                'Usage limit exceeded. Please upgrade your plan to continue running scheduled workflows.'
+                "Usage limit exceeded. Please upgrade your plan to continue running scheduled workflows."
             ),
-            'schedule'
+            "schedule"
           )
 
           const retryDelay = 24 * 60 * 60 * 1000 // 24 hour delay for exceeded limits
@@ -178,7 +178,7 @@ export async function GET(req: NextRequest) {
                 const subAcc = await subAccPromise
                 let value = subBlock.value
 
-                if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
+                if (typeof value === "string" && value.includes("{{") && value.includes("}}")) {
                   const matches = value.match(/{{([^}]+)}}/g)
                   if (matches) {
                     for (const match of matches) {
@@ -236,7 +236,7 @@ export async function GET(req: NextRequest) {
 
         const processedBlockStates = Object.entries(currentBlockStates).reduce(
           (acc, [blockId, blockState]) => {
-            if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
+            if (blockState.responseFormat && typeof blockState.responseFormat === "string") {
               try {
                 logger.debug(`[${requestId}] Parsing responseFormat for block ${blockId}`)
                 const parsedResponseFormat = JSON.parse(blockState.responseFormat)
@@ -265,7 +265,7 @@ export async function GET(req: NextRequest) {
         let workflowVariables = {}
         if (workflowRecord.variables) {
           try {
-            if (typeof workflowRecord.variables === 'string') {
+            if (typeof workflowRecord.variables === "string") {
               workflowVariables = JSON.parse(workflowRecord.variables)
             } else {
               workflowVariables = workflowRecord.variables
@@ -293,7 +293,7 @@ export async function GET(req: NextRequest) {
         const result = await executor.execute(schedule.workflowId)
 
         const executionResult =
-          'stream' in result && 'execution' in result ? result.execution : result
+          "stream" in result && "execution" in result ? result.execution : result
 
         logger.info(`[${requestId}] Workflow execution completed: ${schedule.workflowId}`, {
           success: executionResult.success,
@@ -326,7 +326,7 @@ export async function GET(req: NextRequest) {
           totalDuration,
         }
 
-        await persistExecutionLogs(schedule.workflowId, executionId, enrichedResult, 'schedule')
+        await persistExecutionLogs(schedule.workflowId, executionId, enrichedResult, "schedule")
 
         if (executionResult.success) {
           logger.info(`[${requestId}] Workflow ${schedule.workflowId} executed successfully`)
@@ -375,7 +375,7 @@ export async function GET(req: NextRequest) {
                 nextRunAt,
                 failedCount: newFailedCount,
                 lastFailedAt: now,
-                status: shouldDisable ? 'disabled' : 'active',
+                status: shouldDisable ? "disabled" : "active",
               })
               .where(eq(workflowSchedule.id, schedule.id))
 
@@ -390,7 +390,7 @@ export async function GET(req: NextRequest) {
           error
         )
 
-        await persistExecutionError(schedule.workflowId, executionId, error, 'schedule')
+        await persistExecutionError(schedule.workflowId, executionId, error, "schedule")
 
         let nextRunAt: Date
         try {
@@ -432,7 +432,7 @@ export async function GET(req: NextRequest) {
               nextRunAt,
               failedCount: newFailedCount,
               lastFailedAt: now,
-              status: shouldDisable ? 'disabled' : 'active',
+              status: shouldDisable ? "disabled" : "active",
             })
             .where(eq(workflowSchedule.id, schedule.id))
 
@@ -450,7 +450,7 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
-    message: 'Scheduled workflow executions processed',
+    message: "Scheduled workflow executions processed",
     executedCount: dueSchedules.length,
   })
 }

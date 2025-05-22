@@ -1,16 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
-import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { webhook, workflow } from '@/db/schema'
-import { getOAuthToken } from '../auth/oauth/utils'
+import { type NextRequest, NextResponse } from "next/server"
+import { and, eq } from "drizzle-orm"
+import { nanoid } from "nanoid"
+import { getSession } from "@/lib/auth"
+import { env } from "@/lib/env"
+import { createLogger } from "@/lib/logs/console-logger"
+import { db } from "@/db"
+import { webhook, workflow } from "@/db/schema"
+import { getOAuthToken } from "../auth/oauth/utils"
 
-const logger = createLogger('WebhooksAPI')
+const logger = createLogger("WebhooksAPI")
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
 // Get all webhooks for the current user
 export async function GET(request: NextRequest) {
@@ -20,12 +20,12 @@ export async function GET(request: NextRequest) {
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized webhooks access attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     // Get query parameters
     const { searchParams } = new URL(request.url)
-    const workflowId = searchParams.get('workflowId')
+    const workflowId = searchParams.get("workflowId")
 
     logger.debug(`[${requestId}] Fetching webhooks for user ${session.user.id}`, {
       filteredByWorkflow: !!workflowId,
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ webhooks }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching webhooks`, error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
   if (!userId) {
     logger.warn(`[${requestId}] Unauthorized webhook creation attempt`)
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
         hasWorkflowId: !!workflowId,
         hasPath: !!path,
       })
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
     // Check if the workflow belongs to the user
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
     if (workflows.length === 0) {
       logger.warn(`[${requestId}] Workflow not found or not owned by user: ${workflowId}`)
-      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      return NextResponse.json({ error: "Workflow not found" }, { status: 404 })
     }
 
     // Check if a webhook with the same path already exists
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     if (existingWebhooks.length > 0 && existingWebhooks[0].workflowId !== workflowId) {
       logger.warn(`[${requestId}] Webhook path conflict: ${path}`)
       return NextResponse.json(
-        { error: 'Webhook path already exists.', code: 'PATH_EXISTS' },
+        { error: "Webhook path already exists.", code: "PATH_EXISTS" },
         { status: 409 }
       )
     }
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Attempt to create webhook in Airtable if provider is 'airtable' ---
-    if (savedWebhook && provider === 'airtable') {
+    if (savedWebhook && provider === "airtable") {
       logger.info(
         `[${requestId}] Airtable provider detected. Attempting to create webhook in Airtable.`
       )
@@ -154,8 +154,8 @@ export async function POST(request: NextRequest) {
         logger.error(`[${requestId}] Error creating Airtable webhook`, err)
         return NextResponse.json(
           {
-            error: 'Failed to create webhook in Airtable',
-            details: err instanceof Error ? err.message : 'Unknown error',
+            error: "Failed to create webhook in Airtable",
+            details: err instanceof Error ? err.message : "Unknown error",
           },
           { status: 500 }
         )
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
     // --- End Airtable specific logic ---
 
     // --- Attempt to create webhook in Telegram if provider is 'telegram' ---
-    if (savedWebhook && provider === 'telegram') {
+    if (savedWebhook && provider === "telegram") {
       logger.info(
         `[${requestId}] Telegram provider detected. Attempting to create webhook in Telegram.`
       )
@@ -174,8 +174,8 @@ export async function POST(request: NextRequest) {
         logger.error(`[${requestId}] Error creating Telegram webhook`, err)
         return NextResponse.json(
           {
-            error: 'Failed to create webhook in Telegram',
-            details: err instanceof Error ? err.message : 'Unknown error',
+            error: "Failed to create webhook in Telegram",
+            details: err instanceof Error ? err.message : "Unknown error",
           },
           { status: 500 }
         )
@@ -184,18 +184,18 @@ export async function POST(request: NextRequest) {
     // --- End Telegram specific logic ---
 
     // --- Gmail webhook setup ---
-    if (savedWebhook && provider === 'gmail') {
+    if (savedWebhook && provider === "gmail") {
       logger.info(`[${requestId}] Gmail provider detected. Setting up Gmail webhook configuration.`)
       try {
-        const { configureGmailPolling } = await import('@/lib/webhooks/utils')
+        const { configureGmailPolling } = await import("@/lib/webhooks/utils")
         const success = await configureGmailPolling(userId, savedWebhook, requestId)
 
         if (!success) {
           logger.error(`[${requestId}] Failed to configure Gmail polling`)
           return NextResponse.json(
             {
-              error: 'Failed to configure Gmail polling',
-              details: 'Please check your Gmail account permissions and try again',
+              error: "Failed to configure Gmail polling",
+              details: "Please check your Gmail account permissions and try again",
             },
             { status: 500 }
           )
@@ -206,8 +206,8 @@ export async function POST(request: NextRequest) {
         logger.error(`[${requestId}] Error setting up Gmail webhook configuration`, err)
         return NextResponse.json(
           {
-            error: 'Failed to configure Gmail webhook',
-            details: err instanceof Error ? err.message : 'Unknown error',
+            error: "Failed to configure Gmail webhook",
+            details: err instanceof Error ? err.message : "Unknown error",
           },
           { status: 500 }
         )
@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
       message: error.message,
       stack: error.stack,
     })
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
@@ -244,7 +244,7 @@ async function createAirtableWebhookSubscription(
       return // Cannot proceed without base/table IDs
     }
 
-    const accessToken = await getOAuthToken(userId, 'airtable') // Use 'airtable' as the providerId key
+    const accessToken = await getOAuthToken(userId, "airtable") // Use 'airtable' as the providerId key
     if (!accessToken) {
       logger.warn(
         `[${requestId}] Could not retrieve Airtable access token for user ${userId}. Cannot create webhook in Airtable.`
@@ -254,7 +254,7 @@ async function createAirtableWebhookSubscription(
 
     const requestOrigin = new URL(request.url).origin
     // Ensure origin does not point to localhost for external API calls
-    const effectiveOrigin = requestOrigin.includes('localhost')
+    const effectiveOrigin = requestOrigin.includes("localhost")
       ? env.NEXT_PUBLIC_APP_URL || requestOrigin // Use env var if available, fallback to original
       : requestOrigin
 
@@ -270,16 +270,16 @@ async function createAirtableWebhookSubscription(
     const specification: any = {
       options: {
         filters: {
-          dataTypes: ['tableData'], // Watch table data changes
+          dataTypes: ["tableData"], // Watch table data changes
           recordChangeScope: tableId, // Watch only the specified table
         },
       },
     }
 
     // Conditionally add the 'includes' field based on the config
-    if (includeCellValuesInFieldIds === 'all') {
+    if (includeCellValuesInFieldIds === "all") {
       specification.options.includes = {
-        includeCellValuesInFieldIds: 'all',
+        includeCellValuesInFieldIds: "all",
       }
     }
 
@@ -289,10 +289,10 @@ async function createAirtableWebhookSubscription(
     }
 
     const airtableResponse = await fetch(airtableApiUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(requestBody),
     })
@@ -302,7 +302,7 @@ async function createAirtableWebhookSubscription(
 
     if (!airtableResponse.ok || responseBody.error) {
       const errorMessage =
-        responseBody.error?.message || responseBody.error || 'Unknown Airtable API error'
+        responseBody.error?.message || responseBody.error || "Unknown Airtable API error"
       const errorType = responseBody.error?.type
       logger.error(
         `[${requestId}] Failed to create webhook in Airtable for webhook ${webhookData.id}. Status: ${airtableResponse.status}`,
@@ -366,7 +366,7 @@ async function createTelegramWebhookSubscription(
 
     const requestOrigin = new URL(request.url).origin
     // Ensure origin does not point to localhost for external API calls
-    const effectiveOrigin = requestOrigin.includes('localhost')
+    const effectiveOrigin = requestOrigin.includes("localhost")
       ? env.NEXT_PUBLIC_APP_URL || requestOrigin // Use env var if available, fallback to original
       : requestOrigin
 
@@ -381,15 +381,15 @@ async function createTelegramWebhookSubscription(
 
     const requestBody: any = {
       url: notificationUrl,
-      allowed_updates: ['message'],
+      allowed_updates: ["message"],
     }
 
     // Configure user-agent header to ensure Telegram can identify itself to our middleware
     const telegramResponse = await fetch(telegramApiUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'TelegramBot/1.0',
+        "Content-Type": "application/json",
+        "User-Agent": "TelegramBot/1.0",
       },
       body: JSON.stringify(requestBody),
     })
@@ -414,7 +414,7 @@ async function createTelegramWebhookSubscription(
       const webhookInfoUrl = `https://api.telegram.org/bot${botToken}/getWebhookInfo`
       const webhookInfo = await fetch(webhookInfoUrl, {
         headers: {
-          'User-Agent': 'TelegramBot/1.0',
+          "User-Agent": "TelegramBot/1.0",
         },
       })
       const webhookInfoJson = await webhookInfo.json()

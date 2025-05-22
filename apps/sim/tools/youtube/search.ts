@@ -1,28 +1,28 @@
-import { ToolConfig } from '../types'
-import { YouTubeSearchParams, YouTubeSearchResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { YouTubeSearchParams, YouTubeSearchResponse } from "./types"
 
 export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchResponse> = {
-  id: 'youtube_search',
-  name: 'YouTube Search',
-  description: 'Search for videos on YouTube using the YouTube Data API.',
-  version: '1.0.0',
+  id: "youtube_search",
+  name: "YouTube Search",
+  description: "Search for videos on YouTube using the YouTube Data API.",
+  version: "1.0.0",
   params: {
     query: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Search query for YouTube videos',
+      description: "Search query for YouTube videos",
     },
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'YouTube API Key',
+      description: "YouTube API Key",
     },
     maxResults: {
-      type: 'number',
+      type: "number",
       required: false,
       default: 5,
-      description: 'Maximum number of videos to return',
+      description: "Maximum number of videos to return",
     },
   },
   request: {
@@ -33,15 +33,15 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
       url += `&maxResults=${params.maxResults || 5}`
       return url
     },
-    method: 'GET',
+    method: "GET",
     headers: () => ({
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     }),
   },
   transformResponse: async (response: Response): Promise<YouTubeSearchResponse> => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.error?.message || 'YouTube API error')
+      throw new Error(data.error?.message || "YouTube API error")
     }
     const items = (data.items || []).map((item: any) => ({
       videoId: item.id?.videoId,
@@ -51,7 +51,7 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
         item.snippet?.thumbnails?.default?.url ||
         item.snippet?.thumbnails?.medium?.url ||
         item.snippet?.thumbnails?.high?.url ||
-        '',
+        "",
     }))
     return {
       success: true,
@@ -63,7 +63,7 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
     }
   },
   transformError: (error: any): string => {
-    const message = error.error?.message || error.message || 'YouTube search failed'
+    const message = error.error?.message || error.message || "YouTube search failed"
     const code = error.error?.code || error.code
     return `${message} (${code})`
   },

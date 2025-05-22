@@ -1,59 +1,55 @@
-import { ToolConfig } from '../types'
-import { Mem0Response } from './types'
+import type { ToolConfig } from "../types"
+import type { Mem0Response } from "./types"
 
 // Search Memories Tool
 export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
-  id: 'mem0_search_memories',
-  name: 'Search Memories',
-  description: 'Search for memories in Mem0 using semantic search',
-  version: '1.0.0',
+  id: "mem0_search_memories",
+  name: "Search Memories",
+  description: "Search for memories in Mem0 using semantic search",
+  version: "1.0.0",
   params: {
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Your Mem0 API key',
+      description: "Your Mem0 API key",
     },
     userId: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'User ID to search memories for',
+      description: "User ID to search memories for",
     },
     query: {
-      type: 'string',
+      type: "string",
       required: true,
-      description: 'Search query to find relevant memories',
+      description: "Search query to find relevant memories",
     },
     limit: {
-      type: 'number',
+      type: "number",
       required: false,
       default: 10,
-      description: 'Maximum number of results to return',
+      description: "Maximum number of results to return",
     },
   },
   request: {
-    url: 'https://api.mem0.ai/v2/memories/search/',
-    method: 'POST',
+    url: "https://api.mem0.ai/v2/memories/search/",
+    method: "POST",
     headers: (params) => ({
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Token ${params.apiKey}`,
     }),
     body: (params) => {
-      try {
-        // Create the request body with the format that the curl test confirms works
-        const body: Record<string, any> = {
-          query: params.query || 'test',
-          filters: {
-            user_id: params.userId,
-          },
-          top_k: params.limit || 10,
-        }
-
-        return body
-      } catch (error) {
-        throw error
+      // Create the request body with the format that the curl test confirms works
+      const body: Record<string, any> = {
+        query: params.query || "test",
+        filters: {
+          user_id: params.userId,
+        },
+        top_k: params.limit || 10,
       }
+
+      return body
     },
   },
   transformResponse: async (response) => {
@@ -79,7 +75,7 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
       if (Array.isArray(data)) {
         const searchResults = data.map((item) => ({
           id: item.id,
-          data: { memory: item.memory || '' },
+          data: { memory: item.memory || "" },
           score: item.score || 0,
         }))
 

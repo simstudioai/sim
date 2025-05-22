@@ -1,15 +1,15 @@
-import { NextRequest } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { workflow } from '@/db/schema'
-import { validateWorkflowAccess } from '../../middleware'
-import { createErrorResponse, createSuccessResponse } from '../../utils'
+import type { NextRequest } from "next/server"
+import { eq } from "drizzle-orm"
+import { createLogger } from "@/lib/logs/console-logger"
+import { db } from "@/db"
+import { workflow } from "@/db/schema"
+import { validateWorkflowAccess } from "../../middleware"
+import { createErrorResponse, createSuccessResponse } from "../../utils"
 
-const logger = createLogger('WorkflowDeployedAPI')
+const logger = createLogger("WorkflowDeployedAPI")
 
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (result.length === 0) {
       logger.warn(`[${requestId}] Workflow not found: ${id}`)
-      return createErrorResponse('Workflow not found', 404)
+      return createErrorResponse("Workflow not found", 404)
     }
 
     const workflowData = result[0]
@@ -57,6 +57,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching deployed state: ${id}`, error)
-    return createErrorResponse(error.message || 'Failed to fetch deployed state', 500)
+    return createErrorResponse(error.message || "Failed to fetch deployed state", 500)
   }
 }

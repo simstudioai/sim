@@ -1,4 +1,4 @@
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown from "react-markdown"
 
 export default function MarkdownRenderer({ content }: { content: string }) {
   const customComponents = {
@@ -9,24 +9,24 @@ export default function MarkdownRenderer({ content }: { content: string }) {
 
     // Headings
     h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h1 className="text-xl font-semibold mt-3 mb-1">{children}</h1>
+      <h1 className="mt-3 mb-1 font-semibold text-xl">{children}</h1>
     ),
     h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h2 className="text-lg font-semibold mt-3 mb-1">{children}</h2>
+      <h2 className="mt-3 mb-1 font-semibold text-lg">{children}</h2>
     ),
     h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h3 className="text-base font-semibold mt-3 mb-1">{children}</h3>
+      <h3 className="mt-3 mb-1 font-semibold text-base">{children}</h3>
     ),
     h4: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h4 className="text-sm font-semibold mt-3 mb-1">{children}</h4>
+      <h4 className="mt-3 mb-1 font-semibold text-sm">{children}</h4>
     ),
 
     // Lists
     ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
-      <ul className="list-disc pl-5 my-1 space-y-0.5">{children}</ul>
+      <ul className="my-1 list-disc space-y-0.5 pl-5">{children}</ul>
     ),
     ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
-      <ol className="list-decimal pl-5 my-1 space-y-0.5">{children}</ol>
+      <ol className="my-1 list-decimal space-y-0.5 pl-5">{children}</ol>
     ),
     li: ({ children }: React.HTMLAttributes<HTMLLIElement>) => (
       <li className="text-base">{children}</li>
@@ -34,7 +34,7 @@ export default function MarkdownRenderer({ content }: { content: string }) {
 
     // Code blocks
     pre: ({ children }: React.HTMLAttributes<HTMLPreElement>) => (
-      <pre className="bg-gray-100 dark:bg-gray-800 my-2 p-3 rounded-md overflow-x-auto text-sm font-mono">
+      <pre className="my-2 overflow-x-auto rounded-md bg-gray-100 p-3 font-mono text-sm dark:bg-gray-800">
         {children}
       </pre>
     ),
@@ -49,7 +49,7 @@ export default function MarkdownRenderer({ content }: { content: string }) {
       if (inline) {
         return (
           <code
-            className="text-[0.9em] bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded-md font-mono"
+            className="rounded-md bg-gray-100 px-1 py-0.5 font-mono text-[0.9em] dark:bg-gray-800"
             {...props}
           >
             {children}
@@ -58,13 +58,13 @@ export default function MarkdownRenderer({ content }: { content: string }) {
       }
 
       // Extract language from className (format: language-xxx)
-      const match = /language-(\w+)/.exec(className || '')
-      const language = match ? match[1] : ''
+      const match = /language-(\w+)/.exec(className || "")
+      const language = match ? match[1] : ""
 
       return (
         <div className="relative">
           {language && (
-            <div className="absolute right-2 top-1 text-xs text-gray-500 dark:text-gray-400">
+            <div className="absolute top-1 right-2 text-gray-500 text-xs dark:text-gray-400">
               {language}
             </div>
           )}
@@ -77,8 +77,8 @@ export default function MarkdownRenderer({ content }: { content: string }) {
 
     // Blockquotes
     blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
-      <blockquote className="border-l-4 border-gray-200 dark:border-gray-700 pl-4 py-0 my-2 italic text-gray-700 dark:text-gray-300">
-        <div className="py-0 flex items-center">{children}</div>
+      <blockquote className="my-2 border-gray-200 border-l-4 py-0 pl-4 text-gray-700 italic dark:border-gray-700 dark:text-gray-300">
+        <div className="flex items-center py-0">{children}</div>
       </blockquote>
     ),
 
@@ -89,7 +89,7 @@ export default function MarkdownRenderer({ content }: { content: string }) {
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
       <a
         href={href}
-        className="text-blue-600 dark:text-blue-400 hover:underline"
+        className="text-blue-600 hover:underline dark:text-blue-400"
         target="_blank"
         rel="noopener noreferrer"
         {...props}
@@ -105,35 +105,35 @@ export default function MarkdownRenderer({ content }: { content: string }) {
       </div>
     ),
     thead: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-      <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+      <thead className="border-gray-200 border-b bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
         {children}
       </thead>
     ),
     tbody: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
-      <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+      <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
         {children}
       </tbody>
     ),
     tr: ({ children, ...props }: React.HTMLAttributes<HTMLTableRowElement>) => (
-      <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors" {...props}>
+      <tr className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/60" {...props}>
         {children}
       </tr>
     ),
     th: ({ children }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
-      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+      <th className="px-4 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wider dark:text-gray-300">
         {children}
       </th>
     ),
     td: ({ children }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
-      <td className="px-4 py-3 text-sm border-0">{children}</td>
+      <td className="border-0 px-4 py-3 text-sm">{children}</td>
     ),
 
     // Images
     img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
       <img
         src={src}
-        alt={alt || 'Image'}
-        className="max-w-full h-auto my-2 rounded-md"
+        alt={alt || "Image"}
+        className="my-2 h-auto max-w-full rounded-md"
         {...props}
       />
     ),
@@ -141,12 +141,12 @@ export default function MarkdownRenderer({ content }: { content: string }) {
 
   // Process text to clean up unnecessary whitespace and formatting issues
   const processedContent = content
-    .replace(/\n{2,}/g, '\n\n') // Replace multiple newlines with exactly double newlines
-    .replace(/^(#{1,6})\s+(.+?)\n{2,}/gm, '$1 $2\n') // Reduce space after headings to single newline
+    .replace(/\n{2,}/g, "\n\n") // Replace multiple newlines with exactly double newlines
+    .replace(/^(#{1,6})\s+(.+?)\n{2,}/gm, "$1 $2\n") // Reduce space after headings to single newline
     .trim()
 
   return (
-    <div className="text-base leading-normal text-[#0D0D0D] dark:text-gray-100">
+    <div className="text-[#0D0D0D] text-base leading-normal dark:text-gray-100">
       <ReactMarkdown components={customComponents}>{processedContent}</ReactMarkdown>
     </div>
   )

@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { getBlock } from '@/blocks'
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Check, ChevronDown } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { useWorkflowStore } from "@/stores/workflows/workflow/store"
+import { getBlock } from "@/blocks"
 
 interface OutputSelectProps {
   workflowId: string | null
@@ -18,7 +18,7 @@ export function OutputSelect({
   selectedOutputs = [],
   onOutputSelect,
   disabled = false,
-  placeholder = 'Select output sources',
+  placeholder = "Select output sources",
 }: OutputSelectProps) {
   const [isOutputDropdownOpen, setIsOutputDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -40,16 +40,16 @@ export function OutputSelect({
     // Process blocks to extract outputs
     Object.values(blocks).forEach((block) => {
       // Skip starter/start blocks
-      if (block.type === 'starter') return
+      if (block.type === "starter") return
 
-      const blockName = block.name.replace(/\s+/g, '').toLowerCase()
+      const blockName = block.name.replace(/\s+/g, "").toLowerCase()
 
       // Add response outputs
-      if (block.outputs && typeof block.outputs === 'object') {
-        const addOutput = (path: string, outputObj: any, prefix = '') => {
+      if (block.outputs && typeof block.outputs === "object") {
+        const addOutput = (path: string, outputObj: any, prefix = "") => {
           const fullPath = prefix ? `${prefix}.${path}` : path
 
-          if (typeof outputObj === 'object' && outputObj !== null) {
+          if (typeof outputObj === "object" && outputObj !== null) {
             // For objects, recursively add each property
             Object.entries(outputObj).forEach(([key, value]) => {
               addOutput(key, value, fullPath)
@@ -69,7 +69,7 @@ export function OutputSelect({
 
         // Start with the response object
         if (block.outputs.response) {
-          addOutput('response', block.outputs.response)
+          addOutput("response", block.outputs.response)
         }
       }
     })
@@ -93,7 +93,7 @@ export function OutputSelect({
     if (validOutputs.length === 1) {
       const output = workflowOutputs.find((o) => o.id === validOutputs[0])
       if (output) {
-        return `${output.blockName.replace(/\s+/g, '').toLowerCase()}.${output.path}`
+        return `${output.blockName.replace(/\s+/g, "").toLowerCase()}.${output.path}`
       }
       return placeholder
     }
@@ -126,7 +126,7 @@ export function OutputSelect({
     const edges = useWorkflowStore.getState().edges
 
     // Find the starter block
-    const starterBlock = Object.values(blocks).find((block) => block.type === 'starter')
+    const starterBlock = Object.values(blocks).find((block) => block.type === "starter")
     const starterBlockId = starterBlock?.id
 
     // Calculate distances from starter block if it exists
@@ -195,7 +195,7 @@ export function OutputSelect({
   const getOutputColor = (blockId: string, blockType: string) => {
     // Try to get the block's color from its configuration
     const blockConfig = getBlock(blockType)
-    return blockConfig?.bgColor || '#2F55FF' // Default blue if not found
+    return blockConfig?.bgColor || "#2F55FF" // Default blue if not found
   }
 
   // Close dropdown when clicking outside
@@ -206,9 +206,9 @@ export function OutputSelect({
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener("mousedown", handleClickOutside)
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener("mousedown", handleClickOutside)
     }
   }, [])
 
@@ -231,17 +231,17 @@ export function OutputSelect({
       <button
         type="button"
         onClick={() => setIsOutputDropdownOpen(!isOutputDropdownOpen)}
-        className={`flex w-full items-center justify-between px-3 py-1.5 text-sm rounded-md transition-colors ${
+        className={`flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm transition-colors ${
           isOutputDropdownOpen
-            ? 'bg-accent text-foreground'
-            : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            ? "bg-accent text-foreground"
+            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
         }`}
         disabled={workflowOutputs.length === 0 || disabled}
       >
         {selectedOutputInfo ? (
-          <div className="flex items-center gap-2 w-[calc(100%-24px)] overflow-hidden">
+          <div className="flex w-[calc(100%-24px)] items-center gap-2 overflow-hidden">
             <div
-              className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0"
+              className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded"
               style={{
                 backgroundColor: getOutputColor(
                   selectedOutputInfo.blockId,
@@ -249,28 +249,28 @@ export function OutputSelect({
                 ),
               }}
             >
-              <span className="w-3 h-3 text-white font-bold text-xs">
+              <span className="h-3 w-3 font-bold text-white text-xs">
                 {selectedOutputInfo.blockName.charAt(0).toUpperCase()}
               </span>
             </div>
             <span className="truncate">{selectedOutputsDisplayText}</span>
           </div>
         ) : (
-          <span className="truncate w-[calc(100%-24px)]">{selectedOutputsDisplayText}</span>
+          <span className="w-[calc(100%-24px)] truncate">{selectedOutputsDisplayText}</span>
         )}
         <ChevronDown
-          className={`h-4 w-4 transition-transform ml-1 flex-shrink-0 ${
-            isOutputDropdownOpen ? 'rotate-180' : ''
+          className={`ml-1 h-4 w-4 flex-shrink-0 transition-transform ${
+            isOutputDropdownOpen ? "rotate-180" : ""
           }`}
         />
       </button>
 
       {isOutputDropdownOpen && workflowOutputs.length > 0 && (
-        <div className="absolute z-50 mt-1 pt-1 w-full bg-popover rounded-md border shadow-md overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover pt-1 shadow-md">
           <div className="max-h-[240px] overflow-y-auto">
             {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
               <div key={blockName}>
-                <div className="px-2 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground border-t first:border-t-0">
+                <div className="border-t px-2 pt-1.5 pb-0.5 font-medium text-muted-foreground text-xs first:border-t-0">
                   {blockName}
                 </div>
                 <div>
@@ -280,31 +280,31 @@ export function OutputSelect({
                       key={output.id}
                       onClick={() => handleOutputSelection(output.id)}
                       className={cn(
-                        'flex items-center gap-2 text-sm text-left w-full px-3 py-1.5',
-                        'hover:bg-accent hover:text-accent-foreground',
-                        'focus:bg-accent focus:text-accent-foreground focus:outline-none'
+                        "flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm",
+                        "hover:bg-accent hover:text-accent-foreground",
+                        "focus:bg-accent focus:text-accent-foreground focus:outline-none"
                       )}
                     >
-                      <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+                      <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center">
                         {selectedOutputs.includes(output.id) ? (
-                          <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
+                          <div className="flex h-4 w-4 items-center justify-center rounded bg-primary">
                             <Check className="h-3 w-3 text-white" />
                           </div>
                         ) : (
-                          <div className="w-4 h-4 rounded border border-input" />
+                          <div className="h-4 w-4 rounded border border-input" />
                         )}
                       </div>
                       <div
-                        className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0"
+                        className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded"
                         style={{
                           backgroundColor: getOutputColor(output.blockId, output.blockType),
                         }}
                       >
-                        <span className="w-3 h-3 text-white font-bold text-xs">
+                        <span className="h-3 w-3 font-bold text-white text-xs">
                           {blockName.charAt(0).toUpperCase()}
                         </span>
                       </div>
-                      <span className="truncate max-w-[calc(100%-48px)]">{output.path}</span>
+                      <span className="max-w-[calc(100%-48px)] truncate">{output.path}</span>
                     </button>
                   ))}
                 </div>

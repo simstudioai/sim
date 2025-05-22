@@ -3,10 +3,10 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
-} from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { env } from '../env'
-import { S3_CONFIG } from './setup'
+} from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { env } from "../env"
+import { S3_CONFIG } from "./setup"
 
 // Lazily create a single S3 client instance.
 let _s3Client: S3Client | null = null
@@ -18,15 +18,15 @@ export function getS3Client(): S3Client {
 
   if (!region) {
     throw new Error(
-      'AWS region is missing – set AWS_REGION in your environment or disable S3 uploads.'
+      "AWS region is missing – set AWS_REGION in your environment or disable S3 uploads."
     )
   }
 
   _s3Client = new S3Client({
     region,
     credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY_ID || '',
-      secretAccessKey: env.AWS_SECRET_ACCESS_KEY || '',
+      accessKeyId: env.AWS_ACCESS_KEY_ID || "",
+      secretAccessKey: env.AWS_SECRET_ACCESS_KEY || "",
     },
   })
 
@@ -60,7 +60,7 @@ export async function uploadToS3(
 ): Promise<FileInfo> {
   // Create a unique filename with timestamp to prevent collisions
   // Use a simple timestamp without directory structure
-  const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
+  const safeFileName = fileName.replace(/\s+/g, "-") // Replace spaces with hyphens
   const uniqueKey = `${Date.now()}-${safeFileName}`
 
   const s3Client = getS3Client()
@@ -124,9 +124,9 @@ export async function downloadFromS3(key: string) {
   // Convert stream to buffer
   return new Promise<Buffer>((resolve, reject) => {
     const chunks: Buffer[] = []
-    stream.on('data', (chunk: Buffer) => chunks.push(chunk))
-    stream.on('end', () => resolve(Buffer.concat(chunks)))
-    stream.on('error', reject)
+    stream.on("data", (chunk: Buffer) => chunks.push(chunk))
+    stream.on("end", () => resolve(Buffer.concat(chunks)))
+    stream.on("error", reject)
   })
 }
 

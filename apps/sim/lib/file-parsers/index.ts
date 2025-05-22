@@ -1,11 +1,11 @@
-import { existsSync } from 'fs'
-import { readFile } from 'fs/promises'
-import path from 'path'
-import { createLogger } from '@/lib/logs/console-logger'
-import { RawPdfParser } from './raw-pdf-parser'
-import { FileParser, FileParseResult, SupportedFileType } from './types'
+import { existsSync } from "node:fs"
+import { readFile } from "node:fs/promises"
+import path from "node:path"
+import { createLogger } from "@/lib/logs/console-logger"
+import { RawPdfParser } from "./raw-pdf-parser"
+import type { FileParser, FileParseResult, SupportedFileType } from "./types"
 
-const logger = createLogger('FileParser')
+const logger = createLogger("FileParser")
 
 // Lazy-loaded parsers to avoid initialization issues
 let parserInstances: Record<string, FileParser> | null = null
@@ -20,32 +20,32 @@ function getParserInstances(): Record<string, FileParser> {
     try {
       // Import parsers only when needed - with try/catch for each one
       try {
-        logger.info('Attempting to load PDF parser...')
+        logger.info("Attempting to load PDF parser...")
         try {
           // First try to use the pdf-parse library
           // Import the PdfParser using ES module import to avoid test file access
-          const { PdfParser } = require('./pdf-parser')
-          parserInstances['pdf'] = new PdfParser()
-          logger.info('PDF parser loaded successfully')
+          const { PdfParser } = require("./pdf-parser")
+          parserInstances.pdf = new PdfParser()
+          logger.info("PDF parser loaded successfully")
         } catch (pdfParseError) {
           // If that fails, fallback to our raw PDF parser
-          logger.error('Failed to load primary PDF parser:', pdfParseError)
-          logger.info('Falling back to raw PDF parser')
-          parserInstances['pdf'] = new RawPdfParser()
-          logger.info('Raw PDF parser loaded successfully')
+          logger.error("Failed to load primary PDF parser:", pdfParseError)
+          logger.info("Falling back to raw PDF parser")
+          parserInstances.pdf = new RawPdfParser()
+          logger.info("Raw PDF parser loaded successfully")
         }
       } catch (error) {
-        logger.error('Failed to load any PDF parser:', error)
+        logger.error("Failed to load any PDF parser:", error)
         // Create a simple fallback that just returns the file size and a message
-        parserInstances['pdf'] = {
+        parserInstances.pdf = {
           async parseFile(filePath: string): Promise<FileParseResult> {
             const buffer = await readFile(filePath)
             return {
               content: `PDF parsing is not available. File size: ${buffer.length} bytes`,
               metadata: {
-                info: { Error: 'PDF parsing unavailable' },
+                info: { Error: "PDF parsing unavailable" },
                 pageCount: 0,
-                version: 'unknown',
+                version: "unknown",
               },
             }
           },
@@ -53,9 +53,9 @@ function getParserInstances(): Record<string, FileParser> {
             return {
               content: `PDF parsing is not available. File size: ${buffer.length} bytes`,
               metadata: {
-                info: { Error: 'PDF parsing unavailable' },
+                info: { Error: "PDF parsing unavailable" },
                 pageCount: 0,
-                version: 'unknown',
+                version: "unknown",
               },
             }
           },
@@ -63,24 +63,24 @@ function getParserInstances(): Record<string, FileParser> {
       }
 
       try {
-        const { CsvParser } = require('./csv-parser')
-        parserInstances['csv'] = new CsvParser()
+        const { CsvParser } = require("./csv-parser")
+        parserInstances.csv = new CsvParser()
       } catch (error) {
-        logger.error('Failed to load CSV parser:', error)
+        logger.error("Failed to load CSV parser:", error)
       }
 
       try {
-        const { DocxParser } = require('./docx-parser')
-        parserInstances['docx'] = new DocxParser()
+        const { DocxParser } = require("./docx-parser")
+        parserInstances.docx = new DocxParser()
       } catch (error) {
-        logger.error('Failed to load DOCX parser:', error)
+        logger.error("Failed to load DOCX parser:", error)
       }
     } catch (error) {
-      logger.error('Error loading file parsers:', error)
+      logger.error("Error loading file parsers:", error)
     }
   }
 
-  logger.info('Available parsers:', Object.keys(parserInstances))
+  logger.info("Available parsers:", Object.keys(parserInstances))
   return parserInstances
 }
 
@@ -93,7 +93,7 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
   try {
     // Validate input
     if (!filePath) {
-      throw new Error('No file path provided')
+      throw new Error("No file path provided")
     }
 
     // Check if file exists
@@ -102,22 +102,22 @@ export async function parseFile(filePath: string): Promise<FileParseResult> {
     }
 
     const extension = path.extname(filePath).toLowerCase().substring(1)
-    logger.info('Attempting to parse file with extension:', extension)
+    logger.info("Attempting to parse file with extension:", extension)
 
     const parsers = getParserInstances()
 
     if (!Object.keys(parsers).includes(extension)) {
-      logger.info('No parser found for extension:', extension)
+      logger.info("No parser found for extension:", extension)
       throw new Error(
-        `Unsupported file type: ${extension}. Supported types are: ${Object.keys(parsers).join(', ')}`
+        `Unsupported file type: ${extension}. Supported types are: ${Object.keys(parsers).join(", ")}`
       )
     }
 
-    logger.info('Using parser for extension:', extension)
+    logger.info("Using parser for extension:", extension)
     const parser = parsers[extension]
     return await parser.parseFile(filePath)
   } catch (error) {
-    logger.error('File parsing error:', error)
+    logger.error("File parsing error:", error)
     throw error
   }
 }
@@ -132,36 +132,35 @@ export async function parseBuffer(buffer: Buffer, extension: string): Promise<Fi
   try {
     // Validate input
     if (!buffer || buffer.length === 0) {
-      throw new Error('Empty buffer provided')
+      throw new Error("Empty buffer provided")
     }
 
     if (!extension) {
-      throw new Error('No file extension provided')
+      throw new Error("No file extension provided")
     }
 
     const normalizedExtension = extension.toLowerCase()
-    logger.info('Attempting to parse buffer with extension:', normalizedExtension)
+    logger.info("Attempting to parse buffer with extension:", normalizedExtension)
 
     const parsers = getParserInstances()
 
     if (!Object.keys(parsers).includes(normalizedExtension)) {
-      logger.info('No parser found for extension:', normalizedExtension)
+      logger.info("No parser found for extension:", normalizedExtension)
       throw new Error(
-        `Unsupported file type: ${normalizedExtension}. Supported types are: ${Object.keys(parsers).join(', ')}`
+        `Unsupported file type: ${normalizedExtension}. Supported types are: ${Object.keys(parsers).join(", ")}`
       )
     }
 
-    logger.info('Using parser for extension:', normalizedExtension)
+    logger.info("Using parser for extension:", normalizedExtension)
     const parser = parsers[normalizedExtension]
 
     // Check if parser supports buffer parsing
     if (parser.parseBuffer) {
       return await parser.parseBuffer(buffer)
-    } else {
-      throw new Error(`Parser for ${normalizedExtension} does not support buffer parsing`)
     }
+    throw new Error(`Parser for ${normalizedExtension} does not support buffer parsing`)
   } catch (error) {
-    logger.error('Buffer parsing error:', error)
+    logger.error("Buffer parsing error:", error)
     throw error
   }
 }
@@ -175,7 +174,7 @@ export function isSupportedFileType(extension: string): extension is SupportedFi
   try {
     return Object.keys(getParserInstances()).includes(extension.toLowerCase())
   } catch (error) {
-    logger.error('Error checking supported file type:', error)
+    logger.error("Error checking supported file type:", error)
     return false
   }
 }

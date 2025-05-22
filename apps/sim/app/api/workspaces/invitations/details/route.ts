@@ -1,21 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { getSession } from '@/lib/auth'
-import { db } from '@/db'
-import { workspace, workspaceInvitation } from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { eq } from "drizzle-orm"
+import { getSession } from "@/lib/auth"
+import { db } from "@/db"
+import { workspace, workspaceInvitation } from "@/db/schema"
 
 // Get invitation details by token
 export async function GET(req: NextRequest) {
-  const token = req.nextUrl.searchParams.get('token')
+  const token = req.nextUrl.searchParams.get("token")
 
   if (!token) {
-    return NextResponse.json({ error: 'Token is required' }, { status: 400 })
+    return NextResponse.json({ error: "Token is required" }, { status: 400 })
   }
 
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   try {
@@ -27,12 +27,12 @@ export async function GET(req: NextRequest) {
       .then((rows) => rows[0])
 
     if (!invitation) {
-      return NextResponse.json({ error: 'Invitation not found or has expired' }, { status: 404 })
+      return NextResponse.json({ error: "Invitation not found or has expired" }, { status: 404 })
     }
 
     // Check if invitation has expired
     if (new Date() > new Date(invitation.expiresAt)) {
-      return NextResponse.json({ error: 'Invitation has expired' }, { status: 400 })
+      return NextResponse.json({ error: "Invitation has expired" }, { status: 400 })
     }
 
     // Get workspace details
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       .then((rows) => rows[0])
 
     if (!workspaceDetails) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
+      return NextResponse.json({ error: "Workspace not found" }, { status: 404 })
     }
 
     // Return the invitation with workspace name
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
       workspaceName: workspaceDetails.name,
     })
   } catch (error) {
-    console.error('Error fetching workspace invitation:', error)
-    return NextResponse.json({ error: 'Failed to fetch invitation details' }, { status: 500 })
+    console.error("Error fetching workspace invitation:", error)
+    return NextResponse.json({ error: "Failed to fetch invitation details" }, { status: 500 })
   }
 }

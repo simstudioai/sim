@@ -1,73 +1,73 @@
-'use client'
+"use client"
 
-import React from 'react'
-import { motion } from 'framer-motion'
-import { Marquee } from '@/app/(landing)/components/magicui/marquee'
-import useIsMobile from '../hooks/useIsMobile'
+import React from "react"
+import { motion } from "framer-motion"
+import { Marquee } from "@/app/(landing)/components/magicui/marquee"
+import useIsMobile from "../hooks/useIsMobile"
 
 const X_TESTIMONIALS = [
   {
     text: "Drag-and-drop AI workflows for devs who'd rather build agents than babysit them.",
-    username: '@GithubProjects',
-    viewCount: '90.4k',
-    tweetUrl: 'https://x.com/GithubProjects/status/1906383555707490499',
-    profileImage: '/twitter/github-projects.jpg',
+    username: "@GithubProjects",
+    viewCount: "90.4k",
+    tweetUrl: "https://x.com/GithubProjects/status/1906383555707490499",
+    profileImage: "/twitter/github-projects.jpg",
   },
   {
-    text: 'A very good looking agent workflow builder 🔥 and open source!',
-    username: '@xyflowdev',
-    viewCount: '3,246',
-    tweetUrl: 'https://x.com/xyflowdev/status/1909501499719438670',
-    profileImage: '/twitter/xyflow.jpg',
+    text: "A very good looking agent workflow builder 🔥 and open source!",
+    username: "@xyflowdev",
+    viewCount: "3,246",
+    tweetUrl: "https://x.com/xyflowdev/status/1909501499719438670",
+    profileImage: "/twitter/xyflow.jpg",
   },
   {
     text: "🚨 BREAKING: This startup just dropped the fastest way to build AI agents.\n\nThis Figma-like canvas to build agents will blow your mind.\n\nHere's why this is the best tool for building AI agents:",
-    username: '@hasantoxr',
-    viewCount: '515k',
-    tweetUrl: 'https://x.com/hasantoxr/status/1912909502036525271',
-    profileImage: '/twitter/hasan.jpg',
+    username: "@hasantoxr",
+    viewCount: "515k",
+    tweetUrl: "https://x.com/hasantoxr/status/1912909502036525271",
+    profileImage: "/twitter/hasan.jpg",
   },
   {
-    text: 'omfggggg this is the zapier of agent building\n\ni always believed that building agents and using ai should not be limited to technical people. i think this solves just that\n\nthe fact that this is also open source makes me so optimistic about the future of building with ai :)))\n\ncongrats @karabegemir & @typingwala !!!',
-    username: '@nizzyabi',
-    viewCount: '6,269',
-    tweetUrl: 'https://x.com/nizzyabi/status/1907864421227180368',
-    profileImage: '/twitter/nizzy.jpg',
+    text: "omfggggg this is the zapier of agent building\n\ni always believed that building agents and using ai should not be limited to technical people. i think this solves just that\n\nthe fact that this is also open source makes me so optimistic about the future of building with ai :)))\n\ncongrats @karabegemir & @typingwala !!!",
+    username: "@nizzyabi",
+    viewCount: "6,269",
+    tweetUrl: "https://x.com/nizzyabi/status/1907864421227180368",
+    profileImage: "/twitter/nizzy.jpg",
   },
   {
     text: "One of the best products I've seen in the space, and the hustle and grind I've seen from @karabegemir and @typingwala is insane. Sim Studio is positioned to build something game-changing, and there's no better team for the job.\n\nCongrats on the launch 🚀 🎊 great things ahead!",
-    username: '@firestorm776',
-    viewCount: '956',
-    tweetUrl: 'https://x.com/firestorm776/status/1907896097735061598',
-    profileImage: '/twitter/samarth.jpg',
+    username: "@firestorm776",
+    viewCount: "956",
+    tweetUrl: "https://x.com/firestorm776/status/1907896097735061598",
+    profileImage: "/twitter/samarth.jpg",
   },
   {
-    text: 'lfgg got access to @simstudioai via @zerodotemail 😎',
-    username: '@nizzyabi',
-    viewCount: '1,585',
-    tweetUrl: 'https://x.com/nizzyabi/status/1910482357821595944',
-    profileImage: '/twitter/nizzy.jpg',
+    text: "lfgg got access to @simstudioai via @zerodotemail 😎",
+    username: "@nizzyabi",
+    viewCount: "1,585",
+    tweetUrl: "https://x.com/nizzyabi/status/1910482357821595944",
+    profileImage: "/twitter/nizzy.jpg",
   },
   {
     text: 'Feels like we\'re finally getting a "Photoshop moment" for AI devs—visual, intuitive, and fast enough to keep up with ideas mid-flow.',
-    username: '@syamrajk',
-    viewCount: '2,643',
-    tweetUrl: 'https://x.com/syamrajk/status/1912911980110946491',
-    profileImage: '/twitter/syamrajk.jpg',
+    username: "@syamrajk",
+    viewCount: "2,643",
+    tweetUrl: "https://x.com/syamrajk/status/1912911980110946491",
+    profileImage: "/twitter/syamrajk.jpg",
   },
   {
     text: "🚨 BREAKING: This startup just dropped the fastest way to build AI agents.\n\nThis Figma-like canvas to build agents will blow your mind.\n\nHere's why this is the best tool for building AI agents:",
-    username: '@lazukars',
-    viewCount: '47.4k',
-    tweetUrl: 'https://x.com/lazukars/status/1913136390503600575',
-    profileImage: '/twitter/lazukars.png',
+    username: "@lazukars",
+    viewCount: "47.4k",
+    tweetUrl: "https://x.com/lazukars/status/1913136390503600575",
+    profileImage: "/twitter/lazukars.png",
   },
   {
-    text: 'The use cases are endless. Great work @simstudioai',
-    username: '@daniel_zkim',
-    viewCount: '103',
-    tweetUrl: 'https://x.com/daniel_zkim/status/1907891273664782708',
-    profileImage: '/twitter/daniel.jpg',
+    text: "The use cases are endless. Great work @simstudioai",
+    username: "@daniel_zkim",
+    viewCount: "103",
+    tweetUrl: "https://x.com/daniel_zkim/status/1907891273664782708",
+    profileImage: "/twitter/daniel.jpg",
   },
 ]
 
@@ -80,65 +80,65 @@ function Testimonials() {
 
   if (!mounted) {
     return (
-      <section className="relative flex flex-col py-10 sm:py-12 md:py-16 w-full overflow-hidden" />
+      <section className="relative flex w-full flex-col overflow-hidden py-10 sm:py-12 md:py-16" />
     )
   }
 
   return (
-    <section className="relative flex flex-col py-10 sm:py-12 md:py-16 w-full overflow-hidden will-change-[opacity,transform] animation-container">
-      <div className="flex flex-col items-center gap-3 sm:gap-5 pb-6 sm:pb-8 md:pb-10 px-4">
+    <section className="animation-container relative flex w-full flex-col overflow-hidden py-10 will-change-[opacity,transform] sm:py-12 md:py-16">
+      <div className="flex flex-col items-center gap-3 px-4 pb-6 sm:gap-5 sm:pb-8 md:pb-10">
         {isMobile ? (
-          <p className="text-white font-medium tracking-normal text-[42px] md:text-5xl text-center">
+          <p className="text-center font-medium text-[42px] text-white tracking-normal md:text-5xl">
             Loved by
           </p>
         ) : (
           <motion.p
-            className="text-white font-medium tracking-normal text-5xl text-center"
+            className="text-center font-medium text-5xl text-white tracking-normal"
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.7, delay: 0.05, ease: 'easeOut' }}
+            transition={{ duration: 0.7, delay: 0.05, ease: "easeOut" }}
           >
             Loved by
           </motion.p>
         )}
       </div>
 
-      <div className="flex flex-col space-y-2 sm:space-y-3 mt-0">
+      <div className="mt-0 flex flex-col space-y-2 sm:space-y-3">
         {/* First Row of X Posts */}
-        <div className="w-full flex flex-col text-white animate-fade-up [animation-delay:400ms] opacity-0 will-change-[opacity,transform] animation-container">
-          <Marquee className="w-full flex [--duration:40s]" pauseOnHover={true}>
+        <div className="animation-container flex w-full animate-fade-up flex-col text-white opacity-0 will-change-[opacity,transform] [animation-delay:400ms]">
+          <Marquee className="flex w-full [--duration:40s]" pauseOnHover={true}>
             {firstRowTestimonials.map((card, index) => (
               <motion.div
                 key={`first-row-${index}`}
-                className="bg-[#121212] border border-[#333] p-2 sm:p-3 flex flex-col gap-2 rounded-lg cursor-pointer min-w-[280px] sm:min-w-[320px] max-w-[340px] sm:max-w-[380px] mx-0.5"
-                whileHover={{ scale: 1.02, boxShadow: '0 8px 32px 0 rgba(80, 60, 120, 0.18)' }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                className="mx-0.5 flex min-w-[280px] max-w-[340px] cursor-pointer flex-col gap-2 rounded-lg border border-[#333] bg-[#121212] p-2 sm:min-w-[320px] sm:max-w-[380px] sm:p-3"
+                whileHover={{ scale: 1.02, boxShadow: "0 8px 32px 0 rgba(80, 60, 120, 0.18)" }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 onClick={() =>
-                  card.tweetUrl && window.open(card.tweetUrl, '_blank', 'noopener,noreferrer')
+                  card.tweetUrl && window.open(card.tweetUrl, "_blank", "noopener,noreferrer")
                 }
               >
                 <div className="flex flex-col gap-1">
-                  <p className="text-white text-sm sm:text-base font-medium">{card.text}</p>
+                  <p className="font-medium text-sm text-white sm:text-base">{card.text}</p>
                 </div>
-                <div className="flex justify-between items-center mt-auto">
-                  <div className="flex gap-1.5 sm:gap-2 items-center">
+                <div className="mt-auto flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     {card.profileImage && (
                       <img
                         src={card.profileImage}
                         alt={`${card.username} profile`}
-                        className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover border border-[#333]"
+                        className="h-6 w-6 rounded-full border border-[#333] object-cover sm:h-8 sm:w-8"
                       />
                     )}
                     <div className="flex items-center">
-                      <span className="text-xs sm:text-sm font-medium text-white/80">@</span>
-                      <p className="text-xs sm:text-sm font-medium text-white/80">
-                        {card.username.replace('@', '')}
+                      <span className="font-medium text-white/80 text-xs sm:text-sm">@</span>
+                      <p className="font-medium text-white/80 text-xs sm:text-sm">
+                        {card.username.replace("@", "")}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center">
-                    <p className="text-[10px] sm:text-xs text-white/60">{card.viewCount} views</p>
+                    <p className="text-[10px] text-white/60 sm:text-xs">{card.viewCount} views</p>
                   </div>
                 </div>
               </motion.div>
@@ -147,39 +147,39 @@ function Testimonials() {
         </div>
 
         {/* Second Row of X Posts */}
-        <div className="w-full flex flex-col text-white animate-fade-up [animation-delay:600ms] opacity-0 will-change-[opacity,transform] animation-container">
-          <Marquee className="w-full flex [--duration:40s]" pauseOnHover={true}>
+        <div className="animation-container flex w-full animate-fade-up flex-col text-white opacity-0 will-change-[opacity,transform] [animation-delay:600ms]">
+          <Marquee className="flex w-full [--duration:40s]" pauseOnHover={true}>
             {secondRowTestimonials.map((card, index) => (
               <motion.div
                 key={`second-row-${index}`}
-                className="bg-[#121212] border border-[#333] p-2 sm:p-3 flex flex-col gap-2 rounded-lg cursor-pointer min-w-[280px] sm:min-w-[320px] max-w-[340px] sm:max-w-[380px] mx-0.5"
-                whileHover={{ scale: 1.02, boxShadow: '0 8px 32px 0 rgba(80, 60, 120, 0.18)' }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                className="mx-0.5 flex min-w-[280px] max-w-[340px] cursor-pointer flex-col gap-2 rounded-lg border border-[#333] bg-[#121212] p-2 sm:min-w-[320px] sm:max-w-[380px] sm:p-3"
+                whileHover={{ scale: 1.02, boxShadow: "0 8px 32px 0 rgba(80, 60, 120, 0.18)" }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 onClick={() =>
-                  card.tweetUrl && window.open(card.tweetUrl, '_blank', 'noopener,noreferrer')
+                  card.tweetUrl && window.open(card.tweetUrl, "_blank", "noopener,noreferrer")
                 }
               >
                 <div className="flex flex-col gap-1">
-                  <p className="text-white text-sm sm:text-base font-medium">{card.text}</p>
+                  <p className="font-medium text-sm text-white sm:text-base">{card.text}</p>
                 </div>
-                <div className="flex justify-between items-center mt-auto">
-                  <div className="flex gap-1.5 sm:gap-2 items-center">
+                <div className="mt-auto flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     {card.profileImage && (
                       <img
                         src={card.profileImage}
                         alt={`${card.username} profile`}
-                        className="w-6 h-6 sm:w-8 sm:h-8 rounded-full object-cover border border-[#333]"
+                        className="h-6 w-6 rounded-full border border-[#333] object-cover sm:h-8 sm:w-8"
                       />
                     )}
                     <div className="flex items-center">
-                      <span className="text-xs sm:text-sm font-medium text-white/80">@</span>
-                      <p className="text-xs sm:text-sm font-medium text-white/80">
-                        {card.username.replace('@', '')}
+                      <span className="font-medium text-white/80 text-xs sm:text-sm">@</span>
+                      <p className="font-medium text-white/80 text-xs sm:text-sm">
+                        {card.username.replace("@", "")}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center">
-                    <p className="text-[10px] sm:text-xs text-white/60">{card.viewCount} views</p>
+                    <p className="text-[10px] text-white/60 sm:text-xs">{card.viewCount} views</p>
                   </div>
                 </div>
               </motion.div>

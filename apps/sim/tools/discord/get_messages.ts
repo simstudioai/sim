@@ -1,40 +1,40 @@
-import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import {
+import { createLogger } from "@/lib/logs/console-logger"
+import type { ToolConfig } from "../types"
+import type {
   DiscordAPIError,
   DiscordGetMessagesParams,
   DiscordGetMessagesResponse,
   DiscordMessage,
-} from './types'
+} from "./types"
 
-const logger = createLogger('DiscordGetMessages')
+const logger = createLogger("DiscordGetMessages")
 
 export const discordGetMessagesTool: ToolConfig<
   DiscordGetMessagesParams,
   DiscordGetMessagesResponse
 > = {
-  id: 'discord_get_messages',
-  name: 'Discord Get Messages',
-  description: 'Retrieve messages from a Discord channel',
-  version: '1.0.0',
+  id: "discord_get_messages",
+  name: "Discord Get Messages",
+  description: "Retrieve messages from a Discord channel",
+  version: "1.0.0",
 
   params: {
     botToken: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'The bot token for authentication',
+      description: "The bot token for authentication",
     },
     channelId: {
-      type: 'string',
+      type: "string",
       required: true,
       optionalToolInput: true,
-      description: 'The Discord channel ID to retrieve messages from',
+      description: "The Discord channel ID to retrieve messages from",
     },
     limit: {
-      type: 'number',
+      type: "number",
       required: false,
-      description: 'Maximum number of messages to retrieve (default: 10, max: 100)',
+      description: "Maximum number of messages to retrieve (default: 10, max: 100)",
     },
   },
 
@@ -43,14 +43,14 @@ export const discordGetMessagesTool: ToolConfig<
       const limit = Math.min(params.limit || 10, 100)
       return `https://discord.com/api/v10/channels/${params.channelId}/messages?limit=${limit}`
     },
-    method: 'GET',
+    method: "GET",
     headers: (params) => {
       const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       }
 
       if (params.botToken) {
-        headers['Authorization'] = `Bot ${params.botToken}`
+        headers.Authorization = `Bot ${params.botToken}`
       }
 
       return headers
@@ -64,9 +64,9 @@ export const discordGetMessagesTool: ToolConfig<
       try {
         const errorData = (await response.json()) as DiscordAPIError
         errorMessage = `Failed to get Discord messages: ${errorData.message || response.statusText}`
-        logger.error('Discord API error', { status: response.status, error: errorData })
+        logger.error("Discord API error", { status: response.status, error: errorData })
       } catch (e) {
-        logger.error('Error parsing Discord API response', { status: response.status, error: e })
+        logger.error("Error parsing Discord API response", { status: response.status, error: e })
       }
 
       return {
@@ -84,8 +84,8 @@ export const discordGetMessagesTool: ToolConfig<
     } catch (e) {
       return {
         success: false,
-        error: 'Failed to parse messages',
-        output: { message: 'Failed to parse messages' },
+        error: "Failed to parse messages",
+        output: { message: "Failed to parse messages" },
       }
     }
     return {
@@ -94,14 +94,14 @@ export const discordGetMessagesTool: ToolConfig<
         message: `Retrieved ${messages.length} messages from Discord channel`,
         data: {
           messages,
-          channel_id: messages.length > 0 ? messages[0].channel_id : '',
+          channel_id: messages.length > 0 ? messages[0].channel_id : "",
         },
       },
     }
   },
 
   transformError: (error) => {
-    logger.error('Error retrieving Discord messages', { error })
+    logger.error("Error retrieving Discord messages", { error })
     return `Error retrieving Discord messages: ${error instanceof Error ? error.message : String(error)}`
   },
 }

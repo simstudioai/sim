@@ -1,11 +1,11 @@
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { CopyableField } from '../ui/copyable'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay } from '../ui/test-result'
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ConfigField } from "../ui/config-field"
+import { ConfigSection } from "../ui/config-section"
+import { CopyableField } from "../ui/copyable"
+import { InstructionsSection } from "../ui/instructions-section"
+import { TestResultDisplay } from "../ui/test-result"
 
 interface GenericConfigProps {
   requireAuth: boolean
@@ -51,13 +51,13 @@ export function GenericConfig({
             onCheckedChange={(checked) => setRequireAuth(checked as boolean)}
             className="translate-y-[1px]" // Align checkbox better with label
           />
-          <Label htmlFor="require-auth" className="text-sm font-medium cursor-pointer">
+          <Label htmlFor="require-auth" className="cursor-pointer font-medium text-sm">
             Require Authentication
           </Label>
         </div>
 
         {requireAuth && (
-          <div className="space-y-4 ml-5 border-l-2 pl-4 border-border dark:border-border/50">
+          <div className="ml-5 space-y-4 border-border border-l-2 pl-4 dark:border-border/50">
             <ConfigField id="auth-token" label="Authentication Token">
               <CopyableField
                 id="auth-token"
@@ -111,7 +111,7 @@ export function GenericConfig({
       />
 
       <InstructionsSection tip="The webhook receives HTTP POST requests and passes the data to your workflow.">
-        <ol className="list-decimal list-inside space-y-1">
+        <ol className="list-inside list-decimal space-y-1">
           <li>Copy the Webhook URL provided above.</li>
           <li>Configure your external service to send HTTP POST requests to this URL.</li>
           {requireAuth && (

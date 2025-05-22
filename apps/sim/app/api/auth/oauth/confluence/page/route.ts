@@ -1,22 +1,22 @@
-import { NextResponse } from 'next/server'
-import { getConfluenceCloudId } from '@/tools/confluence/utils'
+import { NextResponse } from "next/server"
+import { getConfluenceCloudId } from "@/tools/confluence/utils"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
 export async function POST(request: Request) {
   try {
     const { domain, accessToken, pageId, cloudId: providedCloudId } = await request.json()
 
     if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+      return NextResponse.json({ error: "Domain is required" }, { status: 400 })
     }
 
     if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
+      return NextResponse.json({ error: "Access token is required" }, { status: 400 })
     }
 
     if (!pageId) {
-      return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
+      return NextResponse.json({ error: "Page ID is required" }, { status: 400 })
     }
 
     // Use provided cloudId or fetch it if not provided
@@ -27,9 +27,9 @@ export async function POST(request: Request) {
 
     // Make the request to Confluence API
     const response = await fetch(url, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        Accept: 'application/json',
+        Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
     })
@@ -40,10 +40,10 @@ export async function POST(request: Request) {
 
       try {
         const errorData = await response.json()
-        console.error('Error details:', JSON.stringify(errorData, null, 2))
+        console.error("Error details:", JSON.stringify(errorData, null, 2))
         errorMessage = errorData.message || `Failed to fetch Confluence page (${response.status})`
       } catch (e) {
-        console.error('Could not parse error response as JSON:', e)
+        console.error("Could not parse error response as JSON:", e)
         errorMessage = `Failed to fetch Confluence page: ${response.status} ${response.statusText}`
       }
 
@@ -69,9 +69,9 @@ export async function POST(request: Request) {
       },
     })
   } catch (error) {
-    console.error('Error fetching Confluence page:', error)
+    console.error("Error fetching Confluence page:", error)
     return NextResponse.json(
-      { error: (error as Error).message || 'Internal server error' },
+      { error: (error as Error).message || "Internal server error" },
       { status: 500 }
     )
   }
@@ -92,15 +92,15 @@ export async function PUT(request: Request) {
     } = body
 
     if (!domain) {
-      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
+      return NextResponse.json({ error: "Domain is required" }, { status: 400 })
     }
 
     if (!accessToken) {
-      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
+      return NextResponse.json({ error: "Access token is required" }, { status: 400 })
     }
 
     if (!pageId) {
-      return NextResponse.json({ error: 'Page ID is required' }, { status: 400 })
+      return NextResponse.json({ error: "Page ID is required" }, { status: 400 })
     }
 
     const cloudId = providedCloudId || (await getConfluenceCloudId(domain, accessToken))
@@ -109,7 +109,7 @@ export async function PUT(request: Request) {
     const currentPageUrl = `https://api.atlassian.com/ex/confluence/${cloudId}/wiki/api/v2/pages/${pageId}`
     const currentPageResponse = await fetch(currentPageUrl, {
       headers: {
-        Accept: 'application/json',
+        Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
     })
@@ -126,21 +126,21 @@ export async function PUT(request: Request) {
       id: pageId,
       version: {
         number: currentVersion + 1,
-        message: version?.message || 'Updated via API',
+        message: version?.message || "Updated via API",
       },
       title: title,
       body: {
-        representation: 'storage',
-        value: pageBody?.value || '',
+        representation: "storage",
+        value: pageBody?.value || "",
       },
-      status: 'current',
+      status: "current",
     }
 
     const response = await fetch(currentPageUrl, {
-      method: 'PUT',
+      method: "PUT",
       headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
+        Accept: "application/json",
+        "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(updateBody),
@@ -148,7 +148,7 @@ export async function PUT(request: Request) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => null)
-      console.error('Confluence API error response:', {
+      console.error("Confluence API error response:", {
         status: response.status,
         statusText: response.statusText,
         error: JSON.stringify(errorData, null, 2),
@@ -163,9 +163,9 @@ export async function PUT(request: Request) {
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
-    console.error('Error updating Confluence page:', error)
+    console.error("Error updating Confluence page:", error)
     return NextResponse.json(
-      { error: (error as Error).message || 'Internal server error' },
+      { error: (error as Error).message || "Internal server error" },
       { status: 500 }
     )
   }

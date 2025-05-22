@@ -1,15 +1,15 @@
-'use client'
+"use client"
 
-import { createLogger } from '@/lib/logs/console-logger'
-import { SyncManager } from './sync'
+import { createLogger } from "@/lib/logs/console-logger"
+import type { SyncManager } from "./sync"
 import {
   fetchWorkflowsFromDB,
   isRegistryInitialized,
   resetRegistryInitialization,
   workflowSync,
-} from './workflows/sync'
+} from "./workflows/sync"
 
-const logger = createLogger('SyncRegistry')
+const logger = createLogger("SyncRegistry")
 
 // Initialize managers lazily
 let initialized = false
@@ -47,24 +47,24 @@ export async function initializeSyncManagers(): Promise<boolean> {
 
       // Wait for a short period to ensure registry is properly initialized
       if (!isRegistryInitialized()) {
-        logger.info('Waiting for registry initialization to complete...')
+        logger.info("Waiting for registry initialization to complete...")
         await new Promise((resolve) => setTimeout(resolve, 500))
       }
 
       // Verify initialization complete
       if (!isRegistryInitialized()) {
-        logger.warn('Registry initialization may not have completed properly')
+        logger.warn("Registry initialization may not have completed properly")
       } else {
-        logger.info('Registry initialization verified')
+        logger.info("Registry initialization verified")
       }
     } catch (error) {
-      logger.error('Error fetching data from DB:', { error })
+      logger.error("Error fetching data from DB:", { error })
     }
 
     initialized = true
     return true
   } catch (error) {
-    logger.error('Error initializing sync managers:', { error })
+    logger.error("Error initializing sync managers:", { error })
     return false
   } finally {
     initializing = false

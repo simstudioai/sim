@@ -1,35 +1,35 @@
-import { ToolConfig } from '../types'
-import { SupabaseQueryParams, SupabaseQueryResponse } from './types'
+import type { ToolConfig } from "../types"
+import type { SupabaseQueryParams, SupabaseQueryResponse } from "./types"
 
 export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> = {
-  id: 'supabase_query',
-  name: 'Supabase Query',
-  description: 'Query data from a Supabase table',
-  version: '1.0',
+  id: "supabase_query",
+  name: "Supabase Query",
+  description: "Query data from a Supabase table",
+  version: "1.0",
   oauth: {
     required: false,
-    provider: 'supabase',
-    additionalScopes: ['database.read', 'projects.read'],
+    provider: "supabase",
+    additionalScopes: ["database.read", "projects.read"],
   },
   params: {
     apiKey: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Your Supabase client anon key',
+      description: "Your Supabase client anon key",
     },
     projectId: {
-      type: 'string',
+      type: "string",
       required: true,
       requiredForToolCall: true,
-      description: 'Your Supabase project ID (e.g., jdrkgepadsdopsntdlom)',
+      description: "Your Supabase project ID (e.g., jdrkgepadsdopsntdlom)",
     },
-    table: { type: 'string', required: true },
-    filter: { type: 'object', required: false },
+    table: { type: "string", required: true },
+    filter: { type: "object", required: false },
   },
   request: {
     url: (params) => `https://${params.projectId}.supabase.co/rest/v1/${params.table}`,
-    method: 'GET',
+    method: "GET",
     headers: (params) => ({
       apikey: params.apiKey,
       Authorization: `Bearer ${params.apiKey}`,
@@ -42,7 +42,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
 
       // Fetch the data
       const response = await fetch(url, {
-        method: 'GET',
+        method: "GET",
         headers: {
           apikey: params.apiKey,
           Authorization: `Bearer ${params.apiKey}`,
@@ -78,7 +78,7 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.message || 'Failed to query data from Supabase')
+      throw new Error(error.message || "Failed to query data from Supabase")
     }
 
     const data = await response.json()
@@ -86,13 +86,13 @@ export const queryTool: ToolConfig<SupabaseQueryParams, SupabaseQueryResponse> =
     return {
       success: true,
       output: {
-        message: 'Successfully queried data from Supabase',
+        message: "Successfully queried data from Supabase",
         results: data,
       },
       error: undefined,
     }
   },
   transformError: (error: any) => {
-    return error.message || 'An error occurred while querying Supabase'
+    return error.message || "An error occurred while querying Supabase"
   },
 }

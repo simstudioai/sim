@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from "react"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
+} from "@/components/ui/select"
+import { useSubBlockValue } from "../hooks/use-sub-block-value"
 
 interface DropdownProps {
   options:
@@ -23,15 +23,15 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
 
   // Evaluate options if it's a function
   const evaluatedOptions = useMemo(() => {
-    return typeof options === 'function' ? options() : options
+    return typeof options === "function" ? options() : options
   }, [options])
 
   const getOptionValue = (option: string | { label: string; id: string }) => {
-    return typeof option === 'string' ? option : option.id
+    return typeof option === "string" ? option : option.id
   }
 
   const getOptionLabel = (option: string | { label: string; id: string }) => {
-    return typeof option === 'string' ? option : option.label
+    return typeof option === "string" ? option : option.label
   }
 
   // Get the default option value (first option or provided defaultValue)

@@ -1,7 +1,7 @@
-'use client'
+"use client"
 
-import { CopyButton } from '@/components/ui/copy-button'
-import { Label } from '@/components/ui/label'
+import { CopyButton } from "@/components/ui/copy-button"
+import { Label } from "@/components/ui/label"
 
 interface ApiEndpointProps {
   endpoint: string
@@ -16,8 +16,8 @@ export function ApiEndpoint({ endpoint, showLabel = true }: ApiEndpointProps) {
           <Label className="font-medium text-sm">API Endpoint</Label>
         </div>
       )}
-      <div className="relative group rounded-md border bg-background hover:bg-muted/50 transition-colors">
-        <pre className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto">{endpoint}</pre>
+      <div className="group relative rounded-md border bg-background transition-colors hover:bg-muted/50">
+        <pre className="overflow-x-auto whitespace-pre-wrap p-3 font-mono text-xs">{endpoint}</pre>
         <CopyButton text={endpoint} />
       </div>
     </div>

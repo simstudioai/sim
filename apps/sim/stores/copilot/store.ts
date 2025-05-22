@@ -1,12 +1,12 @@
-import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
-import { useEnvironmentStore } from '../settings/environment/store'
-import { useWorkflowStore } from '../workflows/workflow/store'
-import { CopilotMessage, CopilotStore } from './types'
-import { calculateBlockPosition, getNextBlockNumber } from './utils'
+import { create } from "zustand"
+import { devtools } from "zustand/middleware"
+import { createLogger } from "@/lib/logs/console-logger"
+import { useEnvironmentStore } from "../settings/environment/store"
+import { useWorkflowStore } from "../workflows/workflow/store"
+import type { CopilotMessage, CopilotStore } from "./types"
+import { calculateBlockPosition, getNextBlockNumber } from "./utils"
 
-const logger = createLogger('CopilotStore')
+const logger = createLogger("CopilotStore")
 
 export const useCopilotStore = create<CopilotStore>()(
   devtools(
@@ -20,18 +20,18 @@ export const useCopilotStore = create<CopilotStore>()(
           set({ isProcessing: true, error: null })
 
           const workflowStore = useWorkflowStore.getState()
-          const apiKey = useEnvironmentStore.getState().getVariable('OPENAI_API_KEY')
+          const apiKey = useEnvironmentStore.getState().getVariable("OPENAI_API_KEY")
 
           if (!apiKey) {
             throw new Error(
-              'OpenAI API key not found. Please add it to your environment variables.'
+              "OpenAI API key not found. Please add it to your environment variables."
             )
           }
 
           // User message
           const newMessage: CopilotMessage = {
             id: crypto.randomUUID(),
-            role: 'user',
+            role: "user",
             content: content.trim(),
             timestamp: Date.now(),
           }
@@ -53,11 +53,11 @@ export const useCopilotStore = create<CopilotStore>()(
             messages: [...state.messages, newMessage],
           }))
 
-          const response = await fetch('/api/copilot', {
-            method: 'POST',
+          const response = await fetch("/api/copilot", {
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
-              'X-OpenAI-Key': apiKey,
+              "Content-Type": "application/json",
+              "X-OpenAI-Key": apiKey,
             },
             body: JSON.stringify({
               messages: formattedMessages,
@@ -69,7 +69,7 @@ export const useCopilotStore = create<CopilotStore>()(
           })
 
           if (!response.ok) {
-            throw new Error('Failed to send message')
+            throw new Error("Failed to send message")
           }
 
           const data = await response.json()
@@ -77,7 +77,7 @@ export const useCopilotStore = create<CopilotStore>()(
           // Handle any actions returned from the API
           if (data.actions) {
             // Process all block additions first to properly calculate positions
-            const blockActions = data.actions.filter((action: any) => action.name === 'addBlock')
+            const blockActions = data.actions.filter((action: any) => action.name === "addBlock")
 
             blockActions.forEach((action: any, index: number) => {
               const { type, name } = action.parameters
@@ -93,11 +93,11 @@ export const useCopilotStore = create<CopilotStore>()(
             })
 
             // Handle other actions (edges, removals, etc.)
-            const otherActions = data.actions.filter((action: any) => action.name !== 'addBlock')
+            const otherActions = data.actions.filter((action: any) => action.name !== "addBlock")
 
             otherActions.forEach((action: any) => {
               switch (action.name) {
-                case 'addEdge': {
+                case "addEdge": {
                   const { sourceId, targetId, sourceHandle, targetHandle } = action.parameters
                   workflowStore.addEdge({
                     id: crypto.randomUUID(),
@@ -105,15 +105,15 @@ export const useCopilotStore = create<CopilotStore>()(
                     target: targetId,
                     sourceHandle,
                     targetHandle,
-                    type: 'custom',
+                    type: "custom",
                   })
                   break
                 }
-                case 'removeBlock': {
+                case "removeBlock": {
                   workflowStore.removeBlock(action.parameters.id)
                   break
                 }
-                case 'removeEdge': {
+                case "removeEdge": {
                   workflowStore.removeEdge(action.parameters.id)
                   break
                 }
@@ -128,7 +128,7 @@ export const useCopilotStore = create<CopilotStore>()(
                 ...state.messages,
                 {
                   id: crypto.randomUUID(),
-                  role: 'assistant',
+                  role: "assistant",
                   content: data.message,
                   timestamp: Date.now(),
                 },
@@ -136,9 +136,9 @@ export const useCopilotStore = create<CopilotStore>()(
             }))
           }
         } catch (error) {
-          logger.error('Copilot error:', { error })
+          logger.error("Copilot error:", { error })
           set({
-            error: error instanceof Error ? error.message : 'Unknown error',
+            error: error instanceof Error ? error.message : "Unknown error",
           })
         } finally {
           set({ isProcessing: false })
@@ -148,6 +148,6 @@ export const useCopilotStore = create<CopilotStore>()(
       clearCopilot: () => set({ messages: [], error: null }),
       setError: (error) => set({ error }),
     }),
-    { name: 'copilot-store' }
+    { name: "copilot-store" }
   )
 )

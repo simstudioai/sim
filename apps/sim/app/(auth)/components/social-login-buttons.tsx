@@ -1,11 +1,11 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { GithubIcon, GoogleIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { client } from '@/lib/auth-client'
-import { useNotificationStore } from '@/stores/notifications/store'
+import { useEffect, useState } from "react"
+import { GithubIcon, GoogleIcon } from "@/components/icons"
+import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { client } from "@/lib/auth-client"
+import { useNotificationStore } from "@/stores/notifications/store"
 
 interface SocialLoginButtonsProps {
   githubAvailable: boolean
@@ -17,7 +17,7 @@ interface SocialLoginButtonsProps {
 export function SocialLoginButtons({
   githubAvailable,
   googleAvailable,
-  callbackURL = '/w',
+  callbackURL = "/w",
   isProduction,
 }: SocialLoginButtonsProps) {
   const [isGithubLoading, setIsGithubLoading] = useState(false)
@@ -38,27 +38,27 @@ export function SocialLoginButtons({
 
     setIsGithubLoading(true)
     try {
-      await client.signIn.social({ provider: 'github', callbackURL })
+      await client.signIn.social({ provider: "github", callbackURL })
 
       // Mark that the user has previously logged in
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('has_logged_in_before', 'true')
-        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
+      if (typeof window !== "undefined") {
+        localStorage.setItem("has_logged_in_before", "true")
+        document.cookie = "has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax" // 1 year expiry
       }
     } catch (err: any) {
-      let errorMessage = 'Failed to sign in with GitHub'
+      let errorMessage = "Failed to sign in with GitHub"
 
-      if (err.message?.includes('account exists')) {
-        errorMessage = 'An account with this email already exists. Please sign in instead.'
-      } else if (err.message?.includes('cancelled')) {
-        errorMessage = 'GitHub sign in was cancelled. Please try again.'
-      } else if (err.message?.includes('network')) {
-        errorMessage = 'Network error. Please check your connection and try again.'
-      } else if (err.message?.includes('rate limit')) {
-        errorMessage = 'Too many attempts. Please try again later.'
+      if (err.message?.includes("account exists")) {
+        errorMessage = "An account with this email already exists. Please sign in instead."
+      } else if (err.message?.includes("cancelled")) {
+        errorMessage = "GitHub sign in was cancelled. Please try again."
+      } else if (err.message?.includes("network")) {
+        errorMessage = "Network error. Please check your connection and try again."
+      } else if (err.message?.includes("rate limit")) {
+        errorMessage = "Too many attempts. Please try again later."
       }
 
-      addNotification('error', errorMessage, null)
+      addNotification("error", errorMessage, null)
     } finally {
       setIsGithubLoading(false)
     }
@@ -69,28 +69,28 @@ export function SocialLoginButtons({
 
     setIsGoogleLoading(true)
     try {
-      await client.signIn.social({ provider: 'google', callbackURL })
+      await client.signIn.social({ provider: "google", callbackURL })
 
       // Mark that the user has previously logged in
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('has_logged_in_before', 'true')
+      if (typeof window !== "undefined") {
+        localStorage.setItem("has_logged_in_before", "true")
         // Also set a cookie to enable middleware to check login status
-        document.cookie = 'has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax' // 1 year expiry
+        document.cookie = "has_logged_in_before=true; path=/; max-age=31536000; SameSite=Lax" // 1 year expiry
       }
     } catch (err: any) {
-      let errorMessage = 'Failed to sign in with Google'
+      let errorMessage = "Failed to sign in with Google"
 
-      if (err.message?.includes('account exists')) {
-        errorMessage = 'An account with this email already exists. Please sign in instead.'
-      } else if (err.message?.includes('cancelled')) {
-        errorMessage = 'Google sign in was cancelled. Please try again.'
-      } else if (err.message?.includes('network')) {
-        errorMessage = 'Network error. Please check your connection and try again.'
-      } else if (err.message?.includes('rate limit')) {
-        errorMessage = 'Too many attempts. Please try again later.'
+      if (err.message?.includes("account exists")) {
+        errorMessage = "An account with this email already exists. Please sign in instead."
+      } else if (err.message?.includes("cancelled")) {
+        errorMessage = "Google sign in was cancelled. Please try again."
+      } else if (err.message?.includes("network")) {
+        errorMessage = "Network error. Please check your connection and try again."
+      } else if (err.message?.includes("rate limit")) {
+        errorMessage = "Too many attempts. Please try again later."
       }
 
-      addNotification('error', errorMessage, null)
+      addNotification("error", errorMessage, null)
     } finally {
       setIsGoogleLoading(false)
     }
@@ -99,24 +99,24 @@ export function SocialLoginButtons({
   const githubButton = (
     <Button
       variant="outline"
-      className="w-full bg-neutral-900 border-neutral-700 text-white hover:bg-neutral-800 hover:text-white"
+      className="w-full border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:text-white"
       disabled={!githubAvailable || isGithubLoading}
       onClick={signInWithGithub}
     >
       <GithubIcon className="mr-2 h-4 w-4" />
-      {isGithubLoading ? 'Connecting...' : 'Continue with GitHub'}
+      {isGithubLoading ? "Connecting..." : "Continue with GitHub"}
     </Button>
   )
 
   const googleButton = (
     <Button
       variant="outline"
-      className="w-full bg-neutral-900 border-neutral-700 text-white hover:bg-neutral-800 hover:text-white"
+      className="w-full border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:text-white"
       disabled={!googleAvailable || isGoogleLoading}
       onClick={signInWithGoogle}
     >
       <GoogleIcon className="mr-2 h-4 w-4" />
-      {isGoogleLoading ? 'Connecting...' : 'Continue with Google'}
+      {isGoogleLoading ? "Connecting..." : "Continue with Google"}
     </Button>
   )
 
@@ -129,12 +129,12 @@ export function SocialLoginButtons({
           <TooltipTrigger asChild>
             <div>{githubButton}</div>
           </TooltipTrigger>
-          <TooltipContent className="bg-neutral-800 text-white border-neutral-700">
+          <TooltipContent className="border-neutral-700 bg-neutral-800 text-white">
             <p>
               GitHub login requires OAuth credentials to be configured. Add the following
               environment variables:
             </p>
-            <ul className="mt-2 text-xs space-y-1 text-neutral-300">
+            <ul className="mt-2 space-y-1 text-neutral-300 text-xs">
               <li>• GITHUB_CLIENT_ID</li>
               <li>• GITHUB_CLIENT_SECRET</li>
             </ul>
@@ -153,12 +153,12 @@ export function SocialLoginButtons({
           <TooltipTrigger asChild>
             <div>{googleButton}</div>
           </TooltipTrigger>
-          <TooltipContent className="bg-neutral-800 text-white border-neutral-700">
+          <TooltipContent className="border-neutral-700 bg-neutral-800 text-white">
             <p>
               Google login requires OAuth credentials to be configured. Add the following
               environment variables:
             </p>
-            <ul className="mt-2 text-xs space-y-1 text-neutral-300">
+            <ul className="mt-2 space-y-1 text-neutral-300 text-xs">
               <li>• GOOGLE_CLIENT_ID</li>
               <li>• GOOGLE_CLIENT_SECRET</li>
             </ul>

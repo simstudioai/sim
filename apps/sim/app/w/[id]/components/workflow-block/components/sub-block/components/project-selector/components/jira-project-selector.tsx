@@ -1,9 +1,9 @@
-'use client'
+"use client"
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
-import { JiraIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Check, ChevronDown, ExternalLink, RefreshCw, X } from "lucide-react"
+import { JiraIcon } from "@/components/icons"
+import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandEmpty,
@@ -11,19 +11,19 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Logger } from '@/lib/logs/console-logger'
+} from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Logger } from "@/lib/logs/console-logger"
 import {
-  Credential,
+  type Credential,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
-  OAuthProvider,
-} from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
-import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
+  type OAuthProvider,
+} from "@/lib/oauth"
+import { saveToStorage } from "@/stores/workflows/persistence"
+import { OAuthRequiredModal } from "../../credential-selector/components/oauth-required-modal"
 
-const logger = new Logger('jira_project_selector')
+const logger = new Logger("jira_project_selector")
 
 export interface JiraProjectInfo {
   id: string
@@ -56,7 +56,7 @@ export function JiraProjectSelector({
   onChange,
   provider,
   requiredScopes = [],
-  label = 'Select Jira project',
+  label = "Select Jira project",
   disabled = false,
   serviceId,
   domain,
@@ -66,7 +66,7 @@ export function JiraProjectSelector({
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [projects, setProjects] = useState<JiraProjectInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>("")
   const [selectedProjectId, setSelectedProjectId] = useState(value)
   const [selectedProject, setSelectedProject] = useState<JiraProjectInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -146,7 +146,7 @@ export function JiraProjectSelector({
         }
       }
     } catch (error) {
-      logger.error('Error fetching credentials:', error)
+      logger.error("Error fetching credentials:", error)
     } finally {
       setIsLoading(false)
     }
@@ -162,10 +162,10 @@ export function JiraProjectSelector({
 
       try {
         // Get the access token from the selected credential
-        const tokenResponse = await fetch('/api/auth/oauth/token', {
-          method: 'POST',
+        const tokenResponse = await fetch("/api/auth/oauth/token", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
@@ -174,8 +174,8 @@ export function JiraProjectSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          logger.error('Access token error:', errorData)
-          setError('Authentication failed. Please reconnect your Jira account.')
+          logger.error("Access token error:", errorData)
+          setError("Authentication failed. Please reconnect your Jira account.")
           return
         }
 
@@ -183,8 +183,8 @@ export function JiraProjectSelector({
         const accessToken = tokenData.accessToken
 
         if (!accessToken) {
-          logger.error('No access token returned')
-          setError('Authentication failed. Please reconnect your Jira account.')
+          logger.error("No access token returned")
+          setError("Authentication failed. Please reconnect your Jira account.")
           return
         }
 
@@ -200,8 +200,8 @@ export function JiraProjectSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
-          logger.error('Jira API error:', errorData)
-          throw new Error(errorData.error || 'Failed to fetch project details')
+          logger.error("Jira API error:", errorData)
+          throw new Error(errorData.error || "Failed to fetch project details")
         }
 
         const projectInfo = await response.json()
@@ -213,7 +213,7 @@ export function JiraProjectSelector({
         setSelectedProject(projectInfo)
         onProjectInfoChange?.(projectInfo)
       } catch (error) {
-        logger.error('Error fetching project details:', error)
+        logger.error("Error fetching project details:", error)
         setError((error as Error).message)
       } finally {
         setIsLoading(false)
@@ -229,9 +229,9 @@ export function JiraProjectSelector({
 
       // Validate domain format
       const trimmedDomain = domain.trim().toLowerCase()
-      if (!trimmedDomain.includes('.')) {
+      if (!trimmedDomain.includes(".")) {
         setError(
-          'Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)'
+          "Invalid domain format. Please provide the full domain (e.g., your-site.atlassian.net)"
         )
         setProjects([])
         setIsLoading(false)
@@ -243,10 +243,10 @@ export function JiraProjectSelector({
 
       try {
         // Get the access token from the selected credential
-        const tokenResponse = await fetch('/api/auth/oauth/token', {
-          method: 'POST',
+        const tokenResponse = await fetch("/api/auth/oauth/token", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             credentialId: selectedCredentialId,
@@ -255,8 +255,8 @@ export function JiraProjectSelector({
 
         if (!tokenResponse.ok) {
           const errorData = await tokenResponse.json()
-          logger.error('Access token error:', errorData)
-          setError('Authentication failed. Please reconnect your Jira account.')
+          logger.error("Access token error:", errorData)
+          setError("Authentication failed. Please reconnect your Jira account.")
           setIsLoading(false)
           return
         }
@@ -265,8 +265,8 @@ export function JiraProjectSelector({
         const accessToken = tokenData.accessToken
 
         if (!accessToken) {
-          logger.error('No access token returned')
-          setError('Authentication failed. Please reconnect your Jira account.')
+          logger.error("No access token returned")
+          setError("Authentication failed. Please reconnect your Jira account.")
           setIsLoading(false)
           return
         }
@@ -284,8 +284,8 @@ export function JiraProjectSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
-          logger.error('Jira API error:', errorData)
-          throw new Error(errorData.error || 'Failed to fetch projects')
+          logger.error("Jira API error:", errorData)
+          throw new Error(errorData.error || "Failed to fetch projects")
         }
 
         const data = await response.json()
@@ -313,7 +313,7 @@ export function JiraProjectSelector({
           }
         }
       } catch (error) {
-        logger.error('Error fetching projects:', error)
+        logger.error("Error fetching projects:", error)
         setError((error as Error).message)
         setProjects([])
       } finally {
@@ -340,7 +340,7 @@ export function JiraProjectSelector({
 
   // Fetch the selected project metadata once credentials are ready or changed
   useEffect(() => {
-    if (value && selectedCredentialId && !selectedProject && domain && domain.includes('.')) {
+    if (value && selectedCredentialId && !selectedProject && domain && domain.includes(".")) {
       fetchProjectInfo(value)
     }
   }, [value, selectedCredentialId, selectedProject, domain, fetchProjectInfo])
@@ -355,8 +355,8 @@ export function JiraProjectSelector({
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
-    if (isOpen && selectedCredentialId && domain && domain.includes('.')) {
-      fetchProjects('') // Pass empty string to get all projects
+    if (isOpen && selectedCredentialId && domain && domain.includes(".")) {
+      fetchProjects("") // Pass empty string to get all projects
     }
   }
 
@@ -375,10 +375,10 @@ export function JiraProjectSelector({
     const providerId = getProviderId()
 
     // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', providerId)
+    saveToStorage<string>("pending_service_id", effectiveServiceId)
+    saveToStorage<string[]>("pending_oauth_scopes", requiredScopes)
+    saveToStorage<string>("pending_oauth_return_url", window.location.href)
+    saveToStorage<string>("pending_oauth_provider_id", providerId)
 
     // Show the OAuth modal
     setShowOAuthModal(true)
@@ -387,10 +387,10 @@ export function JiraProjectSelector({
 
   // Clear selection
   const handleClearSelection = () => {
-    setSelectedProjectId('')
+    setSelectedProjectId("")
     setSelectedProject(null)
     setError(null)
-    onChange('', undefined)
+    onChange("", undefined)
     onProjectInfoChange?.(null)
   }
 
@@ -409,7 +409,7 @@ export function JiraProjectSelector({
               {selectedProject ? (
                 <div className="flex items-center gap-2 overflow-hidden">
                   <JiraIcon className="h-4 w-4" />
-                  <span className="font-normal truncate">{selectedProject.name}</span>
+                  <span className="truncate font-normal">{selectedProject.name}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
@@ -420,15 +420,15 @@ export function JiraProjectSelector({
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[300px]" align="start">
+          <PopoverContent className="w-[300px] p-0" align="start">
             {/* Current account indicator */}
             {selectedCredentialId && credentials.length > 0 && (
-              <div className="px-3 py-2 border-b flex items-center justify-between">
+              <div className="flex items-center justify-between border-b px-3 py-2">
                 <div className="flex items-center gap-2">
                   <JiraIcon className="h-4 w-4" />
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
-                      'Unknown'}
+                      "Unknown"}
                   </span>
                 </div>
                 {credentials.length > 1 && (
@@ -455,19 +455,19 @@ export function JiraProjectSelector({
                     </div>
                   ) : error ? (
                     <div className="p-4 text-center">
-                      <p className="text-sm text-destructive">{error}</p>
+                      <p className="text-destructive text-sm">{error}</p>
                     </div>
                   ) : credentials.length === 0 ? (
                     <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No accounts connected.</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-medium text-sm">No accounts connected.</p>
+                      <p className="text-muted-foreground text-xs">
                         Connect a Jira account to continue.
                       </p>
                     </div>
                   ) : (
                     <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No projects found.</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-medium text-sm">No projects found.</p>
+                      <p className="text-muted-foreground text-xs">
                         Try a different search or account.
                       </p>
                     </div>
@@ -477,7 +477,7 @@ export function JiraProjectSelector({
                 {/* Account selection - only show if we have multiple accounts */}
                 {credentials.length > 1 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
                       Switch Account
                     </div>
                     {credentials.map((cred) => (
@@ -499,7 +499,7 @@ export function JiraProjectSelector({
                 {/* Projects list */}
                 {projects.length > 0 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
                       Projects
                     </div>
                     {projects.map((project) => (
@@ -518,7 +518,7 @@ export function JiraProjectSelector({
                           ) : (
                             <JiraIcon className="h-4 w-4" />
                           )}
-                          <span className="font-normal truncate">{project.name}</span>
+                          <span className="truncate font-normal">{project.name}</span>
                         </div>
                         {project.id === selectedProjectId && <Check className="ml-auto h-4 w-4" />}
                       </CommandItem>
@@ -544,7 +544,7 @@ export function JiraProjectSelector({
 
         {/* Project preview */}
         {showPreview && selectedProject && (
-          <div className="mt-2 rounded-md border border-muted bg-muted/10 p-2 relative">
+          <div className="relative mt-2 rounded-md border border-muted bg-muted/10 p-2">
             <div className="absolute top-2 right-2">
               <Button
                 variant="ghost"
@@ -556,7 +556,7 @@ export function JiraProjectSelector({
               </Button>
             </div>
             <div className="flex items-center gap-3 pr-4">
-              <div className="flex-shrink-0 flex items-center justify-center h-6 w-6 bg-muted/20 rounded">
+              <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20">
                 {selectedProject.avatarUrl ? (
                   <img
                     src={selectedProject.avatarUrl}
@@ -567,10 +567,10 @@ export function JiraProjectSelector({
                   <JiraIcon className="h-4 w-4" />
                 )}
               </div>
-              <div className="overflow-hidden flex-1 min-w-0">
+              <div className="min-w-0 flex-1 overflow-hidden">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-xs font-medium truncate">{selectedProject.name}</h4>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  <h4 className="truncate font-medium text-xs">{selectedProject.name}</h4>
+                  <span className="whitespace-nowrap text-muted-foreground text-xs">
                     {selectedProject.key}
                   </span>
                 </div>
@@ -579,7 +579,7 @@ export function JiraProjectSelector({
                     href={selectedProject.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                    className="flex items-center gap-1 text-primary text-xs hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>Open in Jira</span>

@@ -1,19 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { account } from '@/db/schema'
-import { refreshAccessTokenIfNeeded } from '../../utils'
+import { type NextRequest, NextResponse } from "next/server"
+import { and, eq } from "drizzle-orm"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { db } from "@/db"
+import { account } from "@/db/schema"
+import { refreshAccessTokenIfNeeded } from "../../utils"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
-const logger = createLogger('GmailLabelsAPI')
+const logger = createLogger("GmailLabelsAPI")
 
 interface GmailLabel {
   id: string
   name: string
-  type: 'system' | 'user'
+  type: "system" | "user"
   messagesTotal?: number
   messagesUnread?: number
 }
@@ -28,16 +28,16 @@ export async function GET(request: NextRequest) {
     // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated labels request rejected`)
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+      return NextResponse.json({ error: "User not authenticated" }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const query = searchParams.get('query')
+    const credentialId = searchParams.get("credentialId")
+    const query = searchParams.get("query")
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credentialId parameter`)
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+      return NextResponse.json({ error: "Credential ID is required" }, { status: 400 })
     }
 
     // Get the credential from the database
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     if (!credentials.length) {
       logger.warn(`[${requestId}] Credential not found`)
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      return NextResponse.json({ error: "Credential not found" }, { status: 404 })
     }
 
     const credential = credentials[0]
@@ -63,11 +63,11 @@ export async function GET(request: NextRequest) {
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
 
     if (!accessToken) {
-      return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
+      return NextResponse.json({ error: "Failed to obtain valid access token" }, { status: 401 })
     }
 
     // Fetch labels from Gmail API
-    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
+    const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels", {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
     const data = await response.json()
     if (!Array.isArray(data.labels)) {
       logger.error(`[${requestId}] Unexpected labels response structure:`, data)
-      return NextResponse.json({ error: 'Invalid labels response' }, { status: 500 })
+      return NextResponse.json({ error: "Invalid labels response" }, { status: 500 })
     }
 
     // Transform the labels to a more usable format
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
       let formattedName = label.name
 
       // Handle system labels (INBOX, SENT, etc.)
-      if (label.type === 'system') {
+      if (label.type === "system") {
         // Convert to title case (first letter uppercase, rest lowercase)
         formattedName = label.name.charAt(0).toUpperCase() + label.name.slice(1).toLowerCase()
       }
@@ -124,6 +124,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ labels: filteredLabels }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching Gmail labels:`, error)
-    return NextResponse.json({ error: 'Failed to fetch Gmail labels' }, { status: 500 })
+    return NextResponse.json({ error: "Failed to fetch Gmail labels" }, { status: 500 })
   }
 }

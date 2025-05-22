@@ -1,4 +1,4 @@
-import { ToolResponse } from '../types'
+import type { ToolResponse } from "../types"
 
 export interface LinkupSource {
   name: string
@@ -9,8 +9,8 @@ export interface LinkupSource {
 export interface LinkupSearchParams {
   q: string
   apiKey: string
-  depth?: 'standard' | 'deep'
-  outputType?: 'sourcedAnswer' | 'searchResults'
+  depth?: "standard" | "deep"
+  outputType?: "sourcedAnswer" | "searchResults"
 }
 
 export interface LinkupSearchResponse {

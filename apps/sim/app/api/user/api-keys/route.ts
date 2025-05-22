@@ -1,20 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
-import { generateApiKey } from '@/lib/utils'
-import { db } from '@/db'
-import { apiKey } from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { eq } from "drizzle-orm"
+import { nanoid } from "nanoid"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { generateApiKey } from "@/lib/utils"
+import { db } from "@/db"
+import { apiKey } from "@/db/schema"
 
-const logger = createLogger('ApiKeysAPI')
+const logger = createLogger("ApiKeysAPI")
 
 // GET /api/user/api-keys - Get all API keys for the current user
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const userId = session.user.id
@@ -40,8 +40,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ keys: maskedKeys })
   } catch (error) {
-    logger.error('Failed to fetch API keys', { error })
-    return NextResponse.json({ error: 'Failed to fetch API keys' }, { status: 500 })
+    logger.error("Failed to fetch API keys", { error })
+    return NextResponse.json({ error: "Failed to fetch API keys" }, { status: 500 })
   }
 }
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const userId = session.user.id
@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
 
     // Validate the request
     const { name } = body
-    if (!name || typeof name !== 'string') {
-      return NextResponse.json({ error: 'Invalid request. Name is required.' }, { status: 400 })
+    if (!name || typeof name !== "string") {
+      return NextResponse.json({ error: "Invalid request. Name is required." }, { status: 400 })
     }
 
     const keyValue = generateApiKey()
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ key: newKey })
   } catch (error) {
-    logger.error('Failed to create API key', { error })
-    return NextResponse.json({ error: 'Failed to create API key' }, { status: 500 })
+    logger.error("Failed to create API key", { error })
+    return NextResponse.json({ error: "Failed to create API key" }, { status: 500 })
   }
 }

@@ -1,7 +1,7 @@
-import { ShieldCheck } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay } from '../ui/test-result'
+import { ShieldCheck } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { InstructionsSection } from "../ui/instructions-section"
+import { TestResultDisplay } from "../ui/test-result"
 
 interface StripeConfigProps {
   isLoadingToken: boolean
@@ -27,9 +27,9 @@ export function StripeConfig({ testResult, copied, copyToClipboard }: StripeConf
       />
 
       <InstructionsSection tip="Stripe will send a test event to verify your webhook endpoint after adding it.">
-        <ol className="list-decimal list-inside space-y-1">
+        <ol className="list-inside list-decimal space-y-1">
           <li>
-            Go to your{' '}
+            Go to your{" "}
             <a
               href="https://dashboard.stripe.com/"
               target="_blank"
@@ -40,7 +40,7 @@ export function StripeConfig({ testResult, copied, copyToClipboard }: StripeConf
             </a>
             .
           </li>
-          <li>Navigate to Developers {'>'} Webhooks.</li>
+          <li>Navigate to Developers {">"} Webhooks.</li>
           <li>Click "Add endpoint".</li>
           <li>
             Paste the <strong>Webhook URL</strong> (from above) into the "Endpoint URL" field.

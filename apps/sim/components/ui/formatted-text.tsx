@@ -1,7 +1,7 @@
-'use client'
+"use client"
 
-import { ReactNode } from 'react'
-import { VariableManager } from '@/lib/variables/variable-manager'
+import type { ReactNode } from "react"
+import { VariableManager } from "@/lib/variables/variable-manager"
 
 /**
  * Formats text by highlighting block references (<...>) and environment variables ({{...}})
@@ -10,13 +10,13 @@ import { VariableManager } from '@/lib/variables/variable-manager'
  * @param text The text to format
  * @param stripQuotes Whether to strip unnecessary quotes from the text (for plain text variables)
  */
-export function formatDisplayText(text: string, stripQuotes: boolean = false): ReactNode[] {
+export function formatDisplayText(text: string, stripQuotes = false): ReactNode[] {
   if (!text) return []
 
   // If stripQuotes is true, remove surrounding quotes that might have been added
   // This is needed when displaying plain type variables in inputs
   let processedText = text
-  if (stripQuotes && typeof text === 'string') {
+  if (stripQuotes && typeof text === "string") {
     // Use VariableManager to determine if quotes should be stripped
     if (VariableManager.shouldStripQuotesForDisplay(text)) {
       processedText = text.slice(1, -1)
@@ -28,7 +28,7 @@ export function formatDisplayText(text: string, stripQuotes: boolean = false): R
 
   return parts.map((part, index) => {
     // Handle block references
-    if (part.startsWith('<') && part.endsWith('>')) {
+    if (part.startsWith("<") && part.endsWith(">")) {
       return (
         <span key={index} className="text-blue-500">
           {part}

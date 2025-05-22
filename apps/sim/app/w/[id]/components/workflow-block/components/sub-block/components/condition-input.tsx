@@ -1,21 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
-import { ChevronDown, ChevronUp, Plus, Trash } from 'lucide-react'
-import { highlight, languages } from 'prismjs'
-import 'prismjs/components/prism-javascript'
-import 'prismjs/themes/prism.css'
-import Editor from 'react-simple-code-editor'
-import { Handle, Position, useUpdateNodeInternals } from 'reactflow'
-import { Button } from '@/components/ui/button'
-import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
-import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
-import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import { useEffect, useRef, useState } from "react"
+import type { ReactElement } from "react"
+import { ChevronDown, ChevronUp, Plus, Trash } from "lucide-react"
+import { highlight, languages } from "prismjs"
+import "prismjs/components/prism-javascript"
+import "prismjs/themes/prism.css"
+import Editor from "react-simple-code-editor"
+import { Handle, Position, useUpdateNodeInternals } from "reactflow"
+import { Button } from "@/components/ui/button"
+import { checkEnvVarTrigger, EnvVarDropdown } from "@/components/ui/env-var-dropdown"
+import { checkTagTrigger, TagDropdown } from "@/components/ui/tag-dropdown"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { createLogger } from "@/lib/logs/console-logger"
+import { cn } from "@/lib/utils"
+import { useWorkflowStore } from "@/stores/workflows/workflow/store"
+import { useSubBlockValue } from "../hooks/use-sub-block-value"
 
-const logger = createLogger('ConditionInput')
+const logger = createLogger("ConditionInput")
 
 interface ConditionalBlock {
   id: string
@@ -61,22 +61,22 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   // Create default blocks with stable IDs
   const createDefaultBlocks = (): ConditionalBlock[] => [
     {
-      id: generateStableId(blockId, 'if'),
-      title: 'if',
-      value: '',
+      id: generateStableId(blockId, "if"),
+      title: "if",
+      value: "",
       showTags: false,
       showEnvVars: false,
-      searchTerm: '',
+      searchTerm: "",
       cursorPosition: 0,
       activeSourceBlockId: null,
     },
     {
-      id: generateStableId(blockId, 'else'),
-      title: 'else',
-      value: '',
+      id: generateStableId(blockId, "else"),
+      title: "else",
+      value: "",
       showTags: false,
       showEnvVars: false,
-      searchTerm: '',
+      searchTerm: "",
       cursorPosition: 0,
       activeSourceBlockId: null,
     },
@@ -109,15 +109,15 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       // Validate that the parsed data has the expected structure
       if (
         parsed.length === 0 ||
-        !parsed[0].hasOwnProperty('id') ||
-        !parsed[0].hasOwnProperty('title')
+        !parsed[0].hasOwnProperty("id") ||
+        !parsed[0].hasOwnProperty("title")
       ) {
         return null
       }
 
       return parsed
     } catch (error) {
-      logger.error('Failed to parse JSON:', { error, jsonString })
+      logger.error("Failed to parse JSON:", { error, jsonString })
       return null
     }
   }
@@ -168,7 +168,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
         // Use the parsed blocks, but ensure titles are correct based on position
         const blocksWithCorrectTitles = parsedBlocks.map((block, index) => ({
           ...block,
-          title: index === 0 ? 'if' : index === parsedBlocks.length - 1 ? 'else' : 'else if',
+          title: index === 0 ? "if" : index === parsedBlocks.length - 1 ? "else" : "else if",
         }))
 
         setConditionalBlocks(blocksWithCorrectTitles)
@@ -229,15 +229,15 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
 
             // Check triggers for both tags and env vars
             const lastCharTyped = newValue.charAt(pos - 1)
-            const shouldShowTags = tagTrigger.show || lastCharTyped === '<'
-            const shouldShowEnvVars = envVarTrigger.show || lastCharTyped === '$'
+            const shouldShowTags = tagTrigger.show || lastCharTyped === "<"
+            const shouldShowEnvVars = envVarTrigger.show || lastCharTyped === "$"
 
             return {
               ...block,
               value: newValue,
               showTags: shouldShowTags,
               showEnvVars: shouldShowEnvVars,
-              searchTerm: shouldShowEnvVars ? envVarTrigger.searchTerm : '',
+              searchTerm: shouldShowEnvVars ? envVarTrigger.searchTerm : "",
               cursorPosition: pos,
               // Maintain activeSourceBlockId only when tags are showing
               activeSourceBlockId: shouldShowTags ? block.activeSourceBlockId : null,
@@ -247,7 +247,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
         })
       )
     } catch (error) {
-      logger.error('Error updating block value:', { error, blockId, newValue })
+      logger.error("Error updating block value:", { error, blockId, newValue })
     }
   }
 
@@ -256,17 +256,17 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     if (!editorRef.current || conditionalBlocks.length === 0) return
 
     const calculateVisualLines = () => {
-      const preElement = editorRef.current?.querySelector('pre')
+      const preElement = editorRef.current?.querySelector("pre")
       if (!preElement) return
 
       const newVisualLineHeights: { [key: string]: number[] } = {}
 
       conditionalBlocks.forEach((block) => {
-        const lines = block.value.split('\n')
+        const lines = block.value.split("\n")
         const blockVisualHeights: number[] = []
 
         // Create a hidden container with the same width as the editor
-        const container = document.createElement('div')
+        const container = document.createElement("div")
         container.style.cssText = `
           position: absolute;
           visibility: hidden;
@@ -281,20 +281,20 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
 
         // Process each line
         lines.forEach((line) => {
-          const lineDiv = document.createElement('div')
+          const lineDiv = document.createElement("div")
 
-          if (line.includes('<') && line.includes('>')) {
+          if (line.includes("<") && line.includes(">")) {
             const parts = line.split(/(<[^>]+>)/g)
             parts.forEach((part) => {
-              const span = document.createElement('span')
+              const span = document.createElement("span")
               span.textContent = part
-              if (part.startsWith('<') && part.endsWith('>')) {
-                span.style.color = 'rgb(153, 0, 85)'
+              if (part.startsWith("<") && part.endsWith(">")) {
+                span.style.color = "rgb(153, 0, 85)"
               }
               lineDiv.appendChild(span)
             })
           } else {
-            lineDiv.textContent = line || ' '
+            lineDiv.textContent = line || " "
           }
 
           container.appendChild(lineDiv)
@@ -332,7 +332,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
         numbers.push(
           <div
             key={`${blockId}-${lineNumber}-${i}`}
-            className={cn('text-xs text-muted-foreground leading-[21px]', i > 0 && 'invisible')}
+            className={cn("text-muted-foreground text-xs leading-[21px]", i > 0 && "invisible")}
           >
             {lineNumber}
           </div>
@@ -348,8 +348,8 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   const handleDrop = (blockId: string, e: React.DragEvent) => {
     e.preventDefault()
     try {
-      const data = JSON.parse(e.dataTransfer.getData('application/json'))
-      if (data.type !== 'connectionBlock') return
+      const data = JSON.parse(e.dataTransfer.getData("application/json"))
+      if (data.type !== "connectionBlock") return
 
       const textarea: any = editorRef.current?.querySelector(
         `[data-block-id="${blockId}"] textarea`
@@ -359,8 +359,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       setConditionalBlocks((blocks) =>
         blocks.map((block) => {
           if (block.id === blockId) {
-            const newValue =
-              block.value.slice(0, dropPosition) + '<' + block.value.slice(dropPosition)
+            const newValue = `${block.value.slice(0, dropPosition)}<${block.value.slice(dropPosition)}`
             return {
               ...block,
               value: newValue,
@@ -382,7 +381,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
         }
       }, 0)
     } catch (error) {
-      logger.error('Failed to parse drop data:', { error })
+      logger.error("Failed to parse drop data:", { error })
     }
   }
 
@@ -411,7 +410,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
               ...block,
               value: newValue,
               showEnvVars: false,
-              searchTerm: '',
+              searchTerm: "",
             }
           : block
       )
@@ -422,7 +421,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   const updateBlockTitles = (blocks: ConditionalBlock[]): ConditionalBlock[] => {
     return blocks.map((block, index) => ({
       ...block,
-      title: index === 0 ? 'if' : index === blocks.length - 1 ? 'else' : 'else if',
+      title: index === 0 ? "if" : index === blocks.length - 1 ? "else" : "else if",
     }))
   }
 
@@ -435,11 +434,11 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
 
     const newBlock: ConditionalBlock = {
       id: newBlockId,
-      title: '', // Will be set by updateBlockTitles
-      value: '',
+      title: "", // Will be set by updateBlockTitles
+      value: "",
       showTags: false,
       showEnvVars: false,
-      searchTerm: '',
+      searchTerm: "",
       cursorPosition: 0,
       activeSourceBlockId: null,
     }
@@ -471,16 +470,16 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     setConditionalBlocks((blocks) => updateBlockTitles(blocks.filter((block) => block.id !== id)))
   }
 
-  const moveBlock = (id: string, direction: 'up' | 'down') => {
+  const moveBlock = (id: string, direction: "up" | "down") => {
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === id)
     if (
-      (direction === 'up' && blockIndex === 0) ||
-      (direction === 'down' && blockIndex === conditionalBlocks.length - 1)
+      (direction === "up" && blockIndex === 0) ||
+      (direction === "down" && blockIndex === conditionalBlocks.length - 1)
     )
       return
 
     const newBlocks = [...conditionalBlocks]
-    const targetIndex = direction === 'up' ? blockIndex - 1 : blockIndex + 1
+    const targetIndex = direction === "up" ? blockIndex - 1 : blockIndex + 1
     ;[newBlocks[blockIndex], newBlocks[targetIndex]] = [
       newBlocks[targetIndex],
       newBlocks[blockIndex],
@@ -493,8 +492,8 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     conditionalBlocks.forEach((block) => {
       const textarea = editorRef.current?.querySelector(`[data-block-id="${block.id}"] textarea`)
       if (textarea) {
-        textarea.addEventListener('keydown', (e: Event) => {
-          if ((e as KeyboardEvent).key === 'Escape') {
+        textarea.addEventListener("keydown", (e: Event) => {
+          if ((e as KeyboardEvent).key === "Escape") {
             setConditionalBlocks((blocks) =>
               blocks.map((b) =>
                 b.id === block.id
@@ -502,7 +501,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                       ...b,
                       showTags: false,
                       showEnvVars: false,
-                      searchTerm: '',
+                      searchTerm: "",
                     }
                   : b
               )
@@ -516,7 +515,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   // Show loading or empty state if not ready or no blocks
   if (!isReady || conditionalBlocks.length === 0) {
     return (
-      <div className="min-h-[150px] flex items-center justify-center text-muted-foreground">
+      <div className="flex min-h-[150px] items-center justify-center text-muted-foreground">
         Loading conditions...
       </div>
     )
@@ -527,41 +526,41 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       {conditionalBlocks.map((block, index) => (
         <div
           key={block.id}
-          className="overflow-visible rounded-lg border bg-background group relative"
+          className="group relative overflow-visible rounded-lg border bg-background"
         >
           <div
             className={cn(
-              'flex h-10 items-center justify-between bg-card px-3 overflow-hidden',
-              block.title === 'else' ? 'rounded-lg border-0' : 'rounded-t-lg border-b'
+              "flex h-10 items-center justify-between overflow-hidden bg-card px-3",
+              block.title === "else" ? "rounded-lg border-0" : "rounded-t-lg border-b"
             )}
           >
-            <span className="text-sm font-medium">{block.title}</span>
+            <span className="font-medium text-sm">{block.title}</span>
             <Handle
               type="source"
               position={Position.Right}
               id={`condition-${block.id}`}
               key={`${block.id}-${index}`}
               className={cn(
-                '!w-[7px] !h-5',
-                '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
-                '!z-[30]',
-                'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
-                'hover:!w-[10px] hover:!right-[-28px] hover:!rounded-r-full hover:!rounded-l-none',
-                '!cursor-crosshair',
-                'transition-all duration-150',
-                '!right-[-25px]'
+                "!w-[7px] !h-5",
+                "!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none",
+                "!z-[30]",
+                "group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]",
+                "hover:!w-[10px] hover:!right-[-28px] hover:!rounded-r-full hover:!rounded-l-none",
+                "!cursor-crosshair",
+                "transition-all duration-150",
+                "!right-[-25px]"
               )}
               data-nodeid={`${blockId}-${subBlockId}`}
               data-handleid={`condition-${block.id}`}
               style={{
-                top: '50%',
-                transform: 'translateY(-50%)',
+                top: "50%",
+                transform: "translateY(-50%)",
               }}
               isConnectableStart={true}
               isConnectableEnd={false}
               isValidConnection={(connection) => {
-                const sourceNodeId = connection.source?.split('-')[0]
-                const targetNodeId = connection.target?.split('-')[0]
+                const sourceNodeId = connection.source?.split("-")[0]
+                const targetNodeId = connection.target?.split("-")[0]
                 return sourceNodeId !== targetNodeId
               }}
             />
@@ -587,7 +586,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => moveBlock(block.id, 'up')}
+                      onClick={() => moveBlock(block.id, "up")}
                       disabled={index === 0}
                       className="h-8 w-8"
                     >
@@ -603,7 +602,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => moveBlock(block.id, 'down')}
+                      onClick={() => moveBlock(block.id, "down")}
                       disabled={index === conditionalBlocks.length - 1}
                       className="h-8 w-8"
                     >
@@ -632,31 +631,31 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
               </Tooltip>
             </div>
           </div>
-          {block.title !== 'else' && (
+          {block.title !== "else" && (
             <div
               className={cn(
-                'relative min-h-[100px] bg-background font-mono text-sm rounded-b-lg',
-                isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
+                "relative min-h-[100px] rounded-b-lg bg-background font-mono text-sm",
+                isConnecting && "ring-2 ring-blue-500 ring-offset-2"
               )}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleDrop(block.id, e)}
             >
               {/* Line numbers */}
               <div
-                className="absolute left-0 top-0 bottom-0 w-[30px] bg-muted/30 flex flex-col items-end pr-3 pt-3 select-none"
+                className="absolute top-0 bottom-0 left-0 flex w-[30px] select-none flex-col items-end bg-muted/30 pt-3 pr-3"
                 aria-hidden="true"
               >
                 {renderLineNumbers(block.id)}
               </div>
 
               <div
-                className="pl-[30px] pt-0 mt-0 relative"
+                className="relative mt-0 pt-0 pl-[30px]"
                 ref={editorRef}
                 data-block-id={block.id}
               >
                 {block.value.length === 0 && (
-                  <div className="absolute left-[42px] top-[12px] text-muted-foreground/50 select-none pointer-events-none">
-                    {'<response> === true'}
+                  <div className="pointer-events-none absolute top-[12px] left-[42px] select-none text-muted-foreground/50">
+                    {"<response> === true"}
                   </div>
                 )}
                 <Editor
@@ -668,7 +667,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                     updateBlockValue(block.id, newCode, textarea as HTMLTextAreaElement | null)
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
+                    if (e.key === "Escape") {
                       setConditionalBlocks((blocks) =>
                         blocks.map((b) =>
                           b.id === block.id ? { ...b, showTags: false, showEnvVars: false } : b
@@ -676,12 +675,12 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                       )
                     }
                   }}
-                  highlight={(code) => highlight(code, languages.javascript, 'javascript')}
+                  highlight={(code) => highlight(code, languages.javascript, "javascript")}
                   padding={12}
                   style={{
-                    fontFamily: 'inherit',
-                    minHeight: '46px',
-                    lineHeight: '21px',
+                    fontFamily: "inherit",
+                    minHeight: "46px",
+                    lineHeight: "21px",
                   }}
                   className="focus:outline-none"
                   textareaClassName="focus:outline-none focus:ring-0 bg-transparent"
@@ -697,7 +696,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                     onClose={() => {
                       setConditionalBlocks((blocks) =>
                         blocks.map((b) =>
-                          b.id === block.id ? { ...b, showEnvVars: false, searchTerm: '' } : b
+                          b.id === block.id ? { ...b, showEnvVars: false, searchTerm: "" } : b
                         )
                       )
                     }}

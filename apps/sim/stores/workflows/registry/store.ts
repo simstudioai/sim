@@ -1,30 +1,30 @@
-import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
-import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
-import { API_ENDPOINTS, STORAGE_KEYS } from '../../constants'
+import { create } from "zustand"
+import { devtools } from "zustand/middleware"
+import { createLogger } from "@/lib/logs/console-logger"
+import { clearWorkflowVariablesTracking } from "@/stores/panel/variables/store"
+import { API_ENDPOINTS, STORAGE_KEYS } from "../../constants"
 import {
   loadWorkflowState,
   removeFromStorage,
   saveRegistry,
   saveSubblockValues,
   saveWorkflowState,
-} from '../persistence'
-import { useSubBlockStore } from '../subblock/store'
+} from "../persistence"
+import { useSubBlockStore } from "../subblock/store"
 import {
   fetchWorkflowsFromDB,
   markWorkflowsDirty,
   resetRegistryInitialization,
   workflowSync,
-} from '../sync'
-import { useWorkflowStore } from '../workflow/store'
-import { DeploymentStatus, WorkflowMetadata, WorkflowRegistry } from './types'
-import { generateUniqueName, getNextWorkflowColor } from './utils'
+} from "../sync"
+import { useWorkflowStore } from "../workflow/store"
+import type { DeploymentStatus, WorkflowMetadata, WorkflowRegistry } from "./types"
+import { generateUniqueName, getNextWorkflowColor } from "./utils"
 
-const logger = createLogger('WorkflowRegistry')
+const logger = createLogger("WorkflowRegistry")
 
 // Storage key for active workspace
-const ACTIVE_WORKSPACE_KEY = 'active-workspace-id'
+const ACTIVE_WORKSPACE_KEY = "active-workspace-id"
 
 // Track workspace transitions to prevent race conditions
 let isWorkspaceTransitioning = false
@@ -32,7 +32,7 @@ const TRANSITION_TIMEOUT = 5000 // 5 seconds maximum for workspace transitions
 
 // Helps clean up any localStorage data that isn't needed for the current workspace
 function cleanupLocalStorageForWorkspace(workspaceId: string): void {
-  if (typeof window === 'undefined') return
+  if (typeof window === "undefined") return
 
   try {
     const { workflows } = useWorkflowRegistry.getState()
@@ -41,17 +41,17 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
     // Find all localStorage keys that start with workflow- or subblock-values-
     const localStorageKeys = Object.keys(localStorage)
     const workflowKeys = localStorageKeys.filter(
-      (key) => key.startsWith('workflow-') || key.startsWith('subblock-values-')
+      (key) => key.startsWith("workflow-") || key.startsWith("subblock-values-")
     )
 
     // Extract the workflow ID from each key (remove the prefix)
     for (const key of workflowKeys) {
       let workflowId: string | null = null
 
-      if (key.startsWith('workflow-')) {
-        workflowId = key.replace('workflow-', '')
-      } else if (key.startsWith('subblock-values-')) {
-        workflowId = key.replace('subblock-values-', '')
+      if (key.startsWith("workflow-")) {
+        workflowId = key.replace("workflow-", "")
+      } else if (key.startsWith("subblock-values-")) {
+        workflowId = key.replace("subblock-values-", "")
       }
 
       if (workflowId) {
@@ -70,10 +70,7 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
               if (parsed.workspaceId === workspaceId) {
                 localStorage.removeItem(key)
               }
-            } catch (e) {
-              // Skip if we can't parse the data
-              continue
-            }
+            } catch (e) {}
           } else {
             // If we can't determine the workspace, remove it to be safe
             localStorage.removeItem(key)
@@ -85,9 +82,9 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
           if (exists) {
             try {
               const parsed = JSON.parse(exists)
-              if (parsed && parsed.workspaceId && parsed.workspaceId !== workspaceId) {
+              if (parsed?.workspaceId && parsed.workspaceId !== workspaceId) {
                 // Check if this workspace still exists in our list
-                const workspacesData = localStorage.getItem('workspaces')
+                const workspacesData = localStorage.getItem("workspaces")
                 if (workspacesData) {
                   try {
                     const workspaces = JSON.parse(workspacesData)
@@ -111,7 +108,7 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
       }
     }
   } catch (error) {
-    logger.error('Error cleaning up localStorage:', error)
+    logger.error("Error cleaning up localStorage:", error)
   }
 }
 
@@ -140,7 +137,7 @@ function resetWorkflowStores() {
           deployedAt: undefined,
         },
         timestamp: Date.now(),
-        action: 'Initial state',
+        action: "Initial state",
         subblockValues: {},
       },
       future: [],
@@ -166,7 +163,7 @@ function setWorkspaceTransitioning(isTransitioning: boolean): void {
   if (isTransitioning) {
     setTimeout(() => {
       if (isWorkspaceTransitioning) {
-        logger.warn('Forcing workspace transition to complete due to timeout')
+        logger.warn("Forcing workspace transition to complete due to timeout")
         isWorkspaceTransitioning = false
       }
     }, TRANSITION_TIMEOUT)
@@ -188,7 +185,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       workflows: {},
       activeWorkflowId: null,
       activeWorkspaceId:
-        typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_WORKSPACE_KEY) : null,
+        typeof window !== "undefined" ? localStorage.getItem(ACTIVE_WORKSPACE_KEY) : null,
       isLoading: false,
       error: null,
       // Initialize deployment statuses
@@ -207,7 +204,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         const currentWorkspaceId = get().activeWorkspaceId
 
         if (!newWorkspaceId || newWorkspaceId === currentWorkspaceId) {
-          logger.error('Cannot switch to invalid workspace after deletion')
+          logger.error("Cannot switch to invalid workspace after deletion")
           return
         }
 
@@ -223,7 +220,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         resetRegistryInitialization()
 
         // Save to localStorage for persistence
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
           localStorage.setItem(ACTIVE_WORKSPACE_KEY, newWorkspaceId)
         }
 
@@ -247,11 +244,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             setWorkspaceTransitioning(false)
           })
           .catch((error) => {
-            logger.error('Error fetching workflows after workspace deletion:', {
+            logger.error("Error fetching workflows after workspace deletion:", {
               error,
               workspaceId: newWorkspaceId,
             })
-            set({ isLoading: false, error: 'Failed to load workspace data' })
+            set({ isLoading: false, error: "Failed to load workspace data" })
 
             // End transition state even on error
             setWorkspaceTransitioning(false)
@@ -269,7 +266,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         // Prevent multiple workspace transitions at once
         if (isWorkspaceTransitioning) {
-          logger.warn('Workspace already transitioning, ignoring new request')
+          logger.warn("Workspace already transitioning, ignoring new request")
           return
         }
 
@@ -285,7 +282,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         resetRegistryInitialization()
 
         // Save to localStorage for persistence
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
           localStorage.setItem(ACTIVE_WORKSPACE_KEY, id)
         }
 
@@ -312,8 +309,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             setWorkspaceTransitioning(false)
           })
           .catch((error) => {
-            logger.error('Error fetching workflows for workspace:', { error, workspaceId: id })
-            set({ isLoading: false, error: 'Failed to load workspace data' })
+            logger.error("Error fetching workflows for workspace:", { error, workspaceId: id })
+            set({ isLoading: false, error: "Failed to load workspace data" })
 
             // End transition state even on error
             setWorkspaceTransitioning(false)
@@ -539,7 +536,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           let workflowNeedsRedeployment = needsRedeployment
 
           // Check if we have a workflow-specific deployment status
-          if (deploymentStatuses && deploymentStatuses[id]) {
+          if (deploymentStatuses?.[id]) {
             workflowIsDeployed = deploymentStatuses[id].isDeployed
             workflowDeployedAt = deploymentStatuses[id].deployedAt
             workflowNeedsRedeployment = deploymentStatuses[id].needsRedeployment
@@ -570,7 +567,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   deployedAt: workflowDeployedAt,
                 },
                 timestamp: Date.now(),
-                action: 'Initial state',
+                action: "Initial state",
                 subblockValues: {},
               },
               future: [],
@@ -622,7 +619,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   deployedAt: undefined,
                 },
                 timestamp: Date.now(),
-                action: 'Initial state',
+                action: "Initial state",
                 subblockValues: {},
               },
               future: [],
@@ -649,17 +646,17 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Use provided workspace ID or fall back to active workspace ID
         const workspaceId = options.workspaceId || activeWorkspaceId || undefined
 
-        logger.info(`Creating new workflow in workspace: ${workspaceId || 'none'}`)
+        logger.info(`Creating new workflow in workspace: ${workspaceId || "none"}`)
 
         // Generate workflow metadata with appropriate name and color
         const newWorkflow: WorkflowMetadata = {
           id,
           name: options.name || generateUniqueName(workflows),
           lastModified: new Date(),
-          description: options.description || 'New workflow',
-          color: options.marketplaceId ? '#808080' : getNextWorkflowColor(workflows), // Gray for marketplace imports
+          description: options.description || "New workflow",
+          color: options.marketplaceId ? "#808080" : getNextWorkflowColor(workflows), // Gray for marketplace imports
           marketplaceData: options.marketplaceId
-            ? { id: options.marketplaceId, status: 'temp' as const }
+            ? { id: options.marketplaceId, status: "temp" as const }
             : undefined,
           workspaceId, // Associate with workspace
         }
@@ -688,7 +685,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   workspaceId, // Include workspace ID in history
                 },
                 timestamp: Date.now(),
-                action: 'Imported from marketplace',
+                action: "Imported from marketplace",
                 subblockValues: {},
               },
               future: [],
@@ -702,85 +699,85 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           const starterId = crypto.randomUUID()
           const starterBlock = {
             id: starterId,
-            type: 'starter' as const,
-            name: 'Start',
+            type: "starter" as const,
+            name: "Start",
             position: { x: 100, y: 100 },
             subBlocks: {
               startWorkflow: {
-                id: 'startWorkflow',
-                type: 'dropdown' as const,
-                value: 'manual',
+                id: "startWorkflow",
+                type: "dropdown" as const,
+                value: "manual",
               },
               webhookPath: {
-                id: 'webhookPath',
-                type: 'short-input' as const,
-                value: '',
+                id: "webhookPath",
+                type: "short-input" as const,
+                value: "",
               },
               webhookSecret: {
-                id: 'webhookSecret',
-                type: 'short-input' as const,
-                value: '',
+                id: "webhookSecret",
+                type: "short-input" as const,
+                value: "",
               },
               scheduleType: {
-                id: 'scheduleType',
-                type: 'dropdown' as const,
-                value: 'daily',
+                id: "scheduleType",
+                type: "dropdown" as const,
+                value: "daily",
               },
               minutesInterval: {
-                id: 'minutesInterval',
-                type: 'short-input' as const,
-                value: '',
+                id: "minutesInterval",
+                type: "short-input" as const,
+                value: "",
               },
               minutesStartingAt: {
-                id: 'minutesStartingAt',
-                type: 'short-input' as const,
-                value: '',
+                id: "minutesStartingAt",
+                type: "short-input" as const,
+                value: "",
               },
               hourlyMinute: {
-                id: 'hourlyMinute',
-                type: 'short-input' as const,
-                value: '',
+                id: "hourlyMinute",
+                type: "short-input" as const,
+                value: "",
               },
               dailyTime: {
-                id: 'dailyTime',
-                type: 'short-input' as const,
-                value: '',
+                id: "dailyTime",
+                type: "short-input" as const,
+                value: "",
               },
               weeklyDay: {
-                id: 'weeklyDay',
-                type: 'dropdown' as const,
-                value: 'MON',
+                id: "weeklyDay",
+                type: "dropdown" as const,
+                value: "MON",
               },
               weeklyDayTime: {
-                id: 'weeklyDayTime',
-                type: 'short-input' as const,
-                value: '',
+                id: "weeklyDayTime",
+                type: "short-input" as const,
+                value: "",
               },
               monthlyDay: {
-                id: 'monthlyDay',
-                type: 'short-input' as const,
-                value: '',
+                id: "monthlyDay",
+                type: "short-input" as const,
+                value: "",
               },
               monthlyTime: {
-                id: 'monthlyTime',
-                type: 'short-input' as const,
-                value: '',
+                id: "monthlyTime",
+                type: "short-input" as const,
+                value: "",
               },
               cronExpression: {
-                id: 'cronExpression',
-                type: 'short-input' as const,
-                value: '',
+                id: "cronExpression",
+                type: "short-input" as const,
+                value: "",
               },
               timezone: {
-                id: 'timezone',
-                type: 'dropdown' as const,
-                value: 'UTC',
+                id: "timezone",
+                type: "dropdown" as const,
+                value: "UTC",
               },
             },
             outputs: {
               response: {
                 type: {
-                  input: 'any',
+                  input: "any",
                 },
               },
             },
@@ -814,7 +811,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   workspaceId, // Include workspace ID in history
                 },
                 timestamp: Date.now(),
-                action: 'Initial state',
+                action: "Initial state",
                 subblockValues: {},
               },
               future: [],
@@ -860,7 +857,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Trigger sync
         useWorkflowStore.getState().sync.forceSync()
 
-        logger.info(`Created new workflow with ID ${id} in workspace ${workspaceId || 'none'}`)
+        logger.info(`Created new workflow with ID ${id} in workspace ${workspaceId || "none"}`)
 
         return id
       },
@@ -883,11 +880,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Generate workflow metadata with marketplace properties
         const newWorkflow: WorkflowMetadata = {
           id,
-          name: metadata.name || `Marketplace workflow`,
+          name: metadata.name || "Marketplace workflow",
           lastModified: new Date(),
-          description: metadata.description || 'Imported from marketplace',
+          description: metadata.description || "Imported from marketplace",
           color: metadata.color || getNextWorkflowColor(workflows),
-          marketplaceData: { id: marketplaceId, status: 'temp' as const },
+          marketplaceData: { id: marketplaceId, status: "temp" as const },
         }
 
         // Prepare workflow state based on the marketplace workflow state
@@ -908,7 +905,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 deployedAt: undefined,
               },
               timestamp: Date.now(),
-              action: 'Imported from marketplace',
+              action: "Imported from marketplace",
               subblockValues: {},
             },
             future: [],
@@ -1006,7 +1003,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 workspaceId, // Include workspaceId in history state
               },
               timestamp: Date.now(),
-              action: 'Duplicated workflow',
+              action: "Duplicated workflow",
               subblockValues: {},
             },
             future: [],
@@ -1051,7 +1048,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         useWorkflowStore.getState().sync.forceSync()
 
         logger.info(
-          `Duplicated workflow ${sourceId} to ${id} in workspace ${workspaceId || 'none'}`
+          `Duplicated workflow ${sourceId} to ${id} in workspace ${workspaceId || "none"}`
         )
 
         return id
@@ -1071,8 +1068,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           // Ensure any schedule for this workflow is cancelled
           // The API will handle the deletion of the schedule
           fetch(API_ENDPOINTS.SCHEDULE, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               workflowId: id,
               state: { blocks: {} }, // Empty blocks will signal to cancel the schedule
@@ -1114,7 +1111,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                       deployedAt,
                     },
                     timestamp: Date.now(),
-                    action: 'Initial state',
+                    action: "Initial state",
                     subblockValues: {},
                   },
                   future: [],
@@ -1139,7 +1136,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                       deployedAt: undefined,
                     },
                     timestamp: Date.now(),
-                    action: 'Initial state',
+                    action: "Initial state",
                     subblockValues: {},
                   },
                   future: [],
@@ -1188,6 +1185,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         })
       },
     }),
-    { name: 'workflow-registry' }
+    { name: "workflow-registry" }
   )
 )

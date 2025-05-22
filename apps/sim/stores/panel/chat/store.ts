@@ -1,6 +1,6 @@
-import { create } from 'zustand'
-import { devtools, persist } from 'zustand/middleware'
-import { ChatMessage, ChatStore } from './types'
+import { create } from "zustand"
+import { devtools, persist } from "zustand/middleware"
+import type { ChatMessage, ChatStore } from "./types"
 
 // MAX across all workflows
 const MAX_MESSAGES = 50
@@ -69,7 +69,7 @@ export const useChatStore = create<ChatStore>()(
                 return {
                   ...message,
                   content:
-                    typeof message.content === 'string'
+                    typeof message.content === "string"
                       ? message.content + content
                       : message.content
                         ? String(message.content) + content
@@ -98,7 +98,7 @@ export const useChatStore = create<ChatStore>()(
         },
       }),
       {
-        name: 'chat-store',
+        name: "chat-store",
       }
     )
   )

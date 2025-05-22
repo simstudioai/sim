@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { format } from 'date-fns'
-import { Trash2, X } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useEffect, useState } from "react"
+import { format } from "date-fns"
+import { Trash2, X } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,27 +11,27 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Calendar as CalendarComponent } from '@/components/ui/calendar'
-import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { createLogger } from '@/lib/logs/console-logger'
-import { cn } from '@/lib/utils'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useSubBlockValue } from '../../../hooks/use-sub-block-value'
-import { TimeInput } from '../../time-input'
-import { UnsavedChangesDialog } from '../../webhook/components/ui/confirmation'
+} from "@/components/ui/select"
+import { createLogger } from "@/lib/logs/console-logger"
+import { cn } from "@/lib/utils"
+import { useSubBlockStore } from "@/stores/workflows/subblock/store"
+import { useSubBlockValue } from "../../../hooks/use-sub-block-value"
+import { TimeInput } from "../../time-input"
+import { UnsavedChangesDialog } from "../../webhook/components/ui/confirmation"
 
-const logger = createLogger('ScheduleModal')
+const logger = createLogger("ScheduleModal")
 
 interface ScheduleModalProps {
   isOpen: boolean
@@ -53,21 +53,21 @@ export function ScheduleModal({
   scheduleId,
 }: ScheduleModalProps) {
   // States for schedule configuration
-  const [scheduleType, setScheduleType] = useSubBlockValue(blockId, 'scheduleType')
-  const [scheduleStartAt, setScheduleStartAt] = useSubBlockValue(blockId, 'scheduleStartAt')
-  const [scheduleTime, setScheduleTime] = useSubBlockValue(blockId, 'scheduleTime')
-  const [minutesInterval, setMinutesInterval] = useSubBlockValue(blockId, 'minutesInterval')
-  const [hourlyMinute, setHourlyMinute] = useSubBlockValue(blockId, 'hourlyMinute')
-  const [dailyTime, setDailyTime] = useSubBlockValue(blockId, 'dailyTime')
-  const [weeklyDay, setWeeklyDay] = useSubBlockValue(blockId, 'weeklyDay')
-  const [weeklyDayTime, setWeeklyDayTime] = useSubBlockValue(blockId, 'weeklyDayTime')
-  const [monthlyDay, setMonthlyDay] = useSubBlockValue(blockId, 'monthlyDay')
-  const [monthlyTime, setMonthlyTime] = useSubBlockValue(blockId, 'monthlyTime')
-  const [cronExpression, setCronExpression] = useSubBlockValue(blockId, 'cronExpression')
-  const [timezone, setTimezone] = useSubBlockValue(blockId, 'timezone')
+  const [scheduleType, setScheduleType] = useSubBlockValue(blockId, "scheduleType")
+  const [scheduleStartAt, setScheduleStartAt] = useSubBlockValue(blockId, "scheduleStartAt")
+  const [scheduleTime, setScheduleTime] = useSubBlockValue(blockId, "scheduleTime")
+  const [minutesInterval, setMinutesInterval] = useSubBlockValue(blockId, "minutesInterval")
+  const [hourlyMinute, setHourlyMinute] = useSubBlockValue(blockId, "hourlyMinute")
+  const [dailyTime, setDailyTime] = useSubBlockValue(blockId, "dailyTime")
+  const [weeklyDay, setWeeklyDay] = useSubBlockValue(blockId, "weeklyDay")
+  const [weeklyDayTime, setWeeklyDayTime] = useSubBlockValue(blockId, "weeklyDayTime")
+  const [monthlyDay, setMonthlyDay] = useSubBlockValue(blockId, "monthlyDay")
+  const [monthlyTime, setMonthlyTime] = useSubBlockValue(blockId, "monthlyTime")
+  const [cronExpression, setCronExpression] = useSubBlockValue(blockId, "cronExpression")
+  const [timezone, setTimezone] = useSubBlockValue(blockId, "timezone")
 
   // Get the startWorkflow value at the component level
-  const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
+  const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, "startWorkflow")
 
   // UI states
   const [isSaving, setIsSaving] = useState(false)
@@ -85,18 +85,18 @@ export function ScheduleModal({
     if (isOpen) {
       // Capture all current values when modal opens
       const currentValues = {
-        scheduleType: scheduleType || 'daily',
-        scheduleStartAt: scheduleStartAt || '',
-        scheduleTime: scheduleTime || '',
-        minutesInterval: minutesInterval || '',
-        hourlyMinute: hourlyMinute || '',
-        dailyTime: dailyTime || '',
-        weeklyDay: weeklyDay || 'MON',
-        weeklyDayTime: weeklyDayTime || '',
-        monthlyDay: monthlyDay || '',
-        monthlyTime: monthlyTime || '',
-        timezone: timezone || 'UTC',
-        cronExpression: cronExpression || '',
+        scheduleType: scheduleType || "daily",
+        scheduleStartAt: scheduleStartAt || "",
+        scheduleTime: scheduleTime || "",
+        minutesInterval: minutesInterval || "",
+        hourlyMinute: hourlyMinute || "",
+        dailyTime: dailyTime || "",
+        weeklyDay: weeklyDay || "MON",
+        weeklyDayTime: weeklyDayTime || "",
+        monthlyDay: monthlyDay || "",
+        monthlyTime: monthlyTime || "",
+        timezone: timezone || "UTC",
+        cronExpression: cronExpression || "",
       }
 
       setInitialValues(currentValues)
@@ -110,18 +110,18 @@ export function ScheduleModal({
     if (!isOpen) return
 
     const currentValues = {
-      scheduleType: scheduleType || 'daily',
-      scheduleStartAt: scheduleStartAt || '',
-      scheduleTime: scheduleTime || '',
-      minutesInterval: minutesInterval || '',
-      hourlyMinute: hourlyMinute || '',
-      dailyTime: dailyTime || '',
-      weeklyDay: weeklyDay || 'MON',
-      weeklyDayTime: weeklyDayTime || '',
-      monthlyDay: monthlyDay || '',
-      monthlyTime: monthlyTime || '',
-      timezone: timezone || 'UTC',
-      cronExpression: cronExpression || '',
+      scheduleType: scheduleType || "daily",
+      scheduleStartAt: scheduleStartAt || "",
+      scheduleTime: scheduleTime || "",
+      minutesInterval: minutesInterval || "",
+      hourlyMinute: hourlyMinute || "",
+      dailyTime: dailyTime || "",
+      weeklyDay: weeklyDay || "MON",
+      weeklyDayTime: weeklyDayTime || "",
+      monthlyDay: monthlyDay || "",
+      monthlyTime: monthlyTime || "",
+      timezone: timezone || "UTC",
+      cronExpression: cronExpression || "",
     }
 
     // Simple JSON comparison to detect any changes
@@ -132,22 +132,22 @@ export function ScheduleModal({
       let hasRequiredFields = false
 
       switch (currentValues.scheduleType) {
-        case 'minutes':
+        case "minutes":
           hasRequiredFields = !!currentValues.minutesInterval
           break
-        case 'hourly':
-          hasRequiredFields = currentValues.hourlyMinute !== ''
+        case "hourly":
+          hasRequiredFields = currentValues.hourlyMinute !== ""
           break
-        case 'daily':
+        case "daily":
           hasRequiredFields = !!currentValues.dailyTime
           break
-        case 'weekly':
+        case "weekly":
           hasRequiredFields = !!currentValues.weeklyDay && !!currentValues.weeklyDayTime
           break
-        case 'monthly':
+        case "monthly":
           hasRequiredFields = !!currentValues.monthlyDay && !!currentValues.monthlyTime
           break
-        case 'custom':
+        case "custom":
           hasRequiredFields = !!currentValues.cronExpression
           break
       }
@@ -217,56 +217,56 @@ export function ScheduleModal({
 
     try {
       // Validate inputs based on schedule type
-      if (scheduleType === 'minutes' && !minutesInterval) {
-        setErrorMessage('Please enter minutes interval')
+      if (scheduleType === "minutes" && !minutesInterval) {
+        setErrorMessage("Please enter minutes interval")
         setIsSaving(false)
         return
       }
 
-      if (scheduleType === 'hourly' && hourlyMinute === '') {
-        setErrorMessage('Please enter minute of the hour')
+      if (scheduleType === "hourly" && hourlyMinute === "") {
+        setErrorMessage("Please enter minute of the hour")
         setIsSaving(false)
         return
       }
 
-      if (scheduleType === 'daily' && !dailyTime) {
-        setErrorMessage('Please enter time of day')
+      if (scheduleType === "daily" && !dailyTime) {
+        setErrorMessage("Please enter time of day")
         setIsSaving(false)
         return
       }
 
-      if (scheduleType === 'weekly' && !weeklyDayTime) {
-        setErrorMessage('Please enter time of day')
+      if (scheduleType === "weekly" && !weeklyDayTime) {
+        setErrorMessage("Please enter time of day")
         setIsSaving(false)
         return
       }
 
-      if (scheduleType === 'monthly' && (!monthlyDay || !monthlyTime)) {
-        setErrorMessage('Please enter day of month and time')
+      if (scheduleType === "monthly" && (!monthlyDay || !monthlyTime)) {
+        setErrorMessage("Please enter day of month and time")
         setIsSaving(false)
         return
       }
 
-      if (scheduleType === 'custom' && !cronExpression) {
-        setErrorMessage('Please enter a cron expression')
+      if (scheduleType === "custom" && !cronExpression) {
+        setErrorMessage("Please enter a cron expression")
         setIsSaving(false)
         return
       }
 
       // Make sure the block's startWorkflow field is set to 'schedule'
-      logger.debug('Current startWorkflow value:', startWorkflow)
+      logger.debug("Current startWorkflow value:", startWorkflow)
 
       // Important: Set startWorkflow to 'schedule' in two ways for maximum reliability
       // 1. Via the hook which will trigger a state update
-      if (startWorkflow !== 'schedule') {
-        logger.debug('Setting startWorkflow to schedule via hook')
-        setStartWorkflow('schedule')
+      if (startWorkflow !== "schedule") {
+        logger.debug("Setting startWorkflow to schedule via hook")
+        setStartWorkflow("schedule")
       }
 
       // 2. Also directly set the value in the subblock store for immediate effect
       // This provides a more reliable way to ensure the value is set
-      logger.debug('Setting startWorkflow to schedule directly in store')
-      useSubBlockStore.getState().setValue(blockId, 'startWorkflow', 'schedule')
+      logger.debug("Setting startWorkflow to schedule directly in store")
+      useSubBlockStore.getState().setValue(blockId, "startWorkflow", "schedule")
 
       // Give time for the state updates to propagate
       await new Promise((resolve) => setTimeout(resolve, 150))
@@ -278,27 +278,27 @@ export function ScheduleModal({
       if (success) {
         // Update initial values to match current state
         const updatedValues = {
-          scheduleType: scheduleType || 'daily',
-          scheduleStartAt: scheduleStartAt || '',
-          scheduleTime: scheduleTime || '',
-          minutesInterval: minutesInterval || '',
-          hourlyMinute: hourlyMinute || '',
-          dailyTime: dailyTime || '',
-          weeklyDay: weeklyDay || 'MON',
-          weeklyDayTime: weeklyDayTime || '',
-          monthlyDay: monthlyDay || '',
-          monthlyTime: monthlyTime || '',
-          timezone: timezone || 'UTC',
-          cronExpression: cronExpression || '',
+          scheduleType: scheduleType || "daily",
+          scheduleStartAt: scheduleStartAt || "",
+          scheduleTime: scheduleTime || "",
+          minutesInterval: minutesInterval || "",
+          hourlyMinute: hourlyMinute || "",
+          dailyTime: dailyTime || "",
+          weeklyDay: weeklyDay || "MON",
+          weeklyDayTime: weeklyDayTime || "",
+          monthlyDay: monthlyDay || "",
+          monthlyTime: monthlyTime || "",
+          timezone: timezone || "UTC",
+          cronExpression: cronExpression || "",
         }
-        logger.debug('Schedule saved successfully, updating initial values', updatedValues)
+        logger.debug("Schedule saved successfully, updating initial values", updatedValues)
         setInitialValues(updatedValues)
         setHasChanges(false)
         onClose()
       }
     } catch (error) {
-      logger.error('Error saving schedule:', { error })
-      setErrorMessage('Failed to save schedule')
+      logger.error("Error saving schedule:", { error })
+      setErrorMessage("Failed to save schedule")
     } finally {
       setIsSaving(false)
     }
@@ -317,8 +317,8 @@ export function ScheduleModal({
         onClose()
       }
     } catch (error) {
-      logger.error('Error deleting schedule:', { error })
-      setErrorMessage('Failed to delete schedule')
+      logger.error("Error deleting schedule:", { error })
+      setErrorMessage("Failed to delete schedule")
     } finally {
       setIsDeleting(false)
     }
@@ -332,18 +332,18 @@ export function ScheduleModal({
   // Helper to format a date for display
   const formatDate = (date: string) => {
     try {
-      return date ? format(new Date(date), 'PPP') : 'Select date'
+      return date ? format(new Date(date), "PPP") : "Select date"
     } catch (e) {
-      return 'Select date'
+      return "Select date"
     }
   }
 
   return (
     <>
-      <DialogContent className="sm:max-w-[600px] flex flex-col p-0 gap-0" hideCloseButton>
-        <DialogHeader className="px-6 py-4 border-b">
+      <DialogContent className="flex flex-col gap-0 p-0 sm:max-w-[600px]" hideCloseButton>
+        <DialogHeader className="border-b px-6 py-4">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Schedule Configuration</DialogTitle>
+            <DialogTitle className="font-medium text-lg">Schedule Configuration</DialogTitle>
             <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleClose}>
               <X className="h-4 w-4" />
               <span className="sr-only">Close</span>
@@ -351,7 +351,7 @@ export function ScheduleModal({
           </div>
         </DialogHeader>
 
-        <div className="pt-4 px-6 pb-6 overflow-y-auto">
+        <div className="overflow-y-auto px-6 pt-4 pb-6">
           {errorMessage && (
             <Alert variant="destructive" className="mb-4">
               <AlertDescription>{errorMessage}</AlertDescription>
@@ -362,7 +362,7 @@ export function ScheduleModal({
             {/* Common date and time fields */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label htmlFor="scheduleStartAt" className="text-sm font-medium">
+                <label htmlFor="scheduleStartAt" className="font-medium text-sm">
                   Start At
                 </label>
                 <Popover>
@@ -370,16 +370,16 @@ export function ScheduleModal({
                     <Button
                       id="scheduleStartAt"
                       variant="outline"
-                      className="justify-start text-left font-normal w-full h-10"
+                      className="h-10 w-full justify-start text-left font-normal"
                     >
-                      {formatDate(scheduleStartAt || '')}
+                      {formatDate(scheduleStartAt || "")}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <CalendarComponent
                       mode="single"
                       selected={scheduleStartAt ? new Date(scheduleStartAt) : undefined}
-                      onSelect={(date) => setScheduleStartAt(date ? date.toISOString() : '')}
+                      onSelect={(date) => setScheduleStartAt(date ? date.toISOString() : "")}
                       initialFocus
                     />
                   </PopoverContent>
@@ -387,7 +387,7 @@ export function ScheduleModal({
               </div>
 
               <div className="space-y-1">
-                <label htmlFor="scheduleTime" className="text-sm font-medium">
+                <label htmlFor="scheduleTime" className="font-medium text-sm">
                   Time
                 </label>
                 <TimeInput
@@ -401,11 +401,11 @@ export function ScheduleModal({
 
             {/* Frequency selector */}
             <div className="space-y-1">
-              <label htmlFor="scheduleType" className="text-sm font-medium">
+              <label htmlFor="scheduleType" className="font-medium text-sm">
                 Frequency
               </label>
               <Select
-                value={scheduleType || 'daily'}
+                value={scheduleType || "daily"}
                 onValueChange={(value) => setScheduleType(value)}
               >
                 <SelectTrigger className="h-10">
@@ -423,14 +423,14 @@ export function ScheduleModal({
             </div>
 
             {/* Minutes schedule options */}
-            {scheduleType === 'minutes' && (
+            {scheduleType === "minutes" && (
               <div className="space-y-1">
-                <label htmlFor="minutesInterval" className="text-sm font-medium">
+                <label htmlFor="minutesInterval" className="font-medium text-sm">
                   Run Every (minutes)
                 </label>
                 <Input
                   id="minutesInterval"
-                  value={minutesInterval || ''}
+                  value={minutesInterval || ""}
                   onChange={(e) => setMinutesInterval(e.target.value)}
                   placeholder="15"
                   type="number"
@@ -441,14 +441,14 @@ export function ScheduleModal({
             )}
 
             {/* Hourly schedule options */}
-            {scheduleType === 'hourly' && (
+            {scheduleType === "hourly" && (
               <div className="space-y-1">
-                <label htmlFor="hourlyMinute" className="text-sm font-medium">
+                <label htmlFor="hourlyMinute" className="font-medium text-sm">
                   Minute of the Hour
                 </label>
                 <Input
                   id="hourlyMinute"
-                  value={hourlyMinute || ''}
+                  value={hourlyMinute || ""}
                   onChange={(e) => setHourlyMinute(e.target.value)}
                   placeholder="0"
                   type="number"
@@ -456,16 +456,16 @@ export function ScheduleModal({
                   max="59"
                   className="h-10"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   Specify which minute of each hour the workflow should run (0-59)
                 </p>
               </div>
             )}
 
             {/* Daily schedule options */}
-            {scheduleType === 'daily' && (
+            {scheduleType === "daily" && (
               <div className="space-y-1">
-                <label htmlFor="dailyTime" className="text-sm font-medium">
+                <label htmlFor="dailyTime" className="font-medium text-sm">
                   Time of Day
                 </label>
                 <TimeInput
@@ -478,13 +478,13 @@ export function ScheduleModal({
             )}
 
             {/* Weekly schedule options */}
-            {scheduleType === 'weekly' && (
+            {scheduleType === "weekly" && (
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <label htmlFor="weeklyDay" className="text-sm font-medium">
+                  <label htmlFor="weeklyDay" className="font-medium text-sm">
                     Day of Week
                   </label>
-                  <Select value={weeklyDay || 'MON'} onValueChange={(value) => setWeeklyDay(value)}>
+                  <Select value={weeklyDay || "MON"} onValueChange={(value) => setWeeklyDay(value)}>
                     <SelectTrigger className="h-10">
                       <SelectValue placeholder="Select day" />
                     </SelectTrigger>
@@ -501,7 +501,7 @@ export function ScheduleModal({
                 </div>
 
                 <div className="space-y-1">
-                  <label htmlFor="weeklyDayTime" className="text-sm font-medium">
+                  <label htmlFor="weeklyDayTime" className="font-medium text-sm">
                     Time of Day
                   </label>
                   <TimeInput
@@ -515,15 +515,15 @@ export function ScheduleModal({
             )}
 
             {/* Monthly schedule options */}
-            {scheduleType === 'monthly' && (
+            {scheduleType === "monthly" && (
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <label htmlFor="monthlyDay" className="text-sm font-medium">
+                  <label htmlFor="monthlyDay" className="font-medium text-sm">
                     Day of Month
                   </label>
                   <Input
                     id="monthlyDay"
-                    value={monthlyDay || ''}
+                    value={monthlyDay || ""}
                     onChange={(e) => setMonthlyDay(e.target.value)}
                     placeholder="1"
                     type="number"
@@ -531,13 +531,13 @@ export function ScheduleModal({
                     max="31"
                     className="h-10"
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-muted-foreground text-xs">
                     Specify which day of the month the workflow should run (1-31)
                   </p>
                 </div>
 
                 <div className="space-y-1">
-                  <label htmlFor="monthlyTime" className="text-sm font-medium">
+                  <label htmlFor="monthlyTime" className="font-medium text-sm">
                     Time of Day
                   </label>
                   <TimeInput
@@ -551,19 +551,19 @@ export function ScheduleModal({
             )}
 
             {/* Custom cron options */}
-            {scheduleType === 'custom' && (
+            {scheduleType === "custom" && (
               <div className="space-y-1">
-                <label htmlFor="cronExpression" className="text-sm font-medium">
+                <label htmlFor="cronExpression" className="font-medium text-sm">
                   Cron Expression
                 </label>
                 <Input
                   id="cronExpression"
-                  value={cronExpression || ''}
+                  value={cronExpression || ""}
                   onChange={(e) => setCronExpression(e.target.value)}
                   placeholder="*/15 * * * *"
                   className="h-10"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-muted-foreground text-xs">
                   Use standard cron format (e.g., "*/15 * * * *" for every 15 minutes)
                 </p>
               </div>
@@ -571,10 +571,10 @@ export function ScheduleModal({
 
             {/* Timezone configuration */}
             <div className="space-y-1">
-              <label htmlFor="timezone" className="text-sm font-medium">
+              <label htmlFor="timezone" className="font-medium text-sm">
                 Timezone
               </label>
-              <Select value={timezone || 'UTC'} onValueChange={(value) => setTimezone(value)}>
+              <Select value={timezone || "UTC"} onValueChange={(value) => setTimezone(value)}>
                 <SelectTrigger className="h-10">
                   <SelectValue placeholder="Select timezone" />
                 </SelectTrigger>
@@ -595,7 +595,7 @@ export function ScheduleModal({
           </div>
         </div>
 
-        <DialogFooter className="px-6 pt-0 pb-6 w-full">
+        <DialogFooter className="w-full px-6 pt-0 pb-6">
           <div className="flex w-full justify-between">
             <div>
               {scheduleId && onDelete && (
@@ -607,8 +607,8 @@ export function ScheduleModal({
                   size="default"
                   className="h-10"
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  {isDeleting ? 'Deleting...' : 'Delete Schedule'}
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {isDeleting ? "Deleting..." : "Delete Schedule"}
                 </Button>
               )}
             </div>
@@ -619,10 +619,10 @@ export function ScheduleModal({
               <Button
                 onClick={handleSave}
                 disabled={!hasChanges || isSaving}
-                className={cn('h-10', hasChanges ? 'bg-primary hover:bg-primary/90' : '')}
+                className={cn("h-10", hasChanges ? "bg-primary hover:bg-primary/90" : "")}
                 size="default"
               >
-                {isSaving ? 'Saving...' : 'Save Changes'}
+                {isSaving ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </div>
@@ -649,7 +649,7 @@ export function ScheduleModal({
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              {isDeleting ? 'Deleting...' : 'Delete Schedule'}
+              {isDeleting ? "Deleting..." : "Delete Schedule"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

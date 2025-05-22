@@ -1,9 +1,9 @@
-import { createLogger } from '@/lib/logs/console-logger'
-import { StreamingExecution } from '@/executor/types'
-import { executeTool } from '@/tools'
-import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { createLogger } from "@/lib/logs/console-logger"
+import type { StreamingExecution } from "@/executor/types"
+import { executeTool } from "@/tools"
+import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
 
-const logger = createLogger('GoogleProvider')
+const logger = createLogger("GoogleProvider")
 
 /**
  * Creates a ReadableStream from Google's Gemini stream response
@@ -11,13 +11,13 @@ const logger = createLogger('GoogleProvider')
 function createReadableStreamFromGeminiStream(response: Response): ReadableStream<Uint8Array> {
   const reader = response.body?.getReader()
   if (!reader) {
-    throw new Error('Failed to get reader from response body')
+    throw new Error("Failed to get reader from response body")
   }
 
   return new ReadableStream({
     async start(controller) {
       try {
-        let buffer = ''
+        let buffer = ""
 
         while (true) {
           const { done, value } = await reader.read()
@@ -30,23 +30,23 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
           buffer += text
 
           try {
-            const lines = buffer.split('\n')
-            buffer = ''
+            const lines = buffer.split("\n")
+            buffer = ""
 
             for (let i = 0; i < lines.length; i++) {
               const line = lines[i].trim()
 
-              if (i === lines.length - 1 && line !== '') {
+              if (i === lines.length - 1 && line !== "") {
                 buffer = line
                 continue
               }
 
               if (!line) continue
 
-              if (line.startsWith('data: ')) {
+              if (line.startsWith("data: ")) {
                 const jsonStr = line.substring(6)
 
-                if (jsonStr === '[DONE]') continue
+                if (jsonStr === "[DONE]") continue
 
                 try {
                   const data = JSON.parse(jsonStr)
@@ -58,7 +58,7 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
                     }
                   }
                 } catch (e) {
-                  logger.error('Error parsing Gemini SSE JSON data', {
+                  logger.error("Error parsing Gemini SSE JSON data", {
                     error: e instanceof Error ? e.message : String(e),
                     data: jsonStr,
                   })
@@ -66,14 +66,14 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
               }
             }
           } catch (e) {
-            logger.error('Error processing Gemini SSE stream', {
+            logger.error("Error processing Gemini SSE stream", {
               error: e instanceof Error ? e.message : String(e),
               chunk: text,
             })
           }
         }
       } catch (e) {
-        logger.error('Error reading Google Gemini stream', {
+        logger.error("Error reading Google Gemini stream", {
           error: e instanceof Error ? e.message : String(e),
         })
         controller.error(e)
@@ -86,22 +86,22 @@ function createReadableStreamFromGeminiStream(response: Response): ReadableStrea
 }
 
 export const googleProvider: ProviderConfig = {
-  id: 'google',
-  name: 'Google',
+  id: "google",
+  name: "Google",
   description: "Google's Gemini models",
-  version: '1.0.0',
-  models: ['gemini-2.5-pro-exp-03-25', 'gemini-2.5-flash-preview-04-17'],
-  defaultModel: 'gemini-2.5-pro-exp-03-25',
+  version: "1.0.0",
+  models: ["gemini-2.5-pro-exp-03-25", "gemini-2.5-flash-preview-04-17"],
+  defaultModel: "gemini-2.5-pro-exp-03-25",
 
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
-      throw new Error('API key is required for Google Gemini')
+      throw new Error("API key is required for Google Gemini")
     }
 
-    logger.info('Preparing Google Gemini request', {
-      model: request.model || 'gemini-2.5-pro-exp-03-25',
+    logger.info("Preparing Google Gemini request", {
+      model: request.model || "gemini-2.5-pro-exp-03-25",
       hasSystemPrompt: !!request.systemPrompt,
       hasMessages: !!request.messages?.length,
       hasTools: !!request.tools?.length,
@@ -118,7 +118,7 @@ export const googleProvider: ProviderConfig = {
       // Convert messages to Gemini format
       const { contents, tools, systemInstruction } = convertToGeminiFormat(request)
 
-      const requestedModel = request.model || 'gemini-2.5-pro-exp-03-25'
+      const requestedModel = request.model || "gemini-2.5-pro-exp-03-25"
 
       // Build request payload
       const payload: any = {
@@ -149,12 +149,12 @@ export const googleProvider: ProviderConfig = {
         const cleanSchema = cleanSchemaForGemini(responseFormatSchema)
 
         // Use Gemini's native structured output approach
-        payload.generationConfig.responseMimeType = 'application/json'
+        payload.generationConfig.responseMimeType = "application/json"
         payload.generationConfig.responseSchema = cleanSchema
 
-        logger.info('Using Gemini native structured output format', {
+        logger.info("Using Gemini native structured output format", {
           hasSchema: !!cleanSchema,
-          mimeType: 'application/json',
+          mimeType: "application/json",
         })
       }
 
@@ -166,7 +166,7 @@ export const googleProvider: ProviderConfig = {
           },
         ]
 
-        logger.info(`Google Gemini request with tools:`, {
+        logger.info("Google Gemini request with tools:", {
           toolCount: tools.length,
           model: requestedModel,
           tools: tools.map((t) => t.name),
@@ -182,16 +182,16 @@ export const googleProvider: ProviderConfig = {
         : `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`
 
       const response = await fetch(endpoint, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
         const responseText = await response.text()
-        logger.error('Gemini API error details:', {
+        logger.error("Gemini API error details:", {
           status: response.status,
           statusText: response.statusText,
           responseBody: responseText,
@@ -203,7 +203,7 @@ export const googleProvider: ProviderConfig = {
 
       // Handle streaming response
       if (request.stream) {
-        logger.info('Handling Google Gemini streaming response')
+        logger.info("Handling Google Gemini streaming response")
 
         // Create a ReadableStream from the Google Gemini stream
         const stream = createReadableStreamFromGeminiStream(response)
@@ -215,7 +215,7 @@ export const googleProvider: ProviderConfig = {
             success: true,
             output: {
               response: {
-                content: '',
+                content: "",
                 model: request.model,
                 tokens: {
                   prompt: 0,
@@ -232,8 +232,8 @@ export const googleProvider: ProviderConfig = {
                   iterations: 1,
                   timeSegments: [
                     {
-                      type: 'model',
-                      name: 'Initial streaming response',
+                      type: "model",
+                      name: "Initial streaming response",
                       startTime: initialCallTime,
                       endTime: initialCallTime + firstResponseTime,
                       duration: firstResponseTime,
@@ -270,22 +270,22 @@ export const googleProvider: ProviderConfig = {
           try {
             // Validate JSON structure
             JSON.parse(text)
-            logger.info('Successfully received structured JSON output')
+            logger.info("Successfully received structured JSON output")
           } catch (e) {
-            logger.warn('Failed to parse structured output as JSON')
+            logger.warn("Failed to parse structured output as JSON")
           }
         }
       }
 
       // Initialize response tracking variables
-      let content = ''
+      let content = ""
       let tokens = {
         prompt: 0,
         completion: 0,
         total: 0,
       }
-      let toolCalls = []
-      let toolResults = []
+      const toolCalls = []
+      const toolResults = []
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 
@@ -296,8 +296,8 @@ export const googleProvider: ProviderConfig = {
       // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
-          type: 'model',
-          name: 'Initial response',
+          type: "model",
+          name: "Initial response",
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -382,12 +382,12 @@ export const googleProvider: ProviderConfig = {
 
               if (!result.success) {
                 // Check for API key related errors
-                const errorMessage = result.error?.toLowerCase() || ''
+                const errorMessage = result.error?.toLowerCase() || ""
                 if (
-                  errorMessage.includes('api key') ||
-                  errorMessage.includes('apikey') ||
-                  errorMessage.includes('x-api-key') ||
-                  errorMessage.includes('authentication')
+                  errorMessage.includes("api key") ||
+                  errorMessage.includes("apikey") ||
+                  errorMessage.includes("x-api-key") ||
+                  errorMessage.includes("authentication")
                 ) {
                   logger.error(`Tool ${toolName} failed with API key error:`, {
                     error: result.error,
@@ -408,7 +408,7 @@ export const googleProvider: ProviderConfig = {
 
               // Add to time segments
               timeSegments.push({
-                type: 'tool',
+                type: "tool",
                 name: toolName,
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -430,12 +430,12 @@ export const googleProvider: ProviderConfig = {
               // Use simple format: original query + most recent function call + result
               const simplifiedMessages = [
                 // Original user request - find the first user request
-                ...(contents.filter((m) => m.role === 'user').length > 0
-                  ? [contents.filter((m) => m.role === 'user')[0]]
+                ...(contents.filter((m) => m.role === "user").length > 0
+                  ? [contents.filter((m) => m.role === "user")[0]]
                   : [contents[0]]),
                 // Function call from model
                 {
-                  role: 'model',
+                  role: "model",
                   parts: [
                     {
                       functionCall: {
@@ -447,7 +447,7 @@ export const googleProvider: ProviderConfig = {
                 },
                 // Function response - but use USER role since Gemini only accepts user or model
                 {
-                  role: 'user',
+                  role: "user",
                   parts: [
                     {
                       text: `Function ${latestFunctionCall.name} result: ${JSON.stringify(toolResults[toolResults.length - 1])}`,
@@ -470,21 +470,21 @@ export const googleProvider: ProviderConfig = {
                   const streamingPayload = {
                     ...payload,
                     contents: simplifiedMessages,
-                    tool_config: { mode: 'AUTO' }, // Always use AUTO mode for streaming after tools
+                    tool_config: { mode: "AUTO" }, // Always use AUTO mode for streaming after tools
                   }
 
                   // Remove any forced tool configuration to prevent issues with streaming
-                  if ('tool_config' in streamingPayload) {
-                    streamingPayload.tool_config = { mode: 'AUTO' }
+                  if ("tool_config" in streamingPayload) {
+                    streamingPayload.tool_config = { mode: "AUTO" }
                   }
 
                   // Make the streaming request with alt=sse parameter
                   const streamingResponse = await fetch(
                     `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}&alt=sse`,
                     {
-                      method: 'POST',
+                      method: "POST",
                       headers: {
-                        'Content-Type': 'application/json',
+                        "Content-Type": "application/json",
                       },
                       body: JSON.stringify(streamingPayload),
                     }
@@ -492,7 +492,7 @@ export const googleProvider: ProviderConfig = {
 
                   if (!streamingResponse.ok) {
                     const errorBody = await streamingResponse.text()
-                    logger.error('Error in Gemini streaming follow-up request:', {
+                    logger.error("Error in Gemini streaming follow-up request:", {
                       status: streamingResponse.status,
                       statusText: streamingResponse.statusText,
                       responseBody: errorBody,
@@ -512,8 +512,8 @@ export const googleProvider: ProviderConfig = {
 
                   // Add to time segments
                   timeSegments.push({
-                    type: 'model',
-                    name: 'Final streaming response after tool calls',
+                    type: "model",
+                    name: "Final streaming response after tool calls",
                     startTime: nextModelStartTime,
                     endTime: nextModelEndTime,
                     duration: thisModelTime,
@@ -526,7 +526,7 @@ export const googleProvider: ProviderConfig = {
                       success: true,
                       output: {
                         response: {
-                          content: '',
+                          content: "",
                           model: request.model,
                           tokens,
                           toolCalls:
@@ -571,9 +571,9 @@ export const googleProvider: ProviderConfig = {
                 const nextResponse = await fetch(
                   `https://generativelanguage.googleapis.com/v1beta/models/${requestedModel}:generateContent?key=${request.apiKey}`,
                   {
-                    method: 'POST',
+                    method: "POST",
                     headers: {
-                      'Content-Type': 'application/json',
+                      "Content-Type": "application/json",
                     },
                     body: JSON.stringify({
                       ...payload,
@@ -584,7 +584,7 @@ export const googleProvider: ProviderConfig = {
 
                 if (!nextResponse.ok) {
                   const errorBody = await nextResponse.text()
-                  logger.error('Error in Gemini follow-up request:', {
+                  logger.error("Error in Gemini follow-up request:", {
                     status: nextResponse.status,
                     statusText: nextResponse.statusText,
                     responseBody: errorBody,
@@ -600,7 +600,7 @@ export const googleProvider: ProviderConfig = {
 
                 // Add to time segments
                 timeSegments.push({
-                  type: 'model',
+                  type: "model",
                   name: `Model response (iteration ${iterationCount + 1})`,
                   startTime: nextModelStartTime,
                   endTime: nextModelEndTime,
@@ -621,16 +621,16 @@ export const googleProvider: ProviderConfig = {
 
                 iterationCount++
               } catch (error) {
-                logger.error('Error in Gemini follow-up request:', {
+                logger.error("Error in Gemini follow-up request:", {
                   error: error instanceof Error ? error.message : String(error),
                   iterationCount,
                 })
                 break
               }
             } catch (error) {
-              logger.error('Error processing function call:', {
+              logger.error("Error processing function call:", {
                 error: error instanceof Error ? error.message : String(error),
-                functionName: latestFunctionCall?.name || 'unknown',
+                functionName: latestFunctionCall?.name || "unknown",
               })
               break
             }
@@ -640,14 +640,14 @@ export const googleProvider: ProviderConfig = {
           content = extractTextContent(candidate)
         }
       } catch (error) {
-        logger.error('Error processing Gemini response:', {
+        logger.error("Error processing Gemini response:", {
           error: error instanceof Error ? error.message : String(error),
           iterationCount,
         })
 
         // Don't rethrow, so we can still return partial results
         if (!content && toolCalls.length > 0) {
-          content = `Tool call(s) executed: ${toolCalls.map((t) => t.name).join(', ')}. Results are available in the tool results.`
+          content = `Tool call(s) executed: ${toolCalls.map((t) => t.name).join(", ")}. Results are available in the tool results.`
         }
       }
 
@@ -690,7 +690,7 @@ export const googleProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Google Gemini request:', {
+      logger.error("Error in Google Gemini request:", {
         error: error instanceof Error ? error.message : String(error),
         duration: totalDuration,
       })
@@ -716,7 +716,7 @@ export const googleProvider: ProviderConfig = {
 function cleanSchemaForGemini(schema: any): any {
   // Handle base cases
   if (schema === null || schema === undefined) return schema
-  if (typeof schema !== 'object') return schema
+  if (typeof schema !== "object") return schema
   if (Array.isArray(schema)) {
     return schema.map((item) => cleanSchemaForGemini(item))
   }
@@ -727,7 +727,7 @@ function cleanSchemaForGemini(schema: any): any {
   // Process each property in the schema
   for (const key in schema) {
     // Skip additionalProperties
-    if (key === 'additionalProperties') continue
+    if (key === "additionalProperties") continue
 
     // Deep copy nested objects
     cleanedSchema[key] = cleanSchemaForGemini(schema[key])
@@ -740,12 +740,12 @@ function cleanSchemaForGemini(schema: any): any {
  * Helper function to extract content from a Gemini response, handling structured output
  */
 function extractTextContent(candidate: any): string {
-  if (!candidate?.content?.parts) return ''
+  if (!candidate?.content?.parts) return ""
 
   // Check for JSON response (typically from structured output)
   if (candidate.content.parts?.length === 1 && candidate.content.parts[0].text) {
     const text = candidate.content.parts[0].text
-    if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
+    if (text && (text.trim().startsWith("{") || text.trim().startsWith("["))) {
       try {
         JSON.parse(text) // Validate JSON
         return text // Return valid JSON as-is
@@ -759,7 +759,7 @@ function extractTextContent(candidate: any): string {
   return candidate.content.parts
     .filter((part: any) => part.text)
     .map((part: any) => part.text)
-    .join('\n')
+    .join("\n")
 }
 
 /**
@@ -774,8 +774,8 @@ function extractFunctionCall(candidate: any): { name: string; args: any } | null
       const args = part.functionCall.args || {}
       // Parse string args if they look like JSON
       if (
-        typeof part.functionCall.args === 'string' &&
-        part.functionCall.args.trim().startsWith('{')
+        typeof part.functionCall.args === "string" &&
+        part.functionCall.args.trim().startsWith("{")
       ) {
         try {
           return { name: part.functionCall.name, args: JSON.parse(part.functionCall.args) }
@@ -790,8 +790,8 @@ function extractFunctionCall(candidate: any): { name: string; args: any } | null
   // Check for alternative function_call format
   if (candidate.content.function_call) {
     const args =
-      typeof candidate.content.function_call.arguments === 'string'
-        ? JSON.parse(candidate.content.function_call.arguments || '{}')
+      typeof candidate.content.function_call.arguments === "string"
+        ? JSON.parse(candidate.content.function_call.arguments || "{}")
         : candidate.content.function_call.arguments || {}
     return { name: candidate.content.function_call.name, args }
   }
@@ -817,23 +817,23 @@ function convertToGeminiFormat(request: ProviderRequest): {
 
   // Add context as user message if present
   if (request.context) {
-    contents.push({ role: 'user', parts: [{ text: request.context }] })
+    contents.push({ role: "user", parts: [{ text: request.context }] })
   }
 
   // Process messages
   if (request.messages && request.messages.length > 0) {
     for (const message of request.messages) {
-      if (message.role === 'system') {
+      if (message.role === "system") {
         // Add to system instruction
         if (!systemInstruction) {
           systemInstruction = { parts: [{ text: message.content }] }
         } else {
           // Append to existing system instruction
-          systemInstruction.parts[0].text = `${systemInstruction.parts[0].text || ''}\n${message.content}`
+          systemInstruction.parts[0].text = `${systemInstruction.parts[0].text || ""}\n${message.content}`
         }
-      } else if (message.role === 'user' || message.role === 'assistant') {
+      } else if (message.role === "user" || message.role === "assistant") {
         // Convert to Gemini role format
-        const geminiRole = message.role === 'user' ? 'user' : 'model'
+        const geminiRole = message.role === "user" ? "user" : "model"
 
         // Add text content
         if (message.content) {
@@ -841,20 +841,20 @@ function convertToGeminiFormat(request: ProviderRequest): {
         }
 
         // Handle tool calls
-        if (message.role === 'assistant' && message.tool_calls && message.tool_calls.length > 0) {
+        if (message.role === "assistant" && message.tool_calls && message.tool_calls.length > 0) {
           const functionCalls = message.tool_calls.map((toolCall) => ({
             functionCall: {
               name: toolCall.function?.name,
-              args: JSON.parse(toolCall.function?.arguments || '{}'),
+              args: JSON.parse(toolCall.function?.arguments || "{}"),
             },
           }))
 
-          contents.push({ role: 'model', parts: functionCalls })
+          contents.push({ role: "model", parts: functionCalls })
         }
-      } else if (message.role === 'tool') {
+      } else if (message.role === "tool") {
         // Convert tool response (Gemini only accepts user/model roles)
         contents.push({
-          role: 'user',
+          role: "user",
           parts: [{ text: `Function result: ${message.content}` }],
         })
       }
@@ -886,7 +886,7 @@ function convertToGeminiFormat(request: ProviderRequest): {
 
       // Build Gemini-compatible parameters schema
       const parameters = {
-        type: toolParameters.type || 'object',
+        type: toolParameters.type || "object",
         properties,
         ...(required.length > 0 ? { required } : {}),
       }

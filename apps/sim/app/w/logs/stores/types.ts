@@ -11,7 +11,7 @@ export interface ToolCall {
   duration: number // in milliseconds
   startTime: string // ISO timestamp
   endTime: string // ISO timestamp
-  status: 'success' | 'error' // Status of the tool call
+  status: "success" | "error" // Status of the tool call
   input?: Record<string, any> // Input parameters (optional)
   output?: Record<string, any> // Output data (optional)
   error?: string // Error message if status is 'error'
@@ -48,7 +48,7 @@ export interface TraceSpan {
   endTime: string
   children?: TraceSpan[]
   toolCalls?: ToolCall[]
-  status?: 'success' | 'error'
+  status?: "success" | "error"
   tokens?: number
   relativeStartMs?: number // Time in ms from the start of the parent span
   blockId?: string // Added to track the original block ID for relationship mapping
@@ -81,8 +81,8 @@ export interface LogsResponse {
   totalPages: number
 }
 
-export type TimeRange = 'Past 30 minutes' | 'Past hour' | 'Past 24 hours' | 'All time'
-export type LogLevel = 'error' | 'info' | 'all'
+export type TimeRange = "Past 30 minutes" | "Past hour" | "Past 24 hours" | "All time"
+export type LogLevel = "error" | "info" | "all"
 
 export interface FilterState {
   // Original logs from API

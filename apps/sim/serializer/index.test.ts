@@ -7,8 +7,8 @@
  * converting between workflow state (blocks, edges, loops) and serialized format
  * used by the executor.
  */
-import { describe, expect, test, vi } from 'vitest'
-import { getProviderFromModel } from '@/providers/utils'
+import { describe, expect, test, vi } from "vitest"
+import { getProviderFromModel } from "@/providers/utils"
 import {
   createAgentWithToolsWorkflowState,
   createComplexWorkflowState,
@@ -18,105 +18,105 @@ import {
   createLoopWorkflowState,
   createMinimalWorkflowState,
   createMissingMetadataWorkflow,
-} from './__test-utils__/test-workflows'
-import { Serializer } from './index'
-import { SerializedWorkflow } from './types'
+} from "./__test-utils__/test-workflows"
+import { Serializer } from "./index"
+import type { SerializedWorkflow } from "./types"
 
 // Mock getBlock function
-vi.mock('@/blocks', () => ({
+vi.mock("@/blocks", () => ({
   getBlock: (type: string) => {
     // Mock block configurations for different block types
     const mockConfigs: Record<string, any> = {
       starter: {
-        name: 'Starter',
-        description: 'Start of the workflow',
-        category: 'flow',
-        bgColor: '#4CAF50',
+        name: "Starter",
+        description: "Start of the workflow",
+        category: "flow",
+        bgColor: "#4CAF50",
         tools: {
-          access: ['starter'],
+          access: ["starter"],
           config: {
-            tool: () => 'starter',
+            tool: () => "starter",
           },
         },
-        subBlocks: [{ id: 'description', type: 'long-input', label: 'Description' }],
+        subBlocks: [{ id: "description", type: "long-input", label: "Description" }],
         inputs: {},
       },
       agent: {
-        name: 'Agent',
-        description: 'AI Agent',
-        category: 'ai',
-        bgColor: '#2196F3',
+        name: "Agent",
+        description: "AI Agent",
+        category: "ai",
+        bgColor: "#2196F3",
         tools: {
-          access: ['anthropic_chat', 'openai_chat', 'google_chat'],
+          access: ["anthropic_chat", "openai_chat", "google_chat"],
           config: {
             // Use the real getProviderFromModel that we imported
-            tool: (params: Record<string, any>) => getProviderFromModel(params.model || 'gpt-4o'),
+            tool: (params: Record<string, any>) => getProviderFromModel(params.model || "gpt-4o"),
           },
         },
         subBlocks: [
-          { id: 'provider', type: 'dropdown', label: 'Provider' },
-          { id: 'model', type: 'dropdown', label: 'Model' },
-          { id: 'prompt', type: 'long-input', label: 'Prompt' },
-          { id: 'tools', type: 'tool-input', label: 'Tools' },
-          { id: 'system', type: 'long-input', label: 'System Message' },
-          { id: 'responseFormat', type: 'code', label: 'Response Format' },
+          { id: "provider", type: "dropdown", label: "Provider" },
+          { id: "model", type: "dropdown", label: "Model" },
+          { id: "prompt", type: "long-input", label: "Prompt" },
+          { id: "tools", type: "tool-input", label: "Tools" },
+          { id: "system", type: "long-input", label: "System Message" },
+          { id: "responseFormat", type: "code", label: "Response Format" },
         ],
         inputs: {
-          input: { type: 'string' },
-          tools: { type: 'array' },
+          input: { type: "string" },
+          tools: { type: "array" },
         },
       },
       condition: {
-        name: 'Condition',
-        description: 'Branch based on condition',
-        category: 'flow',
-        bgColor: '#FF9800',
+        name: "Condition",
+        description: "Branch based on condition",
+        category: "flow",
+        bgColor: "#FF9800",
         tools: {
-          access: ['condition'],
+          access: ["condition"],
           config: {
-            tool: () => 'condition',
+            tool: () => "condition",
           },
         },
-        subBlocks: [{ id: 'condition', type: 'long-input', label: 'Condition' }],
+        subBlocks: [{ id: "condition", type: "long-input", label: "Condition" }],
         inputs: {
-          input: { type: 'any' },
+          input: { type: "any" },
         },
       },
       function: {
-        name: 'Function',
-        description: 'Execute custom code',
-        category: 'code',
-        bgColor: '#9C27B0',
+        name: "Function",
+        description: "Execute custom code",
+        category: "code",
+        bgColor: "#9C27B0",
         tools: {
-          access: ['function'],
+          access: ["function"],
           config: {
-            tool: () => 'function',
+            tool: () => "function",
           },
         },
         subBlocks: [
-          { id: 'code', type: 'code', label: 'Code' },
-          { id: 'language', type: 'dropdown', label: 'Language' },
+          { id: "code", type: "code", label: "Code" },
+          { id: "language", type: "dropdown", label: "Language" },
         ],
         inputs: {
-          input: { type: 'any' },
+          input: { type: "any" },
         },
       },
       api: {
-        name: 'API',
-        description: 'Make API request',
-        category: 'data',
-        bgColor: '#E91E63',
+        name: "API",
+        description: "Make API request",
+        category: "data",
+        bgColor: "#E91E63",
         tools: {
-          access: ['api'],
+          access: ["api"],
           config: {
-            tool: () => 'api',
+            tool: () => "api",
           },
         },
         subBlocks: [
-          { id: 'url', type: 'short-input', label: 'URL' },
-          { id: 'method', type: 'dropdown', label: 'Method' },
-          { id: 'headers', type: 'table', label: 'Headers' },
-          { id: 'body', type: 'long-input', label: 'Body' },
+          { id: "url", type: "short-input", label: "URL" },
+          { id: "method", type: "dropdown", label: "Method" },
+          { id: "headers", type: "table", label: "Headers" },
+          { id: "body", type: "long-input", label: "Body" },
         ],
         inputs: {},
       },
@@ -127,7 +127,7 @@ vi.mock('@/blocks', () => ({
 }))
 
 // Mock logger
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock("@/lib/logs/console-logger", () => ({
   createLogger: () => ({
     error: vi.fn(),
     info: vi.fn(),
@@ -136,12 +136,12 @@ vi.mock('@/lib/logs/console-logger', () => ({
   }),
 }))
 
-describe('Serializer', () => {
+describe("Serializer", () => {
   /**
    * Serialization tests
    */
-  describe('serializeWorkflow', () => {
-    test('should serialize a minimal workflow correctly', () => {
+  describe("serializeWorkflow", () => {
+    test("should serialize a minimal workflow correctly", () => {
       const { blocks, edges, loops } = createMinimalWorkflowState()
       const serializer = new Serializer()
 
@@ -151,26 +151,26 @@ describe('Serializer', () => {
       expect(serialized.blocks).toHaveLength(2)
 
       // Check starter block
-      const starterBlock = serialized.blocks.find((b) => b.id === 'starter')
+      const starterBlock = serialized.blocks.find((b) => b.id === "starter")
       expect(starterBlock).toBeDefined()
-      expect(starterBlock?.metadata?.id).toBe('starter')
-      expect(starterBlock?.config.tool).toBe('starter')
-      expect(starterBlock?.config.params.description).toBe('This is the starter block')
+      expect(starterBlock?.metadata?.id).toBe("starter")
+      expect(starterBlock?.config.tool).toBe("starter")
+      expect(starterBlock?.config.params.description).toBe("This is the starter block")
 
       // Check agent block
-      const agentBlock = serialized.blocks.find((b) => b.id === 'agent1')
+      const agentBlock = serialized.blocks.find((b) => b.id === "agent1")
       expect(agentBlock).toBeDefined()
-      expect(agentBlock?.metadata?.id).toBe('agent')
-      expect(agentBlock?.config.params.prompt).toBe('Hello, world!')
-      expect(agentBlock?.config.params.model).toBe('claude-3-7-sonnet-20250219')
+      expect(agentBlock?.metadata?.id).toBe("agent")
+      expect(agentBlock?.config.params.prompt).toBe("Hello, world!")
+      expect(agentBlock?.config.params.model).toBe("claude-3-7-sonnet-20250219")
 
       // Check if edges are correctly serialized
       expect(serialized.connections).toHaveLength(1)
-      expect(serialized.connections[0].source).toBe('starter')
-      expect(serialized.connections[0].target).toBe('agent1')
+      expect(serialized.connections[0].source).toBe("starter")
+      expect(serialized.connections[0].target).toBe("agent1")
     })
 
-    test('should serialize a conditional workflow correctly', () => {
+    test("should serialize a conditional workflow correctly", () => {
       const { blocks, edges, loops } = createConditionalWorkflowState()
       const serializer = new Serializer()
 
@@ -180,29 +180,29 @@ describe('Serializer', () => {
       expect(serialized.blocks).toHaveLength(4)
 
       // Check condition block
-      const conditionBlock = serialized.blocks.find((b) => b.id === 'condition1')
+      const conditionBlock = serialized.blocks.find((b) => b.id === "condition1")
       expect(conditionBlock).toBeDefined()
-      expect(conditionBlock?.metadata?.id).toBe('condition')
-      expect(conditionBlock?.config.tool).toBe('condition')
-      expect(conditionBlock?.config.params.condition).toBe('input.value > 10')
+      expect(conditionBlock?.metadata?.id).toBe("condition")
+      expect(conditionBlock?.config.tool).toBe("condition")
+      expect(conditionBlock?.config.params.condition).toBe("input.value > 10")
 
       // Check connections with handles
       expect(serialized.connections).toHaveLength(3)
 
       const truePathConnection = serialized.connections.find(
-        (c) => c.source === 'condition1' && c.sourceHandle === 'condition-true'
+        (c) => c.source === "condition1" && c.sourceHandle === "condition-true"
       )
       expect(truePathConnection).toBeDefined()
-      expect(truePathConnection?.target).toBe('agent1')
+      expect(truePathConnection?.target).toBe("agent1")
 
       const falsePathConnection = serialized.connections.find(
-        (c) => c.source === 'condition1' && c.sourceHandle === 'condition-false'
+        (c) => c.source === "condition1" && c.sourceHandle === "condition-false"
       )
       expect(falsePathConnection).toBeDefined()
-      expect(falsePathConnection?.target).toBe('agent2')
+      expect(falsePathConnection?.target).toBe("agent2")
     })
 
-    test('should serialize a workflow with loops correctly', () => {
+    test("should serialize a workflow with loops correctly", () => {
       const { blocks, edges, loops } = createLoopWorkflowState()
       const serializer = new Serializer()
 
@@ -211,19 +211,19 @@ describe('Serializer', () => {
       // Check loops
       expect(Object.keys(serialized.loops)).toHaveLength(1)
       expect(serialized.loops.loop1).toBeDefined()
-      expect(serialized.loops.loop1.nodes).toContain('function1')
-      expect(serialized.loops.loop1.nodes).toContain('condition1')
+      expect(serialized.loops.loop1.nodes).toContain("function1")
+      expect(serialized.loops.loop1.nodes).toContain("condition1")
       expect(serialized.loops.loop1.iterations).toBe(10)
 
       // Check connections for loop
       const loopBackConnection = serialized.connections.find(
-        (c) => c.source === 'condition1' && c.target === 'function1'
+        (c) => c.source === "condition1" && c.target === "function1"
       )
       expect(loopBackConnection).toBeDefined()
-      expect(loopBackConnection?.sourceHandle).toBe('condition-true')
+      expect(loopBackConnection?.sourceHandle).toBe("condition-true")
     })
 
-    test('should serialize a complex workflow with multiple block types', () => {
+    test("should serialize a complex workflow with multiple block types", () => {
       const { blocks, edges, loops } = createComplexWorkflowState()
       const serializer = new Serializer()
 
@@ -233,45 +233,45 @@ describe('Serializer', () => {
       expect(serialized.blocks).toHaveLength(4)
 
       // Check API block
-      const apiBlock = serialized.blocks.find((b) => b.id === 'api1')
+      const apiBlock = serialized.blocks.find((b) => b.id === "api1")
       expect(apiBlock).toBeDefined()
-      expect(apiBlock?.metadata?.id).toBe('api')
-      expect(apiBlock?.config.tool).toBe('api')
-      expect(apiBlock?.config.params.url).toBe('https://api.example.com/data')
-      expect(apiBlock?.config.params.method).toBe('GET')
+      expect(apiBlock?.metadata?.id).toBe("api")
+      expect(apiBlock?.config.tool).toBe("api")
+      expect(apiBlock?.config.params.url).toBe("https://api.example.com/data")
+      expect(apiBlock?.config.params.method).toBe("GET")
       expect(apiBlock?.config.params.headers).toEqual([
-        ['Content-Type', 'application/json'],
-        ['Authorization', 'Bearer {{API_KEY}}'],
+        ["Content-Type", "application/json"],
+        ["Authorization", "Bearer {{API_KEY}}"],
       ])
 
       // Check function block
-      const functionBlock = serialized.blocks.find((b) => b.id === 'function1')
+      const functionBlock = serialized.blocks.find((b) => b.id === "function1")
       expect(functionBlock).toBeDefined()
-      expect(functionBlock?.metadata?.id).toBe('function')
-      expect(functionBlock?.config.tool).toBe('function')
-      expect(functionBlock?.config.params.language).toBe('javascript')
+      expect(functionBlock?.metadata?.id).toBe("function")
+      expect(functionBlock?.config.tool).toBe("function")
+      expect(functionBlock?.config.params.language).toBe("javascript")
 
       // Check agent block with response format
-      const agentBlock = serialized.blocks.find((b) => b.id === 'agent1')
+      const agentBlock = serialized.blocks.find((b) => b.id === "agent1")
       expect(agentBlock).toBeDefined()
-      expect(agentBlock?.metadata?.id).toBe('agent')
-      expect(agentBlock?.config.tool).toBe('openai')
-      expect(agentBlock?.config.params.model).toBe('gpt-4o')
+      expect(agentBlock?.metadata?.id).toBe("agent")
+      expect(agentBlock?.config.tool).toBe("openai")
+      expect(agentBlock?.config.params.model).toBe("gpt-4o")
       expect(agentBlock?.outputs.responseFormat).toBeDefined()
     })
 
-    test('should serialize agent block with custom tools correctly', () => {
+    test("should serialize agent block with custom tools correctly", () => {
       const { blocks, edges, loops } = createAgentWithToolsWorkflowState()
       const serializer = new Serializer()
 
       const serialized = serializer.serializeWorkflow(blocks, edges, loops)
 
       // Check agent block
-      const agentBlock = serialized.blocks.find((b) => b.id === 'agent1')
+      const agentBlock = serialized.blocks.find((b) => b.id === "agent1")
       expect(agentBlock).toBeDefined()
       // The model used is 'gpt-4o', so tool should be 'openai'
-      expect(agentBlock?.config.tool).toBe('openai')
-      expect(agentBlock?.config.params.model).toBe('gpt-4o')
+      expect(agentBlock?.config.tool).toBe("openai")
+      expect(agentBlock?.config.params.model).toBe("gpt-4o")
 
       // Tools should be preserved as-is in params
       const toolsParam = agentBlock?.config.params.tools
@@ -282,23 +282,23 @@ describe('Serializer', () => {
       expect(tools).toHaveLength(2)
 
       // Check custom tool
-      const customTool = tools.find((t: any) => t.type === 'custom-tool')
+      const customTool = tools.find((t: any) => t.type === "custom-tool")
       expect(customTool).toBeDefined()
-      expect(customTool.name).toBe('weather')
+      expect(customTool.name).toBe("weather")
 
       // Check function tool
-      const functionTool = tools.find((t: any) => t.type === 'function')
+      const functionTool = tools.find((t: any) => t.type === "function")
       expect(functionTool).toBeDefined()
-      expect(functionTool.name).toBe('calculator')
+      expect(functionTool.name).toBe("calculator")
     })
 
-    test('should handle invalid block types gracefully', () => {
+    test("should handle invalid block types gracefully", () => {
       const { blocks, edges, loops } = createInvalidWorkflowState()
       const serializer = new Serializer()
 
       // Should throw an error when serializing an invalid block type
       expect(() => serializer.serializeWorkflow(blocks, edges, loops)).toThrow(
-        'Invalid block type: invalid-type'
+        "Invalid block type: invalid-type"
       )
     })
   })
@@ -306,8 +306,8 @@ describe('Serializer', () => {
   /**
    * Deserialization tests
    */
-  describe('deserializeWorkflow', () => {
-    test('should deserialize a serialized workflow correctly', () => {
+  describe("deserializeWorkflow", () => {
+    test("should deserialize a serialized workflow correctly", () => {
       const { blocks, edges, loops } = createMinimalWorkflowState()
       const serializer = new Serializer()
 
@@ -323,25 +323,25 @@ describe('Serializer', () => {
       // Check starter block
       const starterBlock = deserialized.blocks.starter
       expect(starterBlock).toBeDefined()
-      expect(starterBlock.type).toBe('starter')
-      expect(starterBlock.name).toBe('Starter Block')
-      expect(starterBlock.subBlocks.description.value).toBe('This is the starter block')
+      expect(starterBlock.type).toBe("starter")
+      expect(starterBlock.name).toBe("Starter Block")
+      expect(starterBlock.subBlocks.description.value).toBe("This is the starter block")
 
       // Check agent block
       const agentBlock = deserialized.blocks.agent1
       expect(agentBlock).toBeDefined()
-      expect(agentBlock.type).toBe('agent')
-      expect(agentBlock.name).toBe('Agent Block')
-      expect(agentBlock.subBlocks.prompt.value).toBe('Hello, world!')
-      expect(agentBlock.subBlocks.model.value).toBe('claude-3-7-sonnet-20250219')
+      expect(agentBlock.type).toBe("agent")
+      expect(agentBlock.name).toBe("Agent Block")
+      expect(agentBlock.subBlocks.prompt.value).toBe("Hello, world!")
+      expect(agentBlock.subBlocks.model.value).toBe("claude-3-7-sonnet-20250219")
 
       // Check edges
       expect(deserialized.edges).toHaveLength(1)
-      expect(deserialized.edges[0].source).toBe('starter')
-      expect(deserialized.edges[0].target).toBe('agent1')
+      expect(deserialized.edges[0].source).toBe("starter")
+      expect(deserialized.edges[0].target).toBe("agent1")
     })
 
-    test('should deserialize a complex workflow with all block types', () => {
+    test("should deserialize a complex workflow with all block types", () => {
       const { blocks, edges, loops } = createComplexWorkflowState()
       const serializer = new Serializer()
 
@@ -357,39 +357,39 @@ describe('Serializer', () => {
       // Check API block
       const apiBlock = deserialized.blocks.api1
       expect(apiBlock).toBeDefined()
-      expect(apiBlock.type).toBe('api')
-      expect(apiBlock.subBlocks.url.value).toBe('https://api.example.com/data')
-      expect(apiBlock.subBlocks.method.value).toBe('GET')
+      expect(apiBlock.type).toBe("api")
+      expect(apiBlock.subBlocks.url.value).toBe("https://api.example.com/data")
+      expect(apiBlock.subBlocks.method.value).toBe("GET")
       expect(apiBlock.subBlocks.headers.value).toEqual([
-        ['Content-Type', 'application/json'],
-        ['Authorization', 'Bearer {{API_KEY}}'],
+        ["Content-Type", "application/json"],
+        ["Authorization", "Bearer {{API_KEY}}"],
       ])
 
       // Check function block
       const functionBlock = deserialized.blocks.function1
       expect(functionBlock).toBeDefined()
-      expect(functionBlock.type).toBe('function')
-      expect(functionBlock.subBlocks.language.value).toBe('javascript')
+      expect(functionBlock.type).toBe("function")
+      expect(functionBlock.subBlocks.language.value).toBe("javascript")
 
       // Check agent block
       const agentBlock = deserialized.blocks.agent1
       expect(agentBlock).toBeDefined()
-      expect(agentBlock.type).toBe('agent')
-      expect(agentBlock.subBlocks.model.value).toBe('gpt-4o')
-      expect(agentBlock.subBlocks.provider.value).toBe('openai')
+      expect(agentBlock.type).toBe("agent")
+      expect(agentBlock.subBlocks.model.value).toBe("gpt-4o")
+      expect(agentBlock.subBlocks.provider.value).toBe("openai")
     })
 
-    test('should handle serialized workflow with invalid block metadata', () => {
+    test("should handle serialized workflow with invalid block metadata", () => {
       const invalidWorkflow = createInvalidSerializedWorkflow() as SerializedWorkflow
       const serializer = new Serializer()
 
       // Should throw an error when deserializing an invalid block type
       expect(() => serializer.deserializeWorkflow(invalidWorkflow)).toThrow(
-        'Invalid block type: non-existent-type'
+        "Invalid block type: non-existent-type"
       )
     })
 
-    test('should handle serialized workflow with missing metadata', () => {
+    test("should handle serialized workflow with missing metadata", () => {
       const invalidWorkflow = createMissingMetadataWorkflow() as SerializedWorkflow
       const serializer = new Serializer()
 
@@ -401,8 +401,8 @@ describe('Serializer', () => {
   /**
    * End-to-end serialization/deserialization tests
    */
-  describe('round-trip serialization', () => {
-    test('should preserve all data through serialization and deserialization', () => {
+  describe("round-trip serialization", () => {
+    test("should preserve all data through serialization and deserialization", () => {
       const { blocks, edges, loops } = createComplexWorkflowState()
       const serializer = new Serializer()
 

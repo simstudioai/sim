@@ -1,11 +1,11 @@
-import { Terminal } from 'lucide-react'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { CodeBlock } from '@/components/ui/code-block'
-import { Input } from '@/components/ui/input'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay } from '../ui/test-result'
+import { Terminal } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { CodeBlock } from "@/components/ui/code-block"
+import { Input } from "@/components/ui/input"
+import { ConfigField } from "../ui/config-field"
+import { ConfigSection } from "../ui/config-section"
+import { InstructionsSection } from "../ui/instructions-section"
+import { TestResultDisplay } from "../ui/test-result"
 
 interface DiscordConfigProps {
   webhookName: string
@@ -25,9 +25,9 @@ interface DiscordConfigProps {
 
 const examplePayload = JSON.stringify(
   {
-    content: 'Hello from Sim Studio!',
-    username: 'Optional Custom Name',
-    avatar_url: 'https://example.com/avatar.png',
+    content: "Hello from Sim Studio!",
+    username: "Optional Custom Name",
+    avatar_url: "https://example.com/avatar.png",
   },
   null,
   2
@@ -88,8 +88,8 @@ export function DiscordConfig({
         title="Receiving Events from Discord (Incoming Webhook)"
         tip="Create a webhook in Discord and paste its URL into the Webhook URL field above."
       >
-        <ol className="list-decimal list-inside space-y-1">
-          <li>Go to Discord Server Settings {'>'} Integrations.</li>
+        <ol className="list-inside list-decimal space-y-1">
+          <li>Go to Discord Server Settings {">"} Integrations.</li>
           <li>Click "Webhooks" then "New Webhook".</li>
           <li>Customize the name and channel.</li>
           <li>Click "Copy Webhook URL".</li>
@@ -106,7 +106,7 @@ export function DiscordConfig({
           request with a JSON body like this:
         </p>
         <CodeBlock language="json" code={examplePayload} className="mt-2 text-sm" />
-        <ul className="list-disc list-outside space-y-1 pl-4 mt-3">
+        <ul className="mt-3 list-outside list-disc space-y-1 pl-4">
           <li>Customize message appearance with embeds (see Discord docs).</li>
           <li>Override the default username/avatar per request if needed.</li>
         </ul>

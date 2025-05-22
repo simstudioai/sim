@@ -1,5 +1,5 @@
-import { Position } from '@/stores/workflows/workflow/types'
-import { BlockOutput, ParamType } from '@/blocks/types'
+import type { Position } from "@/stores/workflows/workflow/types"
+import type { BlockOutput, ParamType } from "@/blocks/types"
 
 export interface SerializedWorkflow {
   version: string
@@ -14,7 +14,7 @@ export interface SerializedConnection {
   sourceHandle?: string
   targetHandle?: string
   condition?: {
-    type: 'if' | 'else' | 'else if'
+    type: "if" | "else" | "else if"
     expression?: string // JavaScript expression to evaluate
   }
 }
@@ -43,6 +43,6 @@ export interface SerializedLoop {
   id: string
   nodes: string[]
   iterations: number
-  loopType?: 'for' | 'forEach' | 'while'
+  loopType?: "for" | "forEach" | "while"
   forEachItems?: any[] | Record<string, any> | string // Items to iterate over or expression to evaluate
 }

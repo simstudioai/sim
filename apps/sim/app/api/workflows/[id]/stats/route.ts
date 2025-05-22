@@ -1,20 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq, sql } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { userStats, workflow } from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { eq, sql } from "drizzle-orm"
+import { createLogger } from "@/lib/logs/console-logger"
+import { db } from "@/db"
+import { userStats, workflow } from "@/db/schema"
 
-const logger = createLogger('WorkflowStatsAPI')
+const logger = createLogger("WorkflowStatsAPI")
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const searchParams = request.nextUrl.searchParams
-  const runs = parseInt(searchParams.get('runs') || '1', 10)
+  const runs = Number.parseInt(searchParams.get("runs") || "1", 10)
 
-  if (isNaN(runs) || runs < 1 || runs > 100) {
+  if (Number.isNaN(runs) || runs < 1 || runs > 100) {
     logger.error(`Invalid number of runs: ${runs}`)
     return NextResponse.json(
-      { error: 'Invalid number of runs. Must be between 1 and 100.' },
+      { error: "Invalid number of runs. Must be between 1 and 100." },
       { status: 400 }
     )
   }
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })
         .where(eq(workflow.id, id))
     } catch (error) {
-      logger.error('Error updating workflow runCount:', error)
+      logger.error("Error updating workflow runCount:", error)
       throw error
     }
 
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           totalScheduledExecutions: 0,
           totalChatExecutions: 0,
           totalTokensUsed: 0,
-          totalCost: '0.00',
+          totalCost: "0.00",
           lastActive: new Date(),
         })
       } else {
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       newTotal: workflowRecord.runCount + runs,
     })
   } catch (error) {
-    logger.error('Error updating workflow stats:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    logger.error("Error updating workflow stats:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

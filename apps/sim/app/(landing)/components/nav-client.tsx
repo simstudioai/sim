@@ -1,12 +1,12 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import Image from 'next/image'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Menu, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useEffect, useState } from "react"
+import Image from "next/image"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { AnimatePresence, motion } from "framer-motion"
+import { Menu, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetClose,
@@ -14,10 +14,10 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from '@/components/ui/sheet'
-import { createLogger } from '@/lib/logs/console-logger'
+} from "@/components/ui/sheet"
+import { createLogger } from "@/lib/logs/console-logger"
 
-const logger = createLogger('NavClient')
+const logger = createLogger("NavClient")
 
 // --- Framer Motion Variants ---
 const desktopNavContainerVariants = {
@@ -28,20 +28,20 @@ const desktopNavContainerVariants = {
     transition: {
       delay: 0.2,
       duration: 0.3,
-      ease: 'easeOut',
+      ease: "easeOut",
     },
   },
 }
 
 const mobileSheetContainerVariants = {
-  hidden: { x: '100%' },
+  hidden: { x: "100%" },
   visible: {
     x: 0,
-    transition: { duration: 0.3, ease: 'easeInOut' },
+    transition: { duration: 0.3, ease: "easeInOut" },
   },
   exit: {
-    x: '100%',
-    transition: { duration: 0.2, ease: 'easeIn' },
+    x: "100%",
+    transition: { duration: 0.2, ease: "easeIn" },
   },
 }
 
@@ -61,7 +61,7 @@ const mobileNavItemVariants = {
   visible: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.3, ease: 'easeOut' },
+    transition: { duration: 0.3, ease: "easeOut" },
   },
 }
 
@@ -70,7 +70,7 @@ const mobileButtonVariants = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.3, ease: 'easeOut' },
+    transition: { duration: 0.3, ease: "easeOut" },
   },
 }
 // --- End Framer Motion Variants ---
@@ -87,15 +87,15 @@ const NavLinks = ({
 }) => {
   const navigationLinks = [
     // { href: "/", label: "Marketplace" },
-    ...(currentPath !== '/' ? [{ href: '/', label: 'Home' }] : []),
-    { href: 'https://docs.simstudio.ai/', label: 'Docs', external: true },
+    ...(currentPath !== "/" ? [{ href: "/", label: "Home" }] : []),
+    { href: "https://docs.simstudio.ai/", label: "Docs", external: true },
     // { href: '/', label: 'Blog' },
-    { href: 'https://github.com/simstudioai/sim', label: 'Contributors', external: true },
+    { href: "https://github.com/simstudioai/sim", label: "Contributors", external: true },
   ]
 
   // Common CSS class for navigation items
   const navItemClass = `text-white/60 hover:text-white/100 text-base ${
-    mobile ? 'p-2.5 text-lg font-medium text-left' : 'p-1.5'
+    mobile ? "p-2.5 text-lg font-medium text-left" : "p-1.5"
   } rounded-md transition-colors duration-200 block md:inline-block`
 
   return (
@@ -106,7 +106,7 @@ const NavLinks = ({
             <Link
               href={link.href}
               className={navItemClass}
-              {...(link.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+              {...(link.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
             >
               {link.label}
             </Link>
@@ -177,21 +177,21 @@ export default function NavClient({
     const checkMobile = () => setIsMobile(window.innerWidth < 768)
     checkMobile()
 
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
   // Handle initial loading state - don't render anything that could cause layout shift
   // until we've measured the viewport
   if (!mounted) {
     return (
-      <nav className="absolute top-1 left-0 right-0 z-30 px-4 py-8">
-        <div className="max-w-7xl mx-auto flex justify-between items-center relative">
+      <nav className="absolute top-1 right-0 left-0 z-30 px-4 py-8">
+        <div className="relative mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex-1">
-            <div className="w-[32px] h-[32px]"></div>
+            <div className="h-[32px] w-[32px]" />
           </div>
-          <div className="flex-1 flex justify-end">
-            <div className="w-[43px] h-[43px]"></div>
+          <div className="flex flex-1 justify-end">
+            <div className="h-[43px] w-[43px]" />
           </div>
         </div>
       </nav>
@@ -199,10 +199,10 @@ export default function NavClient({
   }
 
   return (
-    <nav className="absolute top-1 left-0 right-0 z-30 px-4 py-8">
-      <div className="max-w-7xl mx-auto flex justify-between items-center relative">
+    <nav className="absolute top-1 right-0 left-0 z-30 px-4 py-8">
+      <div className="relative mx-auto flex max-w-7xl items-center justify-between">
         {!isMobile && (
-          <div className="flex-1 flex items-center">
+          <div className="flex flex-1 items-center">
             <div className="inline-block">
               <Link href="/" className="inline-flex">
                 <Image src="/sim.svg" alt="Sim Logo" width={42} height={42} />
@@ -213,7 +213,7 @@ export default function NavClient({
 
         {!isMobile && (
           <motion.div
-            className="flex items-center gap-4 px-2 py-1 bg-neutral-700/50 rounded-lg"
+            className="flex items-center gap-4 rounded-lg bg-neutral-700/50 px-2 py-1"
             variants={desktopNavContainerVariants}
             initial="hidden"
             animate="visible"
@@ -221,24 +221,24 @@ export default function NavClient({
             <NavLinks currentPath={currentPath} onContactClick={onContactClick} />
           </motion.div>
         )}
-        {isMobile && <div className="flex-1"></div>}
+        {isMobile && <div className="flex-1" />}
 
-        <div className="flex-1 flex justify-end items-center">
-          <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-3'}`}>
+        <div className="flex flex-1 items-center justify-end">
+          <div className={`flex items-center ${isMobile ? "gap-2" : "gap-3"}`}>
             {!isMobile && (
               <>
                 <div className="flex items-center">{children}</div>
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: 'easeOut', delay: 0.4 }}
+                  transition={{ duration: 0.3, ease: "easeOut", delay: 0.4 }}
                 >
                   <Link
                     href="https://form.typeform.com/to/jqCO12pF"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <Button className="bg-[#701ffc] hover:bg-[#802FFF] h-[43px] font-medium text-base py-2 px-6 text-neutral-100 font-geist-sans transition-colors duration-200">
+                    <Button className="h-[43px] bg-[#701ffc] px-6 py-2 font-geist-sans font-medium text-base text-neutral-100 transition-colors duration-200 hover:bg-[#802FFF]">
                       Contact
                     </Button>
                   </Link>
@@ -251,7 +251,7 @@ export default function NavClient({
                 <SheetTrigger asChild>
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    className="p-2 rounded-md text-white hover:bg-neutral-700/50 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                    className="rounded-md p-2 text-white hover:bg-neutral-700/50 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
                   >
                     <Menu className="h-6 w-6" />
                     <span className="sr-only">Toggle menu</span>
@@ -269,7 +269,7 @@ export default function NavClient({
                     >
                       <SheetContent
                         side="right"
-                        className="bg-[#0C0C0C] border-l border-[#181818] text-white w-[280px] sm:w-[320px] pt-6 p-6 flex flex-col h-full shadow-xl [&>button]:hidden"
+                        className="flex h-full w-[280px] flex-col border-[#181818] border-l bg-[#0C0C0C] p-6 pt-6 text-white shadow-xl sm:w-[320px] [&>button]:hidden"
                         onOpenAutoFocus={(e) => e.preventDefault()}
                         onCloseAutoFocus={(e) => e.preventDefault()}
                       >
@@ -277,7 +277,7 @@ export default function NavClient({
                           <SheetTitle>Navigation Menu</SheetTitle>
                         </SheetHeader>
                         <motion.div
-                          className="flex flex-col gap-5 flex-grow"
+                          className="flex flex-grow flex-col gap-5"
                           variants={mobileNavItemsContainerVariants}
                           initial="hidden"
                           animate="visible"
@@ -299,7 +299,7 @@ export default function NavClient({
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >
-                                <Button className="w-full bg-[#701ffc] hover:bg-[#802FFF] font-medium py-6 text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200">
+                                <Button className="w-full bg-[#701ffc] py-6 font-medium text-base text-white shadow-[#701ffc]/20 shadow-lg transition-colors duration-200 hover:bg-[#802FFF]">
                                   Contact
                                 </Button>
                               </Link>

@@ -1,11 +1,11 @@
-import OpenAI from 'openai'
-import { createLogger } from '@/lib/logs/console-logger'
-import { StreamingExecution } from '@/executor/types'
-import { executeTool } from '@/tools'
-import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
+import OpenAI from "openai"
+import { createLogger } from "@/lib/logs/console-logger"
+import type { StreamingExecution } from "@/executor/types"
+import { executeTool } from "@/tools"
+import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
+import { prepareToolsWithUsageControl, trackForcedToolUsage } from "../utils"
 
-const logger = createLogger('DeepseekProvider')
+const logger = createLogger("DeepseekProvider")
 
 /**
  * Helper function to convert a DeepSeek (OpenAI-compatible) stream to a ReadableStream
@@ -16,7 +16,7 @@ function createReadableStreamFromDeepseekStream(deepseekStream: any): ReadableSt
     async start(controller) {
       try {
         for await (const chunk of deepseekStream) {
-          const content = chunk.choices[0]?.delta?.content || ''
+          const content = chunk.choices[0]?.delta?.content || ""
           if (content) {
             controller.enqueue(new TextEncoder().encode(content))
           }
@@ -30,18 +30,18 @@ function createReadableStreamFromDeepseekStream(deepseekStream: any): ReadableSt
 }
 
 export const deepseekProvider: ProviderConfig = {
-  id: 'deepseek',
-  name: 'Deepseek',
+  id: "deepseek",
+  name: "Deepseek",
   description: "Deepseek's chat models",
-  version: '1.0.0',
-  models: ['deepseek-chat'],
-  defaultModel: 'deepseek-chat',
+  version: "1.0.0",
+  models: ["deepseek-chat"],
+  defaultModel: "deepseek-chat",
 
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
-      throw new Error('API key is required for Deepseek')
+      throw new Error("API key is required for Deepseek")
     }
 
     // Start execution timer for the entire provider execution
@@ -52,7 +52,7 @@ export const deepseekProvider: ProviderConfig = {
       // Deepseek uses the OpenAI SDK with a custom baseURL
       const deepseek = new OpenAI({
         apiKey: request.apiKey,
-        baseURL: 'https://api.deepseek.com/v1',
+        baseURL: "https://api.deepseek.com/v1",
       })
 
       // Start with an empty array for all messages
@@ -61,7 +61,7 @@ export const deepseekProvider: ProviderConfig = {
       // Add system prompt if present
       if (request.systemPrompt) {
         allMessages.push({
-          role: 'system',
+          role: "system",
           content: request.systemPrompt,
         })
       }
@@ -69,7 +69,7 @@ export const deepseekProvider: ProviderConfig = {
       // Add context if present
       if (request.context) {
         allMessages.push({
-          role: 'user',
+          role: "user",
           content: request.context,
         })
       }
@@ -82,7 +82,7 @@ export const deepseekProvider: ProviderConfig = {
       // Transform tools to OpenAI format if provided
       const tools = request.tools?.length
         ? request.tools.map((tool) => ({
-            type: 'function',
+            type: "function",
             function: {
               name: tool.id,
               description: tool.description,
@@ -92,7 +92,7 @@ export const deepseekProvider: ProviderConfig = {
         : undefined
 
       const payload: any = {
-        model: 'deepseek-chat', // Hardcode to deepseek-chat regardless of what's selected in the UI
+        model: "deepseek-chat", // Hardcode to deepseek-chat regardless of what's selected in the UI
         messages: allMessages,
       }
 
@@ -104,33 +104,33 @@ export const deepseekProvider: ProviderConfig = {
       let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
       if (tools?.length) {
-        preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'deepseek')
+        preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, "deepseek")
         const { tools: filteredTools, toolChoice } = preparedTools
 
         if (filteredTools?.length && toolChoice) {
           payload.tools = filteredTools
           payload.tool_choice = toolChoice
 
-          logger.info(`Deepseek request configuration:`, {
+          logger.info("Deepseek request configuration:", {
             toolCount: filteredTools.length,
             toolChoice:
-              typeof toolChoice === 'string'
+              typeof toolChoice === "string"
                 ? toolChoice
-                : toolChoice.type === 'function'
+                : toolChoice.type === "function"
                   ? `force:${toolChoice.function.name}`
-                  : toolChoice.type === 'tool'
+                  : toolChoice.type === "tool"
                     ? `force:${toolChoice.name}`
-                    : toolChoice.type === 'any'
-                      ? `force:${toolChoice.any?.name || 'unknown'}`
-                      : 'unknown',
-            model: request.model || 'deepseek-v3',
+                    : toolChoice.type === "any"
+                      ? `force:${toolChoice.any?.name || "unknown"}`
+                      : "unknown",
+            model: request.model || "deepseek-v3",
           })
         }
       }
 
       // EARLY STREAMING: if streaming requested and no tools to execute, stream directly
       if (request.stream && (!tools || tools.length === 0)) {
-        logger.info('Using streaming response for DeepSeek request (no tools)')
+        logger.info("Using streaming response for DeepSeek request (no tools)")
 
         const streamResponse = await deepseek.chat.completions.create({
           ...payload,
@@ -138,7 +138,7 @@ export const deepseekProvider: ProviderConfig = {
         })
 
         // Start collecting token usage
-        let tokenUsage = {
+        const tokenUsage = {
           prompt: 0,
           completion: 0,
           total: 0,
@@ -151,8 +151,8 @@ export const deepseekProvider: ProviderConfig = {
             success: true,
             output: {
               response: {
-                content: '', // Will be filled by streaming content in chat component
-                model: request.model || 'deepseek-chat',
+                content: "", // Will be filled by streaming content in chat component
+                model: request.model || "deepseek-chat",
                 tokens: tokenUsage,
                 toolCalls: undefined,
                 providerTiming: {
@@ -161,8 +161,8 @@ export const deepseekProvider: ProviderConfig = {
                   duration: Date.now() - providerStartTime,
                   timeSegments: [
                     {
-                      type: 'model',
-                      name: 'Streaming response',
+                      type: "model",
+                      name: "Streaming response",
                       startTime: providerStartTime,
                       endTime: Date.now(),
                       duration: Date.now() - providerStartTime,
@@ -204,24 +204,24 @@ export const deepseekProvider: ProviderConfig = {
       let currentResponse = await deepseek.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
-      let content = currentResponse.choices[0]?.message?.content || ''
+      let content = currentResponse.choices[0]?.message?.content || ""
 
       // Clean up the response content if it exists
       if (content) {
         // Remove any markdown code block markers
-        content = content.replace(/```json\n?|\n?```/g, '')
+        content = content.replace(/```json\n?|\n?```/g, "")
         // Trim any whitespace
         content = content.trim()
       }
 
-      let tokens = {
+      const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
-      let toolCalls = []
-      let toolResults = []
-      let currentMessages = [...allMessages]
+      const toolCalls = []
+      const toolResults = []
+      const currentMessages = [...allMessages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 
@@ -235,8 +235,8 @@ export const deepseekProvider: ProviderConfig = {
       // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
-          type: 'model',
-          name: 'Initial response',
+          type: "model",
+          name: "Initial response",
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -245,7 +245,7 @@ export const deepseekProvider: ProviderConfig = {
 
       // Check if a forced tool was used in the first response
       if (
-        typeof originalToolChoice === 'object' &&
+        typeof originalToolChoice === "object" &&
         currentResponse.choices[0]?.message?.tool_calls
       ) {
         const toolCallsResponse = currentResponse.choices[0].message.tool_calls
@@ -253,7 +253,7 @@ export const deepseekProvider: ProviderConfig = {
           toolCallsResponse,
           originalToolChoice,
           logger,
-          'deepseek',
+          "deepseek",
           forcedTools,
           usedForcedTools
         )
@@ -297,7 +297,7 @@ export const deepseekProvider: ProviderConfig = {
 
               // Add to time segments
               timeSegments.push({
-                type: 'tool',
+                type: "tool",
                 name: toolName,
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -316,12 +316,12 @@ export const deepseekProvider: ProviderConfig = {
 
               // Add the tool call and result to messages
               currentMessages.push({
-                role: 'assistant',
+                role: "assistant",
                 content: null,
                 tool_calls: [
                   {
                     id: toolCall.id,
-                    type: 'function',
+                    type: "function",
                     function: {
                       name: toolName,
                       arguments: toolCall.function.arguments,
@@ -331,12 +331,12 @@ export const deepseekProvider: ProviderConfig = {
               })
 
               currentMessages.push({
-                role: 'tool',
+                role: "tool",
                 tool_call_id: toolCall.id,
                 content: JSON.stringify(result.output),
               })
             } catch (error) {
-              logger.error('Error processing tool call:', { error })
+              logger.error("Error processing tool call:", { error })
             }
           }
 
@@ -352,7 +352,7 @@ export const deepseekProvider: ProviderConfig = {
 
           // Update tool_choice based on which forced tools have been used
           if (
-            typeof originalToolChoice === 'object' &&
+            typeof originalToolChoice === "object" &&
             hasUsedForcedTool &&
             forcedTools.length > 0
           ) {
@@ -362,14 +362,14 @@ export const deepseekProvider: ProviderConfig = {
             if (remainingTools.length > 0) {
               // Force the next tool
               nextPayload.tool_choice = {
-                type: 'function',
+                type: "function",
                 function: { name: remainingTools[0] },
               }
               logger.info(`Forcing next tool: ${remainingTools[0]}`)
             } else {
               // All forced tools have been used, switch to auto
-              nextPayload.tool_choice = 'auto'
-              logger.info('All forced tools have been used, switching to auto tool_choice')
+              nextPayload.tool_choice = "auto"
+              logger.info("All forced tools have been used, switching to auto tool_choice")
             }
           }
 
@@ -381,7 +381,7 @@ export const deepseekProvider: ProviderConfig = {
 
           // Check if any forced tools were used in this response
           if (
-            typeof nextPayload.tool_choice === 'object' &&
+            typeof nextPayload.tool_choice === "object" &&
             currentResponse.choices[0]?.message?.tool_calls
           ) {
             const toolCallsResponse = currentResponse.choices[0].message.tool_calls
@@ -389,7 +389,7 @@ export const deepseekProvider: ProviderConfig = {
               toolCallsResponse,
               nextPayload.tool_choice,
               logger,
-              'deepseek',
+              "deepseek",
               forcedTools,
               usedForcedTools
             )
@@ -402,7 +402,7 @@ export const deepseekProvider: ProviderConfig = {
 
           // Add to time segments
           timeSegments.push({
-            type: 'model',
+            type: "model",
             name: `Model response (iteration ${iterationCount + 1})`,
             startTime: nextModelStartTime,
             endTime: nextModelEndTime,
@@ -416,7 +416,7 @@ export const deepseekProvider: ProviderConfig = {
           if (currentResponse.choices[0]?.message?.content) {
             content = currentResponse.choices[0].message.content
             // Clean up the response content
-            content = content.replace(/```json\n?|\n?```/g, '')
+            content = content.replace(/```json\n?|\n?```/g, "")
             content = content.trim()
           }
 
@@ -430,7 +430,7 @@ export const deepseekProvider: ProviderConfig = {
           iterationCount++
         }
       } catch (error) {
-        logger.error('Error in Deepseek request:', { error })
+        logger.error("Error in Deepseek request:", { error })
       }
 
       // Calculate overall timing
@@ -440,14 +440,14 @@ export const deepseekProvider: ProviderConfig = {
 
       // POST-TOOL STREAMING: stream final response after tool calls if requested
       if (request.stream && iterationCount > 0) {
-        logger.info('Using streaming for final DeepSeek response after tool calls')
+        logger.info("Using streaming for final DeepSeek response after tool calls")
 
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents the API from trying to force tool usage again in the final streaming response
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
+          tool_choice: "auto", // Always use 'auto' for the streaming response after tool calls
           stream: true,
         }
 
@@ -460,8 +460,8 @@ export const deepseekProvider: ProviderConfig = {
             success: true,
             output: {
               response: {
-                content: '', // Will be filled by the callback
-                model: request.model || 'deepseek-chat',
+                content: "", // Will be filled by the callback
+                model: request.model || "deepseek-chat",
                 tokens: {
                   prompt: tokens.prompt,
                   completion: tokens.completion,
@@ -528,7 +528,7 @@ export const deepseekProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error('Error in Deepseek request:', {
+      logger.error("Error in Deepseek request:", {
         error,
         duration: totalDuration,
       })

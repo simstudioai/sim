@@ -1,10 +1,10 @@
-import { Edge } from 'reactflow'
-import { createLogger } from '@/lib/logs/console-logger'
-import { BlockState, Loop } from '@/stores/workflows/workflow/types'
-import { getBlock } from '@/blocks'
-import { SerializedBlock, SerializedWorkflow } from './types'
+import type { Edge } from "reactflow"
+import { createLogger } from "@/lib/logs/console-logger"
+import type { BlockState, Loop } from "@/stores/workflows/workflow/types"
+import { getBlock } from "@/blocks"
+import type { SerializedBlock, SerializedWorkflow } from "./types"
 
-const logger = createLogger('Serializer')
+const logger = createLogger("Serializer")
 
 export class Serializer {
   serializeWorkflow(
@@ -13,7 +13,7 @@ export class Serializer {
     loops: Record<string, Loop>
   ): SerializedWorkflow {
     return {
-      version: '1.0',
+      version: "1.0",
       blocks: Object.values(blocks).map((block) => this.serializeBlock(block)),
       connections: edges.map((edge) => ({
         source: edge.source,
@@ -33,9 +33,9 @@ export class Serializer {
 
     // Check if this is an agent block with custom tools
     const params = this.extractParams(block)
-    let toolId = ''
+    let toolId = ""
 
-    if (block.type === 'agent' && params.tools) {
+    if (block.type === "agent" && params.tools) {
       // Process the tools in the agent block
       try {
         const tools = Array.isArray(params.tools) ? params.tools : JSON.parse(params.tools)
@@ -44,14 +44,14 @@ export class Serializer {
         // They'll be handled by the executor during runtime
 
         // For non-custom tools, we determine the tool ID
-        const nonCustomTools = tools.filter((tool: any) => tool.type !== 'custom-tool')
+        const nonCustomTools = tools.filter((tool: any) => tool.type !== "custom-tool")
         if (nonCustomTools.length > 0) {
           toolId = blockConfig.tools.config?.tool
             ? blockConfig.tools.config.tool(params)
             : blockConfig.tools.access[0]
         }
       } catch (error) {
-        logger.error('Error processing tools in agent block:', { error })
+        logger.error("Error processing tools in agent block:", { error })
         // Default to the first tool if we can't process tools
         toolId = blockConfig.tools.access[0]
       }

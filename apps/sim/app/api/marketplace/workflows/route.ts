@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { desc, eq, sql } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { CATEGORIES } from '@/app/w/marketplace/constants/categories'
-import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { desc, eq, sql } from "drizzle-orm"
+import { createLogger } from "@/lib/logs/console-logger"
+import { createErrorResponse, createSuccessResponse } from "@/app/api/workflows/utils"
+import { CATEGORIES } from "@/app/w/marketplace/constants/categories"
+import { db } from "@/db"
+import * as schema from "@/db/schema"
 
-const logger = createLogger('MarketplaceWorkflowsAPI')
+const logger = createLogger("MarketplaceWorkflowsAPI")
 
 // Cache for 1 minute but can be revalidated on-demand
 export const revalidate = 60
@@ -34,13 +34,13 @@ export async function GET(request: NextRequest) {
   try {
     // Parse query parameters
     const url = new URL(request.url)
-    const sectionParam = url.searchParams.get('section')
-    const categoryParam = url.searchParams.get('category')
-    const limitParam = url.searchParams.get('limit') || '6'
-    const limit = parseInt(limitParam, 10)
-    const includeState = url.searchParams.get('includeState') === 'true'
-    const workflowId = url.searchParams.get('workflowId')
-    const marketplaceId = url.searchParams.get('marketplaceId')
+    const sectionParam = url.searchParams.get("section")
+    const categoryParam = url.searchParams.get("category")
+    const limitParam = url.searchParams.get("limit") || "6"
+    const limit = Number.parseInt(limitParam, 10)
+    const includeState = url.searchParams.get("includeState") === "true"
+    const workflowId = url.searchParams.get("workflowId")
+    const marketplaceId = url.searchParams.get("marketplaceId")
 
     // Handle single workflow request first (by workflow ID)
     if (workflowId) {
@@ -89,12 +89,12 @@ export async function GET(request: NextRequest) {
 
       if (!marketplaceEntry) {
         logger.warn(`[${requestId}] No marketplace entry found for workflow: ${workflowId}`)
-        return createErrorResponse('Workflow not found in marketplace', 404)
+        return createErrorResponse("Workflow not found in marketplace", 404)
       }
 
       // Transform response if state was requested
       const responseData =
-        includeState && 'state' in marketplaceEntry
+        includeState && "state" in marketplaceEntry
           ? {
               ...marketplaceEntry,
               workflowState: marketplaceEntry.state,
@@ -153,12 +153,12 @@ export async function GET(request: NextRequest) {
 
       if (!marketplaceEntry) {
         logger.warn(`[${requestId}] No marketplace entry found with ID: ${marketplaceId}`)
-        return createErrorResponse('Marketplace entry not found', 404)
+        return createErrorResponse("Marketplace entry not found", 404)
       }
 
       // Transform response if state was requested
       const responseData =
-        includeState && 'state' in marketplaceEntry
+        includeState && "state" in marketplaceEntry
           ? {
               ...marketplaceEntry,
               workflowState: marketplaceEntry.state,
@@ -200,10 +200,10 @@ export async function GET(request: NextRequest) {
       : baseFields
 
     // Determine which sections to fetch
-    const sections = sectionParam ? sectionParam.split(',') : ['popular', 'recent', 'byCategory']
+    const sections = sectionParam ? sectionParam.split(",") : ["popular", "recent", "byCategory"]
 
     // Get popular items if requested
-    if (sections.includes('popular')) {
+    if (sections.includes("popular")) {
       result.popular = await db
         .select(selectFields)
         .from(schema.marketplace)
@@ -212,7 +212,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get recent items if requested
-    if (sections.includes('recent')) {
+    if (sections.includes("recent")) {
       result.recent = await db
         .select(selectFields)
         .from(schema.marketplace)
@@ -222,7 +222,7 @@ export async function GET(request: NextRequest) {
 
     // Get categories if requested
     if (
-      sections.includes('byCategory') ||
+      sections.includes("byCategory") ||
       categoryParam ||
       sections.some((s) => CATEGORIES.some((c) => c.value === s))
     ) {
@@ -242,13 +242,13 @@ export async function GET(request: NextRequest) {
       })
 
       // Include byCategory section contents if requested
-      if (sections.includes('byCategory')) {
+      if (sections.includes("byCategory")) {
         CATEGORIES.forEach((c) => requestedCategories.add(c.value))
       }
 
       // Log what we're fetching
       const categoriesToFetch = Array.from(requestedCategories)
-      logger.info(`[${requestId}] Fetching specific categories: ${categoriesToFetch.join(', ')}`)
+      logger.info(`[${requestId}] Fetching specific categories: ${categoriesToFetch.join(", ")}`)
 
       // Process each requested category
       await Promise.all(
@@ -273,7 +273,7 @@ export async function GET(request: NextRequest) {
     if (includeState) {
       const transformSection = (section: any[]) => {
         return section.map((item) => {
-          if ('state' in item) {
+          if ("state" in item) {
             // Create a new object without the state field, but with workflowState
             const { state, ...rest } = item
             return {
@@ -300,7 +300,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    logger.info(`[${requestId}] Fetched marketplace items${includeState ? ' with state' : ''}`)
+    logger.info(`[${requestId}] Fetched marketplace items${includeState ? " with state" : ""}`)
     return NextResponse.json(result)
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching marketplace items`, error)
@@ -322,7 +322,7 @@ export async function POST(request: NextRequest) {
     const { id } = body
 
     if (!id) {
-      return createErrorResponse('Marketplace ID is required', 400)
+      return createErrorResponse("Marketplace ID is required", 400)
     }
 
     // Find the marketplace entry
@@ -337,7 +337,7 @@ export async function POST(request: NextRequest) {
 
     if (!marketplaceEntry) {
       logger.warn(`[${requestId}] No marketplace entry found with ID: ${id}`)
-      return createErrorResponse('Marketplace entry not found', 404)
+      return createErrorResponse("Marketplace entry not found", 404)
     }
 
     // Increment the view count

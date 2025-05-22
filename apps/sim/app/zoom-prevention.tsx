@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import { useEffect } from 'react'
+import { useEffect } from "react"
 
 export function ZoomPrevention() {
   useEffect(() => {
@@ -12,20 +12,20 @@ export function ZoomPrevention() {
 
       // Prevent zoom on ctrl/cmd + plus/minus/zero
       if (e instanceof KeyboardEvent && (e.ctrlKey || e.metaKey)) {
-        if (e.key === '=' || e.key === '-' || e.key === '0') {
+        if (e.key === "=" || e.key === "-" || e.key === "0") {
           e.preventDefault()
         }
       }
     }
 
     // Add event listeners
-    document.addEventListener('wheel', preventZoom, { passive: false })
-    document.addEventListener('keydown', preventZoom)
+    document.addEventListener("wheel", preventZoom, { passive: false })
+    document.addEventListener("keydown", preventZoom)
 
     // Cleanup
     return () => {
-      document.removeEventListener('wheel', preventZoom)
-      document.removeEventListener('keydown', preventZoom)
+      document.removeEventListener("wheel", preventZoom)
+      document.removeEventListener("keydown", preventZoom)
     }
   }, [])
 

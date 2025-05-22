@@ -1,28 +1,28 @@
-'use client'
+"use client"
 
-import { useMemo } from 'react'
+import { useMemo } from "react"
 import ReactFlow, {
   Background,
   ConnectionLineType,
-  Edge,
-  EdgeTypes,
+  type Edge,
+  type EdgeTypes,
   Handle,
-  Node,
-  NodeProps,
-  NodeTypes,
+  type Node,
+  type NodeProps,
+  type NodeTypes,
   Position,
   ReactFlowProvider,
-} from 'reactflow'
-import 'reactflow/dist/style.css'
-import { Card } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
-import { WorkflowEdge } from '@/app/w/[id]/components/workflow-edge/workflow-edge'
-import { LoopInput } from '@/app/w/[id]/components/workflow-loop/components/loop-input/loop-input'
-import { LoopLabel } from '@/app/w/[id]/components/workflow-loop/components/loop-label/loop-label'
-import { createLoopNode } from '@/app/w/[id]/components/workflow-loop/workflow-loop'
-import { getBlock } from '@/blocks'
-import { SubBlockConfig } from '@/blocks/types'
+} from "reactflow"
+import "reactflow/dist/style.css"
+import { Card } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
+import { WorkflowEdge } from "@/app/w/[id]/components/workflow-edge/workflow-edge"
+import { LoopInput } from "@/app/w/[id]/components/workflow-loop/components/loop-input/loop-input"
+import { LoopLabel } from "@/app/w/[id]/components/workflow-loop/components/loop-label/loop-label"
+import { createLoopNode } from "@/app/w/[id]/components/workflow-loop/workflow-loop"
+import { getBlock } from "@/blocks"
+import type { SubBlockConfig } from "@/blocks/types"
 
 interface WorkflowPreviewProps {
   // The workflow state to render
@@ -68,7 +68,7 @@ const edgeTypes: EdgeTypes = {
 /**
  * Prepares subblocks by combining block state with block configuration
  */
-function prepareSubBlocks(blockSubBlocks: Record<string, any> = {}, blockConfig: any) {
+function prepareSubBlocks(blockSubBlocks: Record<string, any>, blockConfig: any) {
   const configSubBlocks = blockConfig?.subBlocks || []
 
   return Object.entries(blockSubBlocks)
@@ -76,7 +76,7 @@ function prepareSubBlocks(blockSubBlocks: Record<string, any> = {}, blockConfig:
       const matchingConfig = configSubBlocks.find((config: any) => config.id === id)
 
       const value = subBlock.value
-      const hasValue = value !== undefined && value !== null && value !== ''
+      const hasValue = value !== undefined && value !== null && value !== ""
 
       if (!hasValue) return null
 
@@ -100,7 +100,7 @@ function groupSubBlocks(subBlocks: ExtendedSubBlockConfig[]) {
   const visibleSubBlocks = subBlocks.filter((block) => !block.hidden)
 
   visibleSubBlocks.forEach((block) => {
-    const blockWidth = block.layout === 'half' ? 0.5 : 1
+    const blockWidth = block.layout === "half" ? 0.5 : 1
     if (currentRowWidth + blockWidth > 1) {
       if (currentRow.length > 0) {
         rows.push([...currentRow])
@@ -131,34 +131,34 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
    */
   const renderSimplifiedInput = () => {
     switch (config.type) {
-      case 'short-input':
+      case "short-input":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1.5 text-xs text-muted-foreground">
+          <div className="h-7 rounded-md border border-input bg-background px-3 py-1.5 text-muted-foreground text-xs">
             {config.password
-              ? '**********************'
-              : config.id === 'providerConfig' && config.value && typeof config.value === 'object'
+              ? "**********************"
+              : config.id === "providerConfig" && config.value && typeof config.value === "object"
                 ? Object.keys(config.value).length === 0
-                  ? 'Webhook pending configuration'
-                  : 'Webhook configured'
-                : config.value || config.placeholder || 'Text input'}
+                  ? "Webhook pending configuration"
+                  : "Webhook configured"
+                : config.value || config.placeholder || "Text input"}
           </div>
         )
-      case 'long-input':
+      case "long-input":
         return (
-          <div className="h-16 rounded-md border border-input bg-background p-2 text-xs text-muted-foreground">
-            {typeof config.value === 'string'
+          <div className="h-16 rounded-md border border-input bg-background p-2 text-muted-foreground text-xs">
+            {typeof config.value === "string"
               ? config.value.length > 50
                 ? `${config.value.substring(0, 50)}...`
                 : config.value
-              : config.placeholder || 'Text area'}
+              : config.placeholder || "Text area"}
           </div>
         )
-      case 'dropdown':
+      case "dropdown":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-between">
+          <div className="flex h-7 items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
             <span>
               {config.value ||
-                (Array.isArray(config.options) ? config.options[0] : 'Select option')}
+                (Array.isArray(config.options) ? config.options[0] : "Select option")}
             </span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -176,44 +176,44 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
             </svg>
           </div>
         )
-      case 'switch':
+      case "switch":
         return (
           <div className="flex items-center space-x-2">
             <div
-              className={`h-4 w-8 rounded-full ${config.value ? 'bg-primary' : 'bg-muted'} flex items-center`}
+              className={`h-4 w-8 rounded-full ${config.value ? "bg-primary" : "bg-muted"} flex items-center`}
             >
               <div
-                className={`h-3 w-3 rounded-full bg-background transition-all ${config.value ? 'ml-4' : 'ml-0.5'}`}
-              ></div>
+                className={`h-3 w-3 rounded-full bg-background transition-all ${config.value ? "ml-4" : "ml-0.5"}`}
+              />
             </div>
             <span className="text-xs">{config.title}</span>
           </div>
         )
-      case 'checkbox-list':
+      case "checkbox-list":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground">
+          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
             Checkbox list
           </div>
         )
-      case 'code':
+      case "code":
         return (
-          <div className="h-12 rounded-md border border-input bg-background p-2 text-xs font-mono text-muted-foreground">
-            {typeof config.value === 'string'
-              ? 'Code content'
-              : config.placeholder || 'Code editor'}
+          <div className="h-12 rounded-md border border-input bg-background p-2 font-mono text-muted-foreground text-xs">
+            {typeof config.value === "string"
+              ? "Code content"
+              : config.placeholder || "Code editor"}
           </div>
         )
-      case 'tool-input':
+      case "tool-input":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground">
+          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
             Tool configuration
           </div>
         )
-      case 'oauth-input':
+      case "oauth-input":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-between">
+          <div className="flex h-7 items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
             <span>
-              {config.value ? 'Connected account' : config.placeholder || 'Select account'}
+              {config.value ? "Connected account" : config.placeholder || "Select account"}
             </span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -231,10 +231,10 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
             </svg>
           </div>
         )
-      case 'file-selector':
+      case "file-selector":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-between">
-            <span>{config.value ? 'File selected' : config.placeholder || 'Select file'}</span>
+          <div className="flex h-7 items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
+            <span>{config.value ? "File selected" : config.placeholder || "Select file"}</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="12"
@@ -251,10 +251,10 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
             </svg>
           </div>
         )
-      case 'folder-selector':
+      case "folder-selector":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-between">
-            <span>{config.value ? 'Folder selected' : config.placeholder || 'Select folder'}</span>
+          <div className="flex h-7 items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
+            <span>{config.value ? "Folder selected" : config.placeholder || "Select folder"}</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="12"
@@ -271,11 +271,11 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
             </svg>
           </div>
         )
-      case 'project-selector':
+      case "project-selector":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-between">
+          <div className="flex h-7 items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
             <span>
-              {config.value ? 'Project selected' : config.placeholder || 'Select project'}
+              {config.value ? "Project selected" : config.placeholder || "Select project"}
             </span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -293,22 +293,22 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
             </svg>
           </div>
         )
-      case 'condition-input':
+      case "condition-input":
         return (
-          <div className="h-16 rounded-md border border-input bg-background p-2 text-xs text-muted-foreground">
+          <div className="h-16 rounded-md border border-input bg-background p-2 text-muted-foreground text-xs">
             Condition configuration
           </div>
         )
-      case 'eval-input':
+      case "eval-input":
         return (
-          <div className="h-12 rounded-md border border-input bg-background p-2 text-xs font-mono text-muted-foreground">
+          <div className="h-12 rounded-md border border-input bg-background p-2 font-mono text-muted-foreground text-xs">
             Eval expression
           </div>
         )
-      case 'date-input':
+      case "date-input":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-between">
-            <span>{config.value || config.placeholder || 'Select date'}</span>
+          <div className="flex h-7 items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
+            <span>{config.value || config.placeholder || "Select date"}</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="12"
@@ -328,10 +328,10 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
             </svg>
           </div>
         )
-      case 'time-input':
+      case "time-input":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-between">
-            <span>{config.value || config.placeholder || 'Select time'}</span>
+          <div className="flex h-7 items-center justify-between rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
+            <span>{config.value || config.placeholder || "Select time"}</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               width="12"
@@ -349,31 +349,31 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
             </svg>
           </div>
         )
-      case 'file-upload':
+      case "file-upload":
         return (
-          <div className="h-7 rounded-md border border-dashed border-input bg-background px-3 py-1 text-xs text-muted-foreground flex items-center justify-center">
-            {config.value ? 'File uploaded' : 'Upload file'}
+          <div className="flex h-7 items-center justify-center rounded-md border border-input border-dashed bg-background px-3 py-1 text-muted-foreground text-xs">
+            {config.value ? "File uploaded" : "Upload file"}
           </div>
         )
-      case 'webhook-config':
+      case "webhook-config":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground">
+          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
             Webhook configuration
           </div>
         )
-      case 'schedule-config':
+      case "schedule-config":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground">
+          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
             Schedule configuration
           </div>
         )
-      case 'input-format':
+      case "input-format":
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground">
+          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
             Input format configuration
           </div>
         )
-      case 'slider':
+      case "slider":
         return (
           <div className="h-7 px-1 py-2">
             <div className="relative h-2 w-full rounded-full bg-muted">
@@ -382,7 +382,7 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
                 style={{ width: `${((config.value || 50) / 100) * 100}%` }}
               />
               <div
-                className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-primary bg-background"
+                className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 h-4 w-4 rounded-full border-2 border-primary bg-background"
                 style={{ left: `${((config.value || 50) / 100) * 100}%` }}
               />
             </div>
@@ -390,8 +390,8 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
         )
       default:
         return (
-          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-xs text-muted-foreground">
-            {config.value !== undefined ? String(config.value) : config.title || 'Input field'}
+          <div className="h-7 rounded-md border border-input bg-background px-3 py-1 text-muted-foreground text-xs">
+            {config.value !== undefined ? String(config.value) : config.title || "Input field"}
           </div>
         )
     }
@@ -399,7 +399,7 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
 
   return (
     <div className="space-y-1">
-      {config.type !== 'switch' && <Label className="text-xs">{config.title}</Label>}
+      {config.type !== "switch" && <Label className="text-xs">{config.title}</Label>}
       {renderSimplifiedInput()}
     </div>
   )
@@ -423,21 +423,21 @@ function PreviewWorkflowBlock({ id, data }: NodeProps<any>) {
     <div className="relative">
       <Card
         className={cn(
-          'shadow-md select-none relative',
-          'transition-ring transition-block-bg',
-          blockState?.isWide ? 'w-[400px]' : 'w-[260px]'
+          "relative select-none shadow-md",
+          "transition-block-bg transition-ring",
+          blockState?.isWide ? "w-[400px]" : "w-[260px]"
         )}
       >
         {/* Block Header */}
-        <div className="flex items-center justify-between p-2 border-b">
+        <div className="flex items-center justify-between border-b p-2">
           <div className="flex items-center gap-2">
             <div
-              className="flex items-center justify-center w-6 h-6 rounded"
+              className="flex h-6 w-6 items-center justify-center rounded"
               style={{ backgroundColor: config.bgColor }}
             >
-              <config.icon className="w-4 h-4 text-white" />
+              <config.icon className="h-4 w-4 text-white" />
             </div>
-            <span className="font-medium text-sm truncate max-w-[180px]" title={name}>
+            <span className="max-w-[180px] truncate font-medium text-sm" title={name}>
               {name}
             </span>
           </div>
@@ -445,14 +445,14 @@ function PreviewWorkflowBlock({ id, data }: NodeProps<any>) {
 
         {/* Block Content */}
         {showSubBlocks && (
-          <div className="px-3 py-2 space-y-2">
+          <div className="space-y-2 px-3 py-2">
             {subBlockRows.length > 0 ? (
               subBlockRows.map((row, rowIndex) => (
                 <div key={`row-${rowIndex}`} className="flex gap-2">
                   {row.map((subBlock, blockIndex) => (
                     <div
                       key={`${id}-${rowIndex}-${blockIndex}`}
-                      className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
+                      className={cn("space-y-1", subBlock.layout === "half" ? "flex-1" : "w-full")}
                     >
                       <PreviewSubBlock config={subBlock} />
                     </div>
@@ -460,35 +460,35 @@ function PreviewWorkflowBlock({ id, data }: NodeProps<any>) {
                 </div>
               ))
             ) : (
-              <div className="text-xs text-muted-foreground py-2">No configured items</div>
+              <div className="py-2 text-muted-foreground text-xs">No configured items</div>
             )}
           </div>
         )}
 
         {/* Handles */}
-        {type !== 'starter' && (
+        {type !== "starter" && (
           <Handle
             type="target"
             position={blockState?.horizontalHandles ? Position.Left : Position.Top}
             id="target"
             className={cn(
-              '!w-3 !h-3',
-              '!bg-white !rounded-full !border !border-gray-200',
-              blockState?.horizontalHandles ? '!left-[-6px]' : '!top-[-6px]'
+              "!w-3 !h-3",
+              "!bg-white !rounded-full !border !border-gray-200",
+              blockState?.horizontalHandles ? "!left-[-6px]" : "!top-[-6px]"
             )}
             isConnectable={false}
           />
         )}
 
-        {type !== 'condition' && (
+        {type !== "condition" && (
           <Handle
             type="source"
             position={blockState?.horizontalHandles ? Position.Right : Position.Bottom}
             id="source"
             className={cn(
-              '!w-3 !h-3',
-              '!bg-white !rounded-full !border !border-gray-200',
-              blockState?.horizontalHandles ? '!right-[-6px]' : '!bottom-[-6px]'
+              "!w-3 !h-3",
+              "!bg-white !rounded-full !border !border-gray-200",
+              blockState?.horizontalHandles ? "!right-[-6px]" : "!bottom-[-6px]"
             )}
             isConnectable={false}
           />
@@ -502,8 +502,8 @@ function WorkflowPreviewContent({
   workflowState,
   showSubBlocks = true,
   className,
-  height = '100%',
-  width = '100%',
+  height = "100%",
+  width = "100%",
   isPannable = false,
   defaultPosition,
   defaultZoom,
@@ -536,7 +536,7 @@ function WorkflowPreviewContent({
 
       nodeArray.push({
         id: blockId,
-        type: 'workflowBlock',
+        type: "workflowBlock",
         position: block.position,
         data: {
           type: block.type,
@@ -560,7 +560,7 @@ function WorkflowPreviewContent({
       target: edge.target,
       sourceHandle: edge.sourceHandle,
       targetHandle: edge.targetHandle,
-      type: 'workflowEdge',
+      type: "workflowEdge",
     }))
   }, [workflowState.edges])
 

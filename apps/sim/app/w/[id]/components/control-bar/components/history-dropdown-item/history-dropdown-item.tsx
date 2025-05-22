@@ -1,7 +1,7 @@
-import { formatDistanceToNow } from 'date-fns'
-import { Clock } from 'lucide-react'
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
-import { cn } from '@/lib/utils'
+import { formatDistanceToNow } from "date-fns"
+import { Clock } from "lucide-react"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 
 interface HistoryDropdownItemProps {
   action: string
@@ -25,21 +25,21 @@ export function HistoryDropdownItem({
   return (
     <DropdownMenuItem
       className={cn(
-        'flex items-start gap-2 p-3 cursor-pointer',
-        isFuture && 'text-muted-foreground/50'
+        "flex cursor-pointer items-start gap-2 p-3",
+        isFuture && "text-muted-foreground/50"
       )}
       onClick={onClick}
     >
       <Clock
-        className={cn('h-4 w-4', isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground')}
+        className={cn("h-4 w-4", isFuture ? "text-muted-foreground/50" : "text-muted-foreground")}
       />
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           {isCurrent ? (
             <span
               className={cn(
-                'text-xs',
-                isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                "text-xs",
+                isFuture ? "text-muted-foreground/50" : "text-muted-foreground"
               )}
             >
               Current
@@ -47,15 +47,15 @@ export function HistoryDropdownItem({
           ) : (
             <span
               className={cn(
-                'text-xs',
-                isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                "text-xs",
+                isFuture ? "text-muted-foreground/50" : "text-muted-foreground"
               )}
             >
               {timeAgo}
             </span>
           )}
         </div>
-        <p className={cn('text-sm', isFuture ? 'text-muted-foreground/50' : 'text-foreground')}>
+        <p className={cn("text-sm", isFuture ? "text-muted-foreground/50" : "text-foreground")}>
           {action}
         </p>
       </div>

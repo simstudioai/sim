@@ -1,21 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { and, eq, gte, lte, or, SQL, sql } from 'drizzle-orm'
-import { z } from 'zod'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { workflow, workflowLogs } from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { and, eq, gte, lte, or, type SQL, sql } from "drizzle-orm"
+import { z } from "zod"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { db } from "@/db"
+import { workflow, workflowLogs } from "@/db/schema"
 
 // Create a logger for this module
-const logger = createLogger('WorkflowLogsAPI')
+const logger = createLogger("WorkflowLogsAPI")
 
 // No cache
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 // Schema for query parameters
 const QueryParamsSchema = z.object({
-  includeWorkflow: z.enum(['true', 'false']).optional().default('false'),
+  includeWorkflow: z.enum(["true", "false"]).optional().default("false"),
   limit: z.coerce.number().optional().default(100),
   offset: z.coerce.number().optional().default(0),
   // Add more filters as needed (e.g., by level, date range, etc.)
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized workflow logs access attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const userId = session.user.id
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
           logger.warn(`[${requestId}] Unauthorized access to workflow logs`, {
             requestedWorkflowId: params.workflowId,
           })
-          return NextResponse.json({ error: 'Unauthorized access to workflow' }, { status: 403 })
+          return NextResponse.json({ error: "Unauthorized access to workflow" }, { status: 403 })
         }
       }
 
@@ -113,7 +113,7 @@ export async function GET(request: NextRequest) {
       const count = countResult[0]?.count || 0
 
       // If includeWorkflow is true, fetch the associated workflow data
-      if (params.includeWorkflow === 'true' && logs.length > 0) {
+      if (params.includeWorkflow === "true" && logs.length > 0) {
         // Get unique workflow IDs from logs
         const uniqueWorkflowIds = [...new Set(logs.map((log) => log.workflowId))]
 
@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
         })
         return NextResponse.json(
           {
-            error: 'Invalid request parameters',
+            error: "Invalid request parameters",
             details: validationError.errors,
           },
           { status: 400 }

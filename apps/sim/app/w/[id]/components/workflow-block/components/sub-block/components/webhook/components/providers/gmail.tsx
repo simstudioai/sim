@@ -1,39 +1,39 @@
-import { useEffect, useState } from 'react'
-import { Info } from 'lucide-react'
-import { GmailIcon } from '@/components/icons'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
-import { Notice } from '@/components/ui/notice'
+import { useEffect, useState } from "react"
+import { Info } from "lucide-react"
+import { GmailIcon } from "@/components/icons"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import { Notice } from "@/components/ui/notice"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Logger } from '@/lib/logs/console-logger'
-import { JSONView } from '@/app/w/[id]/components/panel/components/console/components/json-view/json-view'
-import { ConfigSection } from '../ui/config-section'
+} from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Logger } from "@/lib/logs/console-logger"
+import { JSONView } from "@/app/w/[id]/components/panel/components/console/components/json-view/json-view"
+import { ConfigSection } from "../ui/config-section"
 
-const logger = new Logger('GmailConfig')
+const logger = new Logger("GmailConfig")
 
 const TOOLTIPS = {
-  labels: 'Select which email labels to monitor.',
-  labelFilter: 'Choose whether to include or exclude the selected labels.',
-  markAsRead: 'Emails will be marked as read after being processed by your workflow.',
+  labels: "Select which email labels to monitor.",
+  labelFilter: "Choose whether to include or exclude the selected labels.",
+  markAsRead: "Emails will be marked as read after being processed by your workflow.",
 }
 
 const FALLBACK_GMAIL_LABELS = [
-  { id: 'INBOX', name: 'Inbox' },
-  { id: 'SENT', name: 'Sent' },
-  { id: 'IMPORTANT', name: 'Important' },
-  { id: 'TRASH', name: 'Trash' },
-  { id: 'SPAM', name: 'Spam' },
-  { id: 'STARRED', name: 'Starred' },
+  { id: "INBOX", name: "Inbox" },
+  { id: "SENT", name: "Sent" },
+  { id: "IMPORTANT", name: "Important" },
+  { id: "TRASH", name: "Trash" },
+  { id: "SPAM", name: "Spam" },
+  { id: "STARRED", name: "Starred" },
 ]
 
 interface GmailLabel {
@@ -45,11 +45,11 @@ interface GmailLabel {
 }
 
 const formatLabelName = (label: GmailLabel): string => {
-  let formattedName = label.name.replace(/0$/, '')
-  if (formattedName.startsWith('Category_')) {
+  const formattedName = label.name.replace(/0$/, "")
+  if (formattedName.startsWith("Category_")) {
     return formattedName
-      .replace('Category_', '')
-      .replace(/_/g, ' ')
+      .replace("Category_", "")
+      .replace(/_/g, " ")
       .replace(/\b\w/g, (c) => c.toUpperCase())
   }
   return formattedName
@@ -57,36 +57,36 @@ const formatLabelName = (label: GmailLabel): string => {
 
 const exampleEmailEvent = {
   email: {
-    id: '18e0ffabd5b5a0f4',
-    threadId: '18e0ffabd5b5a0f4',
-    subject: 'Monthly Report - April 2025',
-    from: 'sender@example.com',
-    to: 'recipient@example.com',
-    cc: 'team@example.com',
-    date: '2025-05-10T10:15:23.000Z',
+    id: "18e0ffabd5b5a0f4",
+    threadId: "18e0ffabd5b5a0f4",
+    subject: "Monthly Report - April 2025",
+    from: "sender@example.com",
+    to: "recipient@example.com",
+    cc: "team@example.com",
+    date: "2025-05-10T10:15:23.000Z",
     bodyText:
-      'Hello,\n\nPlease find attached the monthly report for April 2025.\n\nBest regards,\nSender',
+      "Hello,\n\nPlease find attached the monthly report for April 2025.\n\nBest regards,\nSender",
     bodyHtml:
-      '<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>',
-    snippet: 'Hello, Please find attached the monthly report for April 2025...',
-    labels: ['INBOX', 'IMPORTANT'],
+      "<div><p>Hello,</p><p>Please find attached the monthly report for April 2025.</p><p>Best regards,<br>Sender</p></div>",
+    snippet: "Hello, Please find attached the monthly report for April 2025...",
+    labels: ["INBOX", "IMPORTANT"],
     hasAttachments: true,
     attachments: [
       {
-        filename: 'report-april-2025.pdf',
-        mimeType: 'application/pdf',
+        filename: "report-april-2025.pdf",
+        mimeType: "application/pdf",
         size: 2048576,
       },
     ],
   },
-  timestamp: '2025-05-10T10:15:30.123Z',
+  timestamp: "2025-05-10T10:15:30.123Z",
 }
 
 interface GmailConfigProps {
   selectedLabels: string[]
   setSelectedLabels: (labels: string[]) => void
-  labelFilterBehavior: 'INCLUDE' | 'EXCLUDE'
-  setLabelFilterBehavior: (behavior: 'INCLUDE' | 'EXCLUDE') => void
+  labelFilterBehavior: "INCLUDE" | "EXCLUDE"
+  setLabelFilterBehavior: (behavior: "INCLUDE" | "EXCLUDE") => void
   markAsRead?: boolean
   setMarkAsRead?: (markAsRead: boolean) => void
 }
@@ -111,33 +111,33 @@ export function GmailConfig({
       setLabelError(null)
 
       try {
-        const credentialsResponse = await fetch('/api/auth/oauth/credentials?provider=google-email')
+        const credentialsResponse = await fetch("/api/auth/oauth/credentials?provider=google-email")
         if (!credentialsResponse.ok) {
-          throw new Error('Failed to get Google credentials')
+          throw new Error("Failed to get Google credentials")
         }
 
         const credentialsData = await credentialsResponse.json()
         if (!credentialsData.credentials || !credentialsData.credentials.length) {
-          throw new Error('No Google credentials found')
+          throw new Error("No Google credentials found")
         }
 
         const credentialId = credentialsData.credentials[0].id
 
         const response = await fetch(`/api/auth/oauth/gmail/labels?credentialId=${credentialId}`)
         if (!response.ok) {
-          throw new Error('Failed to fetch Gmail labels')
+          throw new Error("Failed to fetch Gmail labels")
         }
 
         const data = await response.json()
         if (data.labels && Array.isArray(data.labels)) {
           if (mounted) setLabels(data.labels)
         } else {
-          throw new Error('Invalid labels data format')
+          throw new Error("Invalid labels data format")
         }
       } catch (error) {
-        logger.error('Error fetching Gmail labels:', error)
+        logger.error("Error fetching Gmail labels:", error)
         if (mounted) {
-          setLabelError('Could not fetch Gmail labels. Using default labels instead.')
+          setLabelError("Could not fetch Gmail labels. Using default labels instead.")
           setLabels(FALLBACK_GMAIL_LABELS)
         }
       } finally {
@@ -162,14 +162,14 @@ export function GmailConfig({
   return (
     <div className="space-y-6">
       <ConfigSection>
-        <div className="flex items-center gap-2 mb-3">
-          <h3 className="text-sm font-medium">Email Labels to Monitor</h3>
+        <div className="mb-3 flex items-center gap-2">
+          <h3 className="font-medium text-sm">Email Labels to Monitor</h3>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-gray-500 p-1 h-6 w-6"
+                className="h-6 w-6 p-1 text-gray-500"
                 aria-label="Learn more about email labels"
               >
                 <Info className="h-4 w-4" />
@@ -178,7 +178,7 @@ export function GmailConfig({
             <TooltipContent
               side="right"
               align="center"
-              className="max-w-[300px] p-3 z-[100]"
+              className="z-[100] max-w-[300px] p-3"
               role="tooltip"
             >
               <p className="text-sm">{TOOLTIPS.labels}</p>
@@ -197,14 +197,14 @@ export function GmailConfig({
         ) : (
           <>
             {labelError && (
-              <p className="text-sm text-amber-500 dark:text-amber-400">{labelError}</p>
+              <p className="text-amber-500 text-sm dark:text-amber-400">{labelError}</p>
             )}
 
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               {labels.map((label) => (
                 <Badge
                   key={label.id}
-                  variant={selectedLabels.includes(label.id) ? 'default' : 'outline'}
+                  variant={selectedLabels.includes(label.id) ? "default" : "outline"}
                   className="cursor-pointer"
                   onClick={() => toggleLabel(label.id)}
                 >
@@ -217,7 +217,7 @@ export function GmailConfig({
 
         <div className="mt-4">
           <div className="flex items-center gap-2">
-            <Label htmlFor="label-behavior" className="text-sm font-medium">
+            <Label htmlFor="label-behavior" className="font-medium text-sm">
               Label Filter Behavior
             </Label>
             <Tooltip>
@@ -225,7 +225,7 @@ export function GmailConfig({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-gray-500 p-1 h-6 w-6"
+                  className="h-6 w-6 p-1 text-gray-500"
                   aria-label="Learn more about label filter behavior"
                 >
                   <Info className="h-4 w-4" />
@@ -234,7 +234,7 @@ export function GmailConfig({
               <TooltipContent
                 side="right"
                 align="center"
-                className="max-w-[300px] p-3 z-[100]"
+                className="z-[100] max-w-[300px] p-3"
                 role="tooltip"
               >
                 <p className="text-sm">{TOOLTIPS.labelFilter}</p>
@@ -256,17 +256,17 @@ export function GmailConfig({
       </ConfigSection>
 
       <ConfigSection>
-        <h3 className="text-sm font-medium mb-3">Email Processing Options</h3>
+        <h3 className="mb-3 font-medium text-sm">Email Processing Options</h3>
 
         <div className="space-y-3">
           <div className="flex items-center">
-            <div className="flex items-center gap-2 flex-1">
+            <div className="flex flex-1 items-center gap-2">
               <Checkbox
                 id="mark-as-read"
                 checked={markAsRead}
                 onCheckedChange={(checked) => setMarkAsRead(checked as boolean)}
               />
-              <Label htmlFor="mark-as-read" className="text-sm font-normal cursor-pointer">
+              <Label htmlFor="mark-as-read" className="cursor-pointer font-normal text-sm">
                 Mark emails as read after processing
               </Label>
               <Tooltip>
@@ -274,13 +274,13 @@ export function GmailConfig({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-gray-500 p-1 h-6 w-6"
+                    className="h-6 w-6 p-1 text-gray-500"
                     aria-label="Learn more about marking emails as read"
                   >
                     <Info className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top" align="center" className="max-w-[300px] p-3 z-[100]">
+                <TooltipContent side="top" align="center" className="z-[100] max-w-[300px] p-3">
                   <p className="text-sm">{TOOLTIPS.markAsRead}</p>
                 </TooltipContent>
               </Tooltip>
@@ -291,11 +291,11 @@ export function GmailConfig({
 
       <Notice
         variant="default"
-        className="bg-white border-slate-200 dark:bg-background dark:border-border"
-        icon={<GmailIcon className="h-5 w-5 text-red-500 mt-0.5 mr-3.5 flex-shrink-0" />}
+        className="border-slate-200 bg-white dark:border-border dark:bg-background"
+        icon={<GmailIcon className="mt-0.5 mr-3.5 h-5 w-5 flex-shrink-0 text-red-500" />}
         title="Gmail Event Payload Example"
       >
-        <div className="mt-2 text-sm font-mono break-normal whitespace-normal overflow-wrap-anywhere">
+        <div className="overflow-wrap-anywhere mt-2 whitespace-normal break-normal font-mono text-sm">
           <JSONView data={exampleEmailEvent} />
         </div>
       </Notice>

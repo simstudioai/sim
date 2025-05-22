@@ -1,21 +1,21 @@
-import { ChevronDown, Plus, Trash } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { ChevronDown, Plus, Trash } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
-import { useSubBlockValue } from '../../hooks/use-sub-block-value'
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
+import { useSubBlockValue } from "../../hooks/use-sub-block-value"
 
 interface InputField {
   id: string
   name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  type: "string" | "number" | "boolean" | "object" | "array"
   collapsed?: boolean
 }
 
@@ -27,8 +27,8 @@ interface InputFormatProps {
 // Default values
 const DEFAULT_FIELD: InputField = {
   id: crypto.randomUUID(),
-  name: '',
-  type: 'string',
+  name: "",
+  type: "string",
   collapsed: true,
 }
 
@@ -62,24 +62,24 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
 
   // Field header
   const renderFieldHeader = (field: InputField, index: number) => {
-    const isUnconfigured = !field.name || field.name.trim() === ''
+    const isUnconfigured = !field.name || field.name.trim() === ""
 
     return (
       <div
-        className="flex h-9 items-center justify-between px-3 py-1 cursor-pointer"
+        className="flex h-9 cursor-pointer items-center justify-between px-3 py-1"
         onClick={() => toggleCollapse(field.id)}
       >
         <div className="flex items-center">
           <span
             className={cn(
-              'text-sm',
-              isUnconfigured ? 'text-muted-foreground/50' : 'text-foreground'
+              "text-sm",
+              isUnconfigured ? "text-muted-foreground/50" : "text-foreground"
             )}
           >
             {field.name ? field.name : `Field ${index + 1}`}
           </span>
           {field.name && (
-            <Badge variant="outline" className="ml-2 py-0 h-5 text-xs font-normal bg-muted">
+            <Badge variant="outline" className="ml-2 h-5 bg-muted py-0 font-normal text-xs">
               {field.type}
             </Badge>
           )}
@@ -106,34 +106,34 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
   }
 
   // Check if any fields have been configured
-  const hasConfiguredFields = fields.some((field) => field.name && field.name.trim() !== '')
+  const hasConfiguredFields = fields.some((field) => field.name && field.name.trim() !== "")
 
   // Main render
   return (
     <div className="space-y-2">
       {fields.map((field, index) => {
-        const isUnconfigured = !field.name || field.name.trim() === ''
+        const isUnconfigured = !field.name || field.name.trim() === ""
 
         return (
           <div
             key={field.id}
             data-field-id={field.id}
             className={cn(
-              'rounded-md border shadow-sm',
-              isUnconfigured ? 'border-input/50' : 'border-input',
-              field.collapsed ? 'overflow-hidden' : 'overflow-visible'
+              "rounded-md border shadow-sm",
+              isUnconfigured ? "border-input/50" : "border-input",
+              field.collapsed ? "overflow-hidden" : "overflow-visible"
             )}
           >
             {renderFieldHeader(field, index)}
 
             {!field.collapsed && (
-              <div className="px-3 pt-1.5 pb-2 space-y-2 border-t">
+              <div className="space-y-2 border-t px-3 pt-1.5 pb-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Name</Label>
                   <Input
                     name="name"
                     value={field.name}
-                    onChange={(e) => updateField(field.id, 'name', e.target.value)}
+                    onChange={(e) => updateField(field.id, "name", e.target.value)}
                     placeholder="firstName"
                     className="h-9 placeholder:text-muted-foreground/50"
                   />
@@ -143,7 +143,7 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
                   <Label className="text-xs">Type</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between h-9 font-normal">
+                      <Button variant="outline" className="h-9 w-full justify-between font-normal">
                         <div className="flex items-center">
                           <span>{field.type}</span>
                         </div>
@@ -152,38 +152,38 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-[200px]">
                       <DropdownMenuItem
-                        onClick={() => updateField(field.id, 'type', 'string')}
+                        onClick={() => updateField(field.id, "type", "string")}
                         className="cursor-pointer"
                       >
-                        <span className="font-mono mr-2">Aa</span>
+                        <span className="mr-2 font-mono">Aa</span>
                         <span>String</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => updateField(field.id, 'type', 'number')}
+                        onClick={() => updateField(field.id, "type", "number")}
                         className="cursor-pointer"
                       >
-                        <span className="font-mono mr-2">123</span>
+                        <span className="mr-2 font-mono">123</span>
                         <span>Number</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => updateField(field.id, 'type', 'boolean')}
+                        onClick={() => updateField(field.id, "type", "boolean")}
                         className="cursor-pointer"
                       >
-                        <span className="font-mono mr-2">0/1</span>
+                        <span className="mr-2 font-mono">0/1</span>
                         <span>Boolean</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => updateField(field.id, 'type', 'object')}
+                        onClick={() => updateField(field.id, "type", "object")}
                         className="cursor-pointer"
                       >
-                        <span className="font-mono mr-2">{'{}'}</span>
+                        <span className="mr-2 font-mono">{"{}"}</span>
                         <span>Object</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => updateField(field.id, 'type', 'array')}
+                        onClick={() => updateField(field.id, "type", "array")}
                         className="cursor-pointer"
                       >
-                        <span className="font-mono mr-2">[]</span>
+                        <span className="mr-2 font-mono">[]</span>
                         <span>Array</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -196,7 +196,7 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
       })}
 
       {!hasConfiguredFields && (
-        <div className="text-xs text-muted-foreground/70 italic mt-1 px-1">
+        <div className="mt-1 px-1 text-muted-foreground/70 text-xs italic">
           Define fields above to enable structured API input
         </div>
       )}

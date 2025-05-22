@@ -1,17 +1,17 @@
-import { NextRequest } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
-import { createLogger } from '@/lib/logs/console-logger'
-import { generateApiKey } from '@/lib/utils'
-import { db } from '@/db'
-import { apiKey, workflow } from '@/db/schema'
-import { validateWorkflowAccess } from '../../middleware'
-import { createErrorResponse, createSuccessResponse } from '../../utils'
+import type { NextRequest } from "next/server"
+import { eq } from "drizzle-orm"
+import { v4 as uuidv4 } from "uuid"
+import { createLogger } from "@/lib/logs/console-logger"
+import { generateApiKey } from "@/lib/utils"
+import { db } from "@/db"
+import { apiKey, workflow } from "@/db/schema"
+import { validateWorkflowAccess } from "../../middleware"
+import { createErrorResponse, createSuccessResponse } from "../../utils"
 
-const logger = createLogger('WorkflowDeployAPI')
+const logger = createLogger("WorkflowDeployAPI")
 
-export const dynamic = 'force-dynamic'
-export const runtime = 'nodejs'
+export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (result.length === 0) {
       logger.warn(`[${requestId}] Workflow not found: ${id}`)
-      return createErrorResponse('Workflow not found', 404)
+      return createErrorResponse("Workflow not found", 404)
     }
 
     const workflowData = result[0]
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         await db.insert(apiKey).values({
           id: uuidv4(),
           userId: workflowData.userId,
-          name: 'Default API Key',
+          name: "Default API Key",
           key: newApiKey,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -93,7 +93,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Check if the workflow has meaningful changes that would require redeployment
     let needsRedeployment = false
     if (workflowData.deployedState) {
-      const { hasWorkflowChanged } = await import('@/lib/workflows/utils')
+      const { hasWorkflowChanged } = await import("@/lib/workflows/utils")
       needsRedeployment = hasWorkflowChanged(
         workflowData.state as any,
         workflowData.deployedState as any
@@ -109,7 +109,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching deployment info: ${id}`, error)
-    return createErrorResponse(error.message || 'Failed to fetch deployment information', 500)
+    return createErrorResponse(error.message || "Failed to fetch deployment information", 500)
   }
 }
 
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (workflowData.length === 0) {
       logger.warn(`[${requestId}] Workflow not found: ${id}`)
-      return createErrorResponse('Workflow not found', 404)
+      return createErrorResponse("Workflow not found", 404)
     }
 
     const userId = workflowData[0].userId
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         await db.insert(apiKey).values({
           id: uuidv4(),
           userId,
-          name: 'Default API Key',
+          name: "Default API Key",
           key: newApiKey,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return createSuccessResponse({ apiKey: userKey, isDeployed: true, deployedAt })
   } catch (error: any) {
     logger.error(`[${requestId}] Error deploying workflow: ${id}`, error)
-    return createErrorResponse(error.message || 'Failed to deploy workflow', 500)
+    return createErrorResponse(error.message || "Failed to deploy workflow", 500)
   }
 }
 
@@ -230,6 +230,6 @@ export async function DELETE(
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error undeploying workflow: ${id}`, error)
-    return createErrorResponse(error.message || 'Failed to undeploy workflow', 500)
+    return createErrorResponse(error.message || "Failed to undeploy workflow", 500)
   }
 }

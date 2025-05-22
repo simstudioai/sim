@@ -1,18 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { createLogger } from '@/lib/logs/console-logger'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { chat, workflow } from '@/db/schema'
+import { type NextRequest, NextResponse } from "next/server"
+import { eq } from "drizzle-orm"
+import { createLogger } from "@/lib/logs/console-logger"
+import { createErrorResponse, createSuccessResponse } from "@/app/api/workflows/utils"
+import { db } from "@/db"
+import { chat, workflow } from "@/db/schema"
 import {
   addCorsHeaders,
   executeWorkflowForChat,
   setChatAuthCookie,
   validateAuthToken,
   validateChatAuth,
-} from '../utils'
+} from "../utils"
 
-const logger = createLogger('ChatSubdomainAPI')
+const logger = createLogger("ChatSubdomainAPI")
 
 // This endpoint handles chat interactions via the subdomain
 export async function POST(
@@ -30,7 +30,7 @@ export async function POST(
     try {
       parsedBody = await request.json()
     } catch (error) {
-      return addCorsHeaders(createErrorResponse('Invalid request body', 400), request)
+      return addCorsHeaders(createErrorResponse("Invalid request body", 400), request)
     }
 
     // Find the chat deployment for this subdomain
@@ -51,7 +51,7 @@ export async function POST(
 
     if (deploymentResult.length === 0) {
       logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
-      return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
+      return addCorsHeaders(createErrorResponse("Chat not found", 404), request)
     }
 
     const deployment = deploymentResult[0]
@@ -59,14 +59,14 @@ export async function POST(
     // Check if the chat is active
     if (!deployment.isActive) {
       logger.warn(`[${requestId}] Chat is not active: ${subdomain}`)
-      return addCorsHeaders(createErrorResponse('This chat is currently unavailable', 403), request)
+      return addCorsHeaders(createErrorResponse("This chat is currently unavailable", 403), request)
     }
 
     // Validate authentication with the parsed body
     const authResult = await validateChatAuth(requestId, deployment, request, parsedBody)
     if (!authResult.authorized) {
       return addCorsHeaders(
-        createErrorResponse(authResult.error || 'Authentication required', 401),
+        createErrorResponse(authResult.error || "Authentication required", 401),
         request
       )
     }
@@ -87,7 +87,7 @@ export async function POST(
 
     // For chat messages, create regular response
     if (!message) {
-      return addCorsHeaders(createErrorResponse('No message provided', 400), request)
+      return addCorsHeaders(createErrorResponse("No message provided", 400), request)
     }
 
     // Get the workflow for this chat
@@ -101,7 +101,7 @@ export async function POST(
 
     if (workflowResult.length === 0 || !workflowResult[0].isDeployed) {
       logger.warn(`[${requestId}] Workflow not found or not deployed: ${deployment.workflowId}`)
-      return addCorsHeaders(createErrorResponse('Chat workflow is not available', 503), request)
+      return addCorsHeaders(createErrorResponse("Chat workflow is not available", 503), request)
     }
 
     try {
@@ -113,18 +113,18 @@ export async function POST(
         const streamResponse = new NextResponse(result, {
           status: 200,
           headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
+            "Content-Type": "text/plain; charset=utf-8",
           },
         })
         return addCorsHeaders(streamResponse, request)
       }
 
       // Handle StreamingExecution format
-      if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
+      if (result && typeof result === "object" && "stream" in result && "execution" in result) {
         const streamResponse = new NextResponse(result.stream as ReadableStream, {
           status: 200,
           headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
+            "Content-Type": "text/plain; charset=utf-8",
           },
         })
         return addCorsHeaders(streamResponse, request)
@@ -141,7 +141,7 @@ export async function POST(
           // Format multiple outputs in a way that they can be displayed as separate messages
           // Join all contents, ensuring each is on a new line if they're strings
           const formattedContents = result.contents.map((content) => {
-            if (typeof content === 'string') {
+            if (typeof content === "string") {
               return content
             }
 
@@ -149,14 +149,14 @@ export async function POST(
               return JSON.stringify(content)
             } catch (error) {
               logger.warn(`[${requestId}] Error stringifying content:`, error)
-              return '[Object cannot be serialized]'
+              return "[Object cannot be serialized]"
             }
           })
 
           // Set output to be the joined contents
           formattedResult = {
             ...result,
-            output: formattedContents.join('\n\n'), // Separate each output with double newline
+            output: formattedContents.join("\n\n"), // Separate each output with double newline
           }
 
           // Keep the original contents for clients that can handle structured data
@@ -164,7 +164,7 @@ export async function POST(
           formattedResult.contents = result.contents
         } else if (result.content) {
           // Handle single output cases
-          if (typeof result.content === 'object') {
+          if (typeof result.content === "object") {
             // For objects like { text: "some content" }
             if (result.content.text) {
               formattedResult.output = result.content.text
@@ -179,7 +179,7 @@ export async function POST(
                 logger.warn(`[${requestId}] Error stringifying content:`, error)
                 formattedResult = {
                   ...result,
-                  output: '[Object cannot be serialized]',
+                  output: "[Object cannot be serialized]",
                 }
               }
             }
@@ -194,7 +194,7 @@ export async function POST(
           // Fallback if no content
           formattedResult = {
             ...result,
-            output: 'No output returned from workflow',
+            output: "No output returned from workflow",
           }
         }
       }
@@ -210,14 +210,14 @@ export async function POST(
     } catch (error: any) {
       logger.error(`[${requestId}] Error processing chat request:`, error)
       return addCorsHeaders(
-        createErrorResponse(error.message || 'Failed to process request', 500),
+        createErrorResponse(error.message || "Failed to process request", 500),
         request
       )
     }
   } catch (error: any) {
     logger.error(`[${requestId}] Error processing chat request:`, error)
     return addCorsHeaders(
-      createErrorResponse(error.message || 'Failed to process request', 500),
+      createErrorResponse(error.message || "Failed to process request", 500),
       request
     )
   }
@@ -254,7 +254,7 @@ export async function GET(
 
     if (deploymentResult.length === 0) {
       logger.warn(`[${requestId}] Chat not found for subdomain: ${subdomain}`)
-      return addCorsHeaders(createErrorResponse('Chat not found', 404), request)
+      return addCorsHeaders(createErrorResponse("Chat not found", 404), request)
     }
 
     const deployment = deploymentResult[0]
@@ -262,7 +262,7 @@ export async function GET(
     // Check if the chat is active
     if (!deployment.isActive) {
       logger.warn(`[${requestId}] Chat is not active: ${subdomain}`)
-      return addCorsHeaders(createErrorResponse('This chat is currently unavailable', 403), request)
+      return addCorsHeaders(createErrorResponse("This chat is currently unavailable", 403), request)
     }
 
     // Check for auth cookie first
@@ -270,7 +270,7 @@ export async function GET(
     const authCookie = request.cookies.get(cookieName)
 
     if (
-      deployment.authType !== 'public' &&
+      deployment.authType !== "public" &&
       authCookie &&
       validateAuthToken(authCookie.value, deployment.id)
     ) {
@@ -294,7 +294,7 @@ export async function GET(
         `[${requestId}] Authentication required for chat: ${subdomain}, type: ${deployment.authType}`
       )
       return addCorsHeaders(
-        createErrorResponse(authResult.error || 'Authentication required', 401),
+        createErrorResponse(authResult.error || "Authentication required", 401),
         request
       )
     }
@@ -313,7 +313,7 @@ export async function GET(
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching chat info:`, error)
     return addCorsHeaders(
-      createErrorResponse(error.message || 'Failed to fetch chat information', 500),
+      createErrorResponse(error.message || "Failed to fetch chat information", 500),
       request
     )
   }

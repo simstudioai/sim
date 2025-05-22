@@ -1,3 +1,3 @@
-import Logs from './logs'
+import Logs from "./logs"
 
 export default Logs

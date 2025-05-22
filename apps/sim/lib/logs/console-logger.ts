@@ -4,8 +4,8 @@
  * This module provides standardized console logging utilities for internal application logging.
  * It is separate from the user-facing logging system in logging.ts.
  */
-import chalk from 'chalk'
-import { env } from '../env'
+import chalk from "chalk"
+import { env } from "../env"
 
 /**
  * LogLevel enum defines the severity levels for logging
@@ -23,10 +23,10 @@ import { env } from '../env'
  *        These should be investigated and fixed
  */
 export enum LogLevel {
-  DEBUG = 'DEBUG',
-  INFO = 'INFO',
-  WARN = 'WARN',
-  ERROR = 'ERROR',
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
 }
 
 /**
@@ -56,7 +56,7 @@ const LOG_CONFIG = {
 }
 
 // Get current environment
-const ENV = (process.env.NODE_ENV || 'development') as keyof typeof LOG_CONFIG
+const ENV = (process.env.NODE_ENV || "development") as keyof typeof LOG_CONFIG
 const config = LOG_CONFIG[ENV] || LOG_CONFIG.development
 
 // Format objects for logging
@@ -66,16 +66,16 @@ const formatObject = (obj: any): string => {
       return JSON.stringify(
         {
           message: obj.message,
-          stack: ENV === 'development' ? obj.stack : undefined,
+          stack: ENV === "development" ? obj.stack : undefined,
           ...(obj as any),
         },
         null,
-        ENV === 'development' ? 2 : 0
+        ENV === "development" ? 2 : 0
       )
     }
-    return JSON.stringify(obj, null, ENV === 'development' ? 2 : 0)
+    return JSON.stringify(obj, null, ENV === "development" ? 2 : 0)
   } catch (error) {
-    return '[Circular or Non-Serializable Object]'
+    return "[Circular or Non-Serializable Object]"
   }
 }
 
@@ -122,7 +122,7 @@ export class Logger {
   private formatArgs(args: any[]): any[] {
     return args.map((arg) => {
       if (arg === null || arg === undefined) return arg
-      if (typeof arg === 'object') return formatObject(arg)
+      if (typeof arg === "object") return formatObject(arg)
       return arg
     })
   }
@@ -143,8 +143,8 @@ export class Logger {
     // Color configuration
     if (config.colorize) {
       let levelColor
-      let moduleColor = chalk.cyan
-      let timestampColor = chalk.gray
+      const moduleColor = chalk.cyan
+      const timestampColor = chalk.gray
 
       switch (level) {
         case LogLevel.DEBUG:

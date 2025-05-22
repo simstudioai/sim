@@ -1,6 +1,6 @@
-import { Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Trash2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 interface WebhookDialogFooterProps {
   webhookId?: string
@@ -42,16 +42,16 @@ export function WebhookDialogFooter({
             className="h-10"
           >
             {isDeleting ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent mr-2" />
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
             ) : (
-              <Trash2 className="h-4 w-4 mr-2" />
+              <Trash2 className="mr-2 h-4 w-4" />
             )}
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            {isDeleting ? "Deleting..." : "Delete"}
           </Button>
         )}
       </div>
       <div className="flex gap-2">
-        {webhookId && webhookProvider !== 'gmail' && (
+        {webhookId && webhookProvider !== "gmail" && (
           <Button
             type="button"
             variant="outline"
@@ -60,9 +60,9 @@ export function WebhookDialogFooter({
             className="h-10"
           >
             {isTesting && (
-              <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent mr-2" />
+              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
             )}
-            {isTesting ? 'Testing...' : 'Test Webhook'}
+            {isTesting ? "Testing..." : "Test Webhook"}
           </Button>
         )}
         <Button variant="outline" onClick={onClose} size="default" className="h-10">
@@ -72,17 +72,17 @@ export function WebhookDialogFooter({
           onClick={onSave}
           disabled={isLoadingToken || isSaving || !isCurrentConfigValid}
           className={cn(
-            'h-10',
-            !isLoadingToken && isCurrentConfigValid ? 'bg-primary hover:bg-primary/90' : '',
+            "h-10",
+            !isLoadingToken && isCurrentConfigValid ? "bg-primary hover:bg-primary/90" : "",
             isSaving &&
-              'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20'
+              "relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20"
           )}
           size="default"
         >
           {isSaving && (
-            <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent mr-2" />
+            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
           )}
-          {isSaving ? 'Saving...' : 'Save Changes'}
+          {isSaving ? "Saving..." : "Save Changes"}
         </Button>
       </div>
     </div>

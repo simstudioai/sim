@@ -1,16 +1,16 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronsUpDown } from 'lucide-react'
-import { useReactFlow } from 'reactflow'
-import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
-import { formatDisplayText } from '@/components/ui/formatted-text'
-import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
-import { Textarea } from '@/components/ui/textarea'
-import { createLogger } from '@/lib/logs/console-logger'
-import { cn } from '@/lib/utils'
-import { SubBlockConfig } from '@/blocks/types'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { ChevronsUpDown } from "lucide-react"
+import { useReactFlow } from "reactflow"
+import { checkEnvVarTrigger, EnvVarDropdown } from "@/components/ui/env-var-dropdown"
+import { formatDisplayText } from "@/components/ui/formatted-text"
+import { checkTagTrigger, TagDropdown } from "@/components/ui/tag-dropdown"
+import { Textarea } from "@/components/ui/textarea"
+import { createLogger } from "@/lib/logs/console-logger"
+import { cn } from "@/lib/utils"
+import type { SubBlockConfig } from "@/blocks/types"
+import { useSubBlockValue } from "../hooks/use-sub-block-value"
 
-const logger = createLogger('LongInput')
+const logger = createLogger("LongInput")
 
 interface LongInputProps {
   placeholder?: string
@@ -37,7 +37,7 @@ export function LongInput({
   const [value, setValue] = useSubBlockValue(blockId, subBlockId)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState("")
   const [cursorPosition, setCursorPosition] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -78,7 +78,7 @@ export function LongInput({
     // Check for environment variables trigger
     const envVarTrigger = checkEnvVarTrigger(newValue, newCursorPosition)
     setShowEnvVars(envVarTrigger.show)
-    setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+    setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : "")
 
     // Check for tag trigger
     const tagTrigger = checkTagTrigger(newValue, newCursorPosition)
@@ -127,17 +127,17 @@ export function LongInput({
 
     const handleMouseUp = () => {
       if (textareaRef.current) {
-        const finalHeight = parseInt(textareaRef.current.style.height, 10) || height
+        const finalHeight = Number.parseInt(textareaRef.current.style.height, 10) || height
         setHeight(finalHeight)
       }
 
       isResizing.current = false
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("mouseup", handleMouseUp)
     }
 
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener("mousemove", handleMouseMove)
+    document.addEventListener("mouseup", handleMouseUp)
   }
 
   // Drag and Drop handlers
@@ -151,15 +151,15 @@ export function LongInput({
     e.preventDefault()
 
     try {
-      const data = JSON.parse(e.dataTransfer.getData('application/json'))
-      if (data.type !== 'connectionBlock') return
+      const data = JSON.parse(e.dataTransfer.getData("application/json"))
+      if (data.type !== "connectionBlock") return
 
       // Get current cursor position or append to end
       const dropPosition = textareaRef.current?.selectionStart ?? value?.toString().length ?? 0
 
       // Insert '<' at drop position to trigger the dropdown
-      const currentValue = value?.toString() ?? ''
-      const newValue = currentValue.slice(0, dropPosition) + '<' + currentValue.slice(dropPosition)
+      const currentValue = value?.toString() ?? ""
+      const newValue = `${currentValue.slice(0, dropPosition)}<${currentValue.slice(dropPosition)}`
 
       // Focus the textarea first
       textareaRef.current?.focus()
@@ -184,13 +184,13 @@ export function LongInput({
         }, 0)
       })
     } catch (error) {
-      logger.error('Failed to parse drop data:', { error })
+      logger.error("Failed to parse drop data:", { error })
     }
   }
 
   // Handle key combinations
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       setShowEnvVars(false)
       setShowTags(false)
     }
@@ -209,7 +209,7 @@ export function LongInput({
 
       // Calculate zoom factor based on wheel delta
       const delta = e.deltaY > 0 ? 1 : -1
-      const zoomFactor = Math.pow(0.96, delta)
+      const zoomFactor = 0.96 ** delta
 
       // Calculate new zoom level with min/max constraints
       const newZoom = Math.min(Math.max(currentZoom * zoomFactor, 0.1), 1)
@@ -248,14 +248,14 @@ export function LongInput({
       <Textarea
         ref={textareaRef}
         className={cn(
-          'w-full min-h-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50 allow-scroll',
+          "allow-scroll min-h-full w-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50",
           isConnecting &&
             config?.connectionDroppable !== false &&
-            'focus-visible:ring-blue-500 ring-2 ring-blue-500 ring-offset-2'
+            "ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500"
         )}
         rows={rows ?? DEFAULT_ROWS}
-        placeholder={placeholder ?? ''}
-        value={value?.toString() ?? ''}
+        placeholder={placeholder ?? ""}
+        value={value?.toString() ?? ""}
         onChange={handleChange}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -265,30 +265,30 @@ export function LongInput({
         onFocus={() => {
           setShowEnvVars(false)
           setShowTags(false)
-          setSearchTerm('')
+          setSearchTerm("")
         }}
         style={{
-          fontFamily: 'inherit',
-          lineHeight: 'inherit',
+          fontFamily: "inherit",
+          lineHeight: "inherit",
           height: `${height}px`,
         }}
       />
       <div
         ref={overlayRef}
-        className="absolute inset-0 pointer-events-none px-3 py-2 overflow-auto whitespace-pre-wrap break-words text-sm bg-transparent"
+        className="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-sm"
         style={{
-          fontFamily: 'inherit',
-          lineHeight: 'inherit',
-          width: textareaRef.current ? `${textareaRef.current.clientWidth}px` : '100%',
+          fontFamily: "inherit",
+          lineHeight: "inherit",
+          width: textareaRef.current ? `${textareaRef.current.clientWidth}px` : "100%",
           height: `${height}px`,
         }}
       >
-        {formatDisplayText(value?.toString() ?? '', true)}
+        {formatDisplayText(value?.toString() ?? "", true)}
       </div>
 
       {/* Custom resize handle */}
       <div
-        className="absolute bottom-1 right-1 w-4 h-4 cursor-s-resize flex items-center justify-center bg-background rounded-sm"
+        className="absolute right-1 bottom-1 flex h-4 w-4 cursor-s-resize items-center justify-center rounded-sm bg-background"
         onMouseDown={startResize}
       >
         <ChevronsUpDown className="h-3 w-3 text-muted-foreground/70" />
@@ -298,11 +298,11 @@ export function LongInput({
         visible={showEnvVars}
         onSelect={setValue}
         searchTerm={searchTerm}
-        inputValue={value?.toString() ?? ''}
+        inputValue={value?.toString() ?? ""}
         cursorPosition={cursorPosition}
         onClose={() => {
           setShowEnvVars(false)
-          setSearchTerm('')
+          setSearchTerm("")
         }}
       />
       <TagDropdown
@@ -310,7 +310,7 @@ export function LongInput({
         onSelect={setValue}
         blockId={blockId}
         activeSourceBlockId={activeSourceBlockId}
-        inputValue={value?.toString() ?? ''}
+        inputValue={value?.toString() ?? ""}
         cursorPosition={cursorPosition}
         onClose={() => {
           setShowTags(false)

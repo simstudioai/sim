@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useReactFlow } from 'reactflow'
-import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
-import { formatDisplayText } from '@/components/ui/formatted-text'
-import { Input } from '@/components/ui/input'
-import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
-import { createLogger } from '@/lib/logs/console-logger'
-import { cn } from '@/lib/utils'
-import { SubBlockConfig } from '@/blocks/types'
-import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useReactFlow } from "reactflow"
+import { checkEnvVarTrigger, EnvVarDropdown } from "@/components/ui/env-var-dropdown"
+import { formatDisplayText } from "@/components/ui/formatted-text"
+import { Input } from "@/components/ui/input"
+import { checkTagTrigger, TagDropdown } from "@/components/ui/tag-dropdown"
+import { createLogger } from "@/lib/logs/console-logger"
+import { cn } from "@/lib/utils"
+import type { SubBlockConfig } from "@/blocks/types"
+import { useSubBlockValue } from "../hooks/use-sub-block-value"
 
-const logger = createLogger('ShortInput')
+const logger = createLogger("ShortInput")
 
 interface ShortInputProps {
   placeholder?: string
@@ -36,7 +36,7 @@ export function ShortInput({
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState("")
   const [cursorPosition, setCursorPosition] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -50,22 +50,22 @@ export function ShortInput({
 
   // Check if this input is API key related
   const isApiKeyField = useMemo(() => {
-    const normalizedId = config?.id?.replace(/\s+/g, '').toLowerCase() || ''
-    const normalizedTitle = config?.title?.replace(/\s+/g, '').toLowerCase() || ''
+    const normalizedId = config?.id?.replace(/\s+/g, "").toLowerCase() || ""
+    const normalizedTitle = config?.title?.replace(/\s+/g, "").toLowerCase() || ""
 
     // Check for common API key naming patterns
     const apiKeyPatterns = [
-      'apikey',
-      'api_key',
-      'api-key',
-      'secretkey',
-      'secret_key',
-      'secret-key',
-      'token',
-      'access_token',
-      'auth_token',
-      'secret',
-      'password',
+      "apikey",
+      "api_key",
+      "api-key",
+      "secretkey",
+      "secret_key",
+      "secret-key",
+      "token",
+      "access_token",
+      "auth_token",
+      "secret",
+      "password",
     ]
 
     return apiKeyPatterns.some(
@@ -96,7 +96,7 @@ export function ShortInput({
     // For API key fields, always show dropdown when typing (without requiring {{ trigger)
     if (isApiKeyField && isFocused) {
       // Only show dropdown if there's text to filter by or the field is empty
-      const shouldShowDropdown = newValue.trim() !== '' || newValue === ''
+      const shouldShowDropdown = newValue.trim() !== "" || newValue === ""
       setShowEnvVars(shouldShowDropdown)
       // Use the entire input value as search term for API key fields,
       // but if {{ is detected, use the standard search term extraction
@@ -104,7 +104,7 @@ export function ShortInput({
     } else {
       // Normal behavior for non-API key fields
       setShowEnvVars(envVarTrigger.show)
-      setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
+      setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : "")
     }
 
     // Check for tag trigger
@@ -152,7 +152,7 @@ export function ShortInput({
       // Use a smaller factor for smoother zooming that matches ReactFlow's native behavior
       const delta = e.deltaY > 0 ? 1 : -1
       // Using 0.98 instead of 0.95 makes the zoom much slower and more gradual
-      const zoomFactor = Math.pow(0.96, delta)
+      const zoomFactor = 0.96 ** delta
 
       // Calculate new zoom level with min/max constraints
       const newZoom = Math.min(Math.max(currentZoom * zoomFactor, 0.1), 1)
@@ -196,15 +196,15 @@ export function ShortInput({
     e.preventDefault()
 
     try {
-      const data = JSON.parse(e.dataTransfer.getData('application/json'))
-      if (data.type !== 'connectionBlock') return
+      const data = JSON.parse(e.dataTransfer.getData("application/json"))
+      if (data.type !== "connectionBlock") return
 
       // Get current cursor position or append to end
       const dropPosition = inputRef.current?.selectionStart ?? value?.toString().length ?? 0
 
       // Insert '<' at drop position to trigger the dropdown
-      const currentValue = value?.toString() ?? ''
-      const newValue = currentValue.slice(0, dropPosition) + '<' + currentValue.slice(dropPosition)
+      const currentValue = value?.toString() ?? ""
+      const newValue = `${currentValue.slice(0, dropPosition)}<${currentValue.slice(dropPosition)}`
 
       // Focus the input first
       inputRef.current?.focus()
@@ -229,13 +229,13 @@ export function ShortInput({
         }, 0)
       })
     } catch (error) {
-      logger.error('Failed to parse drop data:', { error })
+      logger.error("Failed to parse drop data:", { error })
     }
   }
 
   // Handle key combinations
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       setShowEnvVars(false)
       setShowTags(false)
       return
@@ -244,7 +244,7 @@ export function ShortInput({
     // For API key fields, show env vars when clearing with keyboard shortcuts
     if (
       isApiKeyField &&
-      (e.key === 'Delete' || e.key === 'Backspace') &&
+      (e.key === "Delete" || e.key === "Backspace") &&
       inputRef.current?.selectionStart === 0 &&
       inputRef.current?.selectionEnd === value?.toString().length
     ) {
@@ -254,12 +254,12 @@ export function ShortInput({
 
   // Value display logic
   const displayValue =
-    password && !isFocused ? '•'.repeat(value?.toString().length ?? 0) : (value?.toString() ?? '')
+    password && !isFocused ? "•".repeat(value?.toString().length ?? 0) : (value?.toString() ?? "")
 
   // Explicitly mark environment variable references with '{{' and '}}' when inserting
   const handleEnvVarSelect = (newValue: string) => {
     // For API keys, ensure we're using the full value with {{ }} format
-    if (isApiKeyField && !newValue.startsWith('{{')) {
+    if (isApiKeyField && !newValue.startsWith("{{")) {
       newValue = `{{${newValue}}}`
     }
 
@@ -275,12 +275,12 @@ export function ShortInput({
       <Input
         ref={inputRef}
         className={cn(
-          'w-full placeholder:text-muted-foreground/50 allow-scroll text-transparent caret-foreground overflow-auto',
+          "allow-scroll w-full overflow-auto text-transparent caret-foreground placeholder:text-muted-foreground/50",
           isConnecting &&
             config?.connectionDroppable !== false &&
-            'focus-visible:ring-blue-500 ring-2 ring-blue-500 ring-offset-2'
+            "ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500"
         )}
-        placeholder={placeholder ?? ''}
+        placeholder={placeholder ?? ""}
         type="text"
         value={displayValue}
         onChange={handleChange}
@@ -290,7 +290,7 @@ export function ShortInput({
           // If this is an API key field, automatically show env vars dropdown
           if (isApiKeyField) {
             setShowEnvVars(true)
-            setSearchTerm('')
+            setSearchTerm("")
 
             // Set cursor position to the end of the input
             const inputLength = value?.toString().length ?? 0
@@ -298,7 +298,7 @@ export function ShortInput({
           } else {
             setShowEnvVars(false)
             setShowTags(false)
-            setSearchTerm('')
+            setSearchTerm("")
           }
         }}
         onBlur={() => {
@@ -312,31 +312,31 @@ export function ShortInput({
         onWheel={handleWheel}
         onKeyDown={handleKeyDown}
         autoComplete="off"
-        style={{ overflowX: 'auto' }}
+        style={{ overflowX: "auto" }}
       />
       <div
         ref={overlayRef}
-        className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto text-sm bg-transparent"
-        style={{ overflowX: 'auto' }}
+        className="pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-3 text-sm"
+        style={{ overflowX: "auto" }}
       >
         <div
-          className="whitespace-pre w-full"
-          style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+          className="w-full whitespace-pre"
+          style={{ scrollbarWidth: "none", minWidth: "fit-content" }}
         >
           {password && !isFocused
-            ? '•'.repeat(value?.toString().length ?? 0)
-            : formatDisplayText(value?.toString() ?? '', true)}
+            ? "•".repeat(value?.toString().length ?? 0)
+            : formatDisplayText(value?.toString() ?? "", true)}
         </div>
       </div>
       <EnvVarDropdown
         visible={showEnvVars}
         onSelect={handleEnvVarSelect}
         searchTerm={searchTerm}
-        inputValue={value?.toString() ?? ''}
+        inputValue={value?.toString() ?? ""}
         cursorPosition={cursorPosition}
         onClose={() => {
           setShowEnvVars(false)
-          setSearchTerm('')
+          setSearchTerm("")
         }}
       />
       <TagDropdown
@@ -344,7 +344,7 @@ export function ShortInput({
         onSelect={handleEnvVarSelect}
         blockId={blockId}
         activeSourceBlockId={activeSourceBlockId}
-        inputValue={value?.toString() ?? ''}
+        inputValue={value?.toString() ?? ""}
         cursorPosition={cursorPosition}
         onClose={() => {
           setShowTags(false)

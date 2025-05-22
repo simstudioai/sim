@@ -1,9 +1,9 @@
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ConfigField } from '../ui/config-field'
-import { ConfigSection } from '../ui/config-section'
-import { InstructionsSection } from '../ui/instructions-section'
-import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
+import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ConfigField } from "../ui/config-field"
+import { ConfigSection } from "../ui/config-section"
+import { InstructionsSection } from "../ui/instructions-section"
+import { TestResultDisplay as WebhookTestResult } from "../ui/test-result"
 
 interface TelegramConfigProps {
   botToken: string
@@ -86,22 +86,22 @@ export function TelegramConfig({
       )}
 
       <InstructionsSection>
-        <ol className="list-decimal list-inside space-y-2">
+        <ol className="list-inside list-decimal space-y-2">
           <li>
-            Message "/newbot" to{' '}
+            Message "/newbot" to{" "}
             <a
               href="https://t.me/BotFather"
               target="_blank"
               rel="noopener noreferrer"
-              className="link text-primary underline hover:text-primary/80 transition-colors"
+              className="link text-primary underline transition-colors hover:text-primary/80"
               onClick={(e) => {
                 e.stopPropagation()
-                window.open('https://t.me/BotFather', '_blank', 'noopener,noreferrer')
+                window.open("https://t.me/BotFather", "_blank", "noopener,noreferrer")
                 e.preventDefault()
               }}
             >
               @BotFather
-            </a>{' '}
+            </a>{" "}
             in Telegram to create a bot and copy its token.
           </li>
           <li>Enter your Bot Token and a trigger phrase above.</li>

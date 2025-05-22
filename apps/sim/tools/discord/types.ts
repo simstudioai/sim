@@ -65,11 +65,11 @@ export interface DiscordGetMessagesParams extends DiscordAuthParams {
   limit?: number
 }
 
-export interface DiscordGetServerParams extends Omit<DiscordAuthParams, 'serverId'> {
+export interface DiscordGetServerParams extends Omit<DiscordAuthParams, "serverId"> {
   serverId: string
 }
 
-export interface DiscordGetUserParams extends Omit<DiscordAuthParams, 'serverId'> {
+export interface DiscordGetUserParams extends Omit<DiscordAuthParams, "serverId"> {
   userId: string
 }
 

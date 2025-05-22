@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,11 +9,11 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { getNodeEnv } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
-import { useGeneralStore } from '@/stores/settings/general/store'
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { getNodeEnv } from "@/lib/environment"
+import { createLogger } from "@/lib/logs/console-logger"
+import { useGeneralStore } from "@/stores/settings/general/store"
 
 declare global {
   interface Window {
@@ -22,14 +22,14 @@ declare global {
   }
 }
 
-const logger = createLogger('TelemetryConsentDialog')
+const logger = createLogger("TelemetryConsentDialog")
 
 // LocalStorage key for telemetry preferences
-const TELEMETRY_NOTIFIED_KEY = 'sim_telemetry_notified'
-const TELEMETRY_ENABLED_KEY = 'sim_telemetry_enabled'
+const TELEMETRY_NOTIFIED_KEY = "sim_telemetry_notified"
+const TELEMETRY_ENABLED_KEY = "sim_telemetry_enabled"
 
 const trackEvent = (eventName: string, properties?: Record<string, any>) => {
-  if (typeof window !== 'undefined' && window.__SIM_TELEMETRY_ENABLED) {
+  if (typeof window !== "undefined" && window.__SIM_TELEMETRY_ENABLED) {
     try {
       if (window.__SIM_TRACK_EVENT) {
         window.__SIM_TRACK_EVENT(eventName, properties)
@@ -50,14 +50,14 @@ export function TelemetryConsentDialog() {
   const loadSettings = useGeneralStore((state) => state.loadSettings)
 
   const hasShownDialogThisSession = useRef(false)
-  const isDevelopment = getNodeEnv() === 'development'
+  const isDevelopment = getNodeEnv() === "development"
 
   // Check localStorage for saved preferences
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === "undefined") return
 
     try {
-      const notified = localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === 'true'
+      const notified = localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === "true"
       const enabled = localStorage.getItem(TELEMETRY_ENABLED_KEY)
 
       if (notified) {
@@ -65,10 +65,10 @@ export function TelemetryConsentDialog() {
       }
 
       if (enabled !== null) {
-        setTelemetryEnabled(enabled === 'true')
+        setTelemetryEnabled(enabled === "true")
       }
     } catch (error) {
-      logger.error('Error reading telemetry preferences from localStorage:', error)
+      logger.error("Error reading telemetry preferences from localStorage:", error)
     }
   }, [setTelemetryNotifiedUser, setTelemetryEnabled])
 
@@ -81,7 +81,7 @@ export function TelemetryConsentDialog() {
           setSettingsLoaded(true)
         }
       } catch (error) {
-        logger.error('Failed to load settings:', error)
+        logger.error("Failed to load settings:", error)
         if (isMounted) {
           setSettingsLoaded(true)
         }
@@ -98,7 +98,7 @@ export function TelemetryConsentDialog() {
   useEffect(() => {
     if (!settingsLoaded) return
 
-    logger.debug('Settings loaded state:', {
+    logger.debug("Settings loaded state:", {
       telemetryNotifiedUser,
       telemetryEnabled,
       hasShownInSession: hasShownDialogThisSession.current,
@@ -106,7 +106,7 @@ export function TelemetryConsentDialog() {
     })
 
     const localStorageNotified =
-      typeof window !== 'undefined' && localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === 'true'
+      typeof window !== "undefined" && localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === "true"
 
     // Only show dialog if:
     // 1. Settings are fully loaded from the database
@@ -127,19 +127,19 @@ export function TelemetryConsentDialog() {
     } else if (settingsLoaded && !telemetryNotifiedUser && !isDevelopment) {
       // Auto-notify in non-development environments
       setTelemetryNotifiedUser(true)
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         try {
-          localStorage.setItem(TELEMETRY_NOTIFIED_KEY, 'true')
+          localStorage.setItem(TELEMETRY_NOTIFIED_KEY, "true")
         } catch (error) {
-          logger.error('Error saving telemetry notification to localStorage:', error)
+          logger.error("Error saving telemetry notification to localStorage:", error)
         }
       }
     }
   }, [settingsLoaded, telemetryNotifiedUser, telemetryEnabled, setTelemetryNotifiedUser])
 
   const handleAccept = () => {
-    trackEvent('telemetry_consent_accepted', {
-      source: 'consent_dialog',
+    trackEvent("telemetry_consent_accepted", {
+      source: "consent_dialog",
       defaultEnabled: true,
     })
 
@@ -147,19 +147,19 @@ export function TelemetryConsentDialog() {
     setOpen(false)
 
     // Save preference to localStorage
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(TELEMETRY_NOTIFIED_KEY, 'true')
-        localStorage.setItem(TELEMETRY_ENABLED_KEY, 'true')
+        localStorage.setItem(TELEMETRY_NOTIFIED_KEY, "true")
+        localStorage.setItem(TELEMETRY_ENABLED_KEY, "true")
       } catch (error) {
-        logger.error('Error saving telemetry preferences to localStorage:', error)
+        logger.error("Error saving telemetry preferences to localStorage:", error)
       }
     }
   }
 
   const handleDecline = () => {
-    trackEvent('telemetry_consent_declined', {
-      source: 'consent_dialog',
+    trackEvent("telemetry_consent_declined", {
+      source: "consent_dialog",
       defaultEnabled: false,
     })
 
@@ -168,12 +168,12 @@ export function TelemetryConsentDialog() {
     setOpen(false)
 
     // Save preference to localStorage
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(TELEMETRY_NOTIFIED_KEY, 'true')
-        localStorage.setItem(TELEMETRY_ENABLED_KEY, 'false')
+        localStorage.setItem(TELEMETRY_NOTIFIED_KEY, "true")
+        localStorage.setItem(TELEMETRY_ENABLED_KEY, "false")
       } catch (error) {
-        logger.error('Error saving telemetry preferences to localStorage:', error)
+        logger.error("Error saving telemetry preferences to localStorage:", error)
       }
     }
   }
@@ -182,7 +182,7 @@ export function TelemetryConsentDialog() {
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-2xl font-bold mb-2">Telemetry</AlertDialogTitle>
+          <AlertDialogTitle className="mb-2 font-bold text-2xl">Telemetry</AlertDialogTitle>
         </AlertDialogHeader>
 
         <div className="space-y-4 text-base text-muted-foreground">
@@ -192,8 +192,8 @@ export function TelemetryConsentDialog() {
           </div>
 
           <div className="py-2">
-            <div className="font-semibold text-foreground mb-2">We only collect:</div>
-            <ul className="list-disc pl-6 space-y-1">
+            <div className="mb-2 font-semibold text-foreground">We only collect:</div>
+            <ul className="list-disc space-y-1 pl-6">
               <li>Feature usage statistics</li>
               <li>Error reports (without personal info)</li>
               <li>Performance metrics</li>
@@ -201,8 +201,8 @@ export function TelemetryConsentDialog() {
           </div>
 
           <div className="py-2">
-            <div className="font-semibold text-foreground mb-2">We never collect:</div>
-            <ul className="list-disc pl-6 space-y-1">
+            <div className="mb-2 font-semibold text-foreground">We never collect:</div>
+            <ul className="list-disc space-y-1 pl-6">
               <li>Personal information</li>
               <li>Workflow content or outputs</li>
               <li>API keys or tokens</li>
@@ -210,13 +210,13 @@ export function TelemetryConsentDialog() {
             </ul>
           </div>
 
-          <div className="text-sm text-muted-foreground pt-2">
-            You can change this setting anytime in{' '}
+          <div className="pt-2 text-muted-foreground text-sm">
+            You can change this setting anytime in{" "}
             <span className="font-medium">Settings → Privacy</span>.
           </div>
         </div>
 
-        <AlertDialogFooter className="flex flex-col sm:flex-row gap-3 mt-4">
+        <AlertDialogFooter className="mt-4 flex flex-col gap-3 sm:flex-row">
           <AlertDialogCancel asChild onClick={handleDecline}>
             <Button variant="outline" className="flex-1">
               Disable telemetry

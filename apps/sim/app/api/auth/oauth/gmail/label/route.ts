@@ -1,14 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
-import { account } from '@/db/schema'
-import { refreshAccessTokenIfNeeded } from '../../utils'
+import { type NextRequest, NextResponse } from "next/server"
+import { and, eq } from "drizzle-orm"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { db } from "@/db"
+import { account } from "@/db/schema"
+import { refreshAccessTokenIfNeeded } from "../../utils"
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic"
 
-const logger = createLogger('GmailLabelAPI')
+const logger = createLogger("GmailLabelAPI")
 
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -20,17 +20,17 @@ export async function GET(request: NextRequest) {
     // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated label request rejected`)
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
+      return NextResponse.json({ error: "User not authenticated" }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
-    const labelId = searchParams.get('labelId')
+    const credentialId = searchParams.get("credentialId")
+    const labelId = searchParams.get("labelId")
 
     if (!credentialId || !labelId) {
       logger.warn(`[${requestId}] Missing required parameters`)
       return NextResponse.json(
-        { error: 'Credential ID and Label ID are required' },
+        { error: "Credential ID and Label ID are required" },
         { status: 400 }
       )
     }
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     if (!credentials.length) {
       logger.warn(`[${requestId}] Credential not found`)
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+      return NextResponse.json({ error: "Credential not found" }, { status: 404 })
     }
 
     const credential = credentials[0]
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     const accessToken = await refreshAccessTokenIfNeeded(credentialId, session.user.id, requestId)
 
     if (!accessToken) {
-      return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
+      return NextResponse.json({ error: "Failed to obtain valid access token" }, { status: 401 })
     }
 
     // Fetch specific label from Gmail API
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
     let formattedName = label.name
 
     // Handle system labels (INBOX, SENT, etc.)
-    if (label.type === 'system') {
+    if (label.type === "system") {
       // Convert to title case (first letter uppercase, rest lowercase)
       formattedName = label.name.charAt(0).toUpperCase() + label.name.slice(1).toLowerCase()
     }
@@ -110,6 +110,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ label: formattedLabel }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching Gmail label:`, error)
-    return NextResponse.json({ error: 'Failed to fetch Gmail label' }, { status: 500 })
+    return NextResponse.json({ error: "Failed to fetch Gmail label" }, { status: 500 })
   }
 }

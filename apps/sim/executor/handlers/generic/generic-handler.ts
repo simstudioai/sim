@@ -1,11 +1,11 @@
-import { createLogger } from '@/lib/logs/console-logger'
-import { BlockOutput } from '@/blocks/types'
-import { SerializedBlock } from '@/serializer/types'
-import { executeTool } from '@/tools'
-import { getTool } from '@/tools/utils'
-import { BlockHandler, ExecutionContext } from '../../types'
+import { createLogger } from "@/lib/logs/console-logger"
+import type { BlockOutput } from "@/blocks/types"
+import type { SerializedBlock } from "@/serializer/types"
+import { executeTool } from "@/tools"
+import { getTool } from "@/tools/utils"
+import type { BlockHandler, ExecutionContext } from "../../types"
 
-const logger = createLogger('GenericBlockHandler')
+const logger = createLogger("GenericBlockHandler")
 
 /**
  * Generic handler for any block types not covered by specialized handlers.
@@ -41,7 +41,7 @@ export class GenericBlockHandler implements BlockHandler {
 
         const errorMessage =
           errorDetails.length > 0
-            ? errorDetails.join(' - ')
+            ? errorDetails.join(" - ")
             : `Block execution of ${tool.name || block.config.tool} failed with no error message`
 
         // Create a detailed error object with formatted message
@@ -50,9 +50,9 @@ export class GenericBlockHandler implements BlockHandler {
         // Add additional properties for debugging
         Object.assign(error, {
           toolId: block.config.tool,
-          toolName: tool.name || 'Unknown tool',
+          toolName: tool.name || "Unknown tool",
           blockId: block.id,
-          blockName: block.metadata?.name || 'Unnamed Block',
+          blockName: block.metadata?.name || "Unnamed Block",
           output: result.output || {},
           timestamp: new Date().toISOString(),
         })
@@ -63,7 +63,7 @@ export class GenericBlockHandler implements BlockHandler {
       return { response: result.output }
     } catch (error: any) {
       // Ensure we have a meaningful error message
-      if (!error.message || error.message === 'undefined (undefined)') {
+      if (!error.message || error.message === "undefined (undefined)") {
         // Construct a detailed error message with available information
         let errorMessage = `Block execution of ${tool.name || block.config.tool} failed`
 
@@ -81,9 +81,9 @@ export class GenericBlockHandler implements BlockHandler {
       }
 
       // Add additional context to the error
-      if (typeof error === 'object' && error !== null) {
+      if (typeof error === "object" && error !== null) {
         if (!error.toolId) error.toolId = block.config.tool
-        if (!error.blockName) error.blockName = block.metadata?.name || 'Unnamed Block'
+        if (!error.blockName) error.blockName = block.metadata?.name || "Unnamed Block"
       }
 
       throw error

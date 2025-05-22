@@ -1,3 +1,3 @@
-import Invite from './invite'
+import Invite from "./invite"
 
 export default Invite

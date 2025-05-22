@@ -1,9 +1,9 @@
-import { create } from 'zustand'
-import { devtools, persist } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
-import { GeneralStore } from './types'
+import { create } from "zustand"
+import { devtools, persist } from "zustand/middleware"
+import { createLogger } from "@/lib/logs/console-logger"
+import type { GeneralStore } from "./types"
 
-const logger = createLogger('GeneralStore')
+const logger = createLogger("GeneralStore")
 
 const CACHE_TIMEOUT = 5000
 const MAX_ERROR_RETRIES = 2
@@ -19,7 +19,7 @@ export const useGeneralStore = create<GeneralStore>()(
           isAutoConnectEnabled: true,
           isDebugModeEnabled: false,
           isAutoFillEnvVarsEnabled: true,
-          theme: 'system',
+          theme: "system",
           telemetryEnabled: true,
           telemetryNotifiedUser: false,
           isLoading: false,
@@ -29,34 +29,34 @@ export const useGeneralStore = create<GeneralStore>()(
           toggleAutoConnect: () => {
             const newValue = !get().isAutoConnectEnabled
             set({ isAutoConnectEnabled: newValue })
-            get().updateSetting('autoConnect', newValue)
+            get().updateSetting("autoConnect", newValue)
           },
 
           toggleDebugMode: () => {
             const newValue = !get().isDebugModeEnabled
             set({ isDebugModeEnabled: newValue })
-            get().updateSetting('debugMode', newValue)
+            get().updateSetting("debugMode", newValue)
           },
 
           toggleAutoFillEnvVars: () => {
             const newValue = !get().isAutoFillEnvVarsEnabled
             set({ isAutoFillEnvVarsEnabled: newValue })
-            get().updateSetting('autoFillEnvVars', newValue)
+            get().updateSetting("autoFillEnvVars", newValue)
           },
 
           setTheme: (theme) => {
             set({ theme })
-            get().updateSetting('theme', theme)
+            get().updateSetting("theme", theme)
           },
 
           setTelemetryEnabled: (enabled) => {
             set({ telemetryEnabled: enabled })
-            get().updateSetting('telemetryEnabled', enabled)
+            get().updateSetting("telemetryEnabled", enabled)
           },
 
           setTelemetryNotifiedUser: (notified) => {
             set({ telemetryNotifiedUser: notified })
-            get().updateSetting('telemetryNotifiedUser', notified)
+            get().updateSetting("telemetryNotifiedUser", notified)
           },
 
           // API Actions
@@ -64,17 +64,17 @@ export const useGeneralStore = create<GeneralStore>()(
             // Skip loading if settings were recently loaded (within 5 seconds)
             const now = Date.now()
             if (!force && now - lastLoadTime < CACHE_TIMEOUT) {
-              logger.debug('Skipping settings load - recently loaded')
+              logger.debug("Skipping settings load - recently loaded")
               return
             }
 
             try {
               set({ isLoading: true, error: null })
 
-              const response = await fetch('/api/user/settings')
+              const response = await fetch("/api/user/settings")
 
               if (!response.ok) {
-                throw new Error('Failed to fetch settings')
+                throw new Error("Failed to fetch settings")
               }
 
               const { data } = await response.json()
@@ -92,9 +92,9 @@ export const useGeneralStore = create<GeneralStore>()(
               lastLoadTime = now
               errorRetryCount = 0
             } catch (error) {
-              logger.error('Error loading settings:', error)
+              logger.error("Error loading settings:", error)
               set({
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: error instanceof Error ? error.message : "Unknown error",
                 isLoading: false,
               })
             }
@@ -102,9 +102,9 @@ export const useGeneralStore = create<GeneralStore>()(
 
           updateSetting: async (key, value) => {
             try {
-              const response = await fetch('/api/user/settings', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+              const response = await fetch("/api/user/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ [key]: value }),
               })
 
@@ -118,7 +118,7 @@ export const useGeneralStore = create<GeneralStore>()(
               errorRetryCount = 0
             } catch (error) {
               logger.error(`Error updating setting ${key}:`, error)
-              set({ error: error instanceof Error ? error.message : 'Unknown error' })
+              set({ error: error instanceof Error ? error.message : "Unknown error" })
 
               if (errorRetryCount < MAX_ERROR_RETRIES) {
                 errorRetryCount++
@@ -134,9 +134,9 @@ export const useGeneralStore = create<GeneralStore>()(
         }
       },
       {
-        name: 'general-settings',
+        name: "general-settings",
       }
     ),
-    { name: 'general-store' }
+    { name: "general-store" }
   )
 )

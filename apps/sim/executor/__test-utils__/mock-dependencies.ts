@@ -1,9 +1,9 @@
-import { vi } from 'vitest'
+import { vi } from "vitest"
 
 // Mock common dependencies used across executor handler tests
 
 // Logger
-vi.mock('@/lib/logs/console-logger', () => ({
+vi.mock("@/lib/logs/console-logger", () => ({
   createLogger: vi.fn(() => ({
     info: vi.fn(),
     error: vi.fn(),
@@ -13,7 +13,7 @@ vi.mock('@/lib/logs/console-logger', () => ({
 }))
 
 // Tools
-vi.mock('@/tools/utils', () => ({
+vi.mock("@/tools/utils", () => ({
   getTool: vi.fn(),
   getToolAsync: vi.fn(),
   validateToolRequest: vi.fn(),
@@ -25,19 +25,19 @@ vi.mock('@/tools/utils', () => ({
 }))
 
 // Utils
-vi.mock('@/lib/utils', () => ({
+vi.mock("@/lib/utils", () => ({
   isHosted: vi.fn().mockReturnValue(false),
   getRotatingApiKey: vi.fn(),
 }))
 
 // Tools
-vi.mock('@/tools')
+vi.mock("@/tools")
 
 // Providers
-vi.mock('@/providers', () => ({
+vi.mock("@/providers", () => ({
   executeProviderRequest: vi.fn(),
 }))
-vi.mock('@/providers/utils', async (importOriginal) => {
+vi.mock("@/providers/utils", async (importOriginal) => {
   const actual = await importOriginal()
   return {
     // @ts-ignore
@@ -50,19 +50,19 @@ vi.mock('@/providers/utils', async (importOriginal) => {
 })
 
 // Executor utilities
-vi.mock('../../path')
-vi.mock('../../resolver', () => ({
+vi.mock("../../path")
+vi.mock("../../resolver", () => ({
   InputResolver: vi.fn(),
 }))
 
 // Specific block utilities (like router prompt generator)
-vi.mock('@/blocks/blocks/router')
+vi.mock("@/blocks/blocks/router")
 
 // Mock blocks - needed by agent handler for transformBlockTool
-vi.mock('@/blocks')
+vi.mock("@/blocks")
 
 // Mock fetch for server requests
 global.fetch = Object.assign(vi.fn(), { preconnect: vi.fn() }) as typeof fetch
 
 // Mock process.env
-process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000"

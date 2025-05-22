@@ -1,23 +1,23 @@
-'use client'
+"use client"
 
-import Link from 'next/link'
-import { GridPattern } from '../components/grid-pattern'
-import NavWrapper from '../components/nav-wrapper'
-import Footer from '../components/sections/footer'
+import Link from "next/link"
+import { GridPattern } from "../components/grid-pattern"
+import NavWrapper from "../components/nav-wrapper"
+import Footer from "../components/sections/footer"
 
 export default function PrivacyPolicy() {
   const handleOpenTypeformLink = () => {
-    window.open('https://form.typeform.com/to/jqCO12pF', '_blank')
+    window.open("https://form.typeform.com/to/jqCO12pF", "_blank")
   }
 
   return (
-    <main className="bg-[#0C0C0C] min-h-screen text-white relative overflow-hidden">
+    <main className="relative min-h-screen overflow-hidden bg-[#0C0C0C] text-white">
       {/* Grid pattern background - only covers content area */}
       <div className="absolute inset-0 bottom-[400px] z-0 overflow-hidden">
         <GridPattern
           x={-5}
           y={-5}
-          className="stroke-[#ababab]/5 absolute inset-0"
+          className="absolute inset-0 stroke-[#ababab]/5"
           width={90}
           height={90}
           aria-hidden="true"
@@ -29,7 +29,7 @@ export default function PrivacyPolicy() {
 
       {/* SVG background blur centered behind content */}
       <div
-        className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-[95%] md:w-[90%] lg:w-[80%] max-w-5xl z-[1] h-full"
+        className="-translate-x-1/2 absolute top-0 bottom-0 left-1/2 z-[1] h-full w-[95%] max-w-5xl md:w-[90%] lg:w-[80%]"
         aria-hidden="true"
       >
         <svg
@@ -62,9 +62,9 @@ export default function PrivacyPolicy() {
 
       {/* Content */}
       <div className="relative z-10">
-        <div className="max-w-4xl mx-auto px-4 py-16 pt-36">
-          <div className="relative px-4 sm:px-8 py-4">
-            <h1 className="text-4xl font-bold mb-8 text-white">Privacy Policy</h1>
+        <div className="mx-auto max-w-4xl px-4 py-16 pt-36">
+          <div className="relative px-4 py-4 sm:px-8">
+            <h1 className="mb-8 font-bold text-4xl text-white">Privacy Policy</h1>
 
             <div className="space-y-8 text-white/80">
               <section>
@@ -82,19 +82,19 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   Interpretation and Definitions
                 </h2>
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Interpretation</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Interpretation</h3>
                 <p className="mb-4">
                   Under the following conditions, the meanings of words with capitalized first
                   letters are defined. The following definitions have the same meaning whether they
                   are written in singular or plural form.
                 </p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Definitions</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Definitions</h3>
                 <p className="mb-4">For the purposes of this Privacy Policy:</p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>
                     <span className="text-[#B5A1D4]">Account</span> means a unique account created
                     for You to access our Service or parts of our Service.
@@ -205,17 +205,17 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   1. Information We Collect
                 </h2>
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Personal Information</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Personal Information</h3>
                 <p className="mb-4">
                   While using our Service, we may ask you to provide us with certain personally
                   identifiable information that can be used to contact or identify you (
                   <span className="text-[#B5A1D4]">"Personal Information"</span>). Personally
                   identifiable information may include, but is not limited to:
                 </p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>Email address</li>
                   <li>First name and last name</li>
                   <li>Phone number</li>
@@ -223,7 +223,7 @@ export default function PrivacyPolicy() {
                   <li>Cookies and Usage Data</li>
                 </ul>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Usage Data</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Usage Data</h3>
                 <p className="mb-4">
                   We may also collect information on how the Service is accessed and used (
                   <span className="text-[#B5A1D4]">"Usage Data"</span>). This Usage Data may include
@@ -244,7 +244,7 @@ export default function PrivacyPolicy() {
                   Service or when You access the Service by or through a mobile device.
                 </p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Tracking & Cookies Data</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Tracking & Cookies Data</h3>
                 <p className="mb-4">
                   We use cookies and similar tracking technologies to track the activity on our
                   Service and hold certain information.
@@ -263,11 +263,11 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   2. How We Use Your Information
                 </h2>
                 <p className="mb-4">We use the collected data for various purposes:</p>
-                <ul className="list-disc pl-6 space-y-2 marker:text-[#B5A1D4]">
+                <ul className="list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>To provide and maintain our Service</li>
                   <li>To notify you about changes to our Service</li>
                   <li>
@@ -290,7 +290,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">3. Transfer Of Data</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">3. Transfer Of Data</h2>
                 <p className="mb-4">
                   Your information, including Personal Information, may be transferred to — and
                   maintained on — computers located outside of your state, province, country or
@@ -309,28 +309,28 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">4. Disclosure Of Data</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">4. Disclosure Of Data</h2>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Business Transactions</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Business Transactions</h3>
                 <p className="mb-4">
                   If the Company is involved in a merger, acquisition or asset sale, Your Personal
                   Data may be transferred. We will provide notice before Your Personal Data is
                   transferred and becomes subject to a different Privacy Policy.
                 </p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Law Enforcement</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Law Enforcement</h3>
                 <p className="mb-4">
                   Under certain circumstances, the Company may be required to disclose Your Personal
                   Data if required to do so by law or in response to valid requests by public
                   authorities (e.g. a court or a government agency).
                 </p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Legal Requirements</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Legal Requirements</h3>
                 <p className="mb-4">
                   Sim Studio may disclose your Personal Information in the good faith belief that
                   such action is necessary to:
                 </p>
-                <ul className="list-disc pl-6 space-y-2 marker:text-[#B5A1D4]">
+                <ul className="list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>To comply with a legal obligation</li>
                   <li>To protect and defend the rights or property of Sim Studio</li>
                   <li>
@@ -342,7 +342,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">5. Security Of Data</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">5. Security Of Data</h2>
                 <p className="mb-4">
                   The security of your data is important to us, but remember that no method of
                   transmission over the Internet, or method of electronic storage is 100% secure.
@@ -352,7 +352,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">6. Service Providers</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">6. Service Providers</h2>
                 <p className="mb-4">
                   We may employ third party companies and individuals to facilitate our Service (
                   <span className="text-[#B5A1D4]">"Service Providers"</span>), to provide the
@@ -367,12 +367,12 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">7. Analytics</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">7. Analytics</h2>
                 <p className="mb-4">
                   We may use third-party Service Providers to monitor and analyze the use of our
                   Service.
                 </p>
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Google Analytics</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Google Analytics</h3>
                 <p className="mb-4">
                   Google Analytics is a web analytics service offered by Google that tracks and
                   reports website traffic. Google uses the data collected to track and monitor the
@@ -388,7 +388,7 @@ export default function PrivacyPolicy() {
                 </p>
                 <p>
                   For more information on the privacy practices of Google, please visit the Google
-                  Privacy & Terms web page:{' '}
+                  Privacy & Terms web page:{" "}
                   <Link
                     href="https://policies.google.com/privacy?hl=en"
                     className="text-[#B5A1D4] hover:text-[#701ffc]"
@@ -401,7 +401,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   8. Behavioral Remarketing
                 </h2>
                 <p className="mb-4">
@@ -409,20 +409,20 @@ export default function PrivacyPolicy() {
                   after You visited our Service. We and Our third-party vendors use cookies to
                   inform, optimize and serve ads based on Your past visits to our Service.
                 </p>
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Google Ads (AdWords)</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Google Ads (AdWords)</h3>
                 <p className="mb-4">
                   Google Ads remarketing service is provided by Google Inc. You can opt-out of
                   Google Analytics for Display Advertising and customize the Google Display Network
                   ads by visiting the Google Ads Settings page.
                 </p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Twitter</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Twitter</h3>
                 <p className="mb-4">
                   Twitter remarketing service is provided by Twitter Inc. You can opt-out from
                   Twitter's interest-based ads by following their instructions.
                 </p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Facebook</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Facebook</h3>
                 <p className="mb-4">
                   Facebook remarketing service is provided by Facebook Inc. You can learn more about
                   interest-based advertising from Facebook by visiting their Privacy Policy.
@@ -430,7 +430,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">9. Payments</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">9. Payments</h2>
                 <p className="mb-4">
                   We may provide paid products and/or services within the Service. In that case, we
                   may use third-party services for payment processing (e.g. payment processors).
@@ -444,16 +444,16 @@ export default function PrivacyPolicy() {
                   Discover. PCI-DSS requirements help ensure the secure handling of payment
                   information.
                 </p>
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">
                   Payment processors we work with:
                 </h3>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>Stripe</li>
                 </ul>
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   10. Google Workspace APIs
                 </h2>
                 <p className="mb-4">
@@ -466,7 +466,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   11. Information Collected while Using Google APIs
                 </h2>
                 <p className="mb-4">
@@ -477,7 +477,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">12. Links To Other Sites</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">12. Links To Other Sites</h2>
                 <p className="mb-4">
                   Our Service may contain links to other sites that are not operated by us. If you
                   click on a third party link, you will be directed to that third party's site. We
@@ -490,7 +490,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">13. Children's Privacy</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">13. Children's Privacy</h2>
                 <p className="mb-4">
                   Our Service does not address anyone under the age of 18 (
                   <span className="text-[#B5A1D4]">"Children"</span>).
@@ -506,7 +506,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   14. Changes To This Privacy Policy
                 </h2>
                 <p className="mb-4">
@@ -525,7 +525,7 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   15. Your Data Protection Rights Under General Data Protection Regulation (GDPR)
                 </h2>
                 <p className="mb-4">
@@ -540,7 +540,7 @@ export default function PrivacyPolicy() {
                 <p className="mb-4">
                   In certain circumstances, you have the following data protection rights:
                 </p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>The right to access, update or to delete the information we have on you.</li>
                   <li>
                     The right of rectification. You have the right to have your information
@@ -569,7 +569,7 @@ export default function PrivacyPolicy() {
                   Please note that we may ask you to verify your identity before responding to such
                   requests.
                 </p>
-                <p className="mb-4 bg-[#701ffc]/10 p-3 border-l-4 border-[#701ffc]">
+                <p className="mb-4 border-[#701ffc] border-l-4 bg-[#701ffc]/10 p-3">
                   You have the right to complain to a Data Protection Authority about our collection
                   and use of your Personal Information. For more information, please contact your
                   local data protection authority in the European Economic Area (EEA).
@@ -577,11 +577,11 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   16. California Privacy Rights
                 </h2>
                 <p className="mb-4">
-                  California Civil Code Section 1798.83, also known as the{' '}
+                  California Civil Code Section 1798.83, also known as the{" "}
                   <span className="text-[#B5A1D4]">"Shine The Light"</span> law, permits our users
                   who are California residents to request and obtain from us, once a year and free
                   of charge, information about categories of personal information (if any) we
@@ -596,10 +596,10 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">
+                <h2 className="mb-4 font-semibold text-2xl text-white">
                   17. Vulnerability Disclosure Policy
                 </h2>
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Introduction</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Introduction</h3>
                 <p className="mb-4">
                   Sim Studio is dedicated to preserving data security by preventing unauthorized
                   disclosure of information. This policy was created to provide security researchers
@@ -610,9 +610,9 @@ export default function PrivacyPolicy() {
                   reporting vulnerabilities identified.
                 </p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Guidelines</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Guidelines</h3>
                 <p className="mb-4">We request that you:</p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>
                     Notify us as soon as possible after you discover a real or potential security
                     issue.
@@ -639,16 +639,16 @@ export default function PrivacyPolicy() {
                   <li>Do not submit a high volume of low-quality reports.</li>
                 </ul>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Authorization</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Authorization</h3>
                 <p className="mb-4">
                   Security research carried out in conformity with this policy is deemed
                   permissible. We'll work with you to swiftly understand and fix the problem, and
                   Sim Studio will not suggest or pursue legal action in connection with your study.
                 </p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Scope</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Scope</h3>
                 <p className="mb-4">This policy applies to the following systems and services:</p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>simstudio.ai website</li>
                   <li>Sim Studio web application</li>
                   <li>Sim Studio API services</li>
@@ -658,19 +658,19 @@ export default function PrivacyPolicy() {
                   out of scope and isn't allowed to be tested. Vulnerabilities discovered in
                   third-party solutions Sim Studio interacts with are not covered by this policy and
                   should be reported directly to the solution vendor in accordance with their
-                  disclosure policy (if any). Before beginning your inquiry, email us at{' '}
+                  disclosure policy (if any). Before beginning your inquiry, email us at{" "}
                   <Link
                     href="mailto:security@simstudio.ai"
                     className="text-[#B5A1D4] hover:text-[#701ffc]"
                   >
                     security@simstudio.ai
-                  </Link>{' '}
+                  </Link>{" "}
                   if you're unsure whether a system or endpoint is in scope.
                 </p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Types of testing</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Types of testing</h3>
                 <p className="mb-4">The following test types are not authorized:</p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>Network denial of service (DoS or DDoS) tests</li>
                   <li>
                     Physical testing (e.g., office access, open doors, tailgating), social
@@ -679,11 +679,11 @@ export default function PrivacyPolicy() {
                   </li>
                 </ul>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">
                   Reporting a vulnerability
                 </h3>
                 <p className="mb-4">
-                  To report any security flaws, send an email to{' '}
+                  To report any security flaws, send an email to{" "}
                   <Link
                     href="mailto:security@simstudio.ai"
                     className="text-[#B5A1D4] hover:text-[#701ffc]"
@@ -694,12 +694,12 @@ export default function PrivacyPolicy() {
                   and keep you updated on our progress. Reports can be anonymously submitted.
                 </p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Desirable information</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Desirable information</h3>
                 <p className="mb-4">
                   In order to process and react to a vulnerability report, we recommend to include
                   the following information:
                 </p>
-                <ul className="list-disc pl-6 space-y-2 mb-4 marker:text-[#B5A1D4]">
+                <ul className="mb-4 list-disc space-y-2 pl-6 marker:text-[#B5A1D4]">
                   <li>Vulnerability description</li>
                   <li>Place of discovery</li>
                   <li>Potential Impact</li>
@@ -710,7 +710,7 @@ export default function PrivacyPolicy() {
                 </ul>
                 <p className="mb-4">If possible, please provide your report in English.</p>
 
-                <h3 className="text-xl font-medium mb-2 text-[#B5A1D4]">Our commitment</h3>
+                <h3 className="mb-2 font-medium text-[#B5A1D4] text-xl">Our commitment</h3>
                 <p className="mb-4">
                   If you choose to give your contact information, we promise to communicate with you
                   in a transparent and timely manner. We will acknowledge receipt of your report
@@ -721,9 +721,9 @@ export default function PrivacyPolicy() {
               </section>
 
               <section>
-                <h2 className="text-2xl font-semibold mb-4 text-white">18. Contact Us</h2>
+                <h2 className="mb-4 font-semibold text-2xl text-white">18. Contact Us</h2>
                 <p>
-                  If you have any questions about this Privacy Policy, please contact us at:{' '}
+                  If you have any questions about this Privacy Policy, please contact us at:{" "}
                   <Link
                     href="mailto:privacy@simstudio.ai"
                     className="text-[#B5A1D4] hover:text-[#701ffc]"

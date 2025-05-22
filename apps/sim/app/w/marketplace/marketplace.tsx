@@ -1,14 +1,14 @@
-'use client'
+"use client"
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle } from 'lucide-react'
-import { ControlBar } from './components/control-bar/control-bar'
-import { ErrorMessage } from './components/error-message'
-import { Section } from './components/section'
-import { Toolbar } from './components/toolbar/toolbar'
-import { WorkflowCard } from './components/workflow-card'
-import { WorkflowCardSkeleton } from './components/workflow-card-skeleton'
-import { CATEGORIES, getCategoryLabel } from './constants/categories'
+import { useEffect, useMemo, useRef, useState } from "react"
+import { AlertCircle } from "lucide-react"
+import { ControlBar } from "./components/control-bar/control-bar"
+import { ErrorMessage } from "./components/error-message"
+import { Section } from "./components/section"
+import { Toolbar } from "./components/toolbar/toolbar"
+import { WorkflowCard } from "./components/workflow-card"
+import { WorkflowCardSkeleton } from "./components/workflow-card-skeleton"
+import { CATEGORIES, getCategoryLabel } from "./constants/categories"
 
 // Types
 export interface Workflow {
@@ -64,10 +64,10 @@ export interface MarketplaceData {
 }
 
 // The order to display sections in, matching toolbar order
-const SECTION_ORDER = ['popular', 'recent', ...CATEGORIES.map((cat) => cat.value)]
+const SECTION_ORDER = ["popular", "recent", ...CATEGORIES.map((cat) => cat.value)]
 
 export default function Marketplace() {
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [marketplaceData, setMarketplaceData] = useState<MarketplaceData>({
@@ -76,8 +76,8 @@ export default function Marketplace() {
     byCategory: {},
   })
   const [activeSection, setActiveSection] = useState<string | null>(null)
-  const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(['popular', 'recent']))
-  const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set(['popular']))
+  const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(["popular", "recent"]))
+  const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set(["popular"]))
 
   // Create refs for each section
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -90,7 +90,7 @@ export default function Marketplace() {
       popular: marketplaceData.popular.map((item) => ({
         id: item.id,
         name: item.name,
-        description: item.description || '',
+        description: item.description || "",
         author: item.authorName,
         views: item.views,
         tags: [item.category],
@@ -100,7 +100,7 @@ export default function Marketplace() {
       recent: marketplaceData.recent.map((item) => ({
         id: item.id,
         name: item.name,
-        description: item.description || '',
+        description: item.description || "",
         author: item.authorName,
         views: item.views,
         tags: [item.category],
@@ -115,7 +115,7 @@ export default function Marketplace() {
         result[category] = items.map((item) => ({
           id: item.id,
           name: item.name,
-          description: item.description || '',
+          description: item.description || "",
           author: item.authorName,
           views: item.views,
           tags: [item.category],
@@ -136,11 +136,11 @@ export default function Marketplace() {
 
         // Fetch ALL data including categories in the initial load
         const response = await fetch(
-          '/api/marketplace/workflows?includeState=true&section=popular,recent,byCategory'
+          "/api/marketplace/workflows?includeState=true&section=popular,recent,byCategory"
         )
 
         if (!response.ok) {
-          throw new Error('Failed to fetch marketplace data')
+          throw new Error("Failed to fetch marketplace data")
         }
 
         const data = await response.json()
@@ -155,12 +155,12 @@ export default function Marketplace() {
         })
 
         console.log(
-          'Initial marketplace data loaded with categories:',
+          "Initial marketplace data loaded with categories:",
           data.popular?.length || 0,
-          'popular,',
+          "popular,",
           data.recent?.length || 0,
-          'recent,',
-          'categories:',
+          "recent,",
+          "categories:",
           Object.keys(data.byCategory || {})
         )
 
@@ -168,11 +168,11 @@ export default function Marketplace() {
         initialFetchCompleted.current = true
 
         // Set initial active section to popular
-        setActiveSection('popular')
+        setActiveSection("popular")
         setLoading(false)
       } catch (error) {
-        console.error('Error fetching workflows:', error)
-        setError('Failed to load workflows. Please try again later.')
+        console.error("Error fetching workflows:", error)
+        setError("Failed to load workflows. Please try again later.")
         setLoading(false)
       }
     }
@@ -203,8 +203,8 @@ export default function Marketplace() {
 
       // Debug logging
       console.log(
-        `Category data received:`,
-        data.byCategory ? Object.keys(data.byCategory) : 'No byCategory',
+        "Category data received:",
+        data.byCategory ? Object.keys(data.byCategory) : "No byCategory",
         data.byCategory?.[categoryName]?.length || 0
       )
 
@@ -257,7 +257,7 @@ export default function Marketplace() {
         const response = await fetch(
           `/api/marketplace/workflows?marketplaceId=${workflowId}&includeState=true`,
           {
-            method: 'GET',
+            method: "GET",
           }
         )
 
@@ -358,13 +358,13 @@ export default function Marketplace() {
   const scrollToSection = (sectionId: string) => {
     if (sectionRefs.current[sectionId]) {
       // Load the section data if not already loaded
-      if (!loadedSections.has(sectionId) && sectionId !== 'popular' && sectionId !== 'recent') {
+      if (!loadedSections.has(sectionId) && sectionId !== "popular" && sectionId !== "recent") {
         loadCategoryData(sectionId)
       }
 
       sectionRefs.current[sectionId]?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
+        behavior: "smooth",
+        block: "start",
       })
     }
   }
@@ -398,8 +398,8 @@ export default function Marketplace() {
               // Load category data if section is visible and not loaded yet
               if (
                 !loadedSections.has(sectionId) &&
-                sectionId !== 'popular' &&
-                sectionId !== 'recent'
+                sectionId !== "popular" &&
+                sectionId !== "recent"
               ) {
                 loadCategoryData(sectionId)
               }
@@ -414,7 +414,7 @@ export default function Marketplace() {
         },
         {
           root: contentRef.current,
-          rootMargin: '200px 0px', // Load sections slightly before they become visible
+          rootMargin: "200px 0px", // Load sections slightly before they become visible
           threshold: 0.1,
         }
       )
@@ -458,13 +458,13 @@ export default function Marketplace() {
       // Find section whose position is closest to middle of viewport
       // This creates smoother transitions as we scroll
       let closestSection = null
-      let closestDistance = Infinity
+      let closestDistance = Number.POSITIVE_INFINITY
 
       Object.entries(sectionRefs.current).forEach(([id, ref]) => {
         if (!ref || !currentSectionIds.includes(id)) return
 
         const rect = ref.getBoundingClientRect()
-        const sectionTop = rect.top + scrollTop - contentRef.current!.getBoundingClientRect().top
+        const sectionTop = rect.top + scrollTop - contentRef.current?.getBoundingClientRect().top
         const sectionMiddle = sectionTop + rect.height / 2
         const distance = Math.abs(viewportMiddle - sectionMiddle)
 
@@ -487,16 +487,16 @@ export default function Marketplace() {
     }
 
     const contentElement = contentRef.current
-    contentElement?.addEventListener('scroll', handleScroll, { passive: true })
+    contentElement?.addEventListener("scroll", handleScroll, { passive: true })
 
     return () => {
       observer.disconnect()
-      contentElement?.removeEventListener('scroll', handleScroll)
+      contentElement?.removeEventListener("scroll", handleScroll)
     }
   }, [initialFetchCompleted.current, loading, filteredWorkflows, loadedSections])
 
   return (
-    <div className="flex flex-col h-[100vh]">
+    <div className="flex h-[100vh] flex-col">
       {/* Control Bar */}
       <ControlBar setSearchQuery={setSearchQuery} />
 
@@ -505,27 +505,25 @@ export default function Marketplace() {
         <Toolbar scrollToSection={scrollToSection} activeSection={activeSection} />
 
         {/* Main content */}
-        <div ref={contentRef} className="flex-1 overflow-y-auto py-6 px-6 pb-16">
+        <div ref={contentRef} className="flex-1 overflow-y-auto px-6 py-6 pb-16">
           {/* Error message */}
           <ErrorMessage message={error} />
 
           {/* Loading state */}
           {loading && (
-            <>
-              <Section
-                id="loading"
-                title="Popular"
-                ref={(el) => {
-                  sectionRefs.current['loading'] = el
-                }}
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Array.from({ length: 6 }).map((_, index) => (
-                    <WorkflowCardSkeleton key={`skeleton-${index}`} />
-                  ))}
-                </div>
-              </Section>
-            </>
+            <Section
+              id="loading"
+              title="Popular"
+              ref={(el) => {
+                sectionRefs.current.loading = el
+              }}
+            >
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <WorkflowCardSkeleton key={`skeleton-${index}`} />
+                ))}
+              </div>
+            </Section>
           )}
 
           {/* Render workflow sections */}
@@ -544,7 +542,7 @@ export default function Marketplace() {
                         }
                       }}
                     >
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                         {workflows.map((workflow, index) => (
                           <WorkflowCard
                             key={workflow.id}
@@ -559,8 +557,8 @@ export default function Marketplace() {
               )}
 
               {sortedFilteredWorkflows.length === 0 && !loading && (
-                <div className="flex flex-col items-center justify-center h-64">
-                  <AlertCircle className="h-8 w-8 text-muted-foreground mb-4" />
+                <div className="flex h-64 flex-col items-center justify-center">
+                  <AlertCircle className="mb-4 h-8 w-8 text-muted-foreground" />
                   <p className="text-muted-foreground">No workflows found matching your search.</p>
                 </div>
               )}

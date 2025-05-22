@@ -1,11 +1,11 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { Clock, Star } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { CATEGORIES, getCategoryIcon, getCategoryLabel } from '../../constants/categories'
+import { useEffect, useState } from "react"
+import { Clock, Star } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { CATEGORIES, getCategoryIcon, getCategoryLabel } from "../../constants/categories"
 
-export type MarketplaceCategory = 'popular' | 'programming' | 'marketing' | 'all'
+export type MarketplaceCategory = "popular" | "programming" | "marketing" | "all"
 
 interface ToolbarProps {
   scrollToSection: (sectionId: string) => void
@@ -14,8 +14,8 @@ interface ToolbarProps {
 
 // Map of special section icons
 const specialIcons: Record<string, React.ReactNode> = {
-  popular: <Star className="h-4 w-4 mr-2" />,
-  recent: <Clock className="h-4 w-4 mr-2" />,
+  popular: <Star className="mr-2 h-4 w-4" />,
+  recent: <Clock className="mr-2 h-4 w-4" />,
 }
 
 export function Toolbar({ scrollToSection, activeSection }: ToolbarProps) {
@@ -24,7 +24,7 @@ export function Toolbar({ scrollToSection, activeSection }: ToolbarProps) {
   // Set categories including special sections
   useEffect(() => {
     // Start with special sections like 'popular' and 'recent'
-    const specialSections = ['popular', 'recent']
+    const specialSections = ["popular", "recent"]
 
     // Add categories from centralized definitions
     const categoryValues = CATEGORIES.map((cat) => cat.value)
@@ -36,23 +36,23 @@ export function Toolbar({ scrollToSection, activeSection }: ToolbarProps) {
   }, [])
 
   return (
-    <div className="p-4 w-60 border-r h-full overflow-auto">
-      <h2 className="text-sm font-medium mb-4 pl-2">Categories</h2>
+    <div className="h-full w-60 overflow-auto border-r p-4">
+      <h2 className="mb-4 pl-2 font-medium text-sm">Categories</h2>
       <nav className="space-y-1">
         {categories.map((category) => (
           <Button
             key={category}
             variant="ghost"
-            className={`w-full justify-start px-2 py-2 text-sm font-medium capitalize text-muted-foreground transition-colors hover:text-foreground ${
-              activeSection === category ? 'bg-accent text-foreground' : 'hover:bg-accent/50'
+            className={`w-full justify-start px-2 py-2 font-medium text-muted-foreground text-sm capitalize transition-colors hover:text-foreground ${
+              activeSection === category ? "bg-accent text-foreground" : "hover:bg-accent/50"
             }`}
             onClick={() => scrollToSection(category)}
           >
             {specialIcons[category] || getCategoryIcon(category)}
-            {category === 'popular'
-              ? 'Popular'
-              : category === 'recent'
-                ? 'Recent'
+            {category === "popular"
+              ? "Popular"
+              : category === "recent"
+                ? "Recent"
                 : getCategoryLabel(category)}
           </Button>
         ))}

@@ -1,7 +1,7 @@
-import { createLogger } from '@/lib/logs/console-logger'
-import ChatClient from './components/chat-client'
+import { createLogger } from "@/lib/logs/console-logger"
+import ChatClient from "./components/chat-client"
 
-const logger = createLogger('ChatPage')
+const logger = createLogger("ChatPage")
 
 export default async function ChatPage({ params }: { params: Promise<{ subdomain: string }> }) {
   const { subdomain } = await params

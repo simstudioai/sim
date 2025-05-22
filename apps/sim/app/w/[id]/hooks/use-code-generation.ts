@@ -1,17 +1,17 @@
-import { useCallback, useRef, useState } from 'react'
-import { createLogger } from '@/lib/logs/console-logger'
-import { useNotificationStore } from '@/stores/notifications/store'
+import { useCallback, useRef, useState } from "react"
+import { createLogger } from "@/lib/logs/console-logger"
+import { useNotificationStore } from "@/stores/notifications/store"
 
 interface ChatMessage {
-  role: 'user' | 'assistant' | 'system'
+  role: "user" | "assistant" | "system"
   content: string
 }
 
 type GenerationType =
-  | 'json-schema'
-  | 'javascript-function-body'
-  | 'typescript-function-body'
-  | 'custom-tool-schema'
+  | "json-schema"
+  | "javascript-function-body"
+  | "typescript-function-body"
+  | "custom-tool-schema"
 
 interface UseCodeGenerationProps {
   generationType: GenerationType
@@ -27,11 +27,11 @@ interface GenerateOptions {
   context?: string // Overrides initialContext if provided
 }
 
-const logger = createLogger('useCodeGeneration')
+const logger = createLogger("useCodeGeneration")
 
 export function useCodeGeneration({
   generationType,
-  initialContext = '',
+  initialContext = "",
   onGeneratedContent,
   onStreamChunk,
   onStreamStart,
@@ -40,7 +40,7 @@ export function useCodeGeneration({
   const [isLoading, setIsLoading] = useState(false)
   const [isPromptOpen, setIsPromptOpen] = useState(false)
   const [isPromptVisible, setIsPromptVisible] = useState(false)
-  const [promptInputValue, setPromptInputValue] = useState('')
+  const [promptInputValue, setPromptInputValue] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isStreaming, setIsStreaming] = useState(false)
   const addNotification = useNotificationStore((state) => state.addNotification)
@@ -53,27 +53,27 @@ export function useCodeGeneration({
 
   // Standard non-streaming generation
   const generate = async ({ prompt, context }: GenerateOptions) => {
-    console.log('[useCodeGeneration.ts] generate function called')
+    console.log("[useCodeGeneration.ts] generate function called")
     if (!prompt) {
-      const errorMessage = 'Prompt cannot be empty.'
+      const errorMessage = "Prompt cannot be empty."
       setError(errorMessage)
-      addNotification('error', errorMessage, null)
+      addNotification("error", errorMessage, null)
       return
     }
 
     setIsLoading(true)
     setError(null)
-    logger.debug('Starting code generation', { generationType, prompt })
-    setPromptInputValue('')
+    logger.debug("Starting code generation", { generationType, prompt })
+    setPromptInputValue("")
 
     // Keep track of the current prompt for history
     const currentPrompt = prompt
 
     try {
-      const response = await fetch('/api/codegen', {
-        method: 'POST',
+      const response = await fetch("/api/codegen", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           prompt,
@@ -89,27 +89,27 @@ export function useCodeGeneration({
         throw new Error(result.error || `HTTP error! status: ${response.status}`)
       }
 
-      logger.info('Code generation successful', { generationType })
+      logger.info("Code generation successful", { generationType })
       onGeneratedContent(result.generatedContent)
-      addNotification('info', 'Content generated successfully!', null)
+      addNotification("info", "Content generated successfully!", null)
       setIsPromptOpen(false)
       setIsPromptVisible(false)
 
       // Update history after successful non-streaming generation
       setConversationHistory((prevHistory) => [
         ...prevHistory,
-        { role: 'user', content: currentPrompt },
-        { role: 'assistant', content: result.generatedContent },
+        { role: "user", content: currentPrompt },
+        { role: "assistant", content: result.generatedContent },
       ])
 
       if (onGenerationComplete) {
         onGenerationComplete(currentPrompt, result.generatedContent)
       }
     } catch (err: any) {
-      const errorMessage = err.message || 'An unknown error occurred during generation.'
-      logger.error('Code generation failed', { error: errorMessage })
+      const errorMessage = err.message || "An unknown error occurred during generation."
+      logger.error("Code generation failed", { error: errorMessage })
       setError(errorMessage)
-      addNotification('error', `Generation failed: ${errorMessage}`, null)
+      addNotification("error", `Generation failed: ${errorMessage}`, null)
     } finally {
       setIsLoading(false)
     }
@@ -118,16 +118,16 @@ export function useCodeGeneration({
   // Streaming generation
   const generateStream = async ({ prompt, context }: GenerateOptions) => {
     if (!prompt) {
-      const errorMessage = 'Prompt cannot be empty.'
+      const errorMessage = "Prompt cannot be empty."
       setError(errorMessage)
-      addNotification('error', errorMessage, null)
+      addNotification("error", errorMessage, null)
       return
     }
 
     setIsLoading(true)
     setIsStreaming(true)
     setError(null)
-    setPromptInputValue('')
+    setPromptInputValue("")
 
     // Keep track of the current prompt for history
     const currentPrompt = prompt
@@ -135,14 +135,14 @@ export function useCodeGeneration({
     // Create a new AbortController for this request
     abortControllerRef.current = new AbortController()
 
-    logger.debug('Starting streaming code generation', { generationType, prompt })
+    logger.debug("Starting streaming code generation", { generationType, prompt })
 
     try {
-      const response = await fetch('/api/codegen', {
-        method: 'POST',
+      const response = await fetch("/api/codegen", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache, no-transform',
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache, no-transform",
         },
         body: JSON.stringify({
           prompt,
@@ -153,7 +153,7 @@ export function useCodeGeneration({
         }),
         signal: abortControllerRef.current.signal,
         // Ensure no caching for Edge Functions
-        cache: 'no-store',
+        cache: "no-store",
       })
 
       if (!response.ok) {
@@ -162,7 +162,7 @@ export function useCodeGeneration({
       }
 
       if (!response.body) {
-        throw new Error('Response body is null')
+        throw new Error("Response body is null")
       }
 
       // Signal the start of the stream to clear previous content
@@ -173,7 +173,7 @@ export function useCodeGeneration({
       // Set up streaming reader
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
-      let fullContent = ''
+      let fullContent = ""
 
       try {
         while (true) {
@@ -182,7 +182,7 @@ export function useCodeGeneration({
 
           // Process incoming chunks
           const text = decoder.decode(value)
-          const lines = text.split('\n').filter((line) => line.trim() !== '')
+          const lines = text.split("\n").filter((line) => line.trim() !== "")
 
           for (const line of lines) {
             try {
@@ -208,12 +208,12 @@ export function useCodeGeneration({
                   fullContent = data.fullContent
                 }
 
-                logger.info('Streaming code generation completed', { generationType })
+                logger.info("Streaming code generation completed", { generationType })
                 // Update history AFTER the stream is fully complete
                 setConversationHistory((prevHistory) => [
                   ...prevHistory,
-                  { role: 'user', content: currentPrompt },
-                  { role: 'assistant', content: fullContent }, // Use the final full content
+                  { role: "user", content: currentPrompt },
+                  { role: "assistant", content: fullContent }, // Use the final full content
                 ])
 
                 // Call the main handler for the complete content
@@ -222,18 +222,18 @@ export function useCodeGeneration({
                 if (onGenerationComplete) {
                   onGenerationComplete(currentPrompt, fullContent)
                 }
-                addNotification('info', 'Content generated successfully!', null)
+                addNotification("info", "Content generated successfully!", null)
                 break
               }
             } catch (jsonError: any) {
-              logger.error('Failed to parse streaming response', { error: jsonError.message, line })
+              logger.error("Failed to parse streaming response", { error: jsonError.message, line })
             }
           }
         }
       } catch (streamError: any) {
         // Additional error handling for stream processing
-        if (streamError.name !== 'AbortError') {
-          logger.error('Error processing stream', { error: streamError.message })
+        if (streamError.name !== "AbortError") {
+          logger.error("Error processing stream", { error: streamError.message })
           throw streamError // Re-throw to be caught by outer try/catch
         }
       } finally {
@@ -242,15 +242,15 @@ export function useCodeGeneration({
       }
     } catch (err: any) {
       // Don't show error if it was due to an abort
-      if (err.name === 'AbortError') {
-        logger.info('Streaming code generation aborted', { generationType })
+      if (err.name === "AbortError") {
+        logger.info("Streaming code generation aborted", { generationType })
         return
       }
 
-      const errorMessage = err.message || 'An unknown error occurred during streaming.'
-      logger.error('Streaming code generation failed', { error: errorMessage })
+      const errorMessage = err.message || "An unknown error occurred during streaming."
+      logger.error("Streaming code generation failed", { error: errorMessage })
       setError(errorMessage)
-      addNotification('error', `Generation failed: ${errorMessage}`, null)
+      addNotification("error", `Generation failed: ${errorMessage}`, null)
     } finally {
       setIsLoading(false)
       setIsStreaming(false)
@@ -264,32 +264,32 @@ export function useCodeGeneration({
       abortControllerRef.current = null
       setIsLoading(false)
       setIsStreaming(false)
-      logger.info('Code generation canceled', { generationType })
+      logger.info("Code generation canceled", { generationType })
     }
   }
 
   const openPrompt = () => {
     setIsPromptOpen(true)
-    setPromptInputValue('')
+    setPromptInputValue("")
   }
 
   const closePrompt = () => {
     if (isLoading) return
     setIsPromptOpen(false)
-    setPromptInputValue('')
+    setPromptInputValue("")
   }
 
   const showPromptInline = () => {
-    logger.debug('showPromptInline called', { generationType })
+    logger.debug("showPromptInline called", { generationType })
     setIsPromptVisible(true)
-    setPromptInputValue('')
+    setPromptInputValue("")
   }
 
   const hidePromptInline = () => {
-    logger.debug('hidePromptInline called', { generationType })
+    logger.debug("hidePromptInline called", { generationType })
     if (isLoading) return
     setIsPromptVisible(false)
-    setPromptInputValue('')
+    setPromptInputValue("")
   }
 
   const updatePromptValue = (value: string) => {
@@ -298,7 +298,7 @@ export function useCodeGeneration({
 
   const clearHistory = useCallback(() => {
     setConversationHistory([])
-    logger.info('Conversation history cleared', { generationType })
+    logger.info("Conversation history cleared", { generationType })
   }, [generationType])
 
   return {

@@ -1,6 +1,6 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
+import { useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,13 +11,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { DeployedWorkflowCard } from './deployed-workflow-card'
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
+import { mergeSubblockState } from "@/stores/workflows/utils"
+import { useWorkflowStore } from "@/stores/workflows/workflow/store"
+import { DeployedWorkflowCard } from "./deployed-workflow-card"
 
 interface DeployedWorkflowModalProps {
   isOpen: boolean
@@ -54,7 +54,7 @@ export function DeployedWorkflowModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className="sm:max-w-[1100px] max-h-[100vh] overflow-y-auto"
+        className="max-h-[100vh] overflow-y-auto sm:max-w-[1100px]"
         style={{ zIndex: 1000 }}
         hideCloseButton={true}
       >
@@ -69,7 +69,7 @@ export function DeployedWorkflowModal({
           deployedWorkflowState={deployedWorkflowState}
         />
 
-        <div className="flex justify-between mt-6">
+        <div className="mt-6 flex justify-between">
           <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
             <AlertDialogTrigger asChild>
               <Button variant="destructive">Revert to Deployed</Button>

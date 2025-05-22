@@ -1,9 +1,9 @@
-'use client'
+"use client"
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, RefreshCw } from 'lucide-react'
-import { GmailIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Check, ChevronDown, RefreshCw } from "lucide-react"
+import { GmailIcon } from "@/components/icons"
+import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandEmpty,
@@ -11,14 +11,14 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { createLogger } from '@/lib/logs/console-logger'
-import { Credential, getProviderIdFromServiceId, getServiceIdFromScopes } from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
-import { OAuthRequiredModal } from '@/app/w/[id]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
+} from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { createLogger } from "@/lib/logs/console-logger"
+import { type Credential, getProviderIdFromServiceId, getServiceIdFromScopes } from "@/lib/oauth"
+import { saveToStorage } from "@/stores/workflows/persistence"
+import { OAuthRequiredModal } from "@/app/w/[id]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal"
 
-const logger = createLogger('FolderSelector')
+const logger = createLogger("FolderSelector")
 
 export interface FolderInfo {
   id: string
@@ -44,7 +44,7 @@ export function FolderSelector({
   onChange,
   provider,
   requiredScopes = [],
-  label = 'Select folder',
+  label = "Select folder",
   disabled = false,
   serviceId,
   onFolderInfoChange,
@@ -52,7 +52,7 @@ export function FolderSelector({
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [folders, setFolders] = useState<FolderInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>("")
   const [selectedFolderId, setSelectedFolderId] = useState(value)
   const [selectedFolder, setSelectedFolder] = useState<FolderInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -103,7 +103,7 @@ export function FolderSelector({
         }
       }
     } catch (error) {
-      logger.error('Error fetching credentials:', { error })
+      logger.error("Error fetching credentials:", { error })
     } finally {
       setIsLoading(false)
     }
@@ -132,13 +132,13 @@ export function FolderSelector({
             return data.label
           }
         } else {
-          logger.error('Error fetching folder by ID:', {
+          logger.error("Error fetching folder by ID:", {
             error: await response.text(),
           })
         }
         return null
       } catch (error) {
-        logger.error('Error fetching folder by ID:', { error })
+        logger.error("Error fetching folder by ID:", { error })
         return null
       } finally {
         setIsLoadingSelectedFolder(false)
@@ -160,7 +160,7 @@ export function FolderSelector({
         })
 
         if (searchQuery) {
-          queryParams.append('query', searchQuery)
+          queryParams.append("query", searchQuery)
         }
 
         const response = await fetch(`/api/auth/oauth/gmail/labels?${queryParams.toString()}`)
@@ -184,13 +184,13 @@ export function FolderSelector({
             }
           }
         } else {
-          logger.error('Error fetching folders:', {
+          logger.error("Error fetching folders:", {
             error: await response.text(),
           })
           setFolders([])
         }
       } catch (error) {
-        logger.error('Error fetching folders:', { error })
+        logger.error("Error fetching folders:", { error })
         setFolders([])
       } finally {
         setIsLoading(false)
@@ -243,10 +243,10 @@ export function FolderSelector({
     const providerId = getProviderId()
 
     // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', providerId)
+    saveToStorage<string>("pending_service_id", effectiveServiceId)
+    saveToStorage<string[]>("pending_oauth_scopes", requiredScopes)
+    saveToStorage<string>("pending_oauth_return_url", window.location.href)
+    saveToStorage<string>("pending_oauth_provider_id", providerId)
 
     // Show the OAuth modal
     setShowOAuthModal(true)
@@ -261,8 +261,8 @@ export function FolderSelector({
     }
   }
 
-  const getFolderIcon = (size: 'sm' | 'md' = 'sm') => {
-    const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
+  const getFolderIcon = (size: "sm" | "md" = "sm") => {
+    const iconSize = size === "sm" ? "h-4 w-4" : "h-5 w-5"
     return <GmailIcon className={iconSize} />
   }
 
@@ -280,8 +280,8 @@ export function FolderSelector({
             >
               {selectedFolder ? (
                 <div className="flex items-center gap-2 overflow-hidden">
-                  {getFolderIcon('sm')}
-                  <span className="font-normal truncate">{selectedFolder.name}</span>
+                  {getFolderIcon("sm")}
+                  <span className="truncate font-normal">{selectedFolder.name}</span>
                 </div>
               ) : selectedFolderId && (isLoadingSelectedFolder || !selectedCredentialId) ? (
                 <div className="flex items-center gap-2">
@@ -290,21 +290,21 @@ export function FolderSelector({
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  {getFolderIcon('sm')}
+                  {getFolderIcon("sm")}
                   <span className="text-muted-foreground">{label}</span>
                 </div>
               )}
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[300px]" align="start">
+          <PopoverContent className="w-[300px] p-0" align="start">
             {/* Current account indicator */}
             {selectedCredentialId && credentials.length > 0 && (
-              <div className="px-3 py-2 border-b flex items-center justify-between">
+              <div className="flex items-center justify-between border-b px-3 py-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-muted-foreground text-xs">
                     {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
-                      'Unknown'}
+                      "Unknown"}
                   </span>
                 </div>
                 {credentials.length > 1 && (
@@ -331,15 +331,15 @@ export function FolderSelector({
                     </div>
                   ) : credentials.length === 0 ? (
                     <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No accounts connected.</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-medium text-sm">No accounts connected.</p>
+                      <p className="text-muted-foreground text-xs">
                         Connect a Gmail account to continue.
                       </p>
                     </div>
                   ) : (
                     <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No labels found.</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="font-medium text-sm">No labels found.</p>
+                      <p className="text-muted-foreground text-xs">
                         Try a different search or account.
                       </p>
                     </div>
@@ -349,7 +349,7 @@ export function FolderSelector({
                 {/* Account selection - only show if we have multiple accounts */}
                 {credentials.length > 1 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
                       Switch Account
                     </div>
                     {credentials.map((cred) => (
@@ -370,7 +370,7 @@ export function FolderSelector({
                 {/* Folders list */}
                 {folders.length > 0 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
                       Labels
                     </div>
                     {folders.map((folder) => (
@@ -379,9 +379,9 @@ export function FolderSelector({
                         value={`folder-${folder.id}-${folder.name}`}
                         onSelect={() => handleSelectFolder(folder)}
                       >
-                        <div className="flex items-center gap-2 overflow-hidden w-full">
-                          {getFolderIcon('sm')}
-                          <span className="font-normal truncate">{folder.name}</span>
+                        <div className="flex w-full items-center gap-2 overflow-hidden">
+                          {getFolderIcon("sm")}
+                          <span className="truncate font-normal">{folder.name}</span>
                           {folder.id === selectedFolderId && <Check className="ml-auto h-4 w-4" />}
                         </div>
                       </CommandItem>

@@ -1,19 +1,19 @@
-import { getCostMultiplier } from '@/lib/environment'
-import { isHosted } from '@/lib/environment'
-import { createLogger } from '@/lib/logs/console-logger'
-import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { anthropicProvider } from './anthropic'
-import { cerebrasProvider } from './cerebras'
-import { deepseekProvider } from './deepseek'
-import { googleProvider } from './google'
-import { groqProvider } from './groq'
-import { ollamaProvider } from './ollama'
-import { openaiProvider } from './openai'
-import { getModelPricing } from './pricing'
-import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
-import { xAIProvider } from './xai'
+import { getCostMultiplier } from "@/lib/environment"
+import { isHosted } from "@/lib/environment"
+import { createLogger } from "@/lib/logs/console-logger"
+import { useCustomToolsStore } from "@/stores/custom-tools/store"
+import { anthropicProvider } from "./anthropic"
+import { cerebrasProvider } from "./cerebras"
+import { deepseekProvider } from "./deepseek"
+import { googleProvider } from "./google"
+import { groqProvider } from "./groq"
+import { ollamaProvider } from "./ollama"
+import { openaiProvider } from "./openai"
+import { getModelPricing } from "./pricing"
+import type { ProviderConfig, ProviderId, ProviderToolConfig } from "./types"
+import { xAIProvider } from "./xai"
 
-const logger = createLogger('ProviderUtils')
+const logger = createLogger("ProviderUtils")
 
 /**
  * Provider configurations with associated model names/patterns
@@ -28,42 +28,42 @@ export const providers: Record<
 > = {
   openai: {
     ...openaiProvider,
-    models: ['gpt-4o', 'o1', 'o3', 'o4-mini', 'gpt-4.1'],
-    computerUseModels: ['computer-use-preview'],
+    models: ["gpt-4o", "o1", "o3", "o4-mini", "gpt-4.1"],
+    computerUseModels: ["computer-use-preview"],
     modelPatterns: [/^gpt/, /^o1/],
   },
   anthropic: {
     ...anthropicProvider,
-    models: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
-    computerUseModels: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
+    models: ["claude-3-5-sonnet-20240620", "claude-3-7-sonnet-20250219"],
+    computerUseModels: ["claude-3-5-sonnet-20240620", "claude-3-7-sonnet-20250219"],
     modelPatterns: [/^claude/],
   },
   google: {
     ...googleProvider,
-    models: ['gemini-2.5-pro-exp-03-25', 'gemini-2.5-flash-preview-04-17'],
+    models: ["gemini-2.5-pro-exp-03-25", "gemini-2.5-flash-preview-04-17"],
     modelPatterns: [/^gemini/],
   },
   deepseek: {
     ...deepseekProvider,
-    models: ['deepseek-v3', 'deepseek-r1'],
+    models: ["deepseek-v3", "deepseek-r1"],
     modelPatterns: [],
   },
   xai: {
     ...xAIProvider,
-    models: ['grok-3-latest', 'grok-3-fast-latest'],
+    models: ["grok-3-latest", "grok-3-fast-latest"],
     modelPatterns: [/^grok/],
   },
   cerebras: {
     ...cerebrasProvider,
-    models: ['cerebras/llama-3.3-70b'],
+    models: ["cerebras/llama-3.3-70b"],
     modelPatterns: [/^cerebras/],
   },
   groq: {
     ...groqProvider,
     models: [
-      'groq/meta-llama/llama-4-scout-17b-16e-instruct',
-      'groq/deepseek-r1-distill-llama-70b',
-      'groq/qwen-2.5-32b',
+      "groq/meta-llama/llama-4-scout-17b-16e-instruct",
+      "groq/deepseek-r1-distill-llama-70b",
+      "groq/qwen-2.5-32b",
     ],
     modelPatterns: [/^groq/],
   },
@@ -79,7 +79,7 @@ Object.entries(providers).forEach(([id, provider]) => {
   if (provider.initialize) {
     provider.initialize().catch((error) => {
       logger.error(`Failed to initialize ${id} provider`, {
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       })
     })
   }
@@ -88,12 +88,12 @@ Object.entries(providers).forEach(([id, provider]) => {
 // Function to update Ollama provider models
 export function updateOllamaProviderModels(models: string[]): void {
   providers.ollama.models = models
-  logger.info('Updated Ollama provider models', { models })
+  logger.info("Updated Ollama provider models", { models })
 }
 
 export function getBaseModelProviders(): Record<string, ProviderId> {
   return Object.entries(providers)
-    .filter(([providerId]) => providerId !== 'ollama')
+    .filter(([providerId]) => providerId !== "ollama")
     .reduce(
       (map, [providerId, config]) => {
         config.models.forEach((model) => {
@@ -134,12 +134,12 @@ export function getProviderFromModel(model: string): ProviderId {
   }
 
   logger.warn(`No provider found for model: ${model}, defaulting to ollama`)
-  return 'ollama'
+  return "ollama"
 }
 
 export function getProvider(id: string): ProviderConfig | undefined {
   // Handle both formats: 'openai' and 'openai/chat'
-  const providerId = id.split('/')[0] as ProviderId
+  const providerId = id.split("/")[0] as ProviderId
   return providers[providerId]
 }
 
@@ -164,47 +164,47 @@ export function getProviderModels(providerId: ProviderId): string[] {
 export function generateStructuredOutputInstructions(responseFormat: any): string {
   // If using the new JSON Schema format, don't add additional instructions
   // This is necessary because providers now handle the schema directly
-  if (responseFormat.schema || (responseFormat.type === 'object' && responseFormat.properties)) {
-    return ''
+  if (responseFormat.schema || (responseFormat.type === "object" && responseFormat.properties)) {
+    return ""
   }
 
   // Handle legacy format with fields array
-  if (!responseFormat?.fields) return ''
+  if (!responseFormat?.fields) return ""
 
   function generateFieldStructure(field: any): string {
-    if (field.type === 'object' && field.properties) {
+    if (field.type === "object" && field.properties) {
       return `{
     ${Object.entries(field.properties)
-      .map(([key, prop]: [string, any]) => `"${key}": ${prop.type === 'number' ? '0' : '"value"'}`)
-      .join(',\n    ')}
+      .map(([key, prop]: [string, any]) => `"${key}": ${prop.type === "number" ? "0" : '"value"'}`)
+      .join(",\n    ")}
   }`
     }
-    return field.type === 'string'
+    return field.type === "string"
       ? '"value"'
-      : field.type === 'number'
-        ? '0'
-        : field.type === 'boolean'
-          ? 'true/false'
-          : '[]'
+      : field.type === "number"
+        ? "0"
+        : field.type === "boolean"
+          ? "true/false"
+          : "[]"
   }
 
   const exampleFormat = responseFormat.fields
     .map((field: any) => `  "${field.name}": ${generateFieldStructure(field)}`)
-    .join(',\n')
+    .join(",\n")
 
   const fieldDescriptions = responseFormat.fields
     .map((field: any) => {
       let desc = `${field.name} (${field.type})`
       if (field.description) desc += `: ${field.description}`
-      if (field.type === 'object' && field.properties) {
-        desc += '\nProperties:'
+      if (field.type === "object" && field.properties) {
+        desc += "\nProperties:"
         Object.entries(field.properties).forEach(([key, prop]: [string, any]) => {
-          desc += `\n  - ${key} (${(prop as any).type}): ${(prop as any).description || ''}`
+          desc += `\n  - ${key} (${(prop as any).type}): ${(prop as any).description || ""}`
         })
       }
       return desc
     })
-    .join('\n')
+    .join("\n")
 
   logger.info(`Generated structured output instructions for ${responseFormat.fields.length} fields`)
 
@@ -226,11 +226,11 @@ export function extractAndParseJSON(content: string): any {
   const trimmed = content.trim()
 
   // Find the first '{' and last '}'
-  const firstBrace = trimmed.indexOf('{')
-  const lastBrace = trimmed.lastIndexOf('}')
+  const firstBrace = trimmed.indexOf("{")
+  const lastBrace = trimmed.lastIndexOf("}")
 
   if (firstBrace === -1 || lastBrace === -1) {
-    throw new Error('No JSON object found in content')
+    throw new Error("No JSON object found in content")
   }
 
   // Extract just the JSON part
@@ -241,22 +241,22 @@ export function extractAndParseJSON(content: string): any {
   } catch (error) {
     // If parsing fails, try to clean up common issues
     const cleaned = jsonStr
-      .replace(/\n/g, ' ') // Remove newlines
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .replace(/,\s*([}\]])/g, '$1') // Remove trailing commas
+      .replace(/\n/g, " ") // Remove newlines
+      .replace(/\s+/g, " ") // Normalize whitespace
+      .replace(/,\s*([}\]])/g, "$1") // Remove trailing commas
 
     try {
       return JSON.parse(cleaned)
     } catch (innerError) {
-      logger.error('Failed to parse JSON response', {
+      logger.error("Failed to parse JSON response", {
         contentLength: content.length,
         extractedLength: jsonStr.length,
         cleanedLength: cleaned.length,
-        error: innerError instanceof Error ? innerError.message : 'Unknown error',
+        error: innerError instanceof Error ? innerError.message : "Unknown error",
       })
 
       throw new Error(
-        `Failed to parse JSON after cleanup: ${innerError instanceof Error ? innerError.message : 'Unknown error'}`
+        `Failed to parse JSON after cleanup: ${innerError instanceof Error ? innerError.message : "Unknown error"}`
       )
     }
   }
@@ -269,13 +269,13 @@ export function transformCustomTool(customTool: any): ProviderToolConfig {
   const schema = customTool.schema
 
   if (!schema || !schema.function) {
-    throw new Error('Invalid custom tool schema')
+    throw new Error("Invalid custom tool schema")
   }
 
   return {
     id: `custom_${customTool.id}`, // Prefix with 'custom_' to identify custom tools
     name: schema.function.name,
-    description: schema.function.description || '',
+    description: schema.function.description || "",
     params: {}, // This will be derived from parameters
     parameters: {
       type: schema.function.parameters.type,
@@ -338,7 +338,7 @@ export async function transformBlockTool(
           operation: selectedOperation,
         })
       } catch (error) {
-        logger.error('Error selecting tool for block', {
+        logger.error("Error selecting tool for block", {
           blockType: block.type,
           operation: selectedOperation,
           error,
@@ -362,7 +362,7 @@ export async function transformBlockTool(
   // Get the tool config - check if it's a custom tool that needs async fetching
   let toolConfig: any
 
-  if (toolId.startsWith('custom_') && getToolAsync) {
+  if (toolId.startsWith("custom_") && getToolAsync) {
     // Use the async version for custom tools
     toolConfig = await getToolAsync(toolId)
   } else {
@@ -382,13 +382,13 @@ export async function transformBlockTool(
     description: toolConfig.description,
     params: block.params || {},
     parameters: {
-      type: 'object',
+      type: "object",
       properties: Object.entries(toolConfig.params).reduce(
         (acc, [key, config]: [string, any]) => ({
           ...acc,
           [key]: {
-            type: config.type === 'json' ? 'object' : config.type,
-            description: config.description || '',
+            type: config.type === "json" ? "object" : config.type,
+            description: config.description || "",
             ...(key in block.params && { default: block.params[key] }),
           },
         }),
@@ -412,9 +412,9 @@ export async function transformBlockTool(
  */
 export function calculateCost(
   model: string,
-  promptTokens: number = 0,
-  completionTokens: number = 0,
-  useCachedInput: boolean = false
+  promptTokens = 0,
+  completionTokens = 0,
+  useCachedInput = false
 ) {
   const pricing = getModelPricing(model)
 
@@ -432,9 +432,9 @@ export function calculateCost(
   const costMultiplier = getCostMultiplier()
 
   return {
-    input: parseFloat((inputCost * costMultiplier).toFixed(6)),
-    output: parseFloat((outputCost * costMultiplier).toFixed(6)),
-    total: parseFloat((totalCost * costMultiplier).toFixed(6)),
+    input: Number.parseFloat((inputCost * costMultiplier).toFixed(6)),
+    output: Number.parseFloat((outputCost * costMultiplier).toFixed(6)),
+    total: Number.parseFloat((totalCost * costMultiplier).toFixed(6)),
     pricing,
   }
 }
@@ -446,25 +446,27 @@ export function calculateCost(
  * @returns Formatted cost string
  */
 export function formatCost(cost: number): string {
-  if (cost === undefined || cost === null) return '—'
+  if (cost === undefined || cost === null) return "—"
 
   if (cost >= 1) {
     // For costs >= $1, show two decimal places
     return `$${cost.toFixed(2)}`
-  } else if (cost >= 0.01) {
+  }
+  if (cost >= 0.01) {
     // For costs between 1¢ and $1, show three decimal places
     return `$${cost.toFixed(3)}`
-  } else if (cost >= 0.001) {
+  }
+  if (cost >= 0.001) {
     // For costs between 0.1¢ and 1¢, show four decimal places
     return `$${cost.toFixed(4)}`
-  } else if (cost > 0) {
+  }
+  if (cost > 0) {
     // For very small costs, still show as fixed decimal instead of scientific notation
     // Find the first non-zero digit and show a few more places
     const places = Math.max(4, Math.abs(Math.floor(Math.log10(cost))) + 3)
     return `$${cost.toFixed(places)}`
-  } else {
-    return '$0'
   }
+  return "$0"
 }
 
 /**
@@ -476,13 +478,13 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   const hasUserKey = !!userProvidedKey
 
   // Use server key rotation for all OpenAI models and Anthropic's Claude models on the hosted platform
-  const isOpenAIModel = provider === 'openai'
-  const isClaudeModel = provider === 'anthropic'
+  const isOpenAIModel = provider === "openai"
+  const isClaudeModel = provider === "anthropic"
 
   if (isHosted && (isOpenAIModel || isClaudeModel)) {
     try {
       // Import the key rotation function
-      const { getRotatingApiKey } = require('@/lib/utils')
+      const { getRotatingApiKey } = require("@/lib/utils")
       const serverKey = getRotatingApiKey(provider)
       return serverKey
     } catch (error) {
@@ -521,15 +523,15 @@ export function prepareToolsWithUsageControl(
 ): {
   tools: any[] | undefined
   toolChoice:
-    | 'auto'
-    | 'none'
-    | { type: 'function'; function: { name: string } }
-    | { type: 'tool'; name: string }
-    | { type: 'any'; any: { model: string; name: string } }
+    | "auto"
+    | "none"
+    | { type: "function"; function: { name: string } }
+    | { type: "tool"; name: string }
+    | { type: "any"; any: { model: string; name: string } }
     | undefined
   toolConfig?: {
     // Add toolConfig for Google's format
-    mode: 'AUTO' | 'ANY' | 'NONE'
+    mode: "AUTO" | "ANY" | "NONE"
     allowed_function_names?: string[]
   }
   hasFilteredTools: boolean
@@ -549,7 +551,7 @@ export function prepareToolsWithUsageControl(
   const filteredTools = tools.filter((tool) => {
     const toolId = tool.function?.name || tool.name
     const toolConfig = providerTools?.find((t) => t.id === toolId)
-    return toolConfig?.usageControl !== 'none'
+    return toolConfig?.usageControl !== "none"
   })
 
   // Check if any tools were filtered out
@@ -572,21 +574,21 @@ export function prepareToolsWithUsageControl(
   }
 
   // Get all tools that should be forced
-  const forcedTools = providerTools?.filter((tool) => tool.usageControl === 'force') || []
+  const forcedTools = providerTools?.filter((tool) => tool.usageControl === "force") || []
   const forcedToolIds = forcedTools.map((tool) => tool.id)
 
   // Determine tool_choice setting
   let toolChoice:
-    | 'auto'
-    | 'none'
-    | { type: 'function'; function: { name: string } }
-    | { type: 'tool'; name: string }
-    | { type: 'any'; any: { model: string; name: string } } = 'auto'
+    | "auto"
+    | "none"
+    | { type: "function"; function: { name: string } }
+    | { type: "tool"; name: string }
+    | { type: "any"; any: { model: string; name: string } } = "auto"
 
   // For Google, we'll use a separate toolConfig object
   let toolConfig:
     | {
-        mode: 'AUTO' | 'ANY' | 'NONE'
+        mode: "AUTO" | "ANY" | "NONE"
         allowed_function_names?: string[]
       }
     | undefined = undefined
@@ -596,26 +598,26 @@ export function prepareToolsWithUsageControl(
     const forcedTool = forcedTools[0]
 
     // Adjust format based on provider
-    if (provider === 'anthropic') {
+    if (provider === "anthropic") {
       toolChoice = {
-        type: 'tool',
+        type: "tool",
         name: forcedTool.id,
       }
-    } else if (provider === 'google') {
+    } else if (provider === "google") {
       // Google Gemini format uses a separate tool_config object
       toolConfig = {
-        mode: 'ANY',
+        mode: "ANY",
         allowed_function_names:
           forcedTools.length === 1
             ? [forcedTool.id] // If only one tool, specify just that one
             : forcedToolIds, // If multiple tools, include all of them
       }
       // Keep toolChoice as 'auto' since we use toolConfig instead
-      toolChoice = 'auto'
+      toolChoice = "auto"
     } else {
       // Default OpenAI format
       toolChoice = {
-        type: 'function',
+        type: "function",
         function: { name: forcedTool.id },
       }
     }
@@ -624,16 +626,16 @@ export function prepareToolsWithUsageControl(
 
     if (forcedTools.length > 1) {
       logger.info(
-        `Multiple tools set to 'force' mode (${forcedToolIds.join(', ')}). Will cycle through them sequentially.`
+        `Multiple tools set to 'force' mode (${forcedToolIds.join(", ")}). Will cycle through them sequentially.`
       )
     }
   } else {
     // Default to auto if no forced tools
-    toolChoice = 'auto'
-    if (provider === 'google') {
-      toolConfig = { mode: 'AUTO' }
+    toolChoice = "auto"
+    if (provider === "google") {
+      toolConfig = { mode: "AUTO" }
     }
-    logger.info('Setting tool_choice to auto - letting model decide which tools to use')
+    logger.info("Setting tool_choice to auto - letting model decide which tools to use")
   }
 
   return {
@@ -667,13 +669,13 @@ export function trackForcedToolUsage(
   hasUsedForcedTool: boolean
   usedForcedTools: string[]
   nextToolChoice?:
-    | 'auto'
-    | { type: 'function'; function: { name: string } }
-    | { type: 'tool'; name: string }
-    | { type: 'any'; any: { model: string; name: string } }
+    | "auto"
+    | { type: "function"; function: { name: string } }
+    | { type: "tool"; name: string }
+    | { type: "any"; any: { model: string; name: string } }
     | null
   nextToolConfig?: {
-    mode: 'AUTO' | 'ANY' | 'NONE'
+    mode: "AUTO" | "ANY" | "NONE"
     allowed_function_names?: string[]
   }
 } {
@@ -682,7 +684,7 @@ export function trackForcedToolUsage(
   let nextToolChoice = originalToolChoice
   let nextToolConfig:
     | {
-        mode: 'AUTO' | 'ANY' | 'NONE'
+        mode: "AUTO" | "ANY" | "NONE"
         allowed_function_names?: string[]
       }
     | undefined = undefined
@@ -690,7 +692,7 @@ export function trackForcedToolUsage(
   const updatedUsedForcedTools = [...usedForcedTools]
 
   // Special handling for Google format
-  const isGoogleFormat = provider === 'google'
+  const isGoogleFormat = provider === "google"
 
   // Get the name of the current forced tool(s)
   let forcedToolNames: string[] = []
@@ -698,10 +700,10 @@ export function trackForcedToolUsage(
     // For Google format
     forcedToolNames = originalToolChoice.allowed_function_names
   } else if (
-    typeof originalToolChoice === 'object' &&
+    typeof originalToolChoice === "object" &&
     (originalToolChoice?.function?.name ||
-      (originalToolChoice?.type === 'tool' && originalToolChoice?.name) ||
-      (originalToolChoice?.type === 'any' && originalToolChoice?.any?.name))
+      (originalToolChoice?.type === "tool" && originalToolChoice?.name) ||
+      (originalToolChoice?.type === "any" && originalToolChoice?.any?.name))
   ) {
     // For other providers
     forcedToolNames = [
@@ -732,14 +734,14 @@ export function trackForcedToolUsage(
         const nextToolToForce = remainingTools[0]
 
         // Format based on provider
-        if (provider === 'anthropic') {
+        if (provider === "anthropic") {
           nextToolChoice = {
-            type: 'tool',
+            type: "tool",
             name: nextToolToForce,
           }
-        } else if (provider === 'google') {
+        } else if (provider === "google") {
           nextToolConfig = {
-            mode: 'ANY',
+            mode: "ANY",
             allowed_function_names:
               remainingTools.length === 1
                 ? [nextToolToForce] // If only one tool left, specify just that one
@@ -748,25 +750,25 @@ export function trackForcedToolUsage(
         } else {
           // Default OpenAI format
           nextToolChoice = {
-            type: 'function',
+            type: "function",
             function: { name: nextToolToForce },
           }
         }
 
         logger.info(
-          `Forced tool(s) ${usedTools.join(', ')} used, switching to next forced tool(s): ${remainingTools.join(', ')}`
+          `Forced tool(s) ${usedTools.join(", ")} used, switching to next forced tool(s): ${remainingTools.join(", ")}`
         )
       } else {
         // All forced tools have been used, switch to auto mode
-        if (provider === 'anthropic') {
+        if (provider === "anthropic") {
           nextToolChoice = null // Anthropic requires null to remove the parameter
-        } else if (provider === 'google') {
-          nextToolConfig = { mode: 'AUTO' }
+        } else if (provider === "google") {
+          nextToolConfig = { mode: "AUTO" }
         } else {
-          nextToolChoice = 'auto'
+          nextToolChoice = "auto"
         }
 
-        logger.info(`All forced tools have been used, switching to auto mode for future iterations`)
+        logger.info("All forced tools have been used, switching to auto mode for future iterations")
       }
     }
   }

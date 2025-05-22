@@ -1,7 +1,7 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { Check, Copy, KeySquare, Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState } from "react"
+import { Check, Copy, KeySquare, Plus, Trash2 } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,9 +11,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -21,14 +21,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { useSession } from '@/lib/auth-client'
-import { createLogger } from '@/lib/logs/console-logger'
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
+import { useSession } from "@/lib/auth-client"
+import { createLogger } from "@/lib/logs/console-logger"
 
-const logger = createLogger('ApiKeys')
+const logger = createLogger("ApiKeys")
 
 interface ApiKeysProps {
   onOpenChange?: (open: boolean) => void
@@ -50,7 +50,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
-  const [newKeyName, setNewKeyName] = useState('')
+  const [newKeyName, setNewKeyName] = useState("")
   const [newKey, setNewKey] = useState<ApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const [deleteKey, setDeleteKey] = useState<ApiKey | null>(null)
@@ -63,13 +63,13 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
 
     setIsLoading(true)
     try {
-      const response = await fetch('/api/user/api-keys')
+      const response = await fetch("/api/user/api-keys")
       if (response.ok) {
         const data = await response.json()
         setApiKeys(data.keys || [])
       }
     } catch (error) {
-      logger.error('Error fetching API keys:', { error })
+      logger.error("Error fetching API keys:", { error })
     } finally {
       setIsLoading(false)
     }
@@ -81,10 +81,10 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
 
     setIsCreating(true)
     try {
-      const response = await fetch('/api/user/api-keys', {
-        method: 'POST',
+      const response = await fetch("/api/user/api-keys", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           name: newKeyName.trim(),
@@ -97,12 +97,12 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
         setNewKey(data.key)
         setShowNewKeyDialog(true)
         // Reset form
-        setNewKeyName('')
+        setNewKeyName("")
         // Refresh the keys list
         fetchApiKeys()
       }
     } catch (error) {
-      logger.error('Error creating API key:', { error })
+      logger.error("Error creating API key:", { error })
     } finally {
       setIsCreating(false)
     }
@@ -114,7 +114,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
 
     try {
       const response = await fetch(`/api/user/api-keys/${deleteKey.id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       })
 
       if (response.ok) {
@@ -125,7 +125,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
         setDeleteKey(null)
       }
     } catch (error) {
-      logger.error('Error deleting API key:', { error })
+      logger.error("Error deleting API key:", { error })
     }
   }
 
@@ -145,18 +145,18 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
 
   // Format date
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Never'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    if (!dateString) return "Never"
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     })
   }
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">API Keys</h2>
+        <h2 className="font-semibold text-xl">API Keys</h2>
         <Button
           onClick={() => setIsCreating(true)}
           disabled={isLoading}
@@ -168,24 +168,24 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
         </Button>
       </div>
 
-      <p className="text-sm text-muted-foreground leading-relaxed">
+      <p className="text-muted-foreground text-sm leading-relaxed">
         API keys allow you to authenticate and trigger workflows. Keep your API keys secure. They
         have access to your account and workflows.
       </p>
 
       {isLoading ? (
-        <div className="space-y-3 mt-6">
+        <div className="mt-6 space-y-3">
           <KeySkeleton />
           <KeySkeleton />
         </div>
       ) : apiKeys.length === 0 ? (
-        <div className="rounded-md border border-dashed p-8 mt-6">
+        <div className="mt-6 rounded-md border border-dashed p-8">
           <div className="flex flex-col items-center justify-center text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
               <KeySquare className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="mt-4 text-lg font-medium">No API keys yet</h3>
-            <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+            <h3 className="mt-4 font-medium text-lg">No API keys yet</h3>
+            <p className="mt-2 max-w-sm text-muted-foreground text-sm">
               You don&apos;t have any API keys yet. Create one to get started with the Sim SDK.
             </p>
             <Button
@@ -194,22 +194,22 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
               onClick={() => setIsCreating(true)}
               size="sm"
             >
-              <Plus className="h-4 w-4 mr-1.5" /> Create API Key
+              <Plus className="mr-1.5 h-4 w-4" /> Create API Key
             </Button>
           </div>
         </div>
       ) : (
-        <div className="space-y-4 mt-6">
+        <div className="mt-6 space-y-4">
           {apiKeys.map((key) => (
-            <Card key={key.id} className="p-4 hover:shadow-sm transition-shadow">
+            <Card key={key.id} className="p-4 transition-shadow hover:shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <h3 className="font-medium text-base">{key.name}</h3>
                   <div className="flex items-center space-x-1">
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                       Created: {formatDate(key.createdAt)} • Last used: {formatDate(key.lastUsed)}
                     </p>
-                    <div className="text-xs px-1.5 py-0.5 bg-muted/50 rounded font-mono">
+                    <div className="rounded bg-muted/50 px-1.5 py-0.5 font-mono text-xs">
                       •••••{key.key.slice(-6)}
                     </div>
                   </div>
@@ -221,7 +221,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                     setDeleteKey(key)
                     setShowDeleteDialog(true)
                   }}
-                  className="text-destructive hover:bg-destructive/10 h-8 w-8"
+                  className="h-8 w-8 text-destructive hover:bg-destructive/10"
                 >
                   <Trash2 className="h-4 w-4" />
                   <span className="sr-only">Delete key</span>
@@ -254,7 +254,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
               />
             </div>
           </div>
-          <DialogFooter className="sm:justify-end gap-2">
+          <DialogFooter className="gap-2 sm:justify-end">
             <Button variant="outline" onClick={() => setIsCreating(false)}>
               Cancel
             </Button>
@@ -288,12 +288,12 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                   <Input
                     readOnly
                     value={newKey.key}
-                    className="font-mono text-sm pr-10 bg-muted/50 border-slate-300"
+                    className="border-slate-300 bg-muted/50 pr-10 font-mono text-sm"
                   />
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                    className="-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7"
                     onClick={() => copyToClipboard(newKey.key)}
                   >
                     {copySuccess ? (
@@ -304,7 +304,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
                     <span className="sr-only">Copy to clipboard</span>
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="mt-1 text-muted-foreground text-xs">
                   For security, we don&apos;t store the complete key. You won&apos;t be able to view
                   it again.
                 </p>
@@ -332,14 +332,14 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
             <AlertDialogDescription>
               {deleteKey && (
                 <>
-                  Are you sure you want to delete the API key{' '}
+                  Are you sure you want to delete the API key{" "}
                   <span className="font-semibold">{deleteKey.name}</span>? This action cannot be
                   undone and any integrations using this key will no longer work.
                 </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="sm:justify-end gap-2">
+          <AlertDialogFooter className="gap-2 sm:justify-end">
             <AlertDialogCancel onClick={() => setDeleteKey(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteKey}
@@ -359,7 +359,7 @@ function KeySkeleton() {
     <Card className="p-4">
       <div className="flex items-center justify-between">
         <div>
-          <Skeleton className="h-5 w-32 mb-2" />
+          <Skeleton className="mb-2 h-5 w-32" />
           <Skeleton className="h-4 w-48" />
         </div>
         <Skeleton className="h-8 w-8 rounded-md" />

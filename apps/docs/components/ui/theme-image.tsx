@@ -1,8 +1,8 @@
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import Image from 'next/image'
-import { useTheme } from 'next-themes'
+import { useEffect, useState } from "react"
+import Image from "next/image"
+import { useTheme } from "next-themes"
 
 interface ThemeImageProps {
   lightSrc: string
@@ -19,7 +19,7 @@ export function ThemeImage({
   alt,
   width = 600,
   height = 400,
-  className = 'rounded-lg border border-border my-6',
+  className = "rounded-lg border border-border my-6",
 }: ThemeImageProps) {
   const { resolvedTheme } = useTheme()
   const [imageSrc, setImageSrc] = useState(lightSrc)
@@ -32,7 +32,7 @@ export function ThemeImage({
 
   useEffect(() => {
     if (mounted) {
-      setImageSrc(resolvedTheme === 'dark' ? darkSrc : lightSrc)
+      setImageSrc(resolvedTheme === "dark" ? darkSrc : lightSrc)
     }
   }, [resolvedTheme, lightSrc, darkSrc, mounted])
 

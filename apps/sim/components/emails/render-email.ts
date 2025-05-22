@@ -1,9 +1,9 @@
-import { renderAsync } from '@react-email/components'
-import { InvitationEmail } from './invitation-email'
-import { OTPVerificationEmail } from './otp-verification-email'
-import { ResetPasswordEmail } from './reset-password-email'
-import { WaitlistApprovalEmail } from './waitlist-approval-email'
-import { WaitlistConfirmationEmail } from './waitlist-confirmation-email'
+import { renderAsync } from "@react-email/components"
+import { InvitationEmail } from "./invitation-email"
+import { OTPVerificationEmail } from "./otp-verification-email"
+import { ResetPasswordEmail } from "./reset-password-email"
+import { WaitlistApprovalEmail } from "./waitlist-approval-email"
+import { WaitlistConfirmationEmail } from "./waitlist-confirmation-email"
 
 /**
  * Renders the OTP verification email to HTML
@@ -11,7 +11,7 @@ import { WaitlistConfirmationEmail } from './waitlist-confirmation-email'
 export async function renderOTPEmail(
   otp: string,
   email: string,
-  type: 'sign-in' | 'email-verification' | 'forget-password' = 'email-verification'
+  type: "sign-in" | "email-verification" | "forget-password" = "email-verification"
 ): Promise<string> {
   return await renderAsync(OTPVerificationEmail({ otp, email, type }))
 }
@@ -68,30 +68,30 @@ export async function renderWaitlistApprovalEmail(
  */
 export function getEmailSubject(
   type:
-    | 'sign-in'
-    | 'email-verification'
-    | 'forget-password'
-    | 'reset-password'
-    | 'waitlist-confirmation'
-    | 'waitlist-approval'
-    | 'invitation'
+    | "sign-in"
+    | "email-verification"
+    | "forget-password"
+    | "reset-password"
+    | "waitlist-confirmation"
+    | "waitlist-approval"
+    | "invitation"
 ): string {
   switch (type) {
-    case 'sign-in':
-      return 'Sign in to Sim Studio'
-    case 'email-verification':
-      return 'Verify your email for Sim Studio'
-    case 'forget-password':
-      return 'Reset your Sim Studio password'
-    case 'reset-password':
-      return 'Reset your Sim Studio password'
-    case 'waitlist-confirmation':
-      return 'Welcome to the Sim Studio Waitlist'
-    case 'waitlist-approval':
+    case "sign-in":
+      return "Sign in to Sim Studio"
+    case "email-verification":
+      return "Verify your email for Sim Studio"
+    case "forget-password":
+      return "Reset your Sim Studio password"
+    case "reset-password":
+      return "Reset your Sim Studio password"
+    case "waitlist-confirmation":
+      return "Welcome to the Sim Studio Waitlist"
+    case "waitlist-approval":
       return "You've Been Approved to Join Sim Studio!"
-    case 'invitation':
+    case "invitation":
       return "You've been invited to join a team on Sim Studio"
     default:
-      return 'Sim Studio'
+      return "Sim Studio"
   }
 }
