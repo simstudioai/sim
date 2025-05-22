@@ -7,19 +7,16 @@ import { cn } from '@/lib/utils'
 import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
 
 interface DeployedWorkflowCardProps {
-  // Current workflow state (if any)
   currentWorkflowState?: {
     blocks: Record<string, any>
     edges: Array<any>
     loops: Record<string, any>
   }
-  // Deployed workflow state from Supabase
   deployedWorkflowState: {
     blocks: Record<string, any>
     edges: Array<any>
     loops: Record<string, any>
   }
-  // Optional className for styling
   className?: string
 }
 
@@ -28,15 +25,20 @@ export function DeployedWorkflowCard({
   deployedWorkflowState,
   className,
 }: DeployedWorkflowCardProps) {
-  // State for toggling between deployed and current workflow
   const [showingDeployed, setShowingDeployed] = useState(true)
-
-  // Determine which workflow state to show
   const workflowToShow = showingDeployed ? deployedWorkflowState : currentWorkflowState
 
   return (
-    <Card className={cn('overflow-hidden', className)}>
-      <CardHeader className="space-y-4 p-4">
+    <Card className={cn('overflow-hidden relative', className)}>
+      <CardHeader
+        className={cn(
+          'space-y-4 p-4 sticky top-0 z-10',
+          'backdrop-blur-xl',
+          'bg-background/70 dark:bg-background/50',
+          'border-b border-border/30 dark:border-border/20',
+          'shadow-sm'
+        )}
+      >
         <div className="flex items-center justify-between">
           <h3 className="font-medium">
             {showingDeployed ? 'Deployed Workflow' : 'Current Workflow'}

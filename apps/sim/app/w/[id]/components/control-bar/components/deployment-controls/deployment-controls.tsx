@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Loader2, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { DeployModal } from '../deploy-modal/deploy-modal'
 
 const logger = createLogger('DeploymentControls')
@@ -22,9 +22,26 @@ export function DeploymentControls({
   needsRedeployment,
   setNeedsRedeployment,
 }: DeploymentControlsProps) {
-  const { isDeployed } = useWorkflowStore()
+  // Use workflow-specific deployment status
+  const deploymentStatus = useWorkflowRegistry(state => 
+    state.getWorkflowDeploymentStatus(activeWorkflowId))
+  const isDeployed = deploymentStatus?.isDeployed || false
+  
+  // Prioritize workflow-specific needsRedeployment flag, but fall back to prop if needed
+  const workflowNeedsRedeployment = deploymentStatus?.needsRedeployment !== undefined 
+    ? deploymentStatus.needsRedeployment 
+    : needsRedeployment
+    
   const [isDeploying, setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
+
+  // Update parent component when workflow-specific status changes
+  useEffect(() => {
+    if (deploymentStatus?.needsRedeployment !== undefined && 
+        deploymentStatus.needsRedeployment !== needsRedeployment) {
+      setNeedsRedeployment(deploymentStatus.needsRedeployment)
+    }
+  }, [deploymentStatus?.needsRedeployment, needsRedeployment, setNeedsRedeployment, deploymentStatus])
 
   return (
     <>
@@ -46,7 +63,7 @@ export function DeploymentControls({
               <span className="sr-only">Deploy API</span>
             </Button>
 
-            {isDeployed && needsRedeployment && (
+            {isDeployed && workflowNeedsRedeployment && (
               <div className="absolute top-0.5 right-0.5 flex items-center justify-center">
                 <div className="relative">
                   <div className="absolute inset-0 w-2 h-2 rounded-full bg-amber-500/50 animate-ping"></div>
@@ -60,7 +77,7 @@ export function DeploymentControls({
         <TooltipContent>
           {isDeploying
             ? 'Deploying...'
-            : isDeployed && needsRedeployment
+            : isDeployed && workflowNeedsRedeployment
               ? 'Workflow changes detected'
               : isDeployed
                 ? 'Deployment Settings'
@@ -72,7 +89,7 @@ export function DeploymentControls({
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         workflowId={activeWorkflowId}
-        needsRedeployment={needsRedeployment}
+        needsRedeployment={workflowNeedsRedeployment}
         setNeedsRedeployment={setNeedsRedeployment}
       />
     </>

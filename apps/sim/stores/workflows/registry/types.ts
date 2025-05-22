@@ -3,6 +3,13 @@ export interface MarketplaceData {
   status: 'owner' | 'temp'
 }
 
+export interface DeploymentStatus {
+  isDeployed: boolean
+  deployedAt?: Date
+  apiKey?: string
+  needsRedeployment?: boolean
+}
+
 export interface WorkflowMetadata {
   id: string
   name: string
@@ -19,6 +26,7 @@ export interface WorkflowRegistryState {
   activeWorkspaceId: string | null
   isLoading: boolean
   error: string | null
+  deploymentStatuses: Record<string, DeploymentStatus>
 }
 
 export interface WorkflowRegistryActions {
@@ -37,6 +45,14 @@ export interface WorkflowRegistryActions {
     workspaceId?: string
   }) => string
   duplicateWorkflow: (sourceId: string) => string | null
+  getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
+  setDeploymentStatus: (
+    workflowId: string | null,
+    isDeployed: boolean,
+    deployedAt?: Date,
+    apiKey?: string
+  ) => void
+  setWorkflowNeedsRedeployment: (workflowId: string | null, needsRedeployment: boolean) => void
 }
 
 export type WorkflowRegistry = WorkflowRegistryState & WorkflowRegistryActions

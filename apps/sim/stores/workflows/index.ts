@@ -25,6 +25,9 @@ export function getWorkflowWithValues(workflowId: string) {
 
   const metadata = workflows[workflowId]
 
+  // Get deployment status from registry
+  const deploymentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)
+
   // Load the specific state for this workflow
   let workflowState: WorkflowState
 
@@ -34,8 +37,8 @@ export function getWorkflowWithValues(workflowId: string) {
       blocks: currentState.blocks,
       edges: currentState.edges,
       loops: currentState.loops,
-      isDeployed: currentState.isDeployed,
-      deployedAt: currentState.deployedAt,
+      isDeployed: deploymentStatus?.isDeployed || false,
+      deployedAt: deploymentStatus?.deployedAt,
       lastSaved: currentState.lastSaved,
     }
   } else {
@@ -45,7 +48,13 @@ export function getWorkflowWithValues(workflowId: string) {
       logger.warn(`No saved state found for workflow ${workflowId}`)
       return null
     }
-    workflowState = savedState
+
+    // Use registry deployment status instead of relying on saved state
+    workflowState = {
+      ...savedState,
+      isDeployed: deploymentStatus?.isDeployed || savedState.isDeployed || false,
+      deployedAt: deploymentStatus?.deployedAt || savedState.deployedAt,
+    }
   }
 
   // Merge the subblock values for this specific workflow
@@ -103,6 +112,9 @@ export function getAllWorkflowsWithValues() {
       continue
     }
 
+    // Get deployment status from registry
+    const deploymentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(id)
+
     // Load the specific state for this workflow
     let workflowState: WorkflowState
 
@@ -112,8 +124,8 @@ export function getAllWorkflowsWithValues() {
         blocks: currentState.blocks,
         edges: currentState.edges,
         loops: currentState.loops,
-        isDeployed: currentState.isDeployed,
-        deployedAt: currentState.deployedAt,
+        isDeployed: deploymentStatus?.isDeployed || false,
+        deployedAt: deploymentStatus?.deployedAt,
         lastSaved: currentState.lastSaved,
       }
     } else {
@@ -124,11 +136,20 @@ export function getAllWorkflowsWithValues() {
         logger.warn(`No saved state found for workflow ${id}`)
         continue
       }
-      workflowState = savedState
+
+      // Use registry deployment status instead of relying on saved state
+      workflowState = {
+        ...savedState,
+        isDeployed: deploymentStatus?.isDeployed || savedState.isDeployed || false,
+        deployedAt: deploymentStatus?.deployedAt || savedState.deployedAt,
+      }
     }
 
     // Merge the subblock values for this specific workflow
     const mergedBlocks = mergeSubblockState(workflowState.blocks, id)
+
+    // Include the API key in the state if it exists in the deployment status
+    const apiKey = deploymentStatus?.apiKey
 
     result[id] = {
       id,
@@ -145,6 +166,8 @@ export function getAllWorkflowsWithValues() {
         isDeployed: workflowState.isDeployed,
         deployedAt: workflowState.deployedAt,
       },
+      // Include API key if available
+      apiKey,
     }
   }
 

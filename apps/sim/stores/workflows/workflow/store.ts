@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
+import { createLogger } from '@/lib/logs/console-logger'
 import { pushHistory, withHistory, WorkflowStoreWithHistory } from '../middleware'
 import { saveWorkflowState } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
@@ -12,13 +13,18 @@ import { mergeSubblockState } from '../utils'
 import { Loop, Position, SubBlockState, SyncControl, WorkflowState } from './types'
 import { detectCycle } from './utils'
 
+const logger = createLogger('WorkflowStore')
+
 const initialState = {
   blocks: {},
   edges: [],
   loops: {},
   lastSaved: undefined,
+  // Legacy deployment fields (keeping for compatibility but they will be deprecated)
   isDeployed: false,
   deployedAt: undefined,
+  // New field for per-workflow deployment tracking
+  deploymentStatuses: {},
   needsRedeployment: false,
   hasActiveSchedule: false,
   hasActiveWebhook: false,
@@ -382,8 +388,10 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             edges: currentState.edges,
             loops: currentState.loops,
             history: currentState.history,
+            // Include both legacy and new deployment status fields
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
+            deploymentStatuses: currentState.deploymentStatuses,
             lastSaved: Date.now(),
           })
 
@@ -683,20 +691,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }))
       },
 
-      setDeploymentStatus: (isDeployed: boolean, deployedAt?: Date) => {
-        const newState = {
-          ...get(),
-          isDeployed,
-          deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
-          needsRedeployment: isDeployed ? false : get().needsRedeployment,
-        }
-
-        set(newState)
-        get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
-      },
-
       setScheduleStatus: (hasActiveSchedule: boolean) => {
         // Only update if the status has changed to avoid unnecessary rerenders
         if (get().hasActiveSchedule !== hasActiveSchedule) {
@@ -721,20 +715,34 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       revertToDeployedState: (deployedState: WorkflowState) => {
+        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+        
+        // Preserving the workflow-specific deployment status if it exists
+        const deploymentStatus = activeWorkflowId 
+          ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(activeWorkflowId)
+          : null;
+        
         const newState = {
           blocks: deployedState.blocks,
           edges: deployedState.edges,
           loops: deployedState.loops,
+          // Legacy fields for backward compatibility
           isDeployed: true,
           needsRedeployment: false,
           hasActiveWebhook: false, // Reset webhook status
+          // Keep existing deployment statuses and update for the active workflow if needed
+          deploymentStatuses: {
+            ...get().deploymentStatuses,
+            ...(activeWorkflowId && deploymentStatus ? {
+              [activeWorkflowId]: deploymentStatus
+            } : {})
+          }
         }
 
         // Update the main workflow state
         set(newState)
 
         // Get the active workflow ID
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (!activeWorkflowId) return
 
         // Initialize subblock store with values from deployed state

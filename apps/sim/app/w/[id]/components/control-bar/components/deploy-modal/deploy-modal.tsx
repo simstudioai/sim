@@ -23,6 +23,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ChatDeploy } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
 import { DeployForm } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deploy-form/deploy-form'
@@ -72,7 +73,11 @@ export function DeployModal({
 }: DeployModalProps) {
   // Store hooks
   const { addNotification } = useNotificationStore()
-  const { isDeployed, setDeploymentStatus } = useWorkflowStore()
+  
+  // Use registry store for deployment-related functions
+  const deploymentStatus = useWorkflowRegistry(state => state.getWorkflowDeploymentStatus(workflowId))
+  const isDeployed = deploymentStatus?.isDeployed || false
+  const setDeploymentStatus = useWorkflowRegistry(state => state.setDeploymentStatus)
 
   // Local state
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -80,7 +85,6 @@ export function DeployModal({
   const [deploymentInfo, setDeploymentInfo] = useState<DeploymentInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
-  const [isCreatingKey, setIsCreatingKey] = useState(false)
   const [keysLoaded, setKeysLoaded] = useState(false)
   const [activeTab, setActiveTab] = useState<TabView>('api')
   const [isChatDeploying, setIsChatDeploying] = useState(false)
@@ -273,10 +277,13 @@ export function DeployModal({
       const { isDeployed: newDeployStatus, deployedAt } = await response.json()
 
       // Update the store with the deployment status
-      setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
+      setDeploymentStatus(workflowId, newDeployStatus, deployedAt ? new Date(deployedAt) : undefined, data.apiKey)
 
       // Reset the needs redeployment flag
       setNeedsRedeployment(false)
+      if (workflowId) {
+        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
+      }
 
       // Update the local deployment info
       const endpoint = `${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
@@ -322,7 +329,7 @@ export function DeployModal({
       }
 
       // Update deployment status in the store
-      setDeploymentStatus(false)
+      setDeploymentStatus(workflowId, false)
 
       // Reset chat deployment info
       setDeployedChatUrl(null)
@@ -366,13 +373,16 @@ export function DeployModal({
         throw new Error(errorData.error || 'Failed to redeploy workflow')
       }
 
-      const { isDeployed: newDeployStatus, deployedAt } = await response.json()
+      const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
 
       // Update deployment status in the store
-      setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
+      setDeploymentStatus(workflowId, newDeployStatus, deployedAt ? new Date(deployedAt) : undefined, apiKey)
 
       // Reset the needs redeployment flag
       setNeedsRedeployment(false)
+      if (workflowId) {
+        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
+      }
 
       // Add a success notification
       addNotification('info', 'Workflow successfully redeployed', workflowId)
@@ -475,10 +485,10 @@ export function DeployModal({
           throw new Error(errorData.error || 'Failed to deploy workflow')
         }
 
-        const { isDeployed: newDeployStatus, deployedAt } = await response.json()
+        const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
 
         // Update the store with the deployment status
-        setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
+        setDeploymentStatus(workflowId, newDeployStatus, deployedAt ? new Date(deployedAt) : undefined, apiKey)
 
         logger.info('Workflow automatically deployed for chat deployment')
       } catch (error: any) {

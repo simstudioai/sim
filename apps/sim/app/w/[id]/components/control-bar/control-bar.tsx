@@ -8,13 +8,11 @@ import {
   Bug,
   ChevronDown,
   Copy,
-  CreditCard,
   History,
   Loader2,
   Play,
   SkipForward,
   StepForward,
-  Store,
   Trash2,
   X,
 } from 'lucide-react'
@@ -45,14 +43,13 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
 } from '../../../hooks/use-keyboard-shortcuts'
+import { useDeploymentChangeDetection } from '../../hooks/use-deployment-change-detection'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
@@ -88,10 +85,15 @@ export function ControlBar() {
     showNotification,
     removeNotification,
   } = useNotificationStore()
-  const { history, revertToHistoryState, lastSaved, isDeployed, setDeploymentStatus } =
-    useWorkflowStore()
-  const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow, duplicateWorkflow } =
-    useWorkflowRegistry()
+  const { history, revertToHistoryState, lastSaved } = useWorkflowStore()
+  const {
+    workflows,
+    updateWorkflow,
+    activeWorkflowId,
+    removeWorkflow,
+    duplicateWorkflow,
+    setDeploymentStatus,
+  } = useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
   const { setActiveTab } = usePanelStore()
 
@@ -111,11 +113,6 @@ export function ControlBar() {
   // Dropdown states
   const [historyOpen, setHistoryOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-
-  // Status states
-  const [isDeploying, setIsDeploying] = useState(false)
-  const [isPublishing, setIsPublishing] = useState(false)
-  const [needsRedeployment, setNeedsRedeployment] = useState(false)
 
   // Marketplace modal state
   const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
@@ -153,9 +150,9 @@ export function ControlBar() {
   )
 
   // Get notifications for current workflow
-  const workflowNotifications = activeWorkflowId
-    ? getWorkflowNotifications(activeWorkflowId)
-    : notifications // Show all if no workflow is active
+  // const workflowNotifications = activeWorkflowId
+  //   ? getWorkflowNotifications(activeWorkflowId)
+  //   : notifications // Show all if no workflow is active
 
   // Get the marketplace data from the workflow registry if available
   const getMarketplaceData = () => {
@@ -169,11 +166,21 @@ export function ControlBar() {
     return !!marketplaceData
   }
 
-  // Check if the current user is the owner of the published workflow
-  const isWorkflowOwner = () => {
-    const marketplaceData = getMarketplaceData()
-    return marketplaceData?.status === 'owner'
-  }
+  // // Check if the current user is the owner of the published workflow
+  // const isWorkflowOwner = () => {
+  //   const marketplaceData = getMarketplaceData()
+  //   return marketplaceData?.status === 'owner'
+  // }
+
+  // Get deployment status from registry
+  const deploymentStatus = useWorkflowRegistry((state) =>
+    state.getWorkflowDeploymentStatus(activeWorkflowId)
+  )
+  const isDeployed = deploymentStatus?.isDeployed || false
+
+  // Custom hook for deployment change detection
+  const { needsRedeployment, setNeedsRedeployment, clearNeedsRedeployment } =
+    useDeploymentChangeDetection(activeWorkflowId, isDeployed)
 
   // Client-side only rendering for the timestamp
   useEffect(() => {
@@ -185,154 +192,6 @@ export function ControlBar() {
     const interval = setInterval(() => forceUpdate({}), 60000)
     return () => clearInterval(interval)
   }, [])
-
-  // Listen for workflow changes and check if redeployment is needed
-  useEffect(() => {
-    if (!activeWorkflowId || !isDeployed) return
-
-    // Create a debounced function to check for changes
-    let debounceTimer: NodeJS.Timeout | null = null
-    let lastCheckTime = 0
-    let pendingChanges = 0
-    const DEBOUNCE_DELAY = 1000
-    const THROTTLE_INTERVAL = 3000
-
-    // Function to check if redeployment is needed
-    const checkForChanges = async () => {
-      // Skip if we're already showing needsRedeployment
-      if (needsRedeployment) return
-
-      // Reset the pending changes counter
-      pendingChanges = 0
-      lastCheckTime = Date.now()
-
-      try {
-        // Get the deployed state from the API
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
-        if (response.ok) {
-          const data = await response.json()
-
-          // If the API says we need redeployment, update our state and the store
-          if (data.needsRedeployment) {
-            setNeedsRedeployment(true)
-            // Also update the store state so other components can access this flag
-            useWorkflowStore.getState().setNeedsRedeploymentFlag(true)
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to check workflow change status:', { error })
-      }
-    }
-
-    // Debounced check function
-    const debouncedCheck = () => {
-      // Increment the pending changes counter
-      pendingChanges++
-
-      // Clear any existing timer
-      if (debounceTimer) {
-        clearTimeout(debounceTimer)
-      }
-
-      // If we recently checked, and it's within throttle interval, wait longer
-      const timeElapsed = Date.now() - lastCheckTime
-      if (timeElapsed < THROTTLE_INTERVAL && lastCheckTime > 0) {
-        // Wait until the throttle interval has passed
-        const adjustedDelay = Math.max(THROTTLE_INTERVAL - timeElapsed, DEBOUNCE_DELAY)
-
-        debounceTimer = setTimeout(() => {
-          // Only check if we have pending changes
-          if (pendingChanges > 0) {
-            checkForChanges()
-          }
-        }, adjustedDelay)
-      } else {
-        // Standard debounce delay if we haven't checked recently
-        debounceTimer = setTimeout(() => {
-          // Only check if we have pending changes
-          if (pendingChanges > 0) {
-            checkForChanges()
-          }
-        }, DEBOUNCE_DELAY)
-      }
-    }
-
-    // Subscribe to workflow store changes
-    const workflowUnsubscribe = useWorkflowStore.subscribe(debouncedCheck)
-
-    // Also subscribe to subblock store changes
-    const subBlockUnsubscribe = useSubBlockStore.subscribe((state) => {
-      // Only check for the active workflow
-      if (!activeWorkflowId || !isDeployed || needsRedeployment) return
-
-      // Only trigger when there is an update to the current workflow's subblocks
-      const workflowSubBlocks = state.workflowValues[activeWorkflowId]
-      if (workflowSubBlocks && Object.keys(workflowSubBlocks).length > 0) {
-        debouncedCheck()
-      }
-    })
-
-    return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer)
-      }
-      workflowUnsubscribe()
-      subBlockUnsubscribe()
-    }
-  }, [activeWorkflowId, isDeployed, needsRedeployment])
-
-  // Check deployment and publication status on mount or when activeWorkflowId changes
-  useEffect(() => {
-    async function checkStatus() {
-      if (!activeWorkflowId) return
-
-      try {
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
-        if (response.ok) {
-          const data = await response.json()
-          // Update the store with the status from the API
-          setDeploymentStatus(
-            data.isDeployed,
-            data.deployedAt ? new Date(data.deployedAt) : undefined
-          )
-          setNeedsRedeployment(data.needsRedeployment)
-          useWorkflowStore.getState().setNeedsRedeploymentFlag(data.needsRedeployment)
-        }
-      } catch (error) {
-        logger.error('Failed to check workflow status:', { error })
-      }
-    }
-    checkStatus()
-  }, [activeWorkflowId, setDeploymentStatus])
-
-  // Listen for deployment status changes
-  useEffect(() => {
-    // When deployment status changes and isDeployed becomes true,
-    // that means a deployment just occurred, so reset the needsRedeployment flag
-    if (isDeployed) {
-      setNeedsRedeployment(false)
-      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
-    }
-  }, [isDeployed])
-
-  // Add a listener for the needsRedeployment flag in the workflow store
-  useEffect(() => {
-    const unsubscribe = useWorkflowStore.subscribe((state) => {
-      // Update local state when the store flag changes
-      if (state.needsRedeployment !== undefined) {
-        setNeedsRedeployment(state.needsRedeployment)
-      }
-    })
-
-    return () => unsubscribe()
-  }, [])
-
-  // Add a manual method to update the deployment status and clear the needsRedeployment flag
-  const updateDeploymentStatusAndClearFlag = (isDeployed: boolean, deployedAt?: Date) => {
-    setDeploymentStatus(isDeployed, deployedAt)
-    setNeedsRedeployment(false)
-    useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
-  }
 
   // Update existing API notifications when needsRedeployment changes
   useEffect(() => {
@@ -450,22 +309,22 @@ export function ControlBar() {
     removeWorkflow(activeWorkflowId)
   }
 
-  /**
-   * Handle opening marketplace modal or showing published status
-   */
-  const handlePublishWorkflow = async () => {
-    if (!activeWorkflowId) return
+  // /**
+  //  * Handle opening marketplace modal or showing published status
+  //  */
+  // const handlePublishWorkflow = async () => {
+  //   if (!activeWorkflowId) return
 
-    // If already published, show marketplace modal with info instead of notifications
-    const isPublished = isPublishedToMarketplace()
-    if (isPublished) {
-      setIsMarketplaceModalOpen(true)
-      return
-    }
+  //   // If already published, show marketplace modal with info instead of notifications
+  //   const isPublished = isPublishedToMarketplace()
+  //   if (isPublished) {
+  //     setIsMarketplaceModalOpen(true)
+  //     return
+  //   }
 
-    // If not published, open the modal to start the publishing process
-    setIsMarketplaceModalOpen(true)
-  }
+  //   // If not published, open the modal to start the publishing process
+  //   setIsMarketplaceModalOpen(true)
+  // }
 
   /**
    * Handle multiple workflow runs
@@ -740,7 +599,6 @@ export function ControlBar() {
    * Render notifications dropdown
    */
   const renderNotificationsDropdown = () => {
-    // Ensure we're only showing notifications for the current workflow
     const currentWorkflowNotifications = activeWorkflowId
       ? notifications.filter((n) => n.workflowId === activeWorkflowId)
       : []
@@ -845,7 +703,6 @@ export function ControlBar() {
    * Render debug mode controls
    */
   const renderDebugControls = () => {
-    // Display debug controls only when in debug mode and actively debugging
     if (!isDebugModeEnabled || !isDebugging) return null
 
     const pendingCount = pendingBlocks.length
@@ -908,9 +765,7 @@ export function ControlBar() {
    */
   const renderDebugModeToggle = () => {
     const handleToggleDebugMode = () => {
-      // If turning off debug mode, make sure to clean up any debug state
       if (isDebugModeEnabled) {
-        // Only clean up if we're not actively executing
         if (!isExecuting) {
           useExecutionStore.getState().setIsDebugging(false)
           useExecutionStore.getState().setPendingBlocks([])
@@ -942,7 +797,6 @@ export function ControlBar() {
 
   // Helper function to open subscription settings
   const openSubscriptionSettings = () => {
-    // Dispatch custom event to open settings modal with subscription tab
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('open-settings', {
