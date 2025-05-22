@@ -210,10 +210,6 @@ export function useSubBlockValue<T = any>(
       };
       valueRef.current = directValue as T || null;
       
-      logger.info(`[PREVIEW-DIRECT] Using direct value for ${blockId}:${subBlockId}`, {
-        directValue,
-        isPreview
-      });
     } else if (!isPreview && previewDataRef.current.isInPreview) {
       // Reset preview flag when isPreview prop changes to false
       previewDataRef.current.isInPreview = false;
