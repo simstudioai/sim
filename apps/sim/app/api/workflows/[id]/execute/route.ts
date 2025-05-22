@@ -102,7 +102,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     // Use the same execution flow as in scheduled executions
     const mergedStates = mergeSubblockState(blocks)
 
-    // Retrieve environment variables for this user
+    // Fetch the user's environment variables (if any)
     const [userEnv] = await db
       .select()
       .from(environment)
@@ -110,12 +110,13 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       .limit(1)
 
     if (!userEnv) {
-      logger.error(`[${requestId}] No environment variables found for user: ${workflow.userId}`)
-      throw new Error('No environment variables found for this user')
+      logger.debug(
+        `[${requestId}] No environment record found for user ${workflow.userId}. Proceeding with empty variables.`
+      )
     }
 
-    // Parse and validate environment variables
-    const variables = EnvVarsSchema.parse(userEnv.variables)
+    // Parse and validate environment variables.
+    const variables = EnvVarsSchema.parse(userEnv?.variables ?? {})
 
     // Replace environment variables in the block states
     const currentBlockStates = await Object.entries(mergedStates).reduce(

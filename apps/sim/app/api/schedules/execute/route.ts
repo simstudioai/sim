@@ -155,6 +155,7 @@ export async function GET(req: NextRequest) {
 
         const mergedStates = mergeSubblockState(blocks)
 
+        // Retrieve environment variables for this user (if any).
         const [userEnv] = await db
           .select()
           .from(environment)
@@ -162,13 +163,12 @@ export async function GET(req: NextRequest) {
           .limit(1)
 
         if (!userEnv) {
-          logger.error(
-            `[${requestId}] No environment variables found for user ${workflowRecord.userId}`
+          logger.debug(
+            `[${requestId}] No environment record found for user ${workflowRecord.userId}. Proceeding with empty variables.`
           )
-          throw new Error('No environment variables found for this user')
         }
 
-        const variables = EnvVarsSchema.parse(userEnv.variables)
+        const variables = EnvVarsSchema.parse(userEnv?.variables ?? {})
 
         const currentBlockStates = await Object.entries(mergedStates).reduce(
           async (accPromise, [id, block]) => {
