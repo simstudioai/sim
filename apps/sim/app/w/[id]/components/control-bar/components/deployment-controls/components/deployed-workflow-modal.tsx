@@ -31,6 +31,7 @@ const logger = createLogger('DeployedWorkflowModal')
 interface DeployedWorkflowModalProps {
   isOpen: boolean
   onClose: () => void
+  needsRedeployment: boolean
   deployedWorkflowState: {
     blocks: Record<string, any>
     edges: Array<any>
@@ -48,6 +49,7 @@ interface DeployedWorkflowModalProps {
 export function DeployedWorkflowModal({
   isOpen,
   onClose,
+  needsRedeployment,
   deployedWorkflowState,
 }: DeployedWorkflowModalProps) {
   const [showRevertDialog, setShowRevertDialog] = useState(false)
@@ -63,6 +65,7 @@ export function DeployedWorkflowModal({
   const initialDeployedStateRef = useRef<any>(null);
   
   useEffect(() => {
+    console.log('needsRedeployment', needsRedeployment)
     if (isOpen) {
       modalOpenCount.current += 1;
       
@@ -199,32 +202,34 @@ export function DeployedWorkflowModal({
           />
         )}
 
-        <div className='mt-6 flex justify-between'>
-          <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
-            <AlertDialogTrigger asChild>
-              <Button variant='destructive'>Revert to Deployed</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent style={{ zIndex: 1001 }} className='sm:max-w-[425px]'>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Revert to Deployed Version?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will replace your current workflow with the deployed version. Any unsaved
-                  changes will be lost. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleRevert}
-                  className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                >
-                  Revert
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+        <div className="flex justify-between mt-6">
+          {needsRedeployment && (
+            <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">Revert to Deployed</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent style={{ zIndex: 1001 }} className="sm:max-w-[425px]">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Revert to Deployed Version?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will replace your current workflow with the deployed version. Any unsaved
+                    changes will be lost. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleRevert}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Revert
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
 
-          <Button variant='outline' onClick={onClose}>
+          <Button variant="outline" onClick={onClose} className="ml-auto">
             Close
           </Button>
         </div>
