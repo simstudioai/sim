@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { env } from '@/lib/env'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { ConfluenceFileInfo, ConfluenceFileSelector } from './components/confluence-file-selector'
