@@ -1,9 +1,9 @@
 import { AgentIcon } from "@/components/icons"
 import { isHosted } from "@/lib/environment"
 import { createLogger } from "@/lib/logs/console-logger"
-import { useOllamaStore } from "@/stores/ollama/store"
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from "@/providers/model-capabilities"
 import { getAllModelProviders, getBaseModelProviders } from "@/providers/utils"
+import { useOllamaStore } from "@/stores/ollama/store"
 import type { ToolResponse } from "@/tools/types"
 import type { BlockConfig } from "../types"
 
@@ -140,8 +140,10 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
               "o4-mini",
               "gpt-4.1",
               // Claude models
-              "claude-3-5-sonnet-20240620",
+              "claude-sonnet-4-20250514",
+              "claude-opus-4-20250514",
               "claude-3-7-sonnet-20250219",
+              "claude-3-5-sonnet-20240620",
             ],
             not: true, // Show for all models EXCEPT those listed
           }
@@ -216,14 +218,18 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
             .map((tool: any) => tool.title)
 
           if (filteredOutTools.length > 0) {
-            logger.info("Filtered out tools set to none", { tools: filteredOutTools.join(", ") })
+            logger.info("Filtered out tools set to none", {
+              tools: filteredOutTools.join(", "),
+            })
           }
 
           logger.info("Transformed tools", { tools: transformedTools })
           if (transformedTools.length === 0) {
             logger.info("No tools will be passed to the provider after filtering")
           } else {
-            logger.info("Tools passed to provider", { count: transformedTools.length })
+            logger.info("Tools passed to provider", {
+              count: transformedTools.length,
+            })
           }
 
           return { ...params, tools: transformedTools }

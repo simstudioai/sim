@@ -1,7 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk"
-import { createLogger } from "@/lib/logs/console-logger"
 import type { StreamingExecution } from "@/executor/types"
+import { createLogger } from "@/lib/logs/console-logger"
 import { executeTool } from "@/tools"
+import Anthropic from "@anthropic-ai/sdk"
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from "../utils"
 
@@ -36,8 +36,13 @@ export const anthropicProvider: ProviderConfig = {
   name: "Anthropic",
   description: "Anthropic's Claude models",
   version: "1.0.0",
-  models: ["claude-3-5-sonnet-20240620", "claude-3-7-sonnet-20250219"],
-  defaultModel: "claude-3-7-sonnet-20250219",
+  models: [
+    "claude-sonnet-4-20250514",
+    "claude-opus-4-20250514",
+    "claude-3-7-sonnet-20250219",
+    "claude-3-5-sonnet-20240620",
+  ],
+  defaultModel: "claude-sonnet-4-20250514",
 
   executeRequest: async (
     request: ProviderRequest
