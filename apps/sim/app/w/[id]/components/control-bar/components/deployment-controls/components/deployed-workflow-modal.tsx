@@ -53,30 +53,17 @@ export function DeployedWorkflowModal({
   deployedWorkflowState,
 }: DeployedWorkflowModalProps) {
   const [showRevertDialog, setShowRevertDialog] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const { revertToDeployedState } = useWorkflowStore()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   
   // Add instance ID to track component lifecycle
-  const instanceId = useRef(Date.now());
   const modalOpenCount = useRef(0);
-  
-  // Keep track of the original deployed state when modal opens
-  const initialDeployedStateRef = useRef<any>(null);
   
   useEffect(() => {
     if (isOpen) {
       modalOpenCount.current += 1;
-      
-      // Store the initial deployed state when modal first opens
-      if (!initialDeployedStateRef.current) {
-        initialDeployedStateRef.current = deployedWorkflowState;
-      }
-    } else if (initialDeployedStateRef.current) {
-      // Reset the initial state reference when modal closes
-      initialDeployedStateRef.current = null;
     }
-  }, [isOpen, deployedWorkflowState, activeWorkflowId]);
+  }, [isOpen]);
 
   // Get current workflow state to compare with deployed state
   const currentWorkflowState = useWorkflowStore((state) => ({
@@ -96,7 +83,7 @@ export function DeployedWorkflowModal({
           .filter(([_, block]) => block && block.type)
           .map(([id, block]) => {
             // Deep clone the block to avoid any reference sharing
-            return [id, JSON.parse(JSON.stringify(block))];
+            return [id, structuredClone(block)];
           })
       ),
       edges: currentWorkflowState.edges ? [...currentWorkflowState.edges] : [],
@@ -154,7 +141,7 @@ export function DeployedWorkflowModal({
           .filter(([_, block]) => block && block.type)
           .map(([id, block]) => {
             // Deep clone the block to avoid any reference sharing
-            return [id, JSON.parse(JSON.stringify(block))];
+            return [id, structuredClone(block)];
           })
       ),
       edges: deployedWorkflowState.edges ? [...deployedWorkflowState.edges] : [],
@@ -189,17 +176,10 @@ export function DeployedWorkflowModal({
             <DialogTitle>Deployed Workflow</DialogTitle>
           </DialogHeader>
         </div>
-
-        {isLoading ? (
-          <div className="flex justify-center items-center h-[500px]">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        ) : (
-          <DeployedWorkflowCard
-            currentWorkflowState={sanitizedCurrentState}
-            deployedWorkflowState={sanitizedDeployedState}
-          />
-        )}
+        <DeployedWorkflowCard
+          currentWorkflowState={sanitizedCurrentState}
+          deployedWorkflowState={sanitizedDeployedState}
+        />
 
         <div className="flex justify-between mt-6">
           {needsRedeployment && (

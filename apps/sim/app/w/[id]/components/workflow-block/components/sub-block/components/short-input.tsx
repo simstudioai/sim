@@ -37,12 +37,21 @@ export function ShortInput({
   const [isFocused, setIsFocused] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
+  const validatePropValue = (value: any): string => {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'string') return value;
+    try {
+      return String(value);
+    } catch {
+      return '';
+    }
+  }
   const [storeValue, setStoreValue] = useSubBlockValue(
     blockId, 
     subBlockId, 
     false, // No workflow update needed
     isPreview, 
-    propValue
+    validatePropValue(propValue)
   )
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)

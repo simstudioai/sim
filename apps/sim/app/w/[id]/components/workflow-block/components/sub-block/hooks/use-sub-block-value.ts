@@ -237,7 +237,7 @@ export function useSubBlockValue<T = any>(
       // Otherwise use the store value or initial value
       valueRef.current = storeValue !== undefined ? storeValue : initialValue;
     }
-  }, [storeValue, initialValue])
+  }, [storeValue, initialValue, isPreview])
 
   // Update the ref if the store value changes
   // This ensures we're always working with the latest value

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useEffect } from 'react'
+import { useMemo } from 'react'
 import { cloneDeep } from 'lodash'
 import ReactFlow, {
   Background,
@@ -78,6 +78,22 @@ export function WorkflowPreview({
   defaultPosition,
   defaultZoom,
 }: WorkflowPreviewProps) {
+  // Track structure changes efficiently
+  const blocksStructure = useMemo(() => ({
+    count: Object.keys(workflowState.blocks || {}).length,
+    ids: Object.keys(workflowState.blocks || {}).join(',')
+  }), [workflowState.blocks]);
+  
+  const loopsStructure = useMemo(() => ({
+    count: Object.keys(workflowState.loops || {}).length,
+    ids: Object.keys(workflowState.loops || {}).join(',')
+  }), [workflowState.loops]);
+  
+  const edgesStructure = useMemo(() => ({
+    count: workflowState.edges.length,
+    ids: workflowState.edges.map(e => e.id).join(',')
+  }), [workflowState.edges]);
+
   // Transform blocks and loops into ReactFlow nodes
   const nodes: Node[] = useMemo(() => {
     const nodeArray: Node[] = []
@@ -167,8 +183,9 @@ export function WorkflowPreview({
       });
     })
     
+    
     return nodeArray
-  }, [JSON.stringify(workflowState.blocks), JSON.stringify(workflowState.loops), showSubBlocks])
+  }, [blocksStructure, loopsStructure, showSubBlocks, workflowState.blocks, workflowState.loops])
 
   // Transform edges
   const edges: Edge[] = useMemo(() => {
@@ -180,7 +197,7 @@ export function WorkflowPreview({
       targetHandle: edge.targetHandle,
       type: 'workflowEdge',
     }))
-  }, [JSON.stringify(workflowState.edges)])
+  }, [edgesStructure, workflowState.edges])
 
   return (
     <ReactFlowProvider>
