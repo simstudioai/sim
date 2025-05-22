@@ -136,6 +136,10 @@ export function TeamsMessageSelector({
     setError(null)
 
     try {
+      // Get the workflowId from the URL
+      const urlParts = window.location.pathname.split('/')
+      const workflowId = urlParts[2] // Assuming path is /w/[id]/...
+
       const response = await fetch('/api/auth/oauth/microsoft-teams/teams', {
         method: 'POST',
         headers: {
@@ -143,6 +147,7 @@ export function TeamsMessageSelector({
         },
         body: JSON.stringify({
           credential: selectedCredentialId,
+          workflowId: workflowId, // Pass the workflowId for server-side authentication
         }),
       })
 
@@ -189,6 +194,10 @@ export function TeamsMessageSelector({
       setError(null)
 
       try {
+        // Get the workflowId from the URL
+        const urlParts = window.location.pathname.split('/')
+        const workflowId = urlParts[2] // Assuming path is /w/[id]/...
+
         const response = await fetch('/api/auth/oauth/microsoft-teams/channels', {
           method: 'POST',
           headers: {
@@ -197,6 +206,7 @@ export function TeamsMessageSelector({
           body: JSON.stringify({
             credential: selectedCredentialId,
             teamId,
+            workflowId: workflowId, // Pass the workflowId for server-side authentication
           }),
         })
 
@@ -245,28 +255,9 @@ export function TeamsMessageSelector({
     setError(null)
 
     try {
-      // Get the access token from the selected credential
-      const tokenResponse = await fetch('/api/auth/oauth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          credentialId: selectedCredentialId,
-        }),
-      })
-
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json()
-        throw new Error(errorData.error || 'Failed to get access token')
-      }
-
-      const tokenData = await tokenResponse.json()
-      const accessToken = tokenData.accessToken
-
-      if (!accessToken) {
-        throw new Error('No access token received')
-      }
+      // Get the workflowId from the URL
+      const urlParts = window.location.pathname.split('/')
+      const workflowId = urlParts[2] // Assuming path is /w/[id]/...
 
       const response = await fetch('/api/auth/oauth/microsoft-teams/chats', {
         method: 'POST',
@@ -275,7 +266,7 @@ export function TeamsMessageSelector({
         },
         body: JSON.stringify({
           credential: selectedCredentialId,
-          accessToken: accessToken,
+          workflowId: workflowId, // Pass the workflowId for server-side authentication
         }),
       })
 
@@ -317,19 +308,11 @@ export function TeamsMessageSelector({
   useEffect(() => {
     if (!initialFetchRef.current && selectedCredentialId) {
       fetchCredentials();
-      
-      // Initialize with the correct data based on selection type
-      if (selectionType === 'chat') {
-        fetchChats();
-      } else if (selectionType === 'channel' && selectedTeamId) {
-        fetchChannels(selectedTeamId);
-      } else if (selectionType === 'team') {
-        fetchTeams();
-      }
-      
+      // Only mark initialization as complete, but don't fetch data yet
+      // Data will be fetched when the dropdown is opened
       initialFetchRef.current = true;
     }
-  }, [fetchCredentials, fetchTeams, fetchChannels, fetchChats, selectionType, selectedCredentialId, selectedTeamId]);
+  }, [fetchCredentials, selectedCredentialId]);
 
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {

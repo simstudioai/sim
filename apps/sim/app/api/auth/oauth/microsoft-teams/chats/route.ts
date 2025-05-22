@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getBaseUrl } from '@/lib/urls/utils'
+import { refreshAccessTokenIfNeeded } from '../../utils'
+import { getSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('teams-chats')
-
-interface Chat {
-  id: string
-  displayName: string
-}
 
 // Helper function to format chat names
 const formatChatName = (chat: any): string => {
@@ -18,8 +16,9 @@ const formatChatName = (chat: any): string => {
 }
 
 export async function POST(request: Request) {
-  console.log('POST request received at /api/auth/oauth/microsoft-teams/chats')
+  logger.info('POST request received at /api/auth/oauth/microsoft-teams/chats')
   try {
+    const session = await getSession()
     const body = await request.json()
     logger.info('Request body parsed', { body })
     
@@ -33,28 +32,10 @@ export async function POST(request: Request) {
     logger.info('Credential found, attempting to fetch token', { credentialId: credential })
 
     try {
-      // Step 1: Get access token
-      const tokenResponse = body.tokenResponse
-      
-      logger.info('Token response status', { status: tokenResponse.status })
-      
-      if (!tokenResponse.ok) {
-        const errorData = await tokenResponse.json()
-        logger.error('Failed to get access token', { status: tokenResponse.status, error: errorData })
-        throw new Error(errorData.error || 'Failed to get access token')
-      }
+      const accessToken = await refreshAccessTokenIfNeeded(credential, session?.user?.id || '', body.workflowId)
 
-      const tokenData = await tokenResponse.json()
-      logger.info('Successfully retrieved token')
-      const accessToken = tokenData.accessToken
-
-      if (!accessToken) {
-        logger.error('Access token is missing in the response', { tokenData })
-        throw new Error('Access token is missing in the response')
-      }
-
-      // Step 2: Call Microsoft Graph API
       logger.info('Calling Microsoft Graph API to fetch chats')
+      logger.info('Access token', { accessToken })
       const response = await fetch('https://graph.microsoft.com/v1.0/me/chats', {
         method: 'GET',
         headers: {

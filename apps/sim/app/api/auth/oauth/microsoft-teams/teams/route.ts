@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getBaseUrl } from '@/lib/urls/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,8 +23,8 @@ export async function POST(request: Request) {
     // For now, we'll return some mock data
     logger.info('Fetching teams with credential')
 
-    
-    const tokenResponse = await fetch('/api/auth/oauth/token', {
+    const baseUrl = getBaseUrl()
+    const tokenResponse = await fetch(`${baseUrl}/api/auth/oauth/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
