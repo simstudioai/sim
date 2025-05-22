@@ -48,22 +48,12 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
 
           // Verify the active workflow hasn't changed while fetching
           if (requestedWorkflowId !== activeWorkflowId) {
-            logger.debug(
-              `Ignoring changes response for ${requestedWorkflowId} - no longer the active workflow`
-            )
             return
           }
-
-          logger.debug(
-            `API needsRedeployment response for workflow ${requestedWorkflowId}: ${data.needsRedeployment}`
-          )
 
           // Always update the needsRedeployment flag based on API response to handle both true and false
           // This ensures it's updated when changes are detected and when changes are no longer detected
           if (data.needsRedeployment) {
-            logger.info(
-              `Setting needsRedeployment flag to TRUE for workflow ${requestedWorkflowId}`
-            )
 
             // Update local state
             setNeedsRedeployment(true)
@@ -76,9 +66,6 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
               .getState()
               .getWorkflowDeploymentStatus(requestedWorkflowId)
             if (currentStatus?.needsRedeployment) {
-              logger.info(
-                `Setting needsRedeployment flag to FALSE for workflow ${requestedWorkflowId}`
-              )
 
               // Update local state
               setNeedsRedeployment(false)
@@ -153,33 +140,9 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
       }
     })
 
-    // Set up a periodic check when needsRedeployment is true to ensure it gets set back to false
-    // when changes are reverted
-    let periodicCheckTimer: NodeJS.Timeout | null = null
-
-    if (needsRedeployment) {
-      // Check every 5 seconds when needsRedeployment is true to catch reverted changes
-      const PERIODIC_CHECK_INTERVAL = 5000 // 5 seconds
-
-      periodicCheckTimer = setInterval(() => {
-        // Only perform the check if this is still the active workflow
-        if (effectWorkflowId === activeWorkflowId) {
-          checkForChanges()
-        } else {
-          // Clear the interval if the workflow has changed
-          if (periodicCheckTimer) {
-            clearInterval(periodicCheckTimer)
-          }
-        }
-      }, PERIODIC_CHECK_INTERVAL)
-    }
-
     return () => {
       if (debounceTimer) {
         clearTimeout(debounceTimer)
-      }
-      if (periodicCheckTimer) {
-        clearInterval(periodicCheckTimer)
       }
       workflowUnsubscribe()
       subBlockUnsubscribe()

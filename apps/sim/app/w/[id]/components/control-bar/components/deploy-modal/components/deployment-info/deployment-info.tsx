@@ -163,6 +163,7 @@ export function DeploymentInfo({
         <DeployedWorkflowModal
           isOpen={isViewingDeployed}
           onClose={() => setIsViewingDeployed(false)}
+          needsRedeployment={deploymentInfo.needsRedeployment}
           deployedWorkflowState={deployedState}
         />
       )}
