@@ -28,6 +28,9 @@ describe('supportsTemperature', () => {
     const supportedModels = [
       'gpt-4o',
       'gemini-2.5-flash-preview-04-17',
+      'claude-sonnet-4-20250514',
+      'claude-opus-4-20250514',
+      'claude-3-7-sonnet-20250219',
       'claude-3-5-sonnet-20240620',
       `grok-3-latest`,
       `grok-3-fast-latest`,
@@ -58,8 +61,10 @@ describe('getMaxTemperature', () => {
 
   it('should return 1 for models with temperature range 0-1', () => {
     const models = [
-      'claude-3-5-sonnet-20240620',
+      'claude-sonnet-4-20250514',
+      'claude-opus-4-20250514',
       'claude-3-7-sonnet-20250219',
+      'claude-3-5-sonnet-20240620',
       'grok-3-latest',
       'grok-3-fast-latest',
     ]

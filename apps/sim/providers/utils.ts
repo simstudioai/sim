@@ -34,7 +34,12 @@ export const providers: Record<
   },
   anthropic: {
     ...anthropicProvider,
-    models: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
+    models: [
+      'claude-sonnet-4-20250514',
+      'claude-opus-4-20250514',
+      'claude-3-7-sonnet-20250219',
+      'claude-3-5-sonnet-20240620',
+    ],
     computerUseModels: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
     modelPatterns: [/^claude/],
   },

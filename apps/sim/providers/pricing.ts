@@ -52,6 +52,18 @@ const modelPricing: ModelPricingMap = {
     output: 15.0,
     updatedAt: '2025-03-21',
   },
+  'claude-sonnet-4-20250514': {
+    input: 3.0,
+    cachedInput: 1.5,
+    output: 15.0,
+    updatedAt: '2025-05-22',
+  },
+  'claude-opus-4-20250514': {
+    input: 15.0,
+    cachedInput: 7.5,
+    output: 75.0,
+    updatedAt: '2025-05-22',
+  },
 
   // Google Models
   'gemini-2.5-pro-exp-03-25': {

@@ -140,8 +140,10 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
               'o4-mini',
               'gpt-4.1',
               // Claude models
-              'claude-3-5-sonnet-20240620',
+              'claude-sonnet-4-20250514',
+              'claude-opus-4-20250514',
               'claude-3-7-sonnet-20250219',
+              'claude-3-5-sonnet-20240620',
             ],
             not: true, // Show for all models EXCEPT those listed
           }
@@ -237,10 +239,11 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     context: { type: 'string', required: false },
     model: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },
-    messages: { 
-      type: 'json', 
+    messages: {
+      type: 'json',
       required: false,
-      description: 'Array of message objects with role and content fields for advanced chat history control.'
+      description:
+        'Array of message objects with role and content fields for advanced chat history control.',
     },
     responseFormat: {
       type: 'json',
