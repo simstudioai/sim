@@ -93,24 +93,16 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [starCount, setStarCount] = useState('3.4k')
   const [conversationId, setConversationId] = useState('')
 
-  // New ref to track the latest user message ID for scrolling
+  // Track the latest user message ID for scrolling
   const latestUserMessageIdRef = useRef<string | null>(null)
 
-  // Add AbortController ref to stop streaming
+  // AbortController ref to stop streaming
   const abortControllerRef = useRef<AbortController | null>(null)
 
-  // New state for container scroll behavior
-  const [scrollBehavior, setScrollBehavior] = useState<'smooth' | 'auto'>('smooth')
-
-  // New ref to track if we're currently locking the scroll position to a specific message
-  const scrollLockRef = useRef<boolean>(false)
-  const scrollLockTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Spacer element height. We inflate it **only** right after a user message is
-  // inserted so that the new message can scroll to the very top of the
-  // viewport. As soon as the assistant response finishes (or an error occurs),
-  // we reset it to 0 so there is no lingering blank space.
-  const [bottomSpacerHeight, setBottomSpacerHeight] = useState(0)
+  // Scroll and streaming state
+  const [isStreamingResponse, setIsStreamingResponse] = useState(false)
+  const [showScrollButton, setShowScrollButton] = useState(false)
+  const [hasScrolled, setHasScrolled] = useState(false)
 
   // Authentication state
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
@@ -125,46 +117,31 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
 
-  // Scroll and streaming state
-  const [isStreamingResponse, setIsStreamingResponse] = useState(false)
-  const [showScrollButton, setShowScrollButton] = useState(false)
-  const [hasScrolled, setHasScrolled] = useState(false)
-
-  // Function to enable scroll lock for a specific duration
-  const enableScrollLock = (durationMs = 1500) => {
-    scrollLockRef.current = true
-
-    // Clear any existing timeout
-    if (scrollLockTimeoutRef.current) {
-      clearTimeout(scrollLockTimeoutRef.current)
+  // Simple function to scroll to the bottom of the chat
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-
-    // Set a timeout to disable the lock after duration
-    scrollLockTimeoutRef.current = setTimeout(() => {
-      scrollLockRef.current = false
-      scrollLockTimeoutRef.current = null
-      console.log('Scroll lock released')
-    }, durationMs)
-
-    console.log('Scroll lock enabled for', durationMs, 'ms')
   }
 
-  // Function to scroll to the bottom of the chat
-  const scrollToBottom = () => {
-    // Skip if scroll lock is active - don't interfere with message pinning
-    if (scrollLockRef.current) {
-      console.log('Scroll to bottom blocked by scroll lock')
-      return
-    }
-
-    if (messagesEndRef.current && messagesContainerRef.current) {
-      // Set behavior to auto for more reliable positioning
-      setScrollBehavior('auto')
-
-      // Use scrollIntoView with block: 'end' to scroll to the bottom
-      messagesEndRef.current.scrollIntoView({
-        behavior: 'auto',
-        block: 'end',
+  // Function to position a message at the top of the viewport
+  const scrollMessageToTop = (messageId: string) => {
+    if (!messagesContainerRef.current) return
+    
+    const messageElement = messagesContainerRef.current.querySelector(
+      `[data-message-id="${messageId}"]`
+    ) as HTMLElement | null
+    
+    if (messageElement) {
+      // Calculate position to align message with top of viewport
+      const containerTop = messagesContainerRef.current.getBoundingClientRect().top
+      const messageTop = messageElement.getBoundingClientRect().top
+      const scrollOffset = messageTop - containerTop - 20 // Small offset for visual padding
+      
+      // Apply scroll
+      messagesContainerRef.current.scrollBy({
+        top: scrollOffset,
+        behavior: 'auto'
       })
     }
   }
@@ -175,148 +152,36 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     if (!container) return
 
     const handleScroll = () => {
-      // Skip scroll handling if scroll lock is active
-      if (scrollLockRef.current) {
-        return
-      }
-
       // Get scroll metrics
       const { scrollTop, scrollHeight, clientHeight } = container
 
-      // Calculate scroll position - are we near the bottom?
+      // Calculate distance from bottom
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-      const isNearBottom = distanceFromBottom < 100
-
+      
       // Show button if not at the bottom (with some tolerance)
-      setShowScrollButton(!isNearBottom)
+      setShowScrollButton(distanceFromBottom > 100)
 
-      // Track if user has ever scrolled
+      // Track if user has scrolled
       if (!hasScrolled && scrollTop > 0) {
         setHasScrolled(true)
       }
     }
 
     container.addEventListener('scroll', handleScroll, { passive: true })
-
+    
     // Initial check
     handleScroll()
 
-    // Also recheck when messages change or streaming state changes
-    // This ensures button appears properly after new content is added
-    if (messages.length > 0 && !scrollLockRef.current) {
-      handleScroll()
-    }
-
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [hasScrolled, messages, isStreamingResponse])
+  }, [hasScrolled, messages.length])
 
-  // SIMPLIFIED APPROACH: Position viewport to show only current conversation
-  const showCurrentConversation = () => {
-    // Only proceed if we have messages and container
-    if (!messagesContainerRef.current || messages.length === 0) return
-
-    // Find the last user message
-    const lastUserMessageIndex = [...messages].reverse().findIndex((msg) => msg.type === 'user')
-    if (lastUserMessageIndex === -1) return
-
-    // Convert to actual index
-    const userMessageIndex = messages.length - 1 - lastUserMessageIndex
-
-    // Find all messages after this user message (the current conversation)
-    const currentConversationStartIndex = userMessageIndex
-
-    // If we found the starting point of current conversation
-    if (currentConversationStartIndex >= 0) {
-      // Enable scroll lock to prevent other scroll operations
-      enableScrollLock(1500)
-
-      const userMessageId = messages[currentConversationStartIndex].id
-      const userMessageElement = messagesContainerRef.current.querySelector(
-        `[data-message-id="${userMessageId}"]`
-      ) as HTMLElement | null
-
-      if (userMessageElement) {
-        // Force scroll to this element
-        messagesContainerRef.current.scrollTo({
-          top: userMessageElement.offsetTop,
-          behavior: 'auto', // Use auto for more reliable positioning
-        })
-        console.log('Forced scroll to current conversation:', userMessageId)
-      }
-    }
-  }
-
-  // Call this function whenever messages change or streaming stops
+  // Scroll to bottom when new messages are added, unless user has scrolled up
   useEffect(() => {
-    if (messages.length > 0) {
-      // If streaming just completed, show current conversation
-      if (!isStreamingResponse && !isLoading) {
-        // More aggressive approach: maintain scroll position for a short period
-        // This ensures it doesn't get overridden by other effects
-        const maintainScrollPosition = () => {
-          showCurrentConversation()
-        }
-
-        // Initial scroll
-        maintainScrollPosition()
-
-        // Set up an interval to maintain scroll position for 1 second
-        // This ensures that any competing effects don't override our scroll
-        const intervalId = setInterval(maintainScrollPosition, 100)
-
-        // Clean up after 1 second
-        const timeoutId = setTimeout(() => {
-          clearInterval(intervalId)
-        }, 1000)
-
-        return () => {
-          clearInterval(intervalId)
-          clearTimeout(timeoutId)
-        }
-      }
+    // Auto scroll to bottom on new messages, but only if user hasn't scrolled up
+    if (messages.length > 0 && !hasScrolled) {
+      scrollToBottom()
     }
-  }, [messages, isStreamingResponse, isLoading])
-
-  // When a new user message is added, scroll to it immediately and repeatedly
-  useEffect(() => {
-    if (messages.length > 0 && latestUserMessageIdRef.current) {
-      const messageId = latestUserMessageIdRef.current
-      const container = messagesContainerRef.current
-
-      if (container) {
-        const messageElement = container.querySelector(
-          `[data-message-id="${messageId}"]`
-        ) as HTMLElement | null
-
-        if (messageElement) {
-          // Function to scroll to the element
-          const scrollToElement = () => {
-            container.scrollTo({
-              top: messageElement.offsetTop,
-              behavior: 'auto',
-            })
-          }
-
-          // Immediate scroll
-          scrollToElement()
-
-          // Set up interval to maintain position for 500ms
-          const intervalId = setInterval(scrollToElement, 50)
-
-          // Clear after 500ms
-          const timeoutId = setTimeout(() => {
-            clearInterval(intervalId)
-            latestUserMessageIdRef.current = null
-          }, 500)
-
-          return () => {
-            clearInterval(intervalId)
-            clearTimeout(timeoutId)
-          }
-        }
-      }
-    }
-  }, [messages])
+  }, [messages.length, hasScrolled])
 
   // Fetch chat config function
   const fetchChatConfig = async () => {
@@ -583,15 +448,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     setHasScrolled(false)
     setShowScrollButton(false)
 
-    // Set scroll behavior to auto for immediate positioning
-    setScrollBehavior('auto')
-
-    // Inflate bottom spacer just for this scroll-to-top operation
-    if (messagesContainerRef.current) {
-      setBottomSpacerHeight(messagesContainerRef.current.clientHeight)
-    }
-
-    // ChatInput manages its own focus
+    // Wait for DOM update then position the user message at the top of viewport
+    setTimeout(() => {
+      if (latestUserMessageIdRef.current) {
+        scrollMessageToTop(latestUserMessageIdRef.current)
+      }
+    }, 10)
 
     try {
       // Send structured payload to maintain chat context
@@ -629,9 +491,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         // Set streaming state before adding the assistant message
         setIsStreamingResponse(true)
 
-        // Keep scroll behavior as auto during streaming
-        setScrollBehavior('auto')
-
         // Add placeholder message
         setMessages((prev) => [
           ...prev,
@@ -651,6 +510,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         if (reader) {
           const decoder = new TextDecoder()
           let done = false
+          let firstChunk = true
 
           try {
             while (!done) {
@@ -669,6 +529,14 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                       msg.id === messageId ? { ...msg, content: msg.content + chunk } : msg
                     )
                   )
+                  
+                  // For the first chunk, ensure user message remains at top
+                  if (firstChunk && latestUserMessageIdRef.current) {
+                    setTimeout(() => {
+                      scrollMessageToTop(latestUserMessageIdRef.current!)
+                    }, 10)
+                    firstChunk = false
+                  }
                 }
               }
               done = readerDone
@@ -679,48 +547,20 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             // Always reset streaming state and controller when done
             setIsStreamingResponse(false)
             abortControllerRef.current = null
-
-            // Reset scroll behavior to auto for reliable positioning
-            setScrollBehavior('auto')
-            setBottomSpacerHeight(0)
-
-            // More aggressive approach to maintain scroll position
-            const maintainScroll = () => {
-              showCurrentConversation()
+            
+            // Make sure user message stays at top of viewport
+            if (latestUserMessageIdRef.current) {
+              setTimeout(() => scrollMessageToTop(latestUserMessageIdRef.current!), 10)
             }
-
-            // Immediate scroll
-            maintainScroll()
-
-            // Set up interval to maintain position
-            const intervalId = setInterval(maintainScroll, 100)
-
-            // Continue for 1 second to override any competing effects
-            setTimeout(() => {
-              clearInterval(intervalId)
-            }, 1000)
           }
         } else {
           setIsStreamingResponse(false)
           abortControllerRef.current = null
-          setScrollBehavior('auto')
-          setBottomSpacerHeight(0)
-
-          // More aggressive approach to maintain scroll position
-          const maintainScroll = () => {
-            showCurrentConversation()
+          
+          // Make sure user message stays at top of viewport
+          if (latestUserMessageIdRef.current) {
+            setTimeout(() => scrollMessageToTop(latestUserMessageIdRef.current!), 10)
           }
-
-          // Immediate scroll
-          maintainScroll()
-
-          // Set up interval to maintain position
-          const intervalId = setInterval(maintainScroll, 100)
-
-          // Continue for 1 second to override any competing effects
-          setTimeout(() => {
-            clearInterval(intervalId)
-          }, 1000)
         }
       } else {
         // Fallback to JSON response handling
@@ -757,8 +597,11 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
           // Add all messages at once
           setMessages((prev) => [...prev, ...assistantMessages])
-          // Ensure spacer is cleared so no extra blank area remains
-          setBottomSpacerHeight(0)
+          
+          // Make sure user message stays at top of viewport
+          if (latestUserMessageIdRef.current) {
+            setTimeout(() => scrollMessageToTop(latestUserMessageIdRef.current!), 10)
+          }
         } else {
           // Handle single output as before
           let messageContent = responseData.output
@@ -787,8 +630,11 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           }
 
           setMessages((prev) => [...prev, assistantMessage])
-          // Ensure spacer is cleared so no extra blank area remains
-          setBottomSpacerHeight(0)
+          
+          // Make sure user message stays at top of viewport
+          if (latestUserMessageIdRef.current) {
+            setTimeout(() => scrollMessageToTop(latestUserMessageIdRef.current!), 10)
+          }
         }
       }
     } catch (error) {
@@ -802,12 +648,15 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       }
 
       setMessages((prev) => [...prev, errorMessage])
-      setBottomSpacerHeight(0)
+      
+      // Make sure user message stays at top of viewport
+      if (latestUserMessageIdRef.current) {
+        setTimeout(() => scrollMessageToTop(latestUserMessageIdRef.current!), 10)
+      }
     } finally {
       setIsLoading(false)
       // Reset streaming state if it wasn't already reset
       setIsStreamingResponse(false)
-      // ChatInput manages its own focus
     }
   }
 
@@ -841,8 +690,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       // Reset streaming state
       setIsStreamingResponse(false)
-      setScrollBehavior('smooth')
-      setBottomSpacerHeight(0)
     }
   }
 
@@ -1238,8 +1085,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           ref={messagesContainerRef}
           className="absolute inset-0 overflow-y-auto"
           style={{
-            scrollBehavior: scrollBehavior,
-            overscrollBehavior: 'auto',
+            scrollBehavior: 'smooth',
+            overscrollBehavior: 'smooth',
             WebkitOverflowScrolling: 'touch',
           }}
         >
@@ -1273,9 +1120,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               </div>
             )}
 
-            {/* Bottom spacer ‑ its height is at least the container height so the new
-                user message can be scrolled to the top. */}
-            <div ref={messagesEndRef} style={{ height: bottomSpacerHeight }} />
+            {/* Bottom spacer - used as a reference point for scrolling to bottom */}
+            <div ref={messagesEndRef} style={{ height: '1px' }} />
           </div>
         </div>
 
@@ -1283,7 +1129,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         {(showScrollButton || isStreamingResponse) && (
           <div className="absolute bottom-5 left-1/2 transform -translate-x-1/2 z-10">
             <Button
-              onClick={showCurrentConversation}
+              onClick={scrollToBottom}
               size="sm"
               variant="outline"
               className="rounded-full py-1 px-3 border border-gray-200 bg-white shadow-md hover:bg-gray-50 transition-all flex items-center gap-1"
