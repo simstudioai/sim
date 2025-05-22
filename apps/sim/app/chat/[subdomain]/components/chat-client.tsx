@@ -164,16 +164,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       if (!hasScrolled && scrollTop > 0) {
         setHasScrolled(true)
       }
-      
-      // Log scroll position for debugging
-      console.log('Scroll metrics:', {
-        scrollTop,
-        scrollHeight,
-        clientHeight,
-        distanceFromBottom,
-        isNearBottom,
-        showButton: !isNearBottom
-      })
     }
     
     container.addEventListener('scroll', handleScroll, { passive: true })
@@ -190,10 +180,14 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     return () => container.removeEventListener('scroll', handleScroll)
   }, [hasScrolled, messages, isStreamingResponse])
 
-  // Scroll to bottom when new messages are added
+  // Auto-scroll to the bottom only when a **new assistant** message is added
+  
   useEffect(() => {
-    // Only scroll to bottom if we're not streaming a response
-    if (messages.length > 0 && !isStreamingResponse) {
+    if (messages.length === 0 || isStreamingResponse) return
+
+    const lastMessage = messages[messages.length - 1]
+
+    if (lastMessage.type === 'assistant') {
       scrollToBottom()
     }
   }, [messages, isStreamingResponse])
@@ -211,9 +205,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       const messageElement = container.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null
       
       if (messageElement) {
-        // Calculate position with 40px padding from the top
-        const topPadding = 40
-        const targetScrollTop = messageElement.offsetTop - topPadding
+        // Snap the user message to the very top of the container
+        const targetScrollTop = messageElement.offsetTop
         
         // Apply scroll immediately (no smooth behavior)
         container.scrollTop = targetScrollTop
@@ -1120,7 +1113,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           className="absolute inset-0 overflow-y-auto"
           style={{ 
             scrollBehavior: scrollBehavior,
-            overscrollBehavior: 'contain',
+            overscrollBehavior: 'auto',
             WebkitOverflowScrolling: 'touch'
           }}
         >
