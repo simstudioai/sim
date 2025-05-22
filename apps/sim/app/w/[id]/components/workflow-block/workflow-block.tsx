@@ -275,12 +275,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     const visibleSubBlocks = subBlocks.filter((block) => {
       if (block.hidden) return false
 
-      // Filter by mode if specified
-      if (block.mode) {
-        if (block.mode === 'basic' && isAdvancedMode) return false
-        if (block.mode === 'advanced' && !isAdvancedMode) return false
-      }
-
       // If there's no condition, the block should be shown
       if (!block.condition) return true
 

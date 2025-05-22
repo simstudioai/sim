@@ -56,6 +56,7 @@ import { DeploymentControls } from './components/deployment-controls/deployment-
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('ControlBar')
 
@@ -86,7 +87,7 @@ export function ControlBar() {
     showNotification,
     removeNotification,
   } = useNotificationStore()
-  const { history, revertToHistoryState, lastSaved } = useWorkflowStore()
+  const { history, revertToHistoryState, lastSaved } = useWorkflowStore()  
   const {
     workflows,
     updateWorkflow,
@@ -293,42 +294,6 @@ export function ControlBar() {
     }
   }, [activeWorkflowId, isDeployed, needsRedeployment])
 
-  // Check deployment and publication status on mount or when activeWorkflowId changes
-  useEffect(() => {
-    async function checkStatus() {
-      if (!activeWorkflowId) return
-
-      // Skip API call in localStorage mode
-      if (
-        typeof window !== 'undefined' &&
-        (localStorage.getItem('USE_LOCAL_STORAGE') === 'true' ||
-          process.env.NEXT_PUBLIC_USE_LOCAL_STORAGE === 'true' ||
-          process.env.NEXT_PUBLIC_DISABLE_DB_SYNC === 'true')
-      ) {
-        // For localStorage mode, we already have the status in the workflow store
-        // Nothing more to do as the useWorkflowStore already has this information
-        return
-      }
-
-      try {
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
-        if (response.ok) {
-          const data = await response.json()
-          // Update the store with the status from the API
-          setDeploymentStatus(
-            data.isDeployed,
-            data.deployedAt ? new Date(data.deployedAt) : undefined
-          )
-          setNeedsRedeployment(data.needsRedeployment)
-          useWorkflowStore.getState().setNeedsRedeploymentFlag(data.needsRedeployment)
-        }
-      } catch (error) {
-        logger.error('Failed to check workflow status:', { error })
-      }
-    }
-    checkStatus()
-  }, [activeWorkflowId, setDeploymentStatus])
-
   /**
    * Fetches the deployed state of the workflow from the server
    * This is the single source of truth for deployed workflow state
@@ -422,13 +387,6 @@ export function ControlBar() {
 
     return () => unsubscribe()
   }, [])
-
-  // Add a manual method to update the deployment status and clear the needsRedeployment flag
-  const updateDeploymentStatusAndClearFlag = (isDeployed: boolean, deployedAt?: Date) => {
-    setDeploymentStatus(isDeployed, deployedAt)
-    setNeedsRedeployment(false)
-    useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
-  }
 
   // Update existing API notifications when needsRedeployment changes
   useEffect(() => {

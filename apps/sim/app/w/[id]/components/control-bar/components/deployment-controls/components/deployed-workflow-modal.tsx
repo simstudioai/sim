@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,9 +13,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-<<<<<<< HEAD
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-=======
 import {
   Dialog,
   DialogContent,
@@ -24,7 +21,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
->>>>>>> 2e4f4a91 (fix: good except for subblocks)
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -65,7 +61,12 @@ export function DeployedWorkflowModal({
   const sanitizedCurrentState = useMemo(() => {
     if (!currentWorkflowState) return undefined;
     
-    return {
+    logger.info('Before current state sanitization', {
+      workflowId: activeWorkflowId,
+      blockCount: Object.keys(currentWorkflowState.blocks || {}).length
+    });
+    
+    const result = {
       blocks: Object.fromEntries(
         Object.entries(currentWorkflowState.blocks || {})
           .filter(([_, block]) => block && block.type)
@@ -77,7 +78,14 @@ export function DeployedWorkflowModal({
       edges: currentWorkflowState.edges ? [...currentWorkflowState.edges] : [],
       loops: currentWorkflowState.loops ? {...currentWorkflowState.loops} : {}
     };
-  }, [currentWorkflowState]);
+    
+    logger.info('After current state sanitization', {
+      workflowId: activeWorkflowId,
+      blockCount: Object.keys(result.blocks).length
+    });
+    
+    return result;
+  }, [currentWorkflowState, activeWorkflowId]);
   
   const sanitizedDeployedState = useMemo(() => {
     if (!deployedWorkflowState) return {
@@ -115,6 +123,27 @@ export function DeployedWorkflowModal({
     }
 >>>>>>> 9594f7db (fix: good except for subblocks)
   }
+
+  useEffect(() => {
+    if (isOpen && activeWorkflowId) {
+      logger.info('DeployedWorkflowModal opened', {
+        workflowId: activeWorkflowId,
+        deployedStateBlockCount: Object.keys(deployedWorkflowState?.blocks || {}).length,
+        currentStateBlockCount: Object.keys(currentWorkflowState?.blocks || {}).length,
+        deployedStateChecksum: JSON.stringify(deployedWorkflowState).length,
+        currentStateChecksum: JSON.stringify(currentWorkflowState).length
+      });
+      
+      // Log a sample of block IDs to verify they match expected workflow
+      const deployedBlockIds = Object.keys(deployedWorkflowState?.blocks || {}).slice(0, 2);
+      const currentBlockIds = Object.keys(currentWorkflowState?.blocks || {}).slice(0, 2);
+      
+      logger.info('State block samples', {
+        deployedBlockIds,
+        currentBlockIds
+      });
+    }
+  }, [isOpen, activeWorkflowId, deployedWorkflowState, currentWorkflowState]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
