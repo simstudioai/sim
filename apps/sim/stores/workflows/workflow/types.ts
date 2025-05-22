@@ -34,7 +34,6 @@ export interface Loop {
   forEachItems?: any[] | Record<string, any> | string // Items or expression
 }
 
-// New interface for deployment status
 export interface DeploymentStatus {
   isDeployed: boolean
   deployedAt?: Date

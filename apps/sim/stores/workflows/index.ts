@@ -48,7 +48,7 @@ export function getWorkflowWithValues(workflowId: string) {
       logger.warn(`No saved state found for workflow ${workflowId}`)
       return null
     }
-    
+
     // Use registry deployment status instead of relying on saved state
     workflowState = {
       ...savedState,
@@ -136,7 +136,7 @@ export function getAllWorkflowsWithValues() {
         logger.warn(`No saved state found for workflow ${id}`)
         continue
       }
-      
+
       // Use registry deployment status instead of relying on saved state
       workflowState = {
         ...savedState,
@@ -149,7 +149,7 @@ export function getAllWorkflowsWithValues() {
     const mergedBlocks = mergeSubblockState(workflowState.blocks, id)
 
     // Include the API key in the state if it exists in the deployment status
-    const apiKey = deploymentStatus?.apiKey;
+    const apiKey = deploymentStatus?.apiKey
 
     result[id] = {
       id,

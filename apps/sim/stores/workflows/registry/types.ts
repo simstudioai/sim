@@ -3,7 +3,6 @@ export interface MarketplaceData {
   status: 'owner' | 'temp'
 }
 
-// Add DeploymentStatus interface directly here to avoid import
 export interface DeploymentStatus {
   isDeployed: boolean
   deployedAt?: Date
@@ -27,7 +26,6 @@ export interface WorkflowRegistryState {
   activeWorkspaceId: string | null
   isLoading: boolean
   error: string | null
-  // Add deployment statuses map to registry state
   deploymentStatuses: Record<string, DeploymentStatus>
 }
 
@@ -47,9 +45,13 @@ export interface WorkflowRegistryActions {
     workspaceId?: string
   }) => string
   duplicateWorkflow: (sourceId: string) => string | null
-  // Add deployment-related methods
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
-  setDeploymentStatus: (workflowId: string | null, isDeployed: boolean, deployedAt?: Date, apiKey?: string) => void
+  setDeploymentStatus: (
+    workflowId: string | null,
+    isDeployed: boolean,
+    deployedAt?: Date,
+    apiKey?: string
+  ) => void
   setWorkflowNeedsRedeployment: (workflowId: string | null, needsRedeployment: boolean) => void
 }
 
