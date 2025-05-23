@@ -16,11 +16,20 @@ interface DateInputProps {
   subBlockId: string
   placeholder?: string
   isPreview?: boolean
-  value?: string
+  previewValue?: string | null
 }
 
-export function DateInput({ blockId, subBlockId, placeholder, isPreview = false, value: propValue }: DateInputProps) {
-  const [value, setValue] = useSubBlockValue<string>(blockId, subBlockId, true, isPreview, propValue)
+export function DateInput({ 
+  blockId, 
+  subBlockId, 
+  placeholder,
+  isPreview = false,
+  previewValue
+}: DateInputProps) {
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
   const addNotification = useNotificationStore((state) => state.addNotification)
   const date = value ? new Date(value) : undefined
 
@@ -32,6 +41,8 @@ export function DateInput({ blockId, subBlockId, placeholder, isPreview = false,
   }, [date])
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
+    if (isPreview) return
+    
     if (selectedDate) {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -40,14 +51,15 @@ export function DateInput({ blockId, subBlockId, placeholder, isPreview = false,
         addNotification('error', 'Cannot start at a date in the past', blockId)
       }
     }
-    setValue(selectedDate?.toISOString() || '')
+    setStoreValue(selectedDate?.toISOString() || '')
   }
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          variant='outline'
+          variant="outline"
+          disabled={isPreview}
           className={cn(
             'w-full justify-start text-left font-normal',
             !date && 'text-muted-foreground',

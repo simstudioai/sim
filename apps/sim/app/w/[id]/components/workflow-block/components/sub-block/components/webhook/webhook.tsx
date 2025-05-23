@@ -299,7 +299,7 @@ export function WebhookConfig({
   blockId, 
   subBlockId, 
   isConnecting, 
-  isPreview = false, 
+  isPreview = false,
   value: propValue 
 }: WebhookConfigProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -316,27 +316,38 @@ export function WebhookConfig({
   const setWebhookStatus = useWorkflowStore((state) => state.setWebhookStatus)
 
   // Get the webhook provider from the block state
-  const [webhookProvider, setWebhookProvider] = useSubBlockValue(blockId, 'webhookProvider', false, isPreview, propValue?.webhookProvider)
+  const [storeWebhookProvider, setWebhookProvider] = useSubBlockValue(blockId, 'webhookProvider')
 
   // Store the webhook path
-  const [webhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath', false, isPreview, propValue?.webhookPath)
+  const [storeWebhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
 
   // Store provider-specific configuration
-  const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig', false, isPreview, propValue?.providerConfig)
+  const [storeProviderConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
   
+  // Use prop values when available (preview mode), otherwise use store values
+  const webhookProvider = propValue?.webhookProvider ?? storeWebhookProvider
+  const webhookPath = propValue?.webhookPath ?? storeWebhookPath
+  const providerConfig = propValue?.providerConfig ?? storeProviderConfig
+
   // Reset provider config when provider changes
   useEffect(() => {
-    if (webhookProvider && !isPreview) {
+    if (webhookProvider) {
       // Reset the provider config when the provider changes
       setProviderConfig({})
     }
-  }, [webhookProvider, setProviderConfig, isPreview])
+  }, [webhookProvider, setProviderConfig])
 
   // Store the actual provider from the database
   const [actualProvider, setActualProvider] = useState<string | null>(null)
 
   // Check if webhook exists in the database
   useEffect(() => {
+    // Skip API calls in preview mode
+    if (isPreview) {
+      setIsLoading(false)
+      return
+    }
+
     const checkWebhook = async () => {
       setIsLoading(true)
       try {
@@ -386,6 +397,7 @@ export function WebhookConfig({
     setWebhookPath,
     setWebhookProvider,
     setWebhookStatus,
+    isPreview,
   ])
 
   const handleOpenModal = () => {
@@ -398,6 +410,9 @@ export function WebhookConfig({
   }
 
   const handleSaveWebhook = async (path: string, config: ProviderConfig) => {
+    // Prevent saving in preview mode
+    if (isPreview) return false
+
     try {
       setIsSaving(true)
       setError(null)
@@ -461,7 +476,8 @@ export function WebhookConfig({
   }
 
   const handleDeleteWebhook = async () => {
-    if (!webhookId) return false
+    // Prevent deletion in preview mode
+    if (isPreview || !webhookId) return false
 
     try {
       setIsDeleting(true)
@@ -554,8 +570,8 @@ export function WebhookConfig({
               'https://www.googleapis.com/auth/gmail.modify',
               'https://www.googleapis.com/auth/gmail.labels',
             ]}
-            label='Select Gmail account'
-            disabled={isConnecting || isSaving || isDeleting}
+            label="Select Gmail account"
+            disabled={isConnecting || isSaving || isDeleting || isPreview}
           />
         </div>
 
@@ -565,7 +581,7 @@ export function WebhookConfig({
             size='sm'
             className='flex h-10 w-full items-center bg-background font-normal text-sm'
             onClick={handleOpenModal}
-            disabled={isConnecting || isSaving || isDeleting || !gmailCredentialId}
+            disabled={isConnecting || isSaving || isDeleting || !gmailCredentialId || isPreview}
           >
             {isLoading ? (
               <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
@@ -617,7 +633,7 @@ export function WebhookConfig({
           size='sm'
           className='flex h-10 w-full items-center bg-background font-normal text-sm'
           onClick={handleOpenModal}
-          disabled={isConnecting || isSaving || isDeleting}
+          disabled={isConnecting || isSaving || isDeleting || isPreview}
         >
           {isLoading ? (
             <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />

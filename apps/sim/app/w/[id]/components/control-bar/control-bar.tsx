@@ -46,6 +46,7 @@ import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
@@ -56,7 +57,6 @@ import { DeploymentControls } from './components/deployment-controls/deployment-
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 const logger = createLogger('ControlBar')
 
@@ -108,14 +108,9 @@ export function ControlBar() {
   const [mounted, setMounted] = useState(false)
   const [, forceUpdate] = useState({})
 
-  // Add deployedState management
-  const [deployedState, setDeployedState] = useState<any>(null)
+  // Deployed state management
+  const [deployedState, setDeployedState] = useState<WorkflowState | null>(null)
   const [isLoadingDeployedState, setIsLoadingDeployedState] = useState<boolean>(false)
-  
-  // Add refs to manage fetch state and prevent race conditions
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const lastFetchedWorkflowIdRef = useRef<string | null>(null)
-  const lastDeployedStateRef = useRef<boolean>(false)
 
   // Workflow name editing state
   const [isEditing, setIsEditing] = useState(false)
@@ -160,11 +155,6 @@ export function ControlBar() {
     isExecuting || isMultiRunning || isCancelling
   )
 
-  // Get notifications for current workflow
-  // const workflowNotifications = activeWorkflowId
-  //   ? getWorkflowNotifications(activeWorkflowId)
-  //   : notifications // Show all if no workflow is active
-
   // Get the marketplace data from the workflow registry if available
   const getMarketplaceData = () => {
     if (!activeWorkflowId || !workflows[activeWorkflowId]) return null
@@ -176,12 +166,6 @@ export function ControlBar() {
     const marketplaceData = getMarketplaceData()
     return !!marketplaceData
   }
-
-  // // Check if the current user is the owner of the published workflow
-  // const isWorkflowOwner = () => {
-  //   const marketplaceData = getMarketplaceData()
-  //   return marketplaceData?.status === 'owner'
-  // }
 
   // Get deployment status from registry
   const deploymentStatus = useWorkflowRegistry((state) =>
@@ -204,217 +188,109 @@ export function ControlBar() {
     return () => clearInterval(interval)
   }, [])
 
-  // Listen for workflow changes and check if redeployment is needed
-  useEffect(() => {
-    if (!activeWorkflowId || !isDeployed) return
-
-    // Create a debounced function to check for changes
-    let debounceTimer: NodeJS.Timeout | null = null
-    let lastCheckTime = 0
-    let pendingChanges = 0
-    const DEBOUNCE_DELAY = 1000
-    const THROTTLE_INTERVAL = 3000
-
-    // Function to check if redeployment is needed
-    const checkForChanges = async () => {
-      // Skip if we're already showing needsRedeployment
-      
-      // Reset the pending changes counter
-      pendingChanges = 0;
-      lastCheckTime = Date.now();
-
-      try {
-        // Get the deployed state from the API
-        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
-        if (response.ok) {
-          const data = await response.json()
-
-          // If the API says we need redeployment, update our state and the store
-          if (data.needsRedeployment) {
-            setNeedsRedeployment(true)
-            // Also update the store state so other components can access this flag
-            useWorkflowStore.getState().setNeedsRedeploymentFlag(true)
-          } else {
-            // Add this else branch to handle the case when changes are reverted
-            setNeedsRedeployment(false)
-            useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
-          }
-        }
-      } catch (error) {
-        logger.error('Failed to check workflow change status:', { error })
-      }
-    }
-
-    // Debounced check function
-    const debouncedCheck = () => {
-      // Increment the pending changes counter
-      pendingChanges++
-
-      // Clear any existing timer
-      if (debounceTimer) {
-        clearTimeout(debounceTimer)
-      }
-
-      // If we recently checked, and it's within throttle interval, wait longer
-      const timeElapsed = Date.now() - lastCheckTime
-      if (timeElapsed < THROTTLE_INTERVAL && lastCheckTime > 0) {
-        // Wait until the throttle interval has passed
-        const adjustedDelay = Math.max(THROTTLE_INTERVAL - timeElapsed, DEBOUNCE_DELAY)
-
-        debounceTimer = setTimeout(() => {
-          // Only check if we have pending changes
-          if (pendingChanges > 0) {
-            checkForChanges()
-          }
-        }, adjustedDelay)
-      } else {
-        // Standard debounce delay if we haven't checked recently
-        debounceTimer = setTimeout(() => {
-          // Only check if we have pending changes
-          if (pendingChanges > 0) {
-            checkForChanges()
-          }
-        }, DEBOUNCE_DELAY)
-      }
-    }
-
-    // Subscribe to workflow store changes
-    const workflowUnsubscribe = useWorkflowStore.subscribe(debouncedCheck)
-
-    // Also subscribe to subblock store changes
-    const subBlockUnsubscribe = useSubBlockStore.subscribe((state) => {
-      // Only check for the active workflow
-      if (!activeWorkflowId || !isDeployed || needsRedeployment) return
-
-      // Only trigger when there is an update to the current workflow's subblocks
-      const workflowSubBlocks = state.workflowValues[activeWorkflowId]
-      if (workflowSubBlocks && Object.keys(workflowSubBlocks).length > 0) {
-        debouncedCheck()
-      }
-    })
-
-    return () => {
-      if (debounceTimer) {
-        clearTimeout(debounceTimer)
-      }
-      workflowUnsubscribe()
-      subBlockUnsubscribe()
-    }
-  }, [activeWorkflowId, isDeployed, needsRedeployment])
-
   /**
    * Fetches the deployed state of the workflow from the server
    * This is the single source of truth for deployed workflow state
-   * @param options.forceRefetch Force a refetch even if conditions wouldn't normally trigger it
-   * @returns Promise that resolves when the deployed state is fetched
    */
   const fetchDeployedState = async (options = { forceRefetch: false }) => {
-    // Cancel any in-flight requests
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    if (!activeWorkflowId) {
+      setDeployedState(null)
+      return
     }
-    
-    // Create new abort controller for this request
-    abortControllerRef.current = new AbortController();
-    const { signal } = abortControllerRef.current;
-    
-    const requestId = Date.now();
-    const currentWorkflowId = activeWorkflowId;
-    
-    // Skip fetching if we don't have an active workflow ID or it's not deployed
-    // unless we're explicitly forcing a refetch
-    if ((!currentWorkflowId || !isDeployed) && !options.forceRefetch) {
-      setDeployedState(null);
-      return;
+
+    // Skip fetching if not deployed unless forcing a refetch
+    if (!isDeployed && !options.forceRefetch) {
+      setDeployedState(null)
+      return
     }
+
+    // Store the workflow ID at the start of the request to prevent race conditions
+    const requestWorkflowId = activeWorkflowId
 
     try {
-      setIsLoadingDeployedState(true);
+      setIsLoadingDeployedState(true)
       
-      // Pass the abort signal to the fetch call
-      const response = await fetch(
-        `/api/workflows/${currentWorkflowId}/deployed`, 
-        { signal }
-      );
+      const response = await fetch(`/api/workflows/${requestWorkflowId}/deployed`)
+      
+      // Check if the workflow ID changed during the request (user navigated away)
+      if (requestWorkflowId !== useWorkflowRegistry.getState().activeWorkflowId) {
+        logger.debug('Workflow changed during deployed state fetch, ignoring response')
+        return
+      }
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch deployed state: ${response.status}`);
+        if (response.status === 404) {
+          // No deployed state found
+          setDeployedState(null)
+          return
+        }
+        throw new Error(`Failed to fetch deployed state: ${response.statusText}`)
       }
       
-      const data = await response.json();
+      const data = await response.json()
       
-      // Final workflow ID check before updating state
-      if (currentWorkflowId !== activeWorkflowId) {
-        return;
-      }
-      
-      if (data.deployedState) {
-        // Create a single deep clone with metadata
-        const deployedStateWithMetadata = {
-          ...JSON.parse(JSON.stringify(data.deployedState)),
-          _metadata: {
-            workflowId: currentWorkflowId,
-            fetchTimestamp: Date.now(),
-            requestId
-          }
-        };
-        
-        setDeployedState(deployedStateWithMetadata);
+      // Final check to ensure we're still on the same workflow
+      if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
+        setDeployedState(data.deployedState || null)
       } else {
-        setDeployedState(null);
+        logger.debug('Workflow changed after deployed state response, ignoring result')
       }
-    } catch (error: unknown) {
-      // Don't log AbortError as it's expected when cancelling requests
-      if (error instanceof Error && error.name === 'AbortError') {
-        // Silently ignore abort errors
-      } else {
-        logger.error(`Error fetching deployed state:`, { error });
-        setDeployedState(null);
+      
+    } catch (error) {
+      logger.error('Error fetching deployed state:', { error })
+      // Only set error state if we're still on the same workflow
+      if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
+        setDeployedState(null)
       }
     } finally {
-      setIsLoadingDeployedState(false);
+      // Only clear loading state if we're still on the same workflow
+      if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
+        setIsLoadingDeployedState(false)
+      }
     }
-  };
-
-  // Alias for clarity when explicitly triggering a refetch
-  const refetchDeployedState = () => fetchDeployedState({ forceRefetch: true });
+  }
 
   // Fetch deployed state when the workflow ID changes or deployment status changes
   useEffect(() => {
-    // Only fetch if the workflow ID or deployed status has actually changed
-    if (activeWorkflowId !== lastFetchedWorkflowIdRef.current || 
-        isDeployed !== lastDeployedStateRef.current) {
-      
-      // Update refs to track what we're fetching for
-      lastFetchedWorkflowIdRef.current = activeWorkflowId;
-      lastDeployedStateRef.current = isDeployed;
-      
-      fetchDeployedState();
+    // Immediately clear deployed state when workflow changes to prevent mixup
+    if (activeWorkflowId) {
+      setDeployedState(null)
+      setIsLoadingDeployedState(false)
     }
-  }, [activeWorkflowId, isDeployed]);
+    
+    // Then fetch the new deployed state
+    fetchDeployedState()
+  }, [activeWorkflowId, isDeployed])
 
   // Listen for deployment status changes
   useEffect(() => {
-    // When deployment status changes and isDeployed becomes true,
-    // that means a deployment just occurred, so reset the needsRedeployment flag
+    // Clear deployed state immediately when workflow changes
+    if (!activeWorkflowId) {
+      setDeployedState(null)
+      setIsLoadingDeployedState(false)
+      return
+    }
+    
     if (isDeployed) {
+      // When deployment status becomes true, reset the needsRedeployment flag
       setNeedsRedeployment(false)
       useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+      // Fetch the latest deployed state
+      fetchDeployedState()
     } else {
       // If workflow is undeployed, clear the deployed state
       setDeployedState(null)
+      setIsLoadingDeployedState(false)
     }
   }, [isDeployed, activeWorkflowId])
 
   // Add a listener for the needsRedeployment flag in the workflow store
   useEffect(() => {
     const unsubscribe = useWorkflowStore.subscribe((state) => {
-      // Update local state when the store flag changes
       if (state.needsRedeployment !== undefined) {
         setNeedsRedeployment(state.needsRedeployment)
       }
     })
-
     return () => unsubscribe()
   }, [])
 
@@ -427,14 +303,11 @@ export function ControlBar() {
     )
 
     if (apiNotification && apiNotification.options?.needsRedeployment !== needsRedeployment) {
-      // If there's an existing API notification and its state doesn't match, update it
       if (apiNotification.isVisible) {
-        // Only update if it's currently showing to the user
         removeNotification(apiNotification.id)
-        // The DeploymentControls component will handle showing the appropriate notification
       }
     }
-  }, [needsRedeployment, activeWorkflowId, notifications, removeNotification, addNotification])
+  }, [needsRedeployment, activeWorkflowId, notifications, removeNotification])
 
   // Check usage limits when component mounts and when user executes a workflow
   useEffect(() => {
@@ -535,23 +408,6 @@ export function ControlBar() {
     // Remove the workflow from the registry
     removeWorkflow(activeWorkflowId)
   }
-
-  // /**
-  //  * Handle opening marketplace modal or showing published status
-  //  */
-  // const handlePublishWorkflow = async () => {
-  //   if (!activeWorkflowId) return
-
-  //   // If already published, show marketplace modal with info instead of notifications
-  //   const isPublished = isPublishedToMarketplace()
-  //   if (isPublished) {
-  //     setIsMarketplaceModalOpen(true)
-  //     return
-  //   }
-
-  //   // If not published, open the modal to start the publishing process
-  //   setIsMarketplaceModalOpen(true)
-  // }
 
   /**
    * Handle multiple workflow runs
@@ -760,7 +616,7 @@ export function ControlBar() {
       setNeedsRedeployment={setNeedsRedeployment}
       deployedState={deployedState}
       isLoadingDeployedState={isLoadingDeployedState}
-      refetchDeployedState={refetchDeployedState}
+      refetchDeployedState={fetchDeployedState}
     />
   )
 

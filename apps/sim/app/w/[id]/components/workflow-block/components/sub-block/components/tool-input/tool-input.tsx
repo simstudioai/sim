@@ -27,12 +27,14 @@ import { CredentialSelector } from '../credential-selector/credential-selector'
 import { ShortInput } from '../short-input'
 import { type CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
 import { ToolCommand } from './components/tool-command/tool-command'
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command'
+import { Plus } from 'lucide-react'
 
 interface ToolInputProps {
   blockId: string
   subBlockId: string
   isPreview?: boolean
-  value?: StoredTool[]
+  previewValue?: any
 }
 
 interface StoredTool {
@@ -272,8 +274,13 @@ const shouldBePasswordField = (blockType: string, paramId: string): boolean => {
   return false
 }
 
-export function ToolInput({ blockId, subBlockId, isPreview = false, value: propValue }: ToolInputProps) {
-  const [value, setValue] = useSubBlockValue(blockId, subBlockId, false, isPreview, propValue)
+export function ToolInput({ 
+  blockId, 
+  subBlockId,
+  isPreview = false,
+  previewValue
+}: ToolInputProps) {
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
@@ -290,6 +297,9 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
   const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
 
   const toolBlocks = getAllBlocks().filter((block) => block.category === 'tools')
+
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
 
   // Custom filter function for the Command component
   const customFilter = useCallback((value: string, search: string) => {
@@ -315,6 +325,11 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
     Array.isArray(value) && value.length > 0 && typeof value[0] === 'object'
       ? (value as unknown as StoredTool[])
       : []
+
+  // Check if a tool is already selected
+  const isToolAlreadySelected = (toolType: string) => {
+    return selectedTools.some((tool) => tool.type === toolType)
+  }
 
   const handleSelectTool = (toolBlock: (typeof toolBlocks)[0]) => {
     const hasOperations = hasMultipleOperations(toolBlock.type)
@@ -344,7 +359,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
 
     // If isWide, keep tools in the same row expanded
     if (isWide) {
-      setValue([
+      setStoreValue([
         ...selectedTools.map((tool, index) => ({
           ...tool,
           // Keep expanded if it's in the same row as the new tool
@@ -354,7 +369,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
       ])
     } else {
       // Original behavior for non-wide mode
-      setValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
+      setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
     }
 
     setOpen(false)
@@ -399,7 +414,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
 
     // If isWide, keep tools in the same row expanded
     if (isWide) {
-      setValue([
+      setStoreValue([
         ...selectedTools.map((tool, index) => ({
           ...tool,
           // Keep expanded if it's in the same row as the new tool
@@ -409,7 +424,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
       ])
     } else {
       // Original behavior for non-wide mode
-      setValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
+      setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
     }
   }
 
@@ -430,7 +445,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
   const handleSaveCustomTool = (customTool: CustomTool) => {
     if (editingToolIndex !== null) {
       // Update existing tool
-      setValue(
+      setStoreValue(
         selectedTools.map((tool, index) =>
           index === editingToolIndex
             ? {
@@ -450,7 +465,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
   }
 
   const handleRemoveTool = (toolType: string, toolIndex: number) => {
-    setValue(selectedTools.filter((_, index) => index !== toolIndex))
+    setStoreValue(selectedTools.filter((_, index) => index !== toolIndex))
   }
 
   // New handler for when a custom tool is completely deleted from the store
@@ -474,7 +489,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
 
     // Update the workflow value if any tools were removed
     if (updatedTools.length !== selectedTools.length) {
-      setValue(updatedTools)
+      setStoreValue(updatedTools)
     }
   }
 
@@ -492,7 +507,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
     }
 
     // Update the value in the workflow
-    setValue(
+    setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
           ? {
@@ -521,7 +536,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
       subBlockStore.setValue(blockId, 'parentIssue', '')
     }
 
-    setValue(
+    setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
           ? {
@@ -536,7 +551,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
   }
 
   const handleCredentialChange = (toolIndex: number, credentialId: string) => {
-    setValue(
+    setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
           ? {
@@ -552,7 +567,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
   }
 
   const handleUsageControlChange = (toolIndex: number, usageControl: string) => {
-    setValue(
+    setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
           ? {
@@ -565,7 +580,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
   }
 
   const toggleToolExpansion = (toolIndex: number) => {
-    setValue(
+    setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex ? { ...tool, isExpanded: !tool.isExpanded } : tool
       )
@@ -589,112 +604,50 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
               </div>
             </div>
           </PopoverTrigger>
-          <PopoverContent className='w-[200px] p-0' align='start'>
-            <ToolCommand.Root filter={customFilter}>
-              <ToolCommand.Input placeholder='Search tools...' onValueChange={setSearchQuery} />
-              <ToolCommand.List>
-                <ToolCommand.Empty>No tools found</ToolCommand.Empty>
-                <ToolCommand.Group>
-                  <ToolCommand.Item
-                    value='Create Tool'
+          <PopoverContent className="p-0 w-[200px]" align="start">
+            <Command filter={customFilter} className="max-h-48" shouldFilter={false}>
+              <CommandInput placeholder="Search for tools..." disabled={isPreview} />
+              <CommandList>
+                <CommandEmpty>No tools found.</CommandEmpty>
+                {toolBlocks.map((block) => (
+                  <CommandGroup key={block.type} heading={block.name}>
+                    <CommandItem
+                      onSelect={() => {
+                        if (!isPreview) {
+                          handleSelectTool(block)
+                          setOpen(false)
+                        }
+                      }}
+                      disabled={isPreview || isToolAlreadySelected(block.type)}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-2">
+                          <IconComponent icon={block.icon} className="h-4 w-4" />
+                          <span>{block.name}</span>
+                        </div>
+                      </div>
+                    </CommandItem>
+                  </CommandGroup>
+                ))}
+                <CommandSeparator />
+                <CommandGroup heading="Custom Tools">
+                  <CommandItem
                     onSelect={() => {
-                      setOpen(false)
-                      setCustomToolModalOpen(true)
+                      if (!isPreview) {
+                        setCustomToolModalOpen(true)
+                        setOpen(false)
+                      }
                     }}
-                    className='mb-1 flex cursor-pointer items-center gap-2'
+                    disabled={isPreview}
                   >
-                    <div className='flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
-                      <WrenchIcon className='h-4 w-4 text-muted-foreground' />
+                    <div className="flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      <span>Create Custom Tool</span>
                     </div>
-                    <span>Create Tool</span>
-                  </ToolCommand.Item>
-
-                  {/* Display saved custom tools at the top */}
-                  {customTools.length > 0 && (
-                    <>
-                      <ToolCommand.Separator />
-                      <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                        Custom Tools
-                      </div>
-                      <ToolCommand.Group className='-mx-1 -px-1'>
-                        {customTools.map((customTool) => (
-                          <ToolCommand.Item
-                            key={customTool.id}
-                            value={customTool.title}
-                            onSelect={() => {
-                              const newTool: StoredTool = {
-                                type: 'custom-tool',
-                                title: customTool.title,
-                                params: {},
-                                isExpanded: true,
-                                schema: customTool.schema,
-                                code: customTool.code,
-                                usageControl: 'auto',
-                              }
-
-                              if (isWide) {
-                                setValue([
-                                  ...selectedTools.map((tool, index) => ({
-                                    ...tool,
-                                    isExpanded:
-                                      Math.floor(selectedTools.length / 2) ===
-                                      Math.floor(index / 2),
-                                  })),
-                                  newTool,
-                                ])
-                              } else {
-                                setValue([
-                                  ...selectedTools.map((tool) => ({
-                                    ...tool,
-                                    isExpanded: false,
-                                  })),
-                                  newTool,
-                                ])
-                              }
-                              setOpen(false)
-                            }}
-                            className='flex cursor-pointer items-center gap-2'
-                          >
-                            <div className='flex h-6 w-6 items-center justify-center rounded bg-blue-500'>
-                              <WrenchIcon className='h-4 w-4 text-white' />
-                            </div>
-                            <span className='max-w-[140px] truncate'>{customTool.title}</span>
-                          </ToolCommand.Item>
-                        ))}
-                      </ToolCommand.Group>
-                      <ToolCommand.Separator />
-                    </>
-                  )}
-
-                  {/* Display built-in tools */}
-                  {toolBlocks.some((block) => customFilter(block.name, searchQuery || '') > 0) && (
-                    <>
-                      <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
-                        Built-in Tools
-                      </div>
-                      <ToolCommand.Group className='-mx-1 -px-1'>
-                        {toolBlocks.map((block) => (
-                          <ToolCommand.Item
-                            key={block.type}
-                            value={block.name}
-                            onSelect={() => handleSelectTool(block)}
-                            className='flex cursor-pointer items-center gap-2'
-                          >
-                            <div
-                              className='flex h-6 w-6 items-center justify-center rounded'
-                              style={{ backgroundColor: block.bgColor }}
-                            >
-                              <IconComponent icon={block.icon} className='h-4 w-4 text-white' />
-                            </div>
-                            <span className='max-w-[140px] truncate'>{block.name}</span>
-                          </ToolCommand.Item>
-                        ))}
-                      </ToolCommand.Group>
-                    </>
-                  )}
-                </ToolCommand.Group>
-              </ToolCommand.List>
-            </ToolCommand.Root>
+                  </CommandItem>
+                </CommandGroup>
+              </CommandList>
+            </Command>
           </PopoverContent>
         </Popover>
       ) : (
@@ -935,50 +888,52 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
                         }
 
                         return (
-                          <div key={param.id} className='relative space-y-1.5'>
-                            <div className='flex items-center font-medium text-muted-foreground text-xs'>
-                              {formatParamId(param.id)}
-                              {param.optionalToolInput && !param.requiredForToolCall && (
-                                <span className='ml-1 text-muted-foreground/60 text-xs'>
-                                  (Optional)
-                                </span>
-                              )}
-                            </div>
-                            <div className='relative'>
-                              {useChannelSelector && channelSelectorConfig ? (
-                                <ChannelSelectorInput
-                                  blockId={blockId}
-                                  subBlock={{
-                                    id: param.id,
-                                    type: 'channel-selector',
-                                    title: channelSelectorConfig.title || formatParamId(param.id),
-                                    provider: channelSelectorConfig.provider,
-                                    placeholder:
-                                      channelSelectorConfig.placeholder || param.description,
-                                  }}
-                                  credential={credentialForChannelSelector}
-                                  onChannelSelect={(channelId) => {
-                                    handleParamChange(toolIndex, param.id, channelId)
-                                  }}
-                                />
-                              ) : (
-                                <ShortInput
-                                  blockId={blockId}
-                                  subBlockId={`${subBlockId}-param`}
-                                  placeholder={param.description}
-                                  password={shouldBePasswordField(tool.type, param.id)}
-                                  isConnecting={false}
-                                  config={{
-                                    id: `${subBlockId}-param`,
-                                    type: 'short-input',
-                                    title: param.id,
-                                  }}
-                                  value={tool.params[param.id] || ''}
-                                  onChange={(value) =>
-                                    handleParamChange(toolIndex, param.id, value)
-                                  }
-                                />
-                              )}
+                          <div key={param.id}>
+                            <div className='relative space-y-1.5'>
+                              <div className='flex items-center font-medium text-muted-foreground text-xs'>
+                                {formatParamId(param.id)}
+                                {param.optionalToolInput && !param.requiredForToolCall && (
+                                  <span className='ml-1 text-muted-foreground/60 text-xs'>
+                                    (Optional)
+                                  </span>
+                                )}
+                              </div>
+                              <div className='relative'>
+                                {useChannelSelector && channelSelectorConfig ? (
+                                  <ChannelSelectorInput
+                                    blockId={blockId}
+                                    subBlock={{
+                                      id: param.id,
+                                      type: 'channel-selector',
+                                      title: channelSelectorConfig.title || formatParamId(param.id),
+                                      provider: channelSelectorConfig.provider,
+                                      placeholder:
+                                        channelSelectorConfig.placeholder || param.description,
+                                    }}
+                                    credential={credentialForChannelSelector}
+                                    onChannelSelect={(channelId) => {
+                                      handleParamChange(toolIndex, param.id, channelId)
+                                    }}
+                                  />
+                                ) : (
+                                  <ShortInput
+                                    blockId={blockId}
+                                    subBlockId={`${subBlockId}-param`}
+                                    placeholder={param.description}
+                                    password={shouldBePasswordField(tool.type, param.id)}
+                                    isConnecting={false}
+                                    config={{
+                                      id: `${subBlockId}-param`,
+                                      type: 'short-input',
+                                      title: param.id,
+                                    }}
+                                    value={tool.params[param.id] || ''}
+                                    onChange={(value) =>
+                                      handleParamChange(toolIndex, param.id, value)
+                                    }
+                                  />
+                                )}
+                              </div>
                             </div>
                           </div>
                         )
@@ -989,6 +944,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
               </div>
             )
           })}
+
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
               <Button
@@ -1044,7 +1000,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
                                 }
 
                                 if (isWide) {
-                                  setValue([
+                                  setStoreValue([
                                     ...selectedTools.map((tool, index) => ({
                                       ...tool,
                                       isExpanded:
@@ -1054,7 +1010,7 @@ export function ToolInput({ blockId, subBlockId, isPreview = false, value: propV
                                     newTool,
                                   ])
                                 } else {
-                                  setValue([
+                                  setStoreValue([
                                     ...selectedTools.map((tool) => ({
                                       ...tool,
                                       isExpanded: false,

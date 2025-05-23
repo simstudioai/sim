@@ -11,7 +11,7 @@ interface CheckboxListProps {
   options: { label: string; id: string }[]
   layout?: 'full' | 'half'
   isPreview?: boolean
-  value?: Record<string, boolean>
+  subBlockValues?: Record<string, any>
 }
 
 export function CheckboxList({ 
@@ -21,25 +21,36 @@ export function CheckboxList({
   options, 
   layout,
   isPreview = false,
-  value: propValues
+  subBlockValues
 }: CheckboxListProps) {
   return (
     <div className={cn('grid gap-4', layout === 'half' ? 'grid-cols-2' : 'grid-cols-1', 'pt-1')}>
       {options.map((option) => {
-        const [value, setValue] = useSubBlockValue(
+        const [storeValue, setStoreValue] = useSubBlockValue(
           blockId, 
-          option.id, 
-          false, 
-          isPreview, 
-          propValues?.[option.id]
+          option.id
         )
+        
+        // Get preview value for this specific option
+        const previewValue = isPreview && subBlockValues ? subBlockValues[option.id]?.value : undefined
+        
+        // Use preview value when in preview mode, otherwise use store value
+        const value = isPreview ? previewValue : storeValue
+        
+        const handleChange = (checked: boolean) => {
+          // Only update store when not in preview mode
+          if (!isPreview) {
+            setStoreValue(checked)
+          }
+        }
         
         return (
           <div key={option.id} className='flex items-center space-x-2'>
             <Checkbox
               id={`${blockId}-${option.id}`}
               checked={Boolean(value)}
-              onCheckedChange={(checked) => setValue(checked as boolean)}
+              onCheckedChange={handleChange}
+              disabled={isPreview}
             />
             <Label
               htmlFor={`${blockId}-${option.id}`}

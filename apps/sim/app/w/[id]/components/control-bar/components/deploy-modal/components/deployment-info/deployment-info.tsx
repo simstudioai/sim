@@ -21,14 +21,12 @@ import { DeployStatus } from '@/app/w/[id]/components/control-bar/components/dep
 import { ExampleCommand } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/example-command/example-command'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { DeployedWorkflowModal } from '../../../deployment-controls/components/deployed-workflow-modal'
-import { createLogger } from '@/lib/logs/console-logger'
+import { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const logger = createLogger('DeploymentInfo')
 
 interface DeploymentInfoProps {
   isLoading?: boolean
   deploymentInfo: {
-    isDeployed: boolean
     deployedAt?: string
     apiKey: string
     endpoint: string
@@ -40,7 +38,7 @@ interface DeploymentInfoProps {
   isSubmitting: boolean
   isUndeploying: boolean
   workflowId: string | null
-  deployedState: any
+  deployedState: WorkflowState
   isLoadingDeployedState: boolean
 }
 
@@ -69,7 +67,6 @@ export function DeploymentInfo({
       setIsViewingDeployed(true)
       return
     } else if (!isLoadingDeployedState) {
-      logger.debug(`No deployed state found`)
       addNotification('error', 'Cannot view deployment: No deployed state available', workflowId)
     }
   }

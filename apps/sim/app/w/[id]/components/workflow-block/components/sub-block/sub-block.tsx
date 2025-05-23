@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
 import { Info } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
@@ -27,25 +27,26 @@ import { TimeInput } from './components/time-input'
 import { ToolInput } from './components/tool-input/tool-input'
 import { WebhookConfig } from './components/webhook/webhook'
 
-
 interface SubBlockProps {
   blockId: string
   config: SubBlockConfig
   isConnecting: boolean
   isPreview?: boolean
-  previewValue?: any
+  subBlockValues?: Record<string, any>
 }
 
 export function SubBlock({ 
   blockId, 
   config, 
-  isConnecting, 
-  isPreview = false, 
-  previewValue = undefined 
+  isConnecting,
+  isPreview = false,
+  subBlockValues
 }: SubBlockProps) {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
   }
+
+  const { getValue } = useSubBlockStore()
 
   const isFieldRequired = () => {
     const blockType = useWorkflowStore.getState().blocks[blockId]?.type
@@ -57,9 +58,14 @@ export function SubBlock({
     return blockConfig.inputs[config.id]?.required === true
   }
 
+  // Get preview value for this specific sub-block
+  const getPreviewValue = () => {
+    if (!isPreview || !subBlockValues) return undefined
+    return subBlockValues[config.id]?.value ?? null
+  }
+
   const renderInput = () => {
-    // Get the subblock value from the config if available
-    const directValue = isPreview ? previewValue : undefined;
+    const previewValue = getPreviewValue()
     
     switch (config.type) {
       case 'short-input':
@@ -72,7 +78,7 @@ export function SubBlock({
             isConnecting={isConnecting}
             config={config}
             isPreview={isPreview}
-            value={directValue}
+            previewValue={previewValue}
           />
         )
       case 'long-input':
@@ -85,7 +91,7 @@ export function SubBlock({
             rows={config.rows}
             config={config}
             isPreview={isPreview}
-            value={directValue}
+            previewValue={previewValue}
           />
         )
       case 'dropdown':
@@ -96,7 +102,7 @@ export function SubBlock({
               subBlockId={config.id}
               options={config.options as string[]}
               isPreview={isPreview}
-              value={directValue}
+              previewValue={previewValue}
             />
           </div>
         )
@@ -111,7 +117,7 @@ export function SubBlock({
             step={config.step}
             integer={config.integer}
             isPreview={isPreview}
-            value={directValue}
+            previewValue={previewValue}
           />
         )
       case 'table':
@@ -120,7 +126,7 @@ export function SubBlock({
           subBlockId={config.id} 
           columns={config.columns ?? []} 
           isPreview={isPreview}
-          value={directValue}
+          previewValue={previewValue}
         />
       case 'code':
         return (
@@ -132,7 +138,7 @@ export function SubBlock({
             language={config.language}
             generationType={config.generationType}
             isPreview={isPreview}
-            value={directValue}
+            previewValue={previewValue}
           />
         )
       case 'switch':
@@ -141,14 +147,14 @@ export function SubBlock({
           subBlockId={config.id} 
           title={config.title ?? ''} 
           isPreview={isPreview}
-          value={directValue}
+          previewValue={previewValue}
         />
       case 'tool-input':
         return <ToolInput 
           blockId={blockId} 
           subBlockId={config.id}
           isPreview={isPreview}
-          value={directValue}
+          previewValue={previewValue}
         />
       case 'checkbox-list':
         return (
@@ -159,7 +165,7 @@ export function SubBlock({
             options={config.options as { label: string; id: string }[]}
             layout={config.layout}
             isPreview={isPreview}
-            value={directValue}
+            subBlockValues={subBlockValues}
           />
         )
       case 'condition-input':
@@ -169,7 +175,7 @@ export function SubBlock({
             subBlockId={config.id} 
             isConnecting={isConnecting}
             isPreview={isPreview}
-            value={directValue}
+            previewValue={previewValue}
           />
         )
       case 'eval-input':
@@ -177,7 +183,7 @@ export function SubBlock({
           blockId={blockId} 
           subBlockId={config.id}
           isPreview={isPreview}
-          value={directValue}
+          previewValue={previewValue}
         />
       case 'date-input':
         return (
@@ -186,7 +192,7 @@ export function SubBlock({
             subBlockId={config.id} 
             placeholder={config.placeholder}
             isPreview={isPreview}
-            value={directValue}
+            previewValue={previewValue}
           />
         )
       case 'time-input':
@@ -196,7 +202,7 @@ export function SubBlock({
             subBlockId={config.id} 
             placeholder={config.placeholder}
             isPreview={isPreview}
-            value={directValue}
+            previewValue={previewValue}
           />
         )
       case 'file-upload':
@@ -208,7 +214,7 @@ export function SubBlock({
             multiple={config.multiple === true}
             maxSize={config.maxSize}
             isPreview={isPreview}
-            value={directValue}
+            previewValue={previewValue}
           />
         )
       case 'webhook-config':
@@ -216,9 +222,9 @@ export function SubBlock({
           <WebhookConfig 
             blockId={blockId} 
             subBlockId={config.id} 
-            isConnecting={isConnecting} 
+            isConnecting={isConnecting}
             isPreview={isPreview}
-            value={directValue}
+            value={previewValue}
           />
         )
       case 'schedule-config':
@@ -228,60 +234,63 @@ export function SubBlock({
             subBlockId={config.id} 
             isConnecting={isConnecting}
             isPreview={isPreview}
-            value={directValue}
+            previewValue={previewValue}
           />
         )
       case 'oauth-input':
         return (
           <CredentialSelector
-            value={isPreview && directValue ? directValue : (typeof config.value === 'string' ? config.value : '')}
+            value={isPreview ? (previewValue || '') : (typeof config.value === 'string' ? config.value : '')}
             onChange={(value) => {
-              // Use the workflow store to update the value
-              const event = new CustomEvent('update-subblock-value', {
-                detail: {
-                  blockId,
-                  subBlockId: config.id,
-                  value,
-                },
-              })
-              window.dispatchEvent(event)
+              // Only allow changes in non-preview mode
+              if (!isPreview) {
+                const event = new CustomEvent('update-subblock-value', {
+                  detail: {
+                    blockId,
+                    subBlockId: config.id,
+                    value,
+                  },
+                })
+                window.dispatchEvent(event)
+              }
             }}
             provider={config.provider as any}
             requiredScopes={config.requiredScopes || []}
             label={config.placeholder || 'Select a credential'}
             serviceId={config.serviceId}
+            disabled={isPreview}
           />
         )
       case 'file-selector':
         return <FileSelectorInput 
           blockId={blockId} 
           subBlock={config} 
-          disabled={isConnecting}
+          disabled={isConnecting || isPreview}
           isPreview={isPreview}
-          value={directValue}
+          previewValue={previewValue}
         />
       case 'project-selector':
         return <ProjectSelectorInput 
           blockId={blockId} 
           subBlock={config} 
-          disabled={isConnecting}
+          disabled={isConnecting || isPreview}
           isPreview={isPreview}
-          value={directValue}
+          previewValue={previewValue}
         />
       case 'folder-selector':
         return <FolderSelectorInput 
           blockId={blockId} 
           subBlock={config} 
-          disabled={isConnecting}
+          disabled={isConnecting || isPreview}
           isPreview={isPreview}
-          value={directValue}
+          previewValue={previewValue}
         />
       case 'input-format':
         return <InputFormat 
           blockId={blockId} 
           subBlockId={config.id}
           isPreview={isPreview}
-          value={directValue}
+          previewValue={previewValue}
         />
       default:
         return <div>Unknown input type: {config.type}</div>

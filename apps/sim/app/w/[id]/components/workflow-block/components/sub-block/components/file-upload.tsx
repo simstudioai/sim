@@ -18,7 +18,7 @@ interface FileUploadProps {
   acceptedTypes?: string // comma separated MIME types
   multiple?: boolean // whether to allow multiple file uploads
   isPreview?: boolean
-  value?: UploadedFile | UploadedFile[] | null
+  previewValue?: any | null
 }
 
 interface UploadedFile {
@@ -41,16 +41,10 @@ export function FileUpload({
   acceptedTypes = '*',
   multiple = false, // Default to single file for backward compatibility
   isPreview = false,
-  value: propValue
+  previewValue
 }: FileUploadProps) {
   // State management - handle both single file and array of files
-  const [value, setValue] = useSubBlockValue<UploadedFile | UploadedFile[] | null>(
-    blockId,
-    subBlockId,
-    true,
-    isPreview,
-    propValue
-  )
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
 
@@ -63,6 +57,9 @@ export function FileUpload({
   // Stores
   const { addNotification } = useNotificationStore()
   const { activeWorkflowId } = useWorkflowRegistry()
+
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
 
   /**
    * Opens file dialog
@@ -91,6 +88,8 @@ export function FileUpload({
    * Handles file upload when new file(s) are selected
    */
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isPreview) return
+    
     e.stopPropagation()
 
     const files = e.target.files
@@ -287,14 +286,14 @@ export function FileUpload({
         // Convert map values back to array
         const newFiles = Array.from(uniqueFiles.values())
 
-        setValue(newFiles)
+        setStoreValue(newFiles)
 
         // Make sure to update the subblock store value for the workflow execution
         useSubBlockStore.getState().setValue(blockId, subBlockId, newFiles)
         useWorkflowStore.getState().triggerUpdate()
       } else {
         // For single file: Replace with last uploaded file
-        setValue(uploadedFiles[0] || null)
+        setStoreValue(uploadedFiles[0] || null)
 
         // Make sure to update the subblock store value for the workflow execution
         useSubBlockStore.getState().setValue(blockId, subBlockId, uploadedFiles[0] || null)
@@ -352,7 +351,7 @@ export function FileUpload({
         // For multiple files: Remove the specific file
         const filesArray = Array.isArray(value) ? value : value ? [value] : []
         const updatedFiles = filesArray.filter((f) => f.path !== file.path)
-        setValue(updatedFiles.length > 0 ? updatedFiles : null)
+        setStoreValue(updatedFiles.length > 0 ? updatedFiles : null)
 
         // Make sure to update the subblock store value for the workflow execution
         useSubBlockStore
@@ -360,7 +359,7 @@ export function FileUpload({
           .setValue(blockId, subBlockId, updatedFiles.length > 0 ? updatedFiles : null)
       } else {
         // For single file: Clear the value
-        setValue(null)
+        setStoreValue(null)
 
         // Make sure to update the subblock store
         useSubBlockStore.getState().setValue(blockId, subBlockId, null)
@@ -403,7 +402,7 @@ export function FileUpload({
     setDeletingFiles(deletingStatus)
 
     // Clear input state immediately for better UX
-    setValue(null)
+    setStoreValue(null)
     useSubBlockStore.getState().setValue(blockId, subBlockId, null)
     useWorkflowStore.getState().triggerUpdate()
 

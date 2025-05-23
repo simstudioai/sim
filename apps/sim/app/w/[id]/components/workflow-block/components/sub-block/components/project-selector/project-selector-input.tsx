@@ -20,7 +20,7 @@ interface ProjectSelectorInputProps {
   disabled?: boolean
   onProjectSelect?: (projectId: string) => void
   isPreview?: boolean
-  value?: string
+  previewValue?: any | null
 }
 
 export function ProjectSelectorInput({
@@ -29,7 +29,7 @@ export function ProjectSelectorInput({
   disabled = false,
   onProjectSelect,
   isPreview = false,
-  value: propValue
+  previewValue
 }: ProjectSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
@@ -46,15 +46,15 @@ export function ProjectSelectorInput({
 
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
-    if (isPreview && propValue !== undefined) {
-      setSelectedProjectId(propValue);
+    if (isPreview && previewValue !== undefined) {
+      setSelectedProjectId(previewValue);
     } else {
       const value = getValue(blockId, subBlock.id);
       if (value && typeof value === 'string') {
         setSelectedProjectId(value);
       }
     }
-  }, [blockId, subBlock.id, getValue, isPreview, propValue]);
+  }, [blockId, subBlock.id, getValue, isPreview, previewValue]);
 
   // Handle project selection
   const handleProjectChange = (

@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { isEqual } from 'lodash'
 import { getProviderFromModel } from '@/providers/utils'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-
-// Add logger for diagnostic logging
-const logger = createLogger('useSubBlockValue')
 
 /**
  * Helper to handle API key auto-fill for provider-based blocks
@@ -152,8 +148,6 @@ function storeApiKeyValue(
  * @param blockId The ID of the block containing the sub-block
  * @param subBlockId The ID of the sub-block
  * @param triggerWorkflowUpdate Whether to trigger a workflow update when the value changes
- * @param isPreview Whether this is being used in preview mode
- * @param directValue The direct value to use when in preview mode
  * @returns A tuple containing the current value and a setter function
  */
 export function useSubBlockValue<T = any>(
@@ -179,35 +173,11 @@ export function useSubBlockValue<T = any>(
 
   // Previous model reference for detecting model changes
   const prevModelRef = useRef<string | null>(null)
-  
-  // Ref to track if we're in preview mode and have direct values
-  const previewDataRef = useRef<{
-    isInPreview: boolean,
-    directValue: T | null
-  }>({
-    isInPreview: isPreview,
-    directValue: directValue as T || null
-  })
 
   // Get value from subblock store - always call this hook unconditionally
   const storeValue = useSubBlockStore(
     useCallback((state) => state.getValue(blockId, subBlockId), [blockId, subBlockId])
   )
-
-  // Directly update preview data when props change
-  useEffect(() => {
-    if (isPreview && directValue !== undefined) {
-      previewDataRef.current = {
-        isInPreview: true,
-        directValue: directValue as T || null
-      };
-      valueRef.current = directValue as T || null;
-      
-    } else if (!isPreview && previewDataRef.current.isInPreview) {
-      // Reset preview flag when isPreview prop changes to false
-      previewDataRef.current.isInPreview = false;
-    }
-  }, [isPreview, directValue, blockId, subBlockId]);
 
   // Check if this is an API key field that could be auto-filled
   const isApiKey =
@@ -228,46 +198,10 @@ export function useSubBlockValue<T = any>(
   // Compute the modelValue based on block type
   const modelValue = isProviderBasedBlock ? (modelSubBlockValue as string) : null
 
-  // Initialize valueRef on first render
-  useEffect(() => {
-    // If we're in preview mode with direct values, use those
-    if (previewDataRef.current.isInPreview) {
-      valueRef.current = previewDataRef.current.directValue;
-    } else {
-      // Otherwise use the store value or initial value
-      valueRef.current = storeValue !== undefined ? storeValue : initialValue;
-    }
-  }, [storeValue, initialValue, isPreview])
-
-  // Update the ref if the store value changes
-  // This ensures we're always working with the latest value
-  useEffect(() => {
-    // Skip updates from global store if we're using preview values
-    if (previewDataRef.current.isInPreview) return;
-    
-    // Use deep comparison for objects to prevent unnecessary updates
-    if (!isEqual(valueRef.current, storeValue)) {
-      valueRef.current = storeValue !== undefined ? storeValue : initialValue
-    }
-  }, [storeValue, initialValue])
-
-  // Create a preview-aware setValue function
-  const setValueWithPreview = useCallback(
+  // Hook to set a value in the subblock store
+  const setValue = useCallback(
     (newValue: T) => {
-      // If we're in preview mode, just update the local valueRef for display
-      // but don't update the global store
-      if (previewDataRef.current.isInPreview) {
-        // Only update if the value has changed
-        if (!isEqual(valueRef.current, newValue)) {
-          valueRef.current = newValue;
-          // Update the ref as well
-          previewDataRef.current.directValue = newValue;
-        }
-        // Return early without updating global state
-        return;
-      }
-      
-      // For non-preview mode, use the normal setValue logic
+      // Use deep comparison to avoid unnecessary updates for complex objects
       if (!isEqual(valueRef.current, newValue)) {
         valueRef.current = newValue
 
@@ -295,6 +229,11 @@ export function useSubBlockValue<T = any>(
     },
     [blockId, subBlockId, blockType, isApiKey, storeValue, triggerWorkflowUpdate, modelValue]
   )
+
+  // Initialize valueRef on first render
+  useEffect(() => {
+    valueRef.current = storeValue !== undefined ? storeValue : initialValue
+  }, [])
 
   // When component mounts, check for existing API key in toolParamsStore
   useEffect(() => {
@@ -351,5 +290,14 @@ export function useSubBlockValue<T = any>(
     isProviderBasedBlock,
   ])
 
-  return [valueRef.current as T | null, setValueWithPreview] as const
+  // Update the ref if the store value changes
+  // This ensures we're always working with the latest value
+  useEffect(() => {
+    // Use deep comparison for objects to prevent unnecessary updates
+    if (!isEqual(valueRef.current, storeValue)) {
+      valueRef.current = storeValue !== undefined ? storeValue : initialValue
+    }
+  }, [storeValue, initialValue])
+
+  return [valueRef.current as T | null, setValue] as const
 }
