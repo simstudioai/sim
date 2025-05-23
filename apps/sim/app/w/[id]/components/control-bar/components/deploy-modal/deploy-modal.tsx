@@ -27,6 +27,7 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployModal')
 
@@ -36,7 +37,7 @@ interface DeployModalProps {
   workflowId: string | null
   needsRedeployment: boolean
   setNeedsRedeployment: (value: boolean) => void
-  deployedState: any
+  deployedState: WorkflowState
   isLoadingDeployedState: boolean
   refetchDeployedState: () => Promise<void>
 }
@@ -313,7 +314,6 @@ export function DeployModal({
       setDeploymentInfo(newDeploymentInfo)
 
       // Fetch the updated deployed state after deployment
-      logger.info('Deployment successful, fetching initial deployed state')
       await refetchDeployedState()
 
       // No notification on successful deploy

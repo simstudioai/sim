@@ -25,6 +25,7 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { DeployedWorkflowCard } from './deployed-workflow-card'
+import { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployedWorkflowModal')
 
@@ -32,18 +33,7 @@ interface DeployedWorkflowModalProps {
   isOpen: boolean
   onClose: () => void
   needsRedeployment: boolean
-  deployedWorkflowState: {
-    blocks: Record<string, any>
-    edges: Array<any>
-    loops: Record<string, any>
-    parallels: Record<string, any>
-    _metadata?: {
-      workflowId?: string
-      fetchTimestamp?: number
-      requestId?: number
-      [key: string]: any
-    }
-  }
+  deployedWorkflowState: WorkflowState
 }
 
 export function DeployedWorkflowModal({
@@ -74,94 +64,95 @@ export function DeployedWorkflowModal({
   }))
   
   // Sanitize states to ensure no invalid blocks are passed to components
-  const sanitizedCurrentState = useMemo(() => {
-    if (!currentWorkflowState) return undefined;
+  // const sanitizedCurrentState = useMemo(() => {
+  //   if (!currentWorkflowState) return undefined;
     
-    const result = {
-      blocks: Object.fromEntries(
-        Object.entries(currentWorkflowState.blocks || {})
-          .filter(([_, block]) => block && block.type)
-          .map(([id, block]) => {
-            // Deep clone the block to avoid any reference sharing
-            return [id, structuredClone(block)];
-          })
-      ),
-      edges: currentWorkflowState.edges ? [...currentWorkflowState.edges] : [],
-      loops: currentWorkflowState.loops ? {...currentWorkflowState.loops} : {},
-      _metadata: {
-        workflowId: activeWorkflowId || undefined,
-        type: 'current',
-        timestamp: Date.now()
-      }
-    };
+  //   const result = {
+  //     blocks: Object.fromEntries(
+  //       Object.entries(currentWorkflowState.blocks || {})
+  //         .filter(([_, block]) => block && block.type)
+  //         .map(([id, block]) => {
+  //           // Deep clone the block to avoid any reference sharing
+  //           return [id, structuredClone(block)];
+  //         })
+  //     ),
+  //     edges: currentWorkflowState.edges ? [...currentWorkflowState.edges] : [],
+  //     loops: currentWorkflowState.loops ? {...currentWorkflowState.loops} : {},
+  //     _metadata: {
+  //       workflowId: activeWorkflowId || undefined,
+  //       type: 'current',
+  //       timestamp: Date.now()
+  //     }
+  //   };
     
-    return result;
-  }, [currentWorkflowState, activeWorkflowId]);
+  //   return result;
+  // }, [currentWorkflowState, activeWorkflowId]);
   
-  const sanitizedDeployedState = useMemo(() => {
-    if (!deployedWorkflowState) return {
-      blocks: {},
-      edges: [],
-      loops: {},
-      _metadata: {
-        workflowId: activeWorkflowId || undefined,
-        type: 'deployed-empty',
-        timestamp: Date.now()
-      }
-    };
+  // const sanitizedDeployedState = useMemo(() => {
+  //   if (!deployedWorkflowState) return {
+  //     blocks: {},
+  //     edges: [],
+  //     loops: {},
+  //     _metadata: {
+  //       workflowId: activeWorkflowId || undefined,
+  //       type: 'deployed-empty',
+  //       timestamp: Date.now()
+  //     }
+  //   };
     
-    const stateWorkflowId = deployedWorkflowState?._metadata?.workflowId;
-    const stateMatch = stateWorkflowId === activeWorkflowId;
+  //   const stateWorkflowId = deployedWorkflowState?._metadata?.workflowId;
+  //   const stateMatch = stateWorkflowId === activeWorkflowId;
     
-    // Check if the deployed state belongs to the current workflow
-    // This is a critical safety check to prevent showing the wrong workflow state
-    if (stateWorkflowId && !stateMatch) {
-      logger.error('Attempted to use deployed state from wrong workflow', {
-        stateWorkflowId,
-        activeWorkflowId,
-      });
+  //   // Check if the deployed state belongs to the current workflow
+  //   // This is a critical safety check to prevent showing the wrong workflow state
+  //   if (stateWorkflowId && !stateMatch) {
+  //     logger.error('Attempted to use deployed state from wrong workflow', {
+  //       stateWorkflowId,
+  //       activeWorkflowId,
+  //     });
       
-      // Return empty state to prevent showing wrong workflow data
-      return {
-        blocks: {},
-        edges: [],
-        loops: {},
-        _metadata: {
-          workflowId: activeWorkflowId || undefined,
-          type: 'deployed-empty-mismatch',
-          originalWorkflowId: stateWorkflowId,
-          timestamp: Date.now()
-        }
-      };
-    }
+  //     // Return empty state to prevent showing wrong workflow data
+  //     return {
+  //       blocks: {},
+  //       edges: [],
+  //       loops: {},
+  //       _metadata: {
+  //         workflowId: activeWorkflowId || undefined,
+  //         type: 'deployed-empty-mismatch',
+  //         originalWorkflowId: stateWorkflowId,
+  //         timestamp: Date.now()
+  //       }
+  //     };
+  //   }
     
-    const result = {
-      blocks: Object.fromEntries(
-        Object.entries(deployedWorkflowState.blocks || {})
-          .filter(([_, block]) => block && block.type)
-          .map(([id, block]) => {
-            // Deep clone the block to avoid any reference sharing
-            return [id, structuredClone(block)];
-          })
-      ),
-      edges: deployedWorkflowState.edges ? [...deployedWorkflowState.edges] : [],
-      loops: deployedWorkflowState.loops ? {...deployedWorkflowState.loops} : {},
-      _metadata: {
-        ...(deployedWorkflowState._metadata || {}),
-        workflowId: deployedWorkflowState._metadata?.workflowId || activeWorkflowId || undefined,
-        type: 'deployed-sanitized',
-        sanitizedAt: Date.now()
-      }
-    };
+  //   const result = {
+  //     blocks: Object.fromEntries(
+  //       Object.entries(deployedWorkflowState.blocks || {})
+  //         .filter(([_, block]) => block && block.type)
+  //         .map(([id, block]) => {
+  //           // Deep clone the block to avoid any reference sharing
+  //           return [id, structuredClone(block)];
+  //         })
+  //     ),
+  //     edges: deployedWorkflowState.edges ? [...deployedWorkflowState.edges] : [],
+  //     loops: deployedWorkflowState.loops ? {...deployedWorkflowState.loops} : {},
+  //     _metadata: {
+  //       ...(deployedWorkflowState._metadata || {}),
+  //       workflowId: deployedWorkflowState._metadata?.workflowId || activeWorkflowId || undefined,
+  //       type: 'deployed-sanitized',
+  //       sanitizedAt: Date.now()
+  //     }
+  //   };
     
-    return result;
-  }, [deployedWorkflowState, activeWorkflowId]);
+  //   return result;
+  // }, [deployedWorkflowState, activeWorkflowId]);
 
   const handleRevert = () => {
-    // Revert to the deployed state
-    revertToDeployedState(deployedWorkflowState)
-    setShowRevertDialog(false)
-    onClose()
+    if (activeWorkflowId) {
+      revertToDeployedState(deployedWorkflowState)
+      setShowRevertDialog(false)
+      onClose()
+    }
   }
 
   return (
@@ -177,8 +168,8 @@ export function DeployedWorkflowModal({
           </DialogHeader>
         </div>
         <DeployedWorkflowCard
-          currentWorkflowState={sanitizedCurrentState}
-          deployedWorkflowState={sanitizedDeployedState}
+          currentWorkflowState={currentWorkflowState}
+          deployedWorkflowState={deployedWorkflowState}
         />
 
         <div className="flex justify-between mt-6">

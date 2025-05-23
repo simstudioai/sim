@@ -125,7 +125,7 @@ export function DeploymentControls({
         workflowId={activeWorkflowId}
         needsRedeployment={workflowNeedsRedeployment}
         setNeedsRedeployment={setNeedsRedeployment}
-        deployedState={deployedState}
+        deployedState={deployedState as WorkflowState}
         isLoadingDeployedState={isLoadingDeployedState}
         refetchDeployedState={refetchWithErrorHandling}
       />

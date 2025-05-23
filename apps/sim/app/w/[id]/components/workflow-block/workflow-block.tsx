@@ -16,7 +16,6 @@ import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
 
-
 interface WorkflowBlockProps {
   type: string
   config: BlockConfig
@@ -24,9 +23,7 @@ interface WorkflowBlockProps {
   isActive?: boolean
   isPending?: boolean
   isPreview?: boolean
-  isReadOnly?: boolean
   subBlockValues?: Record<string, any>
-  blockState?: any
 }
 
 // Combine both interfaces into a single component
@@ -42,11 +39,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     nextRunAt: string | null
     lastRanAt: string | null
     timezone: string
-    status?: string
-    isDisabled?: boolean
-    id?: string
   } | null>(null)
-  const [isLoadingScheduleInfo, setIsLoadingScheduleInfo] = useState(false)
   const [webhookInfo, setWebhookInfo] = useState<{
     webhookPath: string
     provider: string
@@ -65,9 +58,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   )
   const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
+  const hasActiveSchedule = useWorkflowStore((state) => state.hasActiveSchedule ?? false)
   const hasActiveWebhook = useWorkflowStore((state) => state.hasActiveWebhook ?? false)
-  const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
-  const toggleBlockAdvancedMode = useWorkflowStore((state) => state.toggleBlockAdvancedMode)
 
   // Workflow store actions
   const updateBlockName = useWorkflowStore((state) => state.updateBlockName)
@@ -78,106 +70,49 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(id))
   const isActive = dataIsActive || isActiveBlock
 
-  const reactivateSchedule = async (scheduleId: string) => {
-    try {
-      const response = await fetch(`/api/schedules/${scheduleId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: 'reactivate' }),
-      })
-
-      if (response.ok) {
-        fetchScheduleInfo()
-      } else {
-        console.error('Failed to reactivate schedule')
-      }
-    } catch (error) {
-      console.error('Error reactivating schedule:', error)
-    }
-  }
-
-  const fetchScheduleInfo = async () => {
-    try {
-      setIsLoadingScheduleInfo(true)
-      const workflowId = useWorkflowRegistry.getState().activeWorkflowId
-      if (!workflowId) return
-
-      const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      })
-
-      if (!response.ok) {
-        setScheduleInfo(null)
-        return
-      }
-
-      const data = await response.json()
-
-      if (!data.schedule) {
-        setScheduleInfo(null)
-        return
-      }
-
-      let scheduleTiming = 'Unknown schedule'
-      if (data.schedule.cronExpression) {
-        scheduleTiming = parseCronToHumanReadable(data.schedule.cronExpression)
-      }
-
-      const baseInfo = {
-        scheduleTiming,
-        nextRunAt: data.schedule.nextRunAt as string | null,
-        lastRanAt: data.schedule.lastRanAt as string | null,
-        timezone: data.schedule.timezone || 'UTC',
-        status: data.schedule.status as string,
-        isDisabled: data.schedule.status === 'disabled',
-        id: data.schedule.id as string,
-      }
-
-      try {
-        const statusRes = await fetch(`/api/schedules/${baseInfo.id}/status`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
-        })
-
-        if (statusRes.ok) {
-          const statusData = await statusRes.json()
-          setScheduleInfo({
-            scheduleTiming: baseInfo.scheduleTiming,
-            nextRunAt: statusData.nextRunAt ?? baseInfo.nextRunAt,
-            lastRanAt: statusData.lastRanAt ?? baseInfo.lastRanAt,
-            timezone: baseInfo.timezone,
-            status: statusData.status ?? baseInfo.status,
-            isDisabled: statusData.isDisabled ?? baseInfo.isDisabled,
-            id: baseInfo.id,
-          })
-          return
-        }
-      } catch (err) {
-        console.error('Error fetching schedule status:', err)
-      }
-
-      setScheduleInfo(baseInfo)
-    } catch (error) {
-      console.error('Error fetching schedule info:', error)
-      setScheduleInfo(null)
-    } finally {
-      setIsLoadingScheduleInfo(false)
-    }
-  }
-
+  // Get schedule information for the tooltip
   useEffect(() => {
-    if (type === 'starter') {
+    if (type === 'starter' && hasActiveSchedule) {
+      const fetchScheduleInfo = async () => {
+        try {
+          const workflowId = useWorkflowRegistry.getState().activeWorkflowId
+          if (!workflowId) return
+
+          const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache',
+            },
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            if (data.schedule) {
+              let scheduleTiming = 'Unknown schedule'
+              if (data.schedule.cronExpression) {
+                scheduleTiming = parseCronToHumanReadable(data.schedule.cronExpression)
+              }
+
+              setScheduleInfo({
+                scheduleTiming,
+                nextRunAt: data.schedule.nextRunAt,
+                lastRanAt: data.schedule.lastRanAt,
+                timezone: data.schedule.timezone || 'UTC',
+              })
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching schedule info:', error)
+        }
+      }
+
       fetchScheduleInfo()
-    } else {
+    } else if (!hasActiveSchedule) {
       setScheduleInfo(null)
     }
-  }, [type])
+  }, [type, hasActiveSchedule])
 
+  // Get webhook information for the tooltip
   useEffect(() => {
     if (type === 'starter' && hasActiveWebhook) {
       const fetchWebhookInfo = async () => {
@@ -207,6 +142,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }, [type, hasActiveWebhook])
 
+  // Update node internals when handles change
   useEffect(() => {
     updateNodeInternals(id)
   }, [id, horizontalHandles, updateNodeInternals])
@@ -219,6 +155,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
+  // Add effect to observe size changes with debounced updates
   useEffect(() => {
     if (!contentRef.current) return
 
@@ -231,10 +168,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }, 100)
 
     const resizeObserver = new ResizeObserver((entries) => {
+      // Cancel any pending animation frame
       if (rafId) {
         cancelAnimationFrame(rafId)
       }
 
+      // Schedule the update on the next animation frame
       rafId = requestAnimationFrame(() => {
         for (const entry of entries) {
           const height =
@@ -260,14 +199,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     let currentRow: SubBlockConfig[] = []
     let currentRowWidth = 0
 
-    // Get merged state for this block - use direct props if in preview mode
+    // Get merged state for this block
     const blocks = useWorkflowStore.getState().blocks
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
-    
-    // If in preview mode with direct subBlockValues, use those instead of global state
-    const mergedState = data.isPreview && data.subBlockValues 
-      ? { [blockId]: { subBlocks: data.subBlockValues } }
-      : mergeSubblockState(blocks, activeWorkflowId, blockId)
+    const mergedState = mergeSubblockState(blocks, activeWorkflowId, blockId)[blockId]
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
@@ -277,9 +212,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       if (!block.condition) return true
 
       // Get the values of the fields this block depends on from merged state
-      const fieldValue = mergedState?.[blockId]?.subBlocks[block.condition.field]?.value
+      const fieldValue = mergedState?.subBlocks[block.condition.field]?.value
       const andFieldValue = block.condition.and
-        ? mergedState?.[blockId]?.subBlocks[block.condition.and.field]?.value
+        ? mergedState?.subBlocks[block.condition.and.field]?.value
         : undefined
 
       // Check if the condition value is an array
@@ -352,8 +287,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
-  // Check if this is a starter block and if we need to show schedule / webhook indicators
+  // Check if this is a starter block and has active schedule or webhook
   const isStarterBlock = type === 'starter'
+  const showScheduleIndicator = isStarterBlock && hasActiveSchedule
   const showWebhookIndicator = isStarterBlock && hasActiveWebhook
 
   const getProviderName = (providerId: string): string => {
@@ -370,8 +306,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     return providers[providerId] || 'Webhook'
   }
 
-  const shouldShowScheduleBadge = isStarterBlock && !isLoadingScheduleInfo && scheduleInfo !== null
-
   return (
     <div className='group relative'>
       <Card
@@ -385,15 +319,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           isPending && 'ring-2 ring-amber-500',
           'z-[20]'
         )}
-        data-id={id}
-        data-props={data.isPreview ? JSON.stringify({
-          isPreview: data.isPreview,
-          isReadOnly: data.isReadOnly,
-          blockType: type,
-          data: {
-            subBlockValues: data.subBlockValues
-          }
-        }) : undefined}
       >
         {/* Show debug indicator for pending blocks */}
         {isPending && (
@@ -480,7 +405,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               </Badge>
             )}
             {/* Schedule indicator badge - displayed for starter blocks with active schedules */}
-            {shouldShowScheduleBadge && (
+            {showScheduleIndicator && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
@@ -511,7 +436,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         )}
                       />
                     </div>
-                    {scheduleInfo?.isDisabled ? 'Disabled' : 'Scheduled'}
+                    Scheduled
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side='top' className='max-w-[300px] p-4'>
@@ -576,7 +501,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 </TooltipContent>
               </Tooltip>
             )}
-            {config.subBlocks.some((block) => block.mode) && (
+            {config.longDescription && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -696,10 +621,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                       <SubBlock 
                         blockId={id} 
                         config={subBlock} 
-                        isConnecting={isConnecting} 
-                        isPreview={data.isPreview} 
-                        previewValue={data.isPreview && data.subBlockValues ? 
-                          (data.subBlockValues[subBlock.id]?.value || null) : null} 
+                        isConnecting={isConnecting}
+                        isPreview={data.isPreview}
+                        subBlockValues={data.subBlockValues}
                       />
                     </div>
                   ))}

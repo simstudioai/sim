@@ -21,6 +21,7 @@ interface ShortInputProps {
   value?: string
   onChange?: (value: string) => void
   isPreview?: boolean
+  previewValue?: string | null
 }
 
 export function ShortInput({
@@ -30,9 +31,10 @@ export function ShortInput({
   password,
   isConnecting,
   config,
-  value: propValue,
   onChange,
+  value: propValue,
   isPreview = false,
+  previewValue
 }: ShortInputProps) {
   const [isFocused, setIsFocused] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -48,10 +50,7 @@ export function ShortInput({
   }
   const [storeValue, setStoreValue] = useSubBlockValue(
     blockId, 
-    subBlockId, 
-    false, // No workflow update needed
-    isPreview, 
-    validatePropValue(propValue)
+    subBlockId
   )
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
@@ -62,10 +61,8 @@ export function ShortInput({
   // Get ReactFlow instance for zoom control
   const reactFlowInstance = useReactFlow()
 
-  // Use either controlled or uncontrolled value, prioritizing the direct value if in preview mode
-  const value = isPreview && propValue !== undefined 
-    ? propValue 
-    : (propValue !== undefined ? propValue : storeValue)
+  // Use preview value when in preview mode, otherwise use store value or prop value
+  const value = isPreview ? previewValue : (propValue !== undefined ? propValue : storeValue)
 
   // Check if this input is API key related
   const isApiKeyField = useMemo(() => {
@@ -103,7 +100,8 @@ export function ShortInput({
 
     if (onChange) {
       onChange(newValue)
-    } else {
+    } else if (!isPreview) {
+      // Only update store when not in preview mode
       setStoreValue(newValue)
     }
 
@@ -284,7 +282,8 @@ export function ShortInput({
 
     if (onChange) {
       onChange(newValue)
-    } else {
+    } else if (!isPreview) {
+      // Only update store when not in preview mode
       setStoreValue(newValue)
     }
   }
@@ -332,6 +331,7 @@ export function ShortInput({
         onKeyDown={handleKeyDown}
         autoComplete='off'
         style={{ overflowX: 'auto' }}
+        disabled={isPreview}
       />
       <div
         ref={overlayRef}

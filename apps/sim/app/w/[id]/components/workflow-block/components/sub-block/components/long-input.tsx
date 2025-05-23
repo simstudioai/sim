@@ -20,7 +20,9 @@ interface LongInputProps {
   config: SubBlockConfig
   rows?: number
   isPreview?: boolean
+  previewValue?: string | null
   value?: string
+  onChange?: (value: string) => void
 }
 
 // Constants
@@ -36,9 +38,11 @@ export function LongInput({
   config,
   rows,
   isPreview = false,
+  previewValue,
   value: propValue,
+  onChange,
 }: LongInputProps) {
-  const [value, setValue] = useSubBlockValue(blockId, subBlockId, false, isPreview, propValue)
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -47,6 +51,9 @@ export function LongInput({
   const overlayRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Use preview value when in preview mode, otherwise use store value or prop value
+  const value = isPreview ? previewValue : (propValue !== undefined ? propValue : storeValue)
 
   // Calculate initial height based on rows prop with reasonable defaults
   const getInitialHeight = () => {
@@ -76,7 +83,14 @@ export function LongInput({
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0
-    setValue(newValue)
+    
+    if (onChange) {
+      onChange(newValue)
+    } else if (!isPreview) {
+      // Only update store when not in preview mode
+      setStoreValue(newValue)
+    }
+    
     setCursorPosition(newCursorPosition)
 
     // Check for environment variables trigger
@@ -171,7 +185,9 @@ export function LongInput({
 
       // Update all state in a single batch
       Promise.resolve().then(() => {
-        setValue(newValue)
+        if (!isPreview) {
+          setStoreValue(newValue)
+        }
         setCursorPosition(dropPosition + 1)
         setShowTags(true)
 
@@ -272,6 +288,7 @@ export function LongInput({
           setShowTags(false)
           setSearchTerm('')
         }}
+        disabled={isPreview}
         style={{
           fontFamily: 'inherit',
           lineHeight: 'inherit',
@@ -302,29 +319,43 @@ export function LongInput({
         <ChevronsUpDown className='h-3 w-3 text-muted-foreground/70' />
       </div>
 
-      <EnvVarDropdown
-        visible={showEnvVars}
-        onSelect={setValue}
-        searchTerm={searchTerm}
-        inputValue={value?.toString() ?? ''}
-        cursorPosition={cursorPosition}
-        onClose={() => {
-          setShowEnvVars(false)
-          setSearchTerm('')
-        }}
-      />
-      <TagDropdown
-        visible={showTags}
-        onSelect={setValue}
-        blockId={blockId}
-        activeSourceBlockId={activeSourceBlockId}
-        inputValue={value?.toString() ?? ''}
-        cursorPosition={cursorPosition}
-        onClose={() => {
-          setShowTags(false)
-          setActiveSourceBlockId(null)
-        }}
-      />
+      <div>
+        <EnvVarDropdown
+          visible={showEnvVars}
+          onSelect={(newValue) => {
+            if (onChange) {
+              onChange(newValue)
+            } else if (!isPreview) {
+              setStoreValue(newValue)
+            }
+          }}
+          searchTerm={searchTerm}
+          inputValue={value?.toString() ?? ''}
+          cursorPosition={cursorPosition}
+          onClose={() => {
+            setShowEnvVars(false)
+            setSearchTerm('')
+          }}
+        />
+        <TagDropdown
+          visible={showTags}
+          onSelect={(newValue) => {
+            if (onChange) {
+              onChange(newValue)
+            } else if (!isPreview) {
+              setStoreValue(newValue)
+            }
+          }}
+          blockId={blockId}
+          activeSourceBlockId={activeSourceBlockId}
+          inputValue={value?.toString() ?? ''}
+          cursorPosition={cursorPosition}
+          onClose={() => {
+            setShowTags(false)
+            setActiveSourceBlockId(null)
+          }}
+        />
+      </div>
     </div>
   )
 }

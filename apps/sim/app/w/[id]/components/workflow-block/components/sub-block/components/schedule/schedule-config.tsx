@@ -17,18 +17,18 @@ const logger = createLogger('ScheduleConfig')
 
 interface ScheduleConfigProps {
   blockId: string
-  subBlockId?: string
+  subBlockId: string
   isConnecting: boolean
   isPreview?: boolean
-  value?: any
+  previewValue?: any | null
 }
 
 export function ScheduleConfig({ 
   blockId, 
   subBlockId, 
-  isConnecting, 
+  isConnecting,
   isPreview = false,
-  value: propValue 
+  previewValue
 }: ScheduleConfigProps) {
   const [error, setError] = useState<string | null>(null)
   const [scheduleId, setScheduleId] = useState<string | null>(null)
@@ -50,12 +50,17 @@ export function ScheduleConfig({
   const setScheduleStatus = useWorkflowStore((state) => state.setScheduleStatus)
 
   // Get the schedule type from the block state
-  const [scheduleType] = useSubBlockValue(blockId, 'scheduleType', false, isPreview, propValue?.scheduleType)
+  const [scheduleType] = useSubBlockValue(blockId, 'scheduleType')
 
   // Get the startWorkflow value to determine if scheduling is enabled
   // and expose the setter so we can update it
-  const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow', false, isPreview, propValue?.startWorkflow)
+  const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
   const isScheduleEnabled = startWorkflow === 'schedule'
+
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
 
   // Function to check if schedule exists in the database
   const checkSchedule = async () => {
@@ -132,6 +137,7 @@ export function ScheduleConfig({
   }
 
   const handleOpenModal = () => {
+    if (isPreview) return
     setIsModalOpen(true)
   }
 
@@ -145,6 +151,8 @@ export function ScheduleConfig({
   }
 
   const handleSaveSchedule = async (): Promise<boolean> => {
+    if (isPreview) return false
+    
     setIsSaving(true)
     setError(null)
 
@@ -247,7 +255,7 @@ export function ScheduleConfig({
   }
 
   const handleDeleteSchedule = async (): Promise<boolean> => {
-    if (!scheduleId) return false
+    if (isPreview || !scheduleId) return false
 
     setIsDeleting(true)
     try {
@@ -320,7 +328,7 @@ export function ScheduleConfig({
               size='icon'
               className='h-8 w-8 shrink-0'
               onClick={handleOpenModal}
-              disabled={isDeleting || isConnecting}
+              disabled={isPreview || isDeleting || isConnecting}
             >
               {isDeleting ? (
                 <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
@@ -336,7 +344,7 @@ export function ScheduleConfig({
           size='sm'
           className='flex h-10 w-full items-center bg-background font-normal text-sm'
           onClick={handleOpenModal}
-          disabled={isConnecting || isSaving || isDeleting}
+          disabled={isPreview || isConnecting || isSaving || isDeleting}
         >
           {isLoading ? (
             <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
