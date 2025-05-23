@@ -26,44 +26,6 @@ export function DeployedWorkflowCard({
   const [showingDeployed, setShowingDeployed] = useState(true)
   const workflowToShow = showingDeployed ? deployedWorkflowState : currentWorkflowState
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  
-  // Create sanitized workflow state
-  // const sanitizedWorkflowState = useMemo(() => {
-  //   if (!workflowToShow) return null;
-    
-  //   // Verify the workflow ID matches if metadata exists
-  //   if (workflowToShow._metadata?.workflowId && 
-  //       workflowToShow._metadata.workflowId !== activeWorkflowId) {
-  //     logger.warn('Workflow ID mismatch detected in card', {
-  //       stateWorkflowId: workflowToShow._metadata.workflowId,
-  //       activeWorkflowId,
-  //       isDeployed: showingDeployed
-  //     });
-  //   }
-    
-  //   // Filter out invalid blocks and make deep clone to avoid reference issues
-  //   const result = {
-  //     blocks: Object.fromEntries(
-  //       Object.entries(workflowToShow.blocks || {})
-  //         .filter(([_, block]) => block && block.type) // Filter out invalid blocks
-  //         .map(([id, block]) => {
-  //           // Deep clone the block to avoid any reference sharing
-  //           const clonedBlock = structuredClone(block);
-  //           return [id, clonedBlock];
-  //         })
-  //     ),
-  //     edges: workflowToShow.edges ? structuredClone(workflowToShow.edges) : [],
-  //     loops: workflowToShow.loops ? structuredClone(workflowToShow.loops) : {},
-  //     _metadata: {
-  //       ...(workflowToShow._metadata || {}),
-  //       workflowId: activeWorkflowId,
-  //       viewType: showingDeployed ? 'deployed' : 'current',
-  //       sanitizedAt: Date.now()
-  //     }
-  //   };
-    
-  //   return result;
-  // }, [workflowToShow, showingDeployed, activeWorkflowId]);
 
   // // Generate a unique key for the workflow preview
   const previewKey = useMemo(() => {
