@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
+import { refreshAccessTokenIfNeeded } from '../../utils'
+import { getSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,52 +13,96 @@ interface Team {
   displayName: string
 }
 export async function POST(request: Request) {
+  logger.info('POST request received at /api/auth/oauth/microsoft-teams/teams')
   try {
-    const { credential } = await request.json()
+    const session = await getSession()
+    const body = await request.json()
+    logger.info('Request body parsed', { body })
+    
+    const { credential, workflowId } = body
 
     if (!credential) {
       logger.error('Missing credential in request')
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
     }
 
-    // In a real implementation, you would use the credential to authenticate with Microsoft Graph API
-    // For now, we'll return some mock data
-    logger.info('Fetching teams with credential')
+    logger.info('Credential found, attempting to fetch token', { credentialId: credential })
 
-    const baseUrl = getBaseUrl()
-    const tokenResponse = await fetch(`${baseUrl}/api/auth/oauth/token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        credentialId: credential,
-      }),
-    })
+    try {
+      // Get the userId either from the session or from the workflowId
+      const userId = session?.user?.id || ''
+      
+      if (!userId) {
+        logger.error('No user ID found in session')
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      
+      logger.info('Refreshing token if needed', { userId, credentialId: credential })
+      const accessToken = await refreshAccessTokenIfNeeded(credential, userId, workflowId)
+      
+      if (!accessToken) {
+        logger.error('Failed to get access token', { credentialId: credential, userId })
+        return NextResponse.json({ 
+          error: 'Could not retrieve access token', 
+          authRequired: true 
+        }, { status: 401 })
+      }
 
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json()
-      throw new Error(errorData.error || 'Failed to get access token')
+      logger.info('Successfully obtained access token, calling Microsoft Graph API')
+
+      const response = await fetch('https://graph.microsoft.com/v1.0/me/joinedTeams', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      
+      logger.info('Microsoft Graph API response', { status: response.status })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        logger.error('Microsoft Graph API error getting teams', { 
+          status: response.status, 
+          error: errorData,
+          endpoint: 'https://graph.microsoft.com/v1.0/me/joinedTeams'
+        })
+        
+        // Check for auth errors specifically
+        if (response.status === 401) {
+          return NextResponse.json({ 
+            error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
+            authRequired: true
+          }, { status: 401 });
+        }
+        
+        throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
+      }
+      
+      const data = await response.json()
+      const teams = data.value
+      
+      logger.info('Successfully retrieved teams data', { count: teams?.length || 0 })
+
+      return NextResponse.json({
+        teams: teams
+      })
+    } catch (innerError) {
+      logger.error('Error during API requests:', innerError)
+      
+      // Check if it's an authentication error
+      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError);
+      if (errorMessage.includes('auth') || errorMessage.includes('token') || 
+          errorMessage.includes('unauthorized') || errorMessage.includes('unauthenticated')) {
+        return NextResponse.json({ 
+          error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
+          authRequired: true,
+          details: errorMessage
+        }, { status: 401 });
+      }
+      
+      throw innerError
     }
-
-    const tokenData = await tokenResponse.json()
-    const accessToken = tokenData.accessToken
-
-    const response = await fetch('https://graph.microsoft.com/v1.0/me/joinedTeams', {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
-    const data = await response.json()
-    const teams = data.value
-    
-
-
-    return NextResponse.json({
-      teams: teams
-    })
   } catch (error) {
     logger.error('Error processing Teams request:', error)
     return NextResponse.json(

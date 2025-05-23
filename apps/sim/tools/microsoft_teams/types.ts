@@ -1,13 +1,22 @@
 import { ToolResponse } from '../types'
 
 export interface MicrosoftTeamsMetadata {
-  messageId: string
-  channelId: string
-  teamId: string
+  messageId?: string
+  channelId?: string
+  teamId?: string
+  chatId?: string
   content?: string
   createdTime?: string
   modifiedTime?: string
   url?: string
+  messageCount?: number
+  messages?: Array<{
+    id: string
+    content: string
+    sender: string
+    timestamp: string
+    messageType: string
+  }>
 }
 
 export interface MicrosoftTeamsReadResponse extends ToolResponse {

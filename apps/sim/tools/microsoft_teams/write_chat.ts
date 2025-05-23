@@ -29,13 +29,13 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
   },
   request: {
     url: (params) => {
-      // Ensure messageId is valid
-      const messageId = params.messageId?.trim()
-      if (!messageId) {
-        throw new Error('Message ID is required')
+      // Ensure chatId is valid
+      const chatId = params.chatId?.trim()
+      if (!chatId) {
+        throw new Error('Chat ID is required')
       }
 
-      return `https://graph.microsoft.com/v1.0/chats/${params.chatId}/messages`
+      return `https://graph.microsoft.com/v1.0/chats/${chatId}/messages`
     },
     method: 'POST',
     headers: (params) => {
@@ -54,23 +54,21 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
       if (!params.content) {
         throw new Error('Content is required')
       }
+
+      console.log('params.content', params.content)
     
-      //TODO: Change this format
+      // Microsoft Teams API expects this specific format
       const requestBody = {
-        requests: [
-          {
-            insertText: {
-              endOfSegmentLocation: {},
-              text: params.content,
-            },
-          },
-        ],
+        body: {
+          contentType: 'text',
+          content: params.content,
+        },
       }
 
       return requestBody
     },
   },
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(`Failed to write Microsoft Teams message: ${errorText}`)
@@ -78,12 +76,13 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
 
     const data = await response.json()
 
-    // Create document metadata
+    // Create document metadata from the response
     const metadata = {
-      messageId: data.messageId,
-      channelId: data.channelId,
-      teamId: data.teamId,
-      content: data.body.content,
+      messageId: data.id || '',
+      chatId: data.chatId || '',
+      content: data.body?.content || params?.content || '',
+      createdTime: data.createdDateTime || new Date().toISOString(),
+      url: data.webUrl || '',
     }
 
     return {
@@ -111,6 +110,6 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
     }
 
     // Default fallback message
-    return 'An error occurred while reading Microsoft Teams message'
+    return 'An error occurred while writing Microsoft Teams message'
   },
 }

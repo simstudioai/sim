@@ -1,5 +1,8 @@
 import { ToolConfig } from '../types'
 import { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('teams-read-channel')
 
 export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_channel',
@@ -17,31 +20,45 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       description: 'The access token for the Microsoft Teams API',
     },
     teamId: {
-        type: 'string',
-        required: true,
-        description: 'The ID of the team to read from',
-      },
+      type: 'string',
+      required: true,
+      description: 'The ID of the team to read from',
+    },
     channelId: {
       type: 'string',
       required: true,
       description: 'The ID of the channel to read from',
     },
-    content: {
-      type: 'string',
-      required: true,
-      description: 'The content to read from the channel',
-    },
   },
   request: {
     url: (params) => {
-      // Ensure messageId is valid
-      const messageId = params.messageId?.trim()
-      if (!messageId) {
-        throw new Error('Message ID is required')
+      const teamId = params.teamId?.trim()
+      if (!teamId) {
+        throw new Error('Team ID is required')
+      }
+      
+      const channelId = params.channelId?.trim()
+      if (!channelId) {
+        throw new Error('Channel ID is required')
       }
 
-      //This gets the messages from a channel
-      return `https://graph.microsoft.com/v1.0/teams/${params.teamId}/channels/${params.channelId}/messages`
+      // URL encode the IDs to handle special characters
+      const encodedTeamId = encodeURIComponent(teamId)
+      const encodedChannelId = encodeURIComponent(channelId)
+
+      // Fetch the most recent messages from the channel
+      const url = `https://graph.microsoft.com/v1.0/teams/${encodedTeamId}/channels/${encodedChannelId}/messages`
+      
+      // Log the URL for debugging
+      logger.info('Microsoft Teams Read Channel Request', {
+        url,
+        teamId,
+        channelId,
+        encodedTeamId,
+        encodedChannelId
+      })
+      
+      return url
     },
     method: 'GET',
     headers: (params) => {
@@ -58,23 +75,56 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Failed to read Microsoft Teams message: ${errorText}`)
+      throw new Error(`Failed to read Microsoft Teams channel: ${errorText}`)
     }
 
     const data = await response.json()
 
+    // Microsoft Graph API returns messages in a 'value' array
+    const messages = data.value || []
+    
+    if (messages.length === 0) {
+      return {
+        success: true,
+        output: {
+          content: 'No messages found in this channel.',
+          metadata: {
+            teamId: '',
+            channelId: '',
+            messageCount: 0,
+            messages: [],
+          },
+        },
+      }
+    }
+
+    // Format the messages into a readable text
+    const formattedMessages = messages.map((message: any) => {
+      const content = message.body?.content || 'No content'
+      const sender = message.from?.user?.displayName || 'Unknown sender'
+      const timestamp = message.createdDateTime ? new Date(message.createdDateTime).toLocaleString() : 'Unknown time'
+      
+      return `[${timestamp}] ${sender}: ${content}`
+    }).join('\n\n')
+
     // Create document metadata
     const metadata = {
-      messageId: data.messageId,
-      channelId: data.channelId,
-      teamId: data.teamId,
-      content: data.body.content,
+      teamId: messages[0]?.channelIdentity?.teamId || '',
+      channelId: messages[0]?.channelIdentity?.channelId || '',
+      messageCount: messages.length,
+      messages: messages.map((msg: any) => ({
+        id: msg.id,
+        content: msg.body?.content || '',
+        sender: msg.from?.user?.displayName || 'Unknown',
+        timestamp: msg.createdDateTime,
+        messageType: msg.messageType || 'message'
+      })),
     }
 
     return {
       success: true,
       output: {
-        content: data.body.content,
+        content: formattedMessages,
         metadata,
       },
     }
@@ -96,7 +146,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
     }
 
     // Default fallback message
-    return 'An error occurred while reading Microsoft Teams message'
+    return 'An error occurred while reading Microsoft Teams channel'
   },
 }
 

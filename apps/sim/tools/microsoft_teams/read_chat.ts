@@ -9,6 +9,7 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
   oauth: {
     required: true,
     provider: 'microsoft-teams',
+    additionalScopes: ['Chat.ReadBasic', 'Chat.Read', 'Chat.ReadWrite'],
   },
   params: {
     accessToken: {
@@ -21,21 +22,16 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
       required: true,
       description: 'The ID of the chat to read from',
     },
-    content: {
-      type: 'string',
-      required: true,
-      description: 'The content to read from the chat',
-    },
   },
   request: {
     url: (params) => {
-      // Ensure messageId is valid
-      const messageId = params.messageId?.trim()
-      if (!messageId) {
-        throw new Error('Message ID is required')
+      // Ensure chatId is valid
+      const chatId = params.chatId?.trim()
+      if (!chatId) {
+        throw new Error('Chat ID is required')
       }
-      //We can just extract the chats once the user has signed in
-      return `https://graph.microsoft.com/v1.0/chats/${params.chatId}/messages`
+      // Fetch the most recent messages from the chat
+      return `https://graph.microsoft.com/v1.0/chats/${chatId}/messages?$top=50&$orderby=createdDateTime desc`
     },
     method: 'GET',
     headers: (params) => {
@@ -52,23 +48,54 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Failed to read Microsoft Teams message: ${errorText}`)
+      throw new Error(`Failed to read Microsoft Teams chat: ${errorText}`)
     }
 
     const data = await response.json()
 
+    // Microsoft Graph API returns messages in a 'value' array
+    const messages = data.value || []
+    
+    if (messages.length === 0) {
+      return {
+        success: true,
+        output: {
+          content: 'No messages found in this chat.',
+          metadata: {
+            chatId: '',
+            messageCount: 0,
+            messages: [],
+          },
+        },
+      }
+    }
+
+    // Format the messages into a readable text
+    const formattedMessages = messages.map((message: any) => {
+      const content = message.body?.content || 'No content'
+      const sender = message.from?.user?.displayName || 'Unknown sender'
+      const timestamp = message.createdDateTime ? new Date(message.createdDateTime).toLocaleString() : 'Unknown time'
+      
+      return `[${timestamp}] ${sender}: ${content}`
+    }).join('\n\n')
+
     // Create document metadata
     const metadata = {
-      messageId: data.messageId,
-      channelId: data.channelId,
-      teamId: data.teamId,
-      content: data.body.content,
+      chatId: messages[0]?.chatId || '',
+      messageCount: messages.length,
+      messages: messages.map((msg: any) => ({
+        id: msg.id,
+        content: msg.body?.content || '',
+        sender: msg.from?.user?.displayName || 'Unknown',
+        timestamp: msg.createdDateTime,
+        messageType: msg.messageType || 'message'
+      })),
     }
 
     return {
       success: true,
       output: {
-        content: data.body.content,
+        content: formattedMessages,
         metadata,
       },
     }
@@ -90,7 +117,7 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     }
 
     // Default fallback message
-    return 'An error occurred while reading Microsoft Teams message'
+    return 'An error occurred while reading Microsoft Teams chat'
   },
 }
 

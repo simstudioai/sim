@@ -32,10 +32,33 @@ export async function POST(request: Request) {
     logger.info('Credential found, attempting to fetch token', { credentialId: credential })
 
     try {
-      const accessToken = await refreshAccessTokenIfNeeded(credential, session?.user?.id || '', body.workflowId)
+      // Get the userId either from the session or from the workflowId
+      const userId = session?.user?.id || ''
+      
+      if (!userId) {
+        logger.error('No user ID found in session')
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      }
+      
+      logger.info('Refreshing token if needed', { userId, credentialId: credential })
+      const accessToken = await refreshAccessTokenIfNeeded(credential, userId, body.workflowId)
+      
+      if (!accessToken) {
+        logger.error('Failed to get access token', { credentialId: credential, userId })
+        return NextResponse.json({ error: 'Could not retrieve access token' }, { status: 401 })
+      }
 
+      logger.info('Successfully obtained access token, calling Microsoft Graph API', { 
+        tokenLength: accessToken.length 
+      })
+      
+      // Only log the first 20 chars of the token for security
+      logger.info('Authorization header being sent', { 
+        header: `Bearer ${accessToken?.substring(0, 20)}...`, 
+      })
+
+      // Now try to fetch the chats
       logger.info('Calling Microsoft Graph API to fetch chats')
-      logger.info('Access token', { accessToken })
       const response = await fetch('https://graph.microsoft.com/v1.0/me/chats', {
         method: 'GET',
         headers: {
@@ -48,7 +71,20 @@ export async function POST(request: Request) {
       
       if (!response.ok) {
         const errorData = await response.json()
-        logger.error('Microsoft Graph API error', { status: response.status, error: errorData })
+        logger.error('Microsoft Graph API error getting chats', { 
+          status: response.status, 
+          error: errorData,
+          endpoint: 'https://graph.microsoft.com/v1.0/me/chats'
+        })
+        
+        // Check for auth errors specifically
+        if (response.status === 401) {
+          return NextResponse.json({ 
+            error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
+            authRequired: true
+          }, { status: 401 });
+        }
+        
         throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
       }
       
@@ -67,6 +103,18 @@ export async function POST(request: Request) {
       })
     } catch (innerError) {
       logger.error('Error during API requests:', innerError)
+      
+      // Check if it's an authentication error
+      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError);
+      if (errorMessage.includes('auth') || errorMessage.includes('token') || 
+          errorMessage.includes('unauthorized') || errorMessage.includes('unauthenticated')) {
+        return NextResponse.json({ 
+          error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
+          authRequired: true,
+          details: errorMessage
+        }, { status: 401 });
+      }
+      
       throw innerError
     }
   } catch (error) {

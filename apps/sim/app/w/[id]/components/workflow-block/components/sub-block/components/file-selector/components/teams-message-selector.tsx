@@ -47,6 +47,7 @@ interface TeamsMessageSelectorProps {
   onMessageInfoChange?: (messageInfo: TeamsMessageInfo | null) => void
   credential: string
   selectionType?: 'team' | 'channel' | 'chat'
+  initialTeamId?: string
 }
 
 export function TeamsMessageSelector({
@@ -61,6 +62,7 @@ export function TeamsMessageSelector({
   onMessageInfoChange,
   credential,
   selectionType = 'team',
+  initialTeamId,
 }: TeamsMessageSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -153,6 +155,14 @@ export function TeamsMessageSelector({
 
       if (!response.ok) {
         const errorData = await response.json()
+        
+        // If server indicates auth is required, show the auth modal
+        if (response.status === 401 && errorData.authRequired) {
+          logger.warn('Authentication required for Microsoft Teams')
+          setShowOAuthModal(true)
+          throw new Error('Microsoft Teams authentication required')
+        }
+        
         throw new Error(errorData.error || 'Failed to fetch teams')
       }
 
@@ -212,6 +222,14 @@ export function TeamsMessageSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
+          
+          // If server indicates auth is required, show the auth modal
+          if (response.status === 401 && errorData.authRequired) {
+            logger.warn('Authentication required for Microsoft Teams')
+            setShowOAuthModal(true)
+            throw new Error('Microsoft Teams authentication required')
+          }
+          
           throw new Error(errorData.error || 'Failed to fetch channels')
         }
 
@@ -272,6 +290,14 @@ export function TeamsMessageSelector({
 
       if (!response.ok) {
         const errorData = await response.json()
+        
+        // If server indicates auth is required, show the auth modal
+        if (response.status === 401 && errorData.authRequired) {
+          logger.warn('Authentication required for Microsoft Teams')
+          setShowOAuthModal(true)
+          throw new Error('Microsoft Teams authentication required')
+        }
+        
         throw new Error(errorData.error || 'Failed to fetch chats')
       }
 
@@ -304,15 +330,58 @@ export function TeamsMessageSelector({
     }
   }, [selectedCredentialId, selectedChatId, onMessageInfoChange])
 
+  // Keep internal selectedCredentialId in sync with the credential prop
+  useEffect(() => {
+    if (credential && credential !== selectedCredentialId) {
+      setSelectedCredentialId(credential)
+    }
+  }, [credential, selectedCredentialId])
+
+  // Set initial team ID if provided
+  useEffect(() => {
+    if (initialTeamId && !selectedTeamId && selectionType === 'channel') {
+      setSelectedTeamId(initialTeamId)
+    }
+  }, [initialTeamId, selectedTeamId, selectionType])
+
   // Fetch appropriate data on initial mount based on selectionType
   useEffect(() => {
-    if (!initialFetchRef.current && selectedCredentialId) {
+    if (!initialFetchRef.current) {
       fetchCredentials();
-      // Only mark initialization as complete, but don't fetch data yet
-      // Data will be fetched when the dropdown is opened
       initialFetchRef.current = true;
     }
-  }, [fetchCredentials, selectedCredentialId]);
+  }, [fetchCredentials]);
+
+  // Update selection stage based on selected values and selectionType
+  useEffect(() => {
+    // If we have explicit values selected, use those to determine the stage
+    if (selectedChatId) {
+      setSelectionStage('chat')
+    } else if (selectedChannelId) {
+      setSelectionStage('channel')
+    } else if (selectionType === 'channel' && selectedTeamId) {
+      // If we're in channel mode and have a team selected, go to channel selection
+      setSelectionStage('channel')
+    } else if (selectionType !== 'team' && !selectedTeamId) {
+      // If no selections but we have a specific selection type, use that
+      // But for channel selection, start with team selection if no team is selected
+      if (selectionType === 'channel') {
+        setSelectionStage('team')
+      } else {
+        setSelectionStage(selectionType)
+      }
+    } else {
+      // Default to team selection
+      setSelectionStage('team')
+    }
+  }, [selectedTeamId, selectedChannelId, selectedChatId, selectionType])
+
+  // Auto-fetch channels when we have a team ID and are in channel selection mode
+  useEffect(() => {
+    if (selectionType === 'channel' && selectionStage === 'channel' && selectedTeamId && selectedCredentialId && channels.length === 0) {
+      fetchChannels(selectedTeamId)
+    }
+  }, [selectionType, selectionStage, selectedTeamId, selectedCredentialId, channels.length, fetchChannels])
 
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
@@ -329,22 +398,6 @@ export function TeamsMessageSelector({
       }
     }
   }
-
-  // Update selection stage based on selected values and selectionType
-  useEffect(() => {
-    // If we have explicit values selected, use those to determine the stage
-    if (selectedChatId) {
-      setSelectionStage('chat')
-    } else if (selectedChannelId) {
-      setSelectionStage('channel')
-    } else if (selectionType !== 'team' && !selectedTeamId) {
-      // If no selections but we have a specific selection type, use that
-      setSelectionStage(selectionType)
-    } else {
-      // Default to team selection
-      setSelectionStage('team')
-    }
-  }, [selectedTeamId, selectedChannelId, selectedChatId, selectionType])
 
   // Keep internal selectedMessageId in sync with the value prop
   useEffect(() => {
@@ -369,11 +422,18 @@ export function TeamsMessageSelector({
 
   // Handle channel selection
   const handleSelectChannel = (channel: TeamsMessageInfo) => {
+    logger.info('Channel selected', {
+      channel: channel.displayName,
+      channelId: channel.channelId,
+      teamId: channel.teamId,
+      id: channel.id
+    })
+    
     setSelectedChannelId(channel.channelId || '')
     setSelectedChatId('')
     setSelectedMessage(channel)
     setSelectedMessageId(channel.id)
-    onChange(channel.id, channel)
+    onChange(channel.channelId || '', channel)
     onMessageInfoChange?.(channel)
     setOpen(false)
   }
@@ -491,51 +551,6 @@ export function TeamsMessageSelector({
     return null;
   };
 
-  // Show navigation options
-  const renderNavigationOptions = () => {
-    // Show 'Back to Teams' when in channel selection mode
-    if (selectionStage === 'channel') {
-      return (
-        <CommandGroup>
-          <CommandItem
-            onSelect={() => {
-              setSelectionStage('team')
-              fetchTeams()
-            }}
-          >
-            <div className="flex items-center gap-2 text-primary">
-              <MicrosoftTeamsIcon className="h-4 w-4" />
-              <span>Back to Teams</span>
-            </div>
-          </CommandItem>
-        </CommandGroup>
-      );
-    }
-
-    // If we're in a specific mode (chat/channel) but the user needs to select a team first
-    if (selectionStage === 'team' && selectionType !== 'team') {
-      return (
-        <CommandGroup>
-          <CommandItem
-            onSelect={() => {
-              setSelectionStage(selectionType)
-              if (selectionType === 'chat') {
-                fetchChats()
-              }
-            }}
-          >
-            <div className="flex items-center gap-2 text-primary">
-              <MicrosoftTeamsIcon className="h-4 w-4" />
-              <span>{selectionType === 'chat' ? 'Go to Chats' : 'Go to Channels'}</span>
-            </div>
-          </CommandItem>
-        </CommandGroup>
-      );
-    }
-
-    return null;
-  };
-
   return (
     <>
       <div className="space-y-2">
@@ -556,7 +571,11 @@ export function TeamsMessageSelector({
               ) : (
                 <div className="flex items-center gap-2">
                   <MicrosoftTeamsIcon className="h-4 w-4" />
-                  <span className="text-muted-foreground">{label}</span>
+                  <span className="text-muted-foreground">
+                    {selectionType === 'channel' && selectionStage === 'team' 
+                      ? 'Select a team first'
+                      : label}
+                  </span>
                 </div>
               )}
               <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -618,7 +637,9 @@ export function TeamsMessageSelector({
                         {selectionStage === 'team'
                           ? 'Try a different account.'
                           : selectionStage === 'channel'
-                          ? 'Select a team first or try a different team.'
+                          ? selectedTeamId 
+                            ? 'This team has no channels or you may not have access.'
+                            : 'Please select a team first to see its channels.'
                           : 'Try a different account or check if you have any active chats.'}
                       </p>
                     </div>
@@ -649,9 +670,6 @@ export function TeamsMessageSelector({
 
                 {/* Display appropriate options based on selection stage */}
                 {renderSelectionOptions()}
-
-                {/* Navigation options */}
-                {renderNavigationOptions()}
 
                 {/* Connect account option - only show if no credentials */}
                 {credentials.length === 0 && (

@@ -1,10 +1,13 @@
 import { ToolConfig } from '../types'
 import { MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse } from './types'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('teams-write-channel')
 
 export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse> = {
-  id: 'microsoft_teams_write',
-  name: 'Write to Microsoft Teams Message',
-  description: 'Write or update content in a Microsoft Teams message',
+  id: 'microsoft_teams_write_channel',
+  name: 'Write to Microsoft Teams Channel',
+  description: 'Write or send a message to a Microsoft Teams channel',
   version: '1.0',
   oauth: {
     required: true,
@@ -17,31 +20,50 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
       description: 'The access token for the Microsoft Teams API',
     },
     teamId: {
-        type: 'string',
-        required: true,
-        description: 'The ID of the team to write to',
-      },
+      type: 'string',
+      required: true,
+      description: 'The ID of the team to write to',
+    },
     channelId: {
       type: 'string',
-      required: false,
+      required: true,
       description: 'The ID of the channel to write to',
     },
     content: {
       type: 'string',
       required: true,
-      description: 'The content to write to the message',
+      description: 'The content to write to the channel',
     },
   },
   request: {
     url: (params) => {
-      // Ensure messageId is valid
-      const messageId = params.messageId?.trim()
-      if (!messageId) {
-        throw new Error('Message ID is required')
+      const teamId = params.teamId?.trim()
+      if (!teamId) {
+        throw new Error('Team ID is required')
       }
 
-      //This writes a message to a channel
-      return `https://graph.microsoft.com/v1.0/teams/${params.teamId}/channels/${params.channelId}/messages`
+      const channelId = params.channelId?.trim()
+      if (!channelId) {
+        throw new Error('Channel ID is required')
+      }
+
+      // URL encode the IDs to handle special characters
+      const encodedTeamId = encodeURIComponent(teamId)
+      const encodedChannelId = encodeURIComponent(channelId)
+
+      // Send a message to a channel
+      const url = `https://graph.microsoft.com/v1.0/teams/${encodedTeamId}/channels/${encodedChannelId}/messages`
+      
+      // Log the URL for debugging
+      logger.info('Microsoft Teams Write Channel Request', {
+        url,
+        teamId,
+        channelId,
+        encodedTeamId,
+        encodedChannelId
+      })
+      
+      return url
     },
     method: 'POST',
     headers: (params) => {
@@ -61,37 +83,33 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
         throw new Error('Content is required')
       }
 
-      // Following the exact format from the Google Docs API examples
-      // Always insert at the end of the document to avoid duplication
-      // See: https://developers.google.com/docs/api/reference/rest/v1/documents/request#InsertTextRequest
+      // Microsoft Teams API expects this specific format for channel messages
       const requestBody = {
-        requests: [
-          {
-            insertText: {
-              endOfSegmentLocation: {},
-              text: params.content,
-            },
-          },
-        ],
+        body: {
+          contentType: 'text',
+          content: params.content,
+        },
       }
 
       return requestBody
     },
   },
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Failed to write Microsoft Teams message: ${errorText}`)
+      throw new Error(`Failed to write Microsoft Teams channel message: ${errorText}`)
     }
 
     const data = await response.json()
 
-    // Create document metadata
+    // Create document metadata from the response
     const metadata = {
-      messageId: data.messageId,
-      channelId: data.channelId,
-      teamId: data.teamId,
-      content: data.body.content,
+      messageId: data.id || '',
+      teamId: data.channelIdentity?.teamId || '',
+      channelId: data.channelIdentity?.channelId || '',
+      content: data.body?.content || params?.content || '',
+      createdTime: data.createdDateTime || new Date().toISOString(),
+      url: data.webUrl || '',
     }
 
     return {
@@ -119,6 +137,6 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
     }
 
     // Default fallback message
-    return 'An error occurred while reading Microsoft Teams message'
+    return 'An error occurred while writing Microsoft Teams channel message'
   },
 }

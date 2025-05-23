@@ -42,16 +42,20 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       provider: 'microsoft-teams',
       serviceId: 'microsoft-teams',
       requiredScopes: [
-        'openid',  
-        'profile',          
-        'email',   
+        'openid',
+        'profile',
+        'email',
         'User.Read',
         'Chat.Read',
         'Chat.ReadWrite',
+        'Chat.ReadBasic',
+        'Channel.ReadBasic.All',
+        'ChannelMessage.Send',
         'ChannelMessage.Read.All',
-        'ChannelMessage.ReadWrite',
+        'Group.Read.All',
+        'Group.ReadWrite.All',
         'Team.ReadBasic.All',
-        'offline_access'
+        'offline_access',
       ],
       placeholder: 'Select Microsoft account',
     },
@@ -65,8 +69,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         requiredScopes: [],
         placeholder: 'Select a team',
         condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
-      },
-    
+    },
     {
         id: 'chatId',
         title: 'Select Chat',   
@@ -117,24 +120,41 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         }
       },
       params: (params) => {
-        const { credential, messageId, ...rest } = params
+        const { credential, operation, ...rest } = params
 
-        // Use the selected document ID or the manually entered one
-        // If documentId is provided, it's from the file selector and contains the file ID
-        // If not, fall back to manually entered ID
-        const effectiveDocumentId = (messageId || '').trim()
-
-        if (params.operation !== 'write' && !effectiveDocumentId) {
-          throw new Error(
-            'Message ID is required. Please select a message or enter an ID manually.'
-          )
-        }
-
-        return {
+        // Build the parameters based on operation type
+        const baseParams = {
           ...rest,
-          messageId: effectiveDocumentId,
           credential,
         }
+
+        // For chat operations, we need chatId
+        if (operation === 'read_chat' || operation === 'write_chat') {
+          if (!params.chatId) {
+            throw new Error('Chat ID is required for chat operations')
+          }
+          return {
+            ...baseParams,
+            chatId: params.chatId,
+          }
+        }
+
+        // For channel operations, we need teamId and channelId
+        if (operation === 'read_channel' || operation === 'write_channel') {
+          if (!params.teamId) {
+            throw new Error('Team ID is required for channel operations')
+          }
+          if (!params.channelId) {
+            throw new Error('Channel ID is required for channel operations')
+          }
+          return {
+            ...baseParams,
+            teamId: params.teamId,
+            channelId: params.channelId,
+          }
+        }
+
+        return baseParams
       },
     },
   },

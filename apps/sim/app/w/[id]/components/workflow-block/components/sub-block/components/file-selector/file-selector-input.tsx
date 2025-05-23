@@ -200,6 +200,9 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
       }
     }
 
+    // Get the teamId from workflow parameters for channel selector
+    const selectedTeamId = getValue(blockId, 'teamId') as string || ''
+
     return (
       <TooltipProvider>
         <Tooltip>
@@ -221,6 +224,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
                 onMessageInfoChange={setMessageInfo}
                 credential={credential}
                 selectionType={selectionType}
+                initialTeamId={selectedTeamId}
               />
             </div>
           </TooltipTrigger>
