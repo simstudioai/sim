@@ -1,9 +1,9 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { and, eq, like, or } from "drizzle-orm"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
 import { db } from "@/db"
 import { account } from "@/db/schema"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { and, eq, like, or } from "drizzle-orm"
+import { type NextRequest, NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 

@@ -1,10 +1,10 @@
+import { createMockRequest, mockScheduleStatusDb } from "@/app/api/__test-utils__/utils"
 /**
  * Integration tests for schedule status API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createMockRequest, mockScheduleStatusDb } from "@/app/api/__test-utils__/utils"
 
 // Common mocks
 const mockSchedule = {

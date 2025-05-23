@@ -1,7 +1,7 @@
-import { Groq } from "groq-sdk"
-import { createLogger } from "@/lib/logs/console-logger"
 import type { StreamingExecution } from "@/executor/types"
+import { createLogger } from "@/lib/logs/console-logger"
 import { executeTool } from "@/tools"
+import { Groq } from "groq-sdk"
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
 
 const logger = createLogger("GroqProvider")

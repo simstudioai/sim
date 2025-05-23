@@ -1,16 +1,16 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, EyeOff } from "lucide-react"
+import { SocialLoginButtons } from "@/app/(auth)/components/social-login-buttons"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { client } from "@/lib/auth-client"
 import { createLogger } from "@/lib/logs/console-logger"
-import { SocialLoginButtons } from "@/app/(auth)/components/social-login-buttons"
+import { Eye, EyeOff } from "lucide-react"
+import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 
 const logger = createLogger("LoginForm")
 

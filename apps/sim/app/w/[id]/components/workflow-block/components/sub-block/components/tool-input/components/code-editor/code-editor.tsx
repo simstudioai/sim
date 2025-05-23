@@ -1,11 +1,11 @@
+import { highlight, languages } from "prismjs"
 import { useEffect, useRef, useState } from "react"
 import type { ReactElement } from "react"
-import { highlight, languages } from "prismjs"
 import "prismjs/components/prism-javascript"
 import "prismjs/components/prism-json"
 import "prismjs/themes/prism.css"
-import Editor from "react-simple-code-editor"
 import { cn } from "@/lib/utils"
+import Editor from "react-simple-code-editor"
 
 interface CodeEditorProps {
   value: string

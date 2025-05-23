@@ -1,7 +1,7 @@
-import { create } from "zustand"
-import { devtools } from "zustand/middleware"
 import { createLogger } from "@/lib/logs/console-logger"
 import { clearWorkflowVariablesTracking } from "@/stores/panel/variables/store"
+import { create } from "zustand"
+import { devtools } from "zustand/middleware"
 import { API_ENDPOINTS, STORAGE_KEYS } from "../../constants"
 import {
   loadWorkflowState,

@@ -1,7 +1,7 @@
-import { Cerebras } from "@cerebras/cerebras_cloud_sdk"
-import { createLogger } from "@/lib/logs/console-logger"
 import type { StreamingExecution } from "@/executor/types"
+import { createLogger } from "@/lib/logs/console-logger"
 import { executeTool } from "@/tools"
+import { Cerebras } from "@cerebras/cerebras_cloud_sdk"
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
 
 const logger = createLogger("CerebrasProvider")

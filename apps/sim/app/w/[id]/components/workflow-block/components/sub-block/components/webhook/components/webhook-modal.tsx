@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react"
-import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -9,6 +7,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { createLogger } from "@/lib/logs/console-logger"
+import { X } from "lucide-react"
+import { useEffect, useState } from "react"
 import { type ProviderConfig, WEBHOOK_PROVIDERS } from "../webhook"
 import { AirtableConfig } from "./providers/airtable"
 import { DiscordConfig } from "./providers/discord"

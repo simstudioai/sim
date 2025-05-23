@@ -1,10 +1,10 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { eq } from "drizzle-orm"
-import { jwtDecode } from "jwt-decode"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
 import { db } from "@/db"
 import { account, user } from "@/db/schema"
+import { getSession } from "@/lib/auth"
+import { createLogger } from "@/lib/logs/console-logger"
+import { eq } from "drizzle-orm"
+import { jwtDecode } from "jwt-decode"
+import { type NextRequest, NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 

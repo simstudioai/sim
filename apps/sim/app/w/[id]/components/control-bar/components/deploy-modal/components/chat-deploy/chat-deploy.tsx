@@ -1,18 +1,6 @@
 "use client"
 
-import { type FormEvent, useEffect, useRef, useState } from "react"
-import {
-  AlertTriangle,
-  Check,
-  Copy,
-  Eye,
-  EyeOff,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Trash2,
-} from "lucide-react"
-import { z } from "zod"
+import { OutputSelect } from "@/app/w/[id]/components/panel/components/chat/components/output-select/output-select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
@@ -37,7 +25,19 @@ import { getBaseDomain } from "@/lib/urls/utils"
 import { cn } from "@/lib/utils"
 import { useNotificationStore } from "@/stores/notifications/store"
 import type { OutputConfig } from "@/stores/panel/chat/types"
-import { OutputSelect } from "@/app/w/[id]/components/panel/components/chat/components/output-select/output-select"
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from "lucide-react"
+import { type FormEvent, useEffect, useRef, useState } from "react"
+import { z } from "zod"
 
 const logger = createLogger("ChatDeploy")
 

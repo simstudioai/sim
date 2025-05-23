@@ -1,9 +1,9 @@
-import { create } from "zustand"
-import { devtools, persist } from "zustand/middleware"
 import { createLogger } from "@/lib/logs/console-logger"
 import { API_ENDPOINTS } from "@/stores/constants"
 import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
 import { useSubBlockStore } from "@/stores/workflows/subblock/store"
+import { create } from "zustand"
+import { devtools, persist } from "zustand/middleware"
 import type { Variable, VariablesStore } from "./types"
 
 const logger = createLogger("VariablesStore")
@@ -75,7 +75,6 @@ function validateVariable(variable: Variable): string | undefined {
           console.log("Object parsing error:", e)
           return "Invalid object syntax"
         }
-        break
       case "array":
         // Check if it's a valid JSON array
         try {
@@ -616,7 +615,10 @@ export const useVariablesStore = create<VariablesStore>()(
               })
             }
           } catch (error) {
-            logger.error("Error loading workflow variables:", { error, workflowId })
+            logger.error("Error loading workflow variables:", {
+              error,
+              workflowId,
+            })
             set({
               error: error instanceof Error ? error.message : "Unknown error",
               isLoading: false,
@@ -673,7 +675,10 @@ export const useVariablesStore = create<VariablesStore>()(
 
             set({ isLoading: false })
           } catch (error) {
-            logger.error("Error saving workflow variables:", { error, workflowId })
+            logger.error("Error saving workflow variables:", {
+              error,
+              workflowId,
+            })
             set({
               error: error instanceof Error ? error.message : "Unknown error",
               isLoading: false,

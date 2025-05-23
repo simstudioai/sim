@@ -1,6 +1,6 @@
+import type { ToolResponse } from "@/tools/types"
 import type { SVGProps } from "react"
 import type { JSX } from "react"
-import type { ToolResponse } from "@/tools/types"
 
 // Basic types
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element

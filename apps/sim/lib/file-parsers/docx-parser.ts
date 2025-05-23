@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
-import mammoth from "mammoth"
 import { createLogger } from "@/lib/logs/console-logger"
-import type { FileParser, FileParseResult } from "./types"
+import mammoth from "mammoth"
+import type { FileParseResult, FileParser } from "./types"
 
 const logger = createLogger("DocxParser")
 

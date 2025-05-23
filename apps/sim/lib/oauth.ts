@@ -1,4 +1,3 @@
-import type { ReactNode } from "react"
 import {
   AirtableIcon,
   ConfluenceIcon,
@@ -16,6 +15,7 @@ import {
   xIcon,
 } from "@/components/icons"
 import { createLogger } from "@/lib/logs/console-logger"
+import type { ReactNode } from "react"
 import { env } from "./env"
 
 const logger = createLogger("OAuth")

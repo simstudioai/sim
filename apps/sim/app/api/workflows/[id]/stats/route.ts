@@ -1,8 +1,8 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { eq, sql } from "drizzle-orm"
-import { createLogger } from "@/lib/logs/console-logger"
 import { db } from "@/db"
 import { userStats, workflow } from "@/db/schema"
+import { createLogger } from "@/lib/logs/console-logger"
+import { eq, sql } from "drizzle-orm"
+import { type NextRequest, NextResponse } from "next/server"
 
 const logger = createLogger("WorkflowStatsAPI")
 

@@ -1,9 +1,9 @@
-import { CheckCheck, Copy, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { CheckCheck, Copy, Info } from "lucide-react"
 
 interface WebhookUrlFieldProps {
   webhookUrl: string

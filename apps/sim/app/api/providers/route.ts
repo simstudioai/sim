@@ -1,8 +1,8 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { createLogger } from "@/lib/logs/console-logger"
 import type { StreamingExecution } from "@/executor/types"
+import { createLogger } from "@/lib/logs/console-logger"
 import { executeProviderRequest } from "@/providers"
 import { getApiKey } from "@/providers/utils"
+import { type NextRequest, NextResponse } from "next/server"
 
 const logger = createLogger("ProvidersAPI")
 

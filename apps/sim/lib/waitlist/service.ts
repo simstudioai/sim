@@ -1,14 +1,14 @@
-import { and, count, desc, eq, inArray, like, or } from "drizzle-orm"
-import { nanoid } from "nanoid"
 import {
   getEmailSubject,
   renderWaitlistApprovalEmail,
   renderWaitlistConfirmationEmail,
 } from "@/components/emails/render-email"
-import { sendBatchEmails, sendEmail } from "@/lib/mailer"
-import { createToken, verifyToken } from "@/lib/waitlist/token"
 import { db } from "@/db"
 import { waitlist } from "@/db/schema"
+import { sendBatchEmails, sendEmail } from "@/lib/mailer"
+import { createToken, verifyToken } from "@/lib/waitlist/token"
+import { and, count, desc, eq, inArray, like, or } from "drizzle-orm"
+import { nanoid } from "nanoid"
 import { env } from "../env"
 
 // Define types for better type safety

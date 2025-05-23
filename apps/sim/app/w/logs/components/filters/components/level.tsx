@@ -1,4 +1,5 @@
-import { Check, ChevronDown } from "lucide-react"
+import { useFilterStore } from "@/app/w/logs/stores/store"
+import type { LogLevel } from "@/app/w/logs/stores/types"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -6,8 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useFilterStore } from "@/app/w/logs/stores/store"
-import type { LogLevel } from "@/app/w/logs/stores/types"
+import { Check, ChevronDown } from "lucide-react"
 
 export default function Level() {
   const { level, setLevel } = useFilterStore()

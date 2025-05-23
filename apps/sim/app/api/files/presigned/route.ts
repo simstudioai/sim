@@ -1,10 +1,10 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { PutObjectCommand } from "@aws-sdk/client-s3"
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
-import { v4 as uuidv4 } from "uuid"
 import { createLogger } from "@/lib/logs/console-logger"
 import { getS3Client } from "@/lib/uploads/s3-client"
 import { S3_CONFIG, USE_S3_STORAGE } from "@/lib/uploads/setup"
+import { PutObjectCommand } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { type NextRequest, NextResponse } from "next/server"
+import { v4 as uuidv4 } from "uuid"
 import { createErrorResponse, createOptionsResponse } from "../utils"
 
 const logger = createLogger("PresignedUploadAPI")

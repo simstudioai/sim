@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { WorkflowPreview } from "@/app/w/components/workflow-preview/generic-workflow-preview"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import { WorkflowPreview } from "@/app/w/components/workflow-preview/generic-workflow-preview"
+import { useState } from "react"
 
 interface DeployedWorkflowCardProps {
   currentWorkflowState?: {

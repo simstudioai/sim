@@ -1,7 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Check, Copy, KeySquare, Plus, Trash2 } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +25,8 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useSession } from "@/lib/auth-client"
 import { createLogger } from "@/lib/logs/console-logger"
+import { Check, Copy, KeySquare, Plus, Trash2 } from "lucide-react"
+import { useEffect, useState } from "react"
 
 const logger = createLogger("ApiKeys")
 

@@ -1,4 +1,3 @@
-import type { ReactNode } from "react"
 import {
   Atom,
   BotMessageSquare,
@@ -9,6 +8,7 @@ import {
   MailIcon,
   Store,
 } from "lucide-react"
+import type { ReactNode } from "react"
 
 export interface Category {
   value: string

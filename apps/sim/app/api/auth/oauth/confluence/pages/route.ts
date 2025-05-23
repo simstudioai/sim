@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server"
 import { getConfluenceCloudId } from "@/tools/confluence/utils"
+import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 

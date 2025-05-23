@@ -1,13 +1,13 @@
 import {
   boolean,
   decimal,
+  index,
   integer,
   json,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
-  index,
 } from "drizzle-orm/pg-core"
 
 export const user = pgTable("user", {

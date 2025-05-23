@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import type { SubBlockConfig } from "@/blocks/types"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSubBlockStore } from "@/stores/workflows/subblock/store"
-import type { SubBlockConfig } from "@/blocks/types"
+import { useEffect, useState } from "react"
 import { type DiscordServerInfo, DiscordServerSelector } from "./components/discord-server-selector"
 import { type JiraProjectInfo, JiraProjectSelector } from "./components/jira-project-selector"
 

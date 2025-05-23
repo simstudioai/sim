@@ -1,8 +1,8 @@
+import path from "node:path"
+import { resolve } from "node:path"
 /// <reference types="vitest" />
 import nextEnv from "@next/env"
 import react from "@vitejs/plugin-react"
-import path from "node:path"
-import { resolve } from "node:path"
 import { configDefaults, defineConfig } from "vitest/config"
 
 const { loadEnvConfig } = nextEnv

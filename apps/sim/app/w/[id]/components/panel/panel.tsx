@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Expand, PanelRight } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useChatStore } from "@/stores/panel/chat/store"
 import { useConsoleStore } from "@/stores/panel/console/store"
 import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
+import { Expand, PanelRight } from "lucide-react"
+import { useEffect, useState } from "react"
 import { usePanelStore } from "../../../../../stores/panel/store"
 import { Chat } from "./components/chat/chat"
 import { ChatModal } from "./components/chat/components/chat-modal/chat-modal"

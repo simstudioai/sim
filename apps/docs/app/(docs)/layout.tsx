@@ -1,8 +1,8 @@
-import type { ReactNode } from "react"
-import Link from "next/link"
+import { source } from "@/lib/source"
 import { DocsLayout } from "fumadocs-ui/layouts/docs"
 import { ExternalLink, GithubIcon } from "lucide-react"
-import { source } from "@/lib/source"
+import Link from "next/link"
+import type { ReactNode } from "react"
 
 const GitHubLink = () => (
   <div className="fixed right-4 bottom-4 z-50">

@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
-import { z } from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useState } from "react"
+import { z } from "zod"
 
 const emailSchema = z.string().email("Please enter a valid email")
 

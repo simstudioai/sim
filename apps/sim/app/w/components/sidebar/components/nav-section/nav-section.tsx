@@ -1,10 +1,10 @@
 "use client"
 
-import type { ReactNode } from "react"
-import Link from "next/link"
-import clsx from "clsx"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import clsx from "clsx"
+import Link from "next/link"
+import type { ReactNode } from "react"
 
 interface NavSectionProps {
   children: ReactNode

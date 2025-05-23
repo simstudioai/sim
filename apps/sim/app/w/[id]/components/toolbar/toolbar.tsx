@@ -1,13 +1,13 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { PanelLeftClose, PanelRight, PanelRightClose, Search } from "lucide-react"
+import { getAllBlocks, getBlocksByCategory } from "@/blocks"
+import type { BlockCategory } from "@/blocks/types"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebarStore } from "@/stores/sidebar/store"
-import { getAllBlocks, getBlocksByCategory } from "@/blocks"
-import type { BlockCategory } from "@/blocks/types"
+import { PanelLeftClose, PanelRight, PanelRightClose, Search } from "lucide-react"
+import { useMemo, useState } from "react"
 import { ToolbarBlock } from "./components/toolbar-block/toolbar-block"
 import { ToolbarTabs } from "./components/toolbar-tabs/toolbar-tabs"
 

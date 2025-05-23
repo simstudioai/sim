@@ -1,6 +1,6 @@
+import { createLogger } from "@/lib/logs/console-logger"
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
-import { createLogger } from "@/lib/logs/console-logger"
 import { useEnvironmentStore } from "../settings/environment/store"
 import { useWorkflowStore } from "../workflows/workflow/store"
 import type { CopilotMessage, CopilotStore } from "./types"

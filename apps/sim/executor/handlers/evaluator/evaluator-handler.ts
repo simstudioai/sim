@@ -1,6 +1,6 @@
+import type { BlockOutput } from "@/blocks/types"
 import { env } from "@/lib/env"
 import { createLogger } from "@/lib/logs/console-logger"
-import type { BlockOutput } from "@/blocks/types"
 import { getProviderFromModel } from "@/providers/utils"
 import type { SerializedBlock } from "@/serializer/types"
 import type { BlockHandler, ExecutionContext } from "../../types"

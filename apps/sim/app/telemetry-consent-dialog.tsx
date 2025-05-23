@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { getNodeEnv } from "@/lib/environment"
 import { createLogger } from "@/lib/logs/console-logger"
 import { useGeneralStore } from "@/stores/settings/general/store"
+import { useEffect, useRef, useState } from "react"
 
 declare global {
   interface Window {

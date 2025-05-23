@@ -1,7 +1,7 @@
 "use client"
 
-import { type KeyboardEvent, useEffect, useMemo, useRef } from "react"
-import { ArrowUp, CornerDownLeft, Loader2, X } from "lucide-react"
+import { JSONView } from "@/app/w/[id]/components/panel/components/console/components/json-view/json-view"
+import { useWorkflowExecution } from "@/app/w/[id]/hooks/use-workflow-execution"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -9,8 +9,8 @@ import { useExecutionStore } from "@/stores/execution/store"
 import { useChatStore } from "@/stores/panel/chat/store"
 import type { ChatMessage as ChatMessageType } from "@/stores/panel/chat/types"
 import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
-import { JSONView } from "@/app/w/[id]/components/panel/components/console/components/json-view/json-view"
-import { useWorkflowExecution } from "@/app/w/[id]/hooks/use-workflow-execution"
+import { ArrowUp, CornerDownLeft, Loader2, X } from "lucide-react"
+import { type KeyboardEvent, useEffect, useMemo, useRef } from "react"
 
 interface ChatMessageProps {
   message: ChatMessageType

@@ -1,6 +1,6 @@
 import {
-  getAllBlocks,
   getAllBlockTypes,
+  getAllBlocks,
   getBlock,
   getBlocksByCategory,
   isValidBlockType,

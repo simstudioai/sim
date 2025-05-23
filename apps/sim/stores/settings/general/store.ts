@@ -1,6 +1,6 @@
+import { createLogger } from "@/lib/logs/console-logger"
 import { create } from "zustand"
 import { devtools, persist } from "zustand/middleware"
-import { createLogger } from "@/lib/logs/console-logger"
 import type { GeneralStore } from "./types"
 
 const logger = createLogger("GeneralStore")

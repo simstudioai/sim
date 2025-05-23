@@ -1,9 +1,3 @@
-/**
- * Tests for Subscription Transfer API
- *
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   createMockRequest,
   mockAdminMember,
@@ -14,6 +8,12 @@ import {
   mockSubscription,
   mockUser,
 } from "@/app/api/__test-utils__/utils"
+/**
+ * Tests for Subscription Transfer API
+ *
+ * @vitest-environment node
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 describe("Subscription Transfer API Routes", () => {
   beforeEach(() => {

@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest"
 import { VariableType } from "@/stores/panel/variables/types"
+import { describe, expect, it } from "vitest"
 import { VariableManager } from "./variable-manager"
 
 describe("VariableManager", () => {

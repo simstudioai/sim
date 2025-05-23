@@ -1,18 +1,18 @@
-import { useEffect, useRef, useState } from "react"
-import type { ReactElement } from "react"
 import { ChevronDown, ChevronUp, Plus, Trash } from "lucide-react"
 import { highlight, languages } from "prismjs"
+import { useEffect, useRef, useState } from "react"
+import type { ReactElement } from "react"
 import "prismjs/components/prism-javascript"
 import "prismjs/themes/prism.css"
-import Editor from "react-simple-code-editor"
-import { Handle, Position, useUpdateNodeInternals } from "reactflow"
 import { Button } from "@/components/ui/button"
-import { checkEnvVarTrigger, EnvVarDropdown } from "@/components/ui/env-var-dropdown"
-import { checkTagTrigger, TagDropdown } from "@/components/ui/tag-dropdown"
+import { EnvVarDropdown, checkEnvVarTrigger } from "@/components/ui/env-var-dropdown"
+import { TagDropdown, checkTagTrigger } from "@/components/ui/tag-dropdown"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { createLogger } from "@/lib/logs/console-logger"
 import { cn } from "@/lib/utils"
 import { useWorkflowStore } from "@/stores/workflows/workflow/store"
+import Editor from "react-simple-code-editor"
+import { Handle, Position, useUpdateNodeInternals } from "reactflow"
 import { useSubBlockValue } from "../hooks/use-sub-block-value"
 
 const logger = createLogger("ConditionInput")
@@ -109,8 +109,8 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       // Validate that the parsed data has the expected structure
       if (
         parsed.length === 0 ||
-        !parsed[0].hasOwnProperty("id") ||
-        !parsed[0].hasOwnProperty("title")
+        !Object.prototype.hasOwnProperty.call(parsed[0], "id") ||
+        !Object.prototype.hasOwnProperty.call(parsed[0], "title")
       ) {
         return null
       }

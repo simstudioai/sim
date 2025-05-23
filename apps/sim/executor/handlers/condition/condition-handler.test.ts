@@ -1,6 +1,6 @@
 import "../../__test-utils__/mock-dependencies"
-import { beforeEach, describe, expect, it, type Mocked, type MockedClass, vi } from "vitest"
 import type { SerializedBlock, SerializedWorkflow } from "@/serializer/types"
+import { type Mocked, type MockedClass, beforeEach, describe, expect, it, vi } from "vitest"
 import { PathTracker } from "../../path"
 import { InputResolver } from "../../resolver"
 import type { BlockState, ExecutionContext } from "../../types"

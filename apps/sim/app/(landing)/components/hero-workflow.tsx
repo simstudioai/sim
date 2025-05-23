@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useEffect, useMemo } from "react"
 import { motion } from "framer-motion"
+import React, { useEffect, useMemo } from "react"
 import ReactFlow, {
   ConnectionLineType,
   type Edge,

@@ -1,10 +1,10 @@
+import { createMockRequest } from "@/app/api/__test-utils__/utils"
 /**
  * Tests for OAuth token API routes
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { createMockRequest } from "@/app/api/__test-utils__/utils"
 
 describe("OAuth Token API Routes", () => {
   const mockGetUserId = vi.fn()

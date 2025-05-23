@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server"
 import { createLogger } from "@/lib/logs/console-logger"
+import { NextResponse } from "next/server"
 
 interface DiscordServer {
   id: string

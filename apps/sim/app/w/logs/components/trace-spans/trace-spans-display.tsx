@@ -1,15 +1,5 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import {
-  ChevronDown,
-  ChevronDownSquare,
-  ChevronRight,
-  ChevronUpSquare,
-  Code,
-  Cpu,
-  ExternalLink,
-} from "lucide-react"
 import {
   AgentIcon,
   ApiIcon,
@@ -19,6 +9,16 @@ import {
   ConnectIcon,
 } from "@/components/icons"
 import { cn } from "@/lib/utils"
+import {
+  ChevronDown,
+  ChevronDownSquare,
+  ChevronRight,
+  ChevronUpSquare,
+  Code,
+  Cpu,
+  ExternalLink,
+} from "lucide-react"
+import { useMemo, useState } from "react"
 import type { TraceSpan } from "../../stores/types"
 
 interface TraceSpansDisplayProps {

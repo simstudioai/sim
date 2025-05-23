@@ -1,5 +1,5 @@
-import type React from "react"
-import { useEffect, useMemo, useState } from "react"
+import { type ConnectedBlock, useBlockConnections } from "@/app/w/[id]/hooks/use-block-connections"
+import { getBlock } from "@/blocks"
 import { createLogger } from "@/lib/logs/console-logger"
 import { cn } from "@/lib/utils"
 import { useVariablesStore } from "@/stores/panel/variables/store"
@@ -7,8 +7,8 @@ import type { Variable } from "@/stores/panel/variables/types"
 import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
 import { useSubBlockStore } from "@/stores/workflows/subblock/store"
 import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import { type ConnectedBlock, useBlockConnections } from "@/app/w/[id]/hooks/use-block-connections"
-import { getBlock } from "@/blocks"
+import type React from "react"
+import { useEffect, useMemo, useState } from "react"
 
 const logger = createLogger("TagDropdown")
 

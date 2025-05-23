@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest"
-import { isHosted } from "@/lib/environment"
 import { getAllBlocks } from "@/blocks"
+import { isHosted } from "@/lib/environment"
 import { getProviderFromModel, transformBlockTool } from "@/providers/utils"
 import type { SerializedBlock, SerializedWorkflow } from "@/serializer/types"
 import { executeTool } from "@/tools"
+import { type Mock, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ExecutionContext, StreamingExecution } from "../../types"
 import { AgentBlockHandler } from "./agent-handler"
 

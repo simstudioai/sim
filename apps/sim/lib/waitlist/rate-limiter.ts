@@ -1,5 +1,5 @@
-import type { NextRequest } from "next/server"
 import { isProd } from "@/lib/environment"
+import type { NextRequest } from "next/server"
 import { getRedisClient } from "../redis"
 
 // Configuration

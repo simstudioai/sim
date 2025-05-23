@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server"
-import { and, eq } from "drizzle-orm"
+import { db } from "@/db"
+import { member, subscription } from "@/db/schema"
 import { getSession } from "@/lib/auth"
 import { createLogger } from "@/lib/logs/console-logger"
 import { checkEnterprisePlan } from "@/lib/subscription/utils"
-import { db } from "@/db"
-import { member, subscription } from "@/db/schema"
+import { and, eq } from "drizzle-orm"
+import { NextResponse } from "next/server"
 
 const logger = createLogger("EnterpriseSubscriptionAPI")
 

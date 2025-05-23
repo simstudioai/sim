@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import * as environmentModule from "@/lib/environment"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { getApiKey } from "./utils"
 
 const isHostedSpy = vi.spyOn(environmentModule, "isHosted", "get")

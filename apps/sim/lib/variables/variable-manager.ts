@@ -5,6 +5,8 @@ import type { VariableType } from "@/stores/panel/variables/types"
  * Provides consistent methods for parsing, formatting, and resolving variables
  * to minimize type conversion issues and ensure predictable behavior.
  */
+
+// biome-ignore lint/complexity/noStaticOnlyClass: <explanation>
 export class VariableManager {
   /**
    * Core method to convert any value to its appropriate native JavaScript type

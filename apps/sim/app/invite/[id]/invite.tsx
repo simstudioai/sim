@@ -1,8 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { BotIcon, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -14,6 +11,9 @@ import {
 } from "@/components/ui/card"
 import { LoadingAgent } from "@/components/ui/loading-agent"
 import { client, useSession } from "@/lib/auth-client"
+import { BotIcon, CheckCircle } from "lucide-react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 
 export default function Invite() {
   const router = useRouter()
