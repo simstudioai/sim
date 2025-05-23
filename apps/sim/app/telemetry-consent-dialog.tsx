@@ -52,9 +52,17 @@ export function TelemetryConsentDialog() {
   const hasShownDialogThisSession = useRef(false)
   const isDevelopment = getNodeEnv() === 'development'
 
+  const isChatSubdomainOrPath =
+    typeof window !== 'undefined' &&
+    (window.location.pathname.startsWith('/chat/') ||
+      (window.location.hostname !== 'simstudio.ai' &&
+        window.location.hostname !== 'localhost' &&
+        window.location.hostname !== '127.0.0.1' &&
+        !window.location.hostname.startsWith('www.')))
+
   // Check localStorage for saved preferences
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || isChatSubdomainOrPath) return
 
     try {
       const notified = localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === 'true'
@@ -70,9 +78,15 @@ export function TelemetryConsentDialog() {
     } catch (error) {
       logger.error('Error reading telemetry preferences from localStorage:', error)
     }
-  }, [setTelemetryNotifiedUser, setTelemetryEnabled])
+  }, [setTelemetryNotifiedUser, setTelemetryEnabled, isChatSubdomainOrPath])
 
   useEffect(() => {
+    // Skip settings loading on chat subdomain pages
+    if (isChatSubdomainOrPath) {
+      setSettingsLoaded(true)
+      return
+    }
+
     let isMounted = true
     const fetchSettings = async () => {
       try {
@@ -93,10 +107,10 @@ export function TelemetryConsentDialog() {
     return () => {
       isMounted = false
     }
-  }, [loadSettings])
+  }, [loadSettings, isChatSubdomainOrPath])
 
   useEffect(() => {
-    if (!settingsLoaded) return
+    if (!settingsLoaded || isChatSubdomainOrPath) return
 
     logger.debug('Settings loaded state:', {
       telemetryNotifiedUser,
@@ -135,7 +149,13 @@ export function TelemetryConsentDialog() {
         }
       }
     }
-  }, [settingsLoaded, telemetryNotifiedUser, telemetryEnabled, setTelemetryNotifiedUser])
+  }, [
+    settingsLoaded,
+    telemetryNotifiedUser,
+    telemetryEnabled,
+    setTelemetryNotifiedUser,
+    isChatSubdomainOrPath,
+  ])
 
   const handleAccept = () => {
     trackEvent('telemetry_consent_accepted', {
