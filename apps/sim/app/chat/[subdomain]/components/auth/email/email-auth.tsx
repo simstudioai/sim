@@ -5,7 +5,7 @@ import { Loader2, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { OTPInputForm } from '@/components/ui/input-otp-form'
-import HeaderLinks from '../../header-links/links'
+import { ChatHeader } from '../../header/header'
 
 interface EmailAuthProps {
   subdomain: string
@@ -100,8 +100,6 @@ export default function EmailAuth({
         return
       }
 
-      await response.json()
-
       // Reset auth state and notify parent
       onAuthSuccess()
     } catch (error) {
@@ -187,7 +185,7 @@ export default function EmailAuth({
               <circle cx="25" cy="11" r="2" fill="#701FFC" />
             </svg>
           </a>
-          <HeaderLinks stars={starCount} />
+          <ChatHeader chatConfig={null} starCount={starCount} />
         </div>
         <div className="text-center mb-6">
           <h2 className="text-xl font-bold mb-2">{title}</h2>

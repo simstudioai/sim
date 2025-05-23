@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import HeaderLinks from '../header-links/links'
+import { ChatHeader } from '../header/header'
 
 interface ChatErrorStateProps {
   error: string
@@ -53,7 +53,7 @@ export function ChatErrorState({ error, starCount }: ChatErrorStateProps) {
               <circle cx="25" cy="11" r="2" fill="#701FFC" />
             </svg>
           </a>
-          <HeaderLinks stars={starCount} />
+          <ChatHeader chatConfig={null} starCount={starCount} />
         </div>
         <h2 className="text-xl font-bold text-red-500 mb-2">Error</h2>
         <p className="text-gray-700">{error}</p>

@@ -9,8 +9,8 @@ const MAX_TEXTAREA_HEIGHT = 160 // Max height in pixels (e.g., for about 4-5 lin
 
 const containerVariants = {
   collapsed: {
-    height: 'auto',
-    boxShadow: '0 2px 10px 0 rgba(0,0,0,0.1)',
+    height: '56px', // Fixed height when collapsed
+    boxShadow: '0 1px 6px 0 rgba(0,0,0,0.05)',
   },
   expanded: {
     height: 'auto',
@@ -123,7 +123,13 @@ export const ChatInput: React.FC<{
               value={inputValue}
               onChange={handleInputChange}
               onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                // Submit on Enter without Shift
                 if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleSubmit()
+                }
+                // Submit on Cmd/Ctrl + Enter for consistency with other chat apps
+                else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault()
                   handleSubmit()
                 }
@@ -185,7 +191,6 @@ export const ChatInput: React.FC<{
             className="flex items-center justify-center bg-black hover:bg-zinc-700 text-white p-3 rounded-full"
             title={isStreaming ? 'Stop' : 'Send'}
             type="button"
-            tabIndex={-1}
             onClick={(e) => {
               e.stopPropagation()
               if (isStreaming) {

@@ -9,8 +9,8 @@ interface ChatMessageContainerProps {
   messages: ChatMessage[]
   isLoading: boolean
   showScrollButton: boolean
-  messagesContainerRef: RefObject<HTMLDivElement> | null
-  messagesEndRef: RefObject<HTMLDivElement> | null
+  messagesContainerRef: RefObject<HTMLDivElement>
+  messagesEndRef: RefObject<HTMLDivElement>
   scrollToBottom: () => void
   scrollToMessage?: (messageId: string) => void
   chatConfig: {
@@ -29,19 +29,11 @@ export function ChatMessageContainer({
   chatConfig,
 }: ChatMessageContainerProps) {
   return (
-    <div
-      className="relative flex-1 overflow-hidden bg-white"
-      style={{ display: 'flex', flexDirection: 'column' }}
-    >
+    <div className="relative flex-1 overflow-hidden bg-white flex flex-col">
       {/* Scrollable Messages Area */}
       <div
-        ref={messagesContainerRef as RefObject<HTMLDivElement>}
-        className="absolute inset-0 overflow-y-auto"
-        style={{
-          scrollBehavior: 'smooth',
-          overscrollBehavior: 'auto',
-          WebkitOverflowScrolling: 'touch',
-        }}
+        ref={messagesContainerRef}
+        className="absolute inset-0 overflow-y-auto scroll-smooth overscroll-auto touch-pan-y"
       >
         <div className="max-w-3xl mx-auto px-4 pt-10 pb-20">
           {messages.length === 0 ? (
@@ -64,7 +56,7 @@ export function ChatMessageContainer({
                 <div className="flex">
                   <div className="max-w-[80%]">
                     <div className="flex items-center h-6">
-                      <div className="w-3 h-3 rounded-full bg-black dark:bg-black loading-dot"></div>
+                      <div className="w-3 h-3 rounded-full bg-gray-800 dark:bg-gray-300 loading-dot"></div>
                     </div>
                   </div>
                 </div>
@@ -73,7 +65,7 @@ export function ChatMessageContainer({
           )}
 
           {/* End of messages marker for scrolling */}
-          <div ref={messagesEndRef as RefObject<HTMLDivElement>} />
+          <div ref={messagesEndRef} />
         </div>
       </div>
 

@@ -4,7 +4,7 @@ import { KeyboardEvent, useState } from 'react'
 import { Loader2, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import HeaderLinks from '../../header-links/links'
+import { ChatHeader } from '../../header/header'
 
 interface PasswordAuthProps {
   subdomain: string
@@ -36,7 +36,10 @@ export default function PasswordAuth({
 
   // Handle authentication
   const handleAuthenticate = async () => {
-    if (!password) return
+    if (!password.trim()) {
+      setAuthError('Password is required')
+      return
+    }
 
     setAuthError(null)
     setIsAuthenticating(true)
@@ -59,8 +62,6 @@ export default function PasswordAuth({
         setAuthError(errorData.error || 'Authentication failed')
         return
       }
-
-      await response.json()
 
       // Authentication successful, notify parent
       onAuthSuccess()
@@ -119,7 +120,7 @@ export default function PasswordAuth({
               <circle cx="25" cy="11" r="2" fill="#701FFC" />
             </svg>
           </a>
-          <HeaderLinks stars={starCount} />
+          <ChatHeader chatConfig={null} starCount={starCount} />
         </div>
         <div className="text-center mb-6">
           <h2 className="text-xl font-bold mb-2">{title}</h2>
@@ -127,12 +128,6 @@ export default function PasswordAuth({
             This chat is password-protected. Please enter the password to continue.
           </p>
         </div>
-
-        {authError && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md">
-            {authError}
-          </div>
-        )}
 
         <div className="w-full max-w-sm mx-auto">
           <div className="bg-white dark:bg-black/10 rounded-lg shadow-sm p-6 space-y-4 border border-neutral-200 dark:border-neutral-800">
@@ -166,6 +161,7 @@ export default function PasswordAuth({
                     onKeyDown={handleKeyDown}
                     placeholder="Enter password"
                     disabled={isAuthenticating}
+                    autoComplete="new-password"
                     className="w-full"
                   />
                 </div>

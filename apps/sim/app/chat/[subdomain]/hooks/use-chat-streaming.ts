@@ -67,21 +67,58 @@ export function useChatStreaming() {
     // Stop showing loading indicator once streaming begins
     setIsLoading(false)
 
-    // Ensure the response body exists and is a ReadableStream
-    const reader = response.body?.getReader()
+    // Helper function to clean up after streaming ends (success or error)
+    const cleanupStreaming = (messageContent?: string, appendContent = false) => {
+      // Reset streaming state and controller
+      setIsStreamingResponse(false)
+      abortControllerRef.current = null
+
+      // Update message content and remove isStreaming flag
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id === messageId) {
+            return {
+              ...msg,
+              content: appendContent
+                ? msg.content + (messageContent || '')
+                : messageContent || msg.content,
+              isStreaming: false,
+            }
+          }
+          return msg
+        })
+      )
+
+      // Only scroll to bottom if user hasn't manually scrolled
+      if (!userHasScrolled) {
+        setTimeout(() => {
+          scrollToBottom()
+        }, 300)
+      }
+    }
+
+    // Check if response body exists and is a ReadableStream
+    if (!response.body) {
+      cleanupStreaming("Error: Couldn't receive streaming response from server.")
+      return
+    }
+
+    const reader = response.body.getReader()
     if (reader) {
       const decoder = new TextDecoder()
       let done = false
 
       try {
         while (!done) {
-          // Check if aborted before each read
+          // Check if aborted before awaiting reader.read()
           if (abortControllerRef.current === null) {
             console.log('Stream reading aborted')
             break
           }
 
           const { value, done: readerDone } = await reader.read()
+          done = readerDone
+
           if (value) {
             const chunk = decoder.decode(value, { stream: true })
             if (chunk) {
@@ -92,43 +129,22 @@ export function useChatStreaming() {
               )
             }
           }
-          done = readerDone
         }
       } catch (error) {
+        // Show error to user in the message
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error during streaming'
         console.error('Error reading stream:', error)
+        cleanupStreaming(`\n\n_Error: ${errorMessage}_`, true)
+        return // Skip the finally block's cleanupStreaming call
       } finally {
-        // Always reset streaming state and controller when done
-        setIsStreamingResponse(false)
-        abortControllerRef.current = null
-
-        // Remove isStreaming flag from the message
-        setMessages((prev) =>
-          prev.map((msg) => (msg.id === messageId ? { ...msg, isStreaming: false } : msg))
-        )
-
-        // Only scroll to bottom if user hasn't manually scrolled during streaming
-        if (!userHasScrolled) {
-          // Add a small delay before scrolling to bottom
-          setTimeout(() => {
-            scrollToBottom()
-          }, 300)
+        // Don't call cleanupStreaming here if we already called it in the catch block
+        if (abortControllerRef.current !== null) {
+          cleanupStreaming()
         }
       }
     } else {
-      setIsStreamingResponse(false)
-      abortControllerRef.current = null
-
-      // Remove isStreaming flag from the message
-      setMessages((prev) =>
-        prev.map((msg) => (msg.id === messageId ? { ...msg, isStreaming: false } : msg))
-      )
-
-      // Only scroll to bottom if user hasn't manually scrolled
-      if (!userHasScrolled) {
-        setTimeout(() => {
-          scrollToBottom()
-        }, 300)
-      }
+      cleanupStreaming("Error: Couldn't process streaming response.")
     }
   }
 

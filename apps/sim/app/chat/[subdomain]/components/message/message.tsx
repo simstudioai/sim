@@ -4,18 +4,17 @@ import { useMemo, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import MarkdownRenderer, { LinkWithPreview } from '../markdown-renderer/markdown-renderer'
+import MarkdownRenderer from '../markdown-renderer/markdown-renderer'
 
 export interface ChatMessage {
   id: string
-  content: string
+  content: string | Record<string, unknown>
   type: 'user' | 'assistant'
   timestamp: Date
   isInitialMessage?: boolean
   isStreaming?: boolean
 }
 
-// Enhanced MarkdownRenderer that uses our custom link component
 function EnhancedMarkdownRenderer({ content }: { content: string }) {
   return (
     <TooltipProvider>
@@ -37,11 +36,11 @@ export function ClientChatMessage({ message }: { message: ChatMessage }) {
         <div className="max-w-3xl mx-auto">
           <div className="flex justify-end">
             <div className="bg-[#F4F4F4] dark:bg-gray-600 rounded-3xl max-w-[80%] py-3 px-4">
-              <div className="whitespace-pre-wrap break-words text-base leading-relaxed text-[#0D0D0D]">
+              <div className="whitespace-pre-wrap break-words text-base leading-relaxed text-gray-800 dark:text-gray-100">
                 {isJsonObject ? (
                   <pre>{JSON.stringify(message.content, null, 2)}</pre>
                 ) : (
-                  <span>{message.content}</span>
+                  <span>{message.content as string}</span>
                 )}
               </div>
             </div>
@@ -59,7 +58,9 @@ export function ClientChatMessage({ message }: { message: ChatMessage }) {
           <div>
             <div className="break-words text-base">
               {isJsonObject ? (
-                <pre>{JSON.stringify(message.content, null, 2)}</pre>
+                <pre className="text-gray-800 dark:text-gray-100">
+                  {JSON.stringify(message.content, null, 2)}
+                </pre>
               ) : (
                 <EnhancedMarkdownRenderer content={message.content as string} />
               )}

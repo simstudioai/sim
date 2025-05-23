@@ -35,9 +35,9 @@ export default function MarkdownRenderer({
   const customComponents = {
     // Paragraph
     p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
-      <div className="pb-3 text-base text-gray-800 dark:text-gray-200 leading-relaxed font-geist-sans border-b border-gray-500/[.07] dark:border-gray-400/[.07] mb-5 last:border-b-0 last:mb-0 not-first-of-type:mt-6">
+      <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed font-geist-sans mb-1 last:mb-0">
         {children}
-      </div>
+      </p>
     ),
 
     // Headings
@@ -64,12 +64,18 @@ export default function MarkdownRenderer({
 
     // Lists
     ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
-      <ul className="list-disc pl-6 my-5 space-y-2 text-gray-800 dark:text-gray-200 font-geist-sans">
+      <ul
+        className="pl-6 mt-1 mb-1 space-y-1 text-gray-800 dark:text-gray-200 font-geist-sans"
+        style={{ listStyleType: 'disc' }}
+      >
         {children}
       </ul>
     ),
     ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
-      <ol className="list-decimal pl-6 my-5 space-y-2 text-gray-800 dark:text-gray-200 font-geist-sans">
+      <ol
+        className="pl-6 mt-1 mb-1 space-y-1 text-gray-800 dark:text-gray-200 font-geist-sans"
+        style={{ listStyleType: 'decimal' }}
+      >
         {children}
       </ol>
     ),
@@ -78,10 +84,15 @@ export default function MarkdownRenderer({
       ordered,
       ...props
     }: React.LiHTMLAttributes<HTMLLIElement> & { ordered?: boolean }) => (
-      <li className="py-1 ml-1 text-gray-800 dark:text-gray-200 font-geist-sans">{children}</li>
+      <li
+        className="text-gray-800 dark:text-gray-200 font-geist-sans"
+        style={{ display: 'list-item' }}
+      >
+        {children}
+      </li>
     ),
 
-    // Code blocks - keep font-mono for code
+    // Code blocks
     pre: ({ children }: HTMLAttributes<HTMLPreElement>) => {
       let codeProps: HTMLAttributes<HTMLElement> = {}
       let codeContent: ReactNode = children
@@ -129,9 +140,6 @@ export default function MarkdownRenderer({
           </code>
         )
       }
-      // For block code, `pre` handles rendering. This component might still be called by ReactMarkdown.
-      // We pass its className to `pre` to extract language.
-      // Render children directly as pre will wrap them.
       return (
         <code className={className} {...props}>
           {children}
@@ -149,9 +157,11 @@ export default function MarkdownRenderer({
     // Horizontal rule
     hr: () => <hr className="my-8 border-t border-gray-500/[.07] dark:border-gray-400/[.07]" />,
 
-    // Links - now using our LinkWithPreview component
+    // Links
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-      <LinkComponent href={href || '#'} children={children} {...props} />
+      <LinkComponent href={href || '#'} {...props}>
+        {children}
+      </LinkComponent>
     ),
 
     // Tables
@@ -198,28 +208,7 @@ export default function MarkdownRenderer({
   }
 
   // Pre-process content to fix common issues
-  const processedContent = content
-    // First standardize all line endings to \n
-    .replace(/\r\n?/g, '\n')
-    // Ensure paragraphs have consistent spacing - empty line between paragraphs
-    .replace(/\n{3,}/g, '\n\n')
-    // Handle lines that should be separate paragraphs
-    .replace(/(.+)\n(?![\n#*\-+\d]|$)(.+)/g, '$1\n\n$2')
-    // Handle paragraphs that don't have blank lines between them
-    .replace(/([^\n]+)\n([^\n#*\-+\d][^\n]*)/g, '$1\n\n$2')
-    // Add extra spacing after headers for better section separation
-    .replace(/(^|\n)(#{1,6}[^\n]+)(\n)(?!\n)/g, '$1$2\n\n')
-    // Add extra spacing between sections
-    .replace(/(\n#{1,6}[^\n]+\n\n)(?!#)/g, '$1\n')
-    // Ensure there's an empty line after lists
-    .replace(/(\n)([*\-+]|\d+\.)\s[^\n]+(\n)(?=[^*\-+\d\n])/g, '$1$2 $3\n')
-    // Remove consecutive horizontal rules
-    .replace(/(\n\s*---\s*\n\s*---\s*\n)/g, '\n---\n')
-    // Ensure space after list markers and headings for remarkGfm
-    .replace(/^([\*\-\+]|#{1,6}|\d+\.)\s*/gm, '$1 ')
-    // Ensure ordered lists have proper format (number followed by dot and space)
-    .replace(/^(\d+)\.(?!\s)/gm, '$1. ')
-    .trim()
+  const processedContent = content.trim()
 
   return (
     <div className="text-base text-[#0D0D0D] dark:text-gray-100 leading-relaxed break-words font-geist-sans space-y-4">
