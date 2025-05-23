@@ -1,6 +1,6 @@
-import type React from "react"
 import { CopyButton } from "@/components/ui/copy-button"
 import { cn } from "@/lib/utils"
+import type React from "react"
 
 interface CodeBlockProps extends React.HTMLAttributes<HTMLPreElement> {
   code: string

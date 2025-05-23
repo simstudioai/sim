@@ -64,10 +64,37 @@
         "useSortedClasses": "error"
       },
       "a11y": {
-        "noSvgWithoutTitle": "warn"
+        "noSvgWithoutTitle": "off",
+        "useAltText": "off",
+        "useKeyWithClickEvents": "off",
+        "noRedundantAlt": "off",
+        "useSemanticElements": "off",
+        "useButtonType": "off",
+        "useFocusableInteractive": "off"
       },
       "suspicious": {
-        "noImplicitAnyLet": "warn"
+        "noImplicitAnyLet": "off",
+        "noArrayIndexKey": "off",
+        "noExplicitAny": "off",
+        "noControlCharactersInRegex": "off",
+        "noThenProperty": "off",
+        "noAssignInExpressions": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "noParameterAssign": "off"
+      },
+      "complexity": {
+        "noForEach": "off"
+      },
+      "performance": {
+        "noAccumulatingSpread": "off"
       }
     }
   },

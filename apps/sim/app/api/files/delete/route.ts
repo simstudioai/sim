@@ -1,19 +1,19 @@
-import type { NextRequest } from "next/server"
 import { existsSync } from "node:fs"
 import { unlink } from "node:fs/promises"
 import { join } from "node:path"
 import { createLogger } from "@/lib/logs/console-logger"
 import { deleteFromS3 } from "@/lib/uploads/s3-client"
 import { UPLOAD_DIR, USE_S3_STORAGE } from "@/lib/uploads/setup"
+import type { NextRequest } from "next/server"
 // Import to ensure the uploads directory is created
 import "@/lib/uploads/setup.server"
 import {
+  InvalidRequestError,
   createErrorResponse,
   createOptionsResponse,
   createSuccessResponse,
   extractFilename,
   extractS3Key,
-  InvalidRequestError,
   isS3Path,
 } from "../utils"
 

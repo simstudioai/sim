@@ -1,9 +1,9 @@
+import type { BlockOutput } from "@/blocks/types"
 import { createLogger } from "@/lib/logs/console-logger"
+import type { SerializedBlock, SerializedWorkflow } from "@/serializer/types"
 import { useExecutionStore } from "@/stores/execution/store"
 import { useConsoleStore } from "@/stores/panel/console/store"
 import { useGeneralStore } from "@/stores/settings/general/store"
-import type { BlockOutput } from "@/blocks/types"
-import type { SerializedBlock, SerializedWorkflow } from "@/serializer/types"
 import {
   AgentBlockHandler,
   ApiBlockHandler,

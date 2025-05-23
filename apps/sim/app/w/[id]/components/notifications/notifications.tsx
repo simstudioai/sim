@@ -1,6 +1,3 @@
-// NOTE: API NOTIFICATIONS NO LONGER EXIST, BUT IF YOU DELETE THEM FROM THIS FILE THE APPLICATION WILL BREAK
-import { useEffect, useState } from "react"
-import { Info, Rocket, Store, Terminal, X } from "lucide-react"
 import { ErrorIcon } from "@/components/icons"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
@@ -21,6 +18,9 @@ import { MAX_VISIBLE_NOTIFICATIONS, useNotificationStore } from "@/stores/notifi
 import type { Notification } from "@/stores/notifications/types"
 import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
 import { useWorkflowStore } from "@/stores/workflows/workflow/store"
+import { Info, Rocket, Store, Terminal, X } from "lucide-react"
+// NOTE: API NOTIFICATIONS NO LONGER EXIST, BUT IF YOU DELETE THEM FROM THIS FILE THE APPLICATION WILL BREAK
+import { useEffect, useState } from "react"
 
 const logger = createLogger("Notifications")
 

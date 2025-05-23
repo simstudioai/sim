@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises"
+import { createLogger } from "@/lib/logs/console-logger"
 // @ts-ignore
 import * as pdfParseLib from "pdf-parse/lib/pdf-parse.js"
-import { createLogger } from "@/lib/logs/console-logger"
-import type { FileParser, FileParseResult } from "./types"
+import type { FileParseResult, FileParser } from "./types"
 
 const logger = createLogger("PdfParser")
 

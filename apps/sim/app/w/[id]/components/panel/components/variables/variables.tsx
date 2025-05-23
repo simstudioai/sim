@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
 import {
   AlertCircle,
   AlertTriangle,
@@ -12,9 +11,9 @@ import {
   Trash,
 } from "lucide-react"
 import { highlight, languages } from "prismjs"
+import { useEffect, useRef, useState } from "react"
 import "prismjs/components/prism-javascript"
 import "prismjs/themes/prism.css"
-import Editor from "react-simple-code-editor"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -30,6 +29,7 @@ import { VariableManager } from "@/lib/variables/variable-manager"
 import { useVariablesStore } from "@/stores/panel/variables/store"
 import type { Variable, VariableType } from "@/stores/panel/variables/types"
 import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
+import Editor from "react-simple-code-editor"
 
 interface VariablesProps {
   panelWidth: number

@@ -1,8 +1,8 @@
 #!/usr/bin/env ts-node
-import { glob } from "glob"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { glob } from "glob"
 
 console.log("Starting documentation generator...")
 

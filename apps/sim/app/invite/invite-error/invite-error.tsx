@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { AlertTriangle } from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { AlertTriangle } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react"
 
 function getErrorMessage(reason: string, details?: string): string {
   switch (reason) {

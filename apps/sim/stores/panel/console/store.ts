@@ -1,6 +1,6 @@
+import { redactApiKeys } from "@/lib/utils"
 import { create } from "zustand"
 import { devtools, persist } from "zustand/middleware"
-import { redactApiKeys } from "@/lib/utils"
 import { useChatStore } from "../chat/store"
 import type { ConsoleEntry, ConsoleStore } from "./types"
 

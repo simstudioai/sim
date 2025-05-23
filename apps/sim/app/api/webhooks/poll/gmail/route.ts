@@ -1,9 +1,9 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { nanoid } from "nanoid"
 import { env } from "@/lib/env"
 import { Logger } from "@/lib/logs/console-logger"
 import { acquireLock, releaseLock } from "@/lib/redis"
 import { pollGmailWebhooks } from "@/lib/webhooks/gmail-polling-service"
+import { nanoid } from "nanoid"
+import { type NextRequest, NextResponse } from "next/server"
 
 const logger = new Logger("GmailPollingAPI")
 

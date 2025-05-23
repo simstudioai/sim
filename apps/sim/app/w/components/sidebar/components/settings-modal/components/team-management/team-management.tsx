@@ -1,5 +1,3 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { CheckCircle, Copy, PlusCircle, RefreshCw, UserX, XCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { client, useSession } from "@/lib/auth-client"
 import { createLogger } from "@/lib/logs/console-logger"
 import { checkEnterprisePlan } from "@/lib/subscription/utils"
+import { CheckCircle, Copy, PlusCircle, RefreshCw, UserX, XCircle } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
 const logger = createLogger("TeamManagement")
 
@@ -213,11 +213,15 @@ export function TeamManagement() {
                 }
               }
             } catch (err) {
-              logger.error("Error fetching enterprise subscription", { error: err })
+              logger.error("Error fetching enterprise subscription", {
+                error: err,
+              })
             }
           }
 
-          logger.warn("No active subscription found for organization", { orgId })
+          logger.warn("No active subscription found for organization", {
+            orgId,
+          })
           setSubscriptionData(null)
         }
       }
@@ -301,7 +305,10 @@ export function TeamManagement() {
       setIsCreatingOrg(true)
       setError(null)
 
-      logger.info("Creating team organization", { name: orgName, slug: orgSlug })
+      logger.info("Creating team organization", {
+        name: orgName,
+        slug: orgSlug,
+      })
 
       // Create the organization using Better Auth API
       const result = await client.organization.create({
@@ -349,7 +356,9 @@ export function TeamManagement() {
               }
             }
           } catch (err) {
-            logger.error("Error fetching enterprise subscription details", { error: err })
+            logger.error("Error fetching enterprise subscription details", {
+              error: err,
+            })
           }
         }
 
@@ -580,7 +589,12 @@ export function TeamManagement() {
       await refreshOrganization()
 
       // Close the dialog
-      setRemoveMemberDialog({ open: false, memberId: "", memberName: "", shouldReduceSeats: false })
+      setRemoveMemberDialog({
+        open: false,
+        memberId: "",
+        memberName: "",
+        shouldReduceSeats: false,
+      })
     } catch (err: any) {
       setError(err.message || "Failed to remove member")
     } finally {
@@ -702,12 +716,16 @@ export function TeamManagement() {
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="font-medium text-sm">Team Name</label>
+                  <label htmlFor="orgName" className="font-medium text-sm">
+                    Team Name
+                  </label>
                   <Input value={orgName} onChange={handleOrgNameChange} placeholder="My Team" />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="font-medium text-sm">Team URL</label>
+                  <label htmlFor="orgSlug" className="font-medium text-sm">
+                    Team URL
+                  </label>
                   <div className="flex items-center space-x-2">
                     <div className="rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm">
                       simstudio.ai/team/
@@ -771,12 +789,16 @@ export function TeamManagement() {
 
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <label className="font-medium text-sm">Team Name</label>
+                <label htmlFor="orgName" className="font-medium text-sm">
+                  Team Name
+                </label>
                 <Input value={orgName} onChange={handleOrgNameChange} placeholder="My Team" />
               </div>
 
               <div className="space-y-2">
-                <label className="font-medium text-sm">Team URL</label>
+                <label htmlFor="orgSlug" className="font-medium text-sm">
+                  Team URL
+                </label>
                 <div className="flex items-center space-x-2">
                   <div className="rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm">
                     simstudio.ai/team/

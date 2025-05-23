@@ -1,8 +1,8 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { and, eq } from "drizzle-orm"
-import { getSession } from "@/lib/auth"
 import { db } from "@/db"
 import { workspaceMember } from "@/db/schema"
+import { getSession } from "@/lib/auth"
+import { and, eq } from "drizzle-orm"
+import { type NextRequest, NextResponse } from "next/server"
 
 // Update a member's role
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

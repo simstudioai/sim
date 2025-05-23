@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
 import { client } from "@/lib/auth-client"
 import { createLogger } from "@/lib/logs/console-logger"
 import { useNotificationStore } from "@/stores/notifications/store"
+import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 
 const logger = createLogger("useVerification")
 

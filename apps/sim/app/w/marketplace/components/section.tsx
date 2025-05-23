@@ -1,6 +1,6 @@
 "use client"
 
-import { forwardRef, type ReactNode } from "react"
+import { type ReactNode, forwardRef } from "react"
 
 /**
  * SectionProps interface - defines the properties for the Section component

@@ -1,7 +1,7 @@
-import type React from "react"
-import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useEnvironmentStore } from "@/stores/settings/environment/store"
+import type React from "react"
+import { useEffect, useState } from "react"
 
 interface EnvVarDropdownProps {
   visible: boolean

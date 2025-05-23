@@ -1,21 +1,21 @@
-import { headers } from "next/headers"
-import { stripe } from "@better-auth/stripe"
-import { betterAuth } from "better-auth"
-import { drizzleAdapter } from "better-auth/adapters/drizzle"
-import { nextCookies } from "better-auth/next-js"
-import { emailOTP, genericOAuth, organization } from "better-auth/plugins"
-import { and, eq } from "drizzle-orm"
-import { Resend } from "resend"
-import Stripe from "stripe"
 import {
   getEmailSubject,
   renderInvitationEmail,
   renderOTPEmail,
   renderPasswordResetEmail,
 } from "@/components/emails/render-email"
-import { createLogger } from "@/lib/logs/console-logger"
 import { db } from "@/db"
 import * as schema from "@/db/schema"
+import { createLogger } from "@/lib/logs/console-logger"
+import { stripe } from "@better-auth/stripe"
+import { betterAuth } from "better-auth"
+import { drizzleAdapter } from "better-auth/adapters/drizzle"
+import { nextCookies } from "better-auth/next-js"
+import { emailOTP, genericOAuth, organization } from "better-auth/plugins"
+import { and, eq } from "drizzle-orm"
+import { headers } from "next/headers"
+import { Resend } from "resend"
+import Stripe from "stripe"
 import { env } from "./env"
 
 const logger = createLogger("Auth")

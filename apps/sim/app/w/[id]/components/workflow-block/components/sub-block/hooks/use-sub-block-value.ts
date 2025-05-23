@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef } from "react"
-import { isEqual } from "lodash"
+import { getProviderFromModel } from "@/providers/utils"
 import { useGeneralStore } from "@/stores/settings/general/store"
 import { useSubBlockStore } from "@/stores/workflows/subblock/store"
 import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import { getProviderFromModel } from "@/providers/utils"
+import { isEqual } from "lodash"
+import { useCallback, useEffect, useRef } from "react"
 
 /**
  * Helper to handle API key auto-fill for provider-based blocks

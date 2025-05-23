@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect } from "react"
 import { createLogger } from "@/lib/logs/console-logger"
+import { useEffect } from "react"
 import { SYNC_INTERVALS } from "./constants"
-import { DEFAULT_SYNC_CONFIG, performSync, type SyncConfig, type SyncOperations } from "./sync-core"
+import { DEFAULT_SYNC_CONFIG, type SyncConfig, type SyncOperations, performSync } from "./sync-core"
 
 const logger = createLogger("Sync")
 

@@ -1,7 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { z } from "zod"
 import { isRateLimited } from "@/lib/waitlist/rate-limiter"
 import { addToWaitlist } from "@/lib/waitlist/service"
+import { type NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
 
 const waitlistSchema = z.object({
   email: z.string().email("Please enter a valid email"),

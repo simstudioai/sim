@@ -1,6 +1,4 @@
-import { useEffect, useRef, useState } from "react"
-import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical } from "lucide-react"
-import { Handle, type NodeProps, Position, useUpdateNodeInternals } from "reactflow"
+import type { BlockConfig, SubBlockConfig } from "@/blocks/types"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -11,7 +9,9 @@ import { useExecutionStore } from "@/stores/execution/store"
 import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
 import { mergeSubblockState } from "@/stores/workflows/utils"
 import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import type { BlockConfig, SubBlockConfig } from "@/blocks/types"
+import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Handle, type NodeProps, Position, useUpdateNodeInternals } from "reactflow"
 import { ActionBar } from "./components/action-bar/action-bar"
 import { ConnectionBlocks } from "./components/connection-blocks/connection-blocks"
 import { SubBlock } from "./components/sub-block/sub-block"
@@ -206,7 +206,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     updateNodeInternals(id)
   }, [id, horizontalHandles, updateNodeInternals])
 
-  const debounce = (func: Function, wait: number) => {
+  const debounce = (func: (...args: any[]) => void, wait: number) => {
     let timeout: NodeJS.Timeout
     return (...args: any[]) => {
       clearTimeout(timeout)

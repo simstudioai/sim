@@ -1,7 +1,7 @@
-import OpenAI from "openai"
-import { createLogger } from "@/lib/logs/console-logger"
 import type { StreamingExecution } from "@/executor/types"
+import { createLogger } from "@/lib/logs/console-logger"
 import { executeTool } from "@/tools"
+import OpenAI from "openai"
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from "../utils"
 

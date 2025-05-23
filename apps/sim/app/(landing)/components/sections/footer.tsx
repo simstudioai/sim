@@ -1,11 +1,11 @@
 "use client"
 
-import React from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
 import { DiscordIcon, GithubIcon, xIcon as XIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
+import { motion } from "framer-motion"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import React from "react"
 import useIsMobile from "../hooks/useIsMobile"
 
 interface FooterProps {

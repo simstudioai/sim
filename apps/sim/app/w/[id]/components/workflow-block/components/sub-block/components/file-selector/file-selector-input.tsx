@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import type { SubBlockConfig } from "@/blocks/types"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { env } from "@/lib/env"
 import { useSubBlockStore } from "@/stores/workflows/subblock/store"
-import type { SubBlockConfig } from "@/blocks/types"
+import { useEffect, useState } from "react"
 import {
   type ConfluenceFileInfo,
   ConfluenceFileSelector,

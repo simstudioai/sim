@@ -1,7 +1,7 @@
-import { shallow } from "zustand/shallow"
 import { createLogger } from "@/lib/logs/console-logger"
 import { useSubBlockStore } from "@/stores/workflows/subblock/store"
 import { useWorkflowStore } from "@/stores/workflows/workflow/store"
+import { shallow } from "zustand/shallow"
 
 const logger = createLogger("useBlockConnections")
 

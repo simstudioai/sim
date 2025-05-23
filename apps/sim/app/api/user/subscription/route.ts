@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { createLogger } from "@/lib/logs/console-logger"
 import { getHighestPrioritySubscription } from "@/lib/subscription/subscription"
 import { checkEnterprisePlan, checkTeamPlan } from "@/lib/subscription/utils"
+import { NextResponse } from "next/server"
 
 const logger = createLogger("UserSubscriptionAPI")
 

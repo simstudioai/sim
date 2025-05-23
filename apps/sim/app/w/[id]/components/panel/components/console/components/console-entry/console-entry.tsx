@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react"
+import { getBlock } from "@/blocks"
+import { Button } from "@/components/ui/button"
+import type { ConsoleEntry as ConsoleEntryType } from "@/stores/panel/console/types"
 import { format } from "date-fns"
 import {
   AlertCircle,
@@ -10,9 +12,7 @@ import {
   Clock,
   Terminal,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import type { ConsoleEntry as ConsoleEntryType } from "@/stores/panel/console/types"
-import { getBlock } from "@/blocks"
+import { useMemo, useState } from "react"
 import { JSONView } from "../json-view/json-view"
 
 interface ConsoleEntryProps {

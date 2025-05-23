@@ -1,8 +1,8 @@
 import { ChartBarIcon } from "@/components/icons"
 import { createLogger } from "@/lib/logs/console-logger"
-import { useOllamaStore } from "@/stores/ollama/store"
 import type { ProviderId } from "@/providers/types"
 import { getAllModelProviders, getBaseModelProviders } from "@/providers/utils"
+import { useOllamaStore } from "@/stores/ollama/store"
 import type { ToolResponse } from "@/tools/types"
 import type { BlockConfig, ParamType } from "../types"
 

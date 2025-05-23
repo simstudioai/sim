@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react"
-import { Info } from "lucide-react"
+import { JSONView } from "@/app/w/[id]/components/panel/components/console/components/json-view/json-view"
 import { GmailIcon } from "@/components/icons"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,7 +15,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Logger } from "@/lib/logs/console-logger"
-import { JSONView } from "@/app/w/[id]/components/panel/components/console/components/json-view/json-view"
+import { Info } from "lucide-react"
+import { useEffect, useState } from "react"
 import { ConfigSection } from "../ui/config-section"
 
 const logger = new Logger("GmailConfig")

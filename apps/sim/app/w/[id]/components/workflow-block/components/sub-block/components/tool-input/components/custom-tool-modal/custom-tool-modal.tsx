@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Code, FileJson, Trash2, Wand2, X } from "lucide-react"
+import { useCodeGeneration } from "@/app/w/[id]/hooks/use-code-generation"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,13 +18,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { checkEnvVarTrigger, EnvVarDropdown } from "@/components/ui/env-var-dropdown"
+import { EnvVarDropdown, checkEnvVarTrigger } from "@/components/ui/env-var-dropdown"
 import { Label } from "@/components/ui/label"
-import { checkTagTrigger, TagDropdown } from "@/components/ui/tag-dropdown"
+import { TagDropdown, checkTagTrigger } from "@/components/ui/tag-dropdown"
 import { createLogger } from "@/lib/logs/console-logger"
 import { cn } from "@/lib/utils"
 import { useCustomToolsStore } from "@/stores/custom-tools/store"
-import { useCodeGeneration } from "@/app/w/[id]/hooks/use-code-generation"
+import { Code, FileJson, Trash2, Wand2, X } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { CodePromptBar } from "../../../../../../../code-prompt-bar/code-prompt-bar"
 import { CodeEditor } from "../code-editor/code-editor"
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import { Command } from "commander"
-import chalk from "chalk"
-import { spawn, execSync } from "node:child_process"
-import { mkdirSync, existsSync } from "node:fs"
+import { execSync, spawn } from "node:child_process"
+import { existsSync, mkdirSync } from "node:fs"
+import { homedir } from "node:os"
 import { join } from "node:path"
 import { createInterface } from "node:readline"
-import { homedir } from "node:os"
+import chalk from "chalk"
+import { Command } from "commander"
 import inquirer from "inquirer"
 
 const NETWORK_NAME = "simstudio-network"

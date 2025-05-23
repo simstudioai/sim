@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useSubBlockStore } from "@/stores/workflows/subblock/store"
 import type { SubBlockConfig } from "@/blocks/types"
+import { useSubBlockStore } from "@/stores/workflows/subblock/store"
+import { useEffect, useState } from "react"
 import { type FolderInfo, FolderSelector } from "../folder-selector"
 
 interface FolderSelectorInputProps {

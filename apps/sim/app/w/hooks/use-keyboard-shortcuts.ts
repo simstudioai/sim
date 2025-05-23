@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import { useEffect, useMemo } from "react"
 
 /**
  * Detect if the current platform is Mac

@@ -1,6 +1,6 @@
-import * as React from "react"
-import { Container, Img, Link, Section, Text } from "@react-email/components"
 import { env } from "@/lib/env"
+import { Container, Img, Link, Section, Text } from "@react-email/components"
+import * as React from "react"
 
 interface EmailFooterProps {
   baseUrl?: string

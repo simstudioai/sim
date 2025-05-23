@@ -1,5 +1,7 @@
-import type React from "react"
-import { memo } from "react"
+// Assuming custom icons exist for Sim specific things, otherwise use Lucide
+import { AgentIcon, ConnectIcon, SlackIcon, StartIcon } from "@/components/icons"
+import { CodeBlock } from "@/components/ui/code-block"
+import { cn } from "@/lib/utils"
 import {
   // For header icon
   ChevronDown,
@@ -12,11 +14,9 @@ import {
   // For header icon
   Square,
 } from "lucide-react"
+import type React from "react"
+import { memo } from "react"
 import { Handle, type NodeProps, Position } from "reactflow"
-// Assuming custom icons exist for Sim specific things, otherwise use Lucide
-import { AgentIcon, ConnectIcon, SlackIcon, StartIcon } from "@/components/icons"
-import { CodeBlock } from "@/components/ui/code-block"
-import { cn } from "@/lib/utils"
 
 // Removed DotPattern import
 

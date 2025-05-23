@@ -1,5 +1,5 @@
-import type { Edge } from "reactflow"
 import type { BlockOutput, SubBlockType } from "@/blocks/types"
+import type { Edge } from "reactflow"
 
 export interface Position {
   x: number

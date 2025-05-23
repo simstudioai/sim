@@ -1,8 +1,8 @@
 import "../../__test-utils__/mock-dependencies"
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest"
 import type { BlockOutput } from "@/blocks/types"
 import { getProviderFromModel } from "@/providers/utils"
 import type { SerializedBlock } from "@/serializer/types"
+import { type Mock, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ExecutionContext } from "../../types"
 import { EvaluatorBlockHandler } from "./evaluator-handler"
 

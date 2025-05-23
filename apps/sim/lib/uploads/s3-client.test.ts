@@ -1,9 +1,3 @@
-/**
- * Unit tests for S3 client
- *
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   DeleteObjectCommand,
   GetObjectCommand,
@@ -11,10 +5,16 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+/**
+ * Unit tests for S3 client
+ *
+ * @vitest-environment node
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
+  FileInfo,
   deleteFromS3,
   downloadFromS3,
-  FileInfo,
   getPresignedUrl,
   getS3Client,
   uploadToS3,

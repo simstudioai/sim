@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react"
 import { createLogger } from "@/lib/logs/console-logger"
 import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
 import { useSubBlockStore } from "@/stores/workflows/subblock/store"
 import { useWorkflowStore } from "@/stores/workflows/workflow/store"
+import { useEffect, useState } from "react"
 
 const logger = createLogger("useDeploymentChangeDetection")
 

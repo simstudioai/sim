@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react"
-import { SendIcon, XIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { SendIcon, XIcon } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 
 interface CodePromptBarProps {
   isVisible: boolean

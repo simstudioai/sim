@@ -1,11 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { GithubIcon, GoogleIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { client } from "@/lib/auth-client"
 import { useNotificationStore } from "@/stores/notifications/store"
+import { useEffect, useState } from "react"
 
 interface SocialLoginButtonsProps {
   githubAvailable: boolean

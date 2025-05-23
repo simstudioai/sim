@@ -1,7 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { Check, ChevronDown, RefreshCw } from "lucide-react"
+import { OAuthRequiredModal } from "@/app/w/[id]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal"
 import { GmailIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +15,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { createLogger } from "@/lib/logs/console-logger"
 import { type Credential, getProviderIdFromServiceId, getServiceIdFromScopes } from "@/lib/oauth"
 import { saveToStorage } from "@/stores/workflows/persistence"
-import { OAuthRequiredModal } from "@/app/w/[id]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal"
+import { Check, ChevronDown, RefreshCw } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 const logger = createLogger("FolderSelector")
 

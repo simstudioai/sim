@@ -1,7 +1,7 @@
-import { Check, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Notice } from "@/components/ui/notice"
 import { cn } from "@/lib/utils"
+import { Check, Copy } from "lucide-react"
 
 interface TestResultDisplayProps {
   testResult: {

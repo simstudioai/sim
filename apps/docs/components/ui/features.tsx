@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils"
 import {
   IconAdjustmentsBolt,
   IconCloud,
@@ -8,7 +9,6 @@ import {
   IconRouteAltLeft,
   IconTerminal2,
 } from "@tabler/icons-react"
-import { cn } from "@/lib/utils"
 
 export function Features() {
   const features = [

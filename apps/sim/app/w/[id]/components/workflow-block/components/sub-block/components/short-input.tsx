@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useReactFlow } from "reactflow"
-import { checkEnvVarTrigger, EnvVarDropdown } from "@/components/ui/env-var-dropdown"
+import type { SubBlockConfig } from "@/blocks/types"
+import { EnvVarDropdown, checkEnvVarTrigger } from "@/components/ui/env-var-dropdown"
 import { formatDisplayText } from "@/components/ui/formatted-text"
 import { Input } from "@/components/ui/input"
-import { checkTagTrigger, TagDropdown } from "@/components/ui/tag-dropdown"
+import { TagDropdown, checkTagTrigger } from "@/components/ui/tag-dropdown"
 import { createLogger } from "@/lib/logs/console-logger"
 import { cn } from "@/lib/utils"
-import type { SubBlockConfig } from "@/blocks/types"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useReactFlow } from "reactflow"
 import { useSubBlockValue } from "../hooks/use-sub-block-value"
 
 const logger = createLogger("ShortInput")

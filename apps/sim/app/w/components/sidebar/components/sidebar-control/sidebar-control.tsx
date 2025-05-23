@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { PanelRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 import { type SidebarMode, useSidebarStore } from "@/stores/sidebar/store"
+import { PanelRight } from "lucide-react"
+import { useState } from "react"
 
 // This component ONLY controls sidebar state, not toolbar state
 export function SidebarControl() {

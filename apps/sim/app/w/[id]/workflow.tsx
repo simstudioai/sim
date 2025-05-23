@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import ReactFlow, {
   Background,
   ConnectionLineType,
@@ -11,6 +11,8 @@ import ReactFlow, {
   useReactFlow,
 } from "reactflow"
 import "reactflow/dist/style.css"
+import { NotificationList } from "@/app/w/[id]/components/notifications/notifications"
+import { getBlock } from "@/blocks"
 import { LoadingAgent } from "@/components/ui/loading-agent"
 import { createLogger } from "@/lib/logs/console-logger"
 import { useExecutionStore } from "@/stores/execution/store"
@@ -22,8 +24,6 @@ import { initializeSyncManagers, isSyncInitialized } from "@/stores/sync-registr
 import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
 import { useSubBlockStore } from "@/stores/workflows/subblock/store"
 import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import { NotificationList } from "@/app/w/[id]/components/notifications/notifications"
-import { getBlock } from "@/blocks"
 import { ControlBar } from "./components/control-bar/control-bar"
 import { ErrorBoundary } from "./components/error/index"
 import { Panel } from "./components/panel/panel"

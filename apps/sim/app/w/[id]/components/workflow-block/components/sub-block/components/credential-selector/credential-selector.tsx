@@ -1,7 +1,5 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { Check, ChevronDown, ExternalLink, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -15,13 +13,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { createLogger } from "@/lib/logs/console-logger"
 import {
   type Credential,
-  getProviderIdFromServiceId,
-  getServiceIdFromScopes,
   OAUTH_PROVIDERS,
   type OAuthProvider,
+  getProviderIdFromServiceId,
+  getServiceIdFromScopes,
   parseProvider,
 } from "@/lib/oauth"
 import { saveToStorage } from "@/stores/workflows/persistence"
+import { Check, ChevronDown, ExternalLink, RefreshCw } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { OAuthRequiredModal } from "./components/oauth-required-modal"
 
 const logger = createLogger("CredentialSelector")

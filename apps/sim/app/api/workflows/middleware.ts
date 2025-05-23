@@ -1,9 +1,9 @@
-import type { NextRequest } from "next/server"
-import { eq } from "drizzle-orm"
-import { createLogger } from "@/lib/logs/console-logger"
-import { getWorkflowById } from "@/lib/workflows/utils"
 import { db } from "@/db"
 import { apiKey } from "@/db/schema"
+import { createLogger } from "@/lib/logs/console-logger"
+import { getWorkflowById } from "@/lib/workflows/utils"
+import { eq } from "drizzle-orm"
+import type { NextRequest } from "next/server"
 
 const logger = createLogger("WorkflowMiddleware")
 

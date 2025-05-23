@@ -1,4 +1,4 @@
-import * as React from "react"
+import { env } from "@/lib/env"
 import {
   Body,
   Column,
@@ -13,7 +13,7 @@ import {
   Text,
 } from "@react-email/components"
 import { format } from "date-fns"
-import { env } from "@/lib/env"
+import * as React from "react"
 import { baseStyles } from "./base-styles"
 import EmailFooter from "./footer"
 

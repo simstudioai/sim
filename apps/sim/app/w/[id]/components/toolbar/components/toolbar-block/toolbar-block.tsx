@@ -1,5 +1,5 @@
-import { useCallback } from "react"
 import type { BlockConfig } from "@/blocks/types"
+import { useCallback } from "react"
 
 export type ToolbarBlockProps = {
   config: BlockConfig

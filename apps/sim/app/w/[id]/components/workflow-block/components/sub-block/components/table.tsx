@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { checkEnvVarTrigger, EnvVarDropdown } from "@/components/ui/env-var-dropdown"
+import { EnvVarDropdown, checkEnvVarTrigger } from "@/components/ui/env-var-dropdown"
 import { formatDisplayText } from "@/components/ui/formatted-text"
 import { Input } from "@/components/ui/input"
-import { checkTagTrigger, TagDropdown } from "@/components/ui/tag-dropdown"
+import { TagDropdown, checkTagTrigger } from "@/components/ui/tag-dropdown"
 import { cn } from "@/lib/utils"
+import { Trash2 } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useSubBlockValue } from "../hooks/use-sub-block-value"
 
 interface TableProps {

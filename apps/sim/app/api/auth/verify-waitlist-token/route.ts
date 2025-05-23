@@ -1,7 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server"
 import { Logger } from "@/lib/logs/console-logger"
 import { markWaitlistUserAsSignedUp } from "@/lib/waitlist/service"
 import { verifyToken } from "@/lib/waitlist/token"
+import { type NextRequest, NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 

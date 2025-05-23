@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect } from "react"
-import { Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useGeneralStore } from "@/stores/settings/general/store"
+import { Info } from "lucide-react"
+import { useEffect } from "react"
 
 const TOOLTIPS = {
   telemetry:

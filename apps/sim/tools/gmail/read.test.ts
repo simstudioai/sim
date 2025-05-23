@@ -8,7 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { mockGmailResponses } from "../__test-utils__/mock-data"
-import { mockOAuthTokenRequest, ToolTester } from "../__test-utils__/test-tools"
+import { ToolTester, mockOAuthTokenRequest } from "../__test-utils__/test-tools"
 import { gmailReadTool } from "./read"
 
 describe("Gmail Read Tool", () => {

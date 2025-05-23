@@ -1,11 +1,11 @@
 "use client"
 
-import React from "react"
-import Image from "next/image"
+import { OrbitingCircles } from "@/app/(landing)/components/magicui/orbiting-circles"
 import { motion } from "framer-motion"
 import { File, FileArchive, GitBranch, RefreshCcw, Settings } from "lucide-react"
+import Image from "next/image"
+import React from "react"
 import ReactFlow, { ConnectionLineType, Position, ReactFlowProvider } from "reactflow"
-import { OrbitingCircles } from "@/app/(landing)/components/magicui/orbiting-circles"
 import { DotPattern } from "../dot-pattern"
 import { HeroBlock } from "../hero-block"
 

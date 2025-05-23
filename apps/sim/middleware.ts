@@ -1,7 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { getSessionCookie } from "better-auth/cookies"
 import { createLogger } from "@/lib/logs/console-logger"
 import { getBaseDomain } from "@/lib/urls/utils"
+import { getSessionCookie } from "better-auth/cookies"
+import { type NextRequest, NextResponse } from "next/server"
 import { env } from "./lib/env"
 import { verifyToken } from "./lib/waitlist/token"
 

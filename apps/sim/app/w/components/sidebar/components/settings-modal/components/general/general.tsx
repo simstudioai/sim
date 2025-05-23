@@ -1,6 +1,3 @@
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { AlertTriangle, Info } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
@@ -25,8 +22,11 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { useGeneralStore } from "@/stores/settings/general/store"
 import { resetAllStores } from "@/stores"
+import { useGeneralStore } from "@/stores/settings/general/store"
+import { AlertTriangle, Info } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 const TOOLTIPS = {
   debugMode: "Enable visual debugging information during execution.",

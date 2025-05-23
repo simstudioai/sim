@@ -1,11 +1,11 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { eq } from "drizzle-orm"
-import { nanoid } from "nanoid"
+import { db } from "@/db"
+import { apiKey } from "@/db/schema"
 import { getSession } from "@/lib/auth"
 import { createLogger } from "@/lib/logs/console-logger"
 import { generateApiKey } from "@/lib/utils"
-import { db } from "@/db"
-import { apiKey } from "@/db/schema"
+import { eq } from "drizzle-orm"
+import { nanoid } from "nanoid"
+import { type NextRequest, NextResponse } from "next/server"
 
 const logger = createLogger("ApiKeysAPI")
 

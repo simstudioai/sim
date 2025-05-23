@@ -1,3 +1,4 @@
+import { getProviderFromModel } from "@/providers/utils"
 /**
  * @vitest-environment jsdom
  *
@@ -8,7 +9,6 @@
  * used by the executor.
  */
 import { describe, expect, test, vi } from "vitest"
-import { getProviderFromModel } from "@/providers/utils"
 import {
   createAgentWithToolsWorkflowState,
   createComplexWorkflowState,

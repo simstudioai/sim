@@ -1,10 +1,10 @@
+import { NextRequest } from "next/server"
 /**
  * Tests for file serve API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { NextRequest } from "next/server"
 
 describe("File Serve API Route", () => {
   // Mock file system and S3 client modules

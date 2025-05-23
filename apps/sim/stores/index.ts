@@ -1,6 +1,6 @@
-import { useEffect } from "react"
-import { createLogger } from "@/lib/logs/console-logger"
 import type { SubBlockType } from "@/blocks/types"
+import { createLogger } from "@/lib/logs/console-logger"
+import { useEffect } from "react"
 import { useCopilotStore } from "./copilot/store"
 import { useCustomToolsStore } from "./custom-tools/store"
 import { useExecutionStore } from "./execution/store"

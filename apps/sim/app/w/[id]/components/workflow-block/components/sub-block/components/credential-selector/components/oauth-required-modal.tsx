@@ -1,6 +1,5 @@
 "use client"
 
-import { Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -13,13 +12,14 @@ import {
 import { client } from "@/lib/auth-client"
 import { createLogger } from "@/lib/logs/console-logger"
 import {
-  getProviderIdFromServiceId,
-  getServiceIdFromScopes,
   OAUTH_PROVIDERS,
   type OAuthProvider,
+  getProviderIdFromServiceId,
+  getServiceIdFromScopes,
   parseProvider,
 } from "@/lib/oauth"
 import { saveToStorage } from "@/stores/workflows/persistence"
+import { Check } from "lucide-react"
 
 const logger = createLogger("OAuthRequiredModal")
 

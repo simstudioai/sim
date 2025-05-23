@@ -1,8 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { ChevronDown, Lock, LogOut, User, UserPlus } from "lucide-react"
+import { RequestResetForm } from "@/app/(auth)/reset-password/reset-password-form"
 import { AgentIcon } from "@/components/icons"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -15,8 +13,10 @@ import {
 import { signOut, useSession } from "@/lib/auth-client"
 import { createLogger } from "@/lib/logs/console-logger"
 import { cn } from "@/lib/utils"
-import { RequestResetForm } from "@/app/(auth)/reset-password/reset-password-form"
 import { clearUserData } from "@/stores"
+import { ChevronDown, Lock, LogOut, User, UserPlus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 const logger = createLogger("Account")
 

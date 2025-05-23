@@ -1,6 +1,6 @@
+import { env } from "@/lib/env"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
-import { env } from "@/lib/env"
 
 // In production, use the Vercel-generated POSTGRES_URL
 // In development, use the direct DATABASE_URL

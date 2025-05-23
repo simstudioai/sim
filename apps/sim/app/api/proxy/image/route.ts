@@ -1,5 +1,5 @@
-import { type NextRequest, NextResponse } from "next/server"
 import { createLogger } from "@/lib/logs/console-logger"
+import { type NextRequest, NextResponse } from "next/server"
 
 const logger = createLogger("ImageProxyAPI")
 

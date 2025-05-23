@@ -1,7 +1,9 @@
+import { cn } from "@/lib/utils"
+import { Search } from "lucide-react"
 import type React from "react"
 import {
-  createContext,
   type ReactNode,
+  createContext,
   useCallback,
   useContext,
   useEffect,
@@ -9,8 +11,6 @@ import {
   useRef,
   useState,
 } from "react"
-import { Search } from "lucide-react"
-import { cn } from "@/lib/utils"
 
 // Context for the command component
 type CommandContextType = {

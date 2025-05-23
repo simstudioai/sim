@@ -1,15 +1,15 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
-import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
-import { Eye, EyeOff } from "lucide-react"
+import { SocialLoginButtons } from "@/app/(auth)/components/social-login-buttons"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { client } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
-import { SocialLoginButtons } from "@/app/(auth)/components/social-login-buttons"
+import { Eye, EyeOff } from "lucide-react"
+import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
 
 const PASSWORD_VALIDATIONS = {
   minLength: { regex: /.{8,}/, message: "Password must be at least 8 characters long." },

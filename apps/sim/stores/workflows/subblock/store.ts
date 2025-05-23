@@ -1,6 +1,6 @@
+import type { SubBlockConfig } from "@/blocks/types"
 import { create } from "zustand"
 import { devtools, persist } from "zustand/middleware"
-import type { SubBlockConfig } from "@/blocks/types"
 import { useEnvironmentStore } from "../../settings/environment/store"
 import { useGeneralStore } from "../../settings/general/store"
 import { loadSubblockValues, saveSubblockValues } from "../persistence"

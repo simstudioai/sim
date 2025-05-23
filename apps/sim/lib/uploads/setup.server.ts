@@ -1,6 +1,6 @@
 import { createLogger } from "@/lib/logs/console-logger"
 import { env } from "../env"
-import { ensureUploadsDirectory, USE_S3_STORAGE } from "./setup"
+import { USE_S3_STORAGE, ensureUploadsDirectory } from "./setup"
 
 const logger = createLogger("UploadsSetup")
 

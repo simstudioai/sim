@@ -1,15 +1,15 @@
+import {
+  createMockRequest,
+  mockExecutionDependencies,
+  sampleWorkflowState,
+} from "@/app/api/__test-utils__/utils"
+import { NextRequest } from "next/server"
 /**
  * Integration tests for webhook trigger API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { NextRequest } from "next/server"
-import {
-  createMockRequest,
-  mockExecutionDependencies,
-  sampleWorkflowState,
-} from "@/app/api/__test-utils__/utils"
 
 // Define mock functions at the top level to be used in mocks
 const hasProcessedMessageMock = vi.fn().mockResolvedValue(false)

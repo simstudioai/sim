@@ -1,12 +1,12 @@
 "use client"
 
-import { type KeyboardEvent, useState } from "react"
-import { Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
+import { Loader2, X } from "lucide-react"
+import { type KeyboardEvent, useState } from "react"
 
 interface InviteModalProps {
   open: boolean

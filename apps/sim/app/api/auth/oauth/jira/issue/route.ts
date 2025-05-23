@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server"
 import { Logger } from "@/lib/logs/console-logger"
 import { getJiraCloudId } from "@/tools/jira/utils"
+import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
 

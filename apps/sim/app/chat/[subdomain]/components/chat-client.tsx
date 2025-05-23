@@ -1,22 +1,22 @@
 "use client"
 
-import {
-  Children,
-  isValidElement,
-  type KeyboardEvent,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
-import { ArrowUp, Loader2, Lock, Mail } from "lucide-react"
-import { v4 as uuidv4 } from "uuid"
+import { getFormattedGitHubStars } from "@/app/(landing)/actions/github"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { OTPInputForm } from "@/components/ui/input-otp-form"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
-import { getFormattedGitHubStars } from "@/app/(landing)/actions/github"
+import { ArrowUp, Loader2, Lock, Mail } from "lucide-react"
+import {
+  Children,
+  type KeyboardEvent,
+  isValidElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
+import { v4 as uuidv4 } from "uuid"
 import HeaderLinks from "./components/header-links/header-links"
 import MarkdownRenderer from "./components/markdown-renderer/markdown-renderer"
 

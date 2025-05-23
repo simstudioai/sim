@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { Check, ChevronDown } from "lucide-react"
+import { getBlock } from "@/blocks"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import { getBlock } from "@/blocks"
+import { Check, ChevronDown } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 interface OutputSelectProps {
   workflowId: string | null

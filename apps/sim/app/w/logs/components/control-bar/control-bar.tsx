@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { Loader2, Play, RefreshCw, Search, Square } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { createLogger } from "@/lib/logs/console-logger"
 import { useDebounce } from "@/hooks/use-debounce"
+import { createLogger } from "@/lib/logs/console-logger"
+import { Loader2, Play, RefreshCw, Search, Square } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { useFilterStore } from "../../stores/store"
 import type { LogsResponse } from "../../stores/types"
 
