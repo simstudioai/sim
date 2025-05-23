@@ -15,6 +15,94 @@ const formatChatName = (chat: any): string => {
   return chat.topic || `Chat ${chat.id}`;
 }
 
+// Helper function to get chat members and create a meaningful name
+const getChatDisplayName = async (chatId: string, accessToken: string, chatTopic?: string): Promise<string> => {
+  try {
+    // If the chat already has a topic, use it
+    if (chatTopic && chatTopic.trim() && chatTopic !== 'null') {
+      return chatTopic;
+    }
+
+    // Fetch chat members to create a meaningful name
+    const membersResponse = await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/members`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (membersResponse.ok) {
+      const membersData = await membersResponse.json();
+      const members = membersData.value || [];
+      
+      // Filter out the current user and get display names
+      const memberNames = members
+        .filter((member: any) => member.displayName && member.displayName !== 'Unknown')
+        .map((member: any) => member.displayName)
+        .slice(0, 3); // Limit to first 3 names to avoid very long names
+
+      if (memberNames.length > 0) {
+        if (memberNames.length === 1) {
+          return memberNames[0]; // 1:1 chat
+        } else if (memberNames.length === 2) {
+          return memberNames.join(' & '); // 2-person group
+        } else {
+          return `${memberNames.slice(0, 2).join(', ')} & ${memberNames.length - 2} more`; // Larger group
+        }
+      }
+    }
+
+    // Fallback: try to get a better name from recent messages
+    try {
+      const messagesResponse = await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages?$top=10&$orderby=createdDateTime desc`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (messagesResponse.ok) {
+        const messagesData = await messagesResponse.json();
+        const messages = messagesData.value || [];
+
+        // Look for chat rename events
+        for (const message of messages) {
+          if (message.eventDetail && message.eventDetail.chatDisplayName) {
+            return message.eventDetail.chatDisplayName;
+          }
+        }
+
+        // Get unique sender names from recent messages as last resort
+        const senderNames = [...new Set(
+          messages
+            .filter((msg: any) => msg.from?.user?.displayName && msg.from.user.displayName !== 'Unknown')
+            .map((msg: any) => msg.from.user.displayName)
+        )].slice(0, 3);
+
+        if (senderNames.length > 0) {
+          if (senderNames.length === 1) {
+            return senderNames[0] as string;
+          } else if (senderNames.length === 2) {
+            return senderNames.join(' & ');
+          } else {
+            return `${senderNames.slice(0, 2).join(', ')} & ${senderNames.length - 2} more`;
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to get better name from messages for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Final fallback
+    return `Chat ${chatId.split(':')[0] || chatId.substring(0, 8)}...`;
+  } catch (error) {
+    logger.warn(`Failed to get display name for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`);
+    return `Chat ${chatId.split(':')[0] || chatId.substring(0, 8)}...`;
+  }
+}
+
 export async function POST(request: Request) {
   logger.info('POST request received at /api/auth/oauth/microsoft-teams/chats')
   try {
@@ -91,12 +179,15 @@ export async function POST(request: Request) {
       const data = await response.json()
       logger.info('Successfully retrieved chats data', { count: data.value?.length || 0 })
       
-      const chats = data.value.map((chat: any) => ({
-        id: chat.id,
-        displayName: chat.topic || formatChatName(chat)
-      }))
+      // Process chats with enhanced display names
+      const chats = await Promise.all(
+        data.value.map(async (chat: any) => ({
+          id: chat.id,
+          displayName: await getChatDisplayName(chat.id, accessToken, chat.topic)
+        }))
+      )
 
-      logger.info('Processed chats data', { count: chats.length })
+      logger.info('Processed chats data with enhanced names', { count: chats.length })
       
       return NextResponse.json({
         chats: chats

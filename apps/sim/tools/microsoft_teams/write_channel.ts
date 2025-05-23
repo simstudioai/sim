@@ -54,15 +54,6 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
       // Send a message to a channel
       const url = `https://graph.microsoft.com/v1.0/teams/${encodedTeamId}/channels/${encodedChannelId}/messages`
       
-      // Log the URL for debugging
-      logger.info('Microsoft Teams Write Channel Request', {
-        url,
-        teamId,
-        channelId,
-        encodedTeamId,
-        encodedChannelId
-      })
-      
       return url
     },
     method: 'POST',

@@ -422,13 +422,6 @@ export function TeamsMessageSelector({
 
   // Handle channel selection
   const handleSelectChannel = (channel: TeamsMessageInfo) => {
-    logger.info('Channel selected', {
-      channel: channel.displayName,
-      channelId: channel.channelId,
-      teamId: channel.teamId,
-      id: channel.id
-    })
-    
     setSelectedChannelId(channel.channelId || '')
     setSelectedChatId('')
     setSelectedMessage(channel)

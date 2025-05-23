@@ -51,11 +51,13 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
         setSelectedIssueId(value)
       } else if (isDiscord) {
         setSelectedChannelId(value)
+      } else if (isMicrosoftTeams) {
+        setSelectedMessageId(value)
       } else {
         setSelectedFileId(value)
       }
     }
-  }, [blockId, subBlock.id, getValue, isJira, isDiscord])
+  }, [blockId, subBlock.id, getValue, isJira, isDiscord, isMicrosoftTeams])
 
   // Handle file selection
   const handleFileChange = (fileId: string, info?: any) => {
