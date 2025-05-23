@@ -167,6 +167,12 @@ export function ControlBar() {
     return !!marketplaceData
   }
 
+  // // Check if the current user is the owner of the published workflow
+  // const isWorkflowOwner = () => {
+  //   const marketplaceData = getMarketplaceData()
+  //   return marketplaceData?.status === 'owner'
+  // }
+
   // Get deployment status from registry
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(activeWorkflowId)
@@ -408,6 +414,23 @@ export function ControlBar() {
     // Remove the workflow from the registry
     removeWorkflow(activeWorkflowId)
   }
+
+  // /**
+  //  * Handle opening marketplace modal or showing published status
+  //  */
+  // const handlePublishWorkflow = async () => {
+  //   if (!activeWorkflowId) return
+
+  //   // If already published, show marketplace modal with info instead of notifications
+  //   const isPublished = isPublishedToMarketplace()
+  //   if (isPublished) {
+  //     setIsMarketplaceModalOpen(true)
+  //     return
+  //   }
+
+  //   // If not published, open the modal to start the publishing process
+  //   setIsMarketplaceModalOpen(true)
+  // }
 
   /**
    * Handle multiple workflow runs
