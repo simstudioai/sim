@@ -284,9 +284,21 @@ interface WebhookConfigProps {
   blockId: string
   subBlockId?: string
   isConnecting: boolean
+  isPreview?: boolean
+  value?: {
+    webhookProvider?: string
+    webhookPath?: string
+    providerConfig?: ProviderConfig
+  }
 }
 
-export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConfigProps) {
+export function WebhookConfig({ 
+  blockId, 
+  subBlockId, 
+  isConnecting, 
+  isPreview = false,
+  value: propValue 
+}: WebhookConfigProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -301,13 +313,18 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   const setWebhookStatus = useWorkflowStore((state) => state.setWebhookStatus)
 
   // Get the webhook provider from the block state
-  const [webhookProvider, setWebhookProvider] = useSubBlockValue(blockId, 'webhookProvider')
+  const [storeWebhookProvider, setWebhookProvider] = useSubBlockValue(blockId, 'webhookProvider')
 
   // Store the webhook path
-  const [webhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
+  const [storeWebhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
 
   // Store provider-specific configuration
-  const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
+  const [storeProviderConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
+  
+  // Use prop values when available (preview mode), otherwise use store values
+  const webhookProvider = propValue?.webhookProvider ?? storeWebhookProvider
+  const webhookPath = propValue?.webhookPath ?? storeWebhookPath
+  const providerConfig = propValue?.providerConfig ?? storeProviderConfig
 
   // Reset provider config when provider changes
   useEffect(() => {
@@ -322,6 +339,12 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
 
   // Check if webhook exists in the database
   useEffect(() => {
+    // Skip API calls in preview mode
+    if (isPreview) {
+      setIsLoading(false)
+      return
+    }
+
     const checkWebhook = async () => {
       setIsLoading(true)
       try {
@@ -371,6 +394,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
     setWebhookPath,
     setWebhookProvider,
     setWebhookStatus,
+    isPreview,
   ])
 
   const handleOpenModal = () => {
@@ -383,6 +407,9 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   }
 
   const handleSaveWebhook = async (path: string, config: ProviderConfig) => {
+    // Prevent saving in preview mode
+    if (isPreview) return false
+
     try {
       setIsSaving(true)
       setError(null)
@@ -446,7 +473,8 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   }
 
   const handleDeleteWebhook = async () => {
-    if (!webhookId) return false
+    // Prevent deletion in preview mode
+    if (isPreview || !webhookId) return false
 
     try {
       setIsDeleting(true)
@@ -540,7 +568,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
               'https://www.googleapis.com/auth/gmail.labels',
             ]}
             label="Select Gmail account"
-            disabled={isConnecting || isSaving || isDeleting}
+            disabled={isConnecting || isSaving || isDeleting || isPreview}
           />
         </div>
 
@@ -550,7 +578,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
             size="sm"
             className="w-full h-10 text-sm font-normal bg-background flex items-center"
             onClick={handleOpenModal}
-            disabled={isConnecting || isSaving || isDeleting || !gmailCredentialId}
+            disabled={isConnecting || isSaving || isDeleting || !gmailCredentialId || isPreview}
           >
             {isLoading ? (
               <div className="h-4 w-4 mr-2 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
@@ -602,7 +630,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
           size="sm"
           className="w-full h-10 text-sm font-normal bg-background flex items-center"
           onClick={handleOpenModal}
-          disabled={isConnecting || isSaving || isDeleting}
+          disabled={isConnecting || isSaving || isDeleting || isPreview}
         >
           {isLoading ? (
             <div className="h-4 w-4 mr-2 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />

@@ -8,10 +8,13 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
+
 interface TableProps {
-  columns: string[]
   blockId: string
   subBlockId: string
+  columns: string[]
+  isPreview?: boolean
+  previewValue?: TableRow[] | null
 }
 
 interface TableRow {
@@ -19,8 +22,17 @@ interface TableRow {
   cells: Record<string, string>
 }
 
-export function Table({ columns, blockId, subBlockId }: TableProps) {
-  const [value, setValue] = useSubBlockValue(blockId, subBlockId)
+export function Table({ 
+  blockId, 
+  subBlockId, 
+  columns,
+  isPreview = false,
+  previewValue
+}: TableProps) {
+  const [storeValue, setStoreValue] = useSubBlockValue<TableRow[]>(blockId, subBlockId)
+  
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
 
   // Create refs for input elements
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
@@ -71,6 +83,8 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
   }, [activeCell])
 
   const handleCellChange = (rowIndex: number, column: string, value: string) => {
+    if (isPreview) return
+    
     const updatedRows = [...rows].map((row, idx) =>
       idx === rowIndex
         ? {
@@ -87,12 +101,12 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
       })
     }
 
-    setValue(updatedRows)
+    setStoreValue(updatedRows)
   }
 
   const handleDeleteRow = (rowIndex: number) => {
-    if (rows.length === 1) return
-    setValue(rows.filter((_, index) => index !== rowIndex))
+    if (isPreview || rows.length === 1) return
+    setStoreValue(rows.filter((_, index) => index !== rowIndex))
   }
 
   const renderHeader = () => (
@@ -172,6 +186,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
                 setActiveCell(null)
               }
             }}
+            disabled={isPreview}
             className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 w-full"
           />
           <div
@@ -186,7 +201,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
   }
 
   const renderDeleteButton = (rowIndex: number) =>
-    rows.length > 1 && (
+    rows.length > 1 && !isPreview && (
       <td className="w-0 p-0">
         <Button
           variant="ghost"

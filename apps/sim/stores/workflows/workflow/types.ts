@@ -1,5 +1,6 @@
 import { Edge } from 'reactflow'
 import { BlockOutput, SubBlockType } from '@/blocks/types'
+import { DeploymentStatus } from '../registry/types'
 
 export interface Position {
   x: number
@@ -32,13 +33,6 @@ export interface Loop {
   iterations: number
   loopType: 'for' | 'forEach'
   forEachItems?: any[] | Record<string, any> | string // Items or expression
-}
-
-export interface DeploymentStatus {
-  isDeployed: boolean
-  deployedAt?: Date
-  apiKey?: string
-  needsRedeployment?: boolean
 }
 
 export interface WorkflowState {

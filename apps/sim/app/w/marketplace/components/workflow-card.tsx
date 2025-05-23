@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Eye } from 'lucide-react'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
+import { WorkflowPreview } from '@/app/w/components/workflow-preview/workflow-preview'
 import { Workflow } from '../marketplace'
 
 /**

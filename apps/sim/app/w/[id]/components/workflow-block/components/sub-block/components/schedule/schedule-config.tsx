@@ -17,11 +17,19 @@ const logger = createLogger('ScheduleConfig')
 
 interface ScheduleConfigProps {
   blockId: string
-  subBlockId?: string
+  subBlockId: string
   isConnecting: boolean
+  isPreview?: boolean
+  previewValue?: any | null
 }
 
-export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleConfigProps) {
+export function ScheduleConfig({ 
+  blockId, 
+  subBlockId, 
+  isConnecting,
+  isPreview = false,
+  previewValue
+}: ScheduleConfigProps) {
   const [error, setError] = useState<string | null>(null)
   const [scheduleId, setScheduleId] = useState<string | null>(null)
   const [nextRunAt, setNextRunAt] = useState<string | null>(null)
@@ -48,6 +56,11 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   // and expose the setter so we can update it
   const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
   const isScheduleEnabled = startWorkflow === 'schedule'
+
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
 
   // Function to check if schedule exists in the database
   const checkSchedule = async () => {
@@ -124,6 +137,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   }
 
   const handleOpenModal = () => {
+    if (isPreview) return
     setIsModalOpen(true)
   }
 
@@ -137,6 +151,8 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   }
 
   const handleSaveSchedule = async (): Promise<boolean> => {
+    if (isPreview) return false
+    
     setIsSaving(true)
     setError(null)
 
@@ -239,7 +255,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   }
 
   const handleDeleteSchedule = async (): Promise<boolean> => {
-    if (!scheduleId) return false
+    if (isPreview || !scheduleId) return false
 
     setIsDeleting(true)
     try {
@@ -312,7 +328,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
               size="icon"
               className="h-8 w-8 shrink-0"
               onClick={handleOpenModal}
-              disabled={isDeleting || isConnecting}
+              disabled={isPreview || isDeleting || isConnecting}
             >
               {isDeleting ? (
                 <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
@@ -328,7 +344,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
           size="sm"
           className="w-full h-10 text-sm font-normal bg-background flex items-center"
           onClick={handleOpenModal}
-          disabled={isConnecting || isSaving || isDeleting}
+          disabled={isPreview || isConnecting || isSaving || isDeleting}
         >
           {isLoading ? (
             <div className="h-4 w-4 mr-2 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />

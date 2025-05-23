@@ -10,13 +10,22 @@ import { DiscordChannelInfo, DiscordChannelSelector } from './components/discord
 import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
 import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
 
+
 interface FileSelectorInputProps {
   blockId: string
   subBlock: SubBlockConfig
-  disabled?: boolean
+  disabled: boolean
+  isPreview?: boolean
+  previewValue?: any | null
 }
 
-export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileSelectorInputProps) {
+export function FileSelectorInput({ 
+  blockId, 
+  subBlock, 
+  disabled,
+  isPreview = false,
+  previewValue
+}: FileSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedFileId, setSelectedFileId] = useState<string>('')
   const [fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
@@ -39,19 +48,35 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
   const serverId = isDiscord ? (getValue(blockId, 'serverId') as string) || '' : ''
 
-  // Get the current value from the store
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : getValue(blockId, subBlock.id)
+
+  // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
-    const value = getValue(blockId, subBlock.id)
-    if (value && typeof value === 'string') {
-      if (isJira) {
-        setSelectedIssueId(value)
-      } else if (isDiscord) {
-        setSelectedChannelId(value)
-      } else {
-        setSelectedFileId(value)
+    if (isPreview && previewValue !== undefined) {
+      const value = previewValue;
+      if (value && typeof value === 'string') {
+        if (isJira) {
+          setSelectedIssueId(value);
+        } else if (isDiscord) {
+          setSelectedChannelId(value);
+        } else {
+          setSelectedFileId(value);
+        }
+      }
+    } else {
+      const value = getValue(blockId, subBlock.id);
+      if (value && typeof value === 'string') {
+        if (isJira) {
+          setSelectedIssueId(value);
+        } else if (isDiscord) {
+          setSelectedChannelId(value);
+        } else {
+          setSelectedFileId(value);
+        }
       }
     }
-  }, [blockId, subBlock.id, getValue, isJira, isDiscord])
+  }, [blockId, subBlock.id, getValue, isJira, isDiscord, isPreview, previewValue]);
 
   // Handle file selection
   const handleFileChange = (fileId: string, info?: any) => {

@@ -1,26 +1,30 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Loader2, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { DeployModal } from '../deploy-modal/deploy-modal'
-
-const logger = createLogger('DeploymentControls')
 
 interface DeploymentControlsProps {
   activeWorkflowId: string | null
   needsRedeployment: boolean
   setNeedsRedeployment: (value: boolean) => void
+  deployedState: WorkflowState | null
+  isLoadingDeployedState: boolean
+  refetchDeployedState: () => Promise<void>
 }
 
 export function DeploymentControls({
   activeWorkflowId,
   needsRedeployment,
   setNeedsRedeployment,
+  deployedState,
+  isLoadingDeployedState,
+  refetchDeployedState,
 }: DeploymentControlsProps) {
   // Use workflow-specific deployment status
   const deploymentStatus = useWorkflowRegistry(state => 
@@ -34,6 +38,27 @@ export function DeploymentControls({
     
   const [isDeploying, setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  // Track the last seen workflow ID
+  const lastWorkflowIdRef = useRef<string | null>(null)
+  
+  // Update last seen workflow ID
+  useEffect(() => {
+    if (activeWorkflowId !== lastWorkflowIdRef.current) {
+      lastWorkflowIdRef.current = activeWorkflowId;
+    }
+  }, [activeWorkflowId]);
+  
+  // Refetch deployed state wrapper
+  const refetchWithErrorHandling = async () => {
+    if (!activeWorkflowId) return;
+    
+    try {
+      await refetchDeployedState();
+    } catch (error) {
+      // Silent error handling
+    }
+  };
 
   // Update parent component when workflow-specific status changes
   useEffect(() => {
@@ -91,6 +116,9 @@ export function DeploymentControls({
         workflowId={activeWorkflowId}
         needsRedeployment={workflowNeedsRedeployment}
         setNeedsRedeployment={setNeedsRedeployment}
+        deployedState={deployedState as WorkflowState}
+        isLoadingDeployedState={isLoadingDeployedState}
+        refetchDeployedState={refetchWithErrorHandling}
       />
     </>
   )

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
 import { Handle, NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,6 +22,8 @@ interface WorkflowBlockProps {
   name: string
   isActive?: boolean
   isPending?: boolean
+  isPreview?: boolean
+  subBlockValues?: Record<string, any>
 }
 
 // Combine both interfaces into a single component
@@ -37,11 +39,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     nextRunAt: string | null
     lastRanAt: string | null
     timezone: string
-    status?: string
-    isDisabled?: boolean
-    id?: string
   } | null>(null)
-  const [isLoadingScheduleInfo, setIsLoadingScheduleInfo] = useState(false)
   const [webhookInfo, setWebhookInfo] = useState<{
     webhookPath: string
     provider: string
@@ -60,9 +58,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   )
   const isWide = useWorkflowStore((state) => state.blocks[id]?.isWide ?? false)
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
+  const hasActiveSchedule = useWorkflowStore((state) => state.hasActiveSchedule ?? false)
   const hasActiveWebhook = useWorkflowStore((state) => state.hasActiveWebhook ?? false)
-  const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
-  const toggleBlockAdvancedMode = useWorkflowStore((state) => state.toggleBlockAdvancedMode)
 
   // Workflow store actions
   const updateBlockName = useWorkflowStore((state) => state.updateBlockName)
@@ -73,106 +70,49 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const isActiveBlock = useExecutionStore((state) => state.activeBlockIds.has(id))
   const isActive = dataIsActive || isActiveBlock
 
-  const reactivateSchedule = async (scheduleId: string) => {
-    try {
-      const response = await fetch(`/api/schedules/${scheduleId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: 'reactivate' }),
-      })
-
-      if (response.ok) {
-        fetchScheduleInfo()
-      } else {
-        console.error('Failed to reactivate schedule')
-      }
-    } catch (error) {
-      console.error('Error reactivating schedule:', error)
-    }
-  }
-
-  const fetchScheduleInfo = async () => {
-    try {
-      setIsLoadingScheduleInfo(true)
-      const workflowId = useWorkflowRegistry.getState().activeWorkflowId
-      if (!workflowId) return
-
-      const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      })
-
-      if (!response.ok) {
-        setScheduleInfo(null)
-        return
-      }
-
-      const data = await response.json()
-
-      if (!data.schedule) {
-        setScheduleInfo(null)
-        return
-      }
-
-      let scheduleTiming = 'Unknown schedule'
-      if (data.schedule.cronExpression) {
-        scheduleTiming = parseCronToHumanReadable(data.schedule.cronExpression)
-      }
-
-      const baseInfo = {
-        scheduleTiming,
-        nextRunAt: data.schedule.nextRunAt as string | null,
-        lastRanAt: data.schedule.lastRanAt as string | null,
-        timezone: data.schedule.timezone || 'UTC',
-        status: data.schedule.status as string,
-        isDisabled: data.schedule.status === 'disabled',
-        id: data.schedule.id as string,
-      }
-
-      try {
-        const statusRes = await fetch(`/api/schedules/${baseInfo.id}/status`, {
-          cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
-        })
-
-        if (statusRes.ok) {
-          const statusData = await statusRes.json()
-          setScheduleInfo({
-            scheduleTiming: baseInfo.scheduleTiming,
-            nextRunAt: statusData.nextRunAt ?? baseInfo.nextRunAt,
-            lastRanAt: statusData.lastRanAt ?? baseInfo.lastRanAt,
-            timezone: baseInfo.timezone,
-            status: statusData.status ?? baseInfo.status,
-            isDisabled: statusData.isDisabled ?? baseInfo.isDisabled,
-            id: baseInfo.id,
-          })
-          return
-        }
-      } catch (err) {
-        console.error('Error fetching schedule status:', err)
-      }
-
-      setScheduleInfo(baseInfo)
-    } catch (error) {
-      console.error('Error fetching schedule info:', error)
-      setScheduleInfo(null)
-    } finally {
-      setIsLoadingScheduleInfo(false)
-    }
-  }
-
+  // Get schedule information for the tooltip
   useEffect(() => {
-    if (type === 'starter') {
+    if (type === 'starter' && hasActiveSchedule) {
+      const fetchScheduleInfo = async () => {
+        try {
+          const workflowId = useWorkflowRegistry.getState().activeWorkflowId
+          if (!workflowId) return
+
+          const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
+            cache: 'no-store',
+            headers: {
+              'Cache-Control': 'no-cache',
+            },
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            if (data.schedule) {
+              let scheduleTiming = 'Unknown schedule'
+              if (data.schedule.cronExpression) {
+                scheduleTiming = parseCronToHumanReadable(data.schedule.cronExpression)
+              }
+
+              setScheduleInfo({
+                scheduleTiming,
+                nextRunAt: data.schedule.nextRunAt,
+                lastRanAt: data.schedule.lastRanAt,
+                timezone: data.schedule.timezone || 'UTC',
+              })
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching schedule info:', error)
+        }
+      }
+
       fetchScheduleInfo()
-    } else {
+    } else if (!hasActiveSchedule) {
       setScheduleInfo(null)
     }
-  }, [type])
+  }, [type, hasActiveSchedule])
 
+  // Get webhook information for the tooltip
   useEffect(() => {
     if (type === 'starter' && hasActiveWebhook) {
       const fetchWebhookInfo = async () => {
@@ -202,10 +142,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }, [type, hasActiveWebhook])
 
+  // Update node internals when handles change
   useEffect(() => {
     updateNodeInternals(id)
   }, [id, horizontalHandles, updateNodeInternals])
 
+  // Add debounce helper
   const debounce = (func: Function, wait: number) => {
     let timeout: NodeJS.Timeout
     return (...args: any[]) => {
@@ -214,6 +156,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
+  // Add effect to observe size changes with debounced updates
   useEffect(() => {
     if (!contentRef.current) return
 
@@ -226,10 +169,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }, 100)
 
     const resizeObserver = new ResizeObserver((entries) => {
+      // Cancel any pending animation frame
       if (rafId) {
         cancelAnimationFrame(rafId)
       }
 
+      // Schedule the update on the next animation frame
       rafId = requestAnimationFrame(() => {
         for (const entry of entries) {
           const height =
@@ -255,29 +200,31 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     let currentRow: SubBlockConfig[] = []
     let currentRowWidth = 0
 
-    // Get merged state for this block
-    const blocks = useWorkflowStore.getState().blocks
-    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
-    const mergedState = mergeSubblockState(blocks, activeWorkflowId, blockId)[blockId]
-    const isAdvancedMode = useWorkflowStore.getState().blocks[blockId]?.advancedMode ?? false
+    // Get the appropriate state for conditional evaluation
+    let stateToUse: Record<string, any> = {}
+    
+    if (data.isPreview && data.subBlockValues) {
+      // In preview mode, use the preview values
+      stateToUse = data.subBlockValues
+    } else {
+      // In normal mode, use merged state
+      const blocks = useWorkflowStore.getState().blocks
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
+      const mergedState = mergeSubblockState(blocks, activeWorkflowId, blockId)[blockId]
+      stateToUse = mergedState?.subBlocks || {}
+    }
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
       if (block.hidden) return false
 
-      // Filter by mode if specified
-      if (block.mode) {
-        if (block.mode === 'basic' && isAdvancedMode) return false
-        if (block.mode === 'advanced' && !isAdvancedMode) return false
-      }
-
       // If there's no condition, the block should be shown
       if (!block.condition) return true
 
-      // Get the values of the fields this block depends on from merged state
-      const fieldValue = mergedState?.subBlocks[block.condition.field]?.value
+      // Get the values of the fields this block depends on from the appropriate state
+      const fieldValue = stateToUse[block.condition.field]?.value
       const andFieldValue = block.condition.and
-        ? mergedState?.subBlocks[block.condition.and.field]?.value
+        ? stateToUse[block.condition.and.field]?.value
         : undefined
 
       // Check if the condition value is an array
@@ -350,8 +297,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
-  // Check if this is a starter block and if we need to show schedule / webhook indicators
+  // Check if this is a starter block and has active schedule or webhook
   const isStarterBlock = type === 'starter'
+  const showScheduleIndicator = isStarterBlock && hasActiveSchedule
   const showWebhookIndicator = isStarterBlock && hasActiveWebhook
 
   const getProviderName = (providerId: string): string => {
@@ -367,8 +315,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
     return providers[providerId] || 'Webhook'
   }
-
-  const shouldShowScheduleBadge = isStarterBlock && !isLoadingScheduleInfo && scheduleInfo !== null
 
   return (
     <div className="relative group">
@@ -465,51 +411,25 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               </Badge>
             )}
             {/* Schedule indicator badge - displayed for starter blocks with active schedules */}
-            {shouldShowScheduleBadge && (
+            {showScheduleIndicator && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
                     variant="outline"
-                    className={cn(
-                      'flex items-center gap-1 font-normal text-xs',
-                      scheduleInfo?.isDisabled
-                        ? 'text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 cursor-pointer'
-                        : 'text-green-600 bg-green-50 border-green-200 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
-                    )}
-                    onClick={
-                      scheduleInfo?.isDisabled && scheduleInfo?.id
-                        ? () => reactivateSchedule(scheduleInfo.id!)
-                        : undefined
-                    }
+                    className="flex items-center gap-1 text-green-600 bg-green-50 border-green-200 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400 font-normal text-xs"
                   >
                     <div className="relative flex items-center justify-center mr-0.5">
-                      <div
-                        className={cn(
-                          'absolute h-3 w-3 rounded-full',
-                          scheduleInfo?.isDisabled ? 'bg-amber-500/20' : 'bg-green-500/20'
-                        )}
-                      ></div>
-                      <div
-                        className={cn(
-                          'relative h-2 w-2 rounded-full',
-                          scheduleInfo?.isDisabled ? 'bg-amber-500' : 'bg-green-500'
-                        )}
-                      ></div>
+                      <div className="absolute h-3 w-3 rounded-full bg-green-500/20"></div>
+                      <div className="relative h-2 w-2 rounded-full bg-green-500"></div>
                     </div>
-                    {scheduleInfo?.isDisabled ? 'Disabled' : 'Scheduled'}
+                    Scheduled
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[300px] p-4">
                   {scheduleInfo ? (
                     <>
                       <p className="text-sm">{scheduleInfo.scheduleTiming}</p>
-                      {scheduleInfo.isDisabled && (
-                        <p className="text-sm text-amber-600 font-medium mt-1">
-                          This schedule is currently disabled due to consecutive failures. Click the
-                          badge to reactivate it.
-                        </p>
-                      )}
-                      {scheduleInfo.nextRunAt && !scheduleInfo.isDisabled && (
+                      {scheduleInfo.nextRunAt && (
                         <p className="text-xs text-muted-foreground mt-1">
                           Next run:{' '}
                           {formatDateTime(new Date(scheduleInfo.nextRunAt), scheduleInfo.timezone)}
@@ -561,86 +481,48 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 </TooltipContent>
               </Tooltip>
             )}
-            {config.subBlocks.some((block) => block.mode) && (
+            {config.longDescription && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleBlockAdvancedMode(id)}
-                    className={cn('text-gray-500 p-1 h-7', blockAdvancedMode && 'text-[#701FFC]')}
-                  >
-                    <Code className="h-5 w-5" />
+                  <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                    <Info className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">
-                  {blockAdvancedMode ? 'Switch to Basic Mode' : 'Switch to Advanced Mode'}
+                <TooltipContent side="top" className="max-w-[300px] p-4">
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium mb-1">Description</p>
+                      <p className="text-sm text-muted-foreground">{config.longDescription}</p>
+                    </div>
+                    {config.outputs && (
+                      <div>
+                        <p className="text-sm font-medium mb-1">Output</p>
+                        <div className="text-sm">
+                          {Object.entries(config.outputs).map(([key, value]) => (
+                            <div key={key} className="mb-1">
+                              <span className="text-muted-foreground">{key}</span>{' '}
+                              {typeof value.type === 'object' ? (
+                                <div className="pl-3 mt-1">
+                                  {Object.entries(value.type).map(([typeKey, typeValue]) => (
+                                    <div key={typeKey} className="flex items-start">
+                                      <span className="text-blue-500 font-medium">{typeKey}:</span>
+                                      <span className="text-green-500 ml-1">
+                                        {typeValue as string}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-green-500">{value.type as string}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </TooltipContent>
               </Tooltip>
-            )}
-            {config.docsLink ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-500 p-1 h-7"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      window.open(config.docsLink, '_target', 'noopener,noreferrer')
-                    }}
-                  >
-                    <BookOpen className="h-5 w-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">See Docs</TooltipContent>
-              </Tooltip>
-            ) : (
-              config.longDescription && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
-                      <Info className="h-5 w-5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-[300px] p-4">
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-sm font-medium mb-1">Description</p>
-                        <p className="text-sm text-muted-foreground">{config.longDescription}</p>
-                      </div>
-                      {config.outputs && (
-                        <div>
-                          <p className="text-sm font-medium mb-1">Output</p>
-                          <div className="text-sm">
-                            {Object.entries(config.outputs).map(([key, value]) => (
-                              <div key={key} className="mb-1">
-                                <span className="text-muted-foreground">{key}</span>{' '}
-                                {typeof value.type === 'object' ? (
-                                  <div className="pl-3 mt-1">
-                                    {Object.entries(value.type).map(([typeKey, typeValue]) => (
-                                      <div key={typeKey} className="flex items-start">
-                                        <span className="text-blue-500 font-medium">
-                                          {typeKey}:
-                                        </span>
-                                        <span className="text-green-500 ml-1">
-                                          {typeValue as string}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="text-green-500">{value.type as string}</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              )
             )}
             <Tooltip>
               <TooltipTrigger asChild>
@@ -672,7 +554,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                       key={`${id}-${rowIndex}-${blockIndex}`}
                       className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
                     >
-                      <SubBlock blockId={id} config={subBlock} isConnecting={isConnecting} />
+                      <SubBlock 
+                        blockId={id} 
+                        config={subBlock} 
+                        isConnecting={isConnecting}
+                        isPreview={data.isPreview}
+                        subBlockValues={data.subBlockValues}
+                      />
                     </div>
                   ))}
                 </div>
