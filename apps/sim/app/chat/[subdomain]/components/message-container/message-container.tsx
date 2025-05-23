@@ -1,6 +1,6 @@
 'use client'
 
-import React, { RefObject } from 'react'
+import React, { memo, RefObject } from 'react'
 import { ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ChatMessage, ClientChatMessage } from '../message/message'
@@ -18,7 +18,7 @@ interface ChatMessageContainerProps {
   } | null
 }
 
-export function ChatMessageContainer({
+export const ChatMessageContainer = memo(function ChatMessageContainer({
   messages,
   isLoading,
   showScrollButton,
@@ -85,4 +85,4 @@ export function ChatMessageContainer({
       )}
     </div>
   )
-}
+})

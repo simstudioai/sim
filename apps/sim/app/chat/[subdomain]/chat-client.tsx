@@ -1,6 +1,6 @@
 'use client'
 
-import { KeyboardEvent, RefObject, useEffect, useRef, useState } from 'react'
+import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import EmailAuth from './components/auth/email/email-auth'
@@ -24,6 +24,29 @@ interface ChatConfig {
     headerText?: string
   }
   authType?: 'public' | 'password' | 'email'
+}
+
+function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T {
+  let timeoutId: NodeJS.Timeout | null = null
+  let lastExecTime = 0
+
+  return ((...args: Parameters<T>) => {
+    const currentTime = Date.now()
+
+    if (currentTime - lastExecTime > delay) {
+      func(...args)
+      lastExecTime = currentTime
+    } else {
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(
+        () => {
+          func(...args)
+          lastExecTime = Date.now()
+        },
+        delay - (currentTime - lastExecTime)
+      )
+    }
+  }) as T
 }
 
 export default function ChatClient({ subdomain }: { subdomain: string }) {
@@ -51,45 +74,45 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
     useChatStreaming()
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }
+  }, [])
 
-  const scrollToMessage = (messageId: string, scrollToShowOnlyMessage: boolean = false) => {
-    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
-    if (messageElement && messagesContainerRef.current) {
-      const container = messagesContainerRef.current
-      const containerRect = container.getBoundingClientRect()
-      const messageRect = messageElement.getBoundingClientRect()
+  const scrollToMessage = useCallback(
+    (messageId: string, scrollToShowOnlyMessage: boolean = false) => {
+      const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+      if (messageElement && messagesContainerRef.current) {
+        const container = messagesContainerRef.current
+        const containerRect = container.getBoundingClientRect()
+        const messageRect = messageElement.getBoundingClientRect()
 
-      if (scrollToShowOnlyMessage) {
-        // ChatGPT-like behavior: scroll so only this message (and loading indicator if present) are visible
-        // Position the message at the very top of the container
-        const scrollTop = container.scrollTop + messageRect.top - containerRect.top
+        if (scrollToShowOnlyMessage) {
+          const scrollTop = container.scrollTop + messageRect.top - containerRect.top
 
-        container.scrollTo({
-          top: scrollTop,
-          behavior: 'smooth',
-        })
-      } else {
-        // Original behavior: Calculate scroll position to put the message near the top of the visible area
-        const scrollTop = container.scrollTop + messageRect.top - containerRect.top - 80
+          container.scrollTo({
+            top: scrollTop,
+            behavior: 'smooth',
+          })
+        } else {
+          const scrollTop = container.scrollTop + messageRect.top - containerRect.top - 80
 
-        container.scrollTo({
-          top: scrollTop,
-          behavior: 'smooth',
-        })
+          container.scrollTo({
+            top: scrollTop,
+            behavior: 'smooth',
+          })
+        }
       }
-    }
-  }
+    },
+    [messagesContainerRef]
+  )
 
-  useEffect(() => {
-    const container = messagesContainerRef.current
-    if (!container) return
+  const handleScroll = useCallback(
+    throttle(() => {
+      const container = messagesContainerRef.current
+      if (!container) return
 
-    const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
       setShowScrollButton(distanceFromBottom > 100)
@@ -98,11 +121,17 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       if (isStreamingResponse && !isUserScrollingRef.current) {
         setUserHasScrolled(true)
       }
-    }
+    }, 100),
+    [isStreamingResponse]
+  )
+
+  useEffect(() => {
+    const container = messagesContainerRef.current
+    if (!container) return
 
     container.addEventListener('scroll', handleScroll, { passive: true })
     return () => container.removeEventListener('scroll', handleScroll)
-  }, [isStreamingResponse])
+  }, [handleScroll])
 
   // Reset user scroll tracking when streaming starts
   useEffect(() => {
@@ -144,6 +173,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         throw new Error(`Failed to load chat configuration: ${response.status}`)
       }
 
+      // Reset auth required state when authentication is successful
+      setAuthRequired(null)
+
       const data = await response.json()
 
       setChatConfig(data)
@@ -168,10 +200,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Fetch chat config on mount and generate new conversation ID
   useEffect(() => {
     fetchChatConfig()
-    // Generate a new conversation ID whenever the page/chat is refreshed
     setConversationId(uuidv4())
 
-    // Fetch GitHub stars
     getFormattedGitHubStars()
       .then((formattedStars) => {
         setStarCount(formattedStars)
@@ -181,12 +211,15 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       })
   }, [subdomain])
 
-  // Handle keyboard input for message sending
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
-    }
+  const refreshChat = () => {
+    fetchChatConfig()
+  }
+
+  const handleAuthSuccess = () => {
+    setAuthRequired(null)
+    setTimeout(() => {
+      refreshChat()
+    }, 800)
   }
 
   // Handle sending a message
@@ -348,8 +381,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       return (
         <PasswordAuth
           subdomain={subdomain}
-          starCount={starCount}
-          onAuthSuccess={fetchChatConfig}
+          onAuthSuccess={handleAuthSuccess}
           title={title}
           primaryColor={primaryColor}
         />
@@ -358,8 +390,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       return (
         <EmailAuth
           subdomain={subdomain}
-          starCount={starCount}
-          onAuthSuccess={fetchChatConfig}
+          onAuthSuccess={handleAuthSuccess}
           title={title}
           primaryColor={primaryColor}
         />
