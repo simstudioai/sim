@@ -330,28 +330,6 @@ export function TeamsMessageSelector({
     }
   }, [selectedCredentialId, selectedChatId, onMessageInfoChange])
 
-  // Keep internal selectedCredentialId in sync with the credential prop
-  useEffect(() => {
-    if (credential && credential !== selectedCredentialId) {
-      setSelectedCredentialId(credential)
-    }
-  }, [credential, selectedCredentialId])
-
-  // Set initial team ID if provided
-  useEffect(() => {
-    if (initialTeamId && !selectedTeamId && selectionType === 'channel') {
-      setSelectedTeamId(initialTeamId)
-    }
-  }, [initialTeamId, selectedTeamId, selectionType])
-
-  // Fetch appropriate data on initial mount based on selectionType
-  useEffect(() => {
-    if (!initialFetchRef.current) {
-      fetchCredentials();
-      initialFetchRef.current = true;
-    }
-  }, [fetchCredentials]);
-
   // Update selection stage based on selected values and selectionType
   useEffect(() => {
     // If we have explicit values selected, use those to determine the stage
@@ -543,6 +521,184 @@ export function TeamsMessageSelector({
 
     return null;
   };
+
+  // Restore team selection on page refresh
+  const restoreTeamSelection = useCallback(async (teamId: string) => {
+    if (!selectedCredentialId || !teamId || selectionType !== 'team') return
+
+    setIsLoading(true)
+    try {
+      const urlParts = window.location.pathname.split('/')
+      const workflowId = urlParts[2]
+
+      const response = await fetch('/api/auth/oauth/microsoft-teams/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const team = data.teams.find((t: { id: string; displayName: string }) => t.id === teamId)
+        if (team) {
+          const teamInfo: TeamsMessageInfo = {
+            id: team.id,
+            displayName: team.displayName,
+            type: 'team',
+            teamId: team.id,
+            webViewLink: `https://teams.microsoft.com/l/team/${team.id}`,
+          }
+          setSelectedTeamId(team.id)
+          setSelectedMessage(teamInfo)
+          onMessageInfoChange?.(teamInfo)
+        }
+      }
+    } catch (error) {
+      logger.error('Error restoring team selection:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [selectedCredentialId, selectionType, onMessageInfoChange])
+
+  // Restore chat selection on page refresh
+  const restoreChatSelection = useCallback(async (chatId: string) => {
+    if (!selectedCredentialId || !chatId || selectionType !== 'chat') return
+
+    setIsLoading(true)
+    try {
+      const urlParts = window.location.pathname.split('/')
+      const workflowId = urlParts[2]
+
+      const response = await fetch('/api/auth/oauth/microsoft-teams/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const chat = data.chats.find((c: { id: string; displayName: string }) => c.id === chatId)
+        if (chat) {
+          const chatInfo: TeamsMessageInfo = {
+            id: chat.id,
+            displayName: chat.displayName,
+            type: 'chat',
+            chatId: chat.id,
+            webViewLink: `https://teams.microsoft.com/l/chat/${chat.id}`,
+          }
+          setSelectedChatId(chat.id)
+          setSelectedMessage(chatInfo)
+          onMessageInfoChange?.(chatInfo)
+        }
+      }
+    } catch (error) {
+      logger.error('Error restoring chat selection:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [selectedCredentialId, selectionType, onMessageInfoChange])
+
+  // Restore channel selection on page refresh
+  const restoreChannelSelection = useCallback(async (channelId: string) => {
+    if (!selectedCredentialId || !channelId || selectionType !== 'channel') return
+
+    setIsLoading(true)
+    try {
+      const urlParts = window.location.pathname.split('/')
+      const workflowId = urlParts[2]
+
+      // First fetch teams to search through them
+      const teamsResponse = await fetch('/api/auth/oauth/microsoft-teams/teams', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
+      })
+
+      if (teamsResponse.ok) {
+        const teamsData = await teamsResponse.json()
+        
+        // Search through all teams to find the channel
+        for (const team of teamsData.teams) {
+          try {
+            const channelsResponse = await fetch('/api/auth/oauth/microsoft-teams/channels', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ credential: selectedCredentialId, teamId: team.id, workflowId }),
+            })
+
+            if (channelsResponse.ok) {
+              const channelsData = await channelsResponse.json()
+              const channel = channelsData.channels.find((c: { id: string; displayName: string }) => c.id === channelId)
+              if (channel) {
+                const channelInfo: TeamsMessageInfo = {
+                  id: `${team.id}-${channel.id}`,
+                  displayName: channel.displayName,
+                  type: 'channel',
+                  teamId: team.id,
+                  channelId: channel.id,
+                  webViewLink: `https://teams.microsoft.com/l/channel/${team.id}/${encodeURIComponent(channel.displayName)}/${channel.id}`,
+                }
+                setSelectedTeamId(team.id)
+                setSelectedChannelId(channel.id)
+                setSelectedMessage(channelInfo)
+                onMessageInfoChange?.(channelInfo)
+                return
+              }
+            }
+          } catch (error) {
+            logger.warn(`Error searching for channel in team ${team.id}:`, error instanceof Error ? error.message : String(error))
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('Error restoring channel selection:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [selectedCredentialId, selectionType, onMessageInfoChange])
+
+  // Keep internal selectedCredentialId in sync with the credential prop
+  useEffect(() => {
+    if (credential && credential !== selectedCredentialId) {
+      setSelectedCredentialId(credential)
+    }
+  }, [credential, selectedCredentialId])
+
+  // Set initial team ID if provided
+  useEffect(() => {
+    if (initialTeamId && !selectedTeamId && selectionType === 'channel') {
+      setSelectedTeamId(initialTeamId)
+    }
+  }, [initialTeamId, selectedTeamId, selectionType])
+
+  // Clear selection when selectionType changes to allow proper restoration
+  useEffect(() => {
+    setSelectedMessage(null)
+    setSelectedTeamId('')
+    setSelectedChannelId('')
+    setSelectedChatId('')
+  }, [selectionType])
+
+  // Fetch appropriate data on initial mount based on selectionType
+  useEffect(() => {
+    if (!initialFetchRef.current) {
+      fetchCredentials();
+      initialFetchRef.current = true;
+    }
+  }, [fetchCredentials]);
+
+  // Restore selection based on selectionType and value
+  useEffect(() => {
+    if (value && selectedCredentialId && !selectedMessage) {
+      if (selectionType === 'team') {
+        restoreTeamSelection(value)
+      } else if (selectionType === 'chat') {
+        restoreChatSelection(value)
+      } else if (selectionType === 'channel') {
+        restoreChannelSelection(value)
+      }
+    }
+  }, [value, selectedCredentialId, selectedMessage, selectionType, restoreTeamSelection, restoreChatSelection, restoreChannelSelection])
 
   return (
     <>
