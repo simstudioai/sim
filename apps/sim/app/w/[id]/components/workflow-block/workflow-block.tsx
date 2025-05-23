@@ -200,15 +200,21 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     let currentRow: SubBlockConfig[] = []
     let currentRowWidth = 0
 
-    // Get merged state for this block
-    const blocks = useWorkflowStore.getState().blocks
-    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
-    const isAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
+    // Get the appropriate state for conditional evaluation
+    let stateToUse: Record<string, any> = {}
     
-    // If in preview mode with direct subBlockValues, use those instead of global state
-    const mergedState = data.isPreview && data.subBlockValues 
-      ? { [blockId]: { subBlocks: data.subBlockValues } }
-      : mergeSubblockState(blocks, activeWorkflowId, blockId)
+    if (data.isPreview && data.subBlockValues) {
+      // In preview mode, use the preview values
+      stateToUse = data.subBlockValues
+    } else {
+      // In normal mode, use merged state
+      const blocks = useWorkflowStore.getState().blocks
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
+      const mergedState = mergeSubblockState(blocks, activeWorkflowId, blockId)[blockId]
+      stateToUse = mergedState?.subBlocks || {}
+    }
+
+    const isAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
@@ -217,10 +223,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       // If there's no condition, the block should be shown
       if (!block.condition) return true
 
-      // Get the values of the fields this block depends on from merged state
-      const fieldValue = mergedState?.subBlocks[block.condition.field]?.value
+      // Get the values of the fields this block depends on from the appropriate state
+      const fieldValue = stateToUse[block.condition.field]?.value
       const andFieldValue = block.condition.and
-        ? mergedState?.subBlocks[block.condition.and.field]?.value
+        ? stateToUse[block.condition.and.field]?.value
         : undefined
 
       // Check if the condition value is an array

@@ -218,13 +218,20 @@ export function SubBlock({
           />
         )
       case 'webhook-config':
+        // For webhook config, we need to construct the value from multiple subblock values
+        const webhookValue = isPreview && subBlockValues ? {
+          webhookProvider: subBlockValues['webhookProvider']?.value,
+          webhookPath: subBlockValues['webhookPath']?.value,
+          providerConfig: subBlockValues['providerConfig']?.value,
+        } : previewValue
+        
         return (
           <WebhookConfig 
             blockId={blockId} 
             subBlockId={config.id} 
             isConnecting={isConnecting}
             isPreview={isPreview}
-            value={previewValue}
+            value={webhookValue}
           />
         )
       case 'schedule-config':
