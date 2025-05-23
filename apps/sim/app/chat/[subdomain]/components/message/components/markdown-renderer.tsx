@@ -42,17 +42,17 @@ export default function MarkdownRenderer({
 
     // Headings
     h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h1 className="text-2xl font-semibold mt-8 mb-4 text-gray-900 dark:text-gray-100 font-geist-sans">
+      <h1 className="text-2xl font-semibold mt-10 mb-5 text-gray-900 dark:text-gray-100 font-geist-sans">
         {children}
       </h1>
     ),
     h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h2 className="text-xl font-semibold mt-7 mb-3 text-gray-900 dark:text-gray-100 font-geist-sans">
+      <h2 className="text-xl font-semibold mt-8 mb-4 text-gray-900 dark:text-gray-100 font-geist-sans">
         {children}
       </h2>
     ),
     h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h3 className="text-lg font-semibold mt-6 mb-2.5 text-gray-900 dark:text-gray-100 font-geist-sans">
+      <h3 className="text-lg font-semibold mt-7 mb-3 text-gray-900 dark:text-gray-100 font-geist-sans">
         {children}
       </h3>
     ),
