@@ -20,7 +20,7 @@ export const LoopTool = {
       isExecuting: false,
       startTime: null,
       endTime: null,
-    }
+    },
   },
   style: {
     width: 500,
@@ -28,4 +28,4 @@ export const LoopTool = {
   },
   // Specify that this should be rendered as a ReactFlow group node
   isResizable: true,
-} 
+}

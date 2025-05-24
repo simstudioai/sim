@@ -1,32 +1,31 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { highlight, languages } from 'prismjs'
+import Editor from 'react-simple-code-editor'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import Editor from 'react-simple-code-editor'
-import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
-
 interface LoopNodeData {
-  width?: number;
-  height?: number;
-  parentId?: string;
-  state?: string;
-  type?: string;
-  extent?: 'parent';
-  loopType?: 'for' | 'forEach';
-  count?: number;
-  collection?: string | any[] | Record<string, any>;
+  width?: number
+  height?: number
+  parentId?: string
+  state?: string
+  type?: string
+  extent?: 'parent'
+  loopType?: 'for' | 'forEach'
+  count?: number
+  collection?: string | any[] | Record<string, any>
   executionState?: {
-    currentIteration: number;
-    isExecuting: boolean;
-    startTime: number | null;
-    endTime: number | null;
-  };
+    currentIteration: number
+    isExecuting: boolean
+    startTime: number | null
+    endTime: number | null
+  }
 }
 
 interface LoopBadgesProps {
@@ -44,20 +43,23 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
 
   // Get store methods
-  const updateNodeData = useCallback((updates: Partial<LoopNodeData>) => {
-    useWorkflowStore.setState(state => ({
-      blocks: {
-        ...state.blocks,
-        [nodeId]: {
-          ...state.blocks[nodeId],
-          data: {
-            ...state.blocks[nodeId].data,
-            ...updates
-          }
-        }
-      }
-    }))
-  }, [nodeId])
+  const updateNodeData = useCallback(
+    (updates: Partial<LoopNodeData>) => {
+      useWorkflowStore.setState((state) => ({
+        blocks: {
+          ...state.blocks,
+          [nodeId]: {
+            ...state.blocks[nodeId],
+            data: {
+              ...state.blocks[nodeId].data,
+              ...updates,
+            },
+          },
+        },
+      }))
+    },
+    [nodeId]
+  )
 
   // Initialize editor value from data when it changes
   useEffect(() => {
@@ -79,18 +81,21 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   }, [data?.loopType, data?.count, data?.collection, loopType, iterations])
 
   // Handle loop type change
-  const handleLoopTypeChange = useCallback((newType: 'for' | 'forEach') => {
-    setLoopType(newType)
-    updateNodeData({ loopType: newType })
-    setTypePopoverOpen(false)
-  }, [updateNodeData])
+  const handleLoopTypeChange = useCallback(
+    (newType: 'for' | 'forEach') => {
+      setLoopType(newType)
+      updateNodeData({ loopType: newType })
+      setTypePopoverOpen(false)
+    },
+    [updateNodeData]
+  )
 
   // Handle iterations input change
   const handleIterationsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
-    const numValue = parseInt(sanitizedValue)
+    const numValue = Number.parseInt(sanitizedValue)
 
-    if (!isNaN(numValue)) {
+    if (!Number.isNaN(numValue)) {
       setInputValue(Math.min(100, numValue).toString())
     } else {
       setInputValue(sanitizedValue)
@@ -99,9 +104,9 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
 
   // Handle iterations save
   const handleIterationsSave = useCallback(() => {
-    const value = parseInt(inputValue)
+    const value = Number.parseInt(inputValue)
 
-    if (!isNaN(value)) {
+    if (!Number.isNaN(value)) {
       const newValue = Math.min(100, Math.max(1, value))
       setIterations(newValue)
       updateNodeData({ count: newValue })
@@ -113,49 +118,52 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   }, [inputValue, iterations, updateNodeData])
 
   // Handle editor change
-  const handleEditorChange = useCallback((value: string) => {
-    setEditorValue(value)
-    updateNodeData({ collection: value })
-  }, [updateNodeData])
+  const handleEditorChange = useCallback(
+    (value: string) => {
+      setEditorValue(value)
+      updateNodeData({ collection: value })
+    },
+    [updateNodeData]
+  )
 
   return (
-    <div className="absolute -top-9 left-0 right-0 flex justify-between z-10">
+    <div className='-top-9 absolute right-0 left-0 z-10 flex justify-between'>
       {/* Loop Type Badge */}
       <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
         <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
           <Badge
-            variant="outline"
+            variant='outline'
             className={cn(
-              'bg-background/80 backdrop-blur-sm border-border text-foreground font-medium pr-1.5 pl-2.5 py-0.5 text-sm',
-              'hover:bg-accent/50 transition-colors duration-150 cursor-pointer',
+              'border-border bg-background/80 py-0.5 pr-1.5 pl-2.5 font-medium text-foreground text-sm backdrop-blur-sm',
+              'cursor-pointer transition-colors duration-150 hover:bg-accent/50',
               'flex items-center gap-1'
             )}
           >
             {loopType === 'for' ? 'For Loop' : 'For Each'}
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            <ChevronDown className='h-3 w-3 text-muted-foreground' />
           </Badge>
         </PopoverTrigger>
-        <PopoverContent className="p-3 w-48" align="center" onClick={(e) => e.stopPropagation()}>
-          <div className="space-y-2">
-            <div className="text-xs font-medium text-muted-foreground">Loop Type</div>
-            <div className="space-y-1">
+        <PopoverContent className='w-48 p-3' align='center' onClick={(e) => e.stopPropagation()}>
+          <div className='space-y-2'>
+            <div className='font-medium text-muted-foreground text-xs'>Loop Type</div>
+            <div className='space-y-1'>
               <div
                 className={cn(
-                  'flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer',
+                  'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5',
                   loopType === 'for' ? 'bg-accent' : 'hover:bg-accent/50'
                 )}
                 onClick={() => handleLoopTypeChange('for')}
               >
-                <span className="text-sm">For Loop</span>
+                <span className='text-sm'>For Loop</span>
               </div>
               <div
                 className={cn(
-                  'flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer',
+                  'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5',
                   loopType === 'forEach' ? 'bg-accent' : 'hover:bg-accent/50'
                 )}
                 onClick={() => handleLoopTypeChange('forEach')}
               >
-                <span className="text-sm">For Each</span>
+                <span className='text-sm'>For Each</span>
               </div>
             </div>
           </div>
@@ -166,45 +174,45 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
       <Popover open={configPopoverOpen} onOpenChange={setConfigPopoverOpen}>
         <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
           <Badge
-            variant="outline"
+            variant='outline'
             className={cn(
-              'bg-background/80 backdrop-blur-sm border-border text-foreground font-medium pr-1.5 pl-2.5 py-0.5 text-sm',
-              'hover:bg-accent/50 transition-colors duration-150 cursor-pointer',
+              'border-border bg-background/80 py-0.5 pr-1.5 pl-2.5 font-medium text-foreground text-sm backdrop-blur-sm',
+              'cursor-pointer transition-colors duration-150 hover:bg-accent/50',
               'flex items-center gap-1'
             )}
           >
             {loopType === 'for' ? `Iterations: ${iterations}` : 'Items'}
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            <ChevronDown className='h-3 w-3 text-muted-foreground' />
           </Badge>
         </PopoverTrigger>
         <PopoverContent
           className={cn('p-3', loopType !== 'for' ? 'w-72' : 'w-48')}
-          align="center"
+          align='center'
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="space-y-2">
-            <div className="text-xs font-medium text-muted-foreground">
+          <div className='space-y-2'>
+            <div className='font-medium text-muted-foreground text-xs'>
               {loopType === 'for' ? 'Loop Iterations' : 'Collection Items'}
             </div>
 
             {loopType === 'for' ? (
               // Number input for 'for' loops
-              <div className="flex items-center gap-2">
+              <div className='flex items-center gap-2'>
                 <Input
-                  type="text"
+                  type='text'
                   value={inputValue}
                   onChange={handleIterationsChange}
                   onBlur={handleIterationsSave}
                   onKeyDown={(e) => e.key === 'Enter' && handleIterationsSave()}
-                  className="h-8 text-sm"
+                  className='h-8 text-sm'
                   autoFocus
                 />
               </div>
             ) : (
               // Code editor for 'forEach' loops
-              <div className="relative min-h-[80px] rounded-md bg-background font-mono text-sm px-3 pt-2 pb-3 border border-input">
+              <div className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'>
                 {editorValue === '' && (
-                  <div className="absolute top-[8.5px] left-3 text-muted-foreground/50 pointer-events-none select-none">
+                  <div className='pointer-events-none absolute top-[8.5px] left-3 select-none text-muted-foreground/50'>
                     ['item1', 'item2', 'item3']
                   </div>
                 )}
@@ -217,13 +225,13 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
                     fontFamily: 'monospace',
                     lineHeight: '21px',
                   }}
-                  className="focus:outline-none w-full"
-                  textareaClassName="focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap"
+                  className='w-full focus:outline-none'
+                  textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap'
                 />
               </div>
             )}
 
-            <div className="text-[10px] text-muted-foreground">
+            <div className='text-[10px] text-muted-foreground'>
               {loopType === 'for'
                 ? 'Enter a number between 1 and 100'
                 : 'Array or object to iterate over'}
