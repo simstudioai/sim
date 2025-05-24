@@ -1,25 +1,25 @@
-import { Logger } from "@/lib/logs/console-logger"
-import { getJiraCloudId } from "@/tools/jira/utils"
-import { NextResponse } from "next/server"
+import { Logger } from '@/lib/logs/console-logger'
+import { getJiraCloudId } from '@/tools/jira/utils'
+import { NextResponse } from 'next/server'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = new Logger("jira_issues")
+const logger = new Logger('jira_issues')
 
 export async function POST(request: Request) {
   try {
     const { domain, accessToken, issueKeys = [], cloudId: providedCloudId } = await request.json()
 
     if (!domain) {
-      return NextResponse.json({ error: "Domain is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
     }
 
     if (!accessToken) {
-      return NextResponse.json({ error: "Access token is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
     }
 
     if (issueKeys.length === 0) {
-      logger.info("No issue keys provided, returning empty result")
+      logger.info('No issue keys provided, returning empty result')
       return NextResponse.json({ issues: [] })
     }
 
@@ -31,8 +31,8 @@ export async function POST(request: Request) {
 
     // Prepare the request body for bulk fetch
     const requestBody = {
-      expand: ["names"],
-      fields: ["summary", "status", "assignee", "updated", "project"],
+      expand: ['names'],
+      fields: ['summary', 'status', 'assignee', 'updated', 'project'],
       fieldsByKeys: false,
       issueIdsOrKeys: issueKeys,
       properties: [],
@@ -40,11 +40,11 @@ export async function POST(request: Request) {
 
     // Make the request to Jira API with OAuth Bearer token
     const requestConfig = {
-      method: "POST",
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
-        "Content-Type": "application/json",
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
     }
@@ -57,10 +57,10 @@ export async function POST(request: Request) {
 
       try {
         const errorData = await response.json()
-        logger.error("Error details:", JSON.stringify(errorData, null, 2))
+        logger.error('Error details:', JSON.stringify(errorData, null, 2))
         errorMessage = errorData.message || `Failed to fetch Jira issues (${response.status})`
       } catch (e) {
-        logger.error("Could not parse error response as JSON:", e)
+        logger.error('Could not parse error response as JSON:', e)
 
         try {
           const text = await response.text()
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
         ? data.issues.map((issue: any) => ({
             id: issue.key,
             name: issue.fields.summary,
-            mimeType: "jira/issue",
+            mimeType: 'jira/issue',
             url: `https://${domain}/browse/${issue.key}`,
             modifiedTime: issue.fields.updated,
             webViewLink: `https://${domain}/browse/${issue.key}`,
@@ -95,9 +95,9 @@ export async function POST(request: Request) {
       cloudId, // Return the cloudId so it can be cached
     })
   } catch (error) {
-    logger.error("Error fetching Jira issues:", error)
+    logger.error('Error fetching Jira issues:', error)
     return NextResponse.json(
-      { error: (error as Error).message || "Internal server error" },
+      { error: (error as Error).message || 'Internal server error' },
       { status: 500 }
     )
   }
@@ -106,29 +106,29 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url)
-    const domain = url.searchParams.get("domain")?.trim()
-    const accessToken = url.searchParams.get("accessToken")
-    const providedCloudId = url.searchParams.get("cloudId")
-    const query = url.searchParams.get("query") || ""
+    const domain = url.searchParams.get('domain')?.trim()
+    const accessToken = url.searchParams.get('accessToken')
+    const providedCloudId = url.searchParams.get('cloudId')
+    const query = url.searchParams.get('query') || ''
 
     if (!domain) {
-      return NextResponse.json({ error: "Domain is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
     }
 
     if (!accessToken) {
-      return NextResponse.json({ error: "Access token is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Access token is required' }, { status: 400 })
     }
 
     // Use provided cloudId or fetch it if not provided
     const cloudId = providedCloudId || (await getJiraCloudId(domain, accessToken))
-    logger.info("Using cloud ID:", cloudId)
+    logger.info('Using cloud ID:', cloudId)
 
     // Build query parameters
     const params = new URLSearchParams()
 
     // Only add query if it exists
     if (query) {
-      params.append("query", query)
+      params.append('query', query)
     }
 
     // Use the correct Jira Cloud OAuth endpoint structure
@@ -137,21 +137,21 @@ export async function GET(request: Request) {
     logger.info(`Fetching Jira issue suggestions from: ${apiUrl}`)
 
     const response = await fetch(apiUrl, {
-      method: "GET",
+      method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json",
+        Accept: 'application/json',
       },
     })
 
-    logger.info("Response status:", response.status, response.statusText)
+    logger.info('Response status:', response.status, response.statusText)
 
     if (!response.ok) {
       logger.error(`Jira API error: ${response.status} ${response.statusText}`)
       let errorMessage
       try {
         const errorData = await response.json()
-        logger.error("Error details:", errorData)
+        logger.error('Error details:', errorData)
         errorMessage = errorData.message || `Failed to fetch issue suggestions (${response.status})`
       } catch (e) {
         errorMessage = `Failed to fetch issue suggestions: ${response.status} ${response.statusText}`
@@ -166,9 +166,9 @@ export async function GET(request: Request) {
       cloudId, // Return the cloudId so it can be cached
     })
   } catch (error) {
-    logger.error("Error fetching Jira issue suggestions:", error)
+    logger.error('Error fetching Jira issue suggestions:', error)
     return NextResponse.json(
-      { error: (error as Error).message || "Internal server error" },
+      { error: (error as Error).message || 'Internal server error' },
       { status: 500 }
     )
   }

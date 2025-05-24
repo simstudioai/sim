@@ -4,9 +4,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { useEffect, useMemo, useState } from "react"
-import { useSubBlockValue } from "../hooks/use-sub-block-value"
+} from '@/components/ui/select'
+import { useEffect, useMemo, useState } from 'react'
+import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DropdownProps {
   options:
@@ -23,15 +23,15 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
 
   // Evaluate options if it's a function
   const evaluatedOptions = useMemo(() => {
-    return typeof options === "function" ? options() : options
+    return typeof options === 'function' ? options() : options
   }, [options])
 
   const getOptionValue = (option: string | { label: string; id: string }) => {
-    return typeof option === "string" ? option : option.id
+    return typeof option === 'string' ? option : option.id
   }
 
   const getOptionLabel = (option: string | { label: string; id: string }) => {
-    return typeof option === "string" ? option : option.label
+    return typeof option === 'string' ? option : option.label
   }
 
   // Get the default option value (first option or provided defaultValue)
@@ -91,15 +91,15 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
       value={isValueInOptions ? effectiveValue : undefined}
       onValueChange={(newValue) => setValue(newValue)}
     >
-      <SelectTrigger className="text-left">
-        <SelectValue placeholder="Select an option" />
+      <SelectTrigger className='text-left'>
+        <SelectValue placeholder='Select an option' />
       </SelectTrigger>
-      <SelectContent className="max-h-48">
+      <SelectContent className='max-h-48'>
         {evaluatedOptions.map((option) => (
           <SelectItem
             key={getOptionValue(option)}
             value={getOptionValue(option)}
-            className="text-sm"
+            className='text-sm'
           >
             {getOptionLabel(option)}
           </SelectItem>

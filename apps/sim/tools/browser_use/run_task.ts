@@ -1,52 +1,52 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import type { ToolConfig } from "../types"
-import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from "./types"
+import { createLogger } from '@/lib/logs/console-logger'
+import type { ToolConfig } from '../types'
+import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from './types'
 
-const logger = createLogger("BrowserUseTool")
+const logger = createLogger('BrowserUseTool')
 
 const POLL_INTERVAL_MS = 5000 // 5 seconds between polls
 const MAX_POLL_TIME_MS = 180000 // 3 minutes maximum polling time
 
 export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskResponse> = {
-  id: "browser_use_run_task",
-  name: "Browser Use",
-  description: "Runs a browser automation task using BrowserUse",
-  version: "1.0.0",
+  id: 'browser_use_run_task',
+  name: 'Browser Use',
+  description: 'Runs a browser automation task using BrowserUse',
+  version: '1.0.0',
 
   params: {
     task: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "What should the browser agent do",
+      description: 'What should the browser agent do',
     },
     variables: {
-      type: "json",
+      type: 'json',
       required: false,
-      description: "Optional variables to use as secrets (format: {key: value})",
+      description: 'Optional variables to use as secrets (format: {key: value})',
     },
     save_browser_data: {
-      type: "boolean",
+      type: 'boolean',
       required: false,
-      description: "Whether to save browser data",
+      description: 'Whether to save browser data',
     },
     model: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "LLM model to use (default: gpt-4o)",
+      description: 'LLM model to use (default: gpt-4o)',
     },
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "API key for BrowserUse API",
+      description: 'API key for BrowserUse API',
     },
   },
 
   request: {
-    url: "https://api.browser-use.com/api/v1/run-task",
-    method: "POST",
+    url: 'https://api.browser-use.com/api/v1/run-task',
+    method: 'POST',
     headers: (params) => ({
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
@@ -58,7 +58,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
         let secrets: Record<string, string> = {}
 
         if (Array.isArray(params.variables)) {
-          logger.info("Converting variables array to dictionary format")
+          logger.info('Converting variables array to dictionary format')
           params.variables.forEach((row) => {
             if (row.cells?.Key && row.cells.Value !== undefined) {
               secrets[row.cells.Key] = row.cells.Value
@@ -68,8 +68,8 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
               logger.info(`Added secret for key: ${row.Key}`)
             }
           })
-        } else if (typeof params.variables === "object" && params.variables !== null) {
-          logger.info("Using variables object directly")
+        } else if (typeof params.variables === 'object' && params.variables !== null) {
+          logger.info('Using variables object directly')
           secrets = params.variables
         }
 
@@ -77,7 +77,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
           logger.info(`Found ${Object.keys(secrets).length} secrets to include`)
           requestBody.secrets = secrets
         } else {
-          logger.warn("No usable secrets found in variables")
+          logger.warn('No usable secrets found in variables')
         }
       }
 
@@ -127,7 +127,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
 
     try {
       const initialTaskResponse = await fetch(`https://api.browser-use.com/api/v1/task/${taskId}`, {
-        method: "GET",
+        method: 'GET',
         headers: {
           Authorization: `Bearer ${params.apiKey}`,
         },
@@ -153,7 +153,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
         const statusResponse = await fetch(
           `https://api.browser-use.com/api/v1/task/${taskId}/status`,
           {
-            method: "GET",
+            method: 'GET',
             headers: {
               Authorization: `Bearer ${params.apiKey}`,
             },
@@ -168,9 +168,9 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
 
         logger.info(`BrowserUse task ${taskId} status: ${status}`)
 
-        if (["finished", "failed", "stopped"].includes(status)) {
+        if (['finished', 'failed', 'stopped'].includes(status)) {
           const taskResponse = await fetch(`https://api.browser-use.com/api/v1/task/${taskId}`, {
-            method: "GET",
+            method: 'GET',
             headers: {
               Authorization: `Bearer ${params.apiKey}`,
             },
@@ -180,7 +180,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
             const taskData = await taskResponse.json()
             result.output = {
               id: taskId,
-              success: status === "finished",
+              success: status === 'finished',
               output: taskData.output,
               steps: taskData.steps || [],
             }
@@ -189,9 +189,9 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
           return result
         }
 
-        if (!liveUrlLogged && status === "running") {
+        if (!liveUrlLogged && status === 'running') {
           const taskResponse = await fetch(`https://api.browser-use.com/api/v1/task/${taskId}`, {
-            method: "GET",
+            method: 'GET',
             headers: {
               Authorization: `Bearer ${params.apiKey}`,
             },
@@ -209,14 +209,14 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
         elapsedTime += POLL_INTERVAL_MS
       } catch (error: any) {
-        logger.error("Error polling for task status:", {
-          message: error.message || "Unknown error",
+        logger.error('Error polling for task status:', {
+          message: error.message || 'Unknown error',
           taskId,
         })
 
         return {
           ...result,
-          error: `Error polling for task status: ${error.message || "Unknown error"}`,
+          error: `Error polling for task status: ${error.message || 'Unknown error'}`,
         }
       }
     }
@@ -235,14 +235,14 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       const errorData = JSON.parse(error.message)
       if (errorData.detail && Array.isArray(errorData.detail)) {
         const formattedError = errorData.detail
-          .map((item: any) => `${item.loc.join(".")}: ${item.msg}`)
-          .join(", ")
+          .map((item: any) => `${item.loc.join('.')}: ${item.msg}`)
+          .join(', ')
         return `Validation error: ${formattedError}`
       }
     } catch {
       // Not a JSON string, use the regular error message
     }
 
-    return `Failed to run BrowserUse task: ${error.message || "Unknown error"}`
+    return `Failed to run BrowserUse task: ${error.message || 'Unknown error'}`
   },
 }

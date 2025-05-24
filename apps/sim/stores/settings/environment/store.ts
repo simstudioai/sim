@@ -1,9 +1,9 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { create } from "zustand"
-import { API_ENDPOINTS } from "../../constants"
-import type { EnvironmentStore, EnvironmentVariable } from "./types"
+import { createLogger } from '@/lib/logs/console-logger'
+import { create } from 'zustand'
+import { API_ENDPOINTS } from '../../constants'
+import type { EnvironmentStore, EnvironmentVariable } from './types'
 
-const logger = createLogger("EnvironmentStore")
+const logger = createLogger('EnvironmentStore')
 
 export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
   variables: {},
@@ -23,7 +23,7 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
 
       const { data } = await response.json()
 
-      if (data && typeof data === "object") {
+      if (data && typeof data === 'object') {
         set({
           variables: data,
           isLoading: false,
@@ -35,9 +35,9 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
         })
       }
     } catch (error) {
-      logger.error("Error loading environment variables:", { error })
+      logger.error('Error loading environment variables:', { error })
       set({
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
         isLoading: false,
       })
     }
@@ -62,9 +62,9 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
 
       // Send to DB
       const response = await fetch(API_ENDPOINTS.ENVIRONMENT, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           variables: Object.entries(transformedVariables).reduce(
@@ -83,9 +83,9 @@ export const useEnvironmentStore = create<EnvironmentStore>()((set, get) => ({
 
       set({ isLoading: false })
     } catch (error) {
-      logger.error("Error saving environment variables:", { error })
+      logger.error('Error saving environment variables:', { error })
       set({
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error instanceof Error ? error.message : 'Unknown error',
         isLoading: false,
       })
 

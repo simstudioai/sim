@@ -1,7 +1,7 @@
-import { getBlock } from "@/blocks"
-import { Button } from "@/components/ui/button"
-import type { ConsoleEntry as ConsoleEntryType } from "@/stores/panel/console/types"
-import { format } from "date-fns"
+import { getBlock } from '@/blocks'
+import { Button } from '@/components/ui/button'
+import type { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
+import { format } from 'date-fns'
 import {
   AlertCircle,
   AlertTriangle,
@@ -11,9 +11,9 @@ import {
   ChevronUp,
   Clock,
   Terminal,
-} from "lucide-react"
-import { useMemo, useState } from "react"
-import { JSONView } from "../json-view/json-view"
+} from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { JSONView } from '../json-view/json-view'
 
 interface ConsoleEntryProps {
   entry: ConsoleEntryType
@@ -44,7 +44,7 @@ const WordWrap = ({ text }: { text: string }) => {
         }
 
         return (
-          <span key={index} className="break-all">
+          <span key={index} className='break-all'>
             {chunks.map((chunk, chunkIndex) => (
               <span key={chunkIndex}>{chunk}</span>
             ))}
@@ -67,96 +67,96 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
   const BlockIcon = blockConfig?.icon
 
   const statusIcon = entry.error ? (
-    <AlertCircle className="h-4 w-4 text-destructive" />
+    <AlertCircle className='h-4 w-4 text-destructive' />
   ) : entry.warning ? (
-    <AlertTriangle className="h-4 w-4 text-warning" />
+    <AlertTriangle className='h-4 w-4 text-warning' />
   ) : (
-    <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+    <CheckCircle2 className='h-4 w-4 text-muted-foreground' />
   )
 
   // Helper function to check if data has nested objects or arrays
   const hasNestedStructure = (data: any): boolean => {
-    if (data === null || typeof data !== "object") return false
+    if (data === null || typeof data !== 'object') return false
 
     // Check if it's an empty object or array
     if (Object.keys(data).length === 0) return false
 
     // For arrays, check if any element is an object
     if (Array.isArray(data)) {
-      return data.some((item) => typeof item === "object" && item !== null)
+      return data.some((item) => typeof item === 'object' && item !== null)
     }
 
     // For objects, check if any value is an object
-    return Object.values(data).some((value) => typeof value === "object" && value !== null)
+    return Object.values(data).some((value) => typeof value === 'object' && value !== null)
   }
 
   return (
     <div
       className={`border-border border-b transition-colors ${
-        !entry.error && !entry.warning ? "cursor-pointer hover:bg-accent/50" : ""
+        !entry.error && !entry.warning ? 'cursor-pointer hover:bg-accent/50' : ''
       }`}
       onClick={() => !entry.error && !entry.warning && setIsExpanded(!isExpanded)}
     >
-      <div className="space-y-4 p-4">
+      <div className='space-y-4 p-4'>
         <div
           className={`${
-            consoleWidth >= 400 ? "flex items-center justify-between" : "grid grid-cols-1 gap-4"
+            consoleWidth >= 400 ? 'flex items-center justify-between' : 'grid grid-cols-1 gap-4'
           }`}
         >
           {entry.blockName && (
-            <div className="flex items-center gap-2 text-sm">
+            <div className='flex items-center gap-2 text-sm'>
               {BlockIcon ? (
-                <BlockIcon className="h-4 w-4 text-muted-foreground" />
+                <BlockIcon className='h-4 w-4 text-muted-foreground' />
               ) : (
-                <Terminal className="h-4 w-4 text-muted-foreground" />
+                <Terminal className='h-4 w-4 text-muted-foreground' />
               )}
-              <span className="text-muted-foreground">{entry.blockName}</span>
+              <span className='text-muted-foreground'>{entry.blockName}</span>
             </div>
           )}
           <div
             className={`${
-              consoleWidth >= 400 ? "flex gap-4" : "grid grid-cols-2 gap-4"
+              consoleWidth >= 400 ? 'flex gap-4' : 'grid grid-cols-2 gap-4'
             } text-muted-foreground text-sm`}
           >
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              <span>{format(new Date(entry.startedAt), "HH:mm:ss")}</span>
+            <div className='flex items-center gap-2'>
+              <Calendar className='h-4 w-4' />
+              <span>{format(new Date(entry.startedAt), 'HH:mm:ss')}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
+            <div className='flex items-center gap-2'>
+              <Clock className='h-4 w-4' />
               <span>Duration: {entry.durationMs}ms</span>
             </div>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className='space-y-4'>
           {!entry.error && !entry.warning && (
-            <div className="flex items-start gap-2">
-              <Terminal className="mt-1 h-4 w-4 text-muted-foreground" />
-              <div className="overflow-wrap-anywhere relative flex-1 whitespace-normal break-normal font-mono text-sm">
-                {typeof entry.output === "object" &&
+            <div className='flex items-start gap-2'>
+              <Terminal className='mt-1 h-4 w-4 text-muted-foreground' />
+              <div className='overflow-wrap-anywhere relative flex-1 whitespace-normal break-normal font-mono text-sm'>
+                {typeof entry.output === 'object' &&
                   entry.output !== null &&
                   hasNestedStructure(entry.output) && (
-                    <div className="absolute top-0 right-0 z-10">
+                    <div className='absolute top-0 right-0 z-10'>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-muted-foreground hover:text-foreground"
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 px-2 text-muted-foreground hover:text-foreground'
                         onClick={(e) => {
                           e.stopPropagation()
                           setExpandAllJson(!expandAllJson)
                         }}
                       >
-                        <span className="flex items-center">
+                        <span className='flex items-center'>
                           {expandAllJson ? (
                             <>
-                              <ChevronUp className="mr-1 h-3 w-3" />
-                              <span className="text-xs">Collapse</span>
+                              <ChevronUp className='mr-1 h-3 w-3' />
+                              <span className='text-xs'>Collapse</span>
                             </>
                           ) : (
                             <>
-                              <ChevronDown className="mr-1 h-3 w-3" />
-                              <span className="text-xs">Expand</span>
+                              <ChevronDown className='mr-1 h-3 w-3' />
+                              <span className='text-xs'>Expand</span>
                             </>
                           )}
                         </span>
@@ -169,11 +169,11 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           )}
 
           {entry.error && (
-            <div className="flex items-start gap-2 rounded-md border border-red-500 bg-red-50 p-3 text-destructive dark:border-border dark:bg-background dark:text-foreground">
-              <AlertCircle className="mt-1 h-4 w-4 flex-shrink-0 text-red-500" />
-              <div className="min-w-0 flex-1">
-                <div className="font-medium">Error</div>
-                <div className="w-full overflow-hidden whitespace-pre-wrap text-sm">
+            <div className='flex items-start gap-2 rounded-md border border-red-500 bg-red-50 p-3 text-destructive dark:border-border dark:bg-background dark:text-foreground'>
+              <AlertCircle className='mt-1 h-4 w-4 flex-shrink-0 text-red-500' />
+              <div className='min-w-0 flex-1'>
+                <div className='font-medium'>Error</div>
+                <div className='w-full overflow-hidden whitespace-pre-wrap text-sm'>
                   <WordWrap text={entry.error} />
                 </div>
               </div>
@@ -181,11 +181,11 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           )}
 
           {entry.warning && (
-            <div className="flex items-start gap-2 rounded-md border border-yellow-500 bg-yellow-50 p-3 text-yellow-700 dark:border-border dark:bg-background dark:text-yellow-500">
-              <AlertTriangle className="mt-1 h-4 w-4 flex-shrink-0 text-yellow-500" />
-              <div className="min-w-0 flex-1">
-                <div className="font-medium">Warning</div>
-                <div className="w-full overflow-hidden whitespace-pre-wrap text-sm">
+            <div className='flex items-start gap-2 rounded-md border border-yellow-500 bg-yellow-50 p-3 text-yellow-700 dark:border-border dark:bg-background dark:text-yellow-500'>
+              <AlertTriangle className='mt-1 h-4 w-4 flex-shrink-0 text-yellow-500' />
+              <div className='min-w-0 flex-1'>
+                <div className='font-medium'>Warning</div>
+                <div className='w-full overflow-hidden whitespace-pre-wrap text-sm'>
                   <WordWrap text={entry.warning} />
                 </div>
               </div>

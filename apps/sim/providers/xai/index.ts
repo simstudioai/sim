@@ -1,11 +1,11 @@
-import type { StreamingExecution } from "@/executor/types"
-import { createLogger } from "@/lib/logs/console-logger"
-import { executeTool } from "@/tools"
-import OpenAI from "openai"
-import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from "../utils"
+import type { StreamingExecution } from '@/executor/types'
+import { createLogger } from '@/lib/logs/console-logger'
+import { executeTool } from '@/tools'
+import OpenAI from 'openai'
+import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
-const logger = createLogger("XAIProvider")
+const logger = createLogger('XAIProvider')
 
 /**
  * Helper to wrap XAI (OpenAI-compatible) streaming into a browser-friendly
@@ -16,7 +16,7 @@ function createReadableStreamFromXAIStream(xaiStream: any): ReadableStream {
     async start(controller) {
       try {
         for await (const chunk of xaiStream) {
-          const content = chunk.choices[0]?.delta?.content || ""
+          const content = chunk.choices[0]?.delta?.content || ''
           if (content) {
             controller.enqueue(new TextEncoder().encode(content))
           }
@@ -30,24 +30,24 @@ function createReadableStreamFromXAIStream(xaiStream: any): ReadableStream {
 }
 
 export const xAIProvider: ProviderConfig = {
-  id: "xai",
-  name: "xAI",
+  id: 'xai',
+  name: 'xAI',
   description: "xAI's Grok models",
-  version: "1.0.0",
-  models: ["grok-3-latest", "grok-3-fast-latest"],
-  defaultModel: "grok-3-latest",
+  version: '1.0.0',
+  models: ['grok-3-latest', 'grok-3-fast-latest'],
+  defaultModel: 'grok-3-latest',
 
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
-      throw new Error("API key is required for xAI")
+      throw new Error('API key is required for xAI')
     }
 
     // Initialize OpenAI client for xAI
     const xai = new OpenAI({
       apiKey: request.apiKey,
-      baseURL: "https://api.x.ai/v1",
+      baseURL: 'https://api.x.ai/v1',
     })
 
     // Prepare messages
@@ -55,14 +55,14 @@ export const xAIProvider: ProviderConfig = {
 
     if (request.systemPrompt) {
       allMessages.push({
-        role: "system",
+        role: 'system',
         content: request.systemPrompt,
       })
     }
 
     if (request.context) {
       allMessages.push({
-        role: "user",
+        role: 'user',
         content: request.context,
       })
     }
@@ -74,7 +74,7 @@ export const xAIProvider: ProviderConfig = {
     // Set up tools
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
-          type: "function",
+          type: 'function',
           function: {
             name: tool.id,
             description: tool.description,
@@ -85,7 +85,7 @@ export const xAIProvider: ProviderConfig = {
 
     // Build the request payload
     const payload: any = {
-      model: request.model || "grok-3-latest",
+      model: request.model || 'grok-3-latest',
       messages: allMessages,
     }
 
@@ -94,21 +94,21 @@ export const xAIProvider: ProviderConfig = {
 
     if (request.responseFormat) {
       payload.response_format = {
-        type: "json_schema",
+        type: 'json_schema',
         json_schema: {
-          name: request.responseFormat.name || "structured_response",
+          name: request.responseFormat.name || 'structured_response',
           schema: request.responseFormat.schema || request.responseFormat,
           strict: request.responseFormat.strict !== false,
         },
       }
 
-      if (allMessages.length > 0 && allMessages[0].role === "system") {
+      if (allMessages.length > 0 && allMessages[0].role === 'system') {
         allMessages[0].content = `${allMessages[0].content}\n\nYou MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.`
       } else {
         allMessages.unshift({
-          role: "system",
+          role: 'system',
           content:
-            "You MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.",
+            'You MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.',
         })
       }
     }
@@ -117,26 +117,26 @@ export const xAIProvider: ProviderConfig = {
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
 
     if (tools?.length) {
-      preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, "xai")
+      preparedTools = prepareToolsWithUsageControl(tools, request.tools, logger, 'xai')
       const { tools: filteredTools, toolChoice } = preparedTools
 
       if (filteredTools?.length && toolChoice) {
         payload.tools = filteredTools
         payload.tool_choice = toolChoice
 
-        logger.info("XAI request configuration:", {
+        logger.info('XAI request configuration:', {
           toolCount: filteredTools.length,
           toolChoice:
-            typeof toolChoice === "string"
+            typeof toolChoice === 'string'
               ? toolChoice
-              : toolChoice.type === "function"
+              : toolChoice.type === 'function'
                 ? `force:${toolChoice.function.name}`
-                : toolChoice.type === "tool"
+                : toolChoice.type === 'tool'
                   ? `force:${toolChoice.name}`
-                  : toolChoice.type === "any"
-                    ? `force:${toolChoice.any?.name || "unknown"}`
-                    : "unknown",
-          model: request.model || "grok-3-latest",
+                  : toolChoice.type === 'any'
+                    ? `force:${toolChoice.any?.name || 'unknown'}`
+                    : 'unknown',
+          model: request.model || 'grok-3-latest',
         })
       }
     }
@@ -144,7 +144,7 @@ export const xAIProvider: ProviderConfig = {
     // EARLY STREAMING: if caller requested streaming and there are no tools to execute,
     // we can directly stream the completion.
     if (request.stream && (!tools || tools.length === 0)) {
-      logger.info("Using streaming response for XAI request (no tools)")
+      logger.info('Using streaming response for XAI request (no tools)')
 
       // Start execution timer for the entire provider execution
       const providerStartTime = Date.now()
@@ -169,8 +169,8 @@ export const xAIProvider: ProviderConfig = {
           success: true,
           output: {
             response: {
-              content: "", // Will be filled by streaming content in chat component
-              model: request.model || "grok-3-latest",
+              content: '', // Will be filled by streaming content in chat component
+              model: request.model || 'grok-3-latest',
               tokens: tokenUsage,
               toolCalls: undefined,
               providerTiming: {
@@ -179,8 +179,8 @@ export const xAIProvider: ProviderConfig = {
                 duration: Date.now() - providerStartTime,
                 timeSegments: [
                   {
-                    type: "model",
-                    name: "Streaming response",
+                    type: 'model',
+                    name: 'Streaming response',
                     startTime: providerStartTime,
                     endTime: Date.now(),
                     duration: Date.now() - providerStartTime,
@@ -227,7 +227,7 @@ export const xAIProvider: ProviderConfig = {
       let currentResponse = await xai.chat.completions.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
-      let content = currentResponse.choices[0]?.message?.content || ""
+      let content = currentResponse.choices[0]?.message?.content || ''
       const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
@@ -249,8 +249,8 @@ export const xAIProvider: ProviderConfig = {
       // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
-          type: "model",
-          name: "Initial response",
+          type: 'model',
+          name: 'Initial response',
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -262,13 +262,13 @@ export const xAIProvider: ProviderConfig = {
         response: any,
         toolChoice: string | { type: string; function?: { name: string }; name?: string; any?: any }
       ) => {
-        if (typeof toolChoice === "object" && response.choices[0]?.message?.tool_calls) {
+        if (typeof toolChoice === 'object' && response.choices[0]?.message?.tool_calls) {
           const toolCallsResponse = response.choices[0].message.tool_calls
           const result = trackForcedToolUsage(
             toolCallsResponse,
             toolChoice,
             logger,
-            "xai",
+            'xai',
             forcedTools,
             usedForcedTools
           )
@@ -313,7 +313,7 @@ export const xAIProvider: ProviderConfig = {
 
               // Add to time segments
               timeSegments.push({
-                type: "tool",
+                type: 'tool',
                 name: toolName,
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -331,12 +331,12 @@ export const xAIProvider: ProviderConfig = {
               })
 
               currentMessages.push({
-                role: "assistant",
+                role: 'assistant',
                 content: null,
                 tool_calls: [
                   {
                     id: toolCall.id,
-                    type: "function",
+                    type: 'function',
                     function: {
                       name: toolName,
                       arguments: toolCall.function.arguments,
@@ -346,12 +346,12 @@ export const xAIProvider: ProviderConfig = {
               })
 
               currentMessages.push({
-                role: "tool",
+                role: 'tool',
                 tool_call_id: toolCall.id,
                 content: JSON.stringify(result.output),
               })
             } catch (error) {
-              logger.error("Error processing tool call:", { error })
+              logger.error('Error processing tool call:', { error })
             }
           }
 
@@ -366,7 +366,7 @@ export const xAIProvider: ProviderConfig = {
 
           // Update tool_choice based on which forced tools have been used
           if (
-            typeof originalToolChoice === "object" &&
+            typeof originalToolChoice === 'object' &&
             hasUsedForcedTool &&
             forcedTools.length > 0
           ) {
@@ -376,14 +376,14 @@ export const xAIProvider: ProviderConfig = {
             if (remainingTools.length > 0) {
               // Force the next tool
               nextPayload.tool_choice = {
-                type: "function",
+                type: 'function',
                 function: { name: remainingTools[0] },
               }
               logger.info(`Forcing next tool: ${remainingTools[0]}`)
             } else {
               // All forced tools have been used, switch to auto
-              nextPayload.tool_choice = "auto"
-              logger.info("All forced tools have been used, switching to auto tool_choice")
+              nextPayload.tool_choice = 'auto'
+              logger.info('All forced tools have been used, switching to auto tool_choice')
             }
           }
 
@@ -400,7 +400,7 @@ export const xAIProvider: ProviderConfig = {
 
           // Add to time segments
           timeSegments.push({
-            type: "model",
+            type: 'model',
             name: `Model response (iteration ${iterationCount + 1})`,
             startTime: nextModelStartTime,
             endTime: nextModelEndTime,
@@ -423,19 +423,19 @@ export const xAIProvider: ProviderConfig = {
           iterationCount++
         }
       } catch (error) {
-        logger.error("Error in xAI request:", { error })
+        logger.error('Error in xAI request:', { error })
       }
 
       // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
       if (request.stream && iterationCount > 0) {
-        logger.info("Using streaming for final XAI response after tool calls")
+        logger.info('Using streaming for final XAI response after tool calls')
 
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents the API from trying to force tool usage again in the final streaming response
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: "auto", // Always use 'auto' for the streaming response after tool calls
+          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
           stream: true,
         }
 
@@ -448,8 +448,8 @@ export const xAIProvider: ProviderConfig = {
             success: true,
             output: {
               response: {
-                content: "", // Will be filled by the callback
-                model: request.model || "grok-3-latest",
+                content: '', // Will be filled by the callback
+                model: request.model || 'grok-3-latest',
                 tokens: {
                   prompt: tokens.prompt,
                   completion: tokens.completion,
@@ -521,7 +521,7 @@ export const xAIProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error("Error in xAI request:", { error, duration: totalDuration })
+      logger.error('Error in xAI request:', { error, duration: totalDuration })
 
       // Create a new error with timing information
       const enhancedError = new Error(error instanceof Error ? error.message : String(error))

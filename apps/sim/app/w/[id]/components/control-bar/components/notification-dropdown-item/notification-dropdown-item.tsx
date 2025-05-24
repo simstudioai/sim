@@ -1,15 +1,15 @@
-import { ErrorIcon } from "@/components/icons"
-import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { cn } from "@/lib/utils"
-import { useNotificationStore } from "@/stores/notifications/store"
+import { ErrorIcon } from '@/components/icons'
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import { cn } from '@/lib/utils'
+import { useNotificationStore } from '@/stores/notifications/store'
 import type {
   Notification,
   NotificationOptions,
   NotificationType,
-} from "@/stores/notifications/types"
-import { formatDistanceToNow } from "date-fns"
-import { AlertCircle, Rocket, Store, Terminal, X } from "lucide-react"
-import { useEffect, useState } from "react"
+} from '@/stores/notifications/types'
+import { formatDistanceToNow } from 'date-fns'
+import { AlertCircle, Rocket, Store, Terminal, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface NotificationDropdownItemProps {
   id: string
@@ -29,11 +29,11 @@ const NotificationIcon = {
 }
 
 const NotificationColors = {
-  error: "text-destructive",
-  console: "text-foreground",
-  marketplace: "text-foreground",
-  info: "text-foreground",
-  api: "text-foreground",
+  error: 'text-destructive',
+  console: 'text-foreground',
+  marketplace: 'text-foreground',
+  info: 'text-foreground',
+  api: 'text-foreground',
 }
 
 export function NotificationDropdownItem({
@@ -83,25 +83,25 @@ export function NotificationDropdownItem({
 
   // Format time and replace "less than a minute ago" with "<1 minute ago"
   const rawTimeAgo = formatDistanceToNow(timestamp, { addSuffix: true })
-  const timeAgo = rawTimeAgo.replace("less than a minute ago", "<1 minute ago")
+  const timeAgo = rawTimeAgo.replace('less than a minute ago', '<1 minute ago')
 
   return (
-    <DropdownMenuItem className="flex cursor-pointer items-start gap-2 p-3" onClick={handleClick}>
-      <Icon className={cn("h-4 w-4", NotificationColors[type])} />
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-xs">
-            {type === "error"
-              ? "Error"
-              : type === "marketplace"
-                ? "Marketplace"
-                : type === "info"
-                  ? "Info"
-                  : "Console"}
+    <DropdownMenuItem className='flex cursor-pointer items-start gap-2 p-3' onClick={handleClick}>
+      <Icon className={cn('h-4 w-4', NotificationColors[type])} />
+      <div className='flex flex-col gap-1'>
+        <div className='flex items-center gap-2'>
+          <span className='font-medium text-xs'>
+            {type === 'error'
+              ? 'Error'
+              : type === 'marketplace'
+                ? 'Marketplace'
+                : type === 'info'
+                  ? 'Info'
+                  : 'Console'}
           </span>
-          <span className="text-muted-foreground text-xs">{timeAgo}</span>
+          <span className='text-muted-foreground text-xs'>{timeAgo}</span>
         </div>
-        <p className="overflow-wrap-anywhere hyphens-auto whitespace-normal break-normal text-foreground text-sm">
+        <p className='overflow-wrap-anywhere hyphens-auto whitespace-normal break-normal text-foreground text-sm'>
           {message.length > 100 ? `${message.slice(0, 60)}...` : message}
         </p>
       </div>

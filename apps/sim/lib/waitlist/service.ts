@@ -2,17 +2,17 @@ import {
   getEmailSubject,
   renderWaitlistApprovalEmail,
   renderWaitlistConfirmationEmail,
-} from "@/components/emails/render-email"
-import { db } from "@/db"
-import { waitlist } from "@/db/schema"
-import { sendBatchEmails, sendEmail } from "@/lib/mailer"
-import { createToken, verifyToken } from "@/lib/waitlist/token"
-import { and, count, desc, eq, inArray, like, or } from "drizzle-orm"
-import { nanoid } from "nanoid"
-import { env } from "../env"
+} from '@/components/emails/render-email'
+import { db } from '@/db'
+import { waitlist } from '@/db/schema'
+import { sendBatchEmails, sendEmail } from '@/lib/mailer'
+import { createToken, verifyToken } from '@/lib/waitlist/token'
+import { and, count, desc, eq, inArray, like, or } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
+import { env } from '../env'
 
 // Define types for better type safety
-export type WaitlistStatus = "pending" | "approved" | "rejected" | "signed_up"
+export type WaitlistStatus = 'pending' | 'approved' | 'rejected' | 'signed_up'
 
 export interface WaitlistEntry {
   id: string
@@ -42,7 +42,7 @@ export async function addToWaitlist(email: string): Promise<{ success: boolean; 
     if (users.length > 0) {
       return {
         success: false,
-        message: "Email already exists in waitlist",
+        message: 'Email already exists in waitlist',
       }
     }
 
@@ -50,7 +50,7 @@ export async function addToWaitlist(email: string): Promise<{ success: boolean; 
     await db.insert(waitlist).values({
       id: nanoid(),
       email: normalizedEmail,
-      status: "pending",
+      status: 'pending',
       createdAt: new Date(),
       updatedAt: new Date(),
     })
@@ -58,7 +58,7 @@ export async function addToWaitlist(email: string): Promise<{ success: boolean; 
     // Send confirmation email
     try {
       const emailHtml = await renderWaitlistConfirmationEmail(normalizedEmail)
-      const subject = getEmailSubject("waitlist-confirmation")
+      const subject = getEmailSubject('waitlist-confirmation')
 
       await sendEmail({
         to: normalizedEmail,
@@ -66,19 +66,19 @@ export async function addToWaitlist(email: string): Promise<{ success: boolean; 
         html: emailHtml,
       })
     } catch (emailError) {
-      console.error("Error sending confirmation email:", emailError)
+      console.error('Error sending confirmation email:', emailError)
       // Continue even if email fails - user is still on waitlist
     }
 
     return {
       success: true,
-      message: "Successfully added to waitlist",
+      message: 'Successfully added to waitlist',
     }
   } catch (error) {
-    console.error("Error adding to waitlist:", error)
+    console.error('Error adding to waitlist:', error)
     return {
       success: false,
-      message: "An error occurred while adding to waitlist",
+      message: 'An error occurred while adding to waitlist',
     }
   }
 }
@@ -87,7 +87,7 @@ export async function addToWaitlist(email: string): Promise<{ success: boolean; 
 export async function getWaitlistEntries(
   page = 1,
   limit = 20,
-  status?: WaitlistStatus | "all",
+  status?: WaitlistStatus | 'all',
   search?: string
 ) {
   try {
@@ -97,7 +97,7 @@ export async function getWaitlistEntries(
     let whereCondition
 
     // First, determine if we need to apply status filter
-    const shouldFilterByStatus = status && status !== "all"
+    const shouldFilterByStatus = status && status !== 'all'
 
     // Now build the conditions
     if (shouldFilterByStatus && search && search.trim()) {
@@ -151,7 +151,7 @@ export async function getWaitlistEntries(
       limit,
     }
   } catch (error) {
-    console.error("Error getting waitlist entries:", error)
+    console.error('Error getting waitlist entries:', error)
     throw error
   }
 }
@@ -166,22 +166,22 @@ export async function approveWaitlistUser(
     if (!user) {
       return {
         success: false,
-        message: "User not found in waitlist",
+        message: 'User not found in waitlist',
       }
     }
 
-    if (user.status === "approved") {
+    if (user.status === 'approved') {
       return {
         success: false,
-        message: "User already approved",
+        message: 'User already approved',
       }
     }
 
     // Create a special signup token
     const token = await createToken({
       email: normalizedEmail,
-      type: "waitlist-approval",
-      expiresIn: "7d",
+      type: 'waitlist-approval',
+      expiresIn: '7d',
     })
 
     // Generate signup link with token
@@ -191,7 +191,7 @@ export async function approveWaitlistUser(
     // This ensures we don't mark users as approved if email fails
     try {
       const emailHtml = await renderWaitlistApprovalEmail(normalizedEmail, signupLink)
-      const subject = getEmailSubject("waitlist-approval")
+      const subject = getEmailSubject('waitlist-approval')
 
       const emailResult = await sendEmail({
         to: normalizedEmail,
@@ -201,24 +201,24 @@ export async function approveWaitlistUser(
 
       // If email sending failed, don't update the user status
       if (!emailResult.success) {
-        console.error("Error sending approval email:", emailResult.message)
+        console.error('Error sending approval email:', emailResult.message)
 
         // Check if it's a rate limit error
         if (
-          emailResult.message?.toLowerCase().includes("rate") ||
-          emailResult.message?.toLowerCase().includes("too many") ||
-          emailResult.message?.toLowerCase().includes("limit")
+          emailResult.message?.toLowerCase().includes('rate') ||
+          emailResult.message?.toLowerCase().includes('too many') ||
+          emailResult.message?.toLowerCase().includes('limit')
         ) {
           return {
             success: false,
-            message: "Rate limit exceeded for email sending",
+            message: 'Rate limit exceeded for email sending',
             rateLimited: true,
           }
         }
 
         return {
           success: false,
-          message: emailResult.message || "Failed to send approval email",
+          message: emailResult.message || 'Failed to send approval email',
           emailError: emailResult,
         }
       }
@@ -227,43 +227,43 @@ export async function approveWaitlistUser(
       await db
         .update(waitlist)
         .set({
-          status: "approved",
+          status: 'approved',
           updatedAt: new Date(),
         })
         .where(eq(waitlist.email, normalizedEmail))
 
       return {
         success: true,
-        message: "User approved and email sent",
+        message: 'User approved and email sent',
       }
     } catch (emailError) {
-      console.error("Error sending approval email:", emailError)
+      console.error('Error sending approval email:', emailError)
 
       // Check if it's a rate limit error
       if (
         emailError instanceof Error &&
-        (emailError.message.toLowerCase().includes("rate") ||
-          emailError.message.toLowerCase().includes("too many") ||
-          emailError.message.toLowerCase().includes("limit"))
+        (emailError.message.toLowerCase().includes('rate') ||
+          emailError.message.toLowerCase().includes('too many') ||
+          emailError.message.toLowerCase().includes('limit'))
       ) {
         return {
           success: false,
-          message: "Rate limit exceeded for email sending",
+          message: 'Rate limit exceeded for email sending',
           rateLimited: true,
         }
       }
 
       return {
         success: false,
-        message: "Failed to send approval email",
+        message: 'Failed to send approval email',
         emailError,
       }
     }
   } catch (error) {
-    console.error("Error approving waitlist user:", error)
+    console.error('Error approving waitlist user:', error)
     return {
       success: false,
-      message: "An error occurred while approving user",
+      message: 'An error occurred while approving user',
     }
   }
 }
@@ -278,7 +278,7 @@ export async function rejectWaitlistUser(
     if (!user) {
       return {
         success: false,
-        message: "User not found in waitlist",
+        message: 'User not found in waitlist',
       }
     }
 
@@ -286,20 +286,20 @@ export async function rejectWaitlistUser(
     await db
       .update(waitlist)
       .set({
-        status: "rejected",
+        status: 'rejected',
         updatedAt: new Date(),
       })
       .where(eq(waitlist.email, normalizedEmail))
 
     return {
       success: true,
-      message: "User rejected",
+      message: 'User rejected',
     }
   } catch (error) {
-    console.error("Error rejecting waitlist user:", error)
+    console.error('Error rejecting waitlist user:', error)
     return {
       success: false,
-      message: "An error occurred while rejecting user",
+      message: 'An error occurred while rejecting user',
     }
   }
 }
@@ -308,9 +308,9 @@ export async function rejectWaitlistUser(
 export async function isUserApproved(email: string): Promise<boolean> {
   try {
     const { user } = await findUserByEmail(email)
-    return !!user && user.status === "approved"
+    return !!user && user.status === 'approved'
   } catch (error) {
-    console.error("Error checking if user is approved:", error)
+    console.error('Error checking if user is approved:', error)
     return false
   }
 }
@@ -323,7 +323,7 @@ export async function verifyWaitlistToken(
     // Verify token
     const decoded = await verifyToken(token)
 
-    if (!decoded || decoded.type !== "waitlist-approval") {
+    if (!decoded || decoded.type !== 'waitlist-approval') {
       return { valid: false }
     }
 
@@ -339,7 +339,7 @@ export async function verifyWaitlistToken(
       email: decoded.email,
     }
   } catch (error) {
-    console.error("Error verifying waitlist token:", error)
+    console.error('Error verifying waitlist token:', error)
     return { valid: false }
   }
 }
@@ -354,14 +354,14 @@ export async function markWaitlistUserAsSignedUp(
     if (!user) {
       return {
         success: false,
-        message: "User not found in waitlist",
+        message: 'User not found in waitlist',
       }
     }
 
-    if (user.status !== "approved") {
+    if (user.status !== 'approved') {
       return {
         success: false,
-        message: "User is not in approved status",
+        message: 'User is not in approved status',
       }
     }
 
@@ -369,20 +369,20 @@ export async function markWaitlistUserAsSignedUp(
     await db
       .update(waitlist)
       .set({
-        status: "signed_up",
+        status: 'signed_up',
         updatedAt: new Date(),
       })
       .where(eq(waitlist.email, normalizedEmail))
 
     return {
       success: true,
-      message: "User marked as signed up",
+      message: 'User marked as signed up',
     }
   } catch (error) {
-    console.error("Error marking waitlist user as signed up:", error)
+    console.error('Error marking waitlist user as signed up:', error)
     return {
       success: false,
-      message: "An error occurred while updating user status",
+      message: 'An error occurred while updating user status',
     }
   }
 }
@@ -397,22 +397,22 @@ export async function resendApprovalEmail(
     if (!user) {
       return {
         success: false,
-        message: "User not found in waitlist",
+        message: 'User not found in waitlist',
       }
     }
 
-    if (user.status !== "approved") {
+    if (user.status !== 'approved') {
       return {
         success: false,
-        message: "User is not approved",
+        message: 'User is not approved',
       }
     }
 
     // Create a special signup token
     const token = await createToken({
       email: normalizedEmail,
-      type: "waitlist-approval",
-      expiresIn: "7d",
+      type: 'waitlist-approval',
+      expiresIn: '7d',
     })
 
     // Generate signup link with token
@@ -421,7 +421,7 @@ export async function resendApprovalEmail(
     // Send approval email
     try {
       const emailHtml = await renderWaitlistApprovalEmail(normalizedEmail, signupLink)
-      const subject = getEmailSubject("waitlist-approval")
+      const subject = getEmailSubject('waitlist-approval')
 
       const emailResult = await sendEmail({
         to: normalizedEmail,
@@ -431,60 +431,60 @@ export async function resendApprovalEmail(
 
       // Check for email sending failures
       if (!emailResult.success) {
-        console.error("Error sending approval email:", emailResult.message)
+        console.error('Error sending approval email:', emailResult.message)
 
         // Check if it's a rate limit error
         if (
-          emailResult.message?.toLowerCase().includes("rate") ||
-          emailResult.message?.toLowerCase().includes("too many") ||
-          emailResult.message?.toLowerCase().includes("limit")
+          emailResult.message?.toLowerCase().includes('rate') ||
+          emailResult.message?.toLowerCase().includes('too many') ||
+          emailResult.message?.toLowerCase().includes('limit')
         ) {
           return {
             success: false,
-            message: "Rate limit exceeded for email sending",
+            message: 'Rate limit exceeded for email sending',
             rateLimited: true,
           }
         }
 
         return {
           success: false,
-          message: emailResult.message || "Failed to send approval email",
+          message: emailResult.message || 'Failed to send approval email',
           emailError: emailResult,
         }
       }
 
       return {
         success: true,
-        message: "Approval email resent successfully",
+        message: 'Approval email resent successfully',
       }
     } catch (emailError) {
-      console.error("Error sending approval email:", emailError)
+      console.error('Error sending approval email:', emailError)
 
       // Check if it's a rate limit error
       if (
         emailError instanceof Error &&
-        (emailError.message.toLowerCase().includes("rate") ||
-          emailError.message.toLowerCase().includes("too many") ||
-          emailError.message.toLowerCase().includes("limit"))
+        (emailError.message.toLowerCase().includes('rate') ||
+          emailError.message.toLowerCase().includes('too many') ||
+          emailError.message.toLowerCase().includes('limit'))
       ) {
         return {
           success: false,
-          message: "Rate limit exceeded for email sending",
+          message: 'Rate limit exceeded for email sending',
           rateLimited: true,
         }
       }
 
       return {
         success: false,
-        message: "Failed to send approval email",
+        message: 'Failed to send approval email',
         emailError,
       }
     }
   } catch (error) {
-    console.error("Error resending approval email:", error)
+    console.error('Error resending approval email:', error)
     return {
       success: false,
-      message: "An error occurred while resending approval email",
+      message: 'An error occurred while resending approval email',
     }
   }
 }
@@ -501,7 +501,7 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
     if (!emails || emails.length === 0) {
       return {
         success: false,
-        message: "No emails provided for batch approval",
+        message: 'No emails provided for batch approval',
         results: [],
       }
     }
@@ -516,18 +516,18 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
         and(
           inArray(waitlist.email, normalizedEmails),
           // Only select users who aren't already approved
-          or(eq(waitlist.status, "pending"), eq(waitlist.status, "rejected"))
+          or(eq(waitlist.status, 'pending'), eq(waitlist.status, 'rejected'))
         )
       )
 
     if (users.length === 0) {
       return {
         success: false,
-        message: "No valid users found for approval",
+        message: 'No valid users found for approval',
         results: emails.map((email) => ({
           email,
           success: false,
-          message: "User not found or already approved",
+          message: 'User not found or already approved',
         })),
       }
     }
@@ -538,8 +538,8 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
         // Create a special signup token
         const token = await createToken({
           email: user.email,
-          type: "waitlist-approval",
-          expiresIn: "7d",
+          type: 'waitlist-approval',
+          expiresIn: '7d',
         })
 
         // Generate signup link with token
@@ -547,7 +547,7 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
 
         // Generate email HTML
         const emailHtml = await renderWaitlistApprovalEmail(user.email, signupLink)
-        const subject = getEmailSubject("waitlist-approval")
+        const subject = getEmailSubject('waitlist-approval')
 
         return {
           to: user.email,
@@ -569,14 +569,14 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
         return {
           email: user.email,
           success: true,
-          message: "User approved and email sent successfully",
+          message: 'User approved and email sent successfully',
           data: emailResult.data,
         }
       }
       return {
         email: user.email,
         success: false,
-        message: emailResult?.message || "Failed to send approval email",
+        message: emailResult?.message || 'Failed to send approval email',
         error: emailResult,
       }
     })
@@ -590,14 +590,14 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
       await db
         .update(waitlist)
         .set({
-          status: "approved",
+          status: 'approved',
           updatedAt: new Date(),
         })
         .where(
           and(
             inArray(waitlist.email, successfulEmails),
             // Only update users who aren't already approved
-            or(eq(waitlist.status, "pending"), eq(waitlist.status, "rejected"))
+            or(eq(waitlist.status, 'pending'), eq(waitlist.status, 'rejected'))
           )
         )
     }
@@ -605,19 +605,19 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
     // Check if any rate limit errors occurred
     const rateLimitError = emailResults.results.some(
       (result: { message?: string }) =>
-        result.message?.toLowerCase().includes("rate") ||
-        result.message?.toLowerCase().includes("too many") ||
-        result.message?.toLowerCase().includes("limit")
+        result.message?.toLowerCase().includes('rate') ||
+        result.message?.toLowerCase().includes('too many') ||
+        result.message?.toLowerCase().includes('limit')
     )
 
     return {
       success: successfulEmails.length > 0,
       message:
         successfulEmails.length === users.length
-          ? "All users approved successfully"
+          ? 'All users approved successfully'
           : successfulEmails.length > 0
-            ? "Some users approved successfully"
-            : "Failed to approve any users",
+            ? 'Some users approved successfully'
+            : 'Failed to approve any users',
       results: results.map(
         ({ email, success, message }: { email: string; success: boolean; message: string }) => ({
           email,
@@ -629,14 +629,14 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
       rateLimited: rateLimitError,
     }
   } catch (error) {
-    console.error("Error approving batch waitlist users:", error)
+    console.error('Error approving batch waitlist users:', error)
     return {
       success: false,
-      message: "An error occurred while approving users",
+      message: 'An error occurred while approving users',
       results: emails.map((email) => ({
         email,
         success: false,
-        message: "Operation failed due to server error",
+        message: 'Operation failed due to server error',
       })),
     }
   }

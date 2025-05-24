@@ -1,16 +1,16 @@
-import { highlight, languages } from "prismjs"
-import { useEffect, useRef, useState } from "react"
-import type { ReactElement } from "react"
-import "prismjs/components/prism-javascript"
-import "prismjs/components/prism-json"
-import "prismjs/themes/prism.css"
-import { cn } from "@/lib/utils"
-import Editor from "react-simple-code-editor"
+import { highlight, languages } from 'prismjs'
+import { useEffect, useRef, useState } from 'react'
+import type { ReactElement } from 'react'
+import 'prismjs/components/prism-javascript'
+import 'prismjs/components/prism-json'
+import 'prismjs/themes/prism.css'
+import { cn } from '@/lib/utils'
+import Editor from 'react-simple-code-editor'
 
 interface CodeEditorProps {
   value: string
   onChange: (value: string) => void
-  language: "javascript" | "json"
+  language: 'javascript' | 'json'
   placeholder?: string
   className?: string
   minHeight?: string
@@ -23,9 +23,9 @@ export function CodeEditor({
   value,
   onChange,
   language,
-  placeholder = "",
-  className = "",
-  minHeight = "360px",
+  placeholder = '',
+  className = '',
+  minHeight = '360px',
   highlightVariables = true,
   onKeyDown,
   disabled = false,
@@ -44,13 +44,13 @@ export function CodeEditor({
     if (!editorRef.current) return
 
     const calculateVisualLines = () => {
-      const preElement = editorRef.current?.querySelector("pre")
+      const preElement = editorRef.current?.querySelector('pre')
       if (!preElement) return
 
-      const lines = code.split("\n")
+      const lines = code.split('\n')
       const newVisualLineHeights: number[] = []
 
-      const container = document.createElement("div")
+      const container = document.createElement('div')
       container.style.cssText = `
         position: absolute;
         visibility: hidden;
@@ -64,8 +64,8 @@ export function CodeEditor({
       document.body.appendChild(container)
 
       lines.forEach((line) => {
-        const lineDiv = document.createElement("div")
-        lineDiv.textContent = line || " "
+        const lineDiv = document.createElement('div')
+        lineDiv.textContent = line || ' '
         container.appendChild(lineDiv)
         const actualHeight = lineDiv.getBoundingClientRect().height
         const lineUnits = Math.ceil(actualHeight / 21)
@@ -84,8 +84,8 @@ export function CodeEditor({
   }, [code])
 
   // Calculate the number of lines to determine gutter width
-  const lineCount = code.split("\n").length
-  const gutterWidth = lineCount >= 100 ? "40px" : lineCount >= 10 ? "35px" : "30px"
+  const lineCount = code.split('\n').length
+  const gutterWidth = lineCount >= 100 ? '40px' : lineCount >= 10 ? '35px' : '30px'
 
   // Render helpers
   const renderLineNumbers = () => {
@@ -97,7 +97,7 @@ export function CodeEditor({
         numbers.push(
           <div
             key={`${lineNumber}-${i}`}
-            className={cn("text-muted-foreground text-xs leading-[21px]", i > 0 && "invisible")}
+            className={cn('text-muted-foreground text-xs leading-[21px]', i > 0 && 'invisible')}
           >
             {lineNumber}
           </div>
@@ -111,7 +111,7 @@ export function CodeEditor({
 
   // Custom highlighter that highlights environment variables and tags
   const customHighlight = (code: string) => {
-    if (!highlightVariables || language !== "javascript") {
+    if (!highlightVariables || language !== 'javascript') {
       // Use default Prism highlighting for non-JS or when variable highlighting is off
       return highlight(code, languages[language], language)
     }
@@ -120,7 +120,7 @@ export function CodeEditor({
     let highlighted = highlight(code, languages[language], language)
 
     // Then, highlight environment variables with {{var_name}} syntax in blue
-    if (highlighted.includes("{{")) {
+    if (highlighted.includes('{{')) {
       highlighted = highlighted.replace(
         /\{\{([^}]+)\}\}/g,
         '<span class="text-blue-500">{{$1}}</span>'
@@ -128,10 +128,10 @@ export function CodeEditor({
     }
 
     // Also highlight tags with <tag_name> syntax in blue
-    if (highlighted.includes("<") && !language.includes("html")) {
+    if (highlighted.includes('<') && !language.includes('html')) {
       highlighted = highlighted.replace(/<([^>\s/]+)>/g, (match, group) => {
         // Avoid replacing HTML tags in comments
-        if (match.startsWith("<!--") || match.includes("</")) {
+        if (match.startsWith('<!--') || match.includes('</')) {
           return match
         }
         return `<span class="text-blue-500">&lt;${group}&gt;</span>`
@@ -144,27 +144,27 @@ export function CodeEditor({
   return (
     <div
       className={cn(
-        "group relative min-h-[100px] rounded-md border bg-background font-mono text-sm",
+        'group relative min-h-[100px] rounded-md border bg-background font-mono text-sm',
         className
       )}
     >
-      {code.split("\n").length > 5 && (
+      {code.split('\n').length > 5 && (
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
-            "absolute top-2 right-2 z-10 rounded-md p-1.5",
-            "bg-accent/50 text-muted-foreground hover:bg-accent hover:text-foreground",
-            "opacity-0 transition-opacity group-hover:opacity-100",
-            "font-medium text-xs"
+            'absolute top-2 right-2 z-10 rounded-md p-1.5',
+            'bg-accent/50 text-muted-foreground hover:bg-accent hover:text-foreground',
+            'opacity-0 transition-opacity group-hover:opacity-100',
+            'font-medium text-xs'
           )}
         >
-          {isCollapsed ? "Expand" : "Collapse"}
+          {isCollapsed ? 'Expand' : 'Collapse'}
         </button>
       )}
 
       <div
-        className="absolute top-0 bottom-0 left-0 flex select-none flex-col items-end overflow-hidden bg-muted/30 pt-3 pr-3"
-        aria-hidden="true"
+        className='absolute top-0 bottom-0 left-0 flex select-none flex-col items-end overflow-hidden bg-muted/30 pt-3 pr-3'
+        aria-hidden='true'
         style={{
           width: gutterWidth,
         }}
@@ -173,7 +173,7 @@ export function CodeEditor({
       </div>
 
       <div
-        className={cn("relative mt-0 pt-0", isCollapsed && "max-h-[126px] overflow-hidden")}
+        className={cn('relative mt-0 pt-0', isCollapsed && 'max-h-[126px] overflow-hidden')}
         ref={editorRef}
         style={{
           minHeight,
@@ -182,8 +182,8 @@ export function CodeEditor({
       >
         {code.length === 0 && placeholder && (
           <pre
-            className="pointer-events-none absolute top-[12px] select-none overflow-visible whitespace-pre-wrap text-muted-foreground/50"
-            style={{ left: `calc(${gutterWidth} + 12px)`, fontFamily: "inherit", margin: 0 }}
+            className='pointer-events-none absolute top-[12px] select-none overflow-visible whitespace-pre-wrap text-muted-foreground/50'
+            style={{ left: `calc(${gutterWidth} + 12px)`, fontFamily: 'inherit', margin: 0 }}
           >
             {placeholder}
           </pre>
@@ -202,14 +202,14 @@ export function CodeEditor({
           padding={12}
           disabled={disabled}
           style={{
-            fontFamily: "inherit",
-            minHeight: "46px",
-            lineHeight: "21px",
+            fontFamily: 'inherit',
+            minHeight: '46px',
+            lineHeight: '21px',
           }}
-          className={cn("focus:outline-none", isCollapsed && "pointer-events-none select-none")}
+          className={cn('focus:outline-none', isCollapsed && 'pointer-events-none select-none')}
           textareaClassName={cn(
-            "focus:outline-none focus:ring-0 bg-transparent",
-            (isCollapsed || disabled) && "pointer-events-none"
+            'focus:outline-none focus:ring-0 bg-transparent',
+            (isCollapsed || disabled) && 'pointer-events-none'
           )}
         />
       </div>

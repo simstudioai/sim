@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
-import { Button } from "@/components/ui/button"
-import { ArrowDown } from "lucide-react"
-import React, { type RefObject } from "react"
-import { type ChatMessage, ClientChatMessage } from "../message/message"
+import { Button } from '@/components/ui/button'
+import { ArrowDown } from 'lucide-react'
+import React, { type RefObject } from 'react'
+import { type ChatMessage, ClientChatMessage } from '../message/message'
 
 interface ChatMessageContainerProps {
   messages: ChatMessage[]
@@ -29,19 +29,19 @@ export function ChatMessageContainer({
   chatConfig,
 }: ChatMessageContainerProps) {
   return (
-    <div className="relative flex flex-1 flex-col overflow-hidden bg-white">
+    <div className='relative flex flex-1 flex-col overflow-hidden bg-white'>
       {/* Scrollable Messages Area */}
       <div
         ref={messagesContainerRef}
-        className="absolute inset-0 touch-pan-y overflow-y-auto overscroll-auto scroll-smooth"
+        className='absolute inset-0 touch-pan-y overflow-y-auto overscroll-auto scroll-smooth'
       >
-        <div className="mx-auto max-w-3xl px-4 pt-10 pb-20">
+        <div className='mx-auto max-w-3xl px-4 pt-10 pb-20'>
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10">
-              <div className="space-y-2 text-center">
-                <h3 className="font-medium text-lg">How can I help you today?</h3>
-                <p className="text-muted-foreground text-sm">
-                  {chatConfig?.description || "Ask me anything."}
+            <div className='flex flex-col items-center justify-center py-10'>
+              <div className='space-y-2 text-center'>
+                <h3 className='font-medium text-lg'>How can I help you today?</h3>
+                <p className='text-muted-foreground text-sm'>
+                  {chatConfig?.description || 'Ask me anything.'}
                 </p>
               </div>
             </div>
@@ -51,12 +51,12 @@ export function ChatMessageContainer({
 
           {/* Loading indicator (shows only when executing) */}
           {isLoading && (
-            <div className="px-4 py-5">
-              <div className="mx-auto max-w-3xl">
-                <div className="flex">
-                  <div className="max-w-[80%]">
-                    <div className="flex h-6 items-center">
-                      <div className="loading-dot h-3 w-3 rounded-full bg-gray-800 dark:bg-gray-300" />
+            <div className='px-4 py-5'>
+              <div className='mx-auto max-w-3xl'>
+                <div className='flex'>
+                  <div className='max-w-[80%]'>
+                    <div className='flex h-6 items-center'>
+                      <div className='loading-dot h-3 w-3 rounded-full bg-gray-800 dark:bg-gray-300' />
                     </div>
                   </div>
                 </div>
@@ -71,15 +71,15 @@ export function ChatMessageContainer({
 
       {/* Scroll to bottom button - appears when user scrolls up */}
       {showScrollButton && (
-        <div className="-translate-x-1/2 absolute bottom-16 left-1/2 z-20 transform">
+        <div className='-translate-x-1/2 absolute bottom-16 left-1/2 z-20 transform'>
           <Button
             onClick={scrollToBottom}
-            size="sm"
-            variant="outline"
-            className="flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 shadow-lg transition-all hover:bg-gray-50"
+            size='sm'
+            variant='outline'
+            className='flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 shadow-lg transition-all hover:bg-gray-50'
           >
-            <ArrowDown className="h-3.5 w-3.5" />
-            <span className="sr-only">Scroll to bottom</span>
+            <ArrowDown className='h-3.5 w-3.5' />
+            <span className='sr-only'>Scroll to bottom</span>
           </Button>
         </div>
       )}

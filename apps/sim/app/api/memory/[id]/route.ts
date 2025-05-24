@@ -1,13 +1,13 @@
-import { db } from "@/db"
-import { memory } from "@/db/schema"
-import { createLogger } from "@/lib/logs/console-logger"
-import { and, eq, isNull } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
+import { db } from '@/db'
+import { memory } from '@/db/schema'
+import { createLogger } from '@/lib/logs/console-logger'
+import { and, eq, isNull } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 
-const logger = createLogger("MemoryByIdAPI")
+const logger = createLogger('MemoryByIdAPI')
 
-export const dynamic = "force-dynamic"
-export const runtime = "nodejs"
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 /**
  * GET handler for retrieving a specific memory by ID
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Get workflowId from query parameter (required)
     const url = new URL(request.url)
-    const workflowId = url.searchParams.get("workflowId")
+    const workflowId = url.searchParams.get('workflowId')
 
     if (!workflowId) {
       logger.warn(`[${requestId}] Missing required parameter: workflowId`)
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         {
           success: false,
           error: {
-            message: "workflowId parameter is required",
+            message: 'workflowId parameter is required',
           },
         },
         { status: 400 }
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         {
           success: false,
           error: {
-            message: "Memory not found",
+            message: 'Memory not found',
           },
         },
         { status: 404 }
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       {
         success: false,
         error: {
-          message: error.message || "Failed to retrieve memory",
+          message: error.message || 'Failed to retrieve memory',
         },
       },
       { status: 500 }
@@ -93,7 +93,7 @@ export async function DELETE(
 
     // Get workflowId from query parameter (required)
     const url = new URL(request.url)
-    const workflowId = url.searchParams.get("workflowId")
+    const workflowId = url.searchParams.get('workflowId')
 
     if (!workflowId) {
       logger.warn(`[${requestId}] Missing required parameter: workflowId`)
@@ -101,7 +101,7 @@ export async function DELETE(
         {
           success: false,
           error: {
-            message: "workflowId parameter is required",
+            message: 'workflowId parameter is required',
           },
         },
         { status: 400 }
@@ -121,7 +121,7 @@ export async function DELETE(
         {
           success: false,
           error: {
-            message: "Memory not found",
+            message: 'Memory not found',
           },
         },
         { status: 404 }
@@ -141,7 +141,7 @@ export async function DELETE(
     return NextResponse.json(
       {
         success: true,
-        data: { message: "Memory deleted successfully" },
+        data: { message: 'Memory deleted successfully' },
       },
       { status: 200 }
     )
@@ -150,7 +150,7 @@ export async function DELETE(
       {
         success: false,
         error: {
-          message: error.message || "Failed to delete memory",
+          message: error.message || 'Failed to delete memory',
         },
       },
       { status: 500 }
@@ -178,7 +178,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         {
           success: false,
           error: {
-            message: "Memory data is required",
+            message: 'Memory data is required',
           },
         },
         { status: 400 }
@@ -191,7 +191,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         {
           success: false,
           error: {
-            message: "workflowId is required",
+            message: 'workflowId is required',
           },
         },
         { status: 400 }
@@ -211,7 +211,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         {
           success: false,
           error: {
-            message: "Memory not found",
+            message: 'Memory not found',
           },
         },
         { status: 404 }
@@ -221,27 +221,27 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const existingMemory = existingMemories[0]
 
     // Validate memory data based on the existing memory type
-    if (existingMemory.type === "agent") {
+    if (existingMemory.type === 'agent') {
       if (!data.role || !data.content) {
         logger.warn(`[${requestId}] Missing agent memory fields`)
         return NextResponse.json(
           {
             success: false,
             error: {
-              message: "Agent memory requires role and content",
+              message: 'Agent memory requires role and content',
             },
           },
           { status: 400 }
         )
       }
 
-      if (!["user", "assistant", "system"].includes(data.role)) {
+      if (!['user', 'assistant', 'system'].includes(data.role)) {
         logger.warn(`[${requestId}] Invalid agent role: ${data.role}`)
         return NextResponse.json(
           {
             success: false,
             error: {
-              message: "Agent role must be user, assistant, or system",
+              message: 'Agent role must be user, assistant, or system',
             },
           },
           { status: 400 }
@@ -278,7 +278,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       {
         success: false,
         error: {
-          message: error.message || "Failed to update memory",
+          message: error.message || 'Failed to update memory',
         },
       },
       { status: 500 }

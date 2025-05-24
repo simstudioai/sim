@@ -1,10 +1,10 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
-import { useSubBlockStore } from "@/stores/workflows/subblock/store"
-import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import { useEffect, useState } from "react"
+import { createLogger } from '@/lib/logs/console-logger'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useEffect, useState } from 'react'
 
-const logger = createLogger("useDeploymentChangeDetection")
+const logger = createLogger('useDeploymentChangeDetection')
 
 /**
  * Hook to detect when a deployed workflow needs redeployment due to changes
@@ -91,7 +91,7 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
           }
         }
       } catch (error) {
-        logger.error("Failed to check workflow change status:", { error })
+        logger.error('Failed to check workflow change status:', { error })
       }
     }
 
@@ -222,7 +222,7 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
             .setWorkflowNeedsRedeployment(requestedWorkflowId, data.needsRedeployment)
         }
       } catch (error) {
-        logger.error("Failed to check workflow status:", { error })
+        logger.error('Failed to check workflow status:', { error })
       }
     }
     checkDeploymentStatus()

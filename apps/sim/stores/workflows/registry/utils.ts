@@ -1,14 +1,14 @@
-import type { WorkflowMetadata } from "./types"
+import type { WorkflowMetadata } from './types'
 
 // Available workflow colors
 export const WORKFLOW_COLORS = [
-  "#3972F6",
-  "#F639DD",
-  "#F6B539",
-  "#8139F6",
-  "#39B54A",
-  "#39B5AB",
-  "#F66839",
+  '#3972F6',
+  '#F639DD',
+  '#F6B539',
+  '#8139F6',
+  '#39B54A',
+  '#39B5AB',
+  '#F66839',
 ]
 
 // Generates a unique name for a new workflow
@@ -22,7 +22,7 @@ export function generateUniqueName(existingWorkflows: Record<string, WorkflowMet
     .filter((n) => n > 0)
 
   if (numbers.length === 0) {
-    return "Workflow 1"
+    return 'Workflow 1'
   }
 
   // Find the maximum number and add 1

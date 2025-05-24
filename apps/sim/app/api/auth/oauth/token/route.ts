@@ -1,10 +1,10 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { type NextRequest, NextResponse } from "next/server"
-import { getCredential, getUserId, refreshTokenIfNeeded } from "../utils"
+import { createLogger } from '@/lib/logs/console-logger'
+import { type NextRequest, NextResponse } from 'next/server'
+import { getCredential, getUserId, refreshTokenIfNeeded } from '../utils'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = createLogger("OAuthTokenAPI")
+const logger = createLogger('OAuthTokenAPI')
 
 /**
  * Get an access token for a specific credential
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Credential ID is required`)
-      return NextResponse.json({ error: "Credential ID is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
     // Determine the user ID based on the context
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     if (!userId) {
       return NextResponse.json(
-        { error: workflowId ? "Workflow not found" : "User not authenticated" },
+        { error: workflowId ? 'Workflow not found' : 'User not authenticated' },
         { status: workflowId ? 404 : 401 }
       )
     }
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const credential = await getCredential(requestId, credentialId, userId)
 
     if (!credential) {
-      return NextResponse.json({ error: "Credential not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
     try {
@@ -46,11 +46,11 @@ export async function POST(request: NextRequest) {
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
       return NextResponse.json({ accessToken }, { status: 200 })
     } catch (error) {
-      return NextResponse.json({ error: "Failed to refresh access token" }, { status: 401 })
+      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
   } catch (error) {
     logger.error(`[${requestId}] Error getting access token`, error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -63,31 +63,31 @@ export async function GET(request: NextRequest) {
   try {
     // Get the credential ID from the query params
     const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get("credentialId")
+    const credentialId = searchParams.get('credentialId')
 
     if (!credentialId) {
       logger.warn(`[${requestId}] Missing credential ID`)
-      return NextResponse.json({ error: "Credential ID is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
     // For GET requests, we only support session-based authentication
     const userId = await getUserId(requestId)
 
     if (!userId) {
-      return NextResponse.json({ error: "User not authenticated" }, { status: 401 })
+      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
     // Get the credential from the database
     const credential = await getCredential(requestId, credentialId, userId)
 
     if (!credential) {
-      return NextResponse.json({ error: "Credential not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
     // Check if the access token is valid
     if (!credential.accessToken) {
       logger.warn(`[${requestId}] No access token available for credential`)
-      return NextResponse.json({ error: "No access token available" }, { status: 400 })
+      return NextResponse.json({ error: 'No access token available' }, { status: 400 })
     }
 
     try {
@@ -95,10 +95,10 @@ export async function GET(request: NextRequest) {
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
       return NextResponse.json({ accessToken }, { status: 200 })
     } catch (error) {
-      return NextResponse.json({ error: "Failed to refresh access token" }, { status: 401 })
+      return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
   } catch (error) {
     logger.error(`[${requestId}] Error fetching access token`, error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

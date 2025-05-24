@@ -1,20 +1,20 @@
-import type { BlockConfig, SubBlockConfig } from "@/blocks/types"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { parseCronToHumanReadable } from "@/lib/schedules/utils"
-import { cn, formatDateTime } from "@/lib/utils"
-import { useExecutionStore } from "@/stores/execution/store"
-import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
-import { mergeSubblockState } from "@/stores/workflows/utils"
-import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
-import { Handle, type NodeProps, Position, useUpdateNodeInternals } from "reactflow"
-import { ActionBar } from "./components/action-bar/action-bar"
-import { ConnectionBlocks } from "./components/connection-blocks/connection-blocks"
-import { SubBlock } from "./components/sub-block/sub-block"
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { parseCronToHumanReadable } from '@/lib/schedules/utils'
+import { cn, formatDateTime } from '@/lib/utils'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
+import { ActionBar } from './components/action-bar/action-bar'
+import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
+import { SubBlock } from './components/sub-block/sub-block'
 
 interface WorkflowBlockProps {
   type: string
@@ -31,7 +31,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   // State management
   const [isConnecting, setIsConnecting] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [editedName, setEditedName] = useState("")
+  const [editedName, setEditedName] = useState('')
   const [scheduleInfo, setScheduleInfo] = useState<{
     scheduleTiming: string
     nextRunAt: string | null
@@ -76,20 +76,20 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const reactivateSchedule = async (scheduleId: string) => {
     try {
       const response = await fetch(`/api/schedules/${scheduleId}`, {
-        method: "PUT",
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action: "reactivate" }),
+        body: JSON.stringify({ action: 'reactivate' }),
       })
 
       if (response.ok) {
         fetchScheduleInfo()
       } else {
-        console.error("Failed to reactivate schedule")
+        console.error('Failed to reactivate schedule')
       }
     } catch (error) {
-      console.error("Error reactivating schedule:", error)
+      console.error('Error reactivating schedule:', error)
     }
   }
 
@@ -100,9 +100,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       if (!workflowId) return
 
       const response = await fetch(`/api/schedules?workflowId=${workflowId}&mode=schedule`, {
-        cache: "no-store",
+        cache: 'no-store',
         headers: {
-          "Cache-Control": "no-cache",
+          'Cache-Control': 'no-cache',
         },
       })
 
@@ -118,7 +118,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         return
       }
 
-      let scheduleTiming = "Unknown schedule"
+      let scheduleTiming = 'Unknown schedule'
       if (data.schedule.cronExpression) {
         scheduleTiming = parseCronToHumanReadable(data.schedule.cronExpression)
       }
@@ -127,16 +127,16 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         scheduleTiming,
         nextRunAt: data.schedule.nextRunAt as string | null,
         lastRanAt: data.schedule.lastRanAt as string | null,
-        timezone: data.schedule.timezone || "UTC",
+        timezone: data.schedule.timezone || 'UTC',
         status: data.schedule.status as string,
-        isDisabled: data.schedule.status === "disabled",
+        isDisabled: data.schedule.status === 'disabled',
         id: data.schedule.id as string,
       }
 
       try {
         const statusRes = await fetch(`/api/schedules/${baseInfo.id}/status`, {
-          cache: "no-store",
-          headers: { "Cache-Control": "no-cache" },
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
         })
 
         if (statusRes.ok) {
@@ -153,12 +153,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           return
         }
       } catch (err) {
-        console.error("Error fetching schedule status:", err)
+        console.error('Error fetching schedule status:', err)
       }
 
       setScheduleInfo(baseInfo)
     } catch (error) {
-      console.error("Error fetching schedule info:", error)
+      console.error('Error fetching schedule info:', error)
       setScheduleInfo(null)
     } finally {
       setIsLoadingScheduleInfo(false)
@@ -166,7 +166,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }
 
   useEffect(() => {
-    if (type === "starter") {
+    if (type === 'starter') {
       fetchScheduleInfo()
     } else {
       setScheduleInfo(null)
@@ -174,7 +174,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }, [type])
 
   useEffect(() => {
-    if (type === "starter" && hasActiveWebhook) {
+    if (type === 'starter' && hasActiveWebhook) {
       const fetchWebhookInfo = async () => {
         try {
           const workflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -186,13 +186,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             if (data.webhooks?.[0]?.webhook) {
               const webhook = data.webhooks[0].webhook
               setWebhookInfo({
-                webhookPath: webhook.path || "",
-                provider: webhook.provider || "generic",
+                webhookPath: webhook.path || '',
+                provider: webhook.provider || 'generic',
               })
             }
           }
         } catch (error) {
-          console.error("Error fetching webhook info:", error)
+          console.error('Error fetching webhook info:', error)
         }
       }
 
@@ -267,8 +267,8 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
       // Filter by mode if specified
       if (block.mode) {
-        if (block.mode === "basic" && isAdvancedMode) return false
-        if (block.mode === "advanced" && !isAdvancedMode) return false
+        if (block.mode === 'basic' && isAdvancedMode) return false
+        if (block.mode === 'advanced' && !isAdvancedMode) return false
       }
 
       // If there's no condition, the block should be shown
@@ -306,7 +306,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     })
 
     visibleSubBlocks.forEach((block) => {
-      const blockWidth = block.layout === "half" ? 0.5 : 1
+      const blockWidth = block.layout === 'half' ? 0.5 : 1
       if (currentRowWidth + blockWidth > 1) {
         if (currentRow.length > 0) {
           rows.push([...currentRow])
@@ -343,50 +343,50 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }
 
   const handleNameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       handleNameSubmit()
-    } else if (e.key === "Escape") {
+    } else if (e.key === 'Escape') {
       setIsEditing(false)
     }
   }
 
   // Check if this is a starter block and if we need to show schedule / webhook indicators
-  const isStarterBlock = type === "starter"
+  const isStarterBlock = type === 'starter'
   const showWebhookIndicator = isStarterBlock && hasActiveWebhook
 
   const getProviderName = (providerId: string): string => {
     const providers: Record<string, string> = {
-      whatsapp: "WhatsApp",
-      github: "GitHub",
-      discord: "Discord",
-      stripe: "Stripe",
-      generic: "General",
-      slack: "Slack",
-      airtable: "Airtable",
-      gmail: "Gmail",
+      whatsapp: 'WhatsApp',
+      github: 'GitHub',
+      discord: 'Discord',
+      stripe: 'Stripe',
+      generic: 'General',
+      slack: 'Slack',
+      airtable: 'Airtable',
+      gmail: 'Gmail',
     }
-    return providers[providerId] || "Webhook"
+    return providers[providerId] || 'Webhook'
   }
 
   const shouldShowScheduleBadge = isStarterBlock && !isLoadingScheduleInfo && scheduleInfo !== null
 
   return (
-    <div className="group relative">
+    <div className='group relative'>
       <Card
         ref={blockRef}
         className={cn(
-          "relative cursor-default select-none shadow-md",
-          "transition-block-bg transition-ring",
-          isWide ? "w-[480px]" : "w-[320px]",
-          !isEnabled && "shadow-sm",
-          isActive && "animate-pulse-ring ring-2 ring-blue-500",
-          isPending && "ring-2 ring-amber-500",
-          "z-[20]"
+          'relative cursor-default select-none shadow-md',
+          'transition-block-bg transition-ring',
+          isWide ? 'w-[480px]' : 'w-[320px]',
+          !isEnabled && 'shadow-sm',
+          isActive && 'animate-pulse-ring ring-2 ring-blue-500',
+          isPending && 'ring-2 ring-amber-500',
+          'z-[20]'
         )}
       >
         {/* Show debug indicator for pending blocks */}
         {isPending && (
-          <div className="-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-amber-500 px-2 py-0.5 text-white text-xs">
+          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-amber-500 px-2 py-0.5 text-white text-xs'>
             Next Step
           </div>
         )}
@@ -395,30 +395,30 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         <ConnectionBlocks blockId={id} setIsConnecting={setIsConnecting} />
 
         {/* Input Handle - Don't show for starter blocks */}
-        {type !== "starter" && (
+        {type !== 'starter' && (
           <Handle
-            type="target"
+            type='target'
             position={horizontalHandles ? Position.Left : Position.Top}
-            id="target"
+            id='target'
             className={cn(
-              horizontalHandles ? "!w-[7px] !h-5" : "!w-5 !h-[7px]",
-              "!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none",
-              "!z-[30]",
-              "group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]",
+              horizontalHandles ? '!w-[7px] !h-5' : '!w-5 !h-[7px]',
+              '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
+              '!z-[30]',
+              'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
               horizontalHandles
-                ? "hover:!w-[10px] hover:!left-[-10px] hover:!rounded-l-full hover:!rounded-r-none"
-                : "hover:!h-[10px] hover:!top-[-10px] hover:!rounded-t-full hover:!rounded-b-none",
-              "!cursor-crosshair",
-              "transition-[colors] duration-150",
-              horizontalHandles ? "!left-[-7px]" : "!top-[-7px]"
+                ? 'hover:!w-[10px] hover:!left-[-10px] hover:!rounded-l-full hover:!rounded-r-none'
+                : 'hover:!h-[10px] hover:!top-[-10px] hover:!rounded-t-full hover:!rounded-b-none',
+              '!cursor-crosshair',
+              'transition-[colors] duration-150',
+              horizontalHandles ? '!left-[-7px]' : '!top-[-7px]'
             )}
             style={{
               ...(horizontalHandles
-                ? { top: "50%", transform: "translateY(-50%)" }
-                : { left: "50%", transform: "translateX(-50%)" }),
+                ? { top: '50%', transform: 'translateY(-50%)' }
+                : { left: '50%', transform: 'translateX(-50%)' }),
             }}
             data-nodeid={id}
-            data-handleid="target"
+            data-handleid='target'
             isConnectableStart={false}
             isConnectableEnd={true}
             isValidConnection={(connection) => true}
@@ -426,29 +426,29 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         {/* Block Header */}
-        <div className="workflow-drag-handle flex cursor-grab items-center justify-between border-b p-3 [&:active]:cursor-grabbing">
-          <div className="flex items-center gap-3">
+        <div className='workflow-drag-handle flex cursor-grab items-center justify-between border-b p-3 [&:active]:cursor-grabbing'>
+          <div className='flex items-center gap-3'>
             <div
-              className="flex h-7 w-7 items-center justify-center rounded"
-              style={{ backgroundColor: isEnabled ? config.bgColor : "gray" }}
+              className='flex h-7 w-7 items-center justify-center rounded'
+              style={{ backgroundColor: isEnabled ? config.bgColor : 'gray' }}
             >
-              <config.icon className="h-5 w-5 text-white" />
+              <config.icon className='h-5 w-5 text-white' />
             </div>
             {isEditing ? (
               <input
-                type="text"
+                type='text'
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value.slice(0, 18))}
                 onBlur={handleNameSubmit}
                 onKeyDown={handleNameKeyDown}
-                className="w-[180px] border-none bg-transparent p-0 font-medium text-md outline-none"
+                className='w-[180px] border-none bg-transparent p-0 font-medium text-md outline-none'
                 maxLength={18}
               />
             ) : (
               <span
                 className={cn(
-                  "cursor-text truncate font-medium text-md hover:text-muted-foreground",
-                  !isEnabled ? (isWide ? "max-w-[200px]" : "max-w-[100px]") : "max-w-[180px]"
+                  'cursor-text truncate font-medium text-md hover:text-muted-foreground',
+                  !isEnabled ? (isWide ? 'max-w-[200px]' : 'max-w-[100px]') : 'max-w-[180px]'
                 )}
                 onClick={handleNameClick}
                 title={name}
@@ -457,9 +457,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className='flex items-center gap-2'>
             {!isEnabled && (
-              <Badge variant="secondary" className="bg-gray-100 text-gray-500 hover:bg-gray-100">
+              <Badge variant='secondary' className='bg-gray-100 text-gray-500 hover:bg-gray-100'>
                 Disabled
               </Badge>
             )}
@@ -468,12 +468,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
-                    variant="outline"
+                    variant='outline'
                     className={cn(
-                      "flex items-center gap-1 font-normal text-xs",
+                      'flex items-center gap-1 font-normal text-xs',
                       scheduleInfo?.isDisabled
-                        ? "cursor-pointer border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400"
-                        : "border-green-200 bg-green-50 text-green-600 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400"
+                        ? 'cursor-pointer border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400'
+                        : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
                     )}
                     onClick={
                       scheduleInfo?.isDisabled && scheduleInfo?.id
@@ -481,48 +481,48 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         : undefined
                     }
                   >
-                    <div className="relative mr-0.5 flex items-center justify-center">
+                    <div className='relative mr-0.5 flex items-center justify-center'>
                       <div
                         className={cn(
-                          "absolute h-3 w-3 rounded-full",
-                          scheduleInfo?.isDisabled ? "bg-amber-500/20" : "bg-green-500/20"
+                          'absolute h-3 w-3 rounded-full',
+                          scheduleInfo?.isDisabled ? 'bg-amber-500/20' : 'bg-green-500/20'
                         )}
                       />
                       <div
                         className={cn(
-                          "relative h-2 w-2 rounded-full",
-                          scheduleInfo?.isDisabled ? "bg-amber-500" : "bg-green-500"
+                          'relative h-2 w-2 rounded-full',
+                          scheduleInfo?.isDisabled ? 'bg-amber-500' : 'bg-green-500'
                         )}
                       />
                     </div>
-                    {scheduleInfo?.isDisabled ? "Disabled" : "Scheduled"}
+                    {scheduleInfo?.isDisabled ? 'Disabled' : 'Scheduled'}
                   </Badge>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[300px] p-4">
+                <TooltipContent side='top' className='max-w-[300px] p-4'>
                   {scheduleInfo ? (
                     <>
-                      <p className="text-sm">{scheduleInfo.scheduleTiming}</p>
+                      <p className='text-sm'>{scheduleInfo.scheduleTiming}</p>
                       {scheduleInfo.isDisabled && (
-                        <p className="mt-1 font-medium text-amber-600 text-sm">
+                        <p className='mt-1 font-medium text-amber-600 text-sm'>
                           This schedule is currently disabled due to consecutive failures. Click the
                           badge to reactivate it.
                         </p>
                       )}
                       {scheduleInfo.nextRunAt && !scheduleInfo.isDisabled && (
-                        <p className="mt-1 text-muted-foreground text-xs">
-                          Next run:{" "}
+                        <p className='mt-1 text-muted-foreground text-xs'>
+                          Next run:{' '}
                           {formatDateTime(new Date(scheduleInfo.nextRunAt), scheduleInfo.timezone)}
                         </p>
                       )}
                       {scheduleInfo.lastRanAt && (
-                        <p className="text-muted-foreground text-xs">
-                          Last run:{" "}
+                        <p className='text-muted-foreground text-xs'>
+                          Last run:{' '}
                           {formatDateTime(new Date(scheduleInfo.lastRanAt), scheduleInfo.timezone)}
                         </p>
                       )}
                     </>
                   ) : (
-                    <p className="text-muted-foreground text-sm">
+                    <p className='text-muted-foreground text-sm'>
                       This workflow is running on a schedule.
                     </p>
                   )}
@@ -534,26 +534,26 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
-                    variant="outline"
-                    className="flex items-center gap-1 border-green-200 bg-green-50 font-normal text-green-600 text-xs hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400"
+                    variant='outline'
+                    className='flex items-center gap-1 border-green-200 bg-green-50 font-normal text-green-600 text-xs hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
                   >
-                    <div className="relative mr-0.5 flex items-center justify-center">
-                      <div className="absolute h-3 w-3 rounded-full bg-green-500/20" />
-                      <div className="relative h-2 w-2 rounded-full bg-green-500" />
+                    <div className='relative mr-0.5 flex items-center justify-center'>
+                      <div className='absolute h-3 w-3 rounded-full bg-green-500/20' />
+                      <div className='relative h-2 w-2 rounded-full bg-green-500' />
                     </div>
                     Webhook
                   </Badge>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[300px] p-4">
+                <TooltipContent side='top' className='max-w-[300px] p-4'>
                   {webhookInfo ? (
                     <>
-                      <p className="text-sm">{getProviderName(webhookInfo.provider)} Webhook</p>
-                      <p className="mt-1 text-muted-foreground text-xs">
+                      <p className='text-sm'>{getProviderName(webhookInfo.provider)} Webhook</p>
+                      <p className='mt-1 text-muted-foreground text-xs'>
                         Path: {webhookInfo.webhookPath}
                       </p>
                     </>
                   ) : (
-                    <p className="text-muted-foreground text-sm">
+                    <p className='text-muted-foreground text-sm'>
                       This workflow is triggered by a webhook.
                     </p>
                   )}
@@ -564,16 +564,16 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant='ghost'
+                    size='sm'
                     onClick={() => toggleBlockAdvancedMode(id)}
-                    className={cn("h-7 p-1 text-gray-500", blockAdvancedMode && "text-[#701FFC]")}
+                    className={cn('h-7 p-1 text-gray-500', blockAdvancedMode && 'text-[#701FFC]')}
                   >
-                    <Code className="h-5 w-5" />
+                    <Code className='h-5 w-5' />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">
-                  {blockAdvancedMode ? "Switch to Basic Mode" : "Switch to Advanced Mode"}
+                <TooltipContent side='top'>
+                  {blockAdvancedMode ? 'Switch to Basic Mode' : 'Switch to Advanced Mode'}
                 </TooltipContent>
               </Tooltip>
             )}
@@ -581,55 +581,55 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 p-1 text-gray-500"
+                    variant='ghost'
+                    size='sm'
+                    className='h-7 p-1 text-gray-500'
                     onClick={(e) => {
                       e.stopPropagation()
-                      window.open(config.docsLink, "_target", "noopener,noreferrer")
+                      window.open(config.docsLink, '_target', 'noopener,noreferrer')
                     }}
                   >
-                    <BookOpen className="h-5 w-5" />
+                    <BookOpen className='h-5 w-5' />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top">See Docs</TooltipContent>
+                <TooltipContent side='top'>See Docs</TooltipContent>
               </Tooltip>
             ) : (
               config.longDescription && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 p-1 text-gray-500">
-                      <Info className="h-5 w-5" />
+                    <Button variant='ghost' size='sm' className='h-7 p-1 text-gray-500'>
+                      <Info className='h-5 w-5' />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-[300px] p-4">
-                    <div className="space-y-3">
+                  <TooltipContent side='top' className='max-w-[300px] p-4'>
+                    <div className='space-y-3'>
                       <div>
-                        <p className="mb-1 font-medium text-sm">Description</p>
-                        <p className="text-muted-foreground text-sm">{config.longDescription}</p>
+                        <p className='mb-1 font-medium text-sm'>Description</p>
+                        <p className='text-muted-foreground text-sm'>{config.longDescription}</p>
                       </div>
                       {config.outputs && (
                         <div>
-                          <p className="mb-1 font-medium text-sm">Output</p>
-                          <div className="text-sm">
+                          <p className='mb-1 font-medium text-sm'>Output</p>
+                          <div className='text-sm'>
                             {Object.entries(config.outputs).map(([key, value]) => (
-                              <div key={key} className="mb-1">
-                                <span className="text-muted-foreground">{key}</span>{" "}
-                                {typeof value.type === "object" ? (
-                                  <div className="mt-1 pl-3">
+                              <div key={key} className='mb-1'>
+                                <span className='text-muted-foreground'>{key}</span>{' '}
+                                {typeof value.type === 'object' ? (
+                                  <div className='mt-1 pl-3'>
                                     {Object.entries(value.type).map(([typeKey, typeValue]) => (
-                                      <div key={typeKey} className="flex items-start">
-                                        <span className="font-medium text-blue-500">
+                                      <div key={typeKey} className='flex items-start'>
+                                        <span className='font-medium text-blue-500'>
                                           {typeKey}:
                                         </span>
-                                        <span className="ml-1 text-green-500">
+                                        <span className='ml-1 text-green-500'>
                                           {typeValue as string}
                                         </span>
                                       </div>
                                     ))}
                                   </div>
                                 ) : (
-                                  <span className="text-green-500">{value.type as string}</span>
+                                  <span className='text-green-500'>{value.type as string}</span>
                                 )}
                               </div>
                             ))}
@@ -644,32 +644,32 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="ghost"
-                  size="sm"
+                  variant='ghost'
+                  size='sm'
                   onClick={() => toggleBlockWide(id)}
-                  className="h-7 p-1 text-gray-500"
+                  className='h-7 p-1 text-gray-500'
                 >
                   {isWide ? (
-                    <RectangleHorizontal className="h-5 w-5" />
+                    <RectangleHorizontal className='h-5 w-5' />
                   ) : (
-                    <RectangleVertical className="h-5 w-5" />
+                    <RectangleVertical className='h-5 w-5' />
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top">{isWide ? "Narrow Block" : "Expand Block"}</TooltipContent>
+              <TooltipContent side='top'>{isWide ? 'Narrow Block' : 'Expand Block'}</TooltipContent>
             </Tooltip>
           </div>
         </div>
 
         {/* Block Content */}
-        <div ref={contentRef} className="cursor-pointer space-y-4 px-4 pt-3 pb-4">
+        <div ref={contentRef} className='cursor-pointer space-y-4 px-4 pt-3 pb-4'>
           {subBlockRows.length > 0
             ? subBlockRows.map((row, rowIndex) => (
-                <div key={`row-${rowIndex}`} className="flex gap-4">
+                <div key={`row-${rowIndex}`} className='flex gap-4'>
                   {row.map((subBlock, blockIndex) => (
                     <div
                       key={`${id}-${rowIndex}-${blockIndex}`}
-                      className={cn("space-y-1", subBlock.layout === "half" ? "flex-1" : "w-full")}
+                      className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
                     >
                       <SubBlock blockId={id} config={subBlock} isConnecting={isConnecting} />
                     </div>
@@ -680,71 +680,71 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         </div>
 
         {/* Output Handle */}
-        {type !== "condition" && (
+        {type !== 'condition' && (
           <>
             <Handle
-              type="source"
+              type='source'
               position={horizontalHandles ? Position.Right : Position.Bottom}
-              id="source"
+              id='source'
               className={cn(
-                horizontalHandles ? "!w-[7px] !h-5" : "!w-5 !h-[7px]",
-                "!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none",
-                "!z-[30]",
-                "group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]",
+                horizontalHandles ? '!w-[7px] !h-5' : '!w-5 !h-[7px]',
+                '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
+                '!z-[30]',
+                'group-hover:!shadow-[0_0_0_3px_rgba(156,163,175,0.15)]',
                 horizontalHandles
-                  ? "hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none"
-                  : "hover:!h-[10px] hover:!bottom-[-10px] hover:!rounded-b-full hover:!rounded-t-none",
-                "!cursor-crosshair",
-                "transition-[colors] duration-150",
-                horizontalHandles ? "!right-[-7px]" : "!bottom-[-7px]"
+                  ? 'hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none'
+                  : 'hover:!h-[10px] hover:!bottom-[-10px] hover:!rounded-b-full hover:!rounded-t-none',
+                '!cursor-crosshair',
+                'transition-[colors] duration-150',
+                horizontalHandles ? '!right-[-7px]' : '!bottom-[-7px]'
               )}
               style={{
                 ...(horizontalHandles
-                  ? { top: "50%", transform: "translateY(-50%)" }
-                  : { left: "50%", transform: "translateX(-50%)" }),
+                  ? { top: '50%', transform: 'translateY(-50%)' }
+                  : { left: '50%', transform: 'translateX(-50%)' }),
               }}
               data-nodeid={id}
-              data-handleid="source"
+              data-handleid='source'
               isConnectableStart={true}
               isConnectableEnd={false}
               isValidConnection={(connection) => true}
             />
 
             {/* Error Handle - Don't show for starter blocks */}
-            {type !== "starter" && (
+            {type !== 'starter' && (
               <Handle
-                type="source"
+                type='source'
                 position={horizontalHandles ? Position.Right : Position.Bottom}
-                id="error"
+                id='error'
                 className={cn(
-                  horizontalHandles ? "!w-[7px] !h-5" : "!w-5 !h-[7px]",
-                  "!bg-red-400 dark:!bg-red-500 !rounded-[2px] !border-none",
-                  "!z-[30]",
-                  "group-hover:!shadow-[0_0_0_3px_rgba(248,113,113,0.15)]",
+                  horizontalHandles ? '!w-[7px] !h-5' : '!w-5 !h-[7px]',
+                  '!bg-red-400 dark:!bg-red-500 !rounded-[2px] !border-none',
+                  '!z-[30]',
+                  'group-hover:!shadow-[0_0_0_3px_rgba(248,113,113,0.15)]',
                   horizontalHandles
-                    ? "hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none"
-                    : "hover:!h-[10px] hover:!bottom-[-10px] hover:!rounded-b-full hover:!rounded-t-none",
-                  "!cursor-crosshair",
-                  "transition-[colors] duration-150"
+                    ? 'hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none'
+                    : 'hover:!h-[10px] hover:!bottom-[-10px] hover:!rounded-b-full hover:!rounded-t-none',
+                  '!cursor-crosshair',
+                  'transition-[colors] duration-150'
                 )}
                 style={{
-                  position: "absolute",
+                  position: 'absolute',
                   ...(horizontalHandles
                     ? {
-                        right: "-8px",
-                        top: "auto",
-                        bottom: "30px",
-                        transform: "translateY(0)",
+                        right: '-8px',
+                        top: 'auto',
+                        bottom: '30px',
+                        transform: 'translateY(0)',
                       }
                     : {
-                        bottom: "-7px",
-                        left: "auto",
-                        right: "30px",
-                        transform: "translateX(0)",
+                        bottom: '-7px',
+                        left: 'auto',
+                        right: '30px',
+                        transform: 'translateX(0)',
                       }),
                 }}
                 data-nodeid={id}
-                data-handleid="error"
+                data-handleid='error'
                 isConnectableStart={true}
                 isConnectableEnd={false}
                 isValidConnection={(connection) => true}

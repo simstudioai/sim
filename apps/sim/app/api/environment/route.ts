@@ -1,14 +1,14 @@
-import { db } from "@/db"
-import { environment } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import { decryptSecret, encryptSecret } from "@/lib/utils"
-import type { EnvironmentVariable } from "@/stores/settings/environment/types"
-import { eq } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
-import { z } from "zod"
+import { db } from '@/db'
+import { environment } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { decryptSecret, encryptSecret } from '@/lib/utils'
+import type { EnvironmentVariable } from '@/stores/settings/environment/types'
+import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 
-const logger = createLogger("EnvironmentAPI")
+const logger = createLogger('EnvironmentAPI')
 
 // Schema for environment variable updates
 const EnvVarSchema = z.object({
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized environment variables update attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await req.json()
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
           errors: validationError.errors,
         })
         return NextResponse.json(
-          { error: "Invalid request data", details: validationError.errors },
+          { error: 'Invalid request data', details: validationError.errors },
           { status: 400 }
         )
       }
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     logger.error(`[${requestId}] Error updating environment variables`, error)
-    return NextResponse.json({ error: "Failed to update environment variables" }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to update environment variables' }, { status: 500 })
   }
 }
 
@@ -84,7 +84,7 @@ export async function GET(request: Request) {
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized environment variables access attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const userId = session.user.id
@@ -111,7 +111,7 @@ export async function GET(request: Request) {
       } catch (error) {
         logger.error(`[${requestId}] Error decrypting variable ${key}`, error)
         // If decryption fails, provide a placeholder
-        decryptedVariables[key] = { key, value: "" }
+        decryptedVariables[key] = { key, value: '' }
       }
     }
 

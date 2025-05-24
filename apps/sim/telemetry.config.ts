@@ -22,25 +22,25 @@
  * - API keys or tokens
  * - IP addresses or geolocation data
  */
-import { env } from "./lib/env"
+import { env } from './lib/env'
 
 const config = {
   /**
    * Endpoint URL where telemetry data is sent
    * Change this if you want to send telemetry to your own collector
    */
-  endpoint: env.TELEMETRY_ENDPOINT || "https://telemetry.simstudio.ai/v1/traces",
+  endpoint: env.TELEMETRY_ENDPOINT || 'https://telemetry.simstudio.ai/v1/traces',
 
   /**
    * Service name used to identify this instance
    * You can change this
    */
-  serviceName: "sim-studio",
+  serviceName: 'sim-studio',
 
   /**
    * Version of the service, defaults to the app version
    */
-  serviceVersion: "0.1.0",
+  serviceVersion: '0.1.0',
 
   /**
    * Batch settings for sending telemetry
@@ -60,7 +60,7 @@ const config = {
    * Categories of events that can be collected
    * This is used for validation when events are sent
    */
-  allowedCategories: ["page_view", "feature_usage", "performance", "error", "workflow", "consent"],
+  allowedCategories: ['page_view', 'feature_usage', 'performance', 'error', 'workflow', 'consent'],
 
   /**
    * Client-side instrumentation settings

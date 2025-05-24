@@ -1,5 +1,5 @@
-import OpenAI from "openai"
-import { env } from "./env"
+import OpenAI from 'openai'
+import { env } from './env'
 
 /**
  * Generates a short title for a chat based on the first message
@@ -17,15 +17,15 @@ export async function generateChatTitle(message: string): Promise<string | null>
     const openai = new OpenAI({ apiKey })
 
     const response = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
+      model: 'gpt-3.5-turbo',
       messages: [
         {
-          role: "system",
+          role: 'system',
           content:
-            "Generate a very short title (3-5 words max) for a chat that starts with this message. The title should be concise and descriptive.",
+            'Generate a very short title (3-5 words max) for a chat that starts with this message. The title should be concise and descriptive.',
         },
         {
-          role: "user",
+          role: 'user',
           content: message,
         },
       ],
@@ -36,7 +36,7 @@ export async function generateChatTitle(message: string): Promise<string | null>
     const title = response.choices[0]?.message?.content?.trim() || null
     return title
   } catch (error) {
-    console.error("Error generating chat title:", error)
+    console.error('Error generating chat title:', error)
     return null
   }
 }

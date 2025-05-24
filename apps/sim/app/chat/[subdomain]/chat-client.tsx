@@ -1,17 +1,17 @@
-"use client"
+'use client'
 
-import { getFormattedGitHubStars } from "@/app/(landing)/actions/github"
-import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from "react"
-import { v4 as uuidv4 } from "uuid"
-import EmailAuth from "./components/auth/email/email-auth"
-import PasswordAuth from "./components/auth/password/password-auth"
-import { ChatErrorState } from "./components/error-state/error-state"
-import { ChatHeader } from "./components/header/header"
-import { ChatInput } from "./components/input/input"
-import { ChatLoadingState } from "./components/loading-state/loading-state"
-import { ChatMessageContainer } from "./components/message-container/message-container"
-import type { ChatMessage } from "./components/message/message"
-import { useChatStreaming } from "./hooks/use-chat-streaming"
+import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
+import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
+import EmailAuth from './components/auth/email/email-auth'
+import PasswordAuth from './components/auth/password/password-auth'
+import { ChatErrorState } from './components/error-state/error-state'
+import { ChatHeader } from './components/header/header'
+import { ChatInput } from './components/input/input'
+import { ChatLoadingState } from './components/loading-state/loading-state'
+import { ChatMessageContainer } from './components/message-container/message-container'
+import type { ChatMessage } from './components/message/message'
+import { useChatStreaming } from './hooks/use-chat-streaming'
 
 interface ChatConfig {
   id: string
@@ -23,19 +23,19 @@ interface ChatConfig {
     welcomeMessage?: string
     headerText?: string
   }
-  authType?: "public" | "password" | "email"
+  authType?: 'public' | 'password' | 'email'
 }
 
 export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [inputValue, setInputValue] = useState("")
+  const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [chatConfig, setChatConfig] = useState<ChatConfig | null>(null)
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const [starCount, setStarCount] = useState("3.4k")
-  const [conversationId, setConversationId] = useState("")
+  const [starCount, setStarCount] = useState('3.4k')
+  const [conversationId, setConversationId] = useState('')
 
   // Simple state for showing scroll button
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -45,7 +45,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const isUserScrollingRef = useRef(false)
 
   // Authentication state
-  const [authRequired, setAuthRequired] = useState<"password" | "email" | null>(null)
+  const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
 
   // Use the custom streaming hook
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
@@ -53,7 +53,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
   }
 
@@ -71,7 +71,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
         container.scrollTo({
           top: scrollTop,
-          behavior: "smooth",
+          behavior: 'smooth',
         })
       } else {
         // Original behavior: Calculate scroll position to put the message near the top of the visible area
@@ -79,7 +79,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
         container.scrollTo({
           top: scrollTop,
-          behavior: "smooth",
+          behavior: 'smooth',
         })
       }
     }
@@ -100,8 +100,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       }
     }
 
-    container.addEventListener("scroll", handleScroll, { passive: true })
-    return () => container.removeEventListener("scroll", handleScroll)
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => container.removeEventListener('scroll', handleScroll)
   }, [isStreamingResponse])
 
   // Reset user scroll tracking when streaming starts
@@ -121,9 +121,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const fetchChatConfig = async () => {
     try {
       const response = await fetch(`/api/chat/${subdomain}`, {
-        credentials: "same-origin",
+        credentials: 'same-origin',
         headers: {
-          "X-Requested-With": "XMLHttpRequest",
+          'X-Requested-With': 'XMLHttpRequest',
         },
       })
 
@@ -132,12 +132,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         if (response.status === 401) {
           const errorData = await response.json()
 
-          if (errorData.error === "auth_required_password") {
-            setAuthRequired("password")
+          if (errorData.error === 'auth_required_password') {
+            setAuthRequired('password')
             return
           }
-          if (errorData.error === "auth_required_email") {
-            setAuthRequired("email")
+          if (errorData.error === 'auth_required_email') {
+            setAuthRequired('email')
             return
           }
         }
@@ -152,17 +152,17 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       if (data?.customizations?.welcomeMessage) {
         setMessages([
           {
-            id: "welcome",
+            id: 'welcome',
             content: data.customizations.welcomeMessage,
-            type: "assistant",
+            type: 'assistant',
             timestamp: new Date(),
             isInitialMessage: true,
           },
         ])
       }
     } catch (error) {
-      console.error("Error fetching chat config:", error)
-      setError("This chat is currently unavailable. Please try again later.")
+      console.error('Error fetching chat config:', error)
+      setError('This chat is currently unavailable. Please try again later.')
     }
   }
 
@@ -178,13 +178,13 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         setStarCount(formattedStars)
       })
       .catch((err) => {
-        console.error("Failed to fetch GitHub stars:", err)
+        console.error('Failed to fetch GitHub stars:', err)
       })
   }, [subdomain])
 
   // Handle keyboard input for message sending
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
     }
@@ -201,13 +201,13 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       content: messageToSend,
-      type: "user",
+      type: 'user',
       timestamp: new Date(),
     }
 
     // Add the user's message to the chat
     setMessages((prev) => [...prev, userMessage])
-    setInputValue("")
+    setInputValue('')
     setIsLoading(true)
 
     // Scroll to show only the user's message and loading indicator
@@ -227,24 +227,24 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       // Use relative URL with credentials
       const response = await fetch(`/api/chat/${subdomain}`, {
-        method: "POST",
-        credentials: "same-origin",
+        method: 'POST',
+        credentials: 'same-origin',
         headers: {
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest",
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(payload),
         signal: abortControllerRef.current.signal,
       })
 
       if (!response.ok) {
-        throw new Error("Failed to get response")
+        throw new Error('Failed to get response')
       }
 
       // Detect streaming response via content-type (text/plain) or absence of JSON content-type
-      const contentType = response.headers.get("Content-Type") || ""
+      const contentType = response.headers.get('Content-Type') || ''
 
-      if (contentType.includes("text/plain")) {
+      if (contentType.includes('text/plain')) {
         // Handle streaming response - pass the current userHasScrolled value
         await handleStreamedResponse(
           response,
@@ -256,7 +256,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       } else {
         // Fallback to JSON response handling
         const responseData = await response.json()
-        console.log("Message response:", responseData)
+        console.log('Message response:', responseData)
 
         // Handle different response formats from API
         if (
@@ -270,18 +270,18 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             let formattedContent = content
 
             // Convert objects to strings for display
-            if (typeof formattedContent === "object" && formattedContent !== null) {
+            if (typeof formattedContent === 'object' && formattedContent !== null) {
               try {
                 formattedContent = JSON.stringify(formattedContent)
               } catch (e) {
-                formattedContent = "Received structured data response"
+                formattedContent = 'Received structured data response'
               }
             }
 
             return {
               id: crypto.randomUUID(),
-              content: formattedContent || "No content found",
-              type: "assistant" as const,
+              content: formattedContent || 'No content found',
+              type: 'assistant' as const,
               timestamp: new Date(),
             }
           })
@@ -293,14 +293,14 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           let messageContent = responseData.output
 
           if (!messageContent && responseData.content) {
-            if (typeof responseData.content === "object") {
+            if (typeof responseData.content === 'object') {
               if (responseData.content.text) {
                 messageContent = responseData.content.text
               } else {
                 try {
                   messageContent = JSON.stringify(responseData.content)
                 } catch (e) {
-                  messageContent = "Received structured data response"
+                  messageContent = 'Received structured data response'
                 }
               }
             } else {
@@ -311,7 +311,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           const assistantMessage: ChatMessage = {
             id: crypto.randomUUID(),
             content: messageContent || "Sorry, I couldn't process your request.",
-            type: "assistant",
+            type: 'assistant',
             timestamp: new Date(),
           }
 
@@ -319,12 +319,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         }
       }
     } catch (error) {
-      console.error("Error sending message:", error)
+      console.error('Error sending message:', error)
 
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
-        content: "Sorry, there was an error processing your message. Please try again.",
-        type: "assistant",
+        content: 'Sorry, there was an error processing your message. Please try again.',
+        type: 'assistant',
         timestamp: new Date(),
       }
 
@@ -342,10 +342,10 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // If authentication is required, use the extracted components
   if (authRequired) {
     // Get title and description from the URL params or use defaults
-    const title = new URLSearchParams(window.location.search).get("title") || "chat"
-    const primaryColor = new URLSearchParams(window.location.search).get("color") || "#802FFF"
+    const title = new URLSearchParams(window.location.search).get('title') || 'chat'
+    const primaryColor = new URLSearchParams(window.location.search).get('color') || '#802FFF'
 
-    if (authRequired === "password") {
+    if (authRequired === 'password') {
       return (
         <PasswordAuth
           subdomain={subdomain}
@@ -356,7 +356,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         />
       )
     }
-    if (authRequired === "email") {
+    if (authRequired === 'email') {
       return (
         <EmailAuth
           subdomain={subdomain}
@@ -375,7 +375,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-background">
+    <div className='fixed inset-0 z-[100] flex flex-col bg-background'>
       <style jsx>{`
         @keyframes growShrink {
           0%,
@@ -407,8 +407,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       />
 
       {/* Input area (free-standing at the bottom) */}
-      <div className="relative p-4 pb-6">
-        <div className="relative mx-auto max-w-3xl">
+      <div className='relative p-4 pb-6'>
+        <div className='relative mx-auto max-w-3xl'>
           <ChatInput
             onSubmit={(value) => {
               void handleSendMessage(value)

@@ -1,10 +1,10 @@
-import type { StreamingExecution } from "@/executor/types"
-import { createLogger } from "@/lib/logs/console-logger"
-import { executeTool } from "@/tools"
-import { Cerebras } from "@cerebras/cerebras_cloud_sdk"
-import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
+import type { StreamingExecution } from '@/executor/types'
+import { createLogger } from '@/lib/logs/console-logger'
+import { executeTool } from '@/tools'
+import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
+import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
-const logger = createLogger("CerebrasProvider")
+const logger = createLogger('CerebrasProvider')
 
 /**
  * Helper to convert a Cerebras streaming response (async iterable) into a ReadableStream.
@@ -18,7 +18,7 @@ function createReadableStreamFromCerebrasStream(
       try {
         for await (const chunk of cerebrasStream) {
           // Expecting delta content similar to OpenAI: chunk.choices[0]?.delta?.content
-          const content = chunk.choices?.[0]?.delta?.content || ""
+          const content = chunk.choices?.[0]?.delta?.content || ''
           if (content) {
             controller.enqueue(new TextEncoder().encode(content))
           }
@@ -32,17 +32,17 @@ function createReadableStreamFromCerebrasStream(
 }
 
 export const cerebrasProvider: ProviderConfig = {
-  id: "cerebras",
-  name: "Cerebras",
-  description: "Cerebras Cloud LLMs",
-  version: "1.0.0",
-  models: ["cerebras/llama-3.3-70b"],
-  defaultModel: "cerebras/llama-3.3-70b",
+  id: 'cerebras',
+  name: 'Cerebras',
+  description: 'Cerebras Cloud LLMs',
+  version: '1.0.0',
+  models: ['cerebras/llama-3.3-70b'],
+  defaultModel: 'cerebras/llama-3.3-70b',
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
-      throw new Error("API key is required for Cerebras")
+      throw new Error('API key is required for Cerebras')
     }
 
     // Start execution timer for the entire provider execution
@@ -60,7 +60,7 @@ export const cerebrasProvider: ProviderConfig = {
       // Add system prompt if present
       if (request.systemPrompt) {
         allMessages.push({
-          role: "system",
+          role: 'system',
           content: request.systemPrompt,
         })
       }
@@ -68,7 +68,7 @@ export const cerebrasProvider: ProviderConfig = {
       // Add context if present
       if (request.context) {
         allMessages.push({
-          role: "user",
+          role: 'user',
           content: request.context,
         })
       }
@@ -81,7 +81,7 @@ export const cerebrasProvider: ProviderConfig = {
       // Transform tools to Cerebras format if provided
       const tools = request.tools?.length
         ? request.tools.map((tool) => ({
-            type: "function",
+            type: 'function',
             function: {
               name: tool.id,
               description: tool.description,
@@ -92,7 +92,7 @@ export const cerebrasProvider: ProviderConfig = {
 
       // Build the request payload
       const payload: any = {
-        model: (request.model || "cerebras/llama-3.3-70b").replace("cerebras/", ""),
+        model: (request.model || 'cerebras/llama-3.3-70b').replace('cerebras/', ''),
         messages: allMessages,
       }
 
@@ -103,7 +103,7 @@ export const cerebrasProvider: ProviderConfig = {
       // Add response format for structured output if specified
       if (request.responseFormat) {
         payload.response_format = {
-          type: "json_schema",
+          type: 'json_schema',
           schema: request.responseFormat.schema || request.responseFormat,
         }
       }
@@ -115,17 +115,17 @@ export const cerebrasProvider: ProviderConfig = {
           const toolId = tool.function?.name
           const toolConfig = request.tools?.find((t) => t.id === toolId)
           // Only filter out tools with usageControl='none'
-          return toolConfig?.usageControl !== "none"
+          return toolConfig?.usageControl !== 'none'
         })
 
         if (filteredTools?.length) {
           payload.tools = filteredTools
           // Always use 'auto' for Cerebras, explicitly converting any 'force' usageControl to 'auto'
-          payload.tool_choice = "auto"
+          payload.tool_choice = 'auto'
 
-          logger.info("Cerebras request configuration:", {
+          logger.info('Cerebras request configuration:', {
             toolCount: filteredTools.length,
-            toolChoice: "auto", // Cerebras always uses auto, 'force' is treated as 'auto'
+            toolChoice: 'auto', // Cerebras always uses auto, 'force' is treated as 'auto'
             model: request.model,
           })
         } else if (tools.length > 0 && filteredTools.length === 0) {
@@ -136,7 +136,7 @@ export const cerebrasProvider: ProviderConfig = {
 
       // EARLY STREAMING: if streaming requested and no tools to execute, stream directly
       if (request.stream && (!tools || tools.length === 0)) {
-        logger.info("Using streaming response for Cerebras request (no tools)")
+        logger.info('Using streaming response for Cerebras request (no tools)')
         const streamResponse: any = await client.chat.completions.create({
           ...payload,
           stream: true,
@@ -156,8 +156,8 @@ export const cerebrasProvider: ProviderConfig = {
             success: true,
             output: {
               response: {
-                content: "", // Will be filled by streaming content in chat component
-                model: request.model || "cerebras/llama-3.3-70b",
+                content: '', // Will be filled by streaming content in chat component
+                model: request.model || 'cerebras/llama-3.3-70b',
                 tokens: tokenUsage,
                 toolCalls: undefined,
                 providerTiming: {
@@ -166,8 +166,8 @@ export const cerebrasProvider: ProviderConfig = {
                   duration: Date.now() - providerStartTime,
                   timeSegments: [
                     {
-                      type: "model",
-                      name: "Streaming response",
+                      type: 'model',
+                      name: 'Streaming response',
                       startTime: providerStartTime,
                       endTime: Date.now(),
                       duration: Date.now() - providerStartTime,
@@ -202,7 +202,7 @@ export const cerebrasProvider: ProviderConfig = {
       let currentResponse = (await client.chat.completions.create(payload)) as CerebrasResponse
       const firstResponseTime = Date.now() - initialCallTime
 
-      let content = currentResponse.choices[0]?.message?.content || ""
+      let content = currentResponse.choices[0]?.message?.content || ''
       const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
@@ -221,8 +221,8 @@ export const cerebrasProvider: ProviderConfig = {
       // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
-          type: "model",
-          name: "Initial response",
+          type: 'model',
+          name: 'Initial response',
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -294,7 +294,7 @@ export const cerebrasProvider: ProviderConfig = {
 
               // Add to time segments
               timeSegments.push({
-                type: "tool",
+                type: 'tool',
                 name: toolName,
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -313,12 +313,12 @@ export const cerebrasProvider: ProviderConfig = {
 
               // Add the tool call and result to messages
               currentMessages.push({
-                role: "assistant",
+                role: 'assistant',
                 content: null,
                 tool_calls: [
                   {
                     id: toolCall.id,
-                    type: "function",
+                    type: 'function',
                     function: {
                       name: toolName,
                       arguments: toolCall.function.arguments,
@@ -328,12 +328,12 @@ export const cerebrasProvider: ProviderConfig = {
               })
 
               currentMessages.push({
-                role: "tool",
+                role: 'tool',
                 tool_call_id: toolCall.id,
                 content: JSON.stringify(result.output),
               })
             } catch (error) {
-              logger.error("Error processing tool call:", { error })
+              logger.error('Error processing tool call:', { error })
             }
           }
 
@@ -353,7 +353,7 @@ export const cerebrasProvider: ProviderConfig = {
             }
 
             // Use tool_choice: 'none' for the final response to avoid an infinite loop
-            finalPayload.tool_choice = "none"
+            finalPayload.tool_choice = 'none'
 
             const finalResponse = (await client.chat.completions.create(
               finalPayload
@@ -364,8 +364,8 @@ export const cerebrasProvider: ProviderConfig = {
 
             // Add to time segments
             timeSegments.push({
-              type: "model",
-              name: "Final response",
+              type: 'model',
+              name: 'Final response',
               startTime: nextModelStartTime,
               endTime: nextModelEndTime,
               duration: thisModelTime,
@@ -409,7 +409,7 @@ export const cerebrasProvider: ProviderConfig = {
 
             // Add to time segments
             timeSegments.push({
-              type: "model",
+              type: 'model',
               name: `Model response (iteration ${iterationCount + 1})`,
               startTime: nextModelStartTime,
               endTime: nextModelEndTime,
@@ -430,7 +430,7 @@ export const cerebrasProvider: ProviderConfig = {
           }
         }
       } catch (error) {
-        logger.error("Error in Cerebras tool processing:", { error })
+        logger.error('Error in Cerebras tool processing:', { error })
       }
 
       // Calculate overall timing
@@ -440,14 +440,14 @@ export const cerebrasProvider: ProviderConfig = {
 
       // POST-TOOL-STREAMING: stream after tool calls if requested
       if (request.stream && iterationCount > 0) {
-        logger.info("Using streaming for final Cerebras response after tool calls")
+        logger.info('Using streaming for final Cerebras response after tool calls')
 
         // When streaming after tool calls with forced tools, make sure tool_choice is set to 'auto'
         // This prevents the API from trying to force tool usage again in the final streaming response
         const streamingPayload = {
           ...payload,
           messages: currentMessages,
-          tool_choice: "auto", // Always use 'auto' for the streaming response after tool calls
+          tool_choice: 'auto', // Always use 'auto' for the streaming response after tool calls
           stream: true,
         }
 
@@ -460,8 +460,8 @@ export const cerebrasProvider: ProviderConfig = {
             success: true,
             output: {
               response: {
-                content: "", // Will be filled by the callback
-                model: request.model || "cerebras/llama-3.3-70b",
+                content: '', // Will be filled by the callback
+                model: request.model || 'cerebras/llama-3.3-70b',
                 tokens: {
                   prompt: tokens.prompt,
                   completion: tokens.completion,
@@ -528,7 +528,7 @@ export const cerebrasProvider: ProviderConfig = {
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error("Error in Cerebras request:", {
+      logger.error('Error in Cerebras request:', {
         error,
         duration: totalDuration,
       })

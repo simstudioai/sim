@@ -1,41 +1,41 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import type { ToolConfig } from "../types"
+import { createLogger } from '@/lib/logs/console-logger'
+import type { ToolConfig } from '../types'
 import type {
   DiscordAPIError,
   DiscordGetUserParams,
   DiscordGetUserResponse,
   DiscordUser,
-} from "./types"
+} from './types'
 
-const logger = createLogger("DiscordGetUser")
+const logger = createLogger('DiscordGetUser')
 
 export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUserResponse> = {
-  id: "discord_get_user",
-  name: "Discord Get User",
-  description: "Retrieve information about a Discord user",
-  version: "1.0.0",
+  id: 'discord_get_user',
+  name: 'Discord Get User',
+  description: 'Retrieve information about a Discord user',
+  version: '1.0.0',
 
   params: {
     botToken: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "Discord bot token for authentication",
+      description: 'Discord bot token for authentication',
     },
     userId: {
-      type: "string",
+      type: 'string',
       required: true,
       optionalToolInput: true,
-      description: "The Discord user ID",
+      description: 'The Discord user ID',
     },
   },
 
   request: {
     url: (params: DiscordGetUserParams) => `https://discord.com/api/v10/users/${params.userId}`,
-    method: "GET",
+    method: 'GET',
     headers: (params: DiscordGetUserParams) => {
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       }
 
       if (params.botToken) {
@@ -53,9 +53,9 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
       try {
         const errorData = (await response.json()) as DiscordAPIError
         errorMessage = `Failed to get Discord user: ${errorData.message || response.statusText}`
-        logger.error("Discord API error", { status: response.status, error: errorData })
+        logger.error('Discord API error', { status: response.status, error: errorData })
       } catch (e) {
-        logger.error("Error parsing Discord API response", { status: response.status, error: e })
+        logger.error('Error parsing Discord API response', { status: response.status, error: e })
       }
 
       return {
@@ -73,8 +73,8 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
     } catch (e) {
       return {
         success: false,
-        error: "Failed to parse user data",
-        output: { message: "Failed to parse user data" },
+        error: 'Failed to parse user data',
+        output: { message: 'Failed to parse user data' },
       }
     }
 
@@ -88,7 +88,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
   },
 
   transformError: (error) => {
-    logger.error("Error retrieving Discord user information", { error })
+    logger.error('Error retrieving Discord user information', { error })
     return `Error retrieving Discord user information: ${error.error}`
   },
 }

@@ -1,11 +1,11 @@
-"use client"
+'use client'
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { OTPInputForm } from "@/components/ui/input-otp-form"
-import { Loader2, Mail } from "lucide-react"
-import { type KeyboardEvent, useState } from "react"
-import { ChatHeader } from "../../header/header"
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { OTPInputForm } from '@/components/ui/input-otp-form'
+import { Loader2, Mail } from 'lucide-react'
+import { type KeyboardEvent, useState } from 'react'
+import { ChatHeader } from '../../header/header'
 
 interface EmailAuthProps {
   subdomain: string
@@ -19,22 +19,22 @@ export default function EmailAuth({
   subdomain,
   starCount,
   onAuthSuccess,
-  title = "chat",
-  primaryColor = "#802FFF",
+  title = 'chat',
+  primaryColor = '#802FFF',
 }: EmailAuthProps) {
   // Email auth state
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState('')
   const [authError, setAuthError] = useState<string | null>(null)
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
 
   // OTP verification state
   const [showOtpVerification, setShowOtpVerification] = useState(false)
-  const [otpValue, setOtpValue] = useState("")
+  const [otpValue, setOtpValue] = useState('')
 
   // Handle email input key down
   const handleEmailKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       e.preventDefault()
       handleSendOtp()
     }
@@ -42,7 +42,7 @@ export default function EmailAuth({
 
   // Handle OTP input key down
   const handleOtpKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       e.preventDefault()
       handleVerifyOtp()
     }
@@ -55,25 +55,25 @@ export default function EmailAuth({
 
     try {
       const response = await fetch(`/api/chat/${subdomain}/otp`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest",
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ email }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        setAuthError(errorData.error || "Failed to send verification code")
+        setAuthError(errorData.error || 'Failed to send verification code')
         return
       }
 
       // OTP sent successfully, show OTP input
       setShowOtpVerification(true)
     } catch (error) {
-      console.error("Error sending OTP:", error)
-      setAuthError("An error occurred while sending the verification code")
+      console.error('Error sending OTP:', error)
+      setAuthError('An error occurred while sending the verification code')
     } finally {
       setIsSendingOtp(false)
     }
@@ -86,25 +86,25 @@ export default function EmailAuth({
 
     try {
       const response = await fetch(`/api/chat/${subdomain}/otp`, {
-        method: "PUT",
+        method: 'PUT',
         headers: {
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest",
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ email, otp: otpValue }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        setAuthError(errorData.error || "Invalid verification code")
+        setAuthError(errorData.error || 'Invalid verification code')
         return
       }
 
       // Reset auth state and notify parent
       onAuthSuccess()
     } catch (error) {
-      console.error("Error verifying OTP:", error)
-      setAuthError("An error occurred during verification")
+      console.error('Error verifying OTP:', error)
+      setAuthError('An error occurred during verification')
     } finally {
       setIsVerifyingOtp(false)
     }
@@ -117,140 +117,140 @@ export default function EmailAuth({
 
     try {
       const response = await fetch(`/api/chat/${subdomain}/otp`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          "X-Requested-With": "XMLHttpRequest",
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ email }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        setAuthError(errorData.error || "Failed to resend verification code")
+        setAuthError(errorData.error || 'Failed to resend verification code')
         return
       }
 
       // Show a message that OTP was sent
-      setAuthError("Verification code sent. Please check your email.")
+      setAuthError('Verification code sent. Please check your email.')
     } catch (error) {
-      console.error("Error resending OTP:", error)
-      setAuthError("An error occurred while resending the verification code")
+      console.error('Error resending OTP:', error)
+      setAuthError('An error occurred while resending the verification code')
     } finally {
       setIsSendingOtp(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="mx-auto w-full max-w-md rounded-xl bg-white p-6 shadow-md">
-        <div className="mb-4 flex w-full items-center justify-between">
-          <a href="https://simstudio.ai" target="_blank" rel="noopener noreferrer">
+    <div className='flex min-h-screen items-center justify-center bg-gray-50'>
+      <div className='mx-auto w-full max-w-md rounded-xl bg-white p-6 shadow-md'>
+        <div className='mb-4 flex w-full items-center justify-between'>
+          <a href='https://simstudio.ai' target='_blank' rel='noopener noreferrer'>
             <svg
-              width="32"
-              height="32"
-              viewBox="0 0 50 50"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="rounded-[6px]"
+              width='32'
+              height='32'
+              viewBox='0 0 50 50'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
+              className='rounded-[6px]'
             >
-              <rect width="50" height="50" fill="#701FFC" />
+              <rect width='50' height='50' fill='#701FFC' />
               <path
-                d="M34.1455 20.0728H16.0364C12.7026 20.0728 10 22.7753 10 26.1091V35.1637C10 38.4975 12.7026 41.2 16.0364 41.2H34.1455C37.4792 41.2 40.1818 38.4975 40.1818 35.1637V26.1091C40.1818 22.7753 37.4792 20.0728 34.1455 20.0728Z"
-                fill="#701FFC"
-                stroke="white"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                d='M34.1455 20.0728H16.0364C12.7026 20.0728 10 22.7753 10 26.1091V35.1637C10 38.4975 12.7026 41.2 16.0364 41.2H34.1455C37.4792 41.2 40.1818 38.4975 40.1818 35.1637V26.1091C40.1818 22.7753 37.4792 20.0728 34.1455 20.0728Z'
+                fill='#701FFC'
+                stroke='white'
+                strokeWidth='3.5'
+                strokeLinecap='round'
+                strokeLinejoin='round'
               />
               <path
-                d="M25.0919 14.0364C26.7588 14.0364 28.1101 12.6851 28.1101 11.0182C28.1101 9.35129 26.7588 8 25.0919 8C23.425 8 22.0737 9.35129 22.0737 11.0182C22.0737 12.6851 23.425 14.0364 25.0919 14.0364Z"
-                fill="#701FFC"
-                stroke="white"
-                strokeWidth="4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                d='M25.0919 14.0364C26.7588 14.0364 28.1101 12.6851 28.1101 11.0182C28.1101 9.35129 26.7588 8 25.0919 8C23.425 8 22.0737 9.35129 22.0737 11.0182C22.0737 12.6851 23.425 14.0364 25.0919 14.0364Z'
+                fill='#701FFC'
+                stroke='white'
+                strokeWidth='4'
+                strokeLinecap='round'
+                strokeLinejoin='round'
               />
               <path
-                d="M25.0915 14.856V19.0277V14.856ZM20.5645 32.1398V29.1216V32.1398ZM29.619 29.1216V32.1398V29.1216Z"
-                fill="#701FFC"
+                d='M25.0915 14.856V19.0277V14.856ZM20.5645 32.1398V29.1216V32.1398ZM29.619 29.1216V32.1398V29.1216Z'
+                fill='#701FFC'
               />
               <path
-                d="M25.0915 14.856V19.0277M20.5645 32.1398V29.1216M29.619 29.1216V32.1398"
-                stroke="white"
-                strokeWidth="4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                d='M25.0915 14.856V19.0277M20.5645 32.1398V29.1216M29.619 29.1216V32.1398'
+                stroke='white'
+                strokeWidth='4'
+                strokeLinecap='round'
+                strokeLinejoin='round'
               />
-              <circle cx="25" cy="11" r="2" fill="#701FFC" />
+              <circle cx='25' cy='11' r='2' fill='#701FFC' />
             </svg>
           </a>
           <ChatHeader chatConfig={null} starCount={starCount} />
         </div>
-        <div className="mb-6 text-center">
-          <h2 className="mb-2 font-bold text-xl">{title}</h2>
-          <p className="text-gray-600">
+        <div className='mb-6 text-center'>
+          <h2 className='mb-2 font-bold text-xl'>{title}</h2>
+          <p className='text-gray-600'>
             This chat requires email verification. Please enter your email to continue.
           </p>
         </div>
 
         {authError && (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-red-600">
+          <div className='mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-red-600'>
             {authError}
           </div>
         )}
 
-        <div className="mx-auto w-full max-w-sm">
-          <div className="space-y-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-md dark:border-neutral-800 dark:bg-black/10">
-            <div className="flex items-center justify-center">
-              <div className="rounded-full bg-primary/10 p-2 text-primary">
-                <Mail className="h-5 w-5" />
+        <div className='mx-auto w-full max-w-sm'>
+          <div className='space-y-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-md dark:border-neutral-800 dark:bg-black/10'>
+            <div className='flex items-center justify-center'>
+              <div className='rounded-full bg-primary/10 p-2 text-primary'>
+                <Mail className='h-5 w-5' />
               </div>
             </div>
 
-            <h2 className="text-center font-medium text-lg">Email Verification</h2>
+            <h2 className='text-center font-medium text-lg'>Email Verification</h2>
 
             {!showOtpVerification ? (
               // Step 1: Email Input
               <>
-                <p className="text-center text-neutral-500 text-sm dark:text-neutral-400">
+                <p className='text-center text-neutral-500 text-sm dark:text-neutral-400'>
                   Enter your email address to access this chat
                 </p>
 
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label htmlFor="email" className="sr-only font-medium text-sm">
+                <div className='space-y-3'>
+                  <div className='space-y-1'>
+                    <label htmlFor='email' className='sr-only font-medium text-sm'>
                       Email
                     </label>
                     <Input
-                      id="email"
-                      type="email"
-                      placeholder="Email address"
+                      id='email'
+                      type='email'
+                      placeholder='Email address'
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       onKeyDown={handleEmailKeyDown}
                       disabled={isSendingOtp}
-                      className="w-full"
+                      className='w-full'
                     />
                   </div>
 
                   {authError && (
-                    <div className="text-red-600 text-sm dark:text-red-500">{authError}</div>
+                    <div className='text-red-600 text-sm dark:text-red-500'>{authError}</div>
                   )}
 
                   <Button
                     onClick={handleSendOtp}
                     disabled={!email || isSendingOtp}
-                    className="w-full"
+                    className='w-full'
                     style={{ backgroundColor: primaryColor }}
                   >
                     {isSendingOtp ? (
-                      <div className="flex items-center justify-center">
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <div className='flex items-center justify-center'>
+                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                         Sending Code...
                       </div>
                     ) : (
-                      "Continue"
+                      'Continue'
                     )}
                   </Button>
                 </div>
@@ -258,10 +258,10 @@ export default function EmailAuth({
             ) : (
               // Step 2: OTP Verification with OTPInputForm
               <>
-                <p className="text-center text-neutral-500 text-sm dark:text-neutral-400">
+                <p className='text-center text-neutral-500 text-sm dark:text-neutral-400'>
                   Enter the verification code sent to
                 </p>
-                <p className="mb-3 break-all text-center font-medium text-sm">{email}</p>
+                <p className='mb-3 break-all text-center font-medium text-sm'>{email}</p>
 
                 <OTPInputForm
                   onSubmit={(value) => {
@@ -272,24 +272,24 @@ export default function EmailAuth({
                   error={authError}
                 />
 
-                <div className="flex items-center justify-center pt-3">
+                <div className='flex items-center justify-center pt-3'>
                   <button
-                    type="button"
+                    type='button'
                     onClick={handleResendOtp}
                     disabled={isSendingOtp}
-                    className="text-primary text-sm hover:underline disabled:opacity-50"
+                    className='text-primary text-sm hover:underline disabled:opacity-50'
                   >
-                    {isSendingOtp ? "Sending..." : "Resend code"}
+                    {isSendingOtp ? 'Sending...' : 'Resend code'}
                   </button>
-                  <span className="mx-2 text-neutral-300 dark:text-neutral-600">•</span>
+                  <span className='mx-2 text-neutral-300 dark:text-neutral-600'>•</span>
                   <button
-                    type="button"
+                    type='button'
                     onClick={() => {
                       setShowOtpVerification(false)
-                      setOtpValue("")
+                      setOtpValue('')
                       setAuthError(null)
                     }}
-                    className="text-primary text-sm hover:underline"
+                    className='text-primary text-sm hover:underline'
                   >
                     Change email
                   </button>

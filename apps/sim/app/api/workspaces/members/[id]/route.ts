@@ -1,8 +1,8 @@
-import { db } from "@/db"
-import { workspaceMember } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { and, eq } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
+import { db } from '@/db'
+import { workspaceMember } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 
 // Update a member's role
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -10,7 +10,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const membershipId = id
@@ -19,7 +19,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { role } = await req.json()
 
     if (!role) {
-      return NextResponse.json({ error: "Role is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Role is required' }, { status: 400 })
     }
 
     // Get the membership to update
@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       .then((rows) => rows[0])
 
     if (!membership) {
-      return NextResponse.json({ error: "Membership not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Membership not found' }, { status: 404 })
     }
 
     // Check if current user is an owner of the workspace
@@ -50,14 +50,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       )
       .then((rows) => rows[0])
 
-    if (!currentUserMembership || currentUserMembership.role !== "owner") {
-      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
+    if (!currentUserMembership || currentUserMembership.role !== 'owner') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
     // Prevent changing your own role if you're the owner
-    if (membership.userId === session.user.id && membership.role === "owner") {
+    if (membership.userId === session.user.id && membership.role === 'owner') {
       return NextResponse.json(
-        { error: "Cannot change the role of the workspace owner" },
+        { error: 'Cannot change the role of the workspace owner' },
         { status: 400 }
       )
     }
@@ -73,8 +73,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error updating workspace member:", error)
-    return NextResponse.json({ error: "Failed to update workspace member" }, { status: 500 })
+    console.error('Error updating workspace member:', error)
+    return NextResponse.json({ error: 'Failed to update workspace member' }, { status: 500 })
   }
 }
 
@@ -84,7 +84,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const membershipId = id
@@ -103,7 +103,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       .then((rows) => rows[0])
 
     if (!membership) {
-      return NextResponse.json({ error: "Membership not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Membership not found' }, { status: 404 })
     }
 
     // Check if current user is an owner of the workspace or the member being removed
@@ -114,7 +114,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         and(
           eq(workspaceMember.workspaceId, membership.workspaceId),
           eq(workspaceMember.userId, session.user.id),
-          eq(workspaceMember.role, "owner")
+          eq(workspaceMember.role, 'owner')
         )
       )
       .then((rows) => rows.length > 0)
@@ -122,25 +122,25 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const isSelf = membership.userId === session.user.id
 
     if (!isOwner && !isSelf) {
-      return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 })
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
     // Prevent removing yourself if you're the owner and the last owner
-    if (isSelf && membership.role === "owner") {
+    if (isSelf && membership.role === 'owner') {
       const otherOwners = await db
         .select()
         .from(workspaceMember)
         .where(
           and(
             eq(workspaceMember.workspaceId, membership.workspaceId),
-            eq(workspaceMember.role, "owner")
+            eq(workspaceMember.role, 'owner')
           )
         )
         .then((rows) => rows.filter((row) => row.userId !== session.user.id))
 
       if (otherOwners.length === 0) {
         return NextResponse.json(
-          { error: "Cannot remove the last owner from a workspace" },
+          { error: 'Cannot remove the last owner from a workspace' },
           { status: 400 }
         )
       }
@@ -151,7 +151,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Error removing workspace member:", error)
-    return NextResponse.json({ error: "Failed to remove workspace member" }, { status: 500 })
+    console.error('Error removing workspace member:', error)
+    return NextResponse.json({ error: 'Failed to remove workspace member' }, { status: 500 })
   }
 }

@@ -1,6 +1,6 @@
-import { type ConnectedBlock, useBlockConnections } from "@/app/w/[id]/hooks/use-block-connections"
-import { Card } from "@/components/ui/card"
-import { useSubBlockStore } from "@/stores/workflows/subblock/store"
+import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
+import { Card } from '@/components/ui/card'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 interface ConnectionBlocksProps {
   blockId: string
@@ -26,9 +26,9 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
     e.stopPropagation() // Prevent parent drag handlers from firing
     setIsConnecting(true)
     e.dataTransfer.setData(
-      "application/json",
+      'application/json',
       JSON.stringify({
-        type: "connectionBlock",
+        type: 'connectionBlock',
         connectionData: {
           id: connection.id,
           name: connection.name,
@@ -38,7 +38,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
         },
       })
     )
-    e.dataTransfer.effectAllowed = "copy"
+    e.dataTransfer.effectAllowed = 'copy'
   }
 
   const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
@@ -57,15 +57,15 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
     // Safely check if schema and properties exist
     if (
       !schema ||
-      typeof schema !== "object" ||
-      !("properties" in schema) ||
-      typeof schema.properties !== "object"
+      typeof schema !== 'object' ||
+      !('properties' in schema) ||
+      typeof schema.properties !== 'object'
     ) {
       return []
     }
     return Object.entries(schema.properties).map(([name, prop]: [string, any]) => ({
       name,
-      type: Array.isArray(prop) ? "array" : prop.type || "string",
+      type: Array.isArray(prop) ? 'array' : prop.type || 'string',
       description: prop.description,
     }))
   }
@@ -73,36 +73,36 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
   // Extract fields from starter block input format
   const extractFieldsFromStarterInput = (connection: ConnectedBlock): ResponseField[] => {
     // Only process for starter blocks
-    if (connection.type !== "starter") return []
+    if (connection.type !== 'starter') return []
 
     try {
       // Get input format from subblock store
-      const inputFormat = useSubBlockStore.getState().getValue(connection.id, "inputFormat")
+      const inputFormat = useSubBlockStore.getState().getValue(connection.id, 'inputFormat')
 
       // Make sure we have a valid input format
       if (!inputFormat || !Array.isArray(inputFormat) || inputFormat.length === 0) {
-        return [{ name: "input", type: "any" }]
+        return [{ name: 'input', type: 'any' }]
       }
 
       // Check if any fields have been configured with names
       const hasConfiguredFields = inputFormat.some(
-        (field: any) => field.name && field.name.trim() !== ""
+        (field: any) => field.name && field.name.trim() !== ''
       )
 
       // If no fields have been configured, return the default input field
       if (!hasConfiguredFields) {
-        return [{ name: "input", type: "any" }]
+        return [{ name: 'input', type: 'any' }]
       }
 
       // Map input fields to response fields
       return inputFormat.map((field: any) => ({
         name: `input.${field.name}`,
-        type: field.type || "string",
+        type: field.type || 'string',
         description: field.description,
       }))
     } catch (e) {
-      console.error("Error extracting fields from starter input format:", e)
-      return [{ name: "input", type: "any" }]
+      console.error('Error extracting fields from starter input format:', e)
+      return [{ name: 'input', type: 'any' }]
     }
   }
 
@@ -122,7 +122,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
 
   // Helper function to render a connection card
   const renderConnectionCard = (connection: ConnectedBlock, field?: ResponseField) => {
-    const displayName = connection.name.replace(/\s+/g, "").toLowerCase()
+    const displayName = connection.name.replace(/\s+/g, '').toLowerCase()
 
     return (
       <Card
@@ -130,16 +130,16 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
         draggable
         onDragStart={(e) => handleDragStart(e, connection, field)}
         onDragEnd={handleDragEnd}
-        className="group flex w-max cursor-grab items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 active:cursor-grabbing"
+        className='group flex w-max cursor-grab items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 active:cursor-grabbing'
       >
-        <div className="text-sm">
-          <span className="font-medium leading-none">{displayName}</span>
-          <span className="text-muted-foreground">
+        <div className='text-sm'>
+          <span className='font-medium leading-none'>{displayName}</span>
+          <span className='text-muted-foreground'>
             {field
               ? `.${field.name}`
-              : typeof connection.outputType === "string"
+              : typeof connection.outputType === 'string'
                 ? `.${connection.outputType}`
-                : ""}
+                : ''}
           </span>
         </div>
       </Card>
@@ -147,15 +147,15 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
   }
 
   return (
-    <div className="absolute top-0 right-full flex max-h-[400px] flex-col items-end space-y-2 overflow-y-auto pr-5">
+    <div className='absolute top-0 right-full flex max-h-[400px] flex-col items-end space-y-2 overflow-y-auto pr-5'>
       {sortedConnections.map((connection, index) => {
         // Special handling for starter blocks with input format
-        if (connection.type === "starter") {
+        if (connection.type === 'starter') {
           const starterFields = extractFieldsFromStarterInput(connection)
 
           if (starterFields.length > 0) {
             return (
-              <div key={connection.id} className="space-y-2">
+              <div key={connection.id} className='space-y-2'>
                 {starterFields.map((field) => renderConnectionCard(connection, field))}
               </div>
             )
@@ -164,7 +164,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
 
         // Regular connection handling
         return (
-          <div key={`${connection.id}-${index}`} className="space-y-2">
+          <div key={`${connection.id}-${index}`} className='space-y-2'>
             {Array.isArray(connection.outputType)
               ? // Handle array of field names
                 connection.outputType.map((fieldName) => {
@@ -172,7 +172,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
                   const fields = extractFieldsFromSchema(connection)
                   const field = fields.find((f) => f.name === fieldName) || {
                     name: fieldName,
-                    type: "string",
+                    type: 'string',
                   }
 
                   return renderConnectionCard(connection, field)

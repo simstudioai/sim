@@ -1,8 +1,8 @@
-import type { StateCreator } from "zustand"
-import { saveSubblockValues, saveWorkflowState } from "./persistence"
-import { useWorkflowRegistry } from "./registry/store"
-import { useSubBlockStore } from "./subblock/store"
-import type { WorkflowState, WorkflowStore } from "./workflow/types"
+import type { StateCreator } from 'zustand'
+import { saveSubblockValues, saveWorkflowState } from './persistence'
+import { useWorkflowRegistry } from './registry/store'
+import { useSubBlockStore } from './subblock/store'
+import type { WorkflowState, WorkflowStore } from './workflow/types'
 
 // Types
 interface HistoryEntry {
@@ -49,7 +49,7 @@ export const withHistory = (
         loops: initialState.loops,
       },
       timestamp: Date.now(),
-      action: "Initial state",
+      action: 'Initial state',
       subblockValues: {}, // Add storage for subblock values
     }
 
@@ -180,7 +180,7 @@ export const withHistory = (
             present: {
               state: { blocks: {}, edges: [], loops: {} },
               timestamp: Date.now(),
-              action: "Clear workflow",
+              action: 'Clear workflow',
               subblockValues: {},
             },
             future: [],

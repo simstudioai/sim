@@ -1,16 +1,16 @@
-import { db } from "@/db"
-import { settings } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import { eq } from "drizzle-orm"
-import { nanoid } from "nanoid"
-import { NextResponse } from "next/server"
-import { z } from "zod"
+import { db } from '@/db'
+import { settings } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { eq } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
+import { NextResponse } from 'next/server'
+import { z } from 'zod'
 
-const logger = createLogger("UserSettingsAPI")
+const logger = createLogger('UserSettingsAPI')
 
 const SettingsSchema = z.object({
-  theme: z.enum(["system", "light", "dark"]).optional(),
+  theme: z.enum(['system', 'light', 'dark']).optional(),
   debugMode: z.boolean().optional(),
   autoConnect: z.boolean().optional(),
   autoFillEnvVars: z.boolean().optional(),
@@ -20,7 +20,7 @@ const SettingsSchema = z.object({
 
 // Default settings values
 const defaultSettings = {
-  theme: "system",
+  theme: 'system',
   debugMode: false,
   autoConnect: true,
   autoFillEnvVars: true,
@@ -113,7 +113,7 @@ export async function PATCH(request: Request) {
           errors: validationError.errors,
         })
         return NextResponse.json(
-          { error: "Invalid settings data", details: validationError.errors },
+          { error: 'Invalid settings data', details: validationError.errors },
           { status: 400 }
         )
       }

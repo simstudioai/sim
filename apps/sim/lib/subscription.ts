@@ -1,12 +1,12 @@
-import { db } from "@/db"
-import * as schema from "@/db/schema"
-import { isProd } from "@/lib/environment"
-import { createLogger } from "@/lib/logs/console-logger"
-import { eq } from "drizzle-orm"
-import { client } from "./auth-client"
-import { env } from "./env"
+import { db } from '@/db'
+import * as schema from '@/db/schema'
+import { isProd } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console-logger'
+import { eq } from 'drizzle-orm'
+import { client } from './auth-client'
+import { env } from './env'
 
-const logger = createLogger("Subscription")
+const logger = createLogger('Subscription')
 
 /**
  * Check if the user is on the Pro plan
@@ -32,11 +32,11 @@ export async function isProPlan(userId: string): Promise<boolean> {
         .where(eq(schema.subscription.referenceId, membership.organizationId))
 
       const orgHasProPlan = orgSubscriptions.some(
-        (sub) => sub.status === "active" && (sub.plan === "pro" || sub.plan === "team")
+        (sub) => sub.status === 'active' && (sub.plan === 'pro' || sub.plan === 'team')
       )
 
       if (orgHasProPlan) {
-        logger.info("User has pro plan via organization", {
+        logger.info('User has pro plan via organization', {
           userId,
           orgId: membership.organizationId,
         })
@@ -52,17 +52,17 @@ export async function isProPlan(userId: string): Promise<boolean> {
 
     // Find active pro subscription (either Pro or Team plan)
     const hasDirectProPlan = directSubscriptions.some(
-      (sub) => sub.status === "active" && (sub.plan === "pro" || sub.plan === "team")
+      (sub) => sub.status === 'active' && (sub.plan === 'pro' || sub.plan === 'team')
     )
 
     if (hasDirectProPlan) {
-      logger.info("User has direct pro plan", { userId })
+      logger.info('User has direct pro plan', { userId })
       return true
     }
 
     return false
   } catch (error) {
-    logger.error("Error checking pro plan status", { error, userId })
+    logger.error('Error checking pro plan status', { error, userId })
     return false
   }
 }
@@ -91,7 +91,7 @@ export async function isTeamPlan(userId: string): Promise<boolean> {
         .where(eq(schema.subscription.referenceId, membership.organizationId))
 
       const orgHasTeamPlan = orgSubscriptions.some(
-        (sub) => sub.status === "active" && sub.plan === "team"
+        (sub) => sub.status === 'active' && sub.plan === 'team'
       )
 
       if (orgHasTeamPlan) {
@@ -107,17 +107,17 @@ export async function isTeamPlan(userId: string): Promise<boolean> {
 
     // Find active team subscription
     const hasDirectTeamPlan = directSubscriptions.some(
-      (sub) => sub.status === "active" && sub.plan === "team"
+      (sub) => sub.status === 'active' && sub.plan === 'team'
     )
 
     if (hasDirectTeamPlan) {
-      logger.info("User has direct team plan", { userId })
+      logger.info('User has direct team plan', { userId })
       return true
     }
 
     return false
   } catch (error) {
-    logger.error("Error checking team plan status", { error, userId })
+    logger.error('Error checking team plan status', { error, userId })
     return false
   }
 }
@@ -138,7 +138,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
     })
 
     // Find active direct subscription
-    const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === "active")
+    const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
 
     // Get organizations the user belongs to
     const memberships = await db
@@ -149,7 +149,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
     let highestCostLimit = 0
 
     // Check cost limit from direct subscription
-    if (activeDirectSubscription && typeof activeDirectSubscription.limits?.cost === "number") {
+    if (activeDirectSubscription && typeof activeDirectSubscription.limits?.cost === 'number') {
       highestCostLimit = activeDirectSubscription.limits.cost
     }
 
@@ -159,11 +159,11 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
         query: { referenceId: membership.organizationId },
       })
 
-      const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === "active")
+      const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === 'active')
 
       if (
         activeOrgSubscription &&
-        typeof activeOrgSubscription.limits?.cost === "number" &&
+        typeof activeOrgSubscription.limits?.cost === 'number' &&
         activeOrgSubscription.limits.cost > highestCostLimit
       ) {
         highestCostLimit = activeOrgSubscription.limits.cost
@@ -175,7 +175,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
       highestCostLimit = env.FREE_TIER_COST_LIMIT ? Number.parseFloat(env.FREE_TIER_COST_LIMIT) : 5
     }
 
-    logger.info("User cost limit from subscription", { userId, costLimit: highestCostLimit })
+    logger.info('User cost limit from subscription', { userId, costLimit: highestCostLimit })
 
     // Get user's actual usage from the database
     const statsRecords = await db
@@ -193,7 +193,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
 
     return currentCost >= highestCostLimit
   } catch (error) {
-    logger.error("Error checking cost limit", { error, userId })
+    logger.error('Error checking cost limit', { error, userId })
     return false // Be conservative in case of error
   }
 }
@@ -213,7 +213,7 @@ export async function isSharingEnabled(userId: string): Promise<boolean> {
       query: { referenceId: userId },
     })
 
-    const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === "active")
+    const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
 
     // If user has direct pro/team subscription with sharing enabled
     if (activeDirectSubscription?.limits?.sharingEnabled) {
@@ -232,7 +232,7 @@ export async function isSharingEnabled(userId: string): Promise<boolean> {
         query: { referenceId: membership.organizationId },
       })
 
-      const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === "active")
+      const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === 'active')
 
       if (activeOrgSubscription?.limits?.sharingEnabled) {
         return true
@@ -241,7 +241,7 @@ export async function isSharingEnabled(userId: string): Promise<boolean> {
 
     return false
   } catch (error) {
-    logger.error("Error checking sharing permission", { error, userId })
+    logger.error('Error checking sharing permission', { error, userId })
     return false // Be conservative in case of error
   }
 }
@@ -261,7 +261,7 @@ export async function isMultiplayerEnabled(userId: string): Promise<boolean> {
       query: { referenceId: userId },
     })
 
-    const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === "active")
+    const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
 
     // If user has direct team subscription with multiplayer enabled
     if (activeDirectSubscription?.limits?.multiplayerEnabled) {
@@ -280,7 +280,7 @@ export async function isMultiplayerEnabled(userId: string): Promise<boolean> {
         query: { referenceId: membership.organizationId },
       })
 
-      const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === "active")
+      const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === 'active')
 
       if (activeOrgSubscription?.limits?.multiplayerEnabled) {
         return true
@@ -289,7 +289,7 @@ export async function isMultiplayerEnabled(userId: string): Promise<boolean> {
 
     return false
   } catch (error) {
-    logger.error("Error checking multiplayer permission", { error, userId })
+    logger.error('Error checking multiplayer permission', { error, userId })
     return false // Be conservative in case of error
   }
 }
@@ -309,7 +309,7 @@ export async function isWorkspaceCollaborationEnabled(userId: string): Promise<b
       query: { referenceId: userId },
     })
 
-    const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === "active")
+    const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
 
     // If user has direct team subscription with workspace collaboration enabled
     if (activeDirectSubscription?.limits?.workspaceCollaborationEnabled) {
@@ -328,7 +328,7 @@ export async function isWorkspaceCollaborationEnabled(userId: string): Promise<b
         query: { referenceId: membership.organizationId },
       })
 
-      const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === "active")
+      const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === 'active')
 
       if (activeOrgSubscription?.limits?.workspaceCollaborationEnabled) {
         return true
@@ -337,7 +337,7 @@ export async function isWorkspaceCollaborationEnabled(userId: string): Promise<b
 
     return false
   } catch (error) {
-    logger.error("Error checking workspace collaboration permission", { error, userId })
+    logger.error('Error checking workspace collaboration permission', { error, userId })
     return false // Be conservative in case of error
   }
 }

@@ -1,16 +1,16 @@
-import { db } from "@/db"
-import { account, user } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import { parseProvider } from "@/lib/oauth"
-import type { OAuthService } from "@/lib/oauth"
-import { and, eq } from "drizzle-orm"
-import { jwtDecode } from "jwt-decode"
-import { type NextRequest, NextResponse } from "next/server"
+import { db } from '@/db'
+import { account, user } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { parseProvider } from '@/lib/oauth'
+import type { OAuthService } from '@/lib/oauth'
+import { and, eq } from 'drizzle-orm'
+import { jwtDecode } from 'jwt-decode'
+import { type NextRequest, NextResponse } from 'next/server'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = createLogger("OAuthCredentialsAPI")
+const logger = createLogger('OAuthCredentialsAPI')
 
 interface GoogleIdToken {
   email?: string
@@ -31,16 +31,16 @@ export async function GET(request: NextRequest) {
     // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated credentials request rejected`)
-      return NextResponse.json({ error: "User not authenticated" }, { status: 401 })
+      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
     // Get the provider from the query params
     const { searchParams } = new URL(request.url)
-    const provider = searchParams.get("provider") as OAuthService | null
+    const provider = searchParams.get('provider') as OAuthService | null
 
     if (!provider) {
       logger.warn(`[${requestId}] Missing provider parameter`)
-      return NextResponse.json({ error: "Provider is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Provider is required' }, { status: 400 })
     }
 
     // Parse the provider to get base provider and feature type
@@ -56,10 +56,10 @@ export async function GET(request: NextRequest) {
     const credentials = await Promise.all(
       accounts.map(async (acc) => {
         // Extract the feature type from providerId (e.g., 'google-default' -> 'default')
-        const [_, featureType = "default"] = acc.providerId.split("-")
+        const [_, featureType = 'default'] = acc.providerId.split('-')
 
         // Try multiple methods to get a user-friendly display name
-        let displayName = ""
+        let displayName = ''
 
         // Method 1: Try to extract email from ID token (works for Google, etc.)
         if (acc.idToken) {
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Method 2: For GitHub, the accountId might be the username
-        if (!displayName && baseProvider === "github") {
+        if (!displayName && baseProvider === 'github') {
           displayName = `${acc.accountId} (GitHub)`
         }
 
@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
           name: displayName,
           provider,
           lastUsed: acc.updatedAt.toISOString(),
-          isDefault: featureType === "default",
+          isDefault: featureType === 'default',
         }
       })
     )
@@ -119,6 +119,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ credentials }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching OAuth credentials`, error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

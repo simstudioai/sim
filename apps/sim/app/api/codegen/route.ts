@@ -1,14 +1,14 @@
-import { env } from "@/lib/env"
-import { createLogger } from "@/lib/logs/console-logger"
-import { unstable_noStore as noStore } from "next/cache"
-import { type NextRequest, NextResponse } from "next/server"
-import OpenAI from "openai"
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
+import { unstable_noStore as noStore } from 'next/cache'
+import { type NextRequest, NextResponse } from 'next/server'
+import OpenAI from 'openai'
 
-export const dynamic = "force-dynamic"
-export const runtime = "edge"
+export const dynamic = 'force-dynamic'
+export const runtime = 'edge'
 export const maxDuration = 60
 
-const logger = createLogger("GenerateCodeAPI")
+const logger = createLogger('GenerateCodeAPI')
 
 const openai = env.OPENAI_API_KEY
   ? new OpenAI({
@@ -17,18 +17,18 @@ const openai = env.OPENAI_API_KEY
   : null
 
 if (!env.OPENAI_API_KEY) {
-  logger.warn("OPENAI_API_KEY not found. Code generation API will not function.")
+  logger.warn('OPENAI_API_KEY not found. Code generation API will not function.')
 }
 
 type GenerationType =
-  | "json-schema"
-  | "javascript-function-body"
-  | "typescript-function-body"
-  | "custom-tool-schema"
+  | 'json-schema'
+  | 'javascript-function-body'
+  | 'typescript-function-body'
+  | 'custom-tool-schema'
 
 // Define the structure for a single message in the history
 interface ChatMessage {
-  role: "user" | "assistant" | "system" // System role might be needed if we include the initial system prompt in history
+  role: 'user' | 'assistant' | 'system' // System role might be needed if we include the initial system prompt in history
   content: string
 }
 
@@ -41,7 +41,7 @@ interface RequestBody {
 }
 
 const systemPrompts: Record<GenerationType, string> = {
-  "json-schema": `You are an expert programmer specializing in creating JSON schemas according to a specific format.
+  'json-schema': `You are an expert programmer specializing in creating JSON schemas according to a specific format.
 Generate ONLY the JSON schema based on the user's request.
 The output MUST be a single, valid JSON object, starting with { and ending with }.
 The JSON object MUST have the following top-level properties: 'name' (string), 'description' (string), 'strict' (boolean, usually true), and 'schema' (object).
@@ -123,7 +123,7 @@ Example 3 (Array Input):
     }
 }
 `,
-  "custom-tool-schema": `You are an expert programmer specializing in creating OpenAI function calling format JSON schemas for custom tools.
+  'custom-tool-schema': `You are an expert programmer specializing in creating OpenAI function calling format JSON schemas for custom tools.
 Generate ONLY the JSON schema based on the user's request.
 The output MUST be a single, valid JSON object, starting with { and ending with }.
 The JSON schema MUST follow this specific format:
@@ -219,7 +219,7 @@ Example 3 (Array Input):
   }
 }
 `,
-  "javascript-function-body": `You are an expert JavaScript programmer.
+  'javascript-function-body': `You are an expert JavaScript programmer.
 Generate ONLY the raw body of a JavaScript function based on the user's request.
 The code should be executable within an 'async function(params, environmentVariables) {...}' context.
 - 'params' (object): Contains input parameters derived from the JSON schema. Access these directly using the parameter name wrapped in angle brackets, e.g., '<paramName>'. Do NOT use 'params.paramName'.
@@ -264,7 +264,7 @@ try {
   // Re-throwing the error ensures the workflow knows this step failed.
   throw error;
 }`,
-  "typescript-function-body": `You are an expert TypeScript programmer.
+  'typescript-function-body': `You are an expert TypeScript programmer.
 Generate ONLY the body of a TypeScript function based on the user's request.
 The code should be executable within an async context. You have access to a 'params' object (typed as Record<string, any>) containing input parameters and an 'environmentVariables' object (typed as Record<string, string>) for env vars.
 Do not include the function signature (e.g., 'async function myFunction(): Promise<any> {').
@@ -290,7 +290,7 @@ export async function POST(req: NextRequest) {
   if (!openai) {
     logger.error(`[${requestId}] OpenAI client not initialized. Missing API key.`)
     return NextResponse.json(
-      { success: false, error: "Code generation service is not configured." },
+      { success: false, error: 'Code generation service is not configured.' },
       { status: 503 }
     )
   }
@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
     if (!prompt || !generationType) {
       logger.warn(`[${requestId}] Invalid request: Missing prompt or generationType.`)
       return NextResponse.json(
-        { success: false, error: "Missing required fields: prompt and generationType." },
+        { success: false, error: 'Missing required fields: prompt and generationType.' },
         { status: 400 }
       )
     }
@@ -327,14 +327,14 @@ export async function POST(req: NextRequest) {
 
     // Prepare messages for OpenAI API
     // Start with the system prompt
-    const messages: ChatMessage[] = [{ role: "system", content: systemPrompt }]
+    const messages: ChatMessage[] = [{ role: 'system', content: systemPrompt }]
 
     // Add previous messages from history
     // Filter out any potential system messages from history if we always prepend a fresh one
-    messages.push(...history.filter((msg) => msg.role !== "system"))
+    messages.push(...history.filter((msg) => msg.role !== 'system'))
 
     // Add the current user prompt
-    messages.push({ role: "user", content: currentUserMessageContent })
+    messages.push({ role: 'user', content: currentUserMessageContent })
 
     logger.debug(`[${requestId}] Calling OpenAI API`, {
       generationType,
@@ -346,7 +346,7 @@ export async function POST(req: NextRequest) {
     if (stream) {
       try {
         const streamCompletion = await openai?.chat.completions.create({
-          model: "gpt-4o",
+          model: 'gpt-4o',
           messages: messages,
           temperature: 0.2,
           max_tokens: 1500,
@@ -358,11 +358,11 @@ export async function POST(req: NextRequest) {
           new ReadableStream({
             async start(controller) {
               const encoder = new TextEncoder()
-              let fullContent = generationType === "json-schema" ? "" : undefined
+              let fullContent = generationType === 'json-schema' ? '' : undefined
 
               // Process each chunk
               for await (const chunk of streamCompletion) {
-                const content = chunk.choices[0]?.delta?.content || ""
+                const content = chunk.choices[0]?.delta?.content || ''
                 if (content) {
                   // Only append if fullContent is defined (i.e., for json-schema)
                   if (fullContent !== undefined) {
@@ -382,7 +382,7 @@ export async function POST(req: NextRequest) {
               }
 
               // Check JSON validity for json-schema type when streaming is complete
-              if (generationType === "json-schema" && fullContent) {
+              if (generationType === 'json-schema' && fullContent) {
                 try {
                   JSON.parse(fullContent)
                 } catch (parseError: any) {
@@ -395,7 +395,7 @@ export async function POST(req: NextRequest) {
                   controller.enqueue(
                     encoder.encode(
                       `${JSON.stringify({
-                        error: "Generated JSON schema was invalid.",
+                        error: 'Generated JSON schema was invalid.',
                         done: true,
                       })}\n`
                     )
@@ -420,20 +420,20 @@ export async function POST(req: NextRequest) {
           }),
           {
             headers: {
-              "Content-Type": "text/event-stream",
-              "Cache-Control": "no-cache, no-transform",
-              Connection: "keep-alive",
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache, no-transform',
+              Connection: 'keep-alive',
             },
           }
         )
       } catch (error: any) {
         logger.error(`[${requestId}] Streaming error`, {
-          error: error.message || "Unknown error",
+          error: error.message || 'Unknown error',
           stack: error.stack,
         })
 
         return NextResponse.json(
-          { success: false, error: "An error occurred during code generation streaming." },
+          { success: false, error: 'An error occurred during code generation streaming.' },
           { status: 500 }
         )
       }
@@ -442,12 +442,12 @@ export async function POST(req: NextRequest) {
     // For non-streaming responses (original implementation)
     const completion = await openai?.chat.completions.create({
       // Use non-null assertion
-      model: "gpt-4o",
+      model: 'gpt-4o',
       // Pass the constructed messages array
       messages: messages,
       temperature: 0.2,
       max_tokens: 1500,
-      response_format: generationType === "json-schema" ? { type: "json_object" } : undefined,
+      response_format: generationType === 'json-schema' ? { type: 'json_object' } : undefined,
     })
 
     const generatedContent = completion.choices[0]?.message?.content?.trim()
@@ -455,14 +455,14 @@ export async function POST(req: NextRequest) {
     if (!generatedContent) {
       logger.error(`[${requestId}] OpenAI response was empty or invalid.`)
       return NextResponse.json(
-        { success: false, error: "Failed to generate content. OpenAI response was empty." },
+        { success: false, error: 'Failed to generate content. OpenAI response was empty.' },
         { status: 500 }
       )
     }
 
     logger.info(`[${requestId}] Code generation successful`, { generationType })
 
-    if (generationType === "json-schema") {
+    if (generationType === 'json-schema') {
       try {
         JSON.parse(generatedContent)
         return NextResponse.json({ success: true, generatedContent })
@@ -472,7 +472,7 @@ export async function POST(req: NextRequest) {
           content: generatedContent,
         })
         return NextResponse.json(
-          { success: false, error: "Generated JSON schema was invalid." },
+          { success: false, error: 'Generated JSON schema was invalid.' },
           { status: 500 }
         )
       }
@@ -481,13 +481,13 @@ export async function POST(req: NextRequest) {
     }
   } catch (error: any) {
     logger.error(`[${requestId}] Code generation failed`, {
-      error: error.message || "Unknown error",
+      error: error.message || 'Unknown error',
       stack: error.stack,
     })
 
-    let clientErrorMessage = "Code generation failed. Please try again later."
+    let clientErrorMessage = 'Code generation failed. Please try again later.'
     // Keep original message for server logging
-    let serverErrorMessage = error.message || "Unknown error"
+    let serverErrorMessage = error.message || 'Unknown error'
 
     let status = 500
     if (error instanceof OpenAI.APIError) {
@@ -496,12 +496,12 @@ export async function POST(req: NextRequest) {
       logger.error(`[${requestId}] OpenAI API Error: ${status} - ${serverErrorMessage}`)
       // Optionally, customize client message based on status, but keep it generic
       if (status === 401) {
-        clientErrorMessage = "Authentication failed. Please check your API key configuration."
+        clientErrorMessage = 'Authentication failed. Please check your API key configuration.'
       } else if (status === 429) {
-        clientErrorMessage = "Rate limit exceeded. Please try again later."
+        clientErrorMessage = 'Rate limit exceeded. Please try again later.'
       } else if (status >= 500) {
         clientErrorMessage =
-          "The code generation service is currently unavailable. Please try again later."
+          'The code generation service is currently unavailable. Please try again later.'
       }
     }
 

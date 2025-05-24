@@ -1,11 +1,11 @@
-"use client"
+'use client'
 
-import { Card } from "@/components/ui/card"
-import { createLogger } from "@/lib/logs/console-logger"
-import { BotIcon } from "lucide-react"
-import { Component, type ReactNode, useEffect } from "react"
+import { Card } from '@/components/ui/card'
+import { createLogger } from '@/lib/logs/console-logger'
+import { BotIcon } from 'lucide-react'
+import { Component, type ReactNode, useEffect } from 'react'
 
-const logger = createLogger("ErrorBoundary")
+const logger = createLogger('ErrorBoundary')
 
 // ======== Shared Error UI Component ========
 interface ErrorUIProps {
@@ -16,23 +16,23 @@ interface ErrorUIProps {
 }
 
 export function ErrorUI({
-  title = "Workflow Error",
-  message = "This workflow encountered an error and is currently unavailable. Please try again later or create a new workflow.",
+  title = 'Workflow Error',
+  message = 'This workflow encountered an error and is currently unavailable. Please try again later or create a new workflow.',
   onReset,
   fullScreen = false,
 }: ErrorUIProps) {
   const containerClass = fullScreen
-    ? "flex items-center justify-center w-full h-screen bg-muted/40"
-    : "flex items-center justify-center w-full h-full bg-muted/40"
+    ? 'flex items-center justify-center w-full h-screen bg-muted/40'
+    : 'flex items-center justify-center w-full h-full bg-muted/40'
 
   return (
     <div className={containerClass}>
-      <Card className="max-w-md space-y-4 p-6 text-center">
-        <div className="flex justify-center">
-          <BotIcon className="h-16 w-16 text-muted-foreground" />
+      <Card className='max-w-md space-y-4 p-6 text-center'>
+        <div className='flex justify-center'>
+          <BotIcon className='h-16 w-16 text-muted-foreground' />
         </div>
-        <h3 className="font-semibold text-lg">{title}</h3>
-        <p className="text-muted-foreground">{message}</p>
+        <h3 className='font-semibold text-lg'>{title}</h3>
+        <p className='text-muted-foreground'>{message}</p>
       </Card>
     </div>
   )
@@ -76,7 +76,7 @@ interface NextErrorProps {
 export function NextError({ error, reset }: NextErrorProps) {
   useEffect(() => {
     // Optionally log the error to an error reporting service
-    logger.error("Workflow error:", { error })
+    logger.error('Workflow error:', { error })
   }, [error])
 
   return <ErrorUI onReset={reset} />
@@ -91,15 +91,15 @@ export function NextGlobalError({
   reset: () => void
 }) {
   useEffect(() => {
-    logger.error("Global workspace error:", { error })
+    logger.error('Global workspace error:', { error })
   }, [error])
 
   return (
-    <html lang="en">
+    <html lang='en'>
       <body>
         <ErrorUI
-          title="Application Error"
-          message="Something went wrong with the application. Please try again later."
+          title='Application Error'
+          message='Something went wrong with the application. Please try again later.'
           onReset={reset}
           fullScreen={true}
         />

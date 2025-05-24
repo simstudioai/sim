@@ -1,5 +1,5 @@
-import { afterAll, vi } from "vitest"
-import "@testing-library/jest-dom"
+import { afterAll, vi } from 'vitest'
+import '@testing-library/jest-dom'
 
 // Mock global fetch
 global.fetch = vi.fn(() =>
@@ -10,7 +10,7 @@ global.fetch = vi.fn(() =>
 ) as any
 
 // Mock console-logger
-vi.mock("@/lib/logs/console-logger", () => {
+vi.mock('@/lib/logs/console-logger', () => {
   const createLogger = vi.fn(() => ({
     debug: vi.fn(),
     info: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock("@/lib/logs/console-logger", () => {
 })
 
 // Mock stores
-vi.mock("@/stores/console/store", () => ({
+vi.mock('@/stores/console/store', () => ({
   useConsoleStore: {
     getState: vi.fn().mockReturnValue({
       addConsole: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock("@/stores/console/store", () => ({
   },
 }))
 
-vi.mock("@/stores/execution/store", () => ({
+vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {
     getState: vi.fn().mockReturnValue({
       setIsExecuting: vi.fn(),
@@ -45,7 +45,7 @@ vi.mock("@/stores/execution/store", () => ({
 const originalConsoleError = console.error
 console.error = (...args: any[]) => {
   // Filter out expected errors from test output
-  if (args[0] === "Workflow execution failed:" && args[1]?.message === "Test error") {
+  if (args[0] === 'Workflow execution failed:' && args[1]?.message === 'Test error') {
     return
   }
   originalConsoleError(...args)

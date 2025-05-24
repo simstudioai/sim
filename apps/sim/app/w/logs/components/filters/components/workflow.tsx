@@ -1,5 +1,5 @@
-import { useFilterStore } from "@/app/w/logs/stores/store"
-import { Button } from "@/components/ui/button"
+import { useFilterStore } from '@/app/w/logs/stores/store'
+import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -7,9 +7,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Check, ChevronDown } from "lucide-react"
-import { useMemo } from "react"
+} from '@/components/ui/dropdown-menu'
+import { Check, ChevronDown } from 'lucide-react'
+import { useMemo } from 'react'
 
 export default function Workflow() {
   const { logs, workflowIds, toggleWorkflowId, setWorkflowIds } = useFilterStore()
@@ -33,10 +33,10 @@ export default function Workflow() {
 
   // Get display text for the dropdown button
   const getSelectedWorkflowsText = () => {
-    if (workflowIds.length === 0) return "All workflows"
+    if (workflowIds.length === 0) return 'All workflows'
     if (workflowIds.length === 1) {
       const selected = workflows.find((w) => w.id === workflowIds[0])
-      return selected ? selected.name : "All workflows"
+      return selected ? selected.name : 'All workflows'
     }
     return `${workflowIds.length} workflows selected`
   }
@@ -54,22 +54,22 @@ export default function Workflow() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full justify-between font-normal text-sm">
+        <Button variant='outline' size='sm' className='w-full justify-between font-normal text-sm'>
           {getSelectedWorkflowsText()}
-          <ChevronDown className="ml-2 h-4 w-4 text-muted-foreground" />
+          <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-[300px] w-[180px] overflow-y-auto">
+      <DropdownMenuContent align='start' className='max-h-[300px] w-[180px] overflow-y-auto'>
         <DropdownMenuItem
-          key="all"
+          key='all'
           onSelect={(e) => {
             e.preventDefault()
             clearSelections()
           }}
-          className="flex cursor-pointer items-center justify-between p-2 text-sm"
+          className='flex cursor-pointer items-center justify-between p-2 text-sm'
         >
           <span>All workflows</span>
-          {workflowIds.length === 0 && <Check className="h-4 w-4 text-primary" />}
+          {workflowIds.length === 0 && <Check className='h-4 w-4 text-primary' />}
         </DropdownMenuItem>
 
         {workflows.length > 0 && <DropdownMenuSeparator />}
@@ -81,16 +81,16 @@ export default function Workflow() {
               e.preventDefault()
               toggleWorkflowId(workflow.id)
             }}
-            className="flex cursor-pointer items-center justify-between p-2 text-sm"
+            className='flex cursor-pointer items-center justify-between p-2 text-sm'
           >
-            <div className="flex items-center">
+            <div className='flex items-center'>
               <div
-                className="mr-2 h-2 w-2 rounded-full"
+                className='mr-2 h-2 w-2 rounded-full'
                 style={{ backgroundColor: workflow.color }}
               />
               {workflow.name}
             </div>
-            {isWorkflowSelected(workflow.id) && <Check className="h-4 w-4 text-primary" />}
+            {isWorkflowSelected(workflow.id) && <Check className='h-4 w-4 text-primary' />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

@@ -1,4 +1,4 @@
-import type { ToolResponse } from "../types"
+import type { ToolResponse } from '../types'
 
 export interface NotionReadParams {
   pageId: string
@@ -24,7 +24,7 @@ export interface NotionWriteParams {
 }
 
 export interface NotionCreatePageParams {
-  parentType: "page" | "database"
+  parentType: 'page' | 'database'
   parentId: string
   title?: string
   properties?: Record<string, any>

@@ -1,8 +1,8 @@
-"use client"
+'use client'
 
-import { cn } from "@/lib/utils"
-import type React from "react"
-import { useEffect, useId, useRef, useState } from "react"
+import { cn } from '@/lib/utils'
+import type React from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 /**
  *  DotPattern Component Props
@@ -85,8 +85,8 @@ export function DotPattern({
     }
 
     updateDimensions()
-    window.addEventListener("resize", updateDimensions)
-    return () => window.removeEventListener("resize", updateDimensions)
+    window.addEventListener('resize', updateDimensions)
+    return () => window.removeEventListener('resize', updateDimensions)
   }, [])
 
   const dots = Array.from(
@@ -108,14 +108,14 @@ export function DotPattern({
   return (
     <svg
       ref={containerRef}
-      aria-hidden="true"
-      className={cn("pointer-events-none absolute inset-0 h-full w-full", className)}
+      aria-hidden='true'
+      className={cn('pointer-events-none absolute inset-0 h-full w-full', className)}
       {...props}
     >
       <defs>
         <radialGradient id={`${id}-gradient`}>
-          <stop offset="0%" stopColor="currentColor" stopOpacity="1" />
-          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          <stop offset='0%' stopColor='currentColor' stopOpacity='1' />
+          <stop offset='100%' stopColor='currentColor' stopOpacity='0' />
         </radialGradient>
       </defs>
       {dots.map((dot, index) => (
@@ -124,8 +124,8 @@ export function DotPattern({
           cx={dot.x}
           cy={dot.y}
           r={cr}
-          fill={glow ? `url(#${id}-gradient)` : "currentColor"}
-          className="text-neutral-400/80"
+          fill={glow ? `url(#${id}-gradient)` : 'currentColor'}
+          className='text-neutral-400/80'
         />
       ))}
     </svg>

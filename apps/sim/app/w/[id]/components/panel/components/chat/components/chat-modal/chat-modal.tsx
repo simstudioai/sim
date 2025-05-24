@@ -1,16 +1,16 @@
-"use client"
+'use client'
 
-import { JSONView } from "@/app/w/[id]/components/panel/components/console/components/json-view/json-view"
-import { useWorkflowExecution } from "@/app/w/[id]/hooks/use-workflow-execution"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
-import { useExecutionStore } from "@/stores/execution/store"
-import { useChatStore } from "@/stores/panel/chat/store"
-import type { ChatMessage as ChatMessageType } from "@/stores/panel/chat/types"
-import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
-import { ArrowUp, CornerDownLeft, Loader2, X } from "lucide-react"
-import { type KeyboardEvent, useEffect, useMemo, useRef } from "react"
+import { JSONView } from '@/app/w/[id]/components/panel/components/console/components/json-view/json-view'
+import { useWorkflowExecution } from '@/app/w/[id]/hooks/use-workflow-execution'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useChatStore } from '@/stores/panel/chat/store'
+import type { ChatMessage as ChatMessageType } from '@/stores/panel/chat/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { ArrowUp, CornerDownLeft, Loader2, X } from 'lucide-react'
+import { type KeyboardEvent, useEffect, useMemo, useRef } from 'react'
 
 interface ChatMessageProps {
   message: ChatMessageType
@@ -20,17 +20,17 @@ interface ChatMessageProps {
 function ModalChatMessage({ message }: ChatMessageProps) {
   // Check if content is a JSON object
   const isJsonObject = useMemo(() => {
-    return typeof message.content === "object" && message.content !== null
+    return typeof message.content === 'object' && message.content !== null
   }, [message.content])
 
   // For user messages (on the right)
-  if (message.type === "user") {
+  if (message.type === 'user') {
     return (
-      <div className="px-4 py-5">
-        <div className="mx-auto max-w-3xl">
-          <div className="flex justify-end">
-            <div className="max-w-[80%] rounded-3xl bg-[#F4F4F4] px-4 py-3 shadow-sm dark:bg-primary/10">
-              <div className="whitespace-pre-wrap break-words text-[#0D0D0D] text-base leading-relaxed dark:text-white">
+      <div className='px-4 py-5'>
+        <div className='mx-auto max-w-3xl'>
+          <div className='flex justify-end'>
+            <div className='max-w-[80%] rounded-3xl bg-[#F4F4F4] px-4 py-3 shadow-sm dark:bg-primary/10'>
+              <div className='whitespace-pre-wrap break-words text-[#0D0D0D] text-base leading-relaxed dark:text-white'>
                 {isJsonObject ? (
                   <JSONView data={message.content} initiallyExpanded={false} />
                 ) : (
@@ -46,11 +46,11 @@ function ModalChatMessage({ message }: ChatMessageProps) {
 
   // For assistant messages (on the left)
   return (
-    <div className="px-4 py-5">
-      <div className="mx-auto max-w-3xl">
-        <div className="flex">
-          <div className="max-w-[80%]">
-            <div className="whitespace-pre-wrap break-words text-base leading-relaxed">
+    <div className='px-4 py-5'>
+      <div className='mx-auto max-w-3xl'>
+        <div className='flex'>
+          <div className='max-w-[80%]'>
+            <div className='whitespace-pre-wrap break-words text-base leading-relaxed'>
               {isJsonObject ? (
                 <JSONView data={message.content} initiallyExpanded={false} />
               ) : (
@@ -96,7 +96,7 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
   }, [workflowMessages])
 
@@ -118,11 +118,11 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
     addMessage({
       content: sentMessage,
       workflowId: activeWorkflowId,
-      type: "user",
+      type: 'user',
     })
 
     // Clear input
-    setChatMessage("")
+    setChatMessage('')
 
     // Ensure input stays focused
     if (inputRef.current) {
@@ -140,7 +140,7 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
 
   // Handle key press
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSendMessage()
     }
@@ -149,7 +149,7 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-background">
+    <div className='fixed inset-0 z-[100] flex flex-col bg-background'>
       <style jsx>{`
         @keyframes growShrink {
           0%,
@@ -166,27 +166,27 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
       `}</style>
 
       {/* Header with title and close button */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="font-medium text-lg">Chat</h2>
+      <div className='flex items-center justify-between px-4 py-3'>
+        <h2 className='font-medium text-lg'>Chat</h2>
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-md hover:bg-accent/50"
+          variant='ghost'
+          size='icon'
+          className='h-8 w-8 rounded-md hover:bg-accent/50'
           onClick={() => onOpenChange(false)}
         >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
+          <X className='h-4 w-4' />
+          <span className='sr-only'>Close</span>
         </Button>
       </div>
 
       {/* Messages container */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl">
+      <div ref={messagesContainerRef} className='flex-1 overflow-y-auto'>
+        <div className='mx-auto max-w-3xl'>
           {workflowMessages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center px-4 py-10">
-              <div className="space-y-2 text-center">
-                <h3 className="font-medium text-lg">How can I help you today?</h3>
-                <p className="text-muted-foreground text-sm">
+            <div className='flex h-full flex-col items-center justify-center px-4 py-10'>
+              <div className='space-y-2 text-center'>
+                <h3 className='font-medium text-lg'>How can I help you today?</h3>
+                <p className='text-muted-foreground text-sm'>
                   Ask me anything about your workflow.
                 </p>
               </div>
@@ -199,12 +199,12 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
 
           {/* Loading indicator (shows only when executing) */}
           {isExecuting && (
-            <div className="px-4 py-5">
-              <div className="mx-auto max-w-3xl">
-                <div className="flex">
-                  <div className="max-w-[80%]">
-                    <div className="flex h-6 items-center">
-                      <div className="loading-dot h-3 w-3 rounded-full bg-black dark:bg-black" />
+            <div className='px-4 py-5'>
+              <div className='mx-auto max-w-3xl'>
+                <div className='flex'>
+                  <div className='max-w-[80%]'>
+                    <div className='flex h-6 items-center'>
+                      <div className='loading-dot h-3 w-3 rounded-full bg-black dark:bg-black' />
                     </div>
                   </div>
                 </div>
@@ -212,38 +212,38 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
             </div>
           )}
 
-          <div ref={messagesEndRef} className="h-1" />
+          <div ref={messagesEndRef} className='h-1' />
         </div>
       </div>
 
       {/* Input area (fixed at bottom) */}
-      <div className="bg-background p-4">
-        <div className="mx-auto max-w-3xl">
-          <div className="relative rounded-2xl border bg-background shadow-sm">
+      <div className='bg-background p-4'>
+        <div className='mx-auto max-w-3xl'>
+          <div className='relative rounded-2xl border bg-background shadow-sm'>
             <Input
               ref={inputRef}
               value={chatMessage}
               onChange={(e) => setChatMessage(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder="Message..."
-              className="min-h-[50px] flex-1 rounded-2xl border-0 bg-transparent py-7 pr-16 pl-6 text-base focus-visible:ring-0 focus-visible:ring-offset-0"
+              placeholder='Message...'
+              className='min-h-[50px] flex-1 rounded-2xl border-0 bg-transparent py-7 pr-16 pl-6 text-base focus-visible:ring-0 focus-visible:ring-offset-0'
               disabled={!activeWorkflowId}
             />
             <Button
               onClick={handleSendMessage}
-              size="icon"
+              size='icon'
               disabled={!chatMessage.trim() || !activeWorkflowId || isExecuting}
-              className="-translate-y-1/2 absolute top-1/2 right-3 h-10 w-10 rounded-xl bg-black p-0 text-white hover:bg-gray-800 dark:bg-primary dark:hover:bg-primary/80"
+              className='-translate-y-1/2 absolute top-1/2 right-3 h-10 w-10 rounded-xl bg-black p-0 text-white hover:bg-gray-800 dark:bg-primary dark:hover:bg-primary/80'
             >
-              <ArrowUp className="h-4 w-4 dark:text-black" />
+              <ArrowUp className='h-4 w-4 dark:text-black' />
             </Button>
           </div>
 
-          <div className="mt-2 text-center text-muted-foreground text-xs">
+          <div className='mt-2 text-center text-muted-foreground text-xs'>
             <p>
               {activeWorkflowId
-                ? "Your messages will be processed by the active workflow"
-                : "Select a workflow to start chatting"}
+                ? 'Your messages will be processed by the active workflow'
+                : 'Select a workflow to start chatting'}
             </p>
           </div>
         </div>

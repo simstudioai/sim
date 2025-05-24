@@ -26,10 +26,10 @@ export interface CustomToolsStore {
   error: string | null
 
   // CRUD operations
-  addTool: (tool: Omit<CustomToolDefinition, "id" | "createdAt" | "updatedAt">) => string
+  addTool: (tool: Omit<CustomToolDefinition, 'id' | 'createdAt' | 'updatedAt'>) => string
   updateTool: (
     id: string,
-    updates: Partial<Omit<CustomToolDefinition, "id" | "createdAt" | "updatedAt">>
+    updates: Partial<Omit<CustomToolDefinition, 'id' | 'createdAt' | 'updatedAt'>>
   ) => boolean
   removeTool: (id: string) => void
   getTool: (id: string) => CustomToolDefinition | undefined

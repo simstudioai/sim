@@ -1,13 +1,13 @@
-import { create } from "zustand"
-import { devtools, persist } from "zustand/middleware"
-import type { PanelStore, PanelTab } from "./types"
+import { create } from 'zustand'
+import { devtools, persist } from 'zustand/middleware'
+import type { PanelStore, PanelTab } from './types'
 
 export const usePanelStore = create<PanelStore>()(
   devtools(
     persist(
       (set) => ({
         isOpen: false,
-        activeTab: "console",
+        activeTab: 'console',
 
         togglePanel: () => {
           set((state) => ({ isOpen: !state.isOpen }))
@@ -18,7 +18,7 @@ export const usePanelStore = create<PanelStore>()(
         },
       }),
       {
-        name: "panel-store",
+        name: 'panel-store',
       }
     )
   )

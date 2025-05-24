@@ -1,13 +1,13 @@
-import { create } from "zustand"
-import type { FilterState } from "./types"
+import { create } from 'zustand'
+import type { FilterState } from './types'
 
 export const useFilterStore = create<FilterState>((set, get) => ({
   logs: [],
   filteredLogs: [],
-  timeRange: "All time",
-  level: "all",
+  timeRange: 'All time',
+  level: 'all',
   workflowIds: [],
-  searchQuery: "",
+  searchQuery: '',
   loading: true,
   error: null,
   page: 1,
@@ -82,18 +82,18 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     let filtered = [...logs]
 
     // Apply time range filter
-    if (timeRange !== "All time") {
+    if (timeRange !== 'All time') {
       const now = new Date()
       let cutoffTime: Date
 
       switch (timeRange) {
-        case "Past 30 minutes":
+        case 'Past 30 minutes':
           cutoffTime = new Date(now.getTime() - 30 * 60 * 1000)
           break
-        case "Past hour":
+        case 'Past hour':
           cutoffTime = new Date(now.getTime() - 60 * 60 * 1000)
           break
-        case "Past 24 hours":
+        case 'Past 24 hours':
           cutoffTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
           break
         default:
@@ -104,7 +104,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     }
 
     // Apply level filter
-    if (level !== "all") {
+    if (level !== 'all') {
       filtered = filtered.filter((log) => log.level.toLowerCase() === level)
     }
 

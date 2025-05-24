@@ -1,42 +1,42 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import type { ToolConfig } from "../types"
-import type { GoogleDriveGetContentResponse, GoogleDriveToolParams } from "./types"
-import { DEFAULT_EXPORT_FORMATS, GOOGLE_WORKSPACE_MIME_TYPES } from "./utils"
+import { createLogger } from '@/lib/logs/console-logger'
+import type { ToolConfig } from '../types'
+import type { GoogleDriveGetContentResponse, GoogleDriveToolParams } from './types'
+import { DEFAULT_EXPORT_FORMATS, GOOGLE_WORKSPACE_MIME_TYPES } from './utils'
 
-const logger = createLogger("GoogleDriveGetContentTool")
+const logger = createLogger('GoogleDriveGetContentTool')
 
 export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetContentResponse> = {
-  id: "google_drive_get_content",
-  name: "Get Content from Google Drive",
+  id: 'google_drive_get_content',
+  name: 'Get Content from Google Drive',
   description:
-    "Get content from a file in Google Drive (exports Google Workspace files automatically)",
-  version: "1.0",
+    'Get content from a file in Google Drive (exports Google Workspace files automatically)',
+  version: '1.0',
   oauth: {
     required: true,
-    provider: "google-drive",
-    additionalScopes: ["https://www.googleapis.com/auth/drive.file"],
+    provider: 'google-drive',
+    additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The access token for the Google Drive API",
+      description: 'The access token for the Google Drive API',
     },
     fileId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The ID of the file to get content from",
+      description: 'The ID of the file to get content from',
     },
     mimeType: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "The MIME type to export Google Workspace files to (optional)",
+      description: 'The MIME type to export Google Workspace files to (optional)',
     },
   },
   request: {
     url: (params) =>
       `https://www.googleapis.com/drive/v3/files/${params.fileId}?fields=id,name,mimeType`,
-    method: "GET",
+    method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
     }),
@@ -45,24 +45,24 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
     try {
       if (!response.ok) {
         const errorDetails = await response.json().catch(() => ({}))
-        logger.error("Failed to get file metadata", {
+        logger.error('Failed to get file metadata', {
           status: response.status,
           statusText: response.statusText,
           error: errorDetails,
         })
-        throw new Error(errorDetails.error?.message || "Failed to get file metadata")
+        throw new Error(errorDetails.error?.message || 'Failed to get file metadata')
       }
 
       const metadata = await response.json()
       const fileId = metadata.id
       const mimeType = metadata.mimeType
-      const authHeader = `Bearer ${params?.accessToken || ""}`
+      const authHeader = `Bearer ${params?.accessToken || ''}`
 
       let content: string
 
       if (GOOGLE_WORKSPACE_MIME_TYPES.includes(mimeType)) {
-        const exportFormat = params?.mimeType || DEFAULT_EXPORT_FORMATS[mimeType] || "text/plain"
-        logger.info("Exporting Google Workspace file", {
+        const exportFormat = params?.mimeType || DEFAULT_EXPORT_FORMATS[mimeType] || 'text/plain'
+        logger.info('Exporting Google Workspace file', {
           fileId,
           mimeType,
           exportFormat,
@@ -79,17 +79,17 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
 
         if (!exportResponse.ok) {
           const exportError = await exportResponse.json().catch(() => ({}))
-          logger.error("Failed to export file", {
+          logger.error('Failed to export file', {
             status: exportResponse.status,
             statusText: exportResponse.statusText,
             error: exportError,
           })
-          throw new Error(exportError.error?.message || "Failed to export Google Workspace file")
+          throw new Error(exportError.error?.message || 'Failed to export Google Workspace file')
         }
 
         content = await exportResponse.text()
       } else {
-        logger.info("Downloading regular file", {
+        logger.info('Downloading regular file', {
           fileId,
           mimeType,
         })
@@ -105,12 +105,12 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
 
         if (!downloadResponse.ok) {
           const downloadError = await downloadResponse.json().catch(() => ({}))
-          logger.error("Failed to download file", {
+          logger.error('Failed to download file', {
             status: downloadResponse.status,
             statusText: downloadResponse.statusText,
             error: downloadError,
           })
-          throw new Error(downloadError.error?.message || "Failed to download file")
+          throw new Error(downloadError.error?.message || 'Failed to download file')
         }
 
         content = await downloadResponse.text()
@@ -126,7 +126,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
       )
 
       if (!metadataResponse.ok) {
-        logger.warn("Failed to get full metadata, using partial metadata", {
+        logger.warn('Failed to get full metadata, using partial metadata', {
           status: metadataResponse.status,
           statusText: metadataResponse.statusText,
         })
@@ -153,7 +153,7 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
         },
       }
     } catch (error: any) {
-      logger.error("Error in transform response", {
+      logger.error('Error in transform response', {
         error: error.message,
         stack: error.stack,
       })
@@ -161,10 +161,10 @@ export const getContentTool: ToolConfig<GoogleDriveToolParams, GoogleDriveGetCon
     }
   },
   transformError: (error) => {
-    logger.error("Download error", {
+    logger.error('Download error', {
       message: error.message,
       stack: error.stack,
     })
-    return error.message || "An error occurred while getting content from Google Drive"
+    return error.message || 'An error occurred while getting content from Google Drive'
   },
 }

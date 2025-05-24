@@ -3,15 +3,15 @@ import {
   getMockedDependencies,
   mockExecutionDependencies,
   sampleWorkflowState,
-} from "@/app/api/__test-utils__/utils"
+} from '@/app/api/__test-utils__/utils'
 /**
  * Integration tests for schedule configuration API route
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe("Schedule Configuration API Route", () => {
+describe('Schedule Configuration API Route', () => {
   beforeEach(() => {
     vi.resetModules()
 
@@ -19,11 +19,11 @@ describe("Schedule Configuration API Route", () => {
     mockExecutionDependencies()
 
     // Mock auth
-    vi.doMock("@/lib/auth", () => ({
+    vi.doMock('@/lib/auth', () => ({
       getSession: vi.fn().mockResolvedValue({
         user: {
-          id: "user-id",
-          email: "test@example.com",
+          id: 'user-id',
+          email: 'test@example.com',
         },
       }),
     }))
@@ -33,36 +33,36 @@ describe("Schedule Configuration API Route", () => {
       ...sampleWorkflowState,
       blocks: {
         ...sampleWorkflowState.blocks,
-        "starter-id": {
-          ...sampleWorkflowState.blocks["starter-id"],
+        'starter-id': {
+          ...sampleWorkflowState.blocks['starter-id'],
           subBlocks: {
-            ...sampleWorkflowState.blocks["starter-id"].subBlocks,
-            startWorkflow: { id: "startWorkflow", type: "dropdown", value: "schedule" },
-            scheduleType: { id: "scheduleType", type: "dropdown", value: "daily" },
-            scheduleTime: { id: "scheduleTime", type: "time-input", value: "09:30" },
-            dailyTime: { id: "dailyTime", type: "time-input", value: "09:30" },
+            ...sampleWorkflowState.blocks['starter-id'].subBlocks,
+            startWorkflow: { id: 'startWorkflow', type: 'dropdown', value: 'schedule' },
+            scheduleType: { id: 'scheduleType', type: 'dropdown', value: 'daily' },
+            scheduleTime: { id: 'scheduleTime', type: 'time-input', value: '09:30' },
+            dailyTime: { id: 'dailyTime', type: 'time-input', value: '09:30' },
           },
         },
       },
     }
 
     // Create mock database with test schedules
-    vi.doMock("@/db", () => {
+    vi.doMock('@/db', () => {
       const mockDb = {
         select: vi.fn().mockImplementation(() => ({
           from: vi.fn().mockImplementation((table: string) => {
-            if (table === "workflow_schedule") {
+            if (table === 'workflow_schedule') {
               return {
                 where: vi.fn().mockImplementation(() => ({
                   limit: vi.fn().mockImplementation(() => [
                     {
-                      id: "schedule-id",
-                      workflowId: "workflow-id",
-                      userId: "user-id",
+                      id: 'schedule-id',
+                      workflowId: 'workflow-id',
+                      userId: 'user-id',
                       nextRunAt: new Date(),
                       lastRanAt: null,
-                      cronExpression: "0 9 * * *",
-                      triggerType: "schedule",
+                      cronExpression: '0 9 * * *',
+                      triggerType: 'schedule',
                     },
                   ]),
                 })),
@@ -94,17 +94,17 @@ describe("Schedule Configuration API Route", () => {
     })
 
     // Fix imports for route.ts
-    vi.doMock("crypto", () => ({
-      randomUUID: vi.fn(() => "test-uuid"),
+    vi.doMock('crypto', () => ({
+      randomUUID: vi.fn(() => 'test-uuid'),
       default: {
-        randomUUID: vi.fn(() => "test-uuid"),
+        randomUUID: vi.fn(() => 'test-uuid'),
       },
     }))
 
     // Mock the schedule utils
-    vi.doMock("@/lib/schedules/utils", () => ({
+    vi.doMock('@/lib/schedules/utils', () => ({
       getScheduleTimeValues: vi.fn().mockReturnValue({
-        scheduleTime: "09:30",
+        scheduleTime: '09:30',
         minutesInterval: 15,
         hourlyMinute: 0,
         dailyTime: [9, 30],
@@ -115,14 +115,14 @@ describe("Schedule Configuration API Route", () => {
       }),
       getSubBlockValue: vi.fn().mockImplementation((block: any, id: string) => {
         const subBlocks = {
-          startWorkflow: "schedule",
-          scheduleType: "daily",
-          scheduleTime: "09:30",
-          dailyTime: "09:30",
+          startWorkflow: 'schedule',
+          scheduleType: 'daily',
+          scheduleTime: '09:30',
+          dailyTime: '09:30',
         }
-        return subBlocks[id as keyof typeof subBlocks] || ""
+        return subBlocks[id as keyof typeof subBlocks] || ''
       }),
-      generateCronExpression: vi.fn().mockReturnValue("0 9 * * *"),
+      generateCronExpression: vi.fn().mockReturnValue('0 9 * * *'),
       calculateNextRunTime: vi.fn().mockReturnValue(new Date()),
       BlockState: {},
     }))
@@ -135,19 +135,19 @@ describe("Schedule Configuration API Route", () => {
   /**
    * Test creating a new schedule
    */
-  it("should create a new schedule successfully", async () => {
+  it('should create a new schedule successfully', async () => {
     // Create a mock request with schedule data
-    const req = createMockRequest("POST", {
-      workflowId: "workflow-id",
+    const req = createMockRequest('POST', {
+      workflowId: 'workflow-id',
       state: {
         blocks: {
-          "starter-id": {
-            type: "starter",
+          'starter-id': {
+            type: 'starter',
             subBlocks: {
-              startWorkflow: { value: "schedule" },
-              scheduleType: { value: "daily" },
-              scheduleTime: { value: "09:30" },
-              dailyTime: { value: "09:30" },
+              startWorkflow: { value: 'schedule' },
+              scheduleType: { value: 'daily' },
+              scheduleTime: { value: '09:30' },
+              dailyTime: { value: '09:30' },
             },
           },
         },
@@ -157,7 +157,7 @@ describe("Schedule Configuration API Route", () => {
     })
 
     // Import the route handler after mocks are set up
-    const { POST } = await import("./route")
+    const { POST } = await import('./route')
 
     // Call the handler
     const response = await POST(req)
@@ -168,9 +168,9 @@ describe("Schedule Configuration API Route", () => {
 
     // Validate response data
     const responseData = await response.json()
-    expect(responseData).toHaveProperty("message", "Schedule updated")
-    expect(responseData).toHaveProperty("cronExpression", "0 9 * * *")
-    expect(responseData).toHaveProperty("nextRunAt")
+    expect(responseData).toHaveProperty('message', 'Schedule updated')
+    expect(responseData).toHaveProperty('cronExpression', '0 9 * * *')
+    expect(responseData).toHaveProperty('nextRunAt')
 
     // We can't verify the utility functions were called directly
     // since we're mocking them at the module level
@@ -180,19 +180,19 @@ describe("Schedule Configuration API Route", () => {
   /**
    * Test updating an existing schedule
    */
-  it("should update an existing schedule", async () => {
+  it('should update an existing schedule', async () => {
     // Setup the specific DB mock for this test
-    vi.doMock("@/db", () => {
+    vi.doMock('@/db', () => {
       const mockDb = {
         select: vi.fn().mockImplementation(() => ({
           from: vi.fn().mockImplementation(() => ({
             where: vi.fn().mockImplementation(() => ({
               limit: vi.fn().mockImplementation(() => [
                 {
-                  id: "schedule-id",
-                  workflowId: "workflow-id",
+                  id: 'schedule-id',
+                  workflowId: 'workflow-id',
                   nextRunAt: new Date(),
-                  cronExpression: "0 9 * * *",
+                  cronExpression: '0 9 * * *',
                 },
               ]),
             })),
@@ -212,17 +212,17 @@ describe("Schedule Configuration API Route", () => {
     })
 
     // Create a mock request with updated schedule
-    const req = createMockRequest("POST", {
-      workflowId: "workflow-id",
+    const req = createMockRequest('POST', {
+      workflowId: 'workflow-id',
       state: {
         blocks: {
-          "starter-id": {
-            type: "starter",
+          'starter-id': {
+            type: 'starter',
             subBlocks: {
-              startWorkflow: { value: "schedule" },
-              scheduleType: { value: "daily" },
-              scheduleTime: { value: "10:30" }, // Updated time
-              dailyTime: { value: "10:30" },
+              startWorkflow: { value: 'schedule' },
+              scheduleType: { value: 'daily' },
+              scheduleTime: { value: '10:30' }, // Updated time
+              dailyTime: { value: '10:30' },
             },
           },
         },
@@ -232,27 +232,27 @@ describe("Schedule Configuration API Route", () => {
     })
 
     // Override the schedule utils mock for this test
-    vi.doMock("@/lib/schedules/utils", () => ({
+    vi.doMock('@/lib/schedules/utils', () => ({
       getScheduleTimeValues: vi.fn().mockReturnValue({
-        scheduleTime: "10:30",
+        scheduleTime: '10:30',
         dailyTime: [10, 30],
       }),
       getSubBlockValue: vi.fn().mockImplementation((block: any, id: string) => {
         const subBlocks = {
-          startWorkflow: "schedule",
-          scheduleType: "daily",
-          scheduleTime: "10:30",
-          dailyTime: "10:30",
+          startWorkflow: 'schedule',
+          scheduleType: 'daily',
+          scheduleTime: '10:30',
+          dailyTime: '10:30',
         }
-        return subBlocks[id as keyof typeof subBlocks] || ""
+        return subBlocks[id as keyof typeof subBlocks] || ''
       }),
-      generateCronExpression: vi.fn().mockReturnValue("0 10 * * *"),
+      generateCronExpression: vi.fn().mockReturnValue('0 10 * * *'),
       calculateNextRunTime: vi.fn().mockReturnValue(new Date()),
       BlockState: {},
     }))
 
     // Import the route handler after mocks are set up
-    const { POST } = await import("./route")
+    const { POST } = await import('./route')
 
     // Call the handler
     const response = await POST(req)
@@ -262,13 +262,13 @@ describe("Schedule Configuration API Route", () => {
     expect(response.status).toBe(200)
 
     const responseData = await response.json()
-    expect(responseData).toHaveProperty("message", "Schedule updated")
+    expect(responseData).toHaveProperty('message', 'Schedule updated')
   })
 
   /**
    * Test removing a schedule
    */
-  it("should remove a schedule when startWorkflow is not schedule", async () => {
+  it('should remove a schedule when startWorkflow is not schedule', async () => {
     // Skip this test for now, as we're having issues with the mock
     // This would require deeper debugging of how the mock is being applied
     expect(true).toBe(true)
@@ -347,9 +347,9 @@ describe("Schedule Configuration API Route", () => {
   /**
    * Test error handling
    */
-  it("should handle errors gracefully", async () => {
+  it('should handle errors gracefully', async () => {
     // Mock the db to throw an error on insert
-    vi.doMock("@/db", () => ({
+    vi.doMock('@/db', () => ({
       db: {
         select: vi.fn().mockImplementation(() => ({
           from: vi.fn().mockImplementation(() => ({
@@ -359,19 +359,19 @@ describe("Schedule Configuration API Route", () => {
           })),
         })),
         insert: vi.fn().mockImplementation(() => {
-          throw new Error("Database error")
+          throw new Error('Database error')
         }),
       },
     }))
 
     // Create a mock request
-    const req = createMockRequest("POST", {
-      workflowId: "workflow-id",
+    const req = createMockRequest('POST', {
+      workflowId: 'workflow-id',
       state: { blocks: {}, edges: [], loops: {} },
     })
 
     // Import the route handler after mocks are set up
-    const { POST } = await import("./route")
+    const { POST } = await import('./route')
 
     // Call the handler
     const response = await POST(req)
@@ -379,26 +379,26 @@ describe("Schedule Configuration API Route", () => {
     // Check response is an error (could be 400 or 500 depending on error handling)
     expect(response.status).toBeGreaterThanOrEqual(400)
     const data = await response.json()
-    expect(data).toHaveProperty("error")
+    expect(data).toHaveProperty('error')
   })
 
   /**
    * Test authentication requirement
    */
-  it("should require authentication", async () => {
+  it('should require authentication', async () => {
     // Mock auth to return no session
-    vi.doMock("@/lib/auth", () => ({
+    vi.doMock('@/lib/auth', () => ({
       getSession: vi.fn().mockResolvedValue(null),
     }))
 
     // Create a mock request
-    const req = createMockRequest("POST", {
-      workflowId: "workflow-id",
+    const req = createMockRequest('POST', {
+      workflowId: 'workflow-id',
       state: { blocks: {}, edges: [], loops: {} },
     })
 
     // Import the route handler after mocks are set up
-    const { POST } = await import("./route")
+    const { POST } = await import('./route')
 
     // Call the handler
     const response = await POST(req)
@@ -406,22 +406,22 @@ describe("Schedule Configuration API Route", () => {
     // Check response requires auth
     expect(response.status).toBe(401)
     const data = await response.json()
-    expect(data).toHaveProperty("error", "Unauthorized")
+    expect(data).toHaveProperty('error', 'Unauthorized')
   })
 
   /**
    * Test invalid data handling
    */
-  it("should validate input data", async () => {
+  it('should validate input data', async () => {
     // Create a mock request with invalid data
-    const req = createMockRequest("POST", {
+    const req = createMockRequest('POST', {
       // Missing required fields
-      workflowId: "workflow-id",
+      workflowId: 'workflow-id',
       // Missing state
     })
 
     // Import the route handler after mocks are set up
-    const { POST } = await import("./route")
+    const { POST } = await import('./route')
 
     // Call the handler
     const response = await POST(req)
@@ -429,6 +429,6 @@ describe("Schedule Configuration API Route", () => {
     // Check response validates data
     expect(response.status).toBe(400)
     const data = await response.json()
-    expect(data).toHaveProperty("error", "Invalid request data")
+    expect(data).toHaveProperty('error', 'Invalid request data')
   })
 })

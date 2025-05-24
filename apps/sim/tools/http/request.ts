@@ -1,21 +1,21 @@
-import { getNodeEnv } from "@/lib/environment"
-import { createLogger } from "@/lib/logs/console-logger"
-import { getBaseUrl } from "@/lib/urls/utils"
-import type { HttpMethod, TableRow, ToolConfig } from "../types"
-import type { RequestParams, RequestResponse } from "./types"
+import { getNodeEnv } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console-logger'
+import { getBaseUrl } from '@/lib/urls/utils'
+import type { HttpMethod, TableRow, ToolConfig } from '../types'
+import type { RequestParams, RequestResponse } from './types'
 
-const logger = createLogger("HTTPRequestTool")
+const logger = createLogger('HTTPRequestTool')
 
 // Function to get the appropriate referer based on environment
 const getReferer = (): string => {
-  if (typeof window !== "undefined") {
+  if (typeof window !== 'undefined') {
     return window.location.origin
   }
 
   try {
     return getBaseUrl()
   } catch (error) {
-    return "http://localhost:3000"
+    return 'http://localhost:3000'
   }
 }
 
@@ -30,16 +30,16 @@ const getDefaultHeaders = (
   url?: string
 ): Record<string, string> => {
   const headers: Record<string, string> = {
-    "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-    Accept: "*/*",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
+    'User-Agent':
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+    Accept: '*/*',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
     Referer: getReferer(),
-    "Sec-Ch-Ua": "Chromium;v=91, Not-A.Brand;v=99",
-    "Sec-Ch-Ua-Mobile": "?0",
-    "Sec-Ch-Ua-Platform": '"macOS"',
+    'Sec-Ch-Ua': 'Chromium;v=91, Not-A.Brand;v=99',
+    'Sec-Ch-Ua-Mobile': '?0',
+    'Sec-Ch-Ua-Platform': '"macOS"',
     ...customHeaders,
   }
 
@@ -87,7 +87,7 @@ const processUrl = (
     const queryParamsObj = transformTable(queryParams)
 
     // Verify if URL already has query params to use proper separator
-    const separator = url.includes("?") ? "&" : "?"
+    const separator = url.includes('?') ? '&' : '?'
 
     // Build query string manually to avoid double-encoding issues
     const queryParts: string[] = []
@@ -99,7 +99,7 @@ const processUrl = (
     }
 
     if (queryParts.length > 0) {
-      url += separator + queryParts.join("&")
+      url += separator + queryParts.join('&')
     }
   }
 
@@ -109,12 +109,12 @@ const processUrl = (
 // Check if a URL needs proxy to avoid CORS/method restrictions
 const shouldUseProxy = (url: string): boolean => {
   // Skip proxying in test environment
-  if (getNodeEnv() === "test") {
+  if (getNodeEnv() === 'test') {
     return false
   }
 
   // Only consider proxying in browser environment
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     return false
   }
 
@@ -123,28 +123,28 @@ const shouldUseProxy = (url: string): boolean => {
     const currentOrigin = window.location.origin
 
     // Don't proxy same-origin or localhost requests
-    if (url.startsWith(currentOrigin) || url.includes("localhost")) {
+    if (url.startsWith(currentOrigin) || url.includes('localhost')) {
       return false
     }
 
     return true // Proxy all cross-origin requests for consistency
   } catch (e) {
-    logger.warn("URL parsing failed:", e)
+    logger.warn('URL parsing failed:', e)
     return false
   }
 }
 
 // Default headers that will be applied if not explicitly overridden by user
 const DEFAULT_HEADERS: Record<string, string> = {
-  "User-Agent":
-    "Mozilla/5.0 (Macintosh Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-  Accept: "*/*",
-  "Accept-Encoding": "gzip, deflate, br",
-  "Cache-Control": "no-cache",
-  Connection: "keep-alive",
-  "Sec-Ch-Ua": '"Chromium"v="135", "Not-A.Brand"v="8"',
-  "Sec-Ch-Ua-Mobile": "?0",
-  "Sec-Ch-Ua-Platform": '"macOS"',
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+  Accept: '*/*',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+  Connection: 'keep-alive',
+  'Sec-Ch-Ua': '"Chromium"v="135", "Not-A.Brand"v="8"',
+  'Sec-Ch-Ua-Mobile': '?0',
+  'Sec-Ch-Ua-Platform': '"macOS"',
 }
 
 /**
@@ -173,51 +173,51 @@ const transformTable = (table: TableRow[] | null): Record<string, any> => {
 }
 
 export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
-  id: "http_request",
-  name: "HTTP Request",
+  id: 'http_request',
+  name: 'HTTP Request',
   description:
-    "Make HTTP requests with comprehensive support for methods, headers, query parameters, path parameters, and form data. Features configurable timeout and status validation for robust API interactions.",
-  version: "1.0.0",
+    'Make HTTP requests with comprehensive support for methods, headers, query parameters, path parameters, and form data. Features configurable timeout and status validation for robust API interactions.',
+  version: '1.0.0',
 
   params: {
     url: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The URL to send the request to",
+      description: 'The URL to send the request to',
     },
     method: {
-      type: "string",
-      default: "GET",
-      description: "HTTP method (GET, POST, PUT, PATCH, DELETE)",
+      type: 'string',
+      default: 'GET',
+      description: 'HTTP method (GET, POST, PUT, PATCH, DELETE)',
     },
     headers: {
-      type: "object",
-      description: "HTTP headers to include",
+      type: 'object',
+      description: 'HTTP headers to include',
     },
     body: {
-      type: "object",
-      description: "Request body (for POST, PUT, PATCH)",
+      type: 'object',
+      description: 'Request body (for POST, PUT, PATCH)',
     },
     params: {
-      type: "object",
-      description: "URL query parameters to append",
+      type: 'object',
+      description: 'URL query parameters to append',
     },
     pathParams: {
-      type: "object",
-      description: "URL path parameters to replace (e.g., :id in /users/:id)",
+      type: 'object',
+      description: 'URL path parameters to replace (e.g., :id in /users/:id)',
     },
     formData: {
-      type: "object",
-      description: "Form data to send (will set appropriate Content-Type)",
+      type: 'object',
+      description: 'Form data to send (will set appropriate Content-Type)',
     },
     timeout: {
-      type: "number",
+      type: 'number',
       default: 10000,
-      description: "Request timeout in milliseconds",
+      description: 'Request timeout in milliseconds',
     },
     validateStatus: {
-      type: "object",
-      description: "Custom status validation function",
+      type: 'object',
+      description: 'Custom status validation function',
     },
   },
 
@@ -238,9 +238,9 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           proxyUrl += `&method=${encodeURIComponent(params.method)}`
         }
 
-        if (params.body && ["POST", "PUT", "PATCH"].includes(params.method?.toUpperCase() || "")) {
+        if (params.body && ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')) {
           const bodyStr =
-            typeof params.body === "string" ? params.body : JSON.stringify(params.body)
+            typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
           proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
         }
 
@@ -255,9 +255,9 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         }
 
         const response = await fetch(proxyUrl, {
-          method: "GET",
+          method: 'GET',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
         })
 
@@ -274,7 +274,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           error: result.success
             ? undefined
             : // Extract and display the actual API error message from the response if available
-              result.data && typeof result.data === "object" && result.data.error
+              result.data && typeof result.data === 'object' && result.data.error
               ? `HTTP error ${result.status}: ${result.data.error.message || JSON.stringify(result.data.error)}`
               : result.error || `HTTP error ${result.status}`,
         }
@@ -285,17 +285,17 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       const headers = getDefaultHeaders(userHeaders, url)
 
       const fetchOptions: RequestInit = {
-        method: params.method || "GET",
+        method: params.method || 'GET',
         headers,
-        redirect: "follow",
+        redirect: 'follow',
       }
 
       // Add body for non-GET requests
-      if (params.method && params.method !== "GET" && params.body) {
-        if (typeof params.body === "object") {
+      if (params.method && params.method !== 'GET' && params.body) {
+        if (typeof params.body === 'object') {
           fetchOptions.body = JSON.stringify(params.body)
           // Ensure Content-Type is set
-          headers["Content-Type"] = "application/json"
+          headers['Content-Type'] = 'application/json'
         } else {
           fetchOptions.body = params.body
         }
@@ -330,7 +330,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         // Parse response based on content type
         let data
         try {
-          if (response.headers.get("content-type")?.includes("application/json")) {
+          if (response.headers.get('content-type')?.includes('application/json')) {
             data = await response.json()
           } else {
             data = await response.text()
@@ -352,7 +352,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         clearTimeout(timeoutId)
 
         // Handle specific abort error
-        if (error.name === "AbortError") {
+        if (error.name === 'AbortError') {
           return {
             success: false,
             output: {
@@ -371,7 +371,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
             status: 0,
             headers: {},
           },
-          error: error.message || "Failed to fetch",
+          error: error.message || 'Failed to fetch',
         }
       }
     } catch (error: any) {
@@ -382,7 +382,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           status: 0,
           headers: {},
         },
-        error: error.message || "Error preparing HTTP request",
+        error: error.message || 'Error preparing HTTP request',
       }
     }
   },
@@ -400,9 +400,9 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           proxyUrl += `&method=${encodeURIComponent(params.method)}`
         }
 
-        if (params.body && ["POST", "PUT", "PATCH"].includes(params.method?.toUpperCase() || "")) {
+        if (params.body && ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')) {
           const bodyStr =
-            typeof params.body === "string" ? params.body : JSON.stringify(params.body)
+            typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
           proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
         }
 
@@ -420,7 +420,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       return processedUrl
     },
 
-    method: "GET" as HttpMethod,
+    method: 'GET' as HttpMethod,
 
     headers: (params: RequestParams) => {
       const headers = transformTable(params.headers || null)
@@ -428,7 +428,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       // For proxied requests, we only need minimal headers
       if (shouldUseProxy(params.url)) {
         return {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         }
       }
 
@@ -441,7 +441,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
         return allHeaders
       }
       if (params.body) {
-        allHeaders["Content-Type"] = "application/json"
+        allHeaders['Content-Type'] = 'application/json'
       }
 
       return allHeaders
@@ -471,8 +471,8 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
 
   transformResponse: async (response: Response) => {
     // For proxy responses, we need to parse the JSON and extract the data
-    const contentType = response.headers.get("content-type") || ""
-    if (contentType.includes("application/json")) {
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
       const jsonResponse = await response.json()
 
       // Check if this is a proxy response
@@ -494,7 +494,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       headers[key] = value
     })
 
-    const data = await (contentType.includes("application/json")
+    const data = await (contentType.includes('application/json')
       ? response.json()
       : response.text())
 
@@ -512,25 +512,25 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     // If there's detailed error info from the API response, use it
     if (error.response?.data) {
       // Handle structured error objects from APIs
-      if (typeof error.response.data === "object" && error.response.data.error) {
+      if (typeof error.response.data === 'object' && error.response.data.error) {
         const apiError = error.response.data.error
         const message =
-          apiError.message || (typeof apiError === "string" ? apiError : JSON.stringify(apiError))
-        return `${error.status || ""} ${message}`.trim()
+          apiError.message || (typeof apiError === 'string' ? apiError : JSON.stringify(apiError))
+        return `${error.status || ''} ${message}`.trim()
       }
 
       // For text error responses
-      if (typeof error.response.data === "string" && error.response.data.trim()) {
-        return `${error.status || ""} ${error.response.data}`.trim()
+      if (typeof error.response.data === 'string' && error.response.data.trim()) {
+        return `${error.status || ''} ${error.response.data}`.trim()
       }
     }
 
     // Fall back to standard error formatting
-    const message = error.message || error.error?.message || "Unknown error"
+    const message = error.message || error.error?.message || 'Unknown error'
     const code = error.status || error.error?.status
-    const statusText = error.statusText || ""
+    const statusText = error.statusText || ''
 
     // Format the error message
-    return code ? `HTTP error ${code}${statusText ? `: ${statusText}` : ""} - ${message}` : message
+    return code ? `HTTP error ${code}${statusText ? `: ${statusText}` : ''} - ${message}` : message
   },
 }

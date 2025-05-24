@@ -1,4 +1,4 @@
-import type { ToolResponse } from "../types"
+import type { ToolResponse } from '../types'
 
 /**
  * Input parameters for the Mistral OCR parser tool
@@ -14,7 +14,7 @@ export interface MistralParserInput {
   apiKey: string
 
   /** Output format for the extracted content (default: 'markdown') */
-  resultType?: "markdown" | "text" | "json"
+  resultType?: 'markdown' | 'text' | 'json'
 
   /** Whether to include base64-encoded images in the response */
   includeImageBase64?: boolean
@@ -54,7 +54,7 @@ export interface MistralParserMetadata {
   fileName: string
 
   /** Source type (always 'url' for now) */
-  source: "url"
+  source: 'url'
 
   /** Original URL to the document (only included for user-provided URLs) */
   sourceUrl?: string
@@ -69,7 +69,7 @@ export interface MistralParserMetadata {
   model: string
 
   /** The output format that was requested */
-  resultType?: "markdown" | "text" | "json"
+  resultType?: 'markdown' | 'text' | 'json'
 
   /** ISO timestamp when the document was processed */
   processedAt: string

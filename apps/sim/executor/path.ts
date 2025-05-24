@@ -1,8 +1,8 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import type { SerializedWorkflow } from "@/serializer/types"
-import type { ExecutionContext } from "./types"
+import { createLogger } from '@/lib/logs/console-logger'
+import type { SerializedWorkflow } from '@/serializer/types'
+import type { ExecutionContext } from './types'
 
-const logger = createLogger("PathTracker")
+const logger = createLogger('PathTracker')
 
 /**
  * Manages the active execution paths in the workflow.
@@ -34,7 +34,7 @@ export class PathTracker {
       const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
 
       // For router blocks, check if this is the selected target
-      if (sourceBlock?.metadata?.id === "router") {
+      if (sourceBlock?.metadata?.id === 'router') {
         const selectedTarget = context.decisions.router.get(conn.source)
         // This path is active if the router selected this target
         if (context.executedBlocks.has(conn.source) && selectedTarget === blockId) {
@@ -44,9 +44,9 @@ export class PathTracker {
       }
 
       // For condition blocks, check if this is the selected condition
-      if (sourceBlock?.metadata?.id === "condition") {
-        if (conn.sourceHandle?.startsWith("condition-")) {
-          const conditionId = conn.sourceHandle.replace("condition-", "")
+      if (sourceBlock?.metadata?.id === 'condition') {
+        if (conn.sourceHandle?.startsWith('condition-')) {
+          const conditionId = conn.sourceHandle.replace('condition-', '')
           const selectedCondition = context.decisions.condition.get(conn.source)
           // This path is active if the condition selected this path
           if (context.executedBlocks.has(conn.source) && conditionId === selectedCondition) {
@@ -69,12 +69,12 @@ export class PathTracker {
    * @param context - Current execution context
    */
   updateExecutionPaths(executedBlockIds: string[], context: ExecutionContext): void {
-    logger.info(`Updating paths for blocks: ${executedBlockIds.join(", ")}`)
+    logger.info(`Updating paths for blocks: ${executedBlockIds.join(', ')}`)
 
     for (const blockId of executedBlockIds) {
       const block = this.workflow.blocks.find((b) => b.id === blockId)
 
-      if (block?.metadata?.id === "router") {
+      if (block?.metadata?.id === 'router') {
         const routerOutput = context.blockStates.get(blockId)?.output
         const selectedPath = routerOutput?.response?.selectedPath?.blockId
 
@@ -84,7 +84,7 @@ export class PathTracker {
           context.activeExecutionPath.add(selectedPath)
           logger.info(`Router ${blockId} selected path: ${selectedPath}`)
         }
-      } else if (block?.metadata?.id === "condition") {
+      } else if (block?.metadata?.id === 'condition') {
         const conditionOutput = context.blockStates.get(blockId)?.output
         const selectedConditionId = conditionOutput?.response?.selectedConditionId
 
@@ -151,13 +151,13 @@ export class PathTracker {
           // 2. It's an external connection and all loops are completed
 
           // For error connections, only activate them on error
-          if (conn.sourceHandle === "error") {
+          if (conn.sourceHandle === 'error') {
             if (hasError) {
               context.activeExecutionPath.add(conn.target)
             }
           }
           // For regular (source) connections, only activate them if there's no error
-          else if (conn.sourceHandle === "source" || !conn.sourceHandle) {
+          else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
             if (!hasError) {
               context.activeExecutionPath.add(conn.target)
             }

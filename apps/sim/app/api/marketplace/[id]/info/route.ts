@@ -1,12 +1,12 @@
-import { validateWorkflowAccess } from "@/app/api/workflows/middleware"
-import { createErrorResponse, createSuccessResponse } from "@/app/api/workflows/utils"
-import { db } from "@/db"
-import * as schema from "@/db/schema"
-import { createLogger } from "@/lib/logs/console-logger"
-import { eq } from "drizzle-orm"
-import type { NextRequest } from "next/server"
+import { validateWorkflowAccess } from '@/app/api/workflows/middleware'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { db } from '@/db'
+import * as schema from '@/db/schema'
+import { createLogger } from '@/lib/logs/console-logger'
+import { eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
 
-const logger = createLogger("MarketplaceInfoAPI")
+const logger = createLogger('MarketplaceInfoAPI')
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!marketplaceEntry) {
       logger.warn(`[${requestId}] No marketplace entry found for workflow: ${id}`)
-      return createErrorResponse("Workflow is not published to marketplace", 404)
+      return createErrorResponse('Workflow is not published to marketplace', 404)
     }
 
     logger.info(`[${requestId}] Retrieved marketplace info for workflow: ${id}`)
@@ -51,6 +51,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       `[${requestId}] Error getting marketplace info for workflow: ${(await params).id}`,
       error
     )
-    return createErrorResponse("Failed to get marketplace information", 500)
+    return createErrorResponse('Failed to get marketplace information', 500)
   }
 }

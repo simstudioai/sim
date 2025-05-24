@@ -1,35 +1,35 @@
-import type { SubBlockType } from "@/blocks/types"
-import { createLogger } from "@/lib/logs/console-logger"
-import { useEffect } from "react"
-import { useCopilotStore } from "./copilot/store"
-import { useCustomToolsStore } from "./custom-tools/store"
-import { useExecutionStore } from "./execution/store"
-import { useNotificationStore } from "./notifications/store"
-import { useConsoleStore } from "./panel/console/store"
-import { useVariablesStore } from "./panel/variables/store"
-import { useEnvironmentStore } from "./settings/environment/store"
+import type { SubBlockType } from '@/blocks/types'
+import { createLogger } from '@/lib/logs/console-logger'
+import { useEffect } from 'react'
+import { useCopilotStore } from './copilot/store'
+import { useCustomToolsStore } from './custom-tools/store'
+import { useExecutionStore } from './execution/store'
+import { useNotificationStore } from './notifications/store'
+import { useConsoleStore } from './panel/console/store'
+import { useVariablesStore } from './panel/variables/store'
+import { useEnvironmentStore } from './settings/environment/store'
 import {
   getSyncManagers,
   initializeSyncManagers,
   isSyncInitialized,
   resetSyncManagers,
-} from "./sync-registry"
+} from './sync-registry'
 // Import the syncWorkflows function directly
-import { syncWorkflows } from "./workflows"
+import { syncWorkflows } from './workflows'
 import {
   loadRegistry,
   loadSubblockValues,
   loadWorkflowState,
   saveSubblockValues,
   saveWorkflowState,
-} from "./workflows/persistence"
-import { useWorkflowRegistry } from "./workflows/registry/store"
-import { useSubBlockStore } from "./workflows/subblock/store"
-import { isRegistryInitialized, markWorkflowsDirty, workflowSync } from "./workflows/sync"
-import { useWorkflowStore } from "./workflows/workflow/store"
-import type { BlockState } from "./workflows/workflow/types"
+} from './workflows/persistence'
+import { useWorkflowRegistry } from './workflows/registry/store'
+import { useSubBlockStore } from './workflows/subblock/store'
+import { isRegistryInitialized, markWorkflowsDirty, workflowSync } from './workflows/sync'
+import { useWorkflowStore } from './workflows/workflow/store'
+import type { BlockState } from './workflows/workflow/types'
 
-const logger = createLogger("Stores")
+const logger = createLogger('Stores')
 
 // Track initialization state
 let isInitializing = false
@@ -44,7 +44,7 @@ let appFullyInitialized = false
  * accordingly.
  */
 async function initializeApplication(): Promise<void> {
-  if (typeof window === "undefined" || isInitializing) return
+  if (typeof window === 'undefined' || isInitializing) return
 
   isInitializing = true
   appFullyInitialized = false
@@ -61,8 +61,8 @@ async function initializeApplication(): Promise<void> {
 
     // Set a flag in sessionStorage to detect new login sessions
     // This helps identify fresh logins in private browsers
-    const isNewLoginSession = !sessionStorage.getItem("app_initialized")
-    sessionStorage.setItem("app_initialized", "true")
+    const isNewLoginSession = !sessionStorage.getItem('app_initialized')
+    sessionStorage.setItem('app_initialized', 'true')
 
     // Initialize sync system for other stores
     await initializeSyncManagers()
@@ -76,7 +76,7 @@ async function initializeApplication(): Promise<void> {
       // No workflows loaded from DB, try localStorage as fallback
       const workflows = loadRegistry()
       if (workflows && Object.keys(workflows).length > 0) {
-        logger.info("Loading workflows from localStorage as fallback")
+        logger.info('Loading workflows from localStorage as fallback')
         useWorkflowRegistry.setState({ workflows })
 
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -86,20 +86,20 @@ async function initializeApplication(): Promise<void> {
       } else if (isNewLoginSession) {
         // Critical safeguard: For new login sessions with no DB workflows
         // and no localStorage, we disable sync temporarily to prevent data loss
-        logger.info("New login session with no workflows - preventing initial sync")
+        logger.info('New login session with no workflows - preventing initial sync')
         const syncManagers = getSyncManagers()
         syncManagers.forEach((manager) => manager.stopIntervalSync())
 
         // Create the first starter workflow with an agent block for new users
-        logger.info("Creating first workflow with agent block for new user")
+        logger.info('Creating first workflow with agent block for new user')
         createFirstWorkflowWithAgentBlock()
       }
     } else {
-      logger.info("Using workflows loaded from DB, ignoring localStorage")
+      logger.info('Using workflows loaded from DB, ignoring localStorage')
     }
 
     // 2. Register cleanup
-    window.addEventListener("beforeunload", handleBeforeUnload)
+    window.addEventListener('beforeunload', handleBeforeUnload)
 
     // Log initialization timing information
     const initDuration = Date.now() - initStartTime
@@ -108,7 +108,7 @@ async function initializeApplication(): Promise<void> {
     // Mark application as fully initialized
     appFullyInitialized = true
   } catch (error) {
-    logger.error("Error during application initialization:", { error })
+    logger.error('Error during application initialization:', { error })
     // Still mark as initialized to prevent being stuck in initializing state
     appFullyInitialized = true
   } finally {
@@ -157,14 +157,14 @@ function initializeWorkflowState(workflowId: string): void {
  */
 function handleBeforeUnload(event: BeforeUnloadEvent): void {
   // Check if we're on an authentication page and skip confirmation if we are
-  if (typeof window !== "undefined") {
+  if (typeof window !== 'undefined') {
     const path = window.location.pathname
     // Skip confirmation for auth-related pages
     if (
-      path === "/login" ||
-      path === "/signup" ||
-      path === "/reset-password" ||
-      path === "/verify"
+      path === '/login' ||
+      path === '/signup' ||
+      path === '/reset-password' ||
+      path === '/verify'
     ) {
       return
     }
@@ -209,14 +209,14 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
 
   // Standard beforeunload pattern
   event.preventDefault()
-  event.returnValue = ""
+  event.returnValue = ''
 }
 
 /**
  * Clean up sync system
  */
 function cleanupApplication(): void {
-  window.removeEventListener("beforeunload", handleBeforeUnload)
+  window.removeEventListener('beforeunload', handleBeforeUnload)
   getSyncManagers().forEach((manager) => manager.dispose())
 }
 
@@ -225,7 +225,7 @@ function cleanupApplication(): void {
  * This ensures data from one account doesn't persist to another
  */
 export async function clearUserData(): Promise<void> {
-  if (typeof window === "undefined") return
+  if (typeof window === 'undefined') return
 
   try {
     // 1. Reset all sync managers to prevent any pending syncs
@@ -235,16 +235,16 @@ export async function clearUserData(): Promise<void> {
     resetAllStores()
 
     // 3. Clear localStorage except for essential app settings
-    const keysToKeep = ["next-favicon", "theme"]
+    const keysToKeep = ['next-favicon', 'theme']
     const keysToRemove = Object.keys(localStorage).filter((key) => !keysToKeep.includes(key))
     keysToRemove.forEach((key) => localStorage.removeItem(key))
 
     // Reset application initialization state
     appFullyInitialized = false
 
-    logger.info("User data cleared successfully")
+    logger.info('User data cleared successfully')
   } catch (error) {
-    logger.error("Error clearing user data:", { error })
+    logger.error('Error clearing user data:', { error })
   }
 }
 
@@ -273,7 +273,7 @@ export function useLoginInitialization() {
 }
 
 // Initialize immediately when imported on client
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
   initializeApplication()
 }
 
@@ -338,7 +338,7 @@ export const logAllStores = () => {
  * This ensures we load fresh data from the database for the new user
  */
 export async function reinitializeAfterLogin(): Promise<void> {
-  if (typeof window === "undefined") return
+  if (typeof window === 'undefined') return
 
   try {
     // Reset application initialization state
@@ -351,7 +351,7 @@ export async function reinitializeAfterLogin(): Promise<void> {
     resetAllStores()
 
     // Mark as a new login session
-    sessionStorage.removeItem("app_initialized")
+    sessionStorage.removeItem('app_initialized')
 
     // Reset initialization flags to force a fresh load
     isInitializing = false
@@ -359,9 +359,9 @@ export async function reinitializeAfterLogin(): Promise<void> {
     // Reinitialize the application
     await initializeApplication()
 
-    logger.info("Application reinitialized after login")
+    logger.info('Application reinitialized after login')
   } catch (error) {
-    logger.error("Error reinitializing application:", { error })
+    logger.error('Error reinitializing application:', { error })
   }
 }
 
@@ -371,8 +371,8 @@ export async function reinitializeAfterLogin(): Promise<void> {
 function createFirstWorkflowWithAgentBlock(): void {
   // Create a workflow with default settings
   const workflowId = useWorkflowRegistry.getState().createWorkflow({
-    name: "My First Workflow",
-    description: "Getting started with agents",
+    name: 'My First Workflow',
+    description: 'Getting started with agents',
     isInitial: true,
   })
 
@@ -381,7 +381,7 @@ function createFirstWorkflowWithAgentBlock(): void {
   const starterBlockId = Object.keys(workflowState.blocks)[0]
 
   if (!starterBlockId) {
-    logger.error("Failed to find starter block in new workflow")
+    logger.error('Failed to find starter block in new workflow')
     return
   }
 
@@ -389,52 +389,52 @@ function createFirstWorkflowWithAgentBlock(): void {
   const agentBlockId = crypto.randomUUID()
   const agentBlock: BlockState = {
     id: agentBlockId,
-    type: "agent",
-    name: "Agent",
+    type: 'agent',
+    name: 'Agent',
     position: { x: 577.2367674819552, y: -173.0961530669049 },
     subBlocks: {
       systemPrompt: {
-        id: "systemPrompt",
-        type: "long-input" as SubBlockType,
-        value: "You are a helpful assistant.",
+        id: 'systemPrompt',
+        type: 'long-input' as SubBlockType,
+        value: 'You are a helpful assistant.',
       },
       context: {
-        id: "context",
-        type: "short-input" as SubBlockType,
-        value: "",
+        id: 'context',
+        type: 'short-input' as SubBlockType,
+        value: '',
       },
       model: {
-        id: "model",
-        type: "dropdown" as SubBlockType,
-        value: "gpt-4o",
+        id: 'model',
+        type: 'dropdown' as SubBlockType,
+        value: 'gpt-4o',
       },
       temperature: {
-        id: "temperature",
-        type: "slider" as SubBlockType,
+        id: 'temperature',
+        type: 'slider' as SubBlockType,
         value: 0.7,
       },
       apiKey: {
-        id: "apiKey",
-        type: "short-input" as SubBlockType,
-        value: "",
+        id: 'apiKey',
+        type: 'short-input' as SubBlockType,
+        value: '',
       },
       tools: {
-        id: "tools",
-        type: "tool-input" as SubBlockType,
-        value: "[]",
+        id: 'tools',
+        type: 'tool-input' as SubBlockType,
+        value: '[]',
       },
       responseFormat: {
-        id: "responseFormat",
-        type: "code" as SubBlockType,
+        id: 'responseFormat',
+        type: 'code' as SubBlockType,
         value: null,
       },
     },
     outputs: {
       response: {
-        content: "string",
-        model: "string",
-        tokens: "any",
-        toolCalls: "any",
+        content: 'string',
+        model: 'string',
+        tokens: 'any',
+        toolCalls: 'any',
       },
     },
     enabled: true,
@@ -495,8 +495,8 @@ function createFirstWorkflowWithAgentBlock(): void {
     syncWorkflows()
   }, 1000)
 
-  logger.info("First workflow with agent block created successfully")
+  logger.info('First workflow with agent block created successfully')
 }
 
 // Re-export sync managers
-export { workflowSync } from "./workflows/sync"
+export { workflowSync } from './workflows/sync'

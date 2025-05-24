@@ -1,3 +1,3 @@
-import { slackMessageTool } from "./message"
+import { slackMessageTool } from './message'
 
 export { slackMessageTool }

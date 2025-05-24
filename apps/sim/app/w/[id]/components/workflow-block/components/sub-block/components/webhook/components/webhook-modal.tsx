@@ -1,30 +1,30 @@
-import { Button } from "@/components/ui/button"
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { createLogger } from "@/lib/logs/console-logger"
-import { X } from "lucide-react"
-import { useEffect, useState } from "react"
-import { type ProviderConfig, WEBHOOK_PROVIDERS } from "../webhook"
-import { AirtableConfig } from "./providers/airtable"
-import { DiscordConfig } from "./providers/discord"
-import { GenericConfig } from "./providers/generic"
-import { GithubConfig } from "./providers/github"
-import { GmailConfig } from "./providers/gmail"
-import { SlackConfig } from "./providers/slack"
-import { StripeConfig } from "./providers/stripe"
-import { TelegramConfig } from "./providers/telegram"
-import { WhatsAppConfig } from "./providers/whatsapp"
-import { DeleteConfirmDialog } from "./ui/confirmation"
-import { UnsavedChangesDialog } from "./ui/confirmation"
-import { WebhookDialogFooter } from "./ui/webhook-footer"
-import { WebhookUrlField } from "./ui/webhook-url"
+} from '@/components/ui/dialog'
+import { createLogger } from '@/lib/logs/console-logger'
+import { X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { type ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook'
+import { AirtableConfig } from './providers/airtable'
+import { DiscordConfig } from './providers/discord'
+import { GenericConfig } from './providers/generic'
+import { GithubConfig } from './providers/github'
+import { GmailConfig } from './providers/gmail'
+import { SlackConfig } from './providers/slack'
+import { StripeConfig } from './providers/stripe'
+import { TelegramConfig } from './providers/telegram'
+import { WhatsAppConfig } from './providers/whatsapp'
+import { DeleteConfirmDialog } from './ui/confirmation'
+import { UnsavedChangesDialog } from './ui/confirmation'
+import { WebhookDialogFooter } from './ui/webhook-footer'
+import { WebhookUrlField } from './ui/webhook-url'
 
-const logger = createLogger("WebhookModal")
+const logger = createLogger('WebhookModal')
 
 interface WebhookModalProps {
   isOpen: boolean
@@ -68,51 +68,51 @@ export function WebhookModal({
   const [isCurrentConfigValid, setIsCurrentConfigValid] = useState(true)
 
   // Generic webhook state
-  const [generalToken, setGeneralToken] = useState("")
-  const [secretHeaderName, setSecretHeaderName] = useState("")
+  const [generalToken, setGeneralToken] = useState('')
+  const [secretHeaderName, setSecretHeaderName] = useState('')
   const [requireAuth, setRequireAuth] = useState(false)
-  const [allowedIps, setAllowedIps] = useState("")
+  const [allowedIps, setAllowedIps] = useState('')
 
   // Provider-specific state
-  const [whatsappVerificationToken, setWhatsappVerificationToken] = useState("")
-  const [githubContentType, setGithubContentType] = useState("application/json")
-  const [discordWebhookName, setDiscordWebhookName] = useState("")
-  const [discordAvatarUrl, setDiscordAvatarUrl] = useState("")
-  const [slackSigningSecret, setSlackSigningSecret] = useState("")
-  const [telegramBotToken, setTelegramBotToken] = useState("")
-  const [telegramTriggerPhrase, setTelegramTriggerPhrase] = useState("")
+  const [whatsappVerificationToken, setWhatsappVerificationToken] = useState('')
+  const [githubContentType, setGithubContentType] = useState('application/json')
+  const [discordWebhookName, setDiscordWebhookName] = useState('')
+  const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
+  const [slackSigningSecret, setSlackSigningSecret] = useState('')
+  const [telegramBotToken, setTelegramBotToken] = useState('')
+  const [telegramTriggerPhrase, setTelegramTriggerPhrase] = useState('')
   // Airtable-specific state
-  const [airtableWebhookSecret, setAirtableWebhookSecret] = useState("")
-  const [airtableBaseId, setAirtableBaseId] = useState("")
-  const [airtableTableId, setAirtableTableId] = useState("")
+  const [airtableWebhookSecret, setAirtableWebhookSecret] = useState('')
+  const [airtableBaseId, setAirtableBaseId] = useState('')
+  const [airtableTableId, setAirtableTableId] = useState('')
   const [airtableIncludeCellValues, setAirtableIncludeCellValues] = useState(false)
 
   // State for storing initial values to detect changes
   const [originalValues, setOriginalValues] = useState({
     webhookProvider,
     webhookPath,
-    slackSigningSecret: "",
-    whatsappVerificationToken: "",
-    githubContentType: "application/json",
-    generalToken: "",
-    secretHeaderName: "",
+    slackSigningSecret: '',
+    whatsappVerificationToken: '',
+    githubContentType: 'application/json',
+    generalToken: '',
+    secretHeaderName: '',
     requireAuth: false,
-    allowedIps: "",
-    discordWebhookName: "",
-    discordAvatarUrl: "",
-    airtableWebhookSecret: "",
-    airtableBaseId: "",
-    airtableTableId: "",
+    allowedIps: '',
+    discordWebhookName: '',
+    discordAvatarUrl: '',
+    airtableWebhookSecret: '',
+    airtableBaseId: '',
+    airtableTableId: '',
     airtableIncludeCellValues: false,
-    telegramBotToken: "",
-    telegramTriggerPhrase: "",
-    selectedLabels: ["INBOX"] as string[],
-    labelFilterBehavior: "INCLUDE",
+    telegramBotToken: '',
+    telegramTriggerPhrase: '',
+    selectedLabels: ['INBOX'] as string[],
+    labelFilterBehavior: 'INCLUDE',
     markAsRead: false,
   })
 
-  const [selectedLabels, setSelectedLabels] = useState<string[]>(["INBOX"])
-  const [labelFilterBehavior, setLabelFilterBehavior] = useState<"INCLUDE" | "EXCLUDE">("INCLUDE")
+  const [selectedLabels, setSelectedLabels] = useState<string[]>(['INBOX'])
+  const [labelFilterBehavior, setLabelFilterBehavior] = useState<'INCLUDE' | 'EXCLUDE'>('INCLUDE')
   const [markAsRead, setMarkAsRead] = useState<boolean>(false)
 
   // Get the current provider configuration
@@ -121,7 +121,7 @@ export function WebhookModal({
   // Generate a random verification token if none exists
   useEffect(() => {
     if (
-      webhookProvider === "whatsapp" &&
+      webhookProvider === 'whatsapp' &&
       !whatsappVerificationToken &&
       !webhookId &&
       !isLoadingToken
@@ -133,7 +133,7 @@ export function WebhookModal({
 
     // Generate a random token for general webhook if none exists and auth is required
     if (
-      webhookProvider === "generic" &&
+      webhookProvider === 'generic' &&
       !generalToken &&
       !webhookId &&
       !isLoadingToken &&
@@ -166,17 +166,17 @@ export function WebhookModal({
               const config = data.webhook.webhook.providerConfig
 
               // Check provider type and set appropriate state
-              if (webhookProvider === "whatsapp" && "verificationToken" in config) {
-                const token = config.verificationToken || ""
+              if (webhookProvider === 'whatsapp' && 'verificationToken' in config) {
+                const token = config.verificationToken || ''
                 setWhatsappVerificationToken(token)
                 setOriginalValues((prev) => ({ ...prev, whatsappVerificationToken: token }))
-              } else if (webhookProvider === "github" && "contentType" in config) {
-                const contentType = config.contentType || "application/json"
+              } else if (webhookProvider === 'github' && 'contentType' in config) {
+                const contentType = config.contentType || 'application/json'
                 setGithubContentType(contentType)
                 setOriginalValues((prev) => ({ ...prev, githubContentType: contentType }))
-              } else if (webhookProvider === "discord") {
-                const webhookName = config.webhookName || ""
-                const avatarUrl = config.avatarUrl || ""
+              } else if (webhookProvider === 'discord') {
+                const webhookName = config.webhookName || ''
+                const avatarUrl = config.avatarUrl || ''
 
                 setDiscordWebhookName(webhookName)
                 setDiscordAvatarUrl(avatarUrl)
@@ -186,14 +186,14 @@ export function WebhookModal({
                   discordWebhookName: webhookName,
                   discordAvatarUrl: avatarUrl,
                 }))
-              } else if (webhookProvider === "generic") {
+              } else if (webhookProvider === 'generic') {
                 // Set general webhook configuration
-                const token = config.token || ""
-                const headerName = config.secretHeaderName || ""
+                const token = config.token || ''
+                const headerName = config.secretHeaderName || ''
                 const auth = !!config.requireAuth
                 const ips = Array.isArray(config.allowedIps)
-                  ? config.allowedIps.join(", ")
-                  : config.allowedIps || ""
+                  ? config.allowedIps.join(', ')
+                  : config.allowedIps || ''
 
                 setGeneralToken(token)
                 setSecretHeaderName(headerName)
@@ -207,14 +207,14 @@ export function WebhookModal({
                   requireAuth: auth,
                   allowedIps: ips,
                 }))
-              } else if (webhookProvider === "slack" && "signingSecret" in config) {
-                const signingSecret = config.signingSecret || ""
+              } else if (webhookProvider === 'slack' && 'signingSecret' in config) {
+                const signingSecret = config.signingSecret || ''
                 setSlackSigningSecret(signingSecret)
                 setOriginalValues((prev) => ({ ...prev, slackSigningSecret: signingSecret }))
-              } else if (webhookProvider === "airtable") {
-                const baseIdVal = config.baseId || ""
-                const tableIdVal = config.tableId || ""
-                const includeCells = config.includeCellValuesInFieldIds === "all"
+              } else if (webhookProvider === 'airtable') {
+                const baseIdVal = config.baseId || ''
+                const tableIdVal = config.tableId || ''
+                const includeCells = config.includeCellValuesInFieldIds === 'all'
 
                 setAirtableBaseId(baseIdVal)
                 setAirtableTableId(tableIdVal)
@@ -226,9 +226,9 @@ export function WebhookModal({
                   airtableTableId: tableIdVal,
                   airtableIncludeCellValues: includeCells,
                 }))
-              } else if (webhookProvider === "telegram") {
-                const botToken = config.botToken || ""
-                const triggerPhrase = config.triggerPhrase || ""
+              } else if (webhookProvider === 'telegram') {
+                const botToken = config.botToken || ''
+                const triggerPhrase = config.triggerPhrase || ''
 
                 setTelegramBotToken(botToken)
                 setTelegramTriggerPhrase(triggerPhrase)
@@ -238,9 +238,9 @@ export function WebhookModal({
                   telegramBotToken: botToken,
                   telegramTriggerPhrase: triggerPhrase,
                 }))
-              } else if (webhookProvider === "gmail") {
+              } else if (webhookProvider === 'gmail') {
                 const labelIds = config.labelIds || []
-                const labelFilterBehavior = config.labelFilterBehavior || "INCLUDE"
+                const labelFilterBehavior = config.labelFilterBehavior || 'INCLUDE'
 
                 setSelectedLabels(labelIds)
                 setLabelFilterBehavior(labelFilterBehavior)
@@ -259,7 +259,7 @@ export function WebhookModal({
             }
           }
         } catch (error) {
-          logger.error("Error fetching webhook config:", { error })
+          logger.error('Error fetching webhook config:', { error })
         } finally {
           setIsLoadingToken(false)
         }
@@ -276,27 +276,27 @@ export function WebhookModal({
   // Check for unsaved changes
   useEffect(() => {
     const hasChanges =
-      (webhookProvider === "whatsapp" &&
+      (webhookProvider === 'whatsapp' &&
         whatsappVerificationToken !== originalValues.whatsappVerificationToken) ||
-      (webhookProvider === "github" && githubContentType !== originalValues.githubContentType) ||
-      (webhookProvider === "discord" &&
+      (webhookProvider === 'github' && githubContentType !== originalValues.githubContentType) ||
+      (webhookProvider === 'discord' &&
         (discordWebhookName !== originalValues.discordWebhookName ||
           discordAvatarUrl !== originalValues.discordAvatarUrl)) ||
-      (webhookProvider === "generic" &&
+      (webhookProvider === 'generic' &&
         (generalToken !== originalValues.generalToken ||
           secretHeaderName !== originalValues.secretHeaderName ||
           requireAuth !== originalValues.requireAuth ||
           allowedIps !== originalValues.allowedIps)) ||
-      (webhookProvider === "slack" && slackSigningSecret !== originalValues.slackSigningSecret) ||
-      (webhookProvider === "airtable" &&
+      (webhookProvider === 'slack' && slackSigningSecret !== originalValues.slackSigningSecret) ||
+      (webhookProvider === 'airtable' &&
         (airtableWebhookSecret !== originalValues.airtableWebhookSecret ||
           airtableBaseId !== originalValues.airtableBaseId ||
           airtableTableId !== originalValues.airtableTableId ||
           airtableIncludeCellValues !== originalValues.airtableIncludeCellValues)) ||
-      (webhookProvider === "telegram" &&
+      (webhookProvider === 'telegram' &&
         (telegramBotToken !== originalValues.telegramBotToken ||
           telegramTriggerPhrase !== originalValues.telegramTriggerPhrase)) ||
-      (webhookProvider === "gmail" &&
+      (webhookProvider === 'gmail' &&
         (!selectedLabels.every((label) => originalValues.selectedLabels.includes(label)) ||
           !originalValues.selectedLabels.every((label) => selectedLabels.includes(label)) ||
           labelFilterBehavior !== originalValues.labelFilterBehavior ||
@@ -330,25 +330,25 @@ export function WebhookModal({
   useEffect(() => {
     let isValid = true
     switch (webhookProvider) {
-      case "airtable":
-        isValid = airtableBaseId.trim() !== "" && airtableTableId.trim() !== ""
+      case 'airtable':
+        isValid = airtableBaseId.trim() !== '' && airtableTableId.trim() !== ''
         break
-      case "slack":
-        isValid = slackSigningSecret.trim() !== ""
+      case 'slack':
+        isValid = slackSigningSecret.trim() !== ''
         break
-      case "whatsapp":
-        isValid = whatsappVerificationToken.trim() !== ""
+      case 'whatsapp':
+        isValid = whatsappVerificationToken.trim() !== ''
         break
-      case "github":
-        isValid = generalToken.trim() !== ""
+      case 'github':
+        isValid = generalToken.trim() !== ''
         break
-      case "discord":
-        isValid = discordWebhookName.trim() !== ""
+      case 'discord':
+        isValid = discordWebhookName.trim() !== ''
         break
-      case "telegram":
-        isValid = telegramBotToken.trim() !== "" && telegramTriggerPhrase.trim() !== ""
+      case 'telegram':
+        isValid = telegramBotToken.trim() !== '' && telegramTriggerPhrase.trim() !== ''
         break
-      case "gmail":
+      case 'gmail':
         isValid = selectedLabels.length > 0
         break
     }
@@ -365,13 +365,13 @@ export function WebhookModal({
   ])
 
   // Use the provided path or generate a UUID-based path
-  const formattedPath = webhookPath && webhookPath.trim() !== "" ? webhookPath : crypto.randomUUID()
+  const formattedPath = webhookPath && webhookPath.trim() !== '' ? webhookPath : crypto.randomUUID()
 
   // Construct the full webhook URL
   const baseUrl =
-    typeof window !== "undefined"
+    typeof window !== 'undefined'
       ? `${window.location.protocol}//${window.location.host}`
-      : "https://your-domain.com"
+      : 'https://your-domain.com'
 
   const webhookUrl = `${baseUrl}/api/webhooks/trigger/${formattedPath}`
 
@@ -383,29 +383,29 @@ export function WebhookModal({
 
   const getProviderConfig = (): ProviderConfig => {
     switch (webhookProvider) {
-      case "whatsapp":
+      case 'whatsapp':
         return { verificationToken: whatsappVerificationToken }
-      case "github":
+      case 'github':
         return { contentType: githubContentType }
-      case "discord":
+      case 'discord':
         return {
           webhookName: discordWebhookName || undefined,
           avatarUrl: discordAvatarUrl || undefined,
         }
-      case "stripe":
+      case 'stripe':
         return {}
-      case "gmail":
+      case 'gmail':
         return {
           labelIds: selectedLabels,
           labelFilterBehavior,
           markAsRead,
           maxEmailsPerPoll: 25,
         }
-      case "generic": {
+      case 'generic': {
         // Parse the allowed IPs into an array
         const parsedIps = allowedIps
           ? allowedIps
-              .split(",")
+              .split(',')
               .map((ip) => ip.trim())
               .filter((ip) => ip)
           : []
@@ -417,16 +417,16 @@ export function WebhookModal({
           allowedIps: parsedIps.length > 0 ? parsedIps : undefined,
         }
       }
-      case "slack":
+      case 'slack':
         return { signingSecret: slackSigningSecret }
-      case "airtable":
+      case 'airtable':
         return {
           webhookSecret: airtableWebhookSecret || undefined,
           baseId: airtableBaseId,
           tableId: airtableTableId,
-          includeCellValuesInFieldIds: airtableIncludeCellValues ? "all" : undefined,
+          includeCellValuesInFieldIds: airtableIncludeCellValues ? 'all' : undefined,
         }
-      case "telegram":
+      case 'telegram':
         return {
           botToken: telegramBotToken || undefined,
           triggerPhrase: telegramTriggerPhrase || undefined,
@@ -437,13 +437,13 @@ export function WebhookModal({
   }
 
   const handleSave = async () => {
-    logger.debug("Saving webhook...")
+    logger.debug('Saving webhook...')
     if (!isCurrentConfigValid) {
-      logger.warn("Attempted to save with invalid configuration")
+      logger.warn('Attempted to save with invalid configuration')
       // Add user feedback for invalid configuration
       setTestResult({
         success: false,
-        message: "Cannot save: Please fill in all required fields for the selected provider.",
+        message: 'Cannot save: Please fill in all required fields for the selected provider.',
       })
       return
     }
@@ -454,7 +454,7 @@ export function WebhookModal({
       if (onSave) {
         const providerConfig = getProviderConfig()
         // Always save the path without the leading slash to match how it's queried in the API
-        const pathToSave = formattedPath.startsWith("/")
+        const pathToSave = formattedPath.startsWith('/')
           ? formattedPath.substring(1)
           : formattedPath
 
@@ -488,21 +488,21 @@ export function WebhookModal({
           setHasUnsavedChanges(false)
           setTestResult({
             success: true,
-            message: "Webhook configuration saved successfully.",
+            message: 'Webhook configuration saved successfully.',
           })
         } else {
           setTestResult({
             success: false,
-            message: "Failed to save webhook configuration. Please try again.",
+            message: 'Failed to save webhook configuration. Please try again.',
           })
         }
       }
     } catch (error: any) {
-      logger.error("Error saving webhook:", error)
+      logger.error('Error saving webhook:', error)
       setTestResult({
         success: false,
         message:
-          error instanceof Error ? error.message : "An error occurred while saving the webhook",
+          error instanceof Error ? error.message : 'An error occurred while saving the webhook',
       })
     } finally {
       setIsSaving(false)
@@ -517,7 +517,7 @@ export function WebhookModal({
         setShowDeleteConfirm(false)
       }
     } catch (error) {
-      logger.error("Error deleting webhook:", { error })
+      logger.error('Error deleting webhook:', { error })
     } finally {
       setIsDeleting(false)
     }
@@ -556,7 +556,7 @@ export function WebhookModal({
       // Check if response is ok before trying to parse JSON
       if (!response.ok) {
         const errorText = await response.text()
-        let errorMessage = "Failed to test webhook"
+        let errorMessage = 'Failed to test webhook'
 
         try {
           // Try to parse as JSON, but handle case where it's not valid JSON
@@ -577,18 +577,18 @@ export function WebhookModal({
       if (data.success) {
         setTestResult({
           success: true,
-          message: data.message || "Webhook configuration is valid.",
+          message: data.message || 'Webhook configuration is valid.',
           test: data.test,
         })
       } else {
         // For Telegram, provide more specific error messages
-        if (webhookProvider === "telegram") {
-          const errorMessage = data.message || data.error || "Webhook test failed"
-          if (errorMessage.includes("SSL")) {
+        if (webhookProvider === 'telegram') {
+          const errorMessage = data.message || data.error || 'Webhook test failed'
+          if (errorMessage.includes('SSL')) {
             setTestResult({
               success: false,
               message:
-                "Telegram webhooks require HTTPS. Please ensure your domain has a valid SSL certificate.",
+                'Telegram webhooks require HTTPS. Please ensure your domain has a valid SSL certificate.',
             })
           } else {
             setTestResult({
@@ -599,15 +599,15 @@ export function WebhookModal({
         } else {
           setTestResult({
             success: false,
-            message: data.message || data.error || "Webhook test failed with success=false",
+            message: data.message || data.error || 'Webhook test failed with success=false',
           })
         }
       }
     } catch (error: any) {
-      logger.error("Error testing webhook:", { error })
+      logger.error('Error testing webhook:', { error })
       setTestResult({
         success: false,
-        message: error.message || "An error occurred while testing the webhook",
+        message: error.message || 'An error occurred while testing the webhook',
       })
     } finally {
       setIsTesting(false)
@@ -617,7 +617,7 @@ export function WebhookModal({
   // Provider-specific component rendering
   const renderProviderContent = () => {
     switch (webhookProvider) {
-      case "whatsapp":
+      case 'whatsapp':
         return (
           <WhatsAppConfig
             verificationToken={whatsappVerificationToken}
@@ -628,15 +628,15 @@ export function WebhookModal({
             copyToClipboard={copyToClipboard}
           />
         )
-      case "github":
+      case 'github':
         return (
           <GithubConfig
             contentType={githubContentType}
             setContentType={setGithubContentType}
             webhookSecret={generalToken}
             setWebhookSecret={setGeneralToken}
-            sslVerification={requireAuth ? "enabled" : "disabled"}
-            setSslVerification={(value) => setRequireAuth(value === "enabled")}
+            sslVerification={requireAuth ? 'enabled' : 'disabled'}
+            setSslVerification={(value) => setRequireAuth(value === 'enabled')}
             isLoadingToken={isLoadingToken}
             testResult={testResult}
             copied={copied}
@@ -644,7 +644,7 @@ export function WebhookModal({
             testWebhook={testWebhook}
           />
         )
-      case "gmail":
+      case 'gmail':
         return (
           <GmailConfig
             selectedLabels={selectedLabels}
@@ -655,7 +655,7 @@ export function WebhookModal({
             setMarkAsRead={setMarkAsRead}
           />
         )
-      case "discord":
+      case 'discord':
         return (
           <DiscordConfig
             webhookName={discordWebhookName}
@@ -669,7 +669,7 @@ export function WebhookModal({
             testWebhook={testWebhook}
           />
         )
-      case "stripe":
+      case 'stripe':
         return (
           <StripeConfig
             isLoadingToken={isLoadingToken}
@@ -678,7 +678,7 @@ export function WebhookModal({
             copyToClipboard={copyToClipboard}
           />
         )
-      case "slack":
+      case 'slack':
         return (
           <SlackConfig
             signingSecret={slackSigningSecret}
@@ -691,7 +691,7 @@ export function WebhookModal({
             webhookUrl={webhookUrl}
           />
         )
-      case "airtable":
+      case 'airtable':
         return (
           <AirtableConfig
             baseId={airtableBaseId}
@@ -709,7 +709,7 @@ export function WebhookModal({
             webhookUrl={webhookUrl}
           />
         )
-      case "telegram":
+      case 'telegram':
         return (
           <TelegramConfig
             botToken={telegramBotToken}
@@ -749,30 +749,30 @@ export function WebhookModal({
   // Get provider name for the title
   const getProviderTitle = () => {
     const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
-    return provider.name || "Webhook"
+    return provider.name || 'Webhook'
   }
 
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent
-          className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]"
+          className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
           hideCloseButton
         >
-          <DialogHeader className="border-b px-6 py-4">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="font-medium text-lg">
-                {webhookId ? "Edit" : "Configure"} {getProviderTitle()} Webhook
+          <DialogHeader className='border-b px-6 py-4'>
+            <div className='flex items-center justify-between'>
+              <DialogTitle className='font-medium text-lg'>
+                {webhookId ? 'Edit' : 'Configure'} {getProviderTitle()} Webhook
               </DialogTitle>
-              <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleClose}>
-                <X className="h-4 w-4" />
-                <span className="sr-only">Close</span>
+              <Button variant='ghost' size='icon' className='h-8 w-8 p-0' onClick={handleClose}>
+                <X className='h-4 w-4' />
+                <span className='sr-only'>Close</span>
               </Button>
             </div>
           </DialogHeader>
 
-          <div className="flex-grow overflow-y-auto px-6 pt-4 pb-6">
-            {webhookProvider !== "slack" && webhookProvider !== "airtable" && (
+          <div className='flex-grow overflow-y-auto px-6 pt-4 pb-6'>
+            {webhookProvider !== 'slack' && webhookProvider !== 'airtable' && (
               <WebhookUrlField
                 webhookUrl={webhookUrl}
                 isLoadingToken={isLoadingToken}
@@ -784,7 +784,7 @@ export function WebhookModal({
             {renderProviderContent()}
           </div>
 
-          <DialogFooter className="w-full border-t px-6 pt-0 pt-4 pb-6">
+          <DialogFooter className='w-full border-t px-6 pt-0 pt-4 pb-6'>
             <WebhookDialogFooter
               webhookId={webhookId}
               webhookProvider={webhookProvider}

@@ -1,3 +1,3 @@
-import WorkFlow from "./workflow"
+import WorkFlow from './workflow'
 
 export default WorkFlow

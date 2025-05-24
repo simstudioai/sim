@@ -13,39 +13,39 @@ import {
   NotionIcon,
   SupabaseIcon,
   xIcon,
-} from "@/components/icons"
-import { createLogger } from "@/lib/logs/console-logger"
-import type { ReactNode } from "react"
-import { env } from "./env"
+} from '@/components/icons'
+import { createLogger } from '@/lib/logs/console-logger'
+import type { ReactNode } from 'react'
+import { env } from './env'
 
-const logger = createLogger("OAuth")
+const logger = createLogger('OAuth')
 
 // Define the base OAuth provider type
 export type OAuthProvider =
-  | "google"
-  | "github"
-  | "x"
-  | "supabase"
-  | "confluence"
-  | "airtable"
-  | "notion"
-  | "jira"
-  | "discord"
+  | 'google'
+  | 'github'
+  | 'x'
+  | 'supabase'
+  | 'confluence'
+  | 'airtable'
+  | 'notion'
+  | 'jira'
+  | 'discord'
   | string
 export type OAuthService =
-  | "google"
-  | "google-email"
-  | "google-drive"
-  | "google-docs"
-  | "google-sheets"
-  | "github"
-  | "x"
-  | "supabase"
-  | "confluence"
-  | "airtable"
-  | "notion"
-  | "jira"
-  | "discord"
+  | 'google'
+  | 'google-email'
+  | 'google-drive'
+  | 'google-docs'
+  | 'google-sheets'
+  | 'github'
+  | 'x'
+  | 'supabase'
+  | 'confluence'
+  | 'airtable'
+  | 'notion'
+  | 'jira'
+  | 'discord'
 
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
@@ -70,209 +70,209 @@ export interface OAuthServiceConfig {
 // Define the available OAuth providers
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   google: {
-    id: "google",
-    name: "Google",
+    id: 'google',
+    name: 'Google',
     icon: (props) => GoogleIcon(props),
     services: {
       gmail: {
-        id: "gmail",
-        name: "Gmail",
-        description: "Automate email workflows and enhance communication efficiency.",
-        providerId: "google-email",
+        id: 'gmail',
+        name: 'Gmail',
+        description: 'Automate email workflows and enhance communication efficiency.',
+        providerId: 'google-email',
         icon: (props) => GmailIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
         scopes: [
-          "https://www.googleapis.com/auth/gmail.send",
-          "https://www.googleapis.com/auth/gmail.modify",
+          'https://www.googleapis.com/auth/gmail.send',
+          'https://www.googleapis.com/auth/gmail.modify',
           // 'https://www.googleapis.com/auth/gmail.readonly',
-          "https://www.googleapis.com/auth/gmail.labels",
+          'https://www.googleapis.com/auth/gmail.labels',
         ],
       },
-      "google-drive": {
-        id: "google-drive",
-        name: "Google Drive",
-        description: "Streamline file organization and document workflows.",
-        providerId: "google-drive",
+      'google-drive': {
+        id: 'google-drive',
+        name: 'Google Drive',
+        description: 'Streamline file organization and document workflows.',
+        providerId: 'google-drive',
         icon: (props) => GoogleDriveIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
-        scopes: ["https://www.googleapis.com/auth/drive.file"],
+        scopes: ['https://www.googleapis.com/auth/drive.file'],
       },
-      "google-docs": {
-        id: "google-docs",
-        name: "Google Docs",
-        description: "Create, read, and edit Google Documents programmatically.",
-        providerId: "google-docs",
+      'google-docs': {
+        id: 'google-docs',
+        name: 'Google Docs',
+        description: 'Create, read, and edit Google Documents programmatically.',
+        providerId: 'google-docs',
         icon: (props) => GoogleDocsIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
-        scopes: ["https://www.googleapis.com/auth/drive.file"],
+        scopes: ['https://www.googleapis.com/auth/drive.file'],
       },
-      "google-sheets": {
-        id: "google-sheets",
-        name: "Google Sheets",
-        description: "Manage and analyze data with Google Sheets integration.",
-        providerId: "google-sheets",
+      'google-sheets': {
+        id: 'google-sheets',
+        name: 'Google Sheets',
+        description: 'Manage and analyze data with Google Sheets integration.',
+        providerId: 'google-sheets',
         icon: (props) => GoogleSheetsIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
         scopes: [
-          "https://www.googleapis.com/auth/spreadsheets",
-          "https://www.googleapis.com/auth/drive.file",
+          'https://www.googleapis.com/auth/spreadsheets',
+          'https://www.googleapis.com/auth/drive.file',
         ],
       },
-      "google-calendar": {
-        id: "google-calendar",
-        name: "Google Calendar",
-        description: "Schedule and manage events with Google Calendar.",
-        providerId: "google-calendar",
+      'google-calendar': {
+        id: 'google-calendar',
+        name: 'Google Calendar',
+        description: 'Schedule and manage events with Google Calendar.',
+        providerId: 'google-calendar',
         icon: (props) => GoogleCalendarIcon(props),
         baseProviderIcon: (props) => GoogleIcon(props),
-        scopes: ["https://www.googleapis.com/auth/calendar"],
+        scopes: ['https://www.googleapis.com/auth/calendar'],
       },
     },
-    defaultService: "gmail",
+    defaultService: 'gmail',
   },
   github: {
-    id: "github",
-    name: "GitHub",
+    id: 'github',
+    name: 'GitHub',
     icon: (props) => GithubIcon(props),
     services: {
       github: {
-        id: "github",
-        name: "GitHub",
-        description: "Manage repositories, issues, and pull requests.",
-        providerId: "github-repo",
+        id: 'github',
+        name: 'GitHub',
+        description: 'Manage repositories, issues, and pull requests.',
+        providerId: 'github-repo',
         icon: (props) => GithubIcon(props),
         baseProviderIcon: (props) => GithubIcon(props),
-        scopes: ["repo", "user:email", "read:user", "workflow"],
+        scopes: ['repo', 'user:email', 'read:user', 'workflow'],
       },
     },
-    defaultService: "github",
+    defaultService: 'github',
   },
   x: {
-    id: "x",
-    name: "X",
+    id: 'x',
+    name: 'X',
     icon: (props) => xIcon(props),
     services: {
       x: {
-        id: "x",
-        name: "X",
-        description: "Read and post tweets on X (formerly Twitter).",
-        providerId: "x",
+        id: 'x',
+        name: 'X',
+        description: 'Read and post tweets on X (formerly Twitter).',
+        providerId: 'x',
         icon: (props) => xIcon(props),
         baseProviderIcon: (props) => xIcon(props),
-        scopes: ["tweet.read", "tweet.write", "users.read", "offline.access"],
+        scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
       },
     },
-    defaultService: "x",
+    defaultService: 'x',
   },
   supabase: {
-    id: "supabase",
-    name: "Supabase",
+    id: 'supabase',
+    name: 'Supabase',
     icon: (props) => SupabaseIcon(props),
     services: {
       supabase: {
-        id: "supabase",
-        name: "Supabase",
-        description: "Connect to your Supabase projects and manage data.",
-        providerId: "supabase",
+        id: 'supabase',
+        name: 'Supabase',
+        description: 'Connect to your Supabase projects and manage data.',
+        providerId: 'supabase',
         icon: (props) => SupabaseIcon(props),
         baseProviderIcon: (props) => SupabaseIcon(props),
-        scopes: ["database.read", "database.write", "projects.read"],
+        scopes: ['database.read', 'database.write', 'projects.read'],
       },
     },
-    defaultService: "supabase",
+    defaultService: 'supabase',
   },
   confluence: {
-    id: "confluence",
-    name: "Confluence",
+    id: 'confluence',
+    name: 'Confluence',
     icon: (props) => ConfluenceIcon(props),
     services: {
       confluence: {
-        id: "confluence",
-        name: "Confluence",
-        description: "Access Confluence content and documentation.",
-        providerId: "confluence",
+        id: 'confluence',
+        name: 'Confluence',
+        description: 'Access Confluence content and documentation.',
+        providerId: 'confluence',
         icon: (props) => ConfluenceIcon(props),
         baseProviderIcon: (props) => ConfluenceIcon(props),
-        scopes: ["read:page:confluence", "write:page:confluence", "read:me", "offline_access"],
+        scopes: ['read:page:confluence', 'write:page:confluence', 'read:me', 'offline_access'],
       },
     },
-    defaultService: "confluence",
+    defaultService: 'confluence',
   },
   jira: {
-    id: "jira",
-    name: "Jira",
+    id: 'jira',
+    name: 'Jira',
     icon: (props) => JiraIcon(props),
     services: {
       jira: {
-        id: "jira",
-        name: "Jira",
-        description: "Access Jira projects and issues.",
-        providerId: "jira",
+        id: 'jira',
+        name: 'Jira',
+        description: 'Access Jira projects and issues.',
+        providerId: 'jira',
         icon: (props) => JiraIcon(props),
         baseProviderIcon: (props) => JiraIcon(props),
         scopes: [
-          "read:jira-user",
-          "read:jira-work",
-          "write:jira-work",
-          "read:project:jira",
-          "read:issue-type:jira",
-          "read:me",
-          "offline_access",
+          'read:jira-user',
+          'read:jira-work',
+          'write:jira-work',
+          'read:project:jira',
+          'read:issue-type:jira',
+          'read:me',
+          'offline_access',
         ],
       },
     },
-    defaultService: "jira",
+    defaultService: 'jira',
   },
   airtable: {
-    id: "airtable",
-    name: "Airtable",
+    id: 'airtable',
+    name: 'Airtable',
     icon: (props) => AirtableIcon(props),
     services: {
       airtable: {
-        id: "airtable",
-        name: "Airtable",
-        description: "Manage Airtable bases, tables, and records.",
-        providerId: "airtable",
+        id: 'airtable',
+        name: 'Airtable',
+        description: 'Manage Airtable bases, tables, and records.',
+        providerId: 'airtable',
         icon: (props) => AirtableIcon(props),
         baseProviderIcon: (props) => AirtableIcon(props),
-        scopes: ["data.records:read", "data.records:write"],
+        scopes: ['data.records:read', 'data.records:write'],
       },
     },
-    defaultService: "airtable",
+    defaultService: 'airtable',
   },
   discord: {
-    id: "discord",
-    name: "Discord",
+    id: 'discord',
+    name: 'Discord',
     icon: (props) => DiscordIcon(props),
     services: {
       discord: {
-        id: "discord",
-        name: "Discord",
-        description: "Read and send messages to Discord channels and interact with servers.",
-        providerId: "discord",
+        id: 'discord',
+        name: 'Discord',
+        description: 'Read and send messages to Discord channels and interact with servers.',
+        providerId: 'discord',
         icon: (props) => DiscordIcon(props),
         baseProviderIcon: (props) => DiscordIcon(props),
-        scopes: ["identify", "bot", "messages.read", "guilds", "guilds.members.read"],
+        scopes: ['identify', 'bot', 'messages.read', 'guilds', 'guilds.members.read'],
       },
     },
-    defaultService: "discord",
+    defaultService: 'discord',
   },
   notion: {
-    id: "notion",
-    name: "Notion",
+    id: 'notion',
+    name: 'Notion',
     icon: (props) => NotionIcon(props),
     services: {
       notion: {
-        id: "notion",
-        name: "Notion",
-        description: "Connect to your Notion workspace to manage pages and databases.",
-        providerId: "notion",
+        id: 'notion',
+        name: 'Notion',
+        description: 'Connect to your Notion workspace to manage pages and databases.',
+        providerId: 'notion',
         icon: (props) => NotionIcon(props),
         baseProviderIcon: (props) => NotionIcon(props),
-        scopes: ["workspace.content", "workspace.name", "page.read", "page.write"],
+        scopes: ['workspace.content', 'workspace.name', 'page.read', 'page.write'],
       },
     },
-    defaultService: "notion",
+    defaultService: 'notion',
   },
 }
 
@@ -302,38 +302,38 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return provider
   }
 
-  if (provider === "google") {
-    if (scopes.some((scope) => scope.includes("gmail") || scope.includes("mail"))) {
-      return "gmail"
+  if (provider === 'google') {
+    if (scopes.some((scope) => scope.includes('gmail') || scope.includes('mail'))) {
+      return 'gmail'
     }
-    if (scopes.some((scope) => scope.includes("drive"))) {
-      return "google-drive"
+    if (scopes.some((scope) => scope.includes('drive'))) {
+      return 'google-drive'
     }
-    if (scopes.some((scope) => scope.includes("docs"))) {
-      return "google-docs"
+    if (scopes.some((scope) => scope.includes('docs'))) {
+      return 'google-docs'
     }
-    if (scopes.some((scope) => scope.includes("sheets"))) {
-      return "google-sheets"
+    if (scopes.some((scope) => scope.includes('sheets'))) {
+      return 'google-sheets'
     }
-    if (scopes.some((scope) => scope.includes("calendar"))) {
-      return "google-calendar"
+    if (scopes.some((scope) => scope.includes('calendar'))) {
+      return 'google-calendar'
     }
-  } else if (provider === "github") {
-    return "github"
-  } else if (provider === "supabase") {
-    return "supabase"
-  } else if (provider === "x") {
-    return "x"
-  } else if (provider === "confluence") {
-    return "confluence"
-  } else if (provider === "jira") {
-    return "jira"
-  } else if (provider === "airtable") {
-    return "airtable"
-  } else if (provider === "notion") {
-    return "notion"
-  } else if (provider === "discord") {
-    return "discord"
+  } else if (provider === 'github') {
+    return 'github'
+  } else if (provider === 'supabase') {
+    return 'supabase'
+  } else if (provider === 'x') {
+    return 'x'
+  } else if (provider === 'confluence') {
+    return 'confluence'
+  } else if (provider === 'jira') {
+    return 'jira'
+  } else if (provider === 'airtable') {
+    return 'airtable'
+  } else if (provider === 'notion') {
+    return 'notion'
+  } else if (provider === 'discord') {
+    return 'discord'
   }
 
   return providerConfig.defaultService
@@ -375,7 +375,7 @@ export interface ProviderConfig {
  */
 export function parseProvider(provider: OAuthProvider): ProviderConfig {
   // Handle compound providers (e.g., 'google-email' -> { baseProvider: 'google', featureType: 'email' })
-  const [base, feature] = provider.split("-")
+  const [base, feature] = provider.split('-')
 
   if (feature) {
     return {
@@ -387,7 +387,7 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
   // For simple providers, use 'default' as feature type
   return {
     baseProvider: provider,
-    featureType: "default",
+    featureType: 'default',
   }
 }
 
@@ -404,7 +404,7 @@ export async function refreshOAuthToken(
 ): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
   try {
     // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
-    const provider = providerId.split("-")[0]
+    const provider = providerId.split('-')[0]
 
     // Determine the token endpoint based on the provider
     let tokenEndpoint: string
@@ -413,52 +413,52 @@ export async function refreshOAuthToken(
     let useBasicAuth = false
 
     switch (provider) {
-      case "google":
-        tokenEndpoint = "https://oauth2.googleapis.com/token"
+      case 'google':
+        tokenEndpoint = 'https://oauth2.googleapis.com/token'
         clientId = env.GOOGLE_CLIENT_ID
         clientSecret = env.GOOGLE_CLIENT_SECRET
         break
-      case "github":
-        tokenEndpoint = "https://github.com/login/oauth/access_token"
+      case 'github':
+        tokenEndpoint = 'https://github.com/login/oauth/access_token'
         clientId = env.GITHUB_CLIENT_ID
         clientSecret = env.GITHUB_CLIENT_SECRET
         break
-      case "x":
-        tokenEndpoint = "https://api.x.com/2/oauth2/token"
+      case 'x':
+        tokenEndpoint = 'https://api.x.com/2/oauth2/token'
         clientId = env.X_CLIENT_ID
         clientSecret = env.X_CLIENT_SECRET
         useBasicAuth = true
         break
-      case "confluence":
-        tokenEndpoint = "https://auth.atlassian.com/oauth/token"
+      case 'confluence':
+        tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
         clientId = env.CONFLUENCE_CLIENT_ID
         clientSecret = env.CONFLUENCE_CLIENT_SECRET
         useBasicAuth = true
         break
-      case "jira":
-        tokenEndpoint = "https://auth.atlassian.com/oauth/token"
+      case 'jira':
+        tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
         clientId = env.JIRA_CLIENT_ID
         clientSecret = env.JIRA_CLIENT_SECRET
         useBasicAuth = true
         break
-      case "airtable":
-        tokenEndpoint = "https://airtable.com/oauth2/v1/token"
+      case 'airtable':
+        tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
         clientId = env.AIRTABLE_CLIENT_ID
         clientSecret = env.AIRTABLE_CLIENT_SECRET
         useBasicAuth = true
         break
-      case "supabase":
-        tokenEndpoint = "https://api.supabase.com/v1/oauth/token"
+      case 'supabase':
+        tokenEndpoint = 'https://api.supabase.com/v1/oauth/token'
         clientId = env.SUPABASE_CLIENT_ID
         clientSecret = env.SUPABASE_CLIENT_SECRET
         break
-      case "notion":
-        tokenEndpoint = "https://api.notion.com/v1/oauth/token"
+      case 'notion':
+        tokenEndpoint = 'https://api.notion.com/v1/oauth/token'
         clientId = env.NOTION_CLIENT_ID
         clientSecret = env.NOTION_CLIENT_SECRET
         break
-      case "discord":
-        tokenEndpoint = "https://discord.com/api/v10/oauth2/token"
+      case 'discord':
+        tokenEndpoint = 'https://discord.com/api/v10/oauth2/token'
         clientId = env.DISCORD_CLIENT_ID
         clientSecret = env.DISCORD_CLIENT_SECRET
         useBasicAuth = true
@@ -473,24 +473,24 @@ export async function refreshOAuthToken(
 
     // Prepare request headers and body
     const headers: Record<string, string> = {
-      "Content-Type": "application/x-www-form-urlencoded",
-      ...(provider === "github" && {
-        Accept: "application/json",
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...(provider === 'github' && {
+        Accept: 'application/json',
       }),
     }
 
     // Prepare request body
     const bodyParams: Record<string, string> = {
-      grant_type: "refresh_token",
+      grant_type: 'refresh_token',
       refresh_token: refreshToken,
     }
 
     // For Airtable, check if we have both client ID and secret
-    if (provider === "airtable") {
+    if (provider === 'airtable') {
       // Airtable requires Basic Auth with client ID and secret in the Authorization header
       // Do not include client_id or client_secret in the body when using Basic Auth
       if (clientId && clientSecret) {
-        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
+        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
         headers.Authorization = `Basic ${basicAuth}`
 
         // Make sure to include refresh_token in body params but not client_id/client_secret
@@ -498,16 +498,16 @@ export async function refreshOAuthToken(
         bodyParams.client_id = undefined
         bodyParams.client_secret = undefined
       } else {
-        throw new Error("Both client ID and client secret are required for Airtable OAuth")
+        throw new Error('Both client ID and client secret are required for Airtable OAuth')
       }
     } else if (
-      provider === "x" ||
-      provider === "confluence" ||
-      provider === "jira" ||
-      provider === "discord"
+      provider === 'x' ||
+      provider === 'confluence' ||
+      provider === 'jira' ||
+      provider === 'discord'
     ) {
       const authString = `${clientId}:${clientSecret}`
-      const basicAuth = Buffer.from(authString).toString("base64")
+      const basicAuth = Buffer.from(authString).toString('base64')
       headers.Authorization = `Basic ${basicAuth}`
 
       // When using Basic Auth, don't include client_id in body
@@ -516,7 +516,7 @@ export async function refreshOAuthToken(
     } else {
       // For other providers, use the general approach
       if (useBasicAuth) {
-        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64")
+        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
         headers.Authorization = `Basic ${basicAuth}`
       }
 
@@ -528,7 +528,7 @@ export async function refreshOAuthToken(
 
     // Refresh the token
     const response = await fetch(tokenEndpoint, {
-      method: "POST",
+      method: 'POST',
       headers,
       body: new URLSearchParams(bodyParams).toString(),
     })
@@ -544,7 +544,7 @@ export async function refreshOAuthToken(
         // Not JSON, keep as text
       }
 
-      logger.error("Token refresh failed:", {
+      logger.error('Token refresh failed:', {
         status: response.status,
         error: errorText,
         parsedError: errorData,
@@ -561,13 +561,13 @@ export async function refreshOAuthToken(
     // For Airtable, also capture the new refresh token if provided
     // Airtable may rotate refresh tokens
     let newRefreshToken = null
-    if (provider === "airtable" && data.refresh_token) {
+    if (provider === 'airtable' && data.refresh_token) {
       newRefreshToken = data.refresh_token
-      logger.info("Received new refresh token from Airtable")
+      logger.info('Received new refresh token from Airtable')
     }
 
     // For Confluence and Jira, check if we got a new refresh token
-    if ((provider === "confluence" || provider === "jira") && data.refresh_token) {
+    if ((provider === 'confluence' || provider === 'jira') && data.refresh_token) {
       newRefreshToken = data.refresh_token
       logger.info(`Received new refresh token from ${provider}`)
     }
@@ -577,11 +577,11 @@ export async function refreshOAuthToken(
     const expiresIn = data.expires_in || data.expiresIn || 3600
 
     if (!accessToken) {
-      logger.warn("No access token found in refresh response", data)
+      logger.warn('No access token found in refresh response', data)
       return null
     }
 
-    logger.info("Token refreshed successfully with expiration", {
+    logger.info('Token refreshed successfully with expiration', {
       expiresIn,
       hasNewRefreshToken: !!newRefreshToken,
       provider,
@@ -593,7 +593,7 @@ export async function refreshOAuthToken(
       refreshToken: newRefreshToken || refreshToken, // Return new refresh token if available
     }
   } catch (error) {
-    logger.error("Error refreshing token:", { error })
+    logger.error('Error refreshing token:', { error })
     return null
   }
 }

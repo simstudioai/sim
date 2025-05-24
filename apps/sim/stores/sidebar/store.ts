@@ -1,7 +1,7 @@
-import { create } from "zustand"
-import { persist } from "zustand/middleware"
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
-export type SidebarMode = "expanded" | "collapsed" | "hover"
+export type SidebarMode = 'expanded' | 'collapsed' | 'hover'
 
 interface SidebarState {
   mode: SidebarMode
@@ -23,7 +23,7 @@ interface SidebarState {
 export const useSidebarStore = create<SidebarState>()(
   persist(
     (set) => ({
-      mode: "expanded", // Default to expanded mode
+      mode: 'expanded', // Default to expanded mode
       isExpanded: true, // Default to expanded state
       workspaceDropdownOpen: false, // Track if workspace dropdown is open
       isAnyModalOpen: false, // Track if any modal is open
@@ -37,7 +37,7 @@ export const useSidebarStore = create<SidebarState>()(
       forceExpanded: (expanded) => set({ isExpanded: expanded }),
     }),
     {
-      name: "sidebar-state",
+      name: 'sidebar-state',
     }
   )
 )

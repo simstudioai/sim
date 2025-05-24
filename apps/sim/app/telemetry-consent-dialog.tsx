@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import {
   AlertDialog,
@@ -8,12 +8,12 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
-import { getNodeEnv } from "@/lib/environment"
-import { createLogger } from "@/lib/logs/console-logger"
-import { useGeneralStore } from "@/stores/settings/general/store"
-import { useEffect, useRef, useState } from "react"
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { getNodeEnv } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console-logger'
+import { useGeneralStore } from '@/stores/settings/general/store'
+import { useEffect, useRef, useState } from 'react'
 
 declare global {
   interface Window {
@@ -22,14 +22,14 @@ declare global {
   }
 }
 
-const logger = createLogger("TelemetryConsentDialog")
+const logger = createLogger('TelemetryConsentDialog')
 
 // LocalStorage key for telemetry preferences
-const TELEMETRY_NOTIFIED_KEY = "sim_telemetry_notified"
-const TELEMETRY_ENABLED_KEY = "sim_telemetry_enabled"
+const TELEMETRY_NOTIFIED_KEY = 'sim_telemetry_notified'
+const TELEMETRY_ENABLED_KEY = 'sim_telemetry_enabled'
 
 const trackEvent = (eventName: string, properties?: Record<string, any>) => {
-  if (typeof window !== "undefined" && window.__SIM_TELEMETRY_ENABLED) {
+  if (typeof window !== 'undefined' && window.__SIM_TELEMETRY_ENABLED) {
     try {
       if (window.__SIM_TRACK_EVENT) {
         window.__SIM_TRACK_EVENT(eventName, properties)
@@ -50,22 +50,22 @@ export function TelemetryConsentDialog() {
   const loadSettings = useGeneralStore((state) => state.loadSettings)
 
   const hasShownDialogThisSession = useRef(false)
-  const isDevelopment = getNodeEnv() === "development"
+  const isDevelopment = getNodeEnv() === 'development'
 
   const isChatSubdomainOrPath =
-    typeof window !== "undefined" &&
-    (window.location.pathname.startsWith("/chat/") ||
-      (window.location.hostname !== "simstudio.ai" &&
-        window.location.hostname !== "localhost" &&
-        window.location.hostname !== "127.0.0.1" &&
-        !window.location.hostname.startsWith("www.")))
+    typeof window !== 'undefined' &&
+    (window.location.pathname.startsWith('/chat/') ||
+      (window.location.hostname !== 'simstudio.ai' &&
+        window.location.hostname !== 'localhost' &&
+        window.location.hostname !== '127.0.0.1' &&
+        !window.location.hostname.startsWith('www.')))
 
   // Check localStorage for saved preferences
   useEffect(() => {
-    if (typeof window === "undefined" || isChatSubdomainOrPath) return
+    if (typeof window === 'undefined' || isChatSubdomainOrPath) return
 
     try {
-      const notified = localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === "true"
+      const notified = localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === 'true'
       const enabled = localStorage.getItem(TELEMETRY_ENABLED_KEY)
 
       if (notified) {
@@ -73,10 +73,10 @@ export function TelemetryConsentDialog() {
       }
 
       if (enabled !== null) {
-        setTelemetryEnabled(enabled === "true")
+        setTelemetryEnabled(enabled === 'true')
       }
     } catch (error) {
-      logger.error("Error reading telemetry preferences from localStorage:", error)
+      logger.error('Error reading telemetry preferences from localStorage:', error)
     }
   }, [setTelemetryNotifiedUser, setTelemetryEnabled, isChatSubdomainOrPath])
 
@@ -95,7 +95,7 @@ export function TelemetryConsentDialog() {
           setSettingsLoaded(true)
         }
       } catch (error) {
-        logger.error("Failed to load settings:", error)
+        logger.error('Failed to load settings:', error)
         if (isMounted) {
           setSettingsLoaded(true)
         }
@@ -112,7 +112,7 @@ export function TelemetryConsentDialog() {
   useEffect(() => {
     if (!settingsLoaded || isChatSubdomainOrPath) return
 
-    logger.debug("Settings loaded state:", {
+    logger.debug('Settings loaded state:', {
       telemetryNotifiedUser,
       telemetryEnabled,
       hasShownInSession: hasShownDialogThisSession.current,
@@ -120,7 +120,7 @@ export function TelemetryConsentDialog() {
     })
 
     const localStorageNotified =
-      typeof window !== "undefined" && localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === "true"
+      typeof window !== 'undefined' && localStorage.getItem(TELEMETRY_NOTIFIED_KEY) === 'true'
 
     // Only show dialog if:
     // 1. Settings are fully loaded from the database
@@ -141,11 +141,11 @@ export function TelemetryConsentDialog() {
     } else if (settingsLoaded && !telemetryNotifiedUser && !isDevelopment) {
       // Auto-notify in non-development environments
       setTelemetryNotifiedUser(true)
-      if (typeof window !== "undefined") {
+      if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem(TELEMETRY_NOTIFIED_KEY, "true")
+          localStorage.setItem(TELEMETRY_NOTIFIED_KEY, 'true')
         } catch (error) {
-          logger.error("Error saving telemetry notification to localStorage:", error)
+          logger.error('Error saving telemetry notification to localStorage:', error)
         }
       }
     }
@@ -158,8 +158,8 @@ export function TelemetryConsentDialog() {
   ])
 
   const handleAccept = () => {
-    trackEvent("telemetry_consent_accepted", {
-      source: "consent_dialog",
+    trackEvent('telemetry_consent_accepted', {
+      source: 'consent_dialog',
       defaultEnabled: true,
     })
 
@@ -167,19 +167,19 @@ export function TelemetryConsentDialog() {
     setOpen(false)
 
     // Save preference to localStorage
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem(TELEMETRY_NOTIFIED_KEY, "true")
-        localStorage.setItem(TELEMETRY_ENABLED_KEY, "true")
+        localStorage.setItem(TELEMETRY_NOTIFIED_KEY, 'true')
+        localStorage.setItem(TELEMETRY_ENABLED_KEY, 'true')
       } catch (error) {
-        logger.error("Error saving telemetry preferences to localStorage:", error)
+        logger.error('Error saving telemetry preferences to localStorage:', error)
       }
     }
   }
 
   const handleDecline = () => {
-    trackEvent("telemetry_consent_declined", {
-      source: "consent_dialog",
+    trackEvent('telemetry_consent_declined', {
+      source: 'consent_dialog',
       defaultEnabled: false,
     })
 
@@ -188,41 +188,41 @@ export function TelemetryConsentDialog() {
     setOpen(false)
 
     // Save preference to localStorage
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       try {
-        localStorage.setItem(TELEMETRY_NOTIFIED_KEY, "true")
-        localStorage.setItem(TELEMETRY_ENABLED_KEY, "false")
+        localStorage.setItem(TELEMETRY_NOTIFIED_KEY, 'true')
+        localStorage.setItem(TELEMETRY_ENABLED_KEY, 'false')
       } catch (error) {
-        logger.error("Error saving telemetry preferences to localStorage:", error)
+        logger.error('Error saving telemetry preferences to localStorage:', error)
       }
     }
   }
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogContent className="max-w-md">
+      <AlertDialogContent className='max-w-md'>
         <AlertDialogHeader>
-          <AlertDialogTitle className="mb-2 font-bold text-2xl">Telemetry</AlertDialogTitle>
+          <AlertDialogTitle className='mb-2 font-bold text-2xl'>Telemetry</AlertDialogTitle>
         </AlertDialogHeader>
 
-        <div className="space-y-4 text-base text-muted-foreground">
+        <div className='space-y-4 text-base text-muted-foreground'>
           <div>
             To help us improve Sim Studio, we collect anonymous usage data by default. This helps us
             understand which features are most useful and identify areas for improvement.
           </div>
 
-          <div className="py-2">
-            <div className="mb-2 font-semibold text-foreground">We only collect:</div>
-            <ul className="list-disc space-y-1 pl-6">
+          <div className='py-2'>
+            <div className='mb-2 font-semibold text-foreground'>We only collect:</div>
+            <ul className='list-disc space-y-1 pl-6'>
               <li>Feature usage statistics</li>
               <li>Error reports (without personal info)</li>
               <li>Performance metrics</li>
             </ul>
           </div>
 
-          <div className="py-2">
-            <div className="mb-2 font-semibold text-foreground">We never collect:</div>
-            <ul className="list-disc space-y-1 pl-6">
+          <div className='py-2'>
+            <div className='mb-2 font-semibold text-foreground'>We never collect:</div>
+            <ul className='list-disc space-y-1 pl-6'>
               <li>Personal information</li>
               <li>Workflow content or outputs</li>
               <li>API keys or tokens</li>
@@ -230,20 +230,20 @@ export function TelemetryConsentDialog() {
             </ul>
           </div>
 
-          <div className="pt-2 text-muted-foreground text-sm">
-            You can change this setting anytime in{" "}
-            <span className="font-medium">Settings → Privacy</span>.
+          <div className='pt-2 text-muted-foreground text-sm'>
+            You can change this setting anytime in{' '}
+            <span className='font-medium'>Settings → Privacy</span>.
           </div>
         </div>
 
-        <AlertDialogFooter className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <AlertDialogFooter className='mt-4 flex flex-col gap-3 sm:flex-row'>
           <AlertDialogCancel asChild onClick={handleDecline}>
-            <Button variant="outline" className="flex-1">
+            <Button variant='outline' className='flex-1'>
               Disable telemetry
             </Button>
           </AlertDialogCancel>
           <AlertDialogAction asChild onClick={handleAccept}>
-            <Button className="flex-1">Continue with telemetry</Button>
+            <Button className='flex-1'>Continue with telemetry</Button>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

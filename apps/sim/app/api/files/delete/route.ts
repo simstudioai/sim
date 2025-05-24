@@ -1,12 +1,12 @@
-import { existsSync } from "node:fs"
-import { unlink } from "node:fs/promises"
-import { join } from "node:path"
-import { createLogger } from "@/lib/logs/console-logger"
-import { deleteFromS3 } from "@/lib/uploads/s3-client"
-import { UPLOAD_DIR, USE_S3_STORAGE } from "@/lib/uploads/setup"
-import type { NextRequest } from "next/server"
+import { existsSync } from 'node:fs'
+import { unlink } from 'node:fs/promises'
+import { join } from 'node:path'
+import { createLogger } from '@/lib/logs/console-logger'
+import { deleteFromS3 } from '@/lib/uploads/s3-client'
+import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import type { NextRequest } from 'next/server'
 // Import to ensure the uploads directory is created
-import "@/lib/uploads/setup.server"
+import '@/lib/uploads/setup.server'
 import {
   InvalidRequestError,
   createErrorResponse,
@@ -15,11 +15,11 @@ import {
   extractFilename,
   extractS3Key,
   isS3Path,
-} from "../utils"
+} from '../utils'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = createLogger("FilesDeleteAPI")
+const logger = createLogger('FilesDeleteAPI')
 
 /**
  * Main API route handler for file deletion
@@ -29,10 +29,10 @@ export async function POST(request: NextRequest) {
     const requestData = await request.json()
     const { filePath } = requestData
 
-    logger.info("File delete request received:", { filePath })
+    logger.info('File delete request received:', { filePath })
 
     if (!filePath) {
-      throw new InvalidRequestError("No file path provided")
+      throw new InvalidRequestError('No file path provided')
     }
 
     try {
@@ -45,14 +45,14 @@ export async function POST(request: NextRequest) {
       // Return success response
       return createSuccessResponse(result)
     } catch (error) {
-      logger.error("Error deleting file:", error)
+      logger.error('Error deleting file:', error)
       return createErrorResponse(
-        error instanceof Error ? error : new Error("Failed to delete file")
+        error instanceof Error ? error : new Error('Failed to delete file')
       )
     }
   } catch (error) {
-    logger.error("Error parsing request:", error)
-    return createErrorResponse(error instanceof Error ? error : new Error("Invalid request"))
+    logger.error('Error parsing request:', error)
+    return createErrorResponse(error instanceof Error ? error : new Error('Invalid request'))
   }
 }
 
@@ -71,10 +71,10 @@ async function handleS3FileDelete(filePath: string) {
 
     return {
       success: true as const,
-      message: "File deleted successfully from S3",
+      message: 'File deleted successfully from S3',
     }
   } catch (error) {
-    logger.error("Error deleting file from S3:", error)
+    logger.error('Error deleting file from S3:', error)
     throw error
   }
 }
@@ -85,10 +85,10 @@ async function handleS3FileDelete(filePath: string) {
 async function handleLocalFileDelete(filePath: string) {
   // Extract the filename from the path
   const filename = extractFilename(filePath)
-  logger.info("Extracted filename for deletion:", filename)
+  logger.info('Extracted filename for deletion:', filename)
 
   const fullPath = join(UPLOAD_DIR, filename)
-  logger.info("Full file path for deletion:", fullPath)
+  logger.info('Full file path for deletion:', fullPath)
 
   // Check if file exists
   if (!existsSync(fullPath)) {
@@ -105,7 +105,7 @@ async function handleLocalFileDelete(filePath: string) {
 
   return {
     success: true as const,
-    message: "File deleted successfully",
+    message: 'File deleted successfully',
   }
 }
 

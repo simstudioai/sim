@@ -1,36 +1,36 @@
-import { db } from "@/db"
-import { chat, environment as envTable, userStats, workflow } from "@/db/schema"
-import { Executor } from "@/executor"
-import type { BlockLog } from "@/executor/types"
-import { env } from "@/lib/env"
-import { createLogger } from "@/lib/logs/console-logger"
-import { persistExecutionLogs } from "@/lib/logs/execution-logger"
-import { buildTraceSpans } from "@/lib/logs/trace-spans"
-import { decryptSecret } from "@/lib/utils"
-import { Serializer } from "@/serializer"
-import { mergeSubblockState } from "@/stores/workflows/utils"
-import type { WorkflowState } from "@/stores/workflows/workflow/types"
-import { eq, sql } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
-import { v4 as uuidv4 } from "uuid"
+import { db } from '@/db'
+import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
+import { Executor } from '@/executor'
+import type { BlockLog } from '@/executor/types'
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
+import { persistExecutionLogs } from '@/lib/logs/execution-logger'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { decryptSecret } from '@/lib/utils'
+import { Serializer } from '@/serializer'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 
 declare global {
   var __chatStreamProcessingTasks: Promise<{ success: boolean; error?: any }>[] | undefined
 }
 
-const logger = createLogger("ChatAuthUtils")
-const isDevelopment = env.NODE_ENV === "development"
+const logger = createLogger('ChatAuthUtils')
+const isDevelopment = env.NODE_ENV === 'development'
 
 // Simple encryption for the auth token
 export const encryptAuthToken = (subdomainId: string, type: string): string => {
-  return Buffer.from(`${subdomainId}:${type}:${Date.now()}`).toString("base64")
+  return Buffer.from(`${subdomainId}:${type}:${Date.now()}`).toString('base64')
 }
 
 // Decrypt and validate the auth token
 export const validateAuthToken = (token: string, subdomainId: string): boolean => {
   try {
-    const decoded = Buffer.from(token, "base64").toString()
-    const [storedId, type, timestamp] = decoded.split(":")
+    const decoded = Buffer.from(token, 'base64').toString()
+    const [storedId, type, timestamp] = decoded.split(':')
 
     // Check if token is for this subdomain
     if (storedId !== subdomainId) {
@@ -65,10 +65,10 @@ export const setChatAuthCookie = (
     value: token,
     httpOnly: true,
     secure: !isDevelopment,
-    sameSite: "lax",
-    path: "/",
+    sameSite: 'lax',
+    path: '/',
     // Using subdomain for the domain in production
-    domain: isDevelopment ? undefined : ".simstudio.ai",
+    domain: isDevelopment ? undefined : '.simstudio.ai',
     maxAge: 60 * 60 * 24, // 24 hours
   })
 }
@@ -76,14 +76,14 @@ export const setChatAuthCookie = (
 // Helper function to add CORS headers to responses
 export function addCorsHeaders(response: NextResponse, request: NextRequest) {
   // Get the origin from the request
-  const origin = request.headers.get("origin") || ""
+  const origin = request.headers.get('origin') || ''
 
   // In development, allow any localhost subdomain
-  if (isDevelopment && origin.includes("localhost")) {
-    response.headers.set("Access-Control-Allow-Origin", origin)
-    response.headers.set("Access-Control-Allow-Credentials", "true")
-    response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    response.headers.set("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")
+  if (isDevelopment && origin.includes('localhost')) {
+    response.headers.set('Access-Control-Allow-Origin', origin)
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With')
   }
 
   return response
@@ -102,10 +102,10 @@ export async function validateChatAuth(
   request: NextRequest,
   parsedBody?: any
 ): Promise<{ authorized: boolean; error?: string }> {
-  const authType = deployment.authType || "public"
+  const authType = deployment.authType || 'public'
 
   // Public chats are accessible to everyone
-  if (authType === "public") {
+  if (authType === 'public') {
     return { authorized: true }
   }
 
@@ -118,69 +118,69 @@ export async function validateChatAuth(
   }
 
   // For password protection, check the password in the request body
-  if (authType === "password") {
+  if (authType === 'password') {
     // For GET requests, we just notify the client that authentication is required
-    if (request.method === "GET") {
-      return { authorized: false, error: "auth_required_password" }
+    if (request.method === 'GET') {
+      return { authorized: false, error: 'auth_required_password' }
     }
 
     try {
       // Use the parsed body if provided, otherwise the auth check is not applicable
       if (!parsedBody) {
-        return { authorized: false, error: "Password is required" }
+        return { authorized: false, error: 'Password is required' }
       }
 
       const { password, message } = parsedBody
 
       // If this is a chat message, not an auth attempt
       if (message && !password) {
-        return { authorized: false, error: "auth_required_password" }
+        return { authorized: false, error: 'auth_required_password' }
       }
 
       if (!password) {
-        return { authorized: false, error: "Password is required" }
+        return { authorized: false, error: 'Password is required' }
       }
 
       if (!deployment.password) {
         logger.error(`[${requestId}] No password set for password-protected chat: ${deployment.id}`)
-        return { authorized: false, error: "Authentication configuration error" }
+        return { authorized: false, error: 'Authentication configuration error' }
       }
 
       // Decrypt the stored password and compare
       const { decrypted } = await decryptSecret(deployment.password)
       if (password !== decrypted) {
-        return { authorized: false, error: "Invalid password" }
+        return { authorized: false, error: 'Invalid password' }
       }
 
       return { authorized: true }
     } catch (error) {
       logger.error(`[${requestId}] Error validating password:`, error)
-      return { authorized: false, error: "Authentication error" }
+      return { authorized: false, error: 'Authentication error' }
     }
   }
 
   // For email access control, check the email in the request body
-  if (authType === "email") {
+  if (authType === 'email') {
     // For GET requests, we just notify the client that authentication is required
-    if (request.method === "GET") {
-      return { authorized: false, error: "auth_required_email" }
+    if (request.method === 'GET') {
+      return { authorized: false, error: 'auth_required_email' }
     }
 
     try {
       // Use the parsed body if provided, otherwise the auth check is not applicable
       if (!parsedBody) {
-        return { authorized: false, error: "Email is required" }
+        return { authorized: false, error: 'Email is required' }
       }
 
       const { email, message } = parsedBody
 
       // If this is a chat message, not an auth attempt
       if (message && !email) {
-        return { authorized: false, error: "auth_required_email" }
+        return { authorized: false, error: 'auth_required_email' }
       }
 
       if (!email) {
-        return { authorized: false, error: "Email is required" }
+        return { authorized: false, error: 'Email is required' }
       }
 
       const allowedEmails = deployment.allowedEmails || []
@@ -189,25 +189,25 @@ export async function validateChatAuth(
       if (allowedEmails.includes(email)) {
         // Email is allowed but still needs OTP verification
         // Return a special error code that the client will recognize
-        return { authorized: false, error: "otp_required" }
+        return { authorized: false, error: 'otp_required' }
       }
 
       // Check domain matches (prefixed with @)
-      const domain = email.split("@")[1]
+      const domain = email.split('@')[1]
       if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) {
         // Domain is allowed but still needs OTP verification
-        return { authorized: false, error: "otp_required" }
+        return { authorized: false, error: 'otp_required' }
       }
 
-      return { authorized: false, error: "Email not authorized" }
+      return { authorized: false, error: 'Email not authorized' }
     } catch (error) {
       logger.error(`[${requestId}] Error validating email:`, error)
-      return { authorized: false, error: "Authentication error" }
+      return { authorized: false, error: 'Authentication error' }
     }
   }
 
   // Unknown auth type
-  return { authorized: false, error: "Unsupported authentication type" }
+  return { authorized: false, error: 'Unsupported authentication type' }
 }
 
 /**
@@ -224,10 +224,10 @@ function extractBlockOutput(logs: any[], blockId: string, path?: string) {
 
   // Navigate the path to extract the specific output
   let result = blockLog.output
-  const pathParts = path.split(".")
+  const pathParts = path.split('.')
 
   for (const part of pathParts) {
-    if (result === null || result === undefined || typeof result !== "object") {
+    if (result === null || result === undefined || typeof result !== 'object') {
       return null
     }
     result = result[part]
@@ -255,7 +255,7 @@ export async function executeWorkflowForChat(
   const requestId = crypto.randomUUID().slice(0, 8)
 
   logger.debug(
-    `[${requestId}] Executing workflow for chat: ${chatId}${conversationId ? `, conversationId: ${conversationId}` : ""}`
+    `[${requestId}] Executing workflow for chat: ${chatId}${conversationId ? `, conversationId: ${conversationId}` : ''}`
   )
 
   // Find the chat deployment
@@ -273,7 +273,7 @@ export async function executeWorkflowForChat(
 
   if (deploymentResult.length === 0) {
     logger.warn(`[${requestId}] Chat not found: ${chatId}`)
-    throw new Error("Chat not found")
+    throw new Error('Chat not found')
   }
 
   const deployment = deploymentResult[0]
@@ -292,12 +292,12 @@ export async function executeWorkflowForChat(
     )
     deployment.outputConfigs.forEach((config) => {
       logger.debug(
-        `[${requestId}] Processing output config: blockId=${config.blockId}, path=${config.path || "none"}`
+        `[${requestId}] Processing output config: blockId=${config.blockId}, path=${config.path || 'none'}`
       )
     })
 
     outputBlockIds = deployment.outputConfigs.map((config) => config.blockId)
-    outputPaths = deployment.outputConfigs.map((config) => config.path || "")
+    outputPaths = deployment.outputConfigs.map((config) => config.path || '')
   } else {
     // Use customizations as fallback
     outputBlockIds = Array.isArray(customizations.outputBlockIds)
@@ -313,7 +313,7 @@ export async function executeWorkflowForChat(
     customizations.outputBlockIds.length > 0
   ) {
     outputBlockIds = customizations.outputBlockIds
-    outputPaths = customizations.outputPaths || new Array(outputBlockIds.length).fill("")
+    outputPaths = customizations.outputPaths || new Array(outputBlockIds.length).fill('')
   }
 
   logger.debug(`[${requestId}] Using ${outputBlockIds.length} output blocks for extraction`)
@@ -331,7 +331,7 @@ export async function executeWorkflowForChat(
 
   if (workflowResult.length === 0 || !workflowResult[0].isDeployed) {
     logger.warn(`[${requestId}] Workflow not found or not deployed: ${workflowId}`)
-    throw new Error("Workflow not available")
+    throw new Error('Workflow not available')
   }
 
   // Use deployed state for execution
@@ -377,7 +377,7 @@ export async function executeWorkflowForChat(
     const workflowState = state as any
     if (workflowState.variables) {
       workflowVariables =
-        typeof workflowState.variables === "string"
+        typeof workflowState.variables === 'string'
           ? JSON.parse(workflowState.variables)
           : workflowState.variables
     }
@@ -404,7 +404,7 @@ export async function executeWorkflowForChat(
   const processedBlockStates = Object.entries(currentBlockStates).reduce(
     (acc, [blockId, blockState]) => {
       // Check if this block has a responseFormat that needs to be parsed
-      if (blockState.responseFormat && typeof blockState.responseFormat === "string") {
+      if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
         try {
           logger.debug(`[${requestId}] Parsing responseFormat for block ${blockId}`)
           // Attempt to parse the responseFormat if it's a string
@@ -450,7 +450,7 @@ export async function executeWorkflowForChat(
   }
 
   // Handle StreamingExecution format (combined stream + execution data)
-  if (result && typeof result === "object" && "stream" in result && "execution" in result) {
+  if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
     // We need to stream the response to the client while *also* capturing the full
     // content so that we can persist accurate logs once streaming completes.
 
@@ -476,7 +476,7 @@ export async function executeWorkflowForChat(
         // This prevents confusion in the console logs
         if (executionData.logs && Array.isArray(executionData.logs)) {
           executionData.logs.forEach((log: BlockLog) => {
-            if (log.blockType === "agent" && log.output?.response) {
+            if (log.blockType === 'agent' && log.output?.response) {
               const response = log.output.response
 
               // Check for zero tokens that will be estimated later
@@ -514,10 +514,10 @@ export async function executeWorkflowForChat(
         }
 
         const executionId = uuidv4()
-        await persistExecutionLogs(workflowId, executionId, enrichedResult, "chat")
+        await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
         logger.debug(
           `[${requestId}] Persisted execution logs for streaming chat with ID: ${executionId}${
-            conversationId ? `, conversationId: ${conversationId}` : ""
+            conversationId ? `, conversationId: ${conversationId}` : ''
           }`
         )
 
@@ -571,7 +571,7 @@ export async function executeWorkflowForChat(
 
     // Register this processing promise with a global handler or tracker if needed
     // This allows the background task to be monitored or waited for in testing
-    if (typeof global.__chatStreamProcessingTasks !== "undefined") {
+    if (typeof global.__chatStreamProcessingTasks !== 'undefined') {
       global.__chatStreamProcessingTasks.push(
         processingPromise as Promise<{ success: boolean; error?: any }>
       )
@@ -585,7 +585,7 @@ export async function executeWorkflowForChat(
   if (result) {
     ;(result as any).metadata = {
       ...(result.metadata || {}),
-      source: "chat",
+      source: 'chat',
     }
 
     // Add conversationId to metadata if available
@@ -650,11 +650,11 @@ export async function executeWorkflowForChat(
     const executionId = uuidv4()
 
     // Persist the logs with 'chat' trigger type
-    await persistExecutionLogs(workflowId, executionId, enrichedResult, "chat")
+    await persistExecutionLogs(workflowId, executionId, enrichedResult, 'chat')
 
     logger.debug(
       `[${requestId}] Persisted execution logs for chat with ID: ${executionId}${
-        conversationId ? `, conversationId: ${conversationId}` : ""
+        conversationId ? `, conversationId: ${conversationId}` : ''
       }`
     )
   } catch (error) {
@@ -686,7 +686,7 @@ export async function executeWorkflowForChat(
       const path = outputPaths[i] || undefined
 
       logger.debug(
-        `[${requestId}] Looking for output from block ${blockId} with path ${path || "none"}`
+        `[${requestId}] Looking for output from block ${blockId} with path ${path || 'none'}`
       )
 
       // Find the block log entry
@@ -700,12 +700,12 @@ export async function executeWorkflowForChat(
       let specificOutput = blockLog.output
       if (path) {
         logger.debug(`[${requestId}] Extracting path ${path} from output`)
-        const pathParts = path.split(".")
+        const pathParts = path.split('.')
         for (const part of pathParts) {
           if (
             specificOutput === null ||
             specificOutput === undefined ||
-            typeof specificOutput !== "object"
+            typeof specificOutput !== 'object'
           ) {
             logger.debug(`[${requestId}] Cannot extract path ${part}, output is not an object`)
             specificOutput = null
@@ -745,12 +745,12 @@ export async function executeWorkflowForChat(
   if (outputs.length === 1) {
     const content = outputs[0].content
     // Don't wrap strings in an object
-    if (typeof content === "string") {
+    if (typeof content === 'string') {
       return {
         id: uuidv4(),
         content: content,
         timestamp: new Date().toISOString(),
-        type: "workflow",
+        type: 'workflow',
       }
     }
     // Return the content directly - avoid extra nesting
@@ -758,7 +758,7 @@ export async function executeWorkflowForChat(
       id: uuidv4(),
       content: content,
       timestamp: new Date().toISOString(),
-      type: "workflow",
+      type: 'workflow',
     }
   }
   if (outputs.length > 1) {
@@ -769,15 +769,15 @@ export async function executeWorkflowForChat(
       multipleOutputs: true,
       contents: outputs.map((o) => o.content),
       timestamp: new Date().toISOString(),
-      type: "workflow",
+      type: 'workflow',
     }
   }
   // Fallback for no outputs - should rarely happen
   return {
     id: uuidv4(),
-    content: "No output returned from workflow",
+    content: 'No output returned from workflow',
     timestamp: new Date().toISOString(),
-    type: "workflow",
+    type: 'workflow',
   }
 }
 

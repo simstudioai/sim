@@ -1,4 +1,4 @@
-import { useCodeGeneration } from "@/app/w/[id]/hooks/use-code-generation"
+import { useCodeGeneration } from '@/app/w/[id]/hooks/use-code-generation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -8,8 +8,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -17,19 +17,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { EnvVarDropdown, checkEnvVarTrigger } from "@/components/ui/env-var-dropdown"
-import { Label } from "@/components/ui/label"
-import { TagDropdown, checkTagTrigger } from "@/components/ui/tag-dropdown"
-import { createLogger } from "@/lib/logs/console-logger"
-import { cn } from "@/lib/utils"
-import { useCustomToolsStore } from "@/stores/custom-tools/store"
-import { Code, FileJson, Trash2, Wand2, X } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { CodePromptBar } from "../../../../../../../code-prompt-bar/code-prompt-bar"
-import { CodeEditor } from "../code-editor/code-editor"
+} from '@/components/ui/dialog'
+import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
+import { Label } from '@/components/ui/label'
+import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
+import { createLogger } from '@/lib/logs/console-logger'
+import { cn } from '@/lib/utils'
+import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { Code, FileJson, Trash2, Wand2, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CodePromptBar } from '../../../../../../../code-prompt-bar/code-prompt-bar'
+import { CodeEditor } from '../code-editor/code-editor'
 
-const logger = createLogger("CustomToolModal")
+const logger = createLogger('CustomToolModal')
 
 interface CustomToolModalProps {
   open: boolean
@@ -44,7 +44,7 @@ interface CustomToolModalProps {
 }
 
 export interface CustomTool {
-  type: "custom-tool"
+  type: 'custom-tool'
   title: string
   name: string
   description: string
@@ -54,7 +54,7 @@ export interface CustomTool {
   isExpanded?: boolean
 }
 
-type ToolSection = "schema" | "code"
+type ToolSection = 'schema' | 'code'
 
 export function CustomToolModal({
   open,
@@ -63,9 +63,9 @@ export function CustomToolModal({
   onDelete,
   initialValues,
 }: CustomToolModalProps) {
-  const [activeSection, setActiveSection] = useState<ToolSection>("schema")
-  const [jsonSchema, setJsonSchema] = useState("")
-  const [functionCode, setFunctionCode] = useState("")
+  const [activeSection, setActiveSection] = useState<ToolSection>('schema')
+  const [jsonSchema, setJsonSchema] = useState('')
+  const [functionCode, setFunctionCode] = useState('')
   const [schemaError, setSchemaError] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -74,7 +74,7 @@ export function CustomToolModal({
 
   // AI Code Generation Hooks
   const schemaGeneration = useCodeGeneration({
-    generationType: "custom-tool-schema",
+    generationType: 'custom-tool-schema',
     onGeneratedContent: (content) => {
       handleJsonSchemaChange(content)
       setSchemaError(null) // Clear error on successful generation
@@ -90,7 +90,7 @@ export function CustomToolModal({
   })
 
   const codeGeneration = useCodeGeneration({
-    generationType: "javascript-function-body",
+    generationType: 'javascript-function-body',
     onGeneratedContent: (content) => {
       handleFunctionCodeChange(content) // Use existing handler to also trigger dropdown checks
       setCodeError(null) // Clear error on successful generation
@@ -110,7 +110,7 @@ export function CustomToolModal({
   // Environment variables and tags dropdown state
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
   const codeEditorRef = useRef<HTMLDivElement>(null)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
@@ -126,16 +126,16 @@ export function CustomToolModal({
     if (open && initialValues) {
       try {
         setJsonSchema(
-          typeof initialValues.schema === "string"
+          typeof initialValues.schema === 'string'
             ? initialValues.schema
             : JSON.stringify(initialValues.schema, null, 2)
         )
-        setFunctionCode(initialValues.code || "")
+        setFunctionCode(initialValues.code || '')
         setIsEditing(true)
         setToolId(initialValues.id)
       } catch (error) {
-        logger.error("Error initializing form with initial values:", { error })
-        setSchemaError("Failed to load tool data. Please try again.")
+        logger.error('Error initializing form with initial values:', { error })
+        setSchemaError('Failed to load tool data. Please try again.')
       }
     } else if (open) {
       // Reset form when opening without initial values
@@ -144,11 +144,11 @@ export function CustomToolModal({
   }, [open, initialValues])
 
   const resetForm = () => {
-    setJsonSchema("")
-    setFunctionCode("")
+    setJsonSchema('')
+    setFunctionCode('')
     setSchemaError(null)
     setCodeError(null)
-    setActiveSection("schema")
+    setActiveSection('schema')
     setIsEditing(false)
     setToolId(undefined)
     // Reset AI state as well
@@ -174,7 +174,7 @@ export function CustomToolModal({
       const parsed = JSON.parse(schema)
 
       // Basic validation for function schema
-      if (!parsed.type || parsed.type !== "function") {
+      if (!parsed.type || parsed.type !== 'function') {
         return false
       }
 
@@ -203,23 +203,23 @@ export function CustomToolModal({
 
     // Validation with error messages
     if (!jsonSchema) {
-      setSchemaError("Schema cannot be empty")
-      setActiveSection("schema")
+      setSchemaError('Schema cannot be empty')
+      setActiveSection('schema')
       return
     }
 
     try {
       const parsed = JSON.parse(jsonSchema)
 
-      if (!parsed.type || parsed.type !== "function") {
+      if (!parsed.type || parsed.type !== 'function') {
         setSchemaError('Schema must have a "type" field set to "function"')
-        setActiveSection("schema")
+        setActiveSection('schema')
         return
       }
 
       if (!parsed.function || !parsed.function.name) {
         setSchemaError('Schema must have a "function" object with a "name" field')
-        setActiveSection("schema")
+        setActiveSection('schema')
         return
       }
 
@@ -257,14 +257,14 @@ export function CustomToolModal({
 
       if (isDuplicate) {
         setSchemaError(`A tool with the name "${toolName}" already exists`)
-        setActiveSection("schema")
+        setActiveSection('schema')
         return
       }
 
       // Save to custom tools store
       const schema = JSON.parse(jsonSchema)
       const name = schema.function.name
-      const description = schema.function.description || ""
+      const description = schema.function.description || ''
 
       let finalToolId: string | undefined = originalToolId
 
@@ -274,25 +274,25 @@ export function CustomToolModal({
         updateTool(originalToolId, {
           title: name,
           schema,
-          code: functionCode || "",
+          code: functionCode || '',
         })
       } else {
         // Add new tool to store
         finalToolId = addTool({
           title: name,
           schema,
-          code: functionCode || "",
+          code: functionCode || '',
         })
       }
 
       // Create the custom tool object for the parent component
       const customTool: CustomTool = {
-        type: "custom-tool",
+        type: 'custom-tool',
         title: name,
         name,
         description,
         schema,
-        code: functionCode || "",
+        code: functionCode || '',
         params: {},
         isExpanded: true,
       }
@@ -303,8 +303,8 @@ export function CustomToolModal({
       // Close the modal
       handleClose()
     } catch (error) {
-      logger.error("Error saving custom tool:", { error })
-      setSchemaError("Failed to save custom tool. Please check your inputs and try again.")
+      logger.error('Error saving custom tool:', { error })
+      setSchemaError('Failed to save custom tool. Please check your inputs and try again.')
     }
   }
 
@@ -334,14 +334,14 @@ export function CustomToolModal({
     }
 
     // Check for environment variables and tags
-    const textarea = codeEditorRef.current?.querySelector("textarea")
+    const textarea = codeEditorRef.current?.querySelector('textarea')
     if (textarea) {
       const pos = textarea.selectionStart
       setCursorPosition(pos)
 
       // Calculate cursor position for dropdowns
       const textBeforeCursor = value.substring(0, pos)
-      const lines = textBeforeCursor.split("\n")
+      const lines = textBeforeCursor.split('\n')
       const currentLine = lines.length
       const currentCol = lines[lines.length - 1].length
 
@@ -358,13 +358,13 @@ export function CustomToolModal({
           setDropdownPosition({ top, left })
         }
       } catch (error) {
-        logger.error("Error calculating cursor position:", { error })
+        logger.error('Error calculating cursor position:', { error })
       }
 
       // Check if we should show the environment variables dropdown
       const envVarTrigger = checkEnvVarTrigger(value, pos)
       setShowEnvVars(envVarTrigger.show && !codeGeneration.isStreaming) // Hide dropdown during streaming
-      setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : "")
+      setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
 
       // Check if we should show the tags dropdown
       const tagTrigger = checkTagTrigger(value, pos)
@@ -392,10 +392,10 @@ export function CustomToolModal({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Allow AI prompt interaction (e.g., Escape to close prompt bar)
     // Check if AI prompt is visible for the current section
-    const isSchemaPromptVisible = activeSection === "schema" && schemaGeneration.isPromptVisible
-    const isCodePromptVisible = activeSection === "code" && codeGeneration.isPromptVisible
+    const isSchemaPromptVisible = activeSection === 'schema' && schemaGeneration.isPromptVisible
+    const isCodePromptVisible = activeSection === 'code' && codeGeneration.isPromptVisible
 
-    if (e.key === "Escape") {
+    if (e.key === 'Escape') {
       if (isSchemaPromptVisible) {
         schemaGeneration.hidePromptInline()
         e.preventDefault()
@@ -416,18 +416,18 @@ export function CustomToolModal({
     }
 
     // Prevent regular input if streaming in the active section
-    if (activeSection === "schema" && schemaGeneration.isStreaming) {
+    if (activeSection === 'schema' && schemaGeneration.isStreaming) {
       e.preventDefault()
       return
     }
-    if (activeSection === "code" && codeGeneration.isStreaming) {
+    if (activeSection === 'code' && codeGeneration.isStreaming) {
       e.preventDefault()
       return
     }
 
     // Let dropdowns handle their own keyboard events if visible
     if (showEnvVars || showTags) {
-      if (["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) {
+      if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) {
         e.preventDefault()
         e.stopPropagation()
       }
@@ -442,12 +442,12 @@ export function CustomToolModal({
 
       // Call API to delete the tool
       const response = await fetch(`/api/tools/custom?id=${toolId}`, {
-        method: "DELETE",
+        method: 'DELETE',
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        const errorMessage = errorData.error || response.statusText || "Failed to delete tool"
+        const errorMessage = errorData.error || response.statusText || 'Failed to delete tool'
         throw new Error(errorMessage)
       }
 
@@ -463,24 +463,24 @@ export function CustomToolModal({
       // Close the modal
       handleClose()
     } catch (error) {
-      logger.error("Error deleting custom tool:", error)
-      const errorMessage = error instanceof Error ? error.message : "Failed to delete custom tool"
+      logger.error('Error deleting custom tool:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete custom tool'
       setSchemaError(`${errorMessage}. Please try again.`)
-      setActiveSection("schema") // Switch to schema tab to show the error
+      setActiveSection('schema') // Switch to schema tab to show the error
       setShowDeleteConfirm(false) // Close the confirmation dialog
     }
   }
 
   const navigationItems = [
     {
-      id: "schema" as const,
-      label: "Schema",
+      id: 'schema' as const,
+      label: 'Schema',
       icon: FileJson,
       complete: isSchemaValid,
     },
     {
-      id: "code" as const,
-      label: "Code",
+      id: 'code' as const,
+      label: 'Code',
       icon: Code,
       complete: isCodeValid,
     },
@@ -490,48 +490,48 @@ export function CustomToolModal({
     <>
       <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent
-          className="flex h-[80vh] flex-col gap-0 p-0 sm:max-w-[700px]"
+          className='flex h-[80vh] flex-col gap-0 p-0 sm:max-w-[700px]'
           hideCloseButton
         >
-          <DialogHeader className="border-b px-6 py-4">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="font-medium text-lg">
-                {isEditing ? "Edit Agent Tool" : "Create Agent Tool"}
+          <DialogHeader className='border-b px-6 py-4'>
+            <div className='flex items-center justify-between'>
+              <DialogTitle className='font-medium text-lg'>
+                {isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'}
               </DialogTitle>
-              <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleClose}>
-                <X className="h-4 w-4" />
-                <span className="sr-only">Close</span>
+              <Button variant='ghost' size='icon' className='h-8 w-8 p-0' onClick={handleClose}>
+                <X className='h-4 w-4' />
+                <span className='sr-only'>Close</span>
               </Button>
             </div>
-            <DialogDescription className="mt-1.5">
-              Step {activeSection === "schema" ? "1" : "2"} of 2:{" "}
-              {activeSection === "schema" ? "Define schema" : "Implement code"}
+            <DialogDescription className='mt-1.5'>
+              Step {activeSection === 'schema' ? '1' : '2'} of 2:{' '}
+              {activeSection === 'schema' ? 'Define schema' : 'Implement code'}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex border-b">
+          <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <div className='flex border-b'>
               {navigationItems.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
                   className={cn(
-                    "flex items-center gap-2 border-b-2 px-6 py-3 text-sm transition-colors",
-                    "hover:bg-muted/50",
+                    'flex items-center gap-2 border-b-2 px-6 py-3 text-sm transition-colors',
+                    'hover:bg-muted/50',
                     activeSection === item.id
-                      ? "border-primary font-medium text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
+                      ? 'border-primary font-medium text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
                   )}
                 >
-                  <item.icon className="h-4 w-4" />
+                  <item.icon className='h-4 w-4' />
                   <span>{item.label}</span>
                 </button>
               ))}
             </div>
 
-            <div className="relative flex-1 overflow-auto px-6 pt-6 pb-12">
+            <div className='relative flex-1 overflow-auto px-6 pt-6 pb-12'>
               {/* Schema Section AI Prompt Bar */}
-              {activeSection === "schema" && (
+              {activeSection === 'schema' && (
                 <CodePromptBar
                   isVisible={schemaGeneration.isPromptVisible}
                   isLoading={schemaGeneration.isLoading}
@@ -546,13 +546,13 @@ export function CustomToolModal({
                       : schemaGeneration.hidePromptInline
                   }
                   onChange={schemaGeneration.updatePromptValue}
-                  placeholder="Describe the JSON schema to generate..."
-                  className="!top-0 relative mb-2"
+                  placeholder='Describe the JSON schema to generate...'
+                  className='!top-0 relative mb-2'
                 />
               )}
 
               {/* Code Section AI Prompt Bar */}
-              {activeSection === "code" && (
+              {activeSection === 'code' && (
                 <CodePromptBar
                   isVisible={codeGeneration.isPromptVisible}
                   isLoading={codeGeneration.isLoading}
@@ -567,52 +567,52 @@ export function CustomToolModal({
                       : codeGeneration.hidePromptInline
                   }
                   onChange={codeGeneration.updatePromptValue}
-                  placeholder="Describe the JavaScript code to generate..."
-                  className="!top-0 relative mb-2"
+                  placeholder='Describe the JavaScript code to generate...'
+                  className='!top-0 relative mb-2'
                 />
               )}
 
               <div
                 className={cn(
-                  "flex h-full flex-1 flex-col",
-                  activeSection === "schema" ? "block" : "hidden"
+                  'flex h-full flex-1 flex-col',
+                  activeSection === 'schema' ? 'block' : 'hidden'
                 )}
               >
-                <div className="mb-1 flex min-h-6 items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileJson className="h-4 w-4" />
-                    <Label htmlFor="json-schema" className="font-medium">
+                <div className='mb-1 flex min-h-6 items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <FileJson className='h-4 w-4' />
+                    <Label htmlFor='json-schema' className='font-medium'>
                       JSON Schema
                     </Label>
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 rounded-full border border-transparent bg-muted/80 p-0 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow"
+                      variant='ghost'
+                      size='icon'
+                      className='h-5 w-5 rounded-full border border-transparent bg-muted/80 p-0 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
                       onClick={() => {
-                        logger.debug("Schema AI button clicked")
+                        logger.debug('Schema AI button clicked')
                         logger.debug(
-                          "showPromptInline function exists:",
-                          typeof schemaGeneration.showPromptInline === "function"
+                          'showPromptInline function exists:',
+                          typeof schemaGeneration.showPromptInline === 'function'
                         )
                         schemaGeneration.isPromptVisible
                           ? schemaGeneration.hidePromptInline()
                           : schemaGeneration.showPromptInline()
                       }}
                       disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming}
-                      aria-label="Generate schema with AI"
+                      aria-label='Generate schema with AI'
                     >
-                      <Wand2 className="h-3 w-3" />
+                      <Wand2 className='h-3 w-3' />
                     </Button>
                   </div>
                   {schemaError &&
                     !schemaGeneration.isStreaming && ( // Hide schema error while streaming
-                      <span className="ml-4 flex-shrink-0 text-red-600 text-sm">{schemaError}</span>
+                      <span className='ml-4 flex-shrink-0 text-red-600 text-sm'>{schemaError}</span>
                     )}
                 </div>
                 <CodeEditor
                   value={jsonSchema}
                   onChange={handleJsonSchemaChange}
-                  language="json"
+                  language='json'
                   placeholder={`{
   "type": "function",
   "function": {
@@ -630,68 +630,68 @@ export function CustomToolModal({
     }
   }
 }`}
-                  minHeight="360px"
+                  minHeight='360px'
                   className={cn(
-                    schemaError && !schemaGeneration.isStreaming ? "border-red-500" : "",
+                    schemaError && !schemaGeneration.isStreaming ? 'border-red-500' : '',
                     (schemaGeneration.isLoading || schemaGeneration.isStreaming) &&
-                      "cursor-not-allowed opacity-50"
+                      'cursor-not-allowed opacity-50'
                   )}
                   disabled={schemaGeneration.isLoading || schemaGeneration.isStreaming} // Use disabled prop instead of readOnly
                   onKeyDown={handleKeyDown} // Pass keydown handler
                 />
-                <div className="h-6" />
+                <div className='h-6' />
               </div>
 
               <div
                 className={cn(
-                  "flex h-full flex-1 flex-col pb-6",
-                  activeSection === "code" ? "block" : "hidden"
+                  'flex h-full flex-1 flex-col pb-6',
+                  activeSection === 'code' ? 'block' : 'hidden'
                 )}
               >
-                <div className="mb-1 flex min-h-6 items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Code className="h-4 w-4" />
-                    <Label htmlFor="function-code" className="font-medium">
+                <div className='mb-1 flex min-h-6 items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <Code className='h-4 w-4' />
+                    <Label htmlFor='function-code' className='font-medium'>
                       Code (optional)
                     </Label>
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 rounded-full border border-transparent bg-muted/80 p-0 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow"
+                      variant='ghost'
+                      size='icon'
+                      className='h-5 w-5 rounded-full border border-transparent bg-muted/80 p-0 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
                       onClick={() => {
-                        logger.debug("Code AI button clicked")
+                        logger.debug('Code AI button clicked')
                         logger.debug(
-                          "showPromptInline function exists:",
-                          typeof codeGeneration.showPromptInline === "function"
+                          'showPromptInline function exists:',
+                          typeof codeGeneration.showPromptInline === 'function'
                         )
                         codeGeneration.isPromptVisible
                           ? codeGeneration.hidePromptInline()
                           : codeGeneration.showPromptInline()
                       }}
                       disabled={codeGeneration.isLoading || codeGeneration.isStreaming}
-                      aria-label="Generate code with AI"
+                      aria-label='Generate code with AI'
                     >
-                      <Wand2 className="h-3 w-3" />
+                      <Wand2 className='h-3 w-3' />
                     </Button>
                   </div>
                   {codeError &&
                     !codeGeneration.isStreaming && ( // Hide code error while streaming
-                      <span className="ml-4 flex-shrink-0 text-red-600 text-sm">{codeError}</span>
+                      <span className='ml-4 flex-shrink-0 text-red-600 text-sm'>{codeError}</span>
                     )}
                 </div>
-                <div ref={codeEditorRef} className="relative">
+                <div ref={codeEditorRef} className='relative'>
                   <CodeEditor
                     value={functionCode}
                     onChange={handleFunctionCodeChange}
-                    language="javascript"
+                    language='javascript'
                     placeholder={
-                      "// This code will be executed when the tool is called. You can use environment variables with {{VARIABLE_NAME}}."
+                      '// This code will be executed when the tool is called. You can use environment variables with {{VARIABLE_NAME}}.'
                     }
-                    minHeight="360px"
+                    minHeight='360px'
                     className={cn(
-                      codeError && !codeGeneration.isStreaming ? "border-red-500" : "",
+                      codeError && !codeGeneration.isStreaming ? 'border-red-500' : '',
                       (codeGeneration.isLoading || codeGeneration.isStreaming) &&
-                        "cursor-not-allowed opacity-50"
+                        'cursor-not-allowed opacity-50'
                     )}
                     highlightVariables={true}
                     disabled={codeGeneration.isLoading || codeGeneration.isStreaming} // Use disabled prop instead of readOnly
@@ -708,11 +708,11 @@ export function CustomToolModal({
                       cursorPosition={cursorPosition}
                       onClose={() => {
                         setShowEnvVars(false)
-                        setSearchTerm("")
+                        setSearchTerm('')
                       }}
-                      className="w-64"
+                      className='w-64'
                       style={{
-                        position: "absolute",
+                        position: 'absolute',
                         top: `${dropdownPosition.top}px`,
                         left: `${dropdownPosition.left}px`,
                       }}
@@ -724,7 +724,7 @@ export function CustomToolModal({
                     <TagDropdown
                       visible={showTags}
                       onSelect={handleTagSelect}
-                      blockId=""
+                      blockId=''
                       activeSourceBlockId={activeSourceBlockId}
                       inputValue={functionCode}
                       cursorPosition={cursorPosition}
@@ -732,55 +732,55 @@ export function CustomToolModal({
                         setShowTags(false)
                         setActiveSourceBlockId(null)
                       }}
-                      className="w-64"
+                      className='w-64'
                       style={{
-                        position: "absolute",
+                        position: 'absolute',
                         top: `${dropdownPosition.top}px`,
                         left: `${dropdownPosition.left}px`,
                       }}
                     />
                   )}
                 </div>
-                <div className="h-6" />
+                <div className='h-6' />
               </div>
             </div>
           </div>
 
-          <DialogFooter className="mt-auto border-t px-6 py-4">
-            <div className="flex w-full justify-between">
+          <DialogFooter className='mt-auto border-t px-6 py-4'>
+            <div className='flex w-full justify-between'>
               {isEditing ? (
                 <Button
-                  variant="destructive"
-                  size="sm"
+                  variant='destructive'
+                  size='sm'
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="gap-1"
+                  className='gap-1'
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className='h-4 w-4' />
                   Delete
                 </Button>
               ) : (
                 <Button
-                  variant="outline"
+                  variant='outline'
                   onClick={() => {
-                    if (activeSection === "code") {
-                      setActiveSection("schema")
+                    if (activeSection === 'code') {
+                      setActiveSection('schema')
                     }
                   }}
-                  disabled={activeSection === "schema"}
+                  disabled={activeSection === 'schema'}
                 >
                   Back
                 </Button>
               )}
-              <div className="flex space-x-2">
-                <Button variant="outline" onClick={handleClose}>
+              <div className='flex space-x-2'>
+                <Button variant='outline' onClick={handleClose}>
                   Cancel
                 </Button>
-                {activeSection === "schema" ? (
-                  <Button onClick={() => setActiveSection("code")} disabled={!isSchemaValid}>
+                {activeSection === 'schema' ? (
+                  <Button onClick={() => setActiveSection('code')} disabled={!isSchemaValid}>
                     Next
                   </Button>
                 ) : (
-                  <Button onClick={handleSave}>{isEditing ? "Update Tool" : "Save Tool"}</Button>
+                  <Button onClick={handleSave}>{isEditing ? 'Update Tool' : 'Save Tool'}</Button>
                 )}
               </div>
             </div>
@@ -802,7 +802,7 @@ export function CustomToolModal({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
             >
               Delete
             </AlertDialogAction>

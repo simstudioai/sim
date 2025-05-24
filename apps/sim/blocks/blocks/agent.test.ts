@@ -1,24 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
-import { AgentBlock } from "./agent"
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { AgentBlock } from './agent'
 
-vi.mock("@/blocks", () => ({
+vi.mock('@/blocks', () => ({
   getAllBlocks: vi.fn(() => [
     {
-      type: "tool-type-1",
+      type: 'tool-type-1',
       tools: {
-        access: ["tool-id-1"],
+        access: ['tool-id-1'],
       },
     },
     {
-      type: "tool-type-2",
+      type: 'tool-type-2',
       tools: {
-        access: ["tool-id-2"],
+        access: ['tool-id-2'],
       },
     },
   ]),
 }))
 
-describe("AgentBlock", () => {
+describe('AgentBlock', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -26,14 +26,14 @@ describe("AgentBlock", () => {
   const paramsFunction = AgentBlock.tools.config?.params
 
   if (!paramsFunction) {
-    throw new Error("AgentBlock.tools.config.params function is missing")
+    throw new Error('AgentBlock.tools.config.params function is missing')
   }
 
-  describe("tools.config.params function", () => {
-    it("should pass through params when no tools array is provided", () => {
+  describe('tools.config.params function', () => {
+    it('should pass through params when no tools array is provided', () => {
       const params = {
-        model: "gpt-4o",
-        systemPrompt: "You are a helpful assistant.",
+        model: 'gpt-4o',
+        systemPrompt: 'You are a helpful assistant.',
         // No tools provided
       }
 
@@ -43,30 +43,30 @@ describe("AgentBlock", () => {
 
     it('should filter out tools with usageControl set to "none"', () => {
       const params = {
-        model: "gpt-4o",
-        systemPrompt: "You are a helpful assistant.",
+        model: 'gpt-4o',
+        systemPrompt: 'You are a helpful assistant.',
         tools: [
           {
-            type: "tool-type-1",
-            title: "Tool 1",
-            usageControl: "auto",
+            type: 'tool-type-1',
+            title: 'Tool 1',
+            usageControl: 'auto',
           },
           {
-            type: "tool-type-2",
-            title: "Tool 2",
-            usageControl: "none", // Should be filtered out
+            type: 'tool-type-2',
+            title: 'Tool 2',
+            usageControl: 'none', // Should be filtered out
           },
           {
-            type: "custom-tool",
-            title: "Custom Tool",
+            type: 'custom-tool',
+            title: 'Custom Tool',
             schema: {
               function: {
-                name: "custom_function",
-                description: "A custom function",
-                parameters: { type: "object", properties: {} },
+                name: 'custom_function',
+                description: 'A custom function',
+                parameters: { type: 'object', properties: {} },
               },
             },
-            usageControl: "force",
+            usageControl: 'force',
           },
         ],
       }
@@ -78,19 +78,19 @@ describe("AgentBlock", () => {
 
       // Verify the tool titles (custom identifiers that we can check)
       const toolIds = result.tools.map((tool: any) => tool.name)
-      expect(toolIds).toContain("Tool 1")
-      expect(toolIds).not.toContain("Tool 2")
-      expect(toolIds).toContain("Custom Tool")
+      expect(toolIds).toContain('Tool 1')
+      expect(toolIds).not.toContain('Tool 2')
+      expect(toolIds).toContain('Custom Tool')
     })
 
     it('should set default usageControl to "auto" if not specified', () => {
       const params = {
-        model: "gpt-4o",
-        systemPrompt: "You are a helpful assistant.",
+        model: 'gpt-4o',
+        systemPrompt: 'You are a helpful assistant.',
         tools: [
           {
-            type: "tool-type-1",
-            title: "Tool 1",
+            type: 'tool-type-1',
+            title: 'Tool 1',
             // No usageControl specified, should default to 'auto'
           },
         ],
@@ -99,30 +99,30 @@ describe("AgentBlock", () => {
       const result = paramsFunction(params)
 
       // Verify that the tool has usageControl set to 'auto'
-      expect(result.tools[0].usageControl).toBe("auto")
+      expect(result.tools[0].usageControl).toBe('auto')
     })
 
-    it("should correctly transform custom tools", () => {
+    it('should correctly transform custom tools', () => {
       const params = {
-        model: "gpt-4o",
-        systemPrompt: "You are a helpful assistant.",
+        model: 'gpt-4o',
+        systemPrompt: 'You are a helpful assistant.',
         tools: [
           {
-            type: "custom-tool",
-            title: "Custom Tool",
+            type: 'custom-tool',
+            title: 'Custom Tool',
             schema: {
               function: {
-                name: "custom_function",
-                description: "A custom function description",
+                name: 'custom_function',
+                description: 'A custom function description',
                 parameters: {
-                  type: "object",
+                  type: 'object',
                   properties: {
-                    param1: { type: "string" },
+                    param1: { type: 'string' },
                   },
                 },
               },
             },
-            usageControl: "force",
+            usageControl: 'force',
           },
         ],
       }
@@ -131,24 +131,24 @@ describe("AgentBlock", () => {
 
       // Verify custom tool transformation
       expect(result.tools[0]).toEqual({
-        id: "custom_function",
-        name: "Custom Tool",
-        description: "A custom function description",
+        id: 'custom_function',
+        name: 'Custom Tool',
+        description: 'A custom function description',
         params: {},
         parameters: {
-          type: "object",
+          type: 'object',
           properties: {
-            param1: { type: "string" },
+            param1: { type: 'string' },
           },
         },
-        usageControl: "force",
+        usageControl: 'force',
       })
     })
 
-    it("should handle an empty tools array", () => {
+    it('should handle an empty tools array', () => {
       const params = {
-        model: "gpt-4o",
-        systemPrompt: "You are a helpful assistant.",
+        model: 'gpt-4o',
+        systemPrompt: 'You are a helpful assistant.',
         tools: [], // Empty array
       }
 

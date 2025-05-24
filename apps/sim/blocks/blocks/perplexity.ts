@@ -1,6 +1,6 @@
-import { PerplexityIcon } from "@/components/icons"
-import type { ToolResponse } from "@/tools/types"
-import type { BlockConfig } from "../types"
+import { PerplexityIcon } from '@/components/icons'
+import type { ToolResponse } from '@/tools/types'
+import type { BlockConfig } from '../types'
 
 interface PerplexityChatResponse extends ToolResponse {
   output: {
@@ -15,74 +15,74 @@ interface PerplexityChatResponse extends ToolResponse {
 }
 
 export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
-  type: "perplexity",
-  name: "Perplexity",
-  description: "Use Perplexity AI chat models",
+  type: 'perplexity',
+  name: 'Perplexity',
+  description: 'Use Perplexity AI chat models',
   longDescription:
-    "Generate completions using Perplexity AI models with real-time knowledge and search capabilities. Create responses, answer questions, and generate content with customizable parameters.",
-  docsLink: "https://docs.simstudio.ai/tools/perplexity",
-  category: "tools",
-  bgColor: "#20808D", // Perplexity turquoise color
+    'Generate completions using Perplexity AI models with real-time knowledge and search capabilities. Create responses, answer questions, and generate content with customizable parameters.',
+  docsLink: 'https://docs.simstudio.ai/tools/perplexity',
+  category: 'tools',
+  bgColor: '#20808D', // Perplexity turquoise color
   icon: PerplexityIcon,
   subBlocks: [
     {
-      id: "system",
-      title: "System Prompt",
-      type: "long-input",
-      layout: "full",
-      placeholder: "Optional system prompt to guide the model behavior...",
+      id: 'system',
+      title: 'System Prompt',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Optional system prompt to guide the model behavior...',
     },
     {
-      id: "prompt",
-      title: "User Prompt",
-      type: "long-input",
-      layout: "full",
-      placeholder: "Enter your prompt here...",
+      id: 'prompt',
+      title: 'User Prompt',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter your prompt here...',
     },
     {
-      id: "model",
-      title: "Model",
-      type: "dropdown",
-      layout: "half",
+      id: 'model',
+      title: 'Model',
+      type: 'dropdown',
+      layout: 'half',
       options: [
-        { label: "Sonar", id: "sonar" },
-        { label: "Mistral", id: "mistral" },
-        { label: "Claude-3-Opus", id: "claude-3-opus" },
-        { label: "Claude-3-Sonnet", id: "claude-3-sonnet" },
-        { label: "Command-R", id: "command-r" },
-        { label: "GPT-4o", id: "gpt-4o" },
+        { label: 'Sonar', id: 'sonar' },
+        { label: 'Mistral', id: 'mistral' },
+        { label: 'Claude-3-Opus', id: 'claude-3-opus' },
+        { label: 'Claude-3-Sonnet', id: 'claude-3-sonnet' },
+        { label: 'Command-R', id: 'command-r' },
+        { label: 'GPT-4o', id: 'gpt-4o' },
       ],
-      value: () => "sonar",
+      value: () => 'sonar',
     },
     {
-      id: "temperature",
-      title: "Temperature",
-      type: "slider",
-      layout: "half",
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      layout: 'half',
       min: 0,
       max: 1,
-      value: () => "0.7",
+      value: () => '0.7',
     },
     {
-      id: "max_tokens",
-      title: "Max Tokens",
-      type: "short-input",
-      layout: "half",
-      placeholder: "Maximum number of tokens",
+      id: 'max_tokens',
+      title: 'Max Tokens',
+      type: 'short-input',
+      layout: 'half',
+      placeholder: 'Maximum number of tokens',
     },
     {
-      id: "apiKey",
-      title: "API Key",
-      type: "short-input",
-      layout: "full",
-      placeholder: "Enter your Perplexity API key",
+      id: 'apiKey',
+      title: 'API Key',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Enter your Perplexity API key',
       password: true,
     },
   ],
   tools: {
-    access: ["perplexity_chat"],
+    access: ['perplexity_chat'],
     config: {
-      tool: () => "perplexity_chat",
+      tool: () => 'perplexity_chat',
       params: (params) => {
         const toolParams = {
           apiKey: params.apiKey,
@@ -98,19 +98,19 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
     },
   },
   inputs: {
-    prompt: { type: "string", required: true },
-    system: { type: "string", required: false },
-    model: { type: "string", required: true },
-    max_tokens: { type: "string", required: false },
-    temperature: { type: "string", required: false },
-    apiKey: { type: "string", required: true },
+    prompt: { type: 'string', required: true },
+    system: { type: 'string', required: false },
+    model: { type: 'string', required: true },
+    max_tokens: { type: 'string', required: false },
+    temperature: { type: 'string', required: false },
+    apiKey: { type: 'string', required: true },
   },
   outputs: {
     response: {
       type: {
-        content: "string",
-        model: "string",
-        usage: "json",
+        content: 'string',
+        model: 'string',
+        usage: 'json',
       },
     },
   },

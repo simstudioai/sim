@@ -1,4 +1,4 @@
-import type { ToolResponse } from "../types"
+import type { ToolResponse } from '../types'
 
 // Base Pinecone params shared across all operations
 export interface PineconeBaseParams {
@@ -21,10 +21,10 @@ export interface PineconeResponse extends ToolResponse {
     upsertedCount?: number
     data?: Array<{
       values: number[]
-      vector_type: "dense" | "sparse"
+      vector_type: 'dense' | 'sparse'
     }>
     model?: string
-    vector_type?: "dense" | "sparse"
+    vector_type?: 'dense' | 'sparse'
     usage?: {
       total_tokens: number
     }
@@ -37,8 +37,8 @@ export interface PineconeGenerateEmbeddingsParams {
   model: string
   inputs: { text: string }[]
   parameters?: {
-    input_type?: "passage"
-    truncate?: "END"
+    input_type?: 'passage'
+    truncate?: 'END'
   }
 }
 
@@ -137,7 +137,7 @@ export interface PineconeFetchResponse {
 export interface PineconeParams {
   apiKey: string
   indexHost: string
-  operation: "query" | "upsert" | "delete"
+  operation: 'query' | 'upsert' | 'delete'
   // Query operation
   queryVector?: number[]
   topK?: number

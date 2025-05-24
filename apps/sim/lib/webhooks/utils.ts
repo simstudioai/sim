@@ -1,20 +1,20 @@
-import { getOAuthToken } from "@/app/api/auth/oauth/utils"
-import { db } from "@/db"
-import { environment, userStats, webhook } from "@/db/schema"
-import { Executor } from "@/executor"
-import { createLogger } from "@/lib/logs/console-logger"
-import { persistExecutionError, persistExecutionLogs } from "@/lib/logs/execution-logger"
-import { buildTraceSpans } from "@/lib/logs/trace-spans"
-import { hasProcessedMessage, markMessageAsProcessed } from "@/lib/redis"
-import { decryptSecret } from "@/lib/utils"
-import { updateWorkflowRunCounts } from "@/lib/workflows/utils"
-import { Serializer } from "@/serializer"
-import { mergeSubblockStateAsync } from "@/stores/workflows/utils"
-import { and, eq, sql } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
-import { v4 as uuidv4 } from "uuid"
+import { getOAuthToken } from '@/app/api/auth/oauth/utils'
+import { db } from '@/db'
+import { environment, userStats, webhook } from '@/db/schema'
+import { Executor } from '@/executor'
+import { createLogger } from '@/lib/logs/console-logger'
+import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
+import { decryptSecret } from '@/lib/utils'
+import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { Serializer } from '@/serializer'
+import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
+import { and, eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 
-const logger = createLogger("WebhookUtils")
+const logger = createLogger('WebhookUtils')
 
 /**
  * Handle WhatsApp verification requests
@@ -30,16 +30,16 @@ export async function handleWhatsAppVerification(
     // This is a WhatsApp verification request
     logger.info(`[${requestId}] WhatsApp verification request received for path: ${path}`)
 
-    if (mode !== "subscribe") {
+    if (mode !== 'subscribe') {
       logger.warn(`[${requestId}] Invalid WhatsApp verification mode: ${mode}`)
-      return new NextResponse("Invalid mode", { status: 400 })
+      return new NextResponse('Invalid mode', { status: 400 })
     }
 
     // Find all active WhatsApp webhooks
     const webhooks = await db
       .select()
       .from(webhook)
-      .where(and(eq(webhook.provider, "whatsapp"), eq(webhook.isActive, true)))
+      .where(and(eq(webhook.provider, 'whatsapp'), eq(webhook.isActive, true)))
 
     // Check if any webhook has a matching verification token
     for (const wh of webhooks) {
@@ -57,14 +57,14 @@ export async function handleWhatsAppVerification(
         return new NextResponse(challenge, {
           status: 200,
           headers: {
-            "Content-Type": "text/plain",
+            'Content-Type': 'text/plain',
           },
         })
       }
     }
 
     logger.warn(`[${requestId}] No matching WhatsApp verification token found`)
-    return new NextResponse("Verification failed", { status: 403 })
+    return new NextResponse('Verification failed', { status: 403 })
   }
 
   return null
@@ -74,7 +74,7 @@ export async function handleWhatsAppVerification(
  * Handle Slack verification challenges
  */
 export function handleSlackChallenge(body: any): NextResponse | null {
-  if (body.type === "url_verification" && body.challenge) {
+  if (body.type === 'url_verification' && body.challenge) {
     return NextResponse.json({ challenge: body.challenge })
   }
 
@@ -114,19 +114,19 @@ export async function validateSlackSignature(
 
     // Create the HMAC with the signing secret
     const key = await crypto.subtle.importKey(
-      "raw",
+      'raw',
       encoder.encode(signingSecret),
-      { name: "HMAC", hash: "SHA-256" },
+      { name: 'HMAC', hash: 'SHA-256' },
       false,
-      ["sign"]
+      ['sign']
     )
 
-    const signatureBytes = await crypto.subtle.sign("HMAC", key, encoder.encode(baseString))
+    const signatureBytes = await crypto.subtle.sign('HMAC', key, encoder.encode(baseString))
 
     // Convert the signature to hex
     const signatureHex = Array.from(new Uint8Array(signatureBytes))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
 
     // Prepare the expected signature format
     const computedSignature = `v0=${signatureHex}`
@@ -143,7 +143,7 @@ export async function validateSlackSignature(
 
     return result === 0
   } catch (error) {
-    console.error("Error validating Slack signature:", error)
+    console.error('Error validating Slack signature:', error)
     return false
   }
 }
@@ -166,7 +166,7 @@ export async function processWhatsAppDeduplication(
         const isDuplicate = await hasProcessedMessage(whatsappMsgKey)
         if (isDuplicate) {
           logger.info(`[${requestId}] Duplicate WhatsApp message detected: ${messageId}`)
-          return new NextResponse("Duplicate message", { status: 200 })
+          return new NextResponse('Duplicate message', { status: 200 })
         }
 
         // Mark as processed BEFORE processing
@@ -196,7 +196,7 @@ export async function processGenericDeduplication(
     const isDuplicate = await hasProcessedMessage(genericMsgKey)
     if (isDuplicate) {
       logger.info(`[${requestId}] Duplicate request detected with hash: ${requestHash}`)
-      return new NextResponse("Duplicate request", { status: 200 })
+      return new NextResponse('Duplicate request', { status: 200 })
     }
 
     // Mark as processed
@@ -218,7 +218,7 @@ export function formatWebhookInput(
   body: any,
   request: NextRequest
 ): any {
-  if (foundWebhook.provider === "whatsapp") {
+  if (foundWebhook.provider === 'whatsapp') {
     // WhatsApp input formatting logic
     const data = body?.entry?.[0]?.changes?.[0]?.value
     const messages = data?.messages || []
@@ -244,7 +244,7 @@ export function formatWebhookInput(
         },
         webhook: {
           data: {
-            provider: "whatsapp",
+            provider: 'whatsapp',
             path: foundWebhook.path,
             providerConfig: foundWebhook.providerConfig,
             payload: body,
@@ -257,8 +257,8 @@ export function formatWebhookInput(
     }
     return null
   }
-  if (foundWebhook.provider === "gmail") {
-    if (body && typeof body === "object" && "email" in body) {
+  if (foundWebhook.provider === 'gmail') {
+    if (body && typeof body === 'object' && 'email' in body) {
       return body // { email: {...}, timestamp: ... }
     }
     return body
@@ -292,7 +292,7 @@ export async function executeWorkflowFromPayload(
   logger.info(`[${requestId}] Preparing to execute workflow`, {
     workflowId: foundWorkflow.id,
     executionId,
-    triggerSource: "webhook-payload",
+    triggerSource: 'webhook-payload',
   })
 
   // DEBUG: Log specific payload details
@@ -426,16 +426,16 @@ export async function executeWorkflowFromPayload(
         const processedState = { ...blockState }
         if (processedState.responseFormat) {
           try {
-            if (typeof processedState.responseFormat === "string") {
+            if (typeof processedState.responseFormat === 'string') {
               processedState.responseFormat = JSON.parse(processedState.responseFormat)
             }
             if (
               processedState.responseFormat &&
-              typeof processedState.responseFormat === "object"
+              typeof processedState.responseFormat === 'object'
             ) {
               if (!processedState.responseFormat.schema && !processedState.responseFormat.name) {
                 processedState.responseFormat = {
-                  name: "response_schema",
+                  name: 'response_schema',
                   schema: processedState.responseFormat,
                   strict: true,
                 }
@@ -469,7 +469,7 @@ export async function executeWorkflowFromPayload(
     let workflowVariables = {}
     if (foundWorkflow.variables) {
       try {
-        if (typeof foundWorkflow.variables === "string") {
+        if (typeof foundWorkflow.variables === 'string') {
           workflowVariables = JSON.parse(foundWorkflow.variables)
         } else {
           workflowVariables = foundWorkflow.variables
@@ -557,14 +557,14 @@ export async function executeWorkflowFromPayload(
 
     // Check if we got a StreamingExecution result (with stream + execution properties)
     // For webhook executions, we only care about the ExecutionResult part, not the stream
-    const executionResult = "stream" in result && "execution" in result ? result.execution : result
+    const executionResult = 'stream' in result && 'execution' in result ? result.execution : result
 
     // Add direct detailed logging right after executing
     logger.info(`[${requestId}] EXECUTION_MONITOR: executor.execute() completed with result`, {
       workflowId: foundWorkflow.id,
       executionId: executionId,
       success: executionResult.success,
-      resultType: result ? typeof result : "undefined",
+      resultType: result ? typeof result : 'undefined',
       timestamp: new Date().toISOString(),
     })
 
@@ -608,7 +608,7 @@ export async function executeWorkflowFromPayload(
     const enrichedResult = { ...executionResult, traceSpans, totalDuration }
 
     // Persist logs for this execution using the standard 'webhook' trigger type
-    await persistExecutionLogs(foundWorkflow.id, executionId, enrichedResult, "webhook")
+    await persistExecutionLogs(foundWorkflow.id, executionId, enrichedResult, 'webhook')
 
     // DEBUG: Final success log
     logger.info(`[${requestId}] TRACE: Execution logs persisted successfully`, {
@@ -634,7 +634,7 @@ export async function executeWorkflowFromPayload(
       stack: error.stack,
     })
     // Persist the error for this execution using the standard 'webhook' trigger type
-    await persistExecutionError(foundWorkflow.id, executionId, error, "webhook")
+    await persistExecutionError(foundWorkflow.id, executionId, error, 'webhook')
     // Re-throw the error so the caller knows it failed
     throw error
   }
@@ -648,20 +648,20 @@ export function verifyProviderWebhook(
   request: NextRequest,
   requestId: string
 ): NextResponse | null {
-  const authHeader = request.headers.get("authorization")
+  const authHeader = request.headers.get('authorization')
   const providerConfig = (foundWebhook.providerConfig as Record<string, any>) || {}
   // Keep existing switch statement for github, stripe, generic, default
   switch (foundWebhook.provider) {
-    case "github":
+    case 'github':
       break // No specific auth here
-    case "stripe":
+    case 'stripe':
       break // Stripe verification would go here
-    case "gmail":
+    case 'gmail':
       if (providerConfig.secret) {
-        const secretHeader = request.headers.get("X-Webhook-Secret")
+        const secretHeader = request.headers.get('X-Webhook-Secret')
         if (!secretHeader || secretHeader.length !== providerConfig.secret.length) {
           logger.warn(`[${requestId}] Invalid Gmail webhook secret`)
-          return new NextResponse("Unauthorized", { status: 401 })
+          return new NextResponse('Unauthorized', { status: 401 })
         }
         let result = 0
         for (let i = 0; i < secretHeader.length; i++) {
@@ -669,14 +669,14 @@ export function verifyProviderWebhook(
         }
         if (result !== 0) {
           logger.warn(`[${requestId}] Invalid Gmail webhook secret`)
-          return new NextResponse("Unauthorized", { status: 401 })
+          return new NextResponse('Unauthorized', { status: 401 })
         }
       }
       break
-    case "telegram": {
+    case 'telegram': {
       // Check User-Agent to ensure it's not blocked by middleware
       // Log the user agent for debugging purposes
-      const userAgent = request.headers.get("user-agent") || ""
+      const userAgent = request.headers.get('user-agent') || ''
       logger.debug(`[${requestId}] Telegram webhook request received with User-Agent: ${userAgent}`)
 
       // Check if the user agent is empty and warn about it
@@ -692,21 +692,21 @@ export function verifyProviderWebhook(
       // Telegram uses IP addresses in specific ranges
       // This is optional verification that could be added if IP verification is needed
       const clientIp =
-        request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-        request.headers.get("x-real-ip") ||
-        "unknown"
+        request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+        request.headers.get('x-real-ip') ||
+        'unknown'
 
       logger.debug(`[${requestId}] Telegram webhook request from IP: ${clientIp}`)
 
       break
     }
-    case "generic":
+    case 'generic':
       // Generic auth logic: requireAuth, token, secretHeaderName, allowedIps
       if (providerConfig.requireAuth) {
         let isAuthenticated = false
         // Check for token in Authorization header (Bearer token)
         if (providerConfig.token) {
-          const providedToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null
+          const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
           if (providedToken === providerConfig.token) {
             isAuthenticated = true
           }
@@ -720,7 +720,7 @@ export function verifyProviderWebhook(
           // Return 401 if authentication failed
           if (!isAuthenticated) {
             logger.warn(`[${requestId}] Unauthorized webhook access attempt - invalid token`)
-            return new NextResponse("Unauthorized", { status: 401 })
+            return new NextResponse('Unauthorized', { status: 401 })
           }
         }
       }
@@ -731,24 +731,24 @@ export function verifyProviderWebhook(
         providerConfig.allowedIps.length > 0
       ) {
         const clientIp =
-          request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-          request.headers.get("x-real-ip") ||
-          "unknown"
+          request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+          request.headers.get('x-real-ip') ||
+          'unknown'
 
-        if (clientIp === "unknown" || !providerConfig.allowedIps.includes(clientIp)) {
+        if (clientIp === 'unknown' || !providerConfig.allowedIps.includes(clientIp)) {
           logger.warn(
             `[${requestId}] Forbidden webhook access attempt - IP not allowed: ${clientIp}`
           )
-          return new NextResponse("Forbidden - IP not allowed", { status: 403 })
+          return new NextResponse('Forbidden - IP not allowed', { status: 403 })
         }
       }
       break
     default:
       if (providerConfig.token) {
-        const providedToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null
+        const providedToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null
         if (!providedToken || providedToken !== providerConfig.token) {
           logger.warn(`[${requestId}] Unauthorized webhook access attempt - invalid token`)
-          return new NextResponse("Unauthorized", { status: 401 })
+          return new NextResponse('Unauthorized', { status: 401 })
         }
       }
   }
@@ -794,8 +794,8 @@ export async function fetchAndProcessAirtablePayloads(
       await persistExecutionError(
         workflowData.id,
         `${internalPollIdPrefix}-config-error`,
-        new Error("Missing Airtable baseId or externalId in providerConfig"),
-        "webhook"
+        new Error('Missing Airtable baseId or externalId in providerConfig'),
+        'webhook'
       )
       return // Exit early
     }
@@ -834,12 +834,12 @@ export async function fetchAndProcessAirtablePayloads(
           workflowData.id,
           `${internalPollIdPrefix}-cursor-init-error`,
           initError,
-          "webhook"
+          'webhook'
         )
       }
     }
 
-    if (storedCursor && typeof storedCursor === "number") {
+    if (storedCursor && typeof storedCursor === 'number') {
       currentCursor = storedCursor
       logger.debug(
         `[${requestId}] Using stored cursor: ${currentCursor} for webhook ${webhookData.id}`
@@ -854,13 +854,13 @@ export async function fetchAndProcessAirtablePayloads(
     // --- Get OAuth Token ---
     let accessToken: string | null = null
     try {
-      accessToken = await getOAuthToken(workflowData.userId, "airtable")
+      accessToken = await getOAuthToken(workflowData.userId, 'airtable')
       if (!accessToken) {
         logger.error(
           `[${requestId}] Failed to obtain valid Airtable access token. Cannot proceed.`,
           { userId: workflowData.userId }
         )
-        throw new Error("Airtable access token not found.")
+        throw new Error('Airtable access token not found.')
       }
 
       logger.info(`[${requestId}] Successfully obtained Airtable access token`)
@@ -877,12 +877,12 @@ export async function fetchAndProcessAirtablePayloads(
         workflowData.id,
         `${internalPollIdPrefix}-token-error`,
         tokenError,
-        "webhook"
+        'webhook'
       )
       return // Exit early
     }
 
-    const airtableApiBase = "https://api.airtable.com/v0"
+    const airtableApiBase = 'https://api.airtable.com/v0'
 
     // --- Polling Loop ---
     while (mightHaveMore) {
@@ -900,7 +900,7 @@ export async function fetchAndProcessAirtablePayloads(
       const apiUrl = `${airtableApiBase}/bases/${baseId}/webhooks/${airtableWebhookId}/payloads`
       const queryParams = new URLSearchParams()
       if (currentCursor !== null) {
-        queryParams.set("cursor", currentCursor.toString())
+        queryParams.set('cursor', currentCursor.toString())
       }
       const fullUrl = `${apiUrl}?${queryParams.toString()}`
 
@@ -912,8 +912,8 @@ export async function fetchAndProcessAirtablePayloads(
       try {
         const fetchStartTime = Date.now()
         const response = await fetch(fullUrl, {
-          method: "GET",
-          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         })
 
         // DEBUG: Log API response time
@@ -939,7 +939,7 @@ export async function fetchAndProcessAirtablePayloads(
             workflowData.id,
             `${internalPollIdPrefix}-api-error-${apiCallCount}`,
             new Error(`Airtable API Error: ${errorMessage}`),
-            "webhook"
+            'webhook'
           )
           mightHaveMore = false
           break
@@ -994,7 +994,7 @@ export async function fetchAndProcessAirtablePayloads(
                       consolidatedChangesMap.set(recordId, {
                         tableId: tableId,
                         recordId: recordId,
-                        changeType: "created",
+                        changeType: 'created',
                         changedFields: recordData.cellValuesByFieldId || {},
                       })
                     }
@@ -1024,14 +1024,14 @@ export async function fetchAndProcessAirtablePayloads(
                         ...currentFields,
                       }
                       // Ensure type is 'updated' if it was previously 'created'
-                      existingChange.changeType = "updated"
+                      existingChange.changeType = 'updated'
                       // Do not update previousFields again
                     } else {
                       // First update for this record in the batch
                       const newChange: AirtableChange = {
                         tableId: tableId,
                         recordId: recordId,
-                        changeType: "updated",
+                        changeType: 'updated',
                         changedFields: currentFields,
                       }
                       if (recordData.previous?.cellValuesByFieldId) {
@@ -1058,7 +1058,7 @@ export async function fetchAndProcessAirtablePayloads(
         const nextCursor = responseBody.cursor
         mightHaveMore = responseBody.mightHaveMore || false
 
-        if (nextCursor && typeof nextCursor === "number" && nextCursor !== currentCursor) {
+        if (nextCursor && typeof nextCursor === 'number' && nextCursor !== currentCursor) {
           logger.debug(`[${requestId}] Updating cursor from ${currentCursor} to ${nextCursor}`)
           currentCursor = nextCursor
 
@@ -1085,12 +1085,12 @@ export async function fetchAndProcessAirtablePayloads(
               workflowData.id,
               `${internalPollIdPrefix}-cursor-persist-error`,
               dbError,
-              "webhook"
+              'webhook'
             )
             mightHaveMore = false
-            throw new Error("Failed to save Airtable cursor, stopping processing.") // Re-throw to break loop clearly
+            throw new Error('Failed to save Airtable cursor, stopping processing.') // Re-throw to break loop clearly
           }
-        } else if (!nextCursor || typeof nextCursor !== "number") {
+        } else if (!nextCursor || typeof nextCursor !== 'number') {
           logger.warn(`[${requestId}] Invalid or missing cursor received, stopping poll`, {
             webhookId: webhookData.id,
             apiCall: apiCallCount,
@@ -1110,7 +1110,7 @@ export async function fetchAndProcessAirtablePayloads(
           workflowData.id,
           `${internalPollIdPrefix}-fetch-error-${apiCallCount}`,
           fetchError,
-          "webhook"
+          'webhook'
         )
         mightHaveMore = false
         break
@@ -1137,7 +1137,7 @@ export async function fetchAndProcessAirtablePayloads(
             workflowId: workflowData.id,
             recordCount: finalConsolidatedChanges.length,
             timestamp: new Date().toISOString(),
-            firstRecordId: finalConsolidatedChanges[0]?.recordId || "none",
+            firstRecordId: finalConsolidatedChanges[0]?.recordId || 'none',
           }
         )
 
@@ -1187,7 +1187,7 @@ export async function fetchAndProcessAirtablePayloads(
       workflowData.id,
       `${internalPollIdPrefix}-processing-error`,
       error as Error,
-      "webhook"
+      'webhook'
     )
   }
 
@@ -1213,20 +1213,20 @@ export async function processWebhook(
 ): Promise<NextResponse> {
   try {
     // --- Handle Airtable differently - it should always use fetchAndProcessAirtablePayloads ---
-    if (foundWebhook.provider === "airtable") {
+    if (foundWebhook.provider === 'airtable') {
       logger.info(`[${requestId}] Routing Airtable webhook through dedicated processor`)
 
       // Use the dedicated Airtable payload fetcher and processor
       await fetchAndProcessAirtablePayloads(foundWebhook, foundWorkflow, requestId)
 
       // Return standard success response
-      return NextResponse.json({ message: "Airtable webhook processed" }, { status: 200 })
+      return NextResponse.json({ message: 'Airtable webhook processed' }, { status: 200 })
     }
 
     // --- Provider-specific Auth/Verification (excluding Airtable/WhatsApp/Slack handled earlier) ---
     if (
       foundWebhook.provider &&
-      !["airtable", "whatsapp", "slack"].includes(foundWebhook.provider)
+      !['airtable', 'whatsapp', 'slack'].includes(foundWebhook.provider)
     ) {
       const verificationResponse = verifyProviderWebhook(foundWebhook, request, requestId)
       if (verificationResponse) {
@@ -1237,8 +1237,8 @@ export async function processWebhook(
     // --- Format Input based on provider (excluding Airtable) ---
     const input = formatWebhookInput(foundWebhook, foundWorkflow, body, request)
 
-    if (!input && foundWebhook.provider === "whatsapp") {
-      return new NextResponse("No messages in WhatsApp payload", { status: 200 })
+    if (!input && foundWebhook.provider === 'whatsapp') {
+      return new NextResponse('No messages in WhatsApp payload', { status: 200 })
     }
 
     // --- Execute Workflow ---
@@ -1251,7 +1251,7 @@ export async function processWebhook(
     // Since executeWorkflowFromPayload handles logging and errors internally,
     // we just need to return a standard success response for synchronous webhooks.
     // Note: The actual result isn't typically returned in the webhook response itself.
-    return NextResponse.json({ message: "Webhook processed" }, { status: 200 })
+    return NextResponse.json({ message: 'Webhook processed' }, { status: 200 })
   } catch (error: any) {
     // Catch errors *before* calling executeWorkflowFromPayload (e.g., auth errors)
     logger.error(
@@ -1287,15 +1287,15 @@ export async function generateRequestHash(path: string, body: any): Promise<stri
  * Normalize the body for consistent hashing
  */
 export function normalizeBody(body: any): any {
-  if (!body || typeof body !== "object") return body
+  if (!body || typeof body !== 'object') return body
   const result = Array.isArray(body) ? [...body] : { ...body }
   const fieldsToRemove = [
-    "timestamp",
-    "random",
-    "nonce",
-    "requestId",
-    "event_id",
-    "event_time" /* Add other volatile fields */,
+    'timestamp',
+    'random',
+    'nonce',
+    'requestId',
+    'event_id',
+    'event_time' /* Add other volatile fields */,
   ] // Made case-insensitive check below
   if (Array.isArray(result)) {
     return result.map((item) => normalizeBody(item))
@@ -1304,7 +1304,7 @@ export function normalizeBody(body: any): any {
     // Use lowercase check for broader matching
     if (fieldsToRemove.includes(key.toLowerCase())) {
       delete result[key]
-    } else if (typeof result[key] === "object" && result[key] !== null) {
+    } else if (typeof result[key] === 'object' && result[key] !== null) {
       result[key] = normalizeBody(result[key])
     }
   }
@@ -1315,7 +1315,7 @@ export function normalizeBody(body: any): any {
 export interface AirtableChange {
   tableId: string
   recordId: string
-  changeType: "created" | "updated"
+  changeType: 'created' | 'updated'
   changedFields: Record<string, any> // { fieldId: newValue }
   previousFields?: Record<string, any> // { fieldId: previousValue } (optional)
 }
@@ -1328,11 +1328,11 @@ export async function configureGmailPolling(
   webhookData: any,
   requestId: string
 ): Promise<boolean> {
-  const logger = createLogger("GmailWebhookSetup")
+  const logger = createLogger('GmailWebhookSetup')
   logger.info(`[${requestId}] Setting up Gmail polling for webhook ${webhookData.id}`)
 
   try {
-    const accessToken = await getOAuthToken(userId, "google-email")
+    const accessToken = await getOAuthToken(userId, 'google-email')
     if (!accessToken) {
       logger.error(`[${requestId}] Failed to retrieve Gmail access token for user ${userId}`)
       return false
@@ -1341,12 +1341,12 @@ export async function configureGmailPolling(
     const providerConfig = (webhookData.providerConfig as Record<string, any>) || {}
 
     const maxEmailsPerPoll =
-      typeof providerConfig.maxEmailsPerPoll === "string"
+      typeof providerConfig.maxEmailsPerPoll === 'string'
         ? Number.parseInt(providerConfig.maxEmailsPerPoll, 10) || 25
         : providerConfig.maxEmailsPerPoll || 25
 
     const pollingInterval =
-      typeof providerConfig.pollingInterval === "string"
+      typeof providerConfig.pollingInterval === 'string'
         ? Number.parseInt(providerConfig.pollingInterval, 10) || 5
         : providerConfig.pollingInterval || 5
 
@@ -1361,8 +1361,8 @@ export async function configureGmailPolling(
           maxEmailsPerPoll,
           pollingInterval,
           markAsRead: providerConfig.markAsRead || false,
-          labelIds: providerConfig.labelIds || ["INBOX"],
-          labelFilterBehavior: providerConfig.labelFilterBehavior || "INCLUDE",
+          labelIds: providerConfig.labelIds || ['INBOX'],
+          labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',
           lastCheckedTimestamp: now.toISOString(),
           setupCompleted: true,
         },

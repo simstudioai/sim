@@ -1,43 +1,43 @@
-import type { ToolConfig } from "../types"
-import type { ScrapeParams, ScrapeResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { ScrapeParams, ScrapeResponse } from './types'
 
 export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
-  id: "firecrawl_scrape",
-  name: "Firecrawl Website Scraper",
+  id: 'firecrawl_scrape',
+  name: 'Firecrawl Website Scraper',
   description:
-    "Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information.",
-  version: "1.0.0",
+    'Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information.',
+  version: '1.0.0',
 
   params: {
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "Firecrawl API key",
+      description: 'Firecrawl API key',
     },
     url: {
-      type: "string",
+      type: 'string',
       required: true,
       optionalToolInput: true,
-      description: "The URL to scrape content from",
+      description: 'The URL to scrape content from',
     },
     scrapeOptions: {
-      type: "json",
+      type: 'json',
       required: false,
-      description: "Options for content scraping",
+      description: 'Options for content scraping',
     },
   },
 
   request: {
-    method: "POST",
-    url: "https://api.firecrawl.dev/v1/scrape",
+    method: 'POST',
+    url: 'https://api.firecrawl.dev/v1/scrape',
     headers: (params) => ({
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => ({
       url: params.url,
-      formats: params.scrapeOptions?.formats || ["markdown"],
+      formats: params.scrapeOptions?.formats || ['markdown'],
     }),
   },
 
@@ -45,7 +45,7 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
     const data = await response.json()
 
     if (!data.success) {
-      throw new Error(data.error?.message || "Unknown error occurred")
+      throw new Error(data.error?.message || 'Unknown error occurred')
     }
 
     return {

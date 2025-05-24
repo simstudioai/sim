@@ -1,11 +1,11 @@
-import type { ToolConfig } from "../types"
-import type { MemoryResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { MemoryResponse } from './types'
 
 export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
-  id: "memory_get_all",
-  name: "Get All Memories",
-  description: "Retrieve all memories from the database",
-  version: "1.0.0",
+  id: 'memory_get_all',
+  name: 'Get All Memories',
+  description: 'Retrieve all memories from the database',
+  version: '1.0.0',
   params: {},
   request: {
     url: (params): any => {
@@ -19,7 +19,7 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
             data: {
               success: false,
               error: {
-                message: "workflowId is required and must be provided in execution context",
+                message: 'workflowId is required and must be provided in execution context',
               },
             },
           },
@@ -29,9 +29,9 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
       // Append workflowId as query parameter
       return `/api/memory?workflowId=${encodeURIComponent(workflowId)}`
     },
-    method: "GET",
+    method: 'GET',
     headers: () => ({
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
     isInternalRoute: true,
   },
@@ -40,7 +40,7 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
       const result = await response.json()
 
       if (!response.ok) {
-        const errorMessage = result.error?.message || "Failed to retrieve memories"
+        const errorMessage = result.error?.message || 'Failed to retrieve memories'
         throw new Error(errorMessage)
       }
 
@@ -59,7 +59,7 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
         success: true,
         output: {
           memories,
-          message: "Memories retrieved successfully",
+          message: 'Memories retrieved successfully',
         },
       }
     } catch (error: any) {
@@ -67,14 +67,14 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
         success: false,
         output: {
           memories: [],
-          message: `Failed to retrieve memories: ${error.message || "Unknown error"}`,
+          message: `Failed to retrieve memories: ${error.message || 'Unknown error'}`,
         },
-        error: `Failed to retrieve memories: ${error.message || "Unknown error"}`,
+        error: `Failed to retrieve memories: ${error.message || 'Unknown error'}`,
       }
     }
   },
   transformError: async (error): Promise<MemoryResponse> => {
-    const errorMessage = `Memory retrieval failed: ${error.message || "Unknown error"}`
+    const errorMessage = `Memory retrieval failed: ${error.message || 'Unknown error'}`
     return {
       success: false,
       output: {

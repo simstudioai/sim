@@ -6,31 +6,31 @@
 // Models that support temperature with range 0-2
 export const MODELS_TEMP_RANGE_0_2 = [
   // OpenAI models
-  "gpt-4o",
+  'gpt-4o',
   // Google models
-  "gemini-2.5-pro-exp-03-25",
-  "gemini-2.5-flash-preview-04-17",
+  'gemini-2.5-pro-exp-03-25',
+  'gemini-2.5-flash-preview-04-17',
   // Deepseek models
-  "deepseek-v3",
+  'deepseek-v3',
 ]
 
 // Models that support temperature with range 0-1
 export const MODELS_TEMP_RANGE_0_1 = [
   // Anthropic models
-  "claude-sonnet-4-20250514",
-  "claude-opus-4-20250514",
-  "claude-3-7-sonnet-20250219",
-  "claude-3-5-sonnet-20240620",
+  'claude-sonnet-4-20250514',
+  'claude-opus-4-20250514',
+  'claude-3-7-sonnet-20250219',
+  'claude-3-5-sonnet-20240620',
   // xAI models
-  "grok-3-latest",
-  "grok-3-fast-latest",
+  'grok-3-latest',
+  'grok-3-fast-latest',
 ]
 
 // All models that support temperature (combined list)
 export const MODELS_WITH_TEMPERATURE_SUPPORT = [...MODELS_TEMP_RANGE_0_2, ...MODELS_TEMP_RANGE_0_1]
 
 // Models and their providers that support tool usage control (force, auto, none)
-export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = ["openai", "anthropic", "deepseek", "xai"]
+export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = ['openai', 'anthropic', 'deepseek', 'xai']
 
 /**
  * Check if a model supports temperature parameter

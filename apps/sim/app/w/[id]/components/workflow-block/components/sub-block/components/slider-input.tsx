@@ -1,6 +1,6 @@
-import { Slider } from "@/components/ui/slider"
-import { useEffect, useMemo } from "react"
-import { useSubBlockValue } from "../hooks/use-sub-block-value"
+import { Slider } from '@/components/ui/slider'
+import { useEffect, useMemo } from 'react'
+import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface SliderInputProps {
   min?: number
@@ -47,17 +47,17 @@ export function SliderInput({
   }, [normalizedValue, value, setValue])
 
   return (
-    <div className="relative pt-2 pb-6">
+    <div className='relative pt-2 pb-6'>
       <Slider
         value={[normalizedValue]}
         min={min}
         max={max}
         step={integer ? 1 : step}
         onValueChange={(value) => setValue(integer ? Math.round(value[0]) : value[0])}
-        className="[&_[class*=SliderTrack]]:h-1 [&_[role=slider]]:h-4 [&_[role=slider]]:w-4"
+        className='[&_[class*=SliderTrack]]:h-1 [&_[role=slider]]:h-4 [&_[role=slider]]:w-4'
       />
       <div
-        className="absolute text-muted-foreground text-sm"
+        className='absolute text-muted-foreground text-sm'
         style={{
           left: `clamp(0%, ${((normalizedValue - min) / (max - min)) * 100}%, 100%)`,
           transform: `translateX(-${(() => {
@@ -65,7 +65,7 @@ export function SliderInput({
             const bias = -25 * Math.sin((percentage * Math.PI) / 50)
             return percentage === 0 ? 0 : percentage === 100 ? 100 : 50 + bias
           })()}%)`,
-          top: "24px",
+          top: '24px',
         }}
       >
         {integer ? Math.round(normalizedValue).toString() : Number(normalizedValue).toFixed(1)}

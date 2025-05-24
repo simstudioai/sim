@@ -1,3 +1,3 @@
-import { scrapeTool } from "./scrape"
+import { scrapeTool } from './scrape'
 
 export { scrapeTool }

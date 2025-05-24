@@ -1,4 +1,4 @@
-import { useEnvironmentStore } from "../../settings/environment/store"
+import { useEnvironmentStore } from '../../settings/environment/store'
 
 /**
  * Checks if a value is an environment variable reference in the format {{ENV_VAR}}
@@ -22,12 +22,12 @@ export const extractEnvVarName = (value: string): string | null => {
  */
 export const generatePossibleEnvVarNames = (toolId: string): string[] => {
   // Extract base tool name if it's a compound ID
-  const baseTool = toolId.includes("-") ? toolId.split("-")[0] : toolId
+  const baseTool = toolId.includes('-') ? toolId.split('-')[0] : toolId
   const toolPrefix = baseTool.toUpperCase()
 
   return [
     `${toolPrefix}_API_KEY`,
-    `${toolPrefix.replace(/-/g, "_")}_API_KEY`,
+    `${toolPrefix.replace(/-/g, '_')}_API_KEY`,
     `${toolPrefix}_KEY`,
     `${toolPrefix}_TOKEN`,
     `${toolPrefix}`,

@@ -1,7 +1,7 @@
-"use client"
+'use client'
 
-import { useRef, useState } from "react"
-import type { ChatMessage } from "../components/message/message"
+import { useRef, useState } from 'react'
+import type { ChatMessage } from '../components/message/message'
 
 export function useChatStreaming() {
   const [isStreamingResponse, setIsStreamingResponse] = useState(false)
@@ -18,13 +18,13 @@ export function useChatStreaming() {
         const lastMessage = prev[prev.length - 1]
 
         // Only modify if the last message is from the assistant (as expected)
-        if (lastMessage && lastMessage.type === "assistant") {
+        if (lastMessage && lastMessage.type === 'assistant') {
           // Append a note that the response was stopped
           const updatedContent =
             lastMessage.content +
             (lastMessage.content
-              ? "\n\n_Response stopped by user._"
-              : "_Response stopped by user._")
+              ? '\n\n_Response stopped by user._'
+              : '_Response stopped by user._')
 
           return [
             ...prev.slice(0, -1),
@@ -57,8 +57,8 @@ export function useChatStreaming() {
       ...prev,
       {
         id: messageId,
-        content: "",
-        type: "assistant",
+        content: '',
+        type: 'assistant',
         timestamp: new Date(),
         isStreaming: true,
       },
@@ -80,7 +80,7 @@ export function useChatStreaming() {
             return {
               ...msg,
               content: appendContent
-                ? msg.content + (messageContent || "")
+                ? msg.content + (messageContent || '')
                 : messageContent || msg.content,
               isStreaming: false,
             }
@@ -112,7 +112,7 @@ export function useChatStreaming() {
         while (!done) {
           // Check if aborted before awaiting reader.read()
           if (abortControllerRef.current === null) {
-            console.log("Stream reading aborted")
+            console.log('Stream reading aborted')
             break
           }
 
@@ -133,8 +133,8 @@ export function useChatStreaming() {
       } catch (error) {
         // Show error to user in the message
         const errorMessage =
-          error instanceof Error ? error.message : "Unknown error during streaming"
-        console.error("Error reading stream:", error)
+          error instanceof Error ? error.message : 'Unknown error during streaming'
+        console.error('Error reading stream:', error)
         cleanupStreaming(`\n\n_Error: ${errorMessage}_`, true)
         return // Skip the finally block's cleanupStreaming call
       } finally {

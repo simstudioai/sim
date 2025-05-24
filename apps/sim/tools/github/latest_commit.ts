@@ -1,33 +1,33 @@
-import type { ToolConfig } from "../types"
-import type { LatestCommitParams, LatestCommitResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { LatestCommitParams, LatestCommitResponse } from './types'
 
 export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitResponse> = {
-  id: "github_latest_commit",
-  name: "GitHub Latest Commit",
-  description: "Retrieve the latest commit from a GitHub repository",
-  version: "1.0.0",
+  id: 'github_latest_commit',
+  name: 'GitHub Latest Commit',
+  description: 'Retrieve the latest commit from a GitHub repository',
+  version: '1.0.0',
 
   params: {
     owner: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Repository owner (user or organization)",
+      description: 'Repository owner (user or organization)',
     },
     repo: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Repository name",
+      description: 'Repository name',
     },
     branch: {
-      type: "string",
+      type: 'string',
       required: false,
       description: "Branch name (defaults to the repository's default branch)",
     },
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "GitHub API token",
+      description: 'GitHub API token',
     },
   },
 
@@ -36,11 +36,11 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
       const baseUrl = `https://api.github.com/repos/${params.owner}/${params.repo}`
       return params.branch ? `${baseUrl}/commits/${params.branch}` : `${baseUrl}/commits/HEAD`
     },
-    method: "GET",
+    method: 'GET',
     headers: (params) => ({
-      Accept: "application/vnd.github.v3+json",
+      Accept: 'application/vnd.github.v3+json',
       Authorization: `Bearer ${params.apiKey}`,
-      "X-GitHub-Api-Version": "2022-11-28",
+      'X-GitHub-Api-Version': '2022-11-28',
     }),
   },
 
@@ -74,13 +74,13 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
         }
 
         // Only try to fetch content for files that are not too large and not deleted
-        if (file.status !== "removed" && file.raw_url) {
+        if (file.status !== 'removed' && file.raw_url) {
           try {
             // Fetch the raw file content
             const contentResponse = await fetch(file.raw_url, {
               headers: {
                 Authorization: `Bearer ${params?.apiKey}`,
-                "X-GitHub-Api-Version": "2022-11-28",
+                'X-GitHub-Api-Version': '2022-11-28',
               },
             })
 
@@ -106,15 +106,15 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
           commit_message: data.commit.message,
           author: {
             name: data.commit.author.name,
-            login: data.author?.login || "Unknown",
-            avatar_url: data.author?.avatar_url || "",
-            html_url: data.author?.html_url || "",
+            login: data.author?.login || 'Unknown',
+            avatar_url: data.author?.avatar_url || '',
+            html_url: data.author?.html_url || '',
           },
           committer: {
             name: data.commit.committer.name,
-            login: data.committer?.login || "Unknown",
-            avatar_url: data.committer?.avatar_url || "",
-            html_url: data.committer?.html_url || "",
+            login: data.committer?.login || 'Unknown',
+            avatar_url: data.committer?.avatar_url || '',
+            html_url: data.committer?.html_url || '',
           },
           stats: data.stats
             ? {
@@ -131,14 +131,14 @@ export const latestCommitTool: ToolConfig<LatestCommitParams, LatestCommitRespon
 
   transformError: (error) => {
     if (error instanceof Error) {
-      if (error.message.includes("404")) {
-        return "Commit or repository not found. Please check the owner, repository name, and branch."
+      if (error.message.includes('404')) {
+        return 'Commit or repository not found. Please check the owner, repository name, and branch.'
       }
-      if (error.message.includes("401")) {
-        return "Authentication failed. Please check your GitHub token."
+      if (error.message.includes('401')) {
+        return 'Authentication failed. Please check your GitHub token.'
       }
       return error.message
     }
-    return "Failed to fetch commit information"
+    return 'Failed to fetch commit information'
   },
 }

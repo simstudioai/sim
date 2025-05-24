@@ -1,10 +1,10 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { hasWorkflowChanged } from "@/lib/workflows/utils"
-import type { NextRequest } from "next/server"
-import { validateWorkflowAccess } from "../../middleware"
-import { createErrorResponse, createSuccessResponse } from "../../utils"
+import { createLogger } from '@/lib/logs/console-logger'
+import { hasWorkflowChanged } from '@/lib/workflows/utils'
+import type { NextRequest } from 'next/server'
+import { validateWorkflowAccess } from '../../middleware'
+import { createErrorResponse, createSuccessResponse } from '../../utils'
 
-const logger = createLogger("WorkflowStatusAPI")
+const logger = createLogger('WorkflowStatusAPI')
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -35,6 +35,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     })
   } catch (error) {
     logger.error(`[${requestId}] Error getting status for workflow: ${(await params).id}`, error)
-    return createErrorResponse("Failed to get status", 500)
+    return createErrorResponse('Failed to get status', 500)
   }
 }

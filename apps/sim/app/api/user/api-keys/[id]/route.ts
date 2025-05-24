@@ -1,11 +1,11 @@
-import { db } from "@/db"
-import { apiKey } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import { and, eq } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
+import { db } from '@/db'
+import { apiKey } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 
-const logger = createLogger("ApiKeyAPI")
+const logger = createLogger('ApiKeyAPI')
 
 // DELETE /api/user/api-keys/[id] - Delete an API key
 export async function DELETE(
@@ -19,14 +19,14 @@ export async function DELETE(
     logger.debug(`[${requestId}] Deleting API key: ${id}`)
     const session = await getSession()
     if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const userId = session.user.id
     const keyId = id
 
     if (!keyId) {
-      return NextResponse.json({ error: "API key ID is required" }, { status: 400 })
+      return NextResponse.json({ error: 'API key ID is required' }, { status: 400 })
     }
 
     // Delete the API key, ensuring it belongs to the current user
@@ -36,12 +36,12 @@ export async function DELETE(
       .returning({ id: apiKey.id })
 
     if (!result.length) {
-      return NextResponse.json({ error: "API key not found" }, { status: 404 })
+      return NextResponse.json({ error: 'API key not found' }, { status: 404 })
     }
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    logger.error("Failed to delete API key", { error })
-    return NextResponse.json({ error: "Failed to delete API key" }, { status: 500 })
+    logger.error('Failed to delete API key', { error })
+    return NextResponse.json({ error: 'Failed to delete API key' }, { status: 500 })
   }
 }

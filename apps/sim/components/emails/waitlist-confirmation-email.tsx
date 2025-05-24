@@ -1,4 +1,4 @@
-import { env } from "@/lib/env"
+import { env } from '@/lib/env'
 import {
   Body,
   Column,
@@ -11,34 +11,34 @@ import {
   Row,
   Section,
   Text,
-} from "@react-email/components"
-import * as React from "react"
-import { baseStyles } from "./base-styles"
-import EmailFooter from "./footer"
+} from '@react-email/components'
+import * as React from 'react'
+import { baseStyles } from './base-styles'
+import EmailFooter from './footer'
 
 interface WaitlistConfirmationEmailProps {
   email?: string
 }
 
-const baseUrl = env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
-const typeformLink = "https://form.typeform.com/to/jqCO12pF"
+const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+const typeformLink = 'https://form.typeform.com/to/jqCO12pF'
 
-export const WaitlistConfirmationEmail = ({ email = "" }: WaitlistConfirmationEmailProps) => {
+export const WaitlistConfirmationEmail = ({ email = '' }: WaitlistConfirmationEmailProps) => {
   return (
     <Html>
       <Head />
       <Body style={baseStyles.main}>
         <Preview>Welcome to the Sim Studio Waitlist!</Preview>
         <Container style={baseStyles.container}>
-          <Section style={{ padding: "30px 0", textAlign: "center" }}>
+          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
-              <Column style={{ textAlign: "center" }}>
+              <Column style={{ textAlign: 'center' }}>
                 <Img
                   src={`${baseUrl}/static/sim.png`}
-                  width="114"
-                  alt="Sim Studio"
+                  width='114'
+                  alt='Sim Studio'
                   style={{
-                    margin: "0 auto",
+                    margin: '0 auto',
                   }}
                 />
               </Column>
@@ -63,7 +63,7 @@ export const WaitlistConfirmationEmail = ({ email = "" }: WaitlistConfirmationEm
               <strong>Want to get access sooner?</strong> Tell us about your use case! Schedule a
               15-minute call with our team to discuss how you plan to use Sim Studio.
             </Text>
-            <Link href={typeformLink} style={{ textDecoration: "none" }}>
+            <Link href={typeformLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Schedule a Call</Text>
             </Link>
             <Text style={baseStyles.paragraph}>

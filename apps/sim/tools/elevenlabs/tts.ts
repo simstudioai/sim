@@ -1,52 +1,52 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import type { ToolConfig } from "../types"
-import type { ElevenLabsTtsParams } from "./types"
-import type { ElevenLabsTtsResponse } from "./types"
+import { createLogger } from '@/lib/logs/console-logger'
+import type { ToolConfig } from '../types'
+import type { ElevenLabsTtsParams } from './types'
+import type { ElevenLabsTtsResponse } from './types'
 
-const logger = createLogger("ElevenLabsTool")
+const logger = createLogger('ElevenLabsTool')
 
 export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsResponse> = {
-  id: "elevenlabs_tts",
-  name: "ElevenLabs TTS",
-  description: "Convert TTS using ElevenLabs voices",
-  version: "1.0.0",
+  id: 'elevenlabs_tts',
+  name: 'ElevenLabs TTS',
+  description: 'Convert TTS using ElevenLabs voices',
+  version: '1.0.0',
 
   params: {
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Your ElevenLabs API key",
+      description: 'Your ElevenLabs API key',
       requiredForToolCall: true,
     },
     text: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The text to convert to speech",
+      description: 'The text to convert to speech',
     },
     voiceId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The ID of the voice to use",
+      description: 'The ID of the voice to use',
       requiredForToolCall: true,
     },
     modelId: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "The ID of the model to use (defaults to eleven_monolingual_v1)",
+      description: 'The ID of the model to use (defaults to eleven_monolingual_v1)',
     },
   },
 
   request: {
-    url: "/api/proxy/tts",
-    method: "POST",
+    url: '/api/proxy/tts',
+    method: 'POST',
     headers: (params) => ({
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
     body: (params) => ({
       apiKey: params.apiKey,
       text: params.text,
       voiceId: params.voiceId,
-      modelId: params.modelId || "eleven_monolingual_v1",
+      modelId: params.modelId || 'eleven_monolingual_v1',
     }),
     isInternalRoute: true,
   },
@@ -69,7 +69,7 @@ export const elevenLabsTtsTool: ToolConfig<ElevenLabsTtsParams, ElevenLabsTtsRes
   },
 
   transformError: (error) => {
-    logger.error("ElevenLabs TTS error:", error)
+    logger.error('ElevenLabs TTS error:', error)
     return `Error generating speech: ${error instanceof Error ? error.message : String(error)}`
   },
 }

@@ -1,11 +1,11 @@
-import { Logger } from "@/lib/logs/console-logger"
-import { markWaitlistUserAsSignedUp } from "@/lib/waitlist/service"
-import { verifyToken } from "@/lib/waitlist/token"
-import { type NextRequest, NextResponse } from "next/server"
+import { Logger } from '@/lib/logs/console-logger'
+import { markWaitlistUserAsSignedUp } from '@/lib/waitlist/service'
+import { verifyToken } from '@/lib/waitlist/token'
+import { type NextRequest, NextResponse } from 'next/server'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = new Logger("VerifyWaitlistToken")
+const logger = new Logger('VerifyWaitlistToken')
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "Token is required",
+          message: 'Token is required',
         },
         { status: 400 }
       )
@@ -29,18 +29,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid or expired token",
+          message: 'Invalid or expired token',
         },
         { status: 400 }
       )
     }
 
     // Check if it's a waitlist approval token
-    if (decodedToken.type !== "waitlist-approval") {
+    if (decodedToken.type !== 'waitlist-approval') {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid token type",
+          message: 'Invalid token type',
         },
         { status: 400 }
       )
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       logger.warn(`Failed to mark user as signed up: ${result.message}`, { email })
       // Continue even if this fails - we still want to allow the user to sign up
     } else {
-      logger.info("Successfully marked waitlist user as signed up", { email })
+      logger.info('Successfully marked waitlist user as signed up', { email })
     }
 
     return NextResponse.json({
@@ -63,11 +63,11 @@ export async function POST(request: NextRequest) {
       email: email,
     })
   } catch (error) {
-    logger.error("Error verifying waitlist token:", error)
+    logger.error('Error verifying waitlist token:', error)
     return NextResponse.json(
       {
         success: false,
-        message: "An error occurred while verifying the token",
+        message: 'An error occurred while verifying the token',
       },
       { status: 500 }
     )

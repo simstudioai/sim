@@ -1,13 +1,13 @@
 export function checkEnterprisePlan(subscription: any): boolean {
-  return subscription?.plan === "enterprise" && subscription?.status === "active"
+  return subscription?.plan === 'enterprise' && subscription?.status === 'active'
 }
 
 export function checkProPlan(subscription: any): boolean {
-  return subscription?.plan === "pro" && subscription?.status === "active"
+  return subscription?.plan === 'pro' && subscription?.status === 'active'
 }
 
 export function checkTeamPlan(subscription: any): boolean {
-  return subscription?.plan === "team" && subscription?.status === "active"
+  return subscription?.plan === 'team' && subscription?.status === 'active'
 }
 
 /**
@@ -16,19 +16,19 @@ export function checkTeamPlan(subscription: any): boolean {
  * @returns The calculated usage limit in dollars
  */
 export function calculateUsageLimit(subscription: any): number {
-  if (!subscription || subscription.status !== "active") {
+  if (!subscription || subscription.status !== 'active') {
     return Number.parseFloat(process.env.FREE_TIER_COST_LIMIT!)
   }
 
   const seats = subscription.seats || 1
 
-  if (subscription.plan === "pro") {
+  if (subscription.plan === 'pro') {
     return Number.parseFloat(process.env.PRO_TIER_COST_LIMIT!)
   }
-  if (subscription.plan === "team") {
+  if (subscription.plan === 'team') {
     return seats * Number.parseFloat(process.env.TEAM_TIER_COST_LIMIT!)
   }
-  if (subscription.plan === "enterprise") {
+  if (subscription.plan === 'enterprise') {
     const metadata = subscription.metadata || {}
 
     if (metadata.perSeatAllowance) {

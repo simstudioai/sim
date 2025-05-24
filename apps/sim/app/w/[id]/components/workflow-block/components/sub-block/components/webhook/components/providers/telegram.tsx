@@ -1,9 +1,9 @@
-import { Input } from "@/components/ui/input"
-import { Skeleton } from "@/components/ui/skeleton"
-import { ConfigField } from "../ui/config-field"
-import { ConfigSection } from "../ui/config-section"
-import { InstructionsSection } from "../ui/instructions-section"
-import { TestResultDisplay as WebhookTestResult } from "../ui/test-result"
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ConfigField } from '../ui/config-field'
+import { ConfigSection } from '../ui/config-section'
+import { InstructionsSection } from '../ui/instructions-section'
+import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
 
 interface TelegramConfigProps {
   botToken: string
@@ -33,44 +33,44 @@ export function TelegramConfig({
   webhookUrl,
 }: TelegramConfigProps) {
   return (
-    <div className="space-y-4">
-      <ConfigSection title="Telegram Configuration">
+    <div className='space-y-4'>
+      <ConfigSection title='Telegram Configuration'>
         <ConfigField
-          id="telegram-bot-token"
-          label="Bot Token *"
-          description="Your Telegram Bot Token from BotFather"
+          id='telegram-bot-token'
+          label='Bot Token *'
+          description='Your Telegram Bot Token from BotFather'
         >
           {isLoadingToken ? (
-            <Skeleton className="h-10 w-full" />
+            <Skeleton className='h-10 w-full' />
           ) : (
             <Input
-              id="telegram-bot-token"
+              id='telegram-bot-token'
               value={botToken}
               onChange={(e) => {
                 setBotToken(e.target.value)
               }}
-              placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-              type="password"
+              placeholder='123456789:ABCdefGHIjklMNOpqrsTUVwxyz'
+              type='password'
               required
             />
           )}
         </ConfigField>
 
         <ConfigField
-          id="telegram-trigger-phrase"
-          label="Trigger Phrase *"
-          description="The phrase that will trigger the workflow when sent to the bot"
+          id='telegram-trigger-phrase'
+          label='Trigger Phrase *'
+          description='The phrase that will trigger the workflow when sent to the bot'
         >
           {isLoadingToken ? (
-            <Skeleton className="h-10 w-full" />
+            <Skeleton className='h-10 w-full' />
           ) : (
             <Input
-              id="telegram-trigger-phrase"
+              id='telegram-trigger-phrase'
               value={triggerPhrase}
               onChange={(e) => {
                 setTriggerPhrase(e.target.value)
               }}
-              placeholder="/start_workflow"
+              placeholder='/start_workflow'
               required
             />
           )}
@@ -86,22 +86,22 @@ export function TelegramConfig({
       )}
 
       <InstructionsSection>
-        <ol className="list-inside list-decimal space-y-2">
+        <ol className='list-inside list-decimal space-y-2'>
           <li>
-            Message "/newbot" to{" "}
+            Message "/newbot" to{' '}
             <a
-              href="https://t.me/BotFather"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link text-primary underline transition-colors hover:text-primary/80"
+              href='https://t.me/BotFather'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='link text-primary underline transition-colors hover:text-primary/80'
               onClick={(e) => {
                 e.stopPropagation()
-                window.open("https://t.me/BotFather", "_blank", "noopener,noreferrer")
+                window.open('https://t.me/BotFather', '_blank', 'noopener,noreferrer')
                 e.preventDefault()
               }}
             >
               @BotFather
-            </a>{" "}
+            </a>{' '}
             in Telegram to create a bot and copy its token.
           </li>
           <li>Enter your Bot Token and a trigger phrase above.</li>

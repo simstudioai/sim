@@ -1,12 +1,12 @@
-import { env } from "@/lib/env"
-import { createLogger } from "@/lib/logs/console-logger"
-import { useCustomToolsStore } from "@/stores/custom-tools/store"
-import { useEnvironmentStore } from "@/stores/settings/environment/store"
-import { tools } from "./registry"
-import type { TableRow } from "./types"
-import type { ToolConfig, ToolResponse } from "./types"
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
+import { useCustomToolsStore } from '@/stores/custom-tools/store'
+import { useEnvironmentStore } from '@/stores/settings/environment/store'
+import { tools } from './registry'
+import type { TableRow } from './types'
+import type { ToolConfig, ToolResponse } from './types'
 
-const logger = createLogger("ToolsUtils")
+const logger = createLogger('ToolsUtils')
 
 /**
  * Transforms a table from the store format to a key-value object
@@ -44,22 +44,22 @@ interface RequestParams {
  */
 export function formatRequestParams(tool: ToolConfig, params: Record<string, any>): RequestParams {
   // Process URL
-  const url = typeof tool.request.url === "function" ? tool.request.url(params) : tool.request.url
+  const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
 
   // Process method
-  const method = params.method || tool.request.method || "GET"
+  const method = params.method || tool.request.method || 'GET'
 
   // Process headers
   const headers = tool.request.headers ? tool.request.headers(params) : {}
 
   // Process body
-  const hasBody = method !== "GET" && method !== "HEAD" && !!tool.request.body
+  const hasBody = method !== 'GET' && method !== 'HEAD' && !!tool.request.body
   const bodyResult = tool.request.body ? tool.request.body(params) : undefined
 
   // Special handling for NDJSON content type or 'application/x-www-form-urlencoded'
   const isPreformattedContent =
-    headers["Content-Type"] === "application/x-ndjson" ||
-    headers["Content-Type"] === "application/x-www-form-urlencoded"
+    headers['Content-Type'] === 'application/x-ndjson' ||
+    headers['Content-Type'] === 'application/x-www-form-urlencoded'
   const body = hasBody
     ? isPreformattedContent && bodyResult
       ? bodyResult.body
@@ -96,24 +96,24 @@ export async function executeRequest(
           const errorResult = tool.transformError(errorContent)
 
           // Handle both string and Promise return types
-          if (typeof errorResult === "string") {
+          if (typeof errorResult === 'string') {
             throw new Error(errorResult)
           }
           // It's a Promise, await it
           const transformedError = await errorResult
           // If it's a string or has an error property, use it
-          if (typeof transformedError === "string") {
+          if (typeof transformedError === 'string') {
             throw new Error(transformedError)
           }
           if (
             transformedError &&
-            typeof transformedError === "object" &&
-            "error" in transformedError
+            typeof transformedError === 'object' &&
+            'error' in transformedError
           ) {
-            throw new Error(transformedError.error || "Tool returned an error")
+            throw new Error(transformedError.error || 'Tool returned an error')
           }
           // Fallback
-          throw new Error("Tool returned an error")
+          throw new Error('Tool returned an error')
         } catch (e) {
           if (e instanceof Error) {
             throw e
@@ -139,7 +139,7 @@ export async function executeRequest(
     return {
       success: false,
       output: {},
-      error: error.message || "Unknown error",
+      error: error.message || 'Unknown error',
     }
   }
 }
@@ -167,7 +167,7 @@ export function validateToolRequest(
 
 // Check if we're running in the browser
 function isBrowser(): boolean {
-  return typeof window !== "undefined"
+  return typeof window !== 'undefined'
 }
 
 // Check if Freestyle is available
@@ -192,10 +192,10 @@ export function createParamSchema(customTool: any): Record<string, any> {
 
       // Create the base parameter configuration
       const paramConfig: Record<string, any> = {
-        type: config.type || "string",
+        type: config.type || 'string',
         required: isRequired,
         requiredForToolCall: isRequired,
-        description: config.description || "",
+        description: config.description || '',
       }
 
       // Only add optionalToolInput if it's true to maintain backward compatibility with tests
@@ -272,10 +272,10 @@ export function getTool(toolId: string): ToolConfig | undefined {
   if (builtInTool) return builtInTool
 
   // Check if it's a custom tool
-  if (toolId.startsWith("custom_") && typeof window !== "undefined") {
+  if (toolId.startsWith('custom_') && typeof window !== 'undefined') {
     // Only try to use the sync version on the client
     const customToolsStore = useCustomToolsStore.getState()
-    const identifier = toolId.replace("custom_", "")
+    const identifier = toolId.replace('custom_', '')
 
     // Try to find the tool directly by ID first
     let customTool = customToolsStore.getTool(identifier)
@@ -305,7 +305,7 @@ export async function getToolAsync(
   if (builtInTool) return builtInTool
 
   // Check if it's a custom tool
-  if (toolId.startsWith("custom_")) {
+  if (toolId.startsWith('custom_')) {
     return getCustomTool(toolId, workflowId)
   }
 
@@ -321,15 +321,15 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
   return {
     id: customToolId,
     name: customTool.title,
-    description: customTool.schema.function?.description || "",
-    version: "1.0.0",
+    description: customTool.schema.function?.description || '',
+    version: '1.0.0',
     params,
 
     // Request configuration - for custom tools we'll use the execute endpoint
     request: {
-      url: "/api/function/execute",
-      method: "POST",
-      headers: () => ({ "Content-Type": "application/json" }),
+      url: '/api/function/execute',
+      method: 'POST',
+      headers: () => ({ 'Content-Type': 'application/json' }),
       body: createCustomToolRequestBody(customTool, true),
       isInternalRoute: true,
     },
@@ -341,7 +341,7 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
         return {
           success: false,
           output: {},
-          error: "No code provided for tool execution",
+          error: 'No code provided for tool execution',
         }
       }
 
@@ -371,7 +371,7 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
             const varName = match.slice(2, -2).trim()
             // Look for the variable in our environment store first, then in params
             const envVar = envVars[varName]
-            const varValue = envVar ? envVar.value : mergedParams[varName] || ""
+            const varValue = envVar ? envVar.value : mergedParams[varName] || ''
 
             resolvedCode = resolvedCode.replaceAll(match, varValue)
           }
@@ -380,17 +380,17 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
           const tagMatches = resolvedCode.match(/<([^>]+)>/g) || []
           for (const match of tagMatches) {
             const tagName = match.slice(1, -1).trim()
-            const tagValue = mergedParams[tagName] || ""
+            const tagValue = mergedParams[tagName] || ''
             resolvedCode = resolvedCode.replace(match, tagValue)
           }
 
           // Dynamically import Freestyle to execute code
-          const { executeCode } = await import("@/lib/freestyle")
+          const { executeCode } = await import('@/lib/freestyle')
 
           const result = await executeCode(resolvedCode, mergedParams)
 
           if (!result.success) {
-            throw new Error(result.error || "Freestyle execution failed")
+            throw new Error(result.error || 'Freestyle execution failed')
           }
 
           return {
@@ -399,7 +399,7 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
             error: undefined,
           }
         } catch (error: any) {
-          logger.warn("Freestyle execution failed, falling back to API:", error.message)
+          logger.warn('Freestyle execution failed, falling back to API:', error.message)
           // Fall back to API route if Freestyle fails
           return undefined
         }
@@ -414,7 +414,7 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
       const data = await response.json()
 
       if (!data.success) {
-        throw new Error(data.error || "Custom tool execution failed")
+        throw new Error(data.error || 'Custom tool execution failed')
       }
 
       return {
@@ -424,7 +424,7 @@ function createToolConfig(customTool: any, customToolId: string): ToolConfig {
       }
     },
     transformError: async (error: any) =>
-      `Custom tool execution error: ${error.message || "Unknown error"}`,
+      `Custom tool execution error: ${error.message || 'Unknown error'}`,
   }
 }
 
@@ -433,15 +433,15 @@ async function getCustomTool(
   customToolId: string,
   workflowId?: string
 ): Promise<ToolConfig | undefined> {
-  const identifier = customToolId.replace("custom_", "")
+  const identifier = customToolId.replace('custom_', '')
 
   try {
-    const baseUrl = env.NEXT_PUBLIC_APP_URL || ""
-    const url = new URL("/api/tools/custom", baseUrl)
+    const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
+    const url = new URL('/api/tools/custom', baseUrl)
 
     // Add workflowId as a query parameter if available
     if (workflowId) {
-      url.searchParams.append("workflowId", workflowId)
+      url.searchParams.append('workflowId', workflowId)
     }
 
     const response = await fetch(url.toString())
@@ -475,15 +475,15 @@ async function getCustomTool(
     return {
       id: customToolId,
       name: customTool.title,
-      description: customTool.schema.function?.description || "",
-      version: "1.0.0",
+      description: customTool.schema.function?.description || '',
+      version: '1.0.0',
       params,
 
       // Request configuration - for custom tools we'll use the execute endpoint
       request: {
-        url: "/api/function/execute",
-        method: "POST",
-        headers: () => ({ "Content-Type": "application/json" }),
+        url: '/api/function/execute',
+        method: 'POST',
+        headers: () => ({ 'Content-Type': 'application/json' }),
         body: createCustomToolRequestBody(customTool, false, workflowId),
         isInternalRoute: true,
       },
@@ -493,7 +493,7 @@ async function getCustomTool(
         const data = await response.json()
 
         if (!data.success) {
-          throw new Error(data.error || "Custom tool execution failed")
+          throw new Error(data.error || 'Custom tool execution failed')
         }
 
         return {
@@ -503,7 +503,7 @@ async function getCustomTool(
         }
       },
       transformError: async (error: any) =>
-        `Custom tool execution error: ${error.message || "Unknown error"}`,
+        `Custom tool execution error: ${error.message || 'Unknown error'}`,
     }
   } catch (error) {
     logger.error(`Error fetching custom tool ${identifier} from API:`, error)

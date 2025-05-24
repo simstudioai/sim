@@ -1,14 +1,14 @@
-"use client"
+'use client'
 
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
-import { useNotificationStore } from "@/stores/notifications/store"
-import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
-import { useSubBlockStore } from "@/stores/workflows/subblock/store"
-import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import { X } from "lucide-react"
-import { useRef, useState } from "react"
-import { useSubBlockValue } from "../hooks/use-sub-block-value"
+import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { useNotificationStore } from '@/stores/notifications/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { X } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface FileUploadProps {
   blockId: string
@@ -35,7 +35,7 @@ export function FileUpload({
   blockId,
   subBlockId,
   maxSize = 10, // Default 10MB
-  acceptedTypes = "*",
+  acceptedTypes = '*',
   multiple = false, // Default to single file for backward compatibility
 }: FileUploadProps) {
   // State management - handle both single file and array of files
@@ -66,7 +66,7 @@ export function FileUpload({
     e.stopPropagation()
 
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+      fileInputRef.current.value = ''
       fileInputRef.current.click()
     }
   }
@@ -103,7 +103,7 @@ export function FileUpload({
       // Check if adding this file would exceed the total limit
       if (existingTotalSize + totalNewSize + file.size > maxSizeInBytes) {
         addNotification(
-          "error",
+          'error',
           `Adding ${file.name} would exceed the maximum size limit of ${maxSize}MB`,
           activeWorkflowId
         )
@@ -147,10 +147,10 @@ export function FileUpload({
       for (const file of validFiles) {
         try {
           // First, try to get a pre-signed URL for direct upload
-          const presignedResponse = await fetch("/api/files/presigned", {
-            method: "POST",
+          const presignedResponse = await fetch('/api/files/presigned', {
+            method: 'POST',
             headers: {
-              "Content-Type": "application/json",
+              'Content-Type': 'application/json',
             },
             body: JSON.stringify({
               fileName: file.name,
@@ -167,9 +167,9 @@ export function FileUpload({
 
             // Upload directly to S3 using the pre-signed URL
             const uploadResponse = await fetch(presignedData.presignedUrl, {
-              method: "PUT",
+              method: 'PUT',
               headers: {
-                "Content-Type": file.type,
+                'Content-Type': file.type,
               },
               body: file,
             })
@@ -188,11 +188,11 @@ export function FileUpload({
 
             // Create FormData for upload
             const formData = new FormData()
-            formData.append("file", file)
+            formData.append('file', file)
 
             // Upload the file via server
-            const response = await fetch("/api/files/upload", {
-              method: "POST",
+            const response = await fetch('/api/files/upload', {
+              method: 'POST',
               body: formData,
             })
 
@@ -216,7 +216,7 @@ export function FileUpload({
           }
         } catch (error) {
           console.error(`Error uploading ${file.name}:`, error)
-          const errorMessage = error instanceof Error ? error.message : "Unknown error"
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           uploadErrors.push(`${file.name}: ${errorMessage}`)
         }
       }
@@ -231,17 +231,17 @@ export function FileUpload({
 
       // Send consolidated notification about uploaded files
       if (uploadedFiles.length > 0) {
-        const uploadMethod = useDirectUpload ? "direct" : "server"
+        const uploadMethod = useDirectUpload ? 'direct' : 'server'
         if (uploadedFiles.length === 1) {
           addNotification(
-            "console",
+            'console',
             `${uploadedFiles[0].name} was uploaded successfully (${uploadMethod} upload)`,
             activeWorkflowId
           )
         } else {
           addNotification(
-            "console",
-            `Uploaded ${uploadedFiles.length} files successfully: ${uploadedFiles.map((f) => f.name).join(", ")} (${uploadMethod} upload)`,
+            'console',
+            `Uploaded ${uploadedFiles.length} files successfully: ${uploadedFiles.map((f) => f.name).join(', ')} (${uploadMethod} upload)`,
             activeWorkflowId
           )
         }
@@ -250,11 +250,11 @@ export function FileUpload({
       // Send consolidated error notification if any
       if (uploadErrors.length > 0) {
         if (uploadErrors.length === 1) {
-          addNotification("error", uploadErrors[0], activeWorkflowId)
+          addNotification('error', uploadErrors[0], activeWorkflowId)
         } else {
           addNotification(
-            "error",
-            `Failed to upload ${uploadErrors.length} files: ${uploadErrors.join("; ")}`,
+            'error',
+            `Failed to upload ${uploadErrors.length} files: ${uploadErrors.join('; ')}`,
             activeWorkflowId
           )
         }
@@ -295,8 +295,8 @@ export function FileUpload({
       }
     } catch (error) {
       addNotification(
-        "error",
-        error instanceof Error ? error.message : "Failed to upload file(s)",
+        'error',
+        error instanceof Error ? error.message : 'Failed to upload file(s)',
         activeWorkflowId
       )
     } finally {
@@ -326,10 +326,10 @@ export function FileUpload({
 
     try {
       // Call API to delete the file from server
-      const response = await fetch("/api/files/delete", {
-        method: "POST",
+      const response = await fetch('/api/files/delete', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ filePath: file.path }),
       })
@@ -362,8 +362,8 @@ export function FileUpload({
       useWorkflowStore.getState().triggerUpdate()
     } catch (error) {
       addNotification(
-        "error",
-        error instanceof Error ? error.message : "Failed to delete file from server",
+        'error',
+        error instanceof Error ? error.message : 'Failed to delete file from server',
         activeWorkflowId
       )
     } finally {
@@ -401,7 +401,7 @@ export function FileUpload({
     useWorkflowStore.getState().triggerUpdate()
 
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+      fileInputRef.current.value = ''
     }
 
     // Track successful and failed deletions
@@ -413,10 +413,10 @@ export function FileUpload({
     // Delete each file
     for (const file of filesToDelete) {
       try {
-        const response = await fetch("/api/files/delete", {
-          method: "POST",
+        const response = await fetch('/api/files/delete', {
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({ filePath: file.path }),
         })
@@ -431,7 +431,7 @@ export function FileUpload({
       } catch (error) {
         console.error(`Failed to delete file ${file.name}:`, error)
         deletionResults.failures.push(
-          `${file.name}: ${error instanceof Error ? error.message : "Unknown error"}`
+          `${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
         )
       }
     }
@@ -440,14 +440,14 @@ export function FileUpload({
     if (deletionResults.failures.length > 0) {
       if (deletionResults.failures.length === 1) {
         addNotification(
-          "error",
+          'error',
           `Failed to delete file: ${deletionResults.failures[0]}`,
           activeWorkflowId
         )
       } else {
         addNotification(
-          "error",
-          `Failed to delete ${deletionResults.failures.length} files: ${deletionResults.failures.join("; ")}`,
+          'error',
+          `Failed to delete ${deletionResults.failures.length} files: ${deletionResults.failures.join('; ')}`,
           activeWorkflowId
         )
       }
@@ -463,24 +463,24 @@ export function FileUpload({
     return (
       <div
         key={file.path}
-        className="flex items-center justify-between rounded border border-border bg-background px-3 py-2"
+        className='flex items-center justify-between rounded border border-border bg-background px-3 py-2'
       >
-        <div className="flex-1 truncate pr-2">
-          <div className="truncate font-normal text-sm">{file.name}</div>
-          <div className="text-muted-foreground text-xs">{formatFileSize(file.size)}</div>
+        <div className='flex-1 truncate pr-2'>
+          <div className='truncate font-normal text-sm'>{file.name}</div>
+          <div className='text-muted-foreground text-xs'>{formatFileSize(file.size)}</div>
         </div>
         <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='h-8 w-8 shrink-0'
           onClick={(e) => handleRemoveFile(file, e)}
           disabled={isDeleting}
         >
           {isDeleting ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+            <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <X className="h-4 w-4" />
+            <X className='h-4 w-4' />
           )}
         </Button>
       </div>
@@ -492,14 +492,14 @@ export function FileUpload({
     return (
       <div
         key={file.id}
-        className="flex items-center justify-between rounded border border-border bg-background px-3 py-2"
+        className='flex items-center justify-between rounded border border-border bg-background px-3 py-2'
       >
-        <div className="flex-1 truncate pr-2">
-          <div className="truncate font-normal text-sm">{file.name}</div>
-          <div className="text-muted-foreground text-xs">{formatFileSize(file.size)}</div>
+        <div className='flex-1 truncate pr-2'>
+          <div className='truncate font-normal text-sm'>{file.name}</div>
+          <div className='text-muted-foreground text-xs'>{formatFileSize(file.size)}</div>
         </div>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center">
-          <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+        <div className='flex h-8 w-8 shrink-0 items-center justify-center'>
+          <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         </div>
       </div>
     )
@@ -511,21 +511,21 @@ export function FileUpload({
   const isUploading = uploadingFiles.length > 0
 
   return (
-    <div className="w-full" onClick={(e) => e.stopPropagation()}>
+    <div className='w-full' onClick={(e) => e.stopPropagation()}>
       <input
-        type="file"
+        type='file'
         ref={fileInputRef}
         onChange={handleFileChange}
-        style={{ display: "none" }}
+        style={{ display: 'none' }}
         accept={acceptedTypes}
         multiple={multiple}
-        data-testid="file-input-element"
+        data-testid='file-input-element'
       />
 
-      <div className="bg-background">
+      <div className='bg-background'>
         {/* File list with consistent spacing */}
         {(hasFiles || isUploading) && (
-          <div className="mb-2 space-y-2">
+          <div className='mb-2 space-y-2'>
             {/* Only show files that aren't currently uploading */}
             {filesArray.map((file) => {
               // Don't show files that have duplicates in the uploading list
@@ -537,10 +537,10 @@ export function FileUpload({
             {isUploading && (
               <>
                 {uploadingFiles.map(renderUploadingItem)}
-                <div className="mt-1">
-                  <Progress value={uploadProgress} className="h-2 w-full" />
-                  <div className="mt-1 text-center text-muted-foreground text-xs">
-                    {uploadProgress < 100 ? "Uploading..." : "Upload complete!"}
+                <div className='mt-1'>
+                  <Progress value={uploadProgress} className='h-2 w-full' />
+                  <div className='mt-1 text-center text-muted-foreground text-xs'>
+                    {uploadProgress < 100 ? 'Uploading...' : 'Upload complete!'}
                   </div>
                 </div>
               </>
@@ -550,12 +550,12 @@ export function FileUpload({
 
         {/* Action buttons */}
         {(hasFiles || isUploading) && (
-          <div className="flex space-x-2">
+          <div className='flex space-x-2'>
             <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-10 flex-1 font-normal text-sm"
+              type='button'
+              variant='outline'
+              size='sm'
+              className='h-10 flex-1 font-normal text-sm'
               onClick={handleRemoveAllFiles}
               disabled={isUploading}
             >
@@ -563,10 +563,10 @@ export function FileUpload({
             </Button>
             {multiple && !isUploading && (
               <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-10 flex-1 font-normal text-sm"
+                type='button'
+                variant='outline'
+                size='sm'
+                className='h-10 flex-1 font-normal text-sm'
                 onClick={handleOpenFileDialog}
               >
                 Add More
@@ -578,17 +578,17 @@ export function FileUpload({
 
       {/* Show upload button if no files and not uploading */}
       {!hasFiles && !isUploading && (
-        <div className="flex items-center">
+        <div className='flex items-center'>
           <Button
-            type="button"
-            variant="outline"
-            className="h-10 w-full justify-center bg-background text-center font-normal text-sm"
+            type='button'
+            variant='outline'
+            className='h-10 w-full justify-center bg-background text-center font-normal text-sm'
             onClick={handleOpenFileDialog}
           >
-            <div className="flex w-full items-center justify-center gap-2">
+            <div className='flex w-full items-center justify-center gap-2'>
               {/* <Upload className="h-4 w-4" /> */}
-              <span>{multiple ? "Upload Files" : "Upload File"}</span>
-              <span className="text-muted-foreground text-xs">({maxSize}MB max)</span>
+              <span>{multiple ? 'Upload Files' : 'Upload File'}</span>
+              <span className='text-muted-foreground text-xs'>({maxSize}MB max)</span>
             </div>
           </Button>
         </div>

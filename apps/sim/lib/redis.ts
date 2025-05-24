@@ -1,11 +1,11 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import Redis from "ioredis"
-import { env } from "./env"
+import { createLogger } from '@/lib/logs/console-logger'
+import Redis from 'ioredis'
+import { env } from './env'
 
-const logger = createLogger("Redis")
+const logger = createLogger('Redis')
 
 // Default to localhost if REDIS_URL is not provided
-const redisUrl = env.REDIS_URL || "redis://localhost:6379"
+const redisUrl = env.REDIS_URL || 'redis://localhost:6379'
 
 // Global Redis client for connection pooling
 // This is important for serverless environments like Vercel
@@ -22,7 +22,7 @@ const MAX_CACHE_SIZE = 1000
  */
 export function getRedisClient(): Redis | null {
   // For server-side only
-  if (typeof window !== "undefined") return null
+  if (typeof window !== 'undefined') return null
 
   if (globalRedisClient) return globalRedisClient
 
@@ -38,7 +38,7 @@ export function getRedisClient(): Redis | null {
       // Retry strategy with exponential backoff
       retryStrategy: (times) => {
         if (times > 5) {
-          logger.warn("Redis connection failed after 5 attempts, using fallback")
+          logger.warn('Redis connection failed after 5 attempts, using fallback')
           return null // Stop retrying
         }
         return Math.min(times * 200, 2000) // Exponential backoff
@@ -46,24 +46,24 @@ export function getRedisClient(): Redis | null {
     })
 
     // Handle connection events
-    globalRedisClient.on("error", (err: any) => {
-      logger.error("Redis connection error:", { err })
-      if (err.code === "ECONNREFUSED" || err.code === "ETIMEDOUT") {
+    globalRedisClient.on('error', (err: any) => {
+      logger.error('Redis connection error:', { err })
+      if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
         globalRedisClient = null
       }
     })
 
-    globalRedisClient.on("connect", () => {})
+    globalRedisClient.on('connect', () => {})
 
     return globalRedisClient
   } catch (error) {
-    logger.error("Failed to initialize Redis client:", { error })
+    logger.error('Failed to initialize Redis client:', { error })
     return null
   }
 }
 
 // Message ID cache functions
-const MESSAGE_ID_PREFIX = "processed:" // Generic prefix
+const MESSAGE_ID_PREFIX = 'processed:' // Generic prefix
 const MESSAGE_ID_EXPIRY = 60 * 60 * 24 * 7 // 7 days in seconds
 
 /**
@@ -116,11 +116,11 @@ export async function markMessageAsProcessed(
 
     if (redis) {
       // Use Redis if available - use pipelining for efficiency
-      await redis.set(fullKey, "1", "EX", expirySeconds)
+      await redis.set(fullKey, '1', 'EX', expirySeconds)
     } else {
       // Fallback to in-memory cache
       const expiry = expirySeconds ? Date.now() + expirySeconds * 1000 : null
-      inMemoryCache.set(fullKey, { value: "1", expiry })
+      inMemoryCache.set(fullKey, { value: '1', expiry })
 
       // Clean up old message IDs if cache gets too large
       if (inMemoryCache.size > MAX_CACHE_SIZE) {
@@ -151,7 +151,7 @@ export async function markMessageAsProcessed(
     // Fallback to in-memory cache on error
     const fullKey = `${MESSAGE_ID_PREFIX}${key}`
     const expiry = expirySeconds ? Date.now() + expirySeconds * 1000 : null
-    inMemoryCache.set(fullKey, { value: "1", expiry })
+    inMemoryCache.set(fullKey, { value: '1', expiry })
   }
 }
 
@@ -170,7 +170,7 @@ export async function acquireLock(
   try {
     const redis = getRedisClient()
     if (!redis) {
-      logger.warn("Redis client not available, cannot acquire lock.")
+      logger.warn('Redis client not available, cannot acquire lock.')
       // Fallback behavior: maybe allow processing but log a warning?
       // Or treat as lock acquired if no Redis? Depends on desired behavior.
       return true // Or false, depending on safety requirements
@@ -178,9 +178,9 @@ export async function acquireLock(
 
     // Use SET key value EX expirySeconds NX
     // Returns "OK" if successful, null if key already exists (lock held)
-    const result = await redis.set(lockKey, value, "EX", expirySeconds, "NX")
+    const result = await redis.set(lockKey, value, 'EX', expirySeconds, 'NX')
 
-    return result === "OK"
+    return result === 'OK'
   } catch (error) {
     logger.error(`Error acquiring lock for key ${lockKey}:`, { error })
     // Treat errors as failure to acquire lock for safety
@@ -197,7 +197,7 @@ export async function getLockValue(key: string): Promise<string | null> {
   try {
     const redis = getRedisClient()
     if (!redis) {
-      logger.warn("Redis client not available, cannot get lock value.")
+      logger.warn('Redis client not available, cannot get lock value.')
       return null // Cannot determine lock value
     }
     return await redis.get(key)
@@ -219,7 +219,7 @@ export async function releaseLock(lockKey: string): Promise<void> {
     if (redis) {
       await redis.del(lockKey)
     } else {
-      logger.warn("Redis client not available, cannot release lock.")
+      logger.warn('Redis client not available, cannot release lock.')
       // No fallback needed for releasing if using in-memory cache for locking wasn't implemented
     }
   } catch (error) {
@@ -236,7 +236,7 @@ export async function closeRedisConnection(): Promise<void> {
     try {
       await globalRedisClient.quit()
     } catch (error) {
-      logger.error("Error closing Redis connection:", { error })
+      logger.error('Error closing Redis connection:', { error })
     } finally {
       globalRedisClient = null
     }

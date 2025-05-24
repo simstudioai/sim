@@ -1,12 +1,12 @@
-"use client"
+'use client'
 
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
-import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
-import { Loader2, X } from "lucide-react"
-import { type KeyboardEvent, useState } from "react"
+import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { Loader2, X } from 'lucide-react'
+import { type KeyboardEvent, useState } from 'react'
 
 interface InviteModalProps {
   open: boolean
@@ -23,17 +23,17 @@ interface EmailTagProps {
 
 const EmailTag = ({ email, onRemove, disabled, isInvalid }: EmailTagProps) => (
   <div
-    className={`flex items-center ${isInvalid ? "border-red-200 bg-red-50 text-red-700" : "border-gray-200 bg-gray-100 text-slate-700"} my-0 ml-0 w-auto gap-1 rounded-md border px-2 py-0.5 text-sm`}
+    className={`flex items-center ${isInvalid ? 'border-red-200 bg-red-50 text-red-700' : 'border-gray-200 bg-gray-100 text-slate-700'} my-0 ml-0 w-auto gap-1 rounded-md border px-2 py-0.5 text-sm`}
   >
-    <span className="max-w-[180px] truncate">{email}</span>
+    <span className='max-w-[180px] truncate'>{email}</span>
     {!disabled && (
       <button
-        type="button"
+        type='button'
         onClick={onRemove}
-        className={`${isInvalid ? "text-red-400 hover:text-red-600" : "text-gray-400 hover:text-gray-600"} flex-shrink-0 focus:outline-none`}
+        className={`${isInvalid ? 'text-red-400 hover:text-red-600' : 'text-gray-400 hover:text-gray-600'} flex-shrink-0 focus:outline-none`}
         aria-label={`Remove ${email}`}
       >
-        <X className="h-3 w-3" />
+        <X className='h-3 w-3' />
       </button>
     )}
   </div>
@@ -45,7 +45,7 @@ const isValidEmail = (email: string): boolean => {
 }
 
 export function InviteModal({ open, onOpenChange }: InviteModalProps) {
-  const [inputValue, setInputValue] = useState("")
+  const [inputValue, setInputValue] = useState('')
   const [emails, setEmails] = useState<string[]>([])
   const [invalidEmails, setInvalidEmails] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -68,13 +68,13 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     // Validate email format
     if (!isValidEmail(normalizedEmail)) {
       setInvalidEmails([...invalidEmails, normalizedEmail])
-      setInputValue("")
+      setInputValue('')
       return false
     }
 
     // Add to emails array
     setEmails([...emails, normalizedEmail])
-    setInputValue("")
+    setInputValue('')
     return true
   }
 
@@ -92,13 +92,13 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     // Add email on Enter, comma, or space
-    if (["Enter", ",", " "].includes(e.key) && inputValue.trim()) {
+    if (['Enter', ',', ' '].includes(e.key) && inputValue.trim()) {
       e.preventDefault()
       addEmail(inputValue)
     }
 
     // Remove the last email on Backspace if input is empty
-    if (e.key === "Backspace" && !inputValue) {
+    if (e.key === 'Backspace' && !inputValue) {
       if (invalidEmails.length > 0) {
         removeInvalidEmail(invalidEmails.length - 1)
       } else if (emails.length > 0) {
@@ -109,7 +109,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault()
-    const pastedText = e.clipboardData.getData("text")
+    const pastedText = e.clipboardData.getData('text')
     const pastedEmails = pastedText
       .split(/[\s,;]+/) // Split by space, comma, or semicolon
       .filter(Boolean) // Remove empty strings
@@ -151,15 +151,15 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       const results = await Promise.all(
         emails.map(async (email) => {
           try {
-            const response = await fetch("/api/workspaces/invitations", {
-              method: "POST",
+            const response = await fetch('/api/workspaces/invitations', {
+              method: 'POST',
               headers: {
-                "Content-Type": "application/json",
+                'Content-Type': 'application/json',
               },
               body: JSON.stringify({
                 workspaceId: activeWorkspaceId,
                 email: email,
-                role: "member", // Default role for invited members
+                role: 'member', // Default role for invited members
               }),
             })
 
@@ -194,7 +194,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
       if (successCount > 0) {
         // Clear everything on success, but keep track of failed emails
-        setInputValue("")
+        setInputValue('')
 
         // Only keep emails that failed in the emails array
         if (failedInvites.length > 0) {
@@ -204,7 +204,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
           // Set success message when all invitations are successful
           setSuccessMessage(
             successCount === 1
-              ? "Invitation sent successfully!"
+              ? 'Invitation sent successfully!'
               : `${successCount} invitations sent successfully!`
           )
         }
@@ -218,15 +218,15 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         }, 4000)
       }
     } catch (err: any) {
-      console.error("Error inviting members:", err)
-      setErrorMessage("An unexpected error occurred. Please try again.")
+      console.error('Error inviting members:', err)
+      setErrorMessage('An unexpected error occurred. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const resetState = () => {
-    setInputValue("")
+    setInputValue('')
     setEmails([])
     setInvalidEmails([])
     setShowSent(false)
@@ -245,34 +245,34 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       }}
     >
       <DialogContent
-        className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]"
+        className='flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]'
         hideCloseButton
       >
-        <DialogHeader className="flex-shrink-0 border-b px-6 py-4">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="font-medium text-lg">Invite Members to Workspace</DialogTitle>
+        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
+          <div className='flex items-center justify-between'>
+            <DialogTitle className='font-medium text-lg'>Invite Members to Workspace</DialogTitle>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 p-0"
+              variant='ghost'
+              size='icon'
+              className='h-8 w-8 p-0'
               onClick={() => onOpenChange(false)}
             >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
+              <X className='h-4 w-4' />
+              <span className='sr-only'>Close</span>
             </Button>
           </div>
         </DialogHeader>
 
-        <div className="px-6 pt-4 pb-6">
+        <div className='px-6 pt-4 pb-6'>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="emails" className="font-medium text-sm">
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <label htmlFor='emails' className='font-medium text-sm'>
                   Email Addresses
                 </label>
                 <div
                   className={cn(
-                    "flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-3 py-1 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
+                    'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-3 py-1 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'
                   )}
                 >
                   {invalidEmails.map((email, index) => (
@@ -293,8 +293,8 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     />
                   ))}
                   <Input
-                    id="emails"
-                    type="text"
+                    id='emails'
+                    type='text'
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -302,12 +302,12 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     onBlur={() => inputValue.trim() && addEmail(inputValue)}
                     placeholder={
                       emails.length > 0 || invalidEmails.length > 0
-                        ? "Add another email"
-                        : "Enter email addresses (comma or Enter to separate)"
+                        ? 'Add another email'
+                        : 'Enter email addresses (comma or Enter to separate)'
                     }
                     className={cn(
-                      "h-7 min-w-[180px] flex-1 border-none py-1 focus-visible:ring-0 focus-visible:ring-offset-0",
-                      emails.length > 0 || invalidEmails.length > 0 ? "pl-1" : "pl-0"
+                      'h-7 min-w-[180px] flex-1 border-none py-1 focus-visible:ring-0 focus-visible:ring-offset-0',
+                      emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-0'
                     )}
                     autoFocus
                     disabled={isSubmitting}
@@ -315,39 +315,39 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                 </div>
                 <p
                   className={cn(
-                    "mt-1 text-xs",
+                    'mt-1 text-xs',
                     errorMessage
-                      ? "text-destructive"
+                      ? 'text-destructive'
                       : successMessage
-                        ? "text-green-600"
-                        : "text-muted-foreground"
+                        ? 'text-green-600'
+                        : 'text-muted-foreground'
                   )}
                 >
                   {errorMessage ||
                     successMessage ||
-                    "Press Enter, comma, or space after each email."}
+                    'Press Enter, comma, or space after each email.'}
                 </p>
               </div>
 
-              <div className="flex justify-end">
+              <div className='flex justify-end'>
                 <Button
-                  type="submit"
-                  size="sm"
+                  type='submit'
+                  size='sm'
                   disabled={
                     (emails.length === 0 && !inputValue.trim()) ||
                     isSubmitting ||
                     !activeWorkspaceId
                   }
                   className={cn(
-                    "gap-2 font-medium",
-                    "bg-[#802FFF] hover:bg-[#7028E6]",
-                    "shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]",
-                    "text-white transition-all duration-200",
-                    "disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none"
+                    'gap-2 font-medium',
+                    'bg-[#802FFF] hover:bg-[#7028E6]',
+                    'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                    'text-white transition-all duration-200',
+                    'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
                   )}
                 >
-                  {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {showSent ? "Sent!" : "Send Invitations"}
+                  {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
+                  {showSent ? 'Sent!' : 'Send Invitations'}
                 </Button>
               </div>
             </div>

@@ -1,11 +1,11 @@
-"use client"
+'use client'
 
-import type { SubBlockConfig } from "@/blocks/types"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useSubBlockStore } from "@/stores/workflows/subblock/store"
-import { useEffect, useState } from "react"
-import { type DiscordServerInfo, DiscordServerSelector } from "./components/discord-server-selector"
-import { type JiraProjectInfo, JiraProjectSelector } from "./components/jira-project-selector"
+import type { SubBlockConfig } from '@/blocks/types'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useEffect, useState } from 'react'
+import { type DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
+import { type JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -21,21 +21,21 @@ export function ProjectSelectorInput({
   onProjectSelect,
 }: ProjectSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("")
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('')
   const [projectInfo, setProjectInfo] = useState<JiraProjectInfo | DiscordServerInfo | null>(null)
 
   // Get provider-specific values
-  const provider = subBlock.provider || "jira"
-  const isDiscord = provider === "discord"
+  const provider = subBlock.provider || 'jira'
+  const isDiscord = provider === 'discord'
 
   // For Jira, we need the domain
-  const domain = !isDiscord ? (getValue(blockId, "domain") as string) || "" : ""
-  const botToken = isDiscord ? (getValue(blockId, "botToken") as string) || "" : ""
+  const domain = !isDiscord ? (getValue(blockId, 'domain') as string) || '' : ''
+  const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
 
   // Get the current value from the store
   useEffect(() => {
     const value = getValue(blockId, subBlock.id)
-    if (value && typeof value === "string") {
+    if (value && typeof value === 'string') {
       setSelectedProjectId(value)
     }
   }, [blockId, subBlock.id, getValue])
@@ -47,12 +47,12 @@ export function ProjectSelectorInput({
     setValue(blockId, subBlock.id, projectId)
 
     // Clear the issue-related fields when a new project is selected
-    if (provider === "jira") {
-      setValue(blockId, "summary", "")
-      setValue(blockId, "description", "")
-      setValue(blockId, "issueKey", "")
-    } else if (provider === "discord") {
-      setValue(blockId, "channelId", "")
+    if (provider === 'jira') {
+      setValue(blockId, 'summary', '')
+      setValue(blockId, 'description', '')
+      setValue(blockId, 'issueKey', '')
+    } else if (provider === 'discord') {
+      setValue(blockId, 'channelId', '')
     }
 
     onProjectSelect?.(projectId)
@@ -64,21 +64,21 @@ export function ProjectSelectorInput({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-full">
+            <div className='w-full'>
               <DiscordServerSelector
                 value={selectedProjectId}
                 onChange={(serverId: string, serverInfo?: DiscordServerInfo) => {
                   handleProjectChange(serverId, serverInfo)
                 }}
                 botToken={botToken}
-                label={subBlock.placeholder || "Select Discord server"}
+                label={subBlock.placeholder || 'Select Discord server'}
                 disabled={disabled || !botToken}
                 showPreview={true}
               />
             </div>
           </TooltipTrigger>
           {!botToken && (
-            <TooltipContent side="top">
+            <TooltipContent side='top'>
               <p>Please enter a Bot Token first</p>
             </TooltipContent>
           )}
@@ -92,15 +92,15 @@ export function ProjectSelectorInput({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="w-full">
+          <div className='w-full'>
             <JiraProjectSelector
               value={selectedProjectId}
               onChange={handleProjectChange}
               domain={domain}
-              provider="jira"
+              provider='jira'
               requiredScopes={subBlock.requiredScopes || []}
               serviceId={subBlock.serviceId}
-              label={subBlock.placeholder || "Select Jira project"}
+              label={subBlock.placeholder || 'Select Jira project'}
               disabled={disabled}
               showPreview={true}
               onProjectInfoChange={setProjectInfo}
@@ -108,7 +108,7 @@ export function ProjectSelectorInput({
           </div>
         </TooltipTrigger>
         {!domain && (
-          <TooltipContent side="top">
+          <TooltipContent side='top'>
             <p>Please enter a Jira domain first</p>
           </TooltipContent>
         )}

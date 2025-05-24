@@ -1,7 +1,7 @@
-"use client"
+'use client'
 
-import { useParams, useRouter } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useParams, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import ReactFlow, {
   Background,
   ConnectionLineType,
@@ -9,32 +9,32 @@ import ReactFlow, {
   type NodeTypes,
   ReactFlowProvider,
   useReactFlow,
-} from "reactflow"
-import "reactflow/dist/style.css"
-import { NotificationList } from "@/app/w/[id]/components/notifications/notifications"
-import { getBlock } from "@/blocks"
-import { LoadingAgent } from "@/components/ui/loading-agent"
-import { createLogger } from "@/lib/logs/console-logger"
-import { useExecutionStore } from "@/stores/execution/store"
-import { useNotificationStore } from "@/stores/notifications/store"
-import { useVariablesStore } from "@/stores/panel/variables/store"
-import { useGeneralStore } from "@/stores/settings/general/store"
-import { useSidebarStore } from "@/stores/sidebar/store"
-import { initializeSyncManagers, isSyncInitialized } from "@/stores/sync-registry"
-import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
-import { useSubBlockStore } from "@/stores/workflows/subblock/store"
-import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import { ControlBar } from "./components/control-bar/control-bar"
-import { ErrorBoundary } from "./components/error/index"
-import { Panel } from "./components/panel/panel"
-import { Toolbar } from "./components/toolbar/toolbar"
-import { WorkflowBlock } from "./components/workflow-block/workflow-block"
-import { WorkflowEdge } from "./components/workflow-edge/workflow-edge"
-import { LoopInput } from "./components/workflow-loop/components/loop-input/loop-input"
-import { LoopLabel } from "./components/workflow-loop/components/loop-label/loop-label"
-import { createLoopNode, getRelativeLoopPosition } from "./components/workflow-loop/workflow-loop"
+} from 'reactflow'
+import 'reactflow/dist/style.css'
+import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
+import { getBlock } from '@/blocks'
+import { LoadingAgent } from '@/components/ui/loading-agent'
+import { createLogger } from '@/lib/logs/console-logger'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useNotificationStore } from '@/stores/notifications/store'
+import { useVariablesStore } from '@/stores/panel/variables/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
+import { useSidebarStore } from '@/stores/sidebar/store'
+import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ControlBar } from './components/control-bar/control-bar'
+import { ErrorBoundary } from './components/error/index'
+import { Panel } from './components/panel/panel'
+import { Toolbar } from './components/toolbar/toolbar'
+import { WorkflowBlock } from './components/workflow-block/workflow-block'
+import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
+import { LoopInput } from './components/workflow-loop/components/loop-input/loop-input'
+import { LoopLabel } from './components/workflow-loop/components/loop-label/loop-label'
+import { createLoopNode, getRelativeLoopPosition } from './components/workflow-loop/workflow-loop'
 
-const logger = createLogger("Workflow")
+const logger = createLogger('Workflow')
 
 // Define custom node and edge types
 const nodeTypes: NodeTypes = {
@@ -51,7 +51,7 @@ function WorkflowContent() {
   const { mode, isExpanded } = useSidebarStore()
   // In hover mode, act as if sidebar is always collapsed for layout purposes
   const isSidebarCollapsed =
-    mode === "expanded" ? !isExpanded : mode === "collapsed" || mode === "hover"
+    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   // Hooks
   const params = useParams()
@@ -72,7 +72,7 @@ function WorkflowContent() {
 
   // Initialize workflow
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       // Ensure sync system is initialized before proceeding
       const initSync = async () => {
         // Initialize sync system if not already initialized
@@ -113,17 +113,17 @@ function WorkflowContent() {
   // Determine the appropriate source handle based on block type
   const determineSourceHandle = useCallback((block: { id: string; type: string }) => {
     // Default source handle
-    let sourceHandle = "source"
+    let sourceHandle = 'source'
 
     // For condition blocks, use the first condition handle
-    if (block.type === "condition") {
+    if (block.type === 'condition') {
       // Get just the first condition handle from the DOM
       const conditionHandles = document.querySelectorAll(
         `[data-nodeid^="${block.id}"][data-handleid^="condition-"]`
       )
       if (conditionHandles.length > 0) {
         // Extract the full handle ID from the first condition handle
-        const handleId = conditionHandles[0].getAttribute("data-handleid")
+        const handleId = conditionHandles[0].getAttribute('data-handleid')
         if (handleId) {
           sourceHandle = handleId
         }
@@ -139,11 +139,11 @@ function WorkflowContent() {
       const { type } = event.detail
 
       if (!type) return
-      if (type === "connectionBlock") return
+      if (type === 'connectionBlock') return
 
       const blockConfig = getBlock(type)
       if (!blockConfig) {
-        logger.error("Invalid block type:", { type })
+        logger.error('Invalid block type:', { type })
         return
       }
 
@@ -164,7 +164,7 @@ function WorkflowContent() {
 
       // Auto-connect logic
       const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-      if (isAutoConnectEnabled && type !== "starter") {
+      if (isAutoConnectEnabled && type !== 'starter') {
         const closestBlock = findClosestOutput(centerPosition)
         if (closestBlock) {
           // Get appropriate source handle
@@ -175,18 +175,18 @@ function WorkflowContent() {
             source: closestBlock.id,
             target: id,
             sourceHandle,
-            targetHandle: "target",
-            type: "custom",
+            targetHandle: 'target',
+            type: 'custom',
           })
         }
       }
     }
 
-    window.addEventListener("add-block-from-toolbar", handleAddBlockFromToolbar as EventListener)
+    window.addEventListener('add-block-from-toolbar', handleAddBlockFromToolbar as EventListener)
 
     return () => {
       window.removeEventListener(
-        "add-block-from-toolbar",
+        'add-block-from-toolbar',
         handleAddBlockFromToolbar as EventListener
       )
     }
@@ -198,8 +198,8 @@ function WorkflowContent() {
       event.preventDefault()
 
       try {
-        const data = JSON.parse(event.dataTransfer.getData("application/json"))
-        if (data.type === "connectionBlock") return
+        const data = JSON.parse(event.dataTransfer.getData('application/json'))
+        if (data.type === 'connectionBlock') return
 
         const reactFlowBounds = event.currentTarget.getBoundingClientRect()
         const position = project({
@@ -209,7 +209,7 @@ function WorkflowContent() {
 
         const blockConfig = getBlock(data.type)
         if (!blockConfig) {
-          logger.error("Invalid block type:", { data })
+          logger.error('Invalid block type:', { data })
           return
         }
 
@@ -222,7 +222,7 @@ function WorkflowContent() {
 
         // Auto-connect logic
         const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
-        if (isAutoConnectEnabled && data.type !== "starter") {
+        if (isAutoConnectEnabled && data.type !== 'starter') {
           const closestBlock = findClosestOutput(position)
           if (closestBlock) {
             // Get appropriate source handle
@@ -233,13 +233,13 @@ function WorkflowContent() {
               source: closestBlock.id,
               target: id,
               sourceHandle,
-              targetHandle: "target",
-              type: "workflowEdge",
+              targetHandle: 'target',
+              type: 'workflowEdge',
             })
           }
         }
       } catch (err) {
-        logger.error("Error dropping block:", { err })
+        logger.error('Error dropping block:', { err })
       }
     },
     [project, blocks, addBlock, addEdge, findClosestOutput, determineSourceHandle]
@@ -266,7 +266,7 @@ function WorkflowContent() {
       }
 
       // Import the isActivelyLoadingFromDB function to check sync status
-      const { isActivelyLoadingFromDB } = await import("@/stores/workflows/sync")
+      const { isActivelyLoadingFromDB } = await import('@/stores/workflows/sync')
 
       // Wait for any active DB loading to complete before switching workflows
       if (isActivelyLoadingFromDB()) {
@@ -344,10 +344,10 @@ function WorkflowContent() {
 
       nodeArray.push({
         id: block.id,
-        type: "workflowBlock",
+        type: 'workflowBlock',
         position,
         parentId: parentLoop ? `loop-${parentLoop[0]}` : undefined,
-        dragHandle: ".workflow-drag-handle",
+        dragHandle: '.workflow-drag-handle',
         data: {
           type: block.type,
           config: blockConfig,
@@ -365,7 +365,7 @@ function WorkflowContent() {
   const onNodesChange = useCallback(
     (changes: any) => {
       changes.forEach((change: any) => {
-        if (change.type === "position" && change.position) {
+        if (change.type === 'position' && change.position) {
           const node = nodes.find((n) => n.id === change.id)
           if (!node) return
 
@@ -391,7 +391,7 @@ function WorkflowContent() {
   const onEdgesChange = useCallback(
     (changes: any) => {
       changes.forEach((change: any) => {
-        if (change.type === "remove") {
+        if (change.type === 'remove') {
           removeEdge(change.id)
         }
       })
@@ -406,7 +406,7 @@ function WorkflowContent() {
         addEdge({
           ...connection,
           id: crypto.randomUUID(),
-          type: "workflowEdge",
+          type: 'workflowEdge',
         })
       }
     },
@@ -426,7 +426,7 @@ function WorkflowContent() {
   // Transform edges to include selection state
   const edgesWithSelection = edges.map((edge) => ({
     ...edge,
-    type: edge.type || "workflowEdge",
+    type: edge.type || 'workflowEdge',
     data: {
       selectedEdgeId,
       onDelete: (edgeId: string) => {
@@ -439,14 +439,14 @@ function WorkflowContent() {
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.key === "Delete" || event.key === "Backspace") && selectedEdgeId) {
+      if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeId) {
         removeEdge(selectedEdgeId)
         setSelectedEdgeId(null)
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selectedEdgeId, removeEdge])
 
   // Handle sub-block value updates from custom events
@@ -458,11 +458,11 @@ function WorkflowContent() {
       }
     }
 
-    window.addEventListener("update-subblock-value", handleSubBlockValueUpdate as EventListener)
+    window.addEventListener('update-subblock-value', handleSubBlockValueUpdate as EventListener)
 
     return () => {
       window.removeEventListener(
-        "update-subblock-value",
+        'update-subblock-value',
         handleSubBlockValueUpdate as EventListener
       )
     }
@@ -470,20 +470,20 @@ function WorkflowContent() {
 
   if (!isInitialized) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center">
-        <LoadingAgent size="lg" />
+      <div className='flex h-[calc(100vh-4rem)] w-full items-center justify-center'>
+        <LoadingAgent size='lg' />
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden">
-      <div className={`transition-all duration-200 ${isSidebarCollapsed ? "ml-14" : "ml-60"}`}>
+    <div className='flex h-screen w-full flex-col overflow-hidden'>
+      <div className={`transition-all duration-200 ${isSidebarCollapsed ? 'ml-14' : 'ml-60'}`}>
         <ControlBar />
       </div>
       <Toolbar />
       <div
-        className={`relative h-full w-full flex-1 transition-all duration-200 ${isSidebarCollapsed ? "pl-14" : "pl-60"}`}
+        className={`relative h-full w-full flex-1 transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
       >
         <Panel />
         <NotificationList />
@@ -501,12 +501,12 @@ function WorkflowContent() {
           minZoom={0.1}
           maxZoom={1.3}
           panOnScroll
-          defaultEdgeOptions={{ type: "custom" }}
+          defaultEdgeOptions={{ type: 'custom' }}
           proOptions={{ hideAttribution: true }}
           connectionLineStyle={{
-            stroke: "#94a3b8",
+            stroke: '#94a3b8',
             strokeWidth: 2,
-            strokeDasharray: "5,5",
+            strokeDasharray: '5,5',
           }}
           connectionLineType={ConnectionLineType.SmoothStep}
           onNodeClick={(e) => {
@@ -520,10 +520,10 @@ function WorkflowContent() {
           nodesConnectable={true}
           nodesDraggable={true}
           draggable={false}
-          noWheelClassName="allow-scroll"
+          noWheelClassName='allow-scroll'
           edgesFocusable={true}
           edgesUpdatable={true}
-          className="workflow-container h-full"
+          className='workflow-container h-full'
         >
           <Background />
         </ReactFlow>

@@ -1,13 +1,13 @@
-import { db } from "@/db"
-import { webhook, workflow } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import { and, eq } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
+import { db } from '@/db'
+import { webhook, workflow } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 
-const logger = createLogger("WebhookAPI")
+const logger = createLogger('WebhookAPI')
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
 // Get a specific webhook
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized webhook access attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const webhooks = await db
@@ -38,14 +38,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (webhooks.length === 0) {
       logger.warn(`[${requestId}] Webhook not found: ${id}`)
-      return NextResponse.json({ error: "Webhook not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
     }
 
     logger.info(`[${requestId}] Successfully retrieved webhook: ${id}`)
     return NextResponse.json({ webhook: webhooks[0] }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching webhook`, error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -60,7 +60,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized webhook update attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
@@ -82,12 +82,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (webhooks.length === 0) {
       logger.warn(`[${requestId}] Webhook not found: ${id}`)
-      return NextResponse.json({ error: "Webhook not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
     }
 
     if (webhooks[0].workflow.userId !== session.user.id) {
       logger.warn(`[${requestId}] Unauthorized webhook update attempt for webhook: ${id}`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     logger.debug(`[${requestId}] Updating webhook properties`, {
@@ -115,7 +115,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ webhook: updatedWebhook[0] }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error updating webhook`, error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -133,7 +133,7 @@ export async function DELETE(
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized webhook deletion attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Find the webhook and check ownership
@@ -152,18 +152,18 @@ export async function DELETE(
 
     if (webhooks.length === 0) {
       logger.warn(`[${requestId}] Webhook not found: ${id}`)
-      return NextResponse.json({ error: "Webhook not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Webhook not found' }, { status: 404 })
     }
 
     if (webhooks[0].workflow.userId !== session.user.id) {
       logger.warn(`[${requestId}] Unauthorized webhook deletion attempt for webhook: ${id}`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     const foundWebhook = webhooks[0].webhook
 
     // If it's a Telegram webhook, delete it from Telegram first
-    if (foundWebhook.provider === "telegram") {
+    if (foundWebhook.provider === 'telegram') {
       try {
         const { botToken } = foundWebhook.providerConfig as { botToken: string }
 
@@ -172,16 +172,16 @@ export async function DELETE(
             webhookId: id,
           })
           return NextResponse.json(
-            { error: "Missing botToken for Telegram webhook deletion" },
+            { error: 'Missing botToken for Telegram webhook deletion' },
             { status: 400 }
           )
         }
 
         const telegramApiUrl = `https://api.telegram.org/bot${botToken}/deleteWebhook`
         const telegramResponse = await fetch(telegramApiUrl, {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
         })
 
@@ -194,7 +194,7 @@ export async function DELETE(
             response: responseBody,
           })
           return NextResponse.json(
-            { error: "Failed to delete webhook from Telegram", details: errorMessage },
+            { error: 'Failed to delete webhook from Telegram', details: errorMessage },
             { status: 500 }
           )
         }
@@ -208,7 +208,7 @@ export async function DELETE(
         })
         return NextResponse.json(
           {
-            error: "Failed to delete webhook from Telegram",
+            error: 'Failed to delete webhook from Telegram',
             details: error.message,
           },
           { status: 500 }
@@ -226,6 +226,6 @@ export async function DELETE(
       error: error.message,
       stack: error.stack,
     })
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

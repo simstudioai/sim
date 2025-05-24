@@ -1,7 +1,7 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { formatDateTime } from "@/lib/utils"
+import { createLogger } from '@/lib/logs/console-logger'
+import { formatDateTime } from '@/lib/utils'
 
-const logger = createLogger("ScheduleUtils")
+const logger = createLogger('ScheduleUtils')
 
 export interface SubBlockValue {
   value: string
@@ -28,7 +28,7 @@ export const DAY_MAP: Record<string, number> = {
  */
 export function getSubBlockValue(block: BlockState, id: string): string {
   const subBlock = block.subBlocks[id] as SubBlockValue | undefined
-  return subBlock?.value || ""
+  return subBlock?.value || ''
 }
 
 /**
@@ -37,11 +37,11 @@ export function getSubBlockValue(block: BlockState, id: string): string {
  * @returns Array with [hours, minutes] as numbers, or [9, 0] as default
  */
 export function parseTimeString(timeString: string | undefined | null): [number, number] {
-  if (!timeString || !timeString.includes(":")) {
+  if (!timeString || !timeString.includes(':')) {
     return [9, 0] // Default to 9:00 AM
   }
 
-  const [hours, minutes] = timeString.split(":").map(Number)
+  const [hours, minutes] = timeString.split(':').map(Number)
   return [Number.isNaN(hours) ? 9 : hours, Number.isNaN(minutes) ? 0 : minutes]
 }
 
@@ -63,34 +63,34 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
   timezone: string
 } {
   // Extract schedule time (common field that can override others)
-  const scheduleTime = getSubBlockValue(starterBlock, "scheduleTime")
+  const scheduleTime = getSubBlockValue(starterBlock, 'scheduleTime')
 
   // Extract schedule start date
-  const scheduleStartAt = getSubBlockValue(starterBlock, "scheduleStartAt")
+  const scheduleStartAt = getSubBlockValue(starterBlock, 'scheduleStartAt')
 
   // Extract timezone (default to UTC)
-  const timezone = getSubBlockValue(starterBlock, "timezone") || "UTC"
+  const timezone = getSubBlockValue(starterBlock, 'timezone') || 'UTC'
 
   // Get minutes interval (default to 15)
-  const minutesIntervalStr = getSubBlockValue(starterBlock, "minutesInterval")
+  const minutesIntervalStr = getSubBlockValue(starterBlock, 'minutesInterval')
   const minutesInterval = Number.parseInt(minutesIntervalStr) || 15
 
   // Get hourly minute (default to 0)
-  const hourlyMinuteStr = getSubBlockValue(starterBlock, "hourlyMinute")
+  const hourlyMinuteStr = getSubBlockValue(starterBlock, 'hourlyMinute')
   const hourlyMinute = Number.parseInt(hourlyMinuteStr) || 0
 
   // Get daily time
-  const dailyTime = parseTimeString(getSubBlockValue(starterBlock, "dailyTime"))
+  const dailyTime = parseTimeString(getSubBlockValue(starterBlock, 'dailyTime'))
 
   // Get weekly config
-  const weeklyDayStr = getSubBlockValue(starterBlock, "weeklyDay") || "MON"
+  const weeklyDayStr = getSubBlockValue(starterBlock, 'weeklyDay') || 'MON'
   const weeklyDay = DAY_MAP[weeklyDayStr] || 1
-  const weeklyTime = parseTimeString(getSubBlockValue(starterBlock, "weeklyDayTime"))
+  const weeklyTime = parseTimeString(getSubBlockValue(starterBlock, 'weeklyDayTime'))
 
   // Get monthly config
-  const monthlyDayStr = getSubBlockValue(starterBlock, "monthlyDay")
+  const monthlyDayStr = getSubBlockValue(starterBlock, 'monthlyDay')
   const monthlyDay = Number.parseInt(monthlyDayStr) || 1
-  const monthlyTime = parseTimeString(getSubBlockValue(starterBlock, "monthlyTime"))
+  const monthlyTime = parseTimeString(getSubBlockValue(starterBlock, 'monthlyTime'))
 
   return {
     scheduleTime,
@@ -119,11 +119,11 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
 export function createDateWithTimezone(
   dateInput: string | Date,
   timeStr: string,
-  timezone = "UTC"
+  timezone = 'UTC'
 ): Date {
   try {
     // 1. Parse the base date and target time
-    const baseDate = typeof dateInput === "string" ? new Date(dateInput) : new Date(dateInput)
+    const baseDate = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput)
     const [targetHours, targetMinutes] = parseTimeString(timeStr)
 
     // Ensure baseDate reflects the date part only, setting time to 00:00:00 in UTC
@@ -139,32 +139,32 @@ export function createDateWithTimezone(
     )
 
     // 3. If the target timezone is UTC, we're done.
-    if (timezone === "UTC") {
+    if (timezone === 'UTC') {
       return tentativeUTCDate
     }
 
     // 4. Format the tentative UTC date into the target timezone's local time components.
     // Use 'en-CA' locale for unambiguous YYYY-MM-DD and 24-hour format.
-    const formatter = new Intl.DateTimeFormat("en-CA", {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit", // Use 2-digit for consistency
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23", // Use 24-hour format (00-23)
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit', // Use 2-digit for consistency
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23', // Use 24-hour format (00-23)
     })
 
     const parts = formatter.formatToParts(tentativeUTCDate)
     const getPart = (type: Intl.DateTimeFormatPartTypes) =>
       parts.find((p) => p.type === type)?.value
 
-    const formattedYear = Number.parseInt(getPart("year") || "0", 10)
-    const formattedMonth = Number.parseInt(getPart("month") || "0", 10) // 1-based
-    const formattedDay = Number.parseInt(getPart("day") || "0", 10)
-    const formattedHour = Number.parseInt(getPart("hour") || "0", 10)
-    const formattedMinute = Number.parseInt(getPart("minute") || "0", 10)
+    const formattedYear = Number.parseInt(getPart('year') || '0', 10)
+    const formattedMonth = Number.parseInt(getPart('month') || '0', 10) // 1-based
+    const formattedDay = Number.parseInt(getPart('day') || '0', 10)
+    const formattedHour = Number.parseInt(getPart('hour') || '0', 10)
+    const formattedMinute = Number.parseInt(getPart('minute') || '0', 10)
 
     // Create a Date object representing the local time *in the target timezone*
     // when the tentative UTC date occurs.
@@ -194,17 +194,17 @@ export function createDateWithTimezone(
 
     return finalDate
   } catch (e) {
-    logger.error("Error creating date with timezone:", e, { dateInput, timeStr, timezone })
+    logger.error('Error creating date with timezone:', e, { dateInput, timeStr, timezone })
     // Fallback to a simple UTC interpretation on error
     try {
-      const baseDate = typeof dateInput === "string" ? new Date(dateInput) : new Date(dateInput)
+      const baseDate = typeof dateInput === 'string' ? new Date(dateInput) : new Date(dateInput)
       const [hours, minutes] = parseTimeString(timeStr)
       const year = baseDate.getUTCFullYear()
       const monthIndex = baseDate.getUTCMonth()
       const day = baseDate.getUTCDate()
       return new Date(Date.UTC(year, monthIndex, day, hours, minutes, 0))
     } catch (fallbackError) {
-      logger.error("Error during fallback date creation:", fallbackError)
+      logger.error('Error during fallback date creation:', fallbackError)
       throw new Error(
         `Failed to create date with timezone (${timezone}): ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`
       )
@@ -220,34 +220,34 @@ export function generateCronExpression(
   scheduleValues: ReturnType<typeof getScheduleTimeValues>
 ): string {
   switch (scheduleType) {
-    case "minutes":
+    case 'minutes':
       return `*/${scheduleValues.minutesInterval} * * * *`
 
-    case "hourly":
+    case 'hourly':
       return `${scheduleValues.hourlyMinute} * * * *`
 
-    case "daily": {
+    case 'daily': {
       const [hours, minutes] = scheduleValues.dailyTime
       return `${minutes} ${hours} * * *`
     }
 
-    case "weekly": {
+    case 'weekly': {
       const [hours, minutes] = scheduleValues.weeklyTime
       return `${minutes} ${hours} * * ${scheduleValues.weeklyDay}`
     }
 
-    case "monthly": {
+    case 'monthly': {
       const [hours, minutes] = scheduleValues.monthlyTime
       return `${minutes} ${hours} ${scheduleValues.monthlyDay} * *`
     }
 
-    case "custom": {
+    case 'custom': {
       const cronExpression = getSubBlockValue(
         scheduleValues as unknown as BlockState,
-        "cronExpression"
+        'cronExpression'
       )
       if (!cronExpression) {
-        throw new Error("No cron expression provided for custom schedule")
+        throw new Error('No cron expression provided for custom schedule')
       }
       return cronExpression
     }
@@ -270,7 +270,7 @@ export function calculateNextRunTime(
   lastRanAt?: Date | null
 ): Date {
   // Get timezone (default to UTC)
-  const timezone = scheduleValues.timezone || "UTC"
+  const timezone = scheduleValues.timezone || 'UTC'
 
   // Get the current time
   const baseDate = new Date()
@@ -295,7 +295,7 @@ export function calculateNextRunTime(
         return combinedDate
       }
     } catch (e) {
-      logger.error("Error combining scheduled date and time:", e)
+      logger.error('Error combining scheduled date and time:', e)
     }
   }
   // If only scheduleStartAt is set (without scheduleTime), parse it directly
@@ -304,14 +304,14 @@ export function calculateNextRunTime(
       // Check if the date string already includes time information
       const startAtStr = scheduleValues.scheduleStartAt
       const hasTimeComponent =
-        startAtStr.includes("T") && (startAtStr.includes(":") || startAtStr.includes("."))
+        startAtStr.includes('T') && (startAtStr.includes(':') || startAtStr.includes('.'))
 
       if (hasTimeComponent) {
         // If the string already has time info, parse it directly but with timezone awareness
         const startDate = new Date(startAtStr)
 
         // If it's a UTC ISO string (ends with Z), use it directly
-        if (startAtStr.endsWith("Z") && timezone === "UTC") {
+        if (startAtStr.endsWith('Z') && timezone === 'UTC') {
           if (startDate > baseDate) {
             return startDate
           }
@@ -319,11 +319,11 @@ export function calculateNextRunTime(
           // For non-UTC dates or when timezone isn't UTC, we need to interpret it in the specified timezone
           // Extract time from the date string (crude but effective for ISO format)
           const timeMatch = startAtStr.match(/T(\d{2}:\d{2})/)
-          const timeStr = timeMatch ? timeMatch[1] : "00:00"
+          const timeStr = timeMatch ? timeMatch[1] : '00:00'
 
           // Use our timezone-aware function with the extracted time
           const tzAwareDate = createDateWithTimezone(
-            startAtStr.split("T")[0], // Just the date part
+            startAtStr.split('T')[0], // Just the date part
             timeStr, // Time extracted from string
             timezone
           )
@@ -336,7 +336,7 @@ export function calculateNextRunTime(
         // If no time component in the string, use midnight in the specified timezone
         const startDate = createDateWithTimezone(
           scheduleValues.scheduleStartAt,
-          "00:00", // Use midnight in the specified timezone
+          '00:00', // Use midnight in the specified timezone
           timezone
         )
 
@@ -345,7 +345,7 @@ export function calculateNextRunTime(
         }
       }
     } catch (e) {
-      logger.error("Error parsing scheduleStartAt:", e)
+      logger.error('Error parsing scheduleStartAt:', e)
     }
   }
 
@@ -358,7 +358,7 @@ export function calculateNextRunTime(
   const nextRun = new Date(baseDate)
 
   switch (scheduleType) {
-    case "minutes": {
+    case 'minutes': {
       const { minutesInterval } = scheduleValues
 
       // If we have a time override, use it
@@ -400,7 +400,7 @@ export function calculateNextRunTime(
       return nextRun
     }
 
-    case "hourly": {
+    case 'hourly': {
       // Use the override time if available, otherwise use hourly config
       const [targetHours, _] = scheduleTimeOverride || [nextRun.getHours(), 0]
       const targetMinutes = scheduleValues.hourlyMinute
@@ -415,7 +415,7 @@ export function calculateNextRunTime(
       return nextRun
     }
 
-    case "daily": {
+    case 'daily': {
       // Use either schedule override or daily time values
       const [hours, minutes] = scheduleTimeOverride || scheduleValues.dailyTime
 
@@ -429,7 +429,7 @@ export function calculateNextRunTime(
       return nextRun
     }
 
-    case "weekly": {
+    case 'weekly': {
       // Use either schedule override or weekly time values
       const [hours, minutes] = scheduleTimeOverride || scheduleValues.weeklyTime
 
@@ -443,7 +443,7 @@ export function calculateNextRunTime(
       return nextRun
     }
 
-    case "monthly": {
+    case 'monthly': {
       // Use either schedule override or monthly time values
       const [hours, minutes] = scheduleTimeOverride || scheduleValues.monthlyTime
       const { monthlyDay } = scheduleValues
@@ -469,16 +469,16 @@ export function calculateNextRunTime(
  */
 export const parseCronToHumanReadable = (cronExpression: string): string => {
   // Parse the cron parts
-  const parts = cronExpression.split(" ")
+  const parts = cronExpression.split(' ')
 
   // Handle standard patterns
-  if (cronExpression === "* * * * *") {
-    return "Every minute"
+  if (cronExpression === '* * * * *') {
+    return 'Every minute'
   }
 
   // Every X minutes
   if (cronExpression.match(/^\*\/\d+ \* \* \* \*$/)) {
-    const minutes = cronExpression.split(" ")[0].split("/")[1]
+    const minutes = cronExpression.split(' ')[0].split('/')[1]
     return `Every ${minutes} minutes`
   }
 
@@ -486,9 +486,9 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
   if (cronExpression.match(/^\d+ \d+ \* \* \*$/)) {
     const minute = Number.parseInt(parts[0], 10)
     const hour = Number.parseInt(parts[1], 10)
-    const period = hour >= 12 ? "PM" : "AM"
+    const period = hour >= 12 ? 'PM' : 'AM'
     const hour12 = hour % 12 || 12
-    return `Daily at ${hour12}:${minute.toString().padStart(2, "0")} ${period}`
+    return `Daily at ${hour12}:${minute.toString().padStart(2, '0')} ${period}`
   }
 
   // Every hour at specific minute
@@ -502,11 +502,11 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
     const minute = Number.parseInt(parts[0], 10)
     const hour = Number.parseInt(parts[1], 10)
     const dayOfWeek = Number.parseInt(parts[4], 10)
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const day = days[dayOfWeek % 7]
-    const period = hour >= 12 ? "PM" : "AM"
+    const period = hour >= 12 ? 'PM' : 'AM'
     const hour12 = hour % 12 || 12
-    return `Every ${day} at ${hour12}:${minute.toString().padStart(2, "0")} ${period}`
+    return `Every ${day} at ${hour12}:${minute.toString().padStart(2, '0')} ${period}`
   }
 
   // Specific day of month at specific time
@@ -514,17 +514,17 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
     const minute = Number.parseInt(parts[0], 10)
     const hour = Number.parseInt(parts[1], 10)
     const dayOfMonth = parts[2]
-    const period = hour >= 12 ? "PM" : "AM"
+    const period = hour >= 12 ? 'PM' : 'AM'
     const hour12 = hour % 12 || 12
     const day =
-      dayOfMonth === "1"
-        ? "1st"
-        : dayOfMonth === "2"
-          ? "2nd"
-          : dayOfMonth === "3"
-            ? "3rd"
+      dayOfMonth === '1'
+        ? '1st'
+        : dayOfMonth === '2'
+          ? '2nd'
+          : dayOfMonth === '3'
+            ? '3rd'
             : `${dayOfMonth}th`
-    return `Monthly on the ${day} at ${hour12}:${minute.toString().padStart(2, "0")} ${period}`
+    return `Monthly on the ${day} at ${hour12}:${minute.toString().padStart(2, '0')} ${period}`
   }
 
   // Weekly at specific time
@@ -532,60 +532,60 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
     const minute = Number.parseInt(parts[0], 10)
     const hour = Number.parseInt(parts[1], 10)
     const dayOfWeek = Number.parseInt(parts[4], 10)
-    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const day = days[dayOfWeek % 7]
-    const period = hour >= 12 ? "PM" : "AM"
+    const period = hour >= 12 ? 'PM' : 'AM'
     const hour12 = hour % 12 || 12
-    return `Weekly on ${day} at ${hour12}:${minute.toString().padStart(2, "0")} ${period}`
+    return `Weekly on ${day} at ${hour12}:${minute.toString().padStart(2, '0')} ${period}`
   }
 
   // Return a more detailed breakdown if none of the patterns match
   try {
     const [minute, hour, dayOfMonth, month, dayOfWeek] = parts
-    let description = "Runs "
+    let description = 'Runs '
 
     // Time component
-    if (minute === "*" && hour === "*") {
-      description += "every minute "
-    } else if (minute.includes("/") && hour === "*") {
-      const interval = minute.split("/")[1]
+    if (minute === '*' && hour === '*') {
+      description += 'every minute '
+    } else if (minute.includes('/') && hour === '*') {
+      const interval = minute.split('/')[1]
       description += `every ${interval} minutes `
-    } else if (minute !== "*" && hour !== "*") {
+    } else if (minute !== '*' && hour !== '*') {
       const hourVal = Number.parseInt(hour, 10)
-      const period = hourVal >= 12 ? "PM" : "AM"
+      const period = hourVal >= 12 ? 'PM' : 'AM'
       const hour12 = hourVal % 12 || 12
-      description += `at ${hour12}:${minute.padStart(2, "0")} ${period} `
+      description += `at ${hour12}:${minute.padStart(2, '0')} ${period} `
     }
 
     // Day component
-    if (dayOfMonth !== "*" && month !== "*") {
+    if (dayOfMonth !== '*' && month !== '*') {
       const months = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
       ]
-      if (month.includes(",")) {
-        const monthNames = month.split(",").map((m) => months[Number.parseInt(m, 10) - 1])
-        description += `on day ${dayOfMonth} of ${monthNames.join(", ")}`
+      if (month.includes(',')) {
+        const monthNames = month.split(',').map((m) => months[Number.parseInt(m, 10) - 1])
+        description += `on day ${dayOfMonth} of ${monthNames.join(', ')}`
       } else {
         description += `on day ${dayOfMonth} of ${months[Number.parseInt(month, 10) - 1]}`
       }
-    } else if (dayOfWeek !== "*") {
-      const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-      if (dayOfWeek.includes(",")) {
-        const dayNames = dayOfWeek.split(",").map((d) => days[Number.parseInt(d, 10) % 7])
-        description += `on ${dayNames.join(", ")}`
-      } else if (dayOfWeek.includes("-")) {
-        const [start, end] = dayOfWeek.split("-").map((d) => Number.parseInt(d, 10) % 7)
+    } else if (dayOfWeek !== '*') {
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+      if (dayOfWeek.includes(',')) {
+        const dayNames = dayOfWeek.split(',').map((d) => days[Number.parseInt(d, 10) % 7])
+        description += `on ${dayNames.join(', ')}`
+      } else if (dayOfWeek.includes('-')) {
+        const [start, end] = dayOfWeek.split('-').map((d) => Number.parseInt(d, 10) % 7)
         description += `from ${days[start]} to ${days[end]}`
       } else {
         description += `on ${days[Number.parseInt(dayOfWeek, 10) % 7]}`
@@ -613,13 +613,13 @@ export const getScheduleInfo = (
 } => {
   if (!nextRunAt) {
     return {
-      scheduleTiming: "Unknown schedule",
+      scheduleTiming: 'Unknown schedule',
       nextRunFormatted: null,
       lastRunFormatted: null,
     }
   }
 
-  let scheduleTiming = "Unknown schedule"
+  let scheduleTiming = 'Unknown schedule'
 
   if (cronExpression) {
     scheduleTiming = parseCronToHumanReadable(cronExpression)

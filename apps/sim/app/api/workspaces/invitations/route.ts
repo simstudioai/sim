@@ -1,18 +1,18 @@
-import { randomUUID } from "node:crypto"
-import { WorkspaceInvitationEmail } from "@/components/emails/workspace-invitation"
-import { db } from "@/db"
-import { user, workspace, workspaceInvitation, workspaceMember } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { env } from "@/lib/env"
-import { createLogger } from "@/lib/logs/console-logger"
-import { render } from "@react-email/render"
-import { and, eq, inArray } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
-import { Resend } from "resend"
+import { randomUUID } from 'node:crypto'
+import { WorkspaceInvitationEmail } from '@/components/emails/workspace-invitation'
+import { db } from '@/db'
+import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
+import { render } from '@react-email/render'
+import { and, eq, inArray } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { Resend } from 'resend'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = createLogger("WorkspaceInvitationsAPI")
+const logger = createLogger('WorkspaceInvitationsAPI')
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
 
 // Get all invitations for the user's workspaces
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
@@ -51,8 +51,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ invitations })
   } catch (error) {
-    console.error("Error fetching workspace invitations:", error)
-    return NextResponse.json({ error: "Failed to fetch invitations" }, { status: 500 })
+    console.error('Error fetching workspace invitations:', error)
+    return NextResponse.json({ error: 'Failed to fetch invitations' }, { status: 500 })
   }
 }
 
@@ -61,14 +61,14 @@ export async function POST(req: NextRequest) {
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
-    const { workspaceId, email, role = "member" } = await req.json()
+    const { workspaceId, email, role = 'member' } = await req.json()
 
     if (!workspaceId || !email) {
-      return NextResponse.json({ error: "Workspace ID and email are required" }, { status: 400 })
+      return NextResponse.json({ error: 'Workspace ID and email are required' }, { status: 400 })
     }
 
     // Check if user is authorized to invite to this workspace (must be owner)
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       .then((rows) => rows[0])
 
     if (!membership) {
-      return NextResponse.json({ error: "You are not a member of this workspace" }, { status: 403 })
+      return NextResponse.json({ error: 'You are not a member of this workspace' }, { status: 403 })
     }
 
     // Get the workspace details for the email
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
       .then((rows) => rows[0])
 
     if (!workspaceDetails) {
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
     // Check if the user is already a member
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
         and(
           eq(workspaceInvitation.workspaceId, workspaceId),
           eq(workspaceInvitation.email, email),
-          eq(workspaceInvitation.status, "pending")
+          eq(workspaceInvitation.status, 'pending')
         )
       )
       .then((rows) => rows[0])
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
         email,
         inviterId: session.user.id,
         role,
-        status: "pending",
+        status: 'pending',
         token,
         expiresAt,
         createdAt: new Date(),
@@ -179,15 +179,15 @@ export async function POST(req: NextRequest) {
     // Send the invitation email
     await sendInvitationEmail({
       to: email,
-      inviterName: session.user.name || session.user.email || "A user",
+      inviterName: session.user.name || session.user.email || 'A user',
       workspaceName: workspaceDetails.name,
       token: token,
     })
 
     return NextResponse.json({ success: true, invitation })
   } catch (error) {
-    console.error("Error creating workspace invitation:", error)
-    return NextResponse.json({ error: "Failed to create invitation" }, { status: 500 })
+    console.error('Error creating workspace invitation:', error)
+    return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 })
   }
 }
 
@@ -204,7 +204,7 @@ async function sendInvitationEmail({
   token: string
 }) {
   try {
-    const baseUrl = env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
+    const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
     // Always use the client-side invite route with token parameter
     const invitationLink = `${baseUrl}/invite/${token}?token=${token}`
 
@@ -217,18 +217,18 @@ async function sendInvitationEmail({
     )
 
     if (!resend) {
-      logger.error("RESEND_API_KEY not configured")
+      logger.error('RESEND_API_KEY not configured')
       return NextResponse.json(
         {
           error:
-            "Email service not configured. Please set RESEND_API_KEY in environment variables.",
+            'Email service not configured. Please set RESEND_API_KEY in environment variables.',
         },
         { status: 500 }
       )
     }
 
     await resend.emails.send({
-      from: "noreply@simstudio.ai",
+      from: 'noreply@simstudio.ai',
       to,
       subject: `You've been invited to join "${workspaceName}" on Sim Studio`,
       html: emailHtml,
@@ -236,7 +236,7 @@ async function sendInvitationEmail({
 
     console.log(`Invitation email sent to ${to}`)
   } catch (error) {
-    console.error("Error sending invitation email:", error)
+    console.error('Error sending invitation email:', error)
     // Continue even if email fails - the invitation is still created
   }
 }

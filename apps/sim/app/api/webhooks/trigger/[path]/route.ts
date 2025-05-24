@@ -1,8 +1,8 @@
-import { db } from "@/db"
-import { webhook, workflow } from "@/db/schema"
-import { createLogger } from "@/lib/logs/console-logger"
-import { acquireLock, hasProcessedMessage, markMessageAsProcessed } from "@/lib/redis"
-import { checkServerSideUsageLimits } from "@/lib/usage-monitor"
+import { db } from '@/db'
+import { webhook, workflow } from '@/db/schema'
+import { createLogger } from '@/lib/logs/console-logger'
+import { acquireLock, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
+import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import {
   fetchAndProcessAirtablePayloads,
   handleSlackChallenge,
@@ -10,14 +10,14 @@ import {
   processGenericDeduplication,
   processWebhook,
   processWhatsAppDeduplication,
-} from "@/lib/webhooks/utils"
-import { and, eq, sql } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
-import { v4 as uuidv4 } from "uuid"
+} from '@/lib/webhooks/utils'
+import { and, eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 
-const logger = createLogger("WebhookTriggerAPI")
+const logger = createLogger('WebhookTriggerAPI')
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
 const activeProcessingTasks = new Map<string, Promise<any>>()
@@ -35,9 +35,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const url = new URL(request.url)
 
     // Handle WhatsApp specific verification challenge
-    const mode = url.searchParams.get("hub.mode")
-    const token = url.searchParams.get("hub.verify_token")
-    const challenge = url.searchParams.get("hub.challenge")
+    const mode = url.searchParams.get('hub.mode')
+    const token = url.searchParams.get('hub.verify_token')
+    const challenge = url.searchParams.get('hub.challenge')
 
     const whatsAppResponse = await handleWhatsAppVerification(
       requestId,
@@ -61,11 +61,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (webhooks.length === 0) {
       logger.warn(`[${requestId}] No active webhook found for path: ${path}`)
-      return new NextResponse("Webhook not found", { status: 404 })
+      return new NextResponse('Webhook not found', { status: 404 })
     }
 
     logger.info(`[${requestId}] Webhook verification successful for path: ${path}`)
-    return new NextResponse("OK", { status: 200 })
+    return new NextResponse('OK', { status: 200 })
   } catch (error: any) {
     logger.error(`[${requestId}] Error processing webhook verification`, error)
     return new NextResponse(`Internal Server Error: ${error.message}`, {
@@ -96,13 +96,13 @@ export async function POST(
 
     if (!rawBody || rawBody.length === 0) {
       logger.warn(`[${requestId}] Rejecting request with empty body`)
-      return new NextResponse("Empty request body", { status: 400 })
+      return new NextResponse('Empty request body', { status: 400 })
     }
   } catch (bodyError) {
     logger.error(`[${requestId}] Failed to read request body`, {
       error: bodyError instanceof Error ? bodyError.message : String(bodyError),
     })
-    return new NextResponse("Failed to read request body", { status: 400 })
+    return new NextResponse('Failed to read request body', { status: 400 })
   }
 
   // Parse the body as JSON
@@ -112,28 +112,28 @@ export async function POST(
 
     if (Object.keys(body).length === 0) {
       logger.warn(`[${requestId}] Rejecting empty JSON object`)
-      return new NextResponse("Empty JSON payload", { status: 400 })
+      return new NextResponse('Empty JSON payload', { status: 400 })
     }
   } catch (parseError) {
     logger.error(`[${requestId}] Failed to parse JSON body`, {
       error: parseError instanceof Error ? parseError.message : String(parseError),
     })
-    return new NextResponse("Invalid JSON payload", { status: 400 })
+    return new NextResponse('Invalid JSON payload', { status: 400 })
   }
 
   // --- PHASE 2: Early Slack deduplication handling ---
   const messageId = body?.event_id
 
-  if (body?.type === "event_callback") {
+  if (body?.type === 'event_callback') {
     const dedupeKey = messageId
       ? `slack:msg:${messageId}`
-      : `slack:${body?.team_id || ""}:${body?.event?.ts || body?.event?.event_ts || Date.now()}`
+      : `slack:${body?.team_id || ''}:${body?.event?.ts || body?.event?.event_ts || Date.now()}`
 
     try {
       const isDuplicate = await hasProcessedMessage(dedupeKey)
       if (isDuplicate) {
         logger.info(`[${requestId}] Duplicate Slack message detected: ${dedupeKey}`)
-        return new NextResponse("Duplicate message", { status: 200 })
+        return new NextResponse('Duplicate message', { status: 200 })
       }
 
       await markMessageAsProcessed(dedupeKey, 60 * 60 * 24) // 24 hour TTL
@@ -147,11 +147,11 @@ export async function POST(
   let hasExecutionLock = false
   let executionLockKey: string
 
-  if (body?.type === "event_callback") {
+  if (body?.type === 'event_callback') {
     // For Slack events, use message-specific lock key
     executionLockKey = messageId
       ? `execution:lock:slack:${messageId}`
-      : `execution:lock:slack:${body?.team_id || ""}:${body?.event?.ts || body?.event?.event_ts || Date.now()}`
+      : `execution:lock:slack:${body?.team_id || ''}:${body?.event?.ts || body?.event?.event_ts || Date.now()}`
   } else {
     // Default fallback for other providers
     executionLockKey = `execution:lock:${requestId}:${crypto.randomUUID()}`
@@ -181,29 +181,29 @@ export async function POST(
 
   if (webhooks.length === 0) {
     logger.warn(`[${requestId}] No active webhook found for path: ${path}`)
-    return new NextResponse("Webhook not found", { status: 404 })
+    return new NextResponse('Webhook not found', { status: 404 })
   }
 
   foundWebhook = webhooks[0].webhook
   foundWorkflow = webhooks[0].workflow
 
   // Special handling for Telegram webhooks to work around middleware User-Agent checks
-  if (foundWebhook.provider === "telegram") {
+  if (foundWebhook.provider === 'telegram') {
     // Log detailed information about the request for debugging
-    const userAgent = request.headers.get("user-agent") || "empty"
+    const userAgent = request.headers.get('user-agent') || 'empty'
     logger.info(`[${requestId}] Received Telegram webhook request:`, {
       userAgent,
       path,
       clientIp:
-        request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown",
+        request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
       method: request.method,
-      contentType: request.headers.get("content-type"),
+      contentType: request.headers.get('content-type'),
       hasUpdate: !!body?.update_id,
     })
 
     // Ensure User-Agent headers for Telegram in future requests from the bot
     // We can't modify the incoming request, but we can recommend adding it for future setup
-    if (!userAgent || userAgent === "empty") {
+    if (!userAgent || userAgent === 'empty') {
       logger.warn(
         `[${requestId}] Telegram webhook request missing User-Agent header. Recommend reconfiguring webhook with 'TelegramBot/1.0' User-Agent.`
       )
@@ -211,12 +211,12 @@ export async function POST(
   }
 
   // Detect provider type
-  const isAirtableWebhook = foundWebhook.provider === "airtable"
-  const isGmailWebhook = foundWebhook.provider === "gmail"
+  const isAirtableWebhook = foundWebhook.provider === 'airtable'
+  const isGmailWebhook = foundWebhook.provider === 'gmail'
 
   // Handle Slack challenge verification (must be done before timeout)
   const slackChallengeResponse =
-    body?.type === "url_verification" ? handleSlackChallenge(body) : null
+    body?.type === 'url_verification' ? handleSlackChallenge(body) : null
   if (slackChallengeResponse) {
     logger.info(`[${requestId}] Responding to Slack URL verification challenge`)
     return slackChallengeResponse
@@ -225,7 +225,7 @@ export async function POST(
   // Skip processing if another instance is already handling this request
   if (!hasExecutionLock) {
     logger.info(`[${requestId}] Skipping execution as lock was not acquired`)
-    return new NextResponse("Request is being processed by another instance", { status: 200 })
+    return new NextResponse('Request is being processed by another instance', { status: 200 })
   }
 
   // --- PHASE 5: Provider-specific processing ---
@@ -257,7 +257,7 @@ export async function POST(
             logger.info(
               `[${requestId}] Duplicate Airtable notification detected: ${notificationId}`
             )
-            return new NextResponse("Notification already processed", { status: 200 })
+            return new NextResponse('Notification already processed', { status: 200 })
           }
 
           // Store notification ID for deduplication
@@ -290,7 +290,7 @@ export async function POST(
       try {
         logger.info(`[${requestId}] Starting Airtable payload processing`)
         await fetchAndProcessAirtablePayloads(foundWebhook, foundWorkflow, requestId)
-        return new NextResponse("Airtable ping processed successfully", { status: 200 })
+        return new NextResponse('Airtable ping processed successfully', { status: 200 })
       } catch (error: any) {
         logger.error(`[${requestId}] Error during Airtable processing`, {
           error: error.message,
@@ -312,10 +312,10 @@ export async function POST(
 
       const webhookSecret = foundWebhook.secret
       if (webhookSecret) {
-        const secretHeader = request.headers.get("X-Webhook-Secret")
+        const secretHeader = request.headers.get('X-Webhook-Secret')
         if (secretHeader !== webhookSecret) {
           logger.warn(`[${requestId}] Invalid webhook secret`)
-          return new NextResponse("Unauthorized", { status: 401 })
+          return new NextResponse('Unauthorized', { status: 401 })
         }
       }
 
@@ -323,8 +323,8 @@ export async function POST(
         logger.info(`[${requestId}] Processing Gmail email`, {
           emailId: body.email.id,
           subject:
-            body.email?.payload?.headers?.find((h: any) => h.name === "Subject")?.value ||
-            "No subject",
+            body.email?.payload?.headers?.find((h: any) => h.name === 'Subject')?.value ||
+            'No subject',
         })
 
         const executionId = uuidv4()
@@ -340,7 +340,7 @@ export async function POST(
         )
       }
       logger.warn(`[${requestId}] Invalid Gmail webhook payload format`)
-      return new NextResponse("Invalid payload format", { status: 400 })
+      return new NextResponse('Invalid payload format', { status: 400 })
     } catch (error: any) {
       logger.error(`[${requestId}] Error processing Gmail webhook`, error)
       return new NextResponse(`Internal server error: ${error.message}`, { status: 500 })
@@ -354,7 +354,7 @@ export async function POST(
   const timeoutPromise = new Promise<NextResponse>((resolve) => {
     setTimeout(() => {
       logger.info(`[${requestId}] Fast response timeout activated`)
-      resolve(new NextResponse("Request received", { status: 200 }))
+      resolve(new NextResponse('Request received', { status: 200 }))
     }, timeoutDuration)
   })
 
@@ -362,7 +362,7 @@ export async function POST(
   const processingPromise = (async () => {
     try {
       // Provider-specific deduplication
-      if (foundWebhook.provider === "whatsapp") {
+      if (foundWebhook.provider === 'whatsapp') {
         const data = body?.entry?.[0]?.changes?.[0]?.value
         const messages = data?.messages || []
 
@@ -370,7 +370,7 @@ export async function POST(
         if (whatsappDuplicateResponse) {
           return whatsappDuplicateResponse
         }
-      } else if (foundWebhook.provider !== "slack") {
+      } else if (foundWebhook.provider !== 'slack') {
         const genericDuplicateResponse = await processGenericDeduplication(requestId, path, body)
         if (genericDuplicateResponse) {
           return genericDuplicateResponse
@@ -392,14 +392,14 @@ export async function POST(
         // Return a successful response to avoid webhook retries, but don't execute the workflow
         return new NextResponse(
           JSON.stringify({
-            status: "error",
+            status: 'error',
             message:
               usageCheck.message ||
-              "Usage limit exceeded. Please upgrade your plan to continue using webhooks.",
+              'Usage limit exceeded. Please upgrade your plan to continue using webhooks.',
           }),
           {
             status: 200, // Use 200 to prevent webhook provider retries
-            headers: { "Content-Type": "application/json" },
+            headers: { 'Content-Type': 'application/json' },
           }
         )
       }

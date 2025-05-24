@@ -1,19 +1,19 @@
-import { getBlock } from "@/blocks"
-import { resolveOutputType } from "@/blocks/utils"
-import { createLogger } from "@/lib/logs/console-logger"
-import type { Edge } from "reactflow"
-import { create } from "zustand"
-import { devtools } from "zustand/middleware"
-import { type WorkflowStoreWithHistory, pushHistory, withHistory } from "../middleware"
-import { saveWorkflowState } from "../persistence"
-import { useWorkflowRegistry } from "../registry/store"
-import { useSubBlockStore } from "../subblock/store"
-import { markWorkflowsDirty, workflowSync } from "../sync"
-import { mergeSubblockState } from "../utils"
-import type { Loop, Position, SubBlockState, SyncControl, WorkflowState } from "./types"
-import { detectCycle } from "./utils"
+import { getBlock } from '@/blocks'
+import { resolveOutputType } from '@/blocks/utils'
+import { createLogger } from '@/lib/logs/console-logger'
+import type { Edge } from 'reactflow'
+import { create } from 'zustand'
+import { devtools } from 'zustand/middleware'
+import { type WorkflowStoreWithHistory, pushHistory, withHistory } from '../middleware'
+import { saveWorkflowState } from '../persistence'
+import { useWorkflowRegistry } from '../registry/store'
+import { useSubBlockStore } from '../subblock/store'
+import { markWorkflowsDirty, workflowSync } from '../sync'
+import { mergeSubblockState } from '../utils'
+import type { Loop, Position, SubBlockState, SyncControl, WorkflowState } from './types'
+import { detectCycle } from './utils'
 
-const logger = createLogger("WorkflowStore")
+const logger = createLogger('WorkflowStore')
 
 const initialState = {
   blocks: {},
@@ -33,7 +33,7 @@ const initialState = {
     present: {
       state: { blocks: {}, edges: [], loops: {}, isDeployed: false, isPublished: false },
       timestamp: Date.now(),
-      action: "Initial state",
+      action: 'Initial state',
       subblockValues: {},
     },
     future: [],
@@ -192,7 +192,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         delete newState.blocks[id]
 
         set(newState)
-        pushHistory(set, get, newState, "Remove block")
+        pushHistory(set, get, newState, 'Remove block')
         get().updateLastSaved()
         get().sync.markDirty()
         get().sync.forceSync()
@@ -234,14 +234,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           const { paths } = detectCycle(newEdges, node)
           paths.forEach((path) => {
             // Create a canonical path representation for deduplication
-            const canonicalPath = [...path].sort().join(",")
+            const canonicalPath = [...path].sort().join(',')
             if (!processedPaths.has(canonicalPath)) {
               processedPaths.add(canonicalPath)
 
               // Check if this path matches an existing loop
               let existingLoop: Loop | undefined
               Object.values(existingLoops).forEach((loop) => {
-                const loopCanonicalPath = [...loop.nodes].sort().join(",")
+                const loopCanonicalPath = [...loop.nodes].sort().join(',')
                 if (loopCanonicalPath === canonicalPath) {
                   existingLoop = loop
                 }
@@ -260,8 +260,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                   id: loopId,
                   nodes: path,
                   iterations: 5,
-                  loopType: "for",
-                  forEachItems: "",
+                  loopType: 'for',
+                  forEachItems: '',
                 }
               }
             }
@@ -275,7 +275,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, "Add connection")
+        pushHistory(set, get, newState, 'Add connection')
         get().updateLastSaved()
         get().sync.markDirty()
         get().sync.forceSync()
@@ -295,14 +295,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           const { paths } = detectCycle(newEdges, node)
           paths.forEach((path) => {
             // Create a canonical path representation for deduplication
-            const canonicalPath = [...path].sort().join(",")
+            const canonicalPath = [...path].sort().join(',')
             if (!processedPaths.has(canonicalPath)) {
               processedPaths.add(canonicalPath)
 
               // Check if this path matches an existing loop
               let existingLoop: Loop | undefined
               Object.values(existingLoops).forEach((loop) => {
-                const loopCanonicalPath = [...loop.nodes].sort().join(",")
+                const loopCanonicalPath = [...loop.nodes].sort().join(',')
                 if (loopCanonicalPath === canonicalPath) {
                   existingLoop = loop
                 }
@@ -321,8 +321,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                   id: loopId,
                   nodes: path,
                   iterations: 5,
-                  loopType: "for",
-                  forEachItems: "",
+                  loopType: 'for',
+                  forEachItems: '',
                 }
               }
             }
@@ -336,7 +336,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, "Remove connection")
+        pushHistory(set, get, newState, 'Remove connection')
         get().updateLastSaved()
         get().sync.markDirty()
         get().sync.forceSync()
@@ -358,7 +358,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 isPublished: false,
               },
               timestamp: Date.now(),
-              action: "Initial state",
+              action: 'Initial state',
               subblockValues: {},
             },
             future: [],
@@ -539,9 +539,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
             // Loop through subblocks and update references
             Object.entries(blockValues).forEach(([subBlockId, value]) => {
-              const oldBlockName = oldBlock.name.replace(/\s+/g, "").toLowerCase()
-              const newBlockName = name.replace(/\s+/g, "").toLowerCase()
-              const regex = new RegExp(`<${oldBlockName}\\.`, "g")
+              const oldBlockName = oldBlock.name.replace(/\s+/g, '').toLowerCase()
+              const newBlockName = name.replace(/\s+/g, '').toLowerCase()
+              const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
 
               // Use a recursive function to handle all object types
               updatedWorkflowValues[blockId][subBlockId] = updateReferences(
@@ -553,7 +553,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               // Helper function to recursively update references in any data structure
               function updateReferences(value: any, regex: RegExp, replacement: string): any {
                 // Handle string values
-                if (typeof value === "string") {
+                if (typeof value === 'string') {
                   return regex.test(value) ? value.replace(regex, replacement) : value
                 }
 
@@ -563,7 +563,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 }
 
                 // Handle objects
-                if (value !== null && typeof value === "object") {
+                if (value !== null && typeof value === 'object') {
                   const result = { ...value }
                   for (const key in result) {
                     result[key] = updateReferences(result[key], regex, replacement)
@@ -639,13 +639,13 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, "Update loop iterations")
+        pushHistory(set, get, newState, 'Update loop iterations')
         get().updateLastSaved()
         get().sync.markDirty()
         get().sync.forceSync()
       },
 
-      updateLoopType: (loopId: string, loopType: Loop["loopType"]) => {
+      updateLoopType: (loopId: string, loopType: Loop['loopType']) => {
         const newState = {
           blocks: { ...get().blocks },
           edges: [...get().edges],
@@ -659,7 +659,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, "Update loop type")
+        pushHistory(set, get, newState, 'Update loop type')
         get().updateLastSaved()
         get().sync.markDirty()
         get().sync.forceSync()
@@ -679,7 +679,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        pushHistory(set, get, newState, "Update forEach items")
+        pushHistory(set, get, newState, 'Update forEach items')
         get().updateLastSaved()
         get().sync.markDirty()
         get().sync.forceSync()
@@ -770,13 +770,13 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         // Check if there's an active webhook in the deployed state
         const starterBlock = Object.values(deployedState.blocks).find(
-          (block) => block.type === "starter"
+          (block) => block.type === 'starter'
         )
-        if (starterBlock && starterBlock.subBlocks?.startWorkflow?.value === "webhook") {
+        if (starterBlock && starterBlock.subBlocks?.startWorkflow?.value === 'webhook') {
           set({ hasActiveWebhook: true })
         }
 
-        pushHistory(set, get, newState, "Reverted to deployed state")
+        pushHistory(set, get, newState, 'Reverted to deployed state')
         get().updateLastSaved()
         get().sync.markDirty()
         get().sync.forceSync()
@@ -833,6 +833,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().sync.forceSync()
       },
     })),
-    { name: "workflow-store" }
+    { name: 'workflow-store' }
   )
 )

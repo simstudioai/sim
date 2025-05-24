@@ -1,11 +1,11 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto"
-import { createLogger } from "@/lib/logs/console-logger"
-import { type ClassValue, clsx } from "clsx"
-import { nanoid } from "nanoid"
-import { twMerge } from "tailwind-merge"
-import { env } from "./env"
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createLogger } from '@/lib/logs/console-logger'
+import { type ClassValue, clsx } from 'clsx'
+import { nanoid } from 'nanoid'
+import { twMerge } from 'tailwind-merge'
+import { env } from './env'
 
-const logger = createLogger("Utils")
+const logger = createLogger('Utils')
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -14,9 +14,9 @@ export function cn(...inputs: ClassValue[]) {
 function getEncryptionKey(): Buffer {
   const key = env.ENCRYPTION_KEY
   if (!key || key.length !== 64) {
-    throw new Error("ENCRYPTION_KEY must be set to a 64-character hex string (32 bytes)")
+    throw new Error('ENCRYPTION_KEY must be set to a 64-character hex string (32 bytes)')
   }
-  return Buffer.from(key, "hex")
+  return Buffer.from(key, 'hex')
 }
 
 /**
@@ -28,16 +28,16 @@ export async function encryptSecret(secret: string): Promise<{ encrypted: string
   const iv = randomBytes(16)
   const key = getEncryptionKey()
 
-  const cipher = createCipheriv("aes-256-gcm", key, iv)
-  let encrypted = cipher.update(secret, "utf8", "hex")
-  encrypted += cipher.final("hex")
+  const cipher = createCipheriv('aes-256-gcm', key, iv)
+  let encrypted = cipher.update(secret, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
 
   const authTag = cipher.getAuthTag()
 
   // Format: iv:encrypted:authTag
   return {
-    encrypted: `${iv.toString("hex")}:${encrypted}:${authTag.toString("hex")}`,
-    iv: iv.toString("hex"),
+    encrypted: `${iv.toString('hex')}:${encrypted}:${authTag.toString('hex')}`,
+    iv: iv.toString('hex'),
   }
 }
 
@@ -47,29 +47,29 @@ export async function encryptSecret(secret: string): Promise<{ encrypted: string
  * @returns A promise that resolves to an object containing the decrypted secret
  */
 export async function decryptSecret(encryptedValue: string): Promise<{ decrypted: string }> {
-  const parts = encryptedValue.split(":")
+  const parts = encryptedValue.split(':')
   const ivHex = parts[0]
   const authTagHex = parts[parts.length - 1]
-  const encrypted = parts.slice(1, -1).join(":")
+  const encrypted = parts.slice(1, -1).join(':')
 
   if (!ivHex || !encrypted || !authTagHex) {
     throw new Error('Invalid encrypted value format. Expected "iv:encrypted:authTag"')
   }
 
   const key = getEncryptionKey()
-  const iv = Buffer.from(ivHex, "hex")
-  const authTag = Buffer.from(authTagHex, "hex")
+  const iv = Buffer.from(ivHex, 'hex')
+  const authTag = Buffer.from(authTagHex, 'hex')
 
   try {
-    const decipher = createDecipheriv("aes-256-gcm", key, iv)
+    const decipher = createDecipheriv('aes-256-gcm', key, iv)
     decipher.setAuthTag(authTag)
 
-    let decrypted = decipher.update(encrypted, "hex", "utf8")
-    decrypted += decipher.final("utf8")
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8')
+    decrypted += decipher.final('utf8')
 
     return { decrypted }
   } catch (error: any) {
-    logger.error("Decryption error:", { error: error.message })
+    logger.error('Decryption error:', { error: error.message })
     throw error
   }
 }
@@ -79,21 +79,21 @@ export function convertScheduleOptionsToCron(
   options: Record<string, string>
 ): string {
   switch (scheduleType) {
-    case "minutes": {
-      const interval = options.minutesInterval || "15"
+    case 'minutes': {
+      const interval = options.minutesInterval || '15'
       // For example, if options.minutesStartingAt is provided, use that as the start minute.
       return `*/${interval} * * * *`
     }
-    case "hourly": {
+    case 'hourly': {
       // When scheduling hourly, take the specified minute offset
-      return `${options.hourlyMinute || "00"} * * * *`
+      return `${options.hourlyMinute || '00'} * * * *`
     }
-    case "daily": {
+    case 'daily': {
       // Expected dailyTime in HH:MM
-      const [minute, hour] = (options.dailyTime || "00:09").split(":")
-      return `${minute || "00"} ${hour || "09"} * * *`
+      const [minute, hour] = (options.dailyTime || '00:09').split(':')
+      return `${minute || '00'} ${hour || '09'} * * *`
     }
-    case "weekly": {
+    case 'weekly': {
       // Expected weeklyDay as MON, TUE, etc. and weeklyDayTime in HH:MM
       const dayMap: Record<string, number> = {
         MON: 1,
@@ -104,22 +104,22 @@ export function convertScheduleOptionsToCron(
         SAT: 6,
         SUN: 0,
       }
-      const day = dayMap[options.weeklyDay || "MON"]
-      const [minute, hour] = (options.weeklyDayTime || "00:09").split(":")
-      return `${minute || "00"} ${hour || "09"} * * ${day}`
+      const day = dayMap[options.weeklyDay || 'MON']
+      const [minute, hour] = (options.weeklyDayTime || '00:09').split(':')
+      return `${minute || '00'} ${hour || '09'} * * ${day}`
     }
-    case "monthly": {
+    case 'monthly': {
       // Expected monthlyDay and monthlyTime in HH:MM
-      const day = options.monthlyDay || "1"
-      const [minute, hour] = (options.monthlyTime || "00:09").split(":")
-      return `${minute || "00"} ${hour || "09"} ${day} * *`
+      const day = options.monthlyDay || '1'
+      const [minute, hour] = (options.monthlyTime || '00:09').split(':')
+      return `${minute || '00'} ${hour || '09'} ${day} * *`
     }
-    case "custom": {
+    case 'custom': {
       // Use the provided cron expression directly
       return options.cronExpression
     }
     default:
-      throw new Error("Unsupported schedule type")
+      throw new Error('Unsupported schedule type')
   }
 }
 
@@ -130,19 +130,19 @@ export function convertScheduleOptionsToCron(
  * @returns A simplified timezone string (e.g., "PST" instead of "America/Los_Angeles")
  */
 export function getTimezoneAbbreviation(timezone: string, date: Date = new Date()): string {
-  if (timezone === "UTC") return "UTC"
+  if (timezone === 'UTC') return 'UTC'
 
   // Common timezone mappings
   const timezoneMap: Record<string, { standard: string; daylight: string }> = {
-    "America/Los_Angeles": { standard: "PST", daylight: "PDT" },
-    "America/Denver": { standard: "MST", daylight: "MDT" },
-    "America/Chicago": { standard: "CST", daylight: "CDT" },
-    "America/New_York": { standard: "EST", daylight: "EDT" },
-    "Europe/London": { standard: "GMT", daylight: "BST" },
-    "Europe/Paris": { standard: "CET", daylight: "CEST" },
-    "Asia/Tokyo": { standard: "JST", daylight: "JST" }, // Japan doesn't use DST
-    "Australia/Sydney": { standard: "AEST", daylight: "AEDT" },
-    "Asia/Singapore": { standard: "SGT", daylight: "SGT" }, // Singapore doesn't use DST
+    'America/Los_Angeles': { standard: 'PST', daylight: 'PDT' },
+    'America/Denver': { standard: 'MST', daylight: 'MDT' },
+    'America/Chicago': { standard: 'CST', daylight: 'CDT' },
+    'America/New_York': { standard: 'EST', daylight: 'EDT' },
+    'Europe/London': { standard: 'GMT', daylight: 'BST' },
+    'Europe/Paris': { standard: 'CET', daylight: 'CEST' },
+    'Asia/Tokyo': { standard: 'JST', daylight: 'JST' }, // Japan doesn't use DST
+    'Australia/Sydney': { standard: 'AEST', daylight: 'AEDT' },
+    'Asia/Singapore': { standard: 'SGT', daylight: 'SGT' }, // Singapore doesn't use DST
   }
 
   // If we have a mapping for this timezone
@@ -153,15 +153,15 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
     const julyDate = new Date(date.getFullYear(), 6, 1)
 
     // Get offset in January (standard time)
-    const januaryFormatter = new Intl.DateTimeFormat("en-US", {
+    const januaryFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
-      timeZoneName: "short",
+      timeZoneName: 'short',
     })
 
     // Get offset in July (likely daylight time)
-    const julyFormatter = new Intl.DateTimeFormat("en-US", {
+    const julyFormatter = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
-      timeZoneName: "short",
+      timeZoneName: 'short',
     })
 
     // If offsets are different, timezone observes DST
@@ -170,9 +170,9 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
     // If DST is observed, check if current date is in DST by comparing its offset
     // with January's offset (standard time)
     if (isDSTObserved) {
-      const currentFormatter = new Intl.DateTimeFormat("en-US", {
+      const currentFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
-        timeZoneName: "short",
+        timeZoneName: 'short',
       })
 
       const isDST = currentFormatter.format(date) !== januaryFormatter.format(januaryDate)
@@ -194,12 +194,12 @@ export function getTimezoneAbbreviation(timezone: string, date: Date = new Date(
  * @returns A formatted date string in the format "MMM D, YYYY h:mm A"
  */
 export function formatDateTime(date: Date, timezone?: string): string {
-  const formattedDate = date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
+  const formattedDate = date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
     hour12: true,
     timeZone: timezone || undefined,
   })
@@ -219,10 +219,10 @@ export function formatDateTime(date: Date, timezone?: string): string {
  * @returns A formatted date string in the format "MMM D, YYYY"
  */
 export function formatDate(date: Date): string {
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
   })
 }
 
@@ -232,9 +232,9 @@ export function formatDate(date: Date): string {
  * @returns A formatted time string in the format "h:mm A"
  */
 export function formatTime(date: Date): string {
-  return date.toLocaleString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
+  return date.toLocaleString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
     hour12: true,
   })
 }
@@ -280,17 +280,17 @@ export function generateApiKey(): string {
  * @throws Error if no API keys are configured for rotation
  */
 export function getRotatingApiKey(provider: string): string {
-  if (provider !== "openai" && provider !== "anthropic") {
+  if (provider !== 'openai' && provider !== 'anthropic') {
     throw new Error(`No rotation implemented for provider: ${provider}`)
   }
 
   const keys = []
 
-  if (provider === "openai") {
+  if (provider === 'openai') {
     if (env.OPENAI_API_KEY_1) keys.push(env.OPENAI_API_KEY_1)
     if (env.OPENAI_API_KEY_2) keys.push(env.OPENAI_API_KEY_2)
     if (env.OPENAI_API_KEY_3) keys.push(env.OPENAI_API_KEY_3)
-  } else if (provider === "anthropic") {
+  } else if (provider === 'anthropic') {
     if (env.ANTHROPIC_API_KEY_1) keys.push(env.ANTHROPIC_API_KEY_1)
     if (env.ANTHROPIC_API_KEY_2) keys.push(env.ANTHROPIC_API_KEY_2)
     if (env.ANTHROPIC_API_KEY_3) keys.push(env.ANTHROPIC_API_KEY_3)
@@ -316,7 +316,7 @@ export function getRotatingApiKey(provider: string): string {
  * @returns A new object with API keys redacted
  */
 export const redactApiKeys = (obj: any): any => {
-  if (!obj || typeof obj !== "object") {
+  if (!obj || typeof obj !== 'object') {
     return obj
   }
 
@@ -328,14 +328,14 @@ export const redactApiKeys = (obj: any): any => {
 
   for (const [key, value] of Object.entries(obj)) {
     if (
-      key.toLowerCase() === "apikey" ||
-      key.toLowerCase() === "api_key" ||
-      key.toLowerCase() === "access_token" ||
+      key.toLowerCase() === 'apikey' ||
+      key.toLowerCase() === 'api_key' ||
+      key.toLowerCase() === 'access_token' ||
       /\bsecret\b/i.test(key.toLowerCase()) ||
       /\bpassword\b/i.test(key.toLowerCase())
     ) {
-      result[key] = "***REDACTED***"
-    } else if (typeof value === "object" && value !== null) {
+      result[key] = '***REDACTED***'
+    } else if (typeof value === 'object' && value !== null) {
       result[key] = redactApiKeys(value)
     } else {
       result[key] = value

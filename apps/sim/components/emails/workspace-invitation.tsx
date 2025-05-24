@@ -10,10 +10,10 @@ import {
   Row,
   Section,
   Text,
-} from "@react-email/components"
-import * as React from "react"
-import { baseStyles } from "./base-styles"
-import EmailFooter from "./footer"
+} from '@react-email/components'
+import * as React from 'react'
+import { baseStyles } from './base-styles'
+import EmailFooter from './footer'
 
 interface WorkspaceInvitationEmailProps {
   workspaceName?: string
@@ -21,27 +21,27 @@ interface WorkspaceInvitationEmailProps {
   invitationLink?: string
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
 
 export const WorkspaceInvitationEmail = ({
-  workspaceName = "Workspace",
-  inviterName = "Someone",
-  invitationLink = "",
+  workspaceName = 'Workspace',
+  inviterName = 'Someone',
+  invitationLink = '',
 }: WorkspaceInvitationEmailProps) => {
   // Extract token from the link to ensure we're using the correct format
   let enhancedLink = invitationLink
 
   try {
     // If the link is pointing to the API endpoint directly, update it to use the client route
-    if (invitationLink.includes("/api/workspaces/invitations/accept")) {
+    if (invitationLink.includes('/api/workspaces/invitations/accept')) {
       const url = new URL(invitationLink)
-      const token = url.searchParams.get("token")
+      const token = url.searchParams.get('token')
       if (token) {
         enhancedLink = `${baseUrl}/invite/${token}?token=${token}`
       }
     }
   } catch (e) {
-    console.error("Error enhancing invitation link:", e)
+    console.error('Error enhancing invitation link:', e)
   }
 
   return (
@@ -52,15 +52,15 @@ export const WorkspaceInvitationEmail = ({
           You've been invited to join the "{workspaceName}" workspace on Sim Studio!
         </Preview>
         <Container style={baseStyles.container}>
-          <Section style={{ padding: "30px 0", textAlign: "center" }}>
+          <Section style={{ padding: '30px 0', textAlign: 'center' }}>
             <Row>
-              <Column style={{ textAlign: "center" }}>
+              <Column style={{ textAlign: 'center' }}>
                 <Img
                   src={`${baseUrl}/static/sim.png`}
-                  width="114"
-                  alt="Sim Studio"
+                  width='114'
+                  alt='Sim Studio'
                   style={{
-                    margin: "0 auto",
+                    margin: '0 auto',
                   }}
                 />
               </Column>
@@ -84,7 +84,7 @@ export const WorkspaceInvitationEmail = ({
               Sim Studio is a powerful platform for building, testing, and optimizing AI workflows.
               Join this workspace to collaborate with your team.
             </Text>
-            <Link href={enhancedLink} style={{ textDecoration: "none" }}>
+            <Link href={enhancedLink} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Accept Invitation</Text>
             </Link>
             <Text style={baseStyles.paragraph}>

@@ -1,41 +1,41 @@
-import type { ToolConfig } from "../types"
-import type { TypeformFilesParams, TypeformFilesResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { TypeformFilesParams, TypeformFilesResponse } from './types'
 
 export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> = {
-  id: "typeform_files",
-  name: "Typeform Files",
-  description: "Download files uploaded in Typeform responses",
-  version: "1.0.0",
+  id: 'typeform_files',
+  name: 'Typeform Files',
+  description: 'Download files uploaded in Typeform responses',
+  version: '1.0.0',
   params: {
     formId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Typeform form ID",
+      description: 'Typeform form ID',
     },
     responseId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Response ID containing the files",
+      description: 'Response ID containing the files',
     },
     fieldId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Unique ID of the file upload field",
+      description: 'Unique ID of the file upload field',
     },
     filename: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Filename of the uploaded file",
+      description: 'Filename of the uploaded file',
     },
     inline: {
-      type: "boolean",
+      type: 'boolean',
       required: false,
-      description: "Whether to request the file with inline Content-Disposition",
+      description: 'Whether to request the file with inline Content-Disposition',
     },
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Typeform Personal Access Token",
+      description: 'Typeform Personal Access Token',
     },
   },
   request: {
@@ -54,15 +54,15 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
 
       return url
     },
-    method: "GET",
+    method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
   },
   transformResponse: async (response: Response, params?: TypeformFilesParams) => {
     if (!response.ok) {
-      let errorMessage = response.statusText || "Unknown error"
+      let errorMessage = response.statusText || 'Unknown error'
 
       try {
         const errorData = await response.json()
@@ -70,7 +70,7 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
           errorMessage = errorData.message
         } else if (errorData?.description) {
           errorMessage = errorData.description
-        } else if (typeof errorData === "string") {
+        } else if (typeof errorData === 'string') {
           errorMessage = errorData
         }
       } catch (e) {
@@ -81,11 +81,11 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     }
 
     // For file downloads, we get the file directly
-    const contentType = response.headers.get("content-type") || "application/octet-stream"
-    const contentDisposition = response.headers.get("content-disposition") || ""
+    const contentType = response.headers.get('content-type') || 'application/octet-stream'
+    const contentDisposition = response.headers.get('content-disposition') || ''
 
     // Try to extract filename from content-disposition if possible
-    let filename = ""
+    let filename = ''
     const filenameMatch = contentDisposition.match(/filename="(.+?)"/)
     if (filenameMatch?.[1]) {
       filename = filenameMatch[1]
@@ -111,7 +111,7 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     return {
       success: true,
       output: {
-        fileUrl: fileUrl || "",
+        fileUrl: fileUrl || '',
         contentType,
         filename,
       },
@@ -122,10 +122,10 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
       return `Failed to retrieve Typeform file: ${error.message}`
     }
 
-    if (typeof error === "object" && error !== null) {
+    if (typeof error === 'object' && error !== null) {
       return `Failed to retrieve Typeform file: ${JSON.stringify(error)}`
     }
 
-    return "Failed to retrieve Typeform file: An unknown error occurred"
+    return 'Failed to retrieve Typeform file: An unknown error occurred'
   },
 }

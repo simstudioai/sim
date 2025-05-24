@@ -1,4 +1,4 @@
-import type { ToolResponse } from "../types"
+import type { ToolResponse } from '../types'
 
 export interface GoogleSheetsRange {
   sheetId?: number
@@ -63,9 +63,9 @@ export interface GoogleSheetsToolParams {
   spreadsheetId: string
   range?: string
   values?: any[][]
-  valueInputOption?: "RAW" | "USER_ENTERED"
-  insertDataOption?: "OVERWRITE" | "INSERT_ROWS"
+  valueInputOption?: 'RAW' | 'USER_ENTERED'
+  insertDataOption?: 'OVERWRITE' | 'INSERT_ROWS'
   includeValuesInResponse?: boolean
-  responseValueRenderOption?: "FORMATTED_VALUE" | "UNFORMATTED_VALUE" | "FORMULA"
-  majorDimension?: "ROWS" | "COLUMNS"
+  responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
+  majorDimension?: 'ROWS' | 'COLUMNS'
 }

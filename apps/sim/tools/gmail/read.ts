@@ -1,48 +1,48 @@
-import type { ToolConfig } from "../types"
-import type { GmailMessage, GmailReadParams, GmailToolResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { GmailMessage, GmailReadParams, GmailToolResponse } from './types'
 
-const GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
+const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
 export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
-  id: "gmail_read",
-  name: "Gmail Read",
-  description: "Read emails from Gmail",
-  version: "1.0.0",
+  id: 'gmail_read',
+  name: 'Gmail Read',
+  description: 'Read emails from Gmail',
+  version: '1.0.0',
 
   oauth: {
     required: true,
-    provider: "google-email",
+    provider: 'google-email',
     additionalScopes: [
       // 'https://www.googleapis.com/auth/gmail.readonly',
-      "https://www.googleapis.com/auth/gmail.labels",
+      'https://www.googleapis.com/auth/gmail.labels',
     ],
   },
 
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Access token for Gmail API",
+      description: 'Access token for Gmail API',
     },
     messageId: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "ID of the message to read",
+      description: 'ID of the message to read',
     },
     folder: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Folder/label to read emails from",
+      description: 'Folder/label to read emails from',
     },
     unreadOnly: {
-      type: "boolean",
+      type: 'boolean',
       required: false,
-      description: "Only retrieve unread messages",
+      description: 'Only retrieve unread messages',
     },
     maxResults: {
-      type: "number",
+      type: 'number',
       required: false,
-      description: "Maximum number of messages to retrieve (default: 1, max: 10)",
+      description: 'Maximum number of messages to retrieve (default: 1, max: 10)',
     },
   },
 
@@ -61,12 +61,12 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
 
       // Add unread filter if specified
       if (params.unreadOnly) {
-        queryParams.push("is:unread")
+        queryParams.push('is:unread')
       }
 
       if (params.folder) {
         // If it's a system label like INBOX, SENT, etc., use it directly
-        if (["INBOX", "SENT", "DRAFT", "TRASH", "SPAM"].includes(params.folder)) {
+        if (['INBOX', 'SENT', 'DRAFT', 'TRASH', 'SPAM'].includes(params.folder)) {
           queryParams.push(`in:${params.folder.toLowerCase()}`)
         } else {
           // Otherwise, it's a user-defined label
@@ -74,24 +74,24 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
         }
       } else {
         // Default to INBOX if no folder is specified
-        queryParams.push("in:inbox")
+        queryParams.push('in:inbox')
       }
 
       // Only add query if we have parameters
       if (queryParams.length > 0) {
-        url.searchParams.append("q", queryParams.join(" "))
+        url.searchParams.append('q', queryParams.join(' '))
       }
 
       // Set max results (default to 1 for simplicity, max 10)
       const maxResults = params.maxResults ? Math.min(params.maxResults, 10) : 1
-      url.searchParams.append("maxResults", maxResults.toString())
+      url.searchParams.append('maxResults', maxResults.toString())
 
       return url.toString()
     },
-    method: "GET",
+    method: 'GET',
     headers: (params: GmailReadParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
   },
 
@@ -100,7 +100,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error?.message || "Failed to read email")
+        throw new Error(data.error?.message || 'Failed to read email')
       }
 
       // If we're fetching a single message directly (by ID)
@@ -115,7 +115,7 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
           return {
             success: true,
             output: {
-              content: "No messages found in the selected folder.",
+              content: 'No messages found in the selected folder.',
               metadata: {
                 results: [], // Use SearchMetadata format
               },
@@ -135,25 +135,25 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
               `${GMAIL_API_BASE}/messages/${messageId}?format=full`,
               {
                 headers: {
-                  Authorization: `Bearer ${params?.accessToken || ""}`,
-                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${params?.accessToken || ''}`,
+                  'Content-Type': 'application/json',
                 },
               }
             )
 
             if (!messageResponse.ok) {
               const errorData = await messageResponse.json()
-              throw new Error(errorData.error?.message || "Failed to fetch message details")
+              throw new Error(errorData.error?.message || 'Failed to fetch message details')
             }
 
             const message = await messageResponse.json()
             return processMessage(message)
           } catch (error: any) {
-            console.error("Error fetching message details:", error)
+            console.error('Error fetching message details:', error)
             return {
               success: true,
               output: {
-                content: `Found messages but couldn't retrieve details: ${error.message || "Unknown error"}`,
+                content: `Found messages but couldn't retrieve details: ${error.message || 'Unknown error'}`,
                 metadata: {
                   results: data.messages.map((msg: any) => ({
                     id: msg.id,
@@ -171,8 +171,8 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
                 `${GMAIL_API_BASE}/messages/${msg.id}?format=full`,
                 {
                   headers: {
-                    Authorization: `Bearer ${params?.accessToken || ""}`,
-                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${params?.accessToken || ''}`,
+                    'Content-Type': 'application/json',
                   },
                 }
               )
@@ -205,11 +205,11 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
               },
             }
           } catch (error: any) {
-            console.error("Error fetching multiple message details:", error)
+            console.error('Error fetching multiple message details:', error)
             return {
               success: true,
               output: {
-                content: `Found ${data.messages.length} messages but couldn't retrieve all details: ${error.message || "Unknown error"}`,
+                content: `Found ${data.messages.length} messages but couldn't retrieve all details: ${error.message || 'Unknown error'}`,
                 metadata: {
                   results: data.messages.map((msg: any) => ({
                     id: msg.id,
@@ -226,14 +226,14 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
       return {
         success: true,
         output: {
-          content: "Unexpected response format from Gmail API",
+          content: 'Unexpected response format from Gmail API',
           metadata: {
             results: [],
           },
         },
       }
     } catch (error) {
-      console.error("Error in transformResponse:", error)
+      console.error('Error in transformResponse:', error)
       throw error
     }
   },
@@ -241,15 +241,15 @@ export const gmailReadTool: ToolConfig<GmailReadParams, GmailToolResponse> = {
   transformError: (error) => {
     // Handle Google API error format
     if (error.error?.message) {
-      if (error.error.message.includes("invalid authentication credentials")) {
-        return "Invalid or expired access token. Please reauthenticate."
+      if (error.error.message.includes('invalid authentication credentials')) {
+        return 'Invalid or expired access token. Please reauthenticate.'
       }
-      if (error.error.message.includes("quota")) {
-        return "Gmail API quota exceeded. Please try again later."
+      if (error.error.message.includes('quota')) {
+        return 'Gmail API quota exceeded. Please try again later.'
       }
       return error.error.message
     }
-    return error.message || "An unexpected error occurred while reading email"
+    return error.message || 'An unexpected error occurred while reading email'
   },
 }
 
@@ -260,10 +260,10 @@ function processMessage(message: GmailMessage): GmailToolResponse {
     return {
       success: true,
       output: {
-        content: "Unable to process email: Invalid message format",
+        content: 'Unable to process email: Invalid message format',
         metadata: {
-          id: message?.id || "",
-          threadId: message?.threadId || "",
+          id: message?.id || '',
+          threadId: message?.threadId || '',
           labelIds: message?.labelIds || [],
         },
       },
@@ -271,10 +271,10 @@ function processMessage(message: GmailMessage): GmailToolResponse {
   }
 
   const headers = message.payload.headers || []
-  const subject = headers.find((h) => h.name.toLowerCase() === "subject")?.value || ""
-  const from = headers.find((h) => h.name.toLowerCase() === "from")?.value || ""
-  const to = headers.find((h) => h.name.toLowerCase() === "to")?.value || ""
-  const date = headers.find((h) => h.name.toLowerCase() === "date")?.value || ""
+  const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value || ''
+  const from = headers.find((h) => h.name.toLowerCase() === 'from')?.value || ''
+  const to = headers.find((h) => h.name.toLowerCase() === 'to')?.value || ''
+  const date = headers.find((h) => h.name.toLowerCase() === 'date')?.value || ''
 
   // Extract the message body
   const body = extractMessageBody(message.payload)
@@ -282,10 +282,10 @@ function processMessage(message: GmailMessage): GmailToolResponse {
   return {
     success: true,
     output: {
-      content: body || "No content found in email",
+      content: body || 'No content found in email',
       metadata: {
-        id: message.id || "",
-        threadId: message.threadId || "",
+        id: message.id || '',
+        threadId: message.threadId || '',
         labelIds: message.labelIds || [],
         from,
         to,
@@ -300,19 +300,19 @@ function processMessage(message: GmailMessage): GmailToolResponse {
 function processMessageForSummary(message: GmailMessage): any {
   if (!message || !message.payload) {
     return {
-      id: message?.id || "",
-      threadId: message?.threadId || "",
-      subject: "Unknown Subject",
-      from: "Unknown Sender",
-      date: "",
-      snippet: message?.snippet || "",
+      id: message?.id || '',
+      threadId: message?.threadId || '',
+      subject: 'Unknown Subject',
+      from: 'Unknown Sender',
+      date: '',
+      snippet: message?.snippet || '',
     }
   }
 
   const headers = message.payload.headers || []
-  const subject = headers.find((h) => h.name.toLowerCase() === "subject")?.value || "No Subject"
-  const from = headers.find((h) => h.name.toLowerCase() === "from")?.value || "Unknown Sender"
-  const date = headers.find((h) => h.name.toLowerCase() === "date")?.value || ""
+  const subject = headers.find((h) => h.name.toLowerCase() === 'subject')?.value || 'No Subject'
+  const from = headers.find((h) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender'
+  const date = headers.find((h) => h.name.toLowerCase() === 'date')?.value || ''
 
   return {
     id: message.id,
@@ -320,14 +320,14 @@ function processMessageForSummary(message: GmailMessage): any {
     subject,
     from,
     date,
-    snippet: message.snippet || "",
+    snippet: message.snippet || '',
   }
 }
 
 // Helper function to create a summary of multiple messages
 function createMessagesSummary(messages: any[]): string {
   if (messages.length === 0) {
-    return "No messages found."
+    return 'No messages found.'
   }
 
   let summary = `Found ${messages.length} messages:\n\n`
@@ -339,7 +339,7 @@ function createMessagesSummary(messages: any[]): string {
     summary += `   Preview: ${msg.snippet}\n\n`
   })
 
-  summary += `To read a specific message, use the messageId parameter with one of these IDs: ${messages.map((m) => m.id).join(", ")}`
+  summary += `To read a specific message, use the messageId parameter with one of these IDs: ${messages.map((m) => m.id).join(', ')}`
 
   return summary
 }
@@ -348,24 +348,24 @@ function createMessagesSummary(messages: any[]): string {
 function extractMessageBody(payload: any): string {
   // If the payload has a body with data, decode it
   if (payload.body?.data) {
-    return Buffer.from(payload.body.data, "base64").toString()
+    return Buffer.from(payload.body.data, 'base64').toString()
   }
 
   // If there are no parts, return empty string
   if (!payload.parts || !Array.isArray(payload.parts) || payload.parts.length === 0) {
-    return ""
+    return ''
   }
 
   // First try to find a text/plain part
-  const textPart = payload.parts.find((part: any) => part.mimeType === "text/plain")
+  const textPart = payload.parts.find((part: any) => part.mimeType === 'text/plain')
   if (textPart?.body?.data) {
-    return Buffer.from(textPart.body.data, "base64").toString()
+    return Buffer.from(textPart.body.data, 'base64').toString()
   }
 
   // If no text/plain, try to find text/html
-  const htmlPart = payload.parts.find((part: any) => part.mimeType === "text/html")
+  const htmlPart = payload.parts.find((part: any) => part.mimeType === 'text/html')
   if (htmlPart?.body?.data) {
-    return Buffer.from(htmlPart.body.data, "base64").toString()
+    return Buffer.from(htmlPart.body.data, 'base64').toString()
   }
 
   // If we have multipart/alternative or other complex types, recursively check parts
@@ -379,5 +379,5 @@ function extractMessageBody(payload: any): string {
   }
 
   // If we couldn't find any text content, return empty string
-  return ""
+  return ''
 }

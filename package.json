@@ -9,10 +9,10 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
-    "format": "bunx biome format --write .",
-    "format:check": "bunx biome format .",
-    "lint": "bunx biome lint --write --unsafe .",
-    "lint:check": "bunx biome lint --unsafe .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint --write --unsafe .",
+    "lint:check": "biome lint --unsafe .",
     "prepare": "bun husky"
   },
   "overrides": {

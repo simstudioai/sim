@@ -1,10 +1,10 @@
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CheckCircle, Network } from "lucide-react"
-import { ConfigField } from "../ui/config-field"
-import { ConfigSection } from "../ui/config-section"
-import { CopyableField } from "../ui/copyable"
-import { InstructionsSection } from "../ui/instructions-section"
-import { TestResultDisplay } from "../ui/test-result"
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { CheckCircle, Network } from 'lucide-react'
+import { ConfigField } from '../ui/config-field'
+import { ConfigSection } from '../ui/config-section'
+import { CopyableField } from '../ui/copyable'
+import { InstructionsSection } from '../ui/instructions-section'
+import { TestResultDisplay } from '../ui/test-result'
 
 interface WhatsAppConfigProps {
   verificationToken: string
@@ -28,21 +28,21 @@ export function WhatsAppConfig({
   copyToClipboard,
 }: WhatsAppConfigProps) {
   return (
-    <div className="space-y-4">
-      <ConfigSection title="WhatsApp Configuration">
+    <div className='space-y-4'>
+      <ConfigSection title='WhatsApp Configuration'>
         <ConfigField
-          id="whatsapp-verification-token"
-          label="Verification Token"
+          id='whatsapp-verification-token'
+          label='Verification Token'
           description="Enter any secure token here. You'll need to provide the same token in your WhatsApp Business Platform dashboard."
         >
           <CopyableField
-            id="whatsapp-verification-token"
+            id='whatsapp-verification-token'
             value={verificationToken}
             onChange={setVerificationToken}
-            placeholder="Generate or enter a verification token"
+            placeholder='Generate or enter a verification token'
             isLoading={isLoadingToken}
             copied={copied}
-            copyType="whatsapp-token"
+            copyType='whatsapp-token'
             copyToClipboard={copyToClipboard}
             isSecret // Treat as secret
           />
@@ -57,20 +57,20 @@ export function WhatsAppConfig({
       />
 
       <InstructionsSection tip="After saving, click 'Verify and save' in WhatsApp and subscribe to the 'messages' webhook field.">
-        <ol className="list-inside list-decimal space-y-1">
+        <ol className='list-inside list-decimal space-y-1'>
           <li>
-            Go to your{" "}
+            Go to your{' '}
             <a
-              href="https://developers.facebook.com/apps/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link"
+              href='https://developers.facebook.com/apps/'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='link'
             >
               Meta for Developers Apps
-            </a>{" "}
+            </a>{' '}
             page.
           </li>
-          <li>Select your App, then navigate to WhatsApp {">"} Configuration.</li>
+          <li>Select your App, then navigate to WhatsApp {'>'} Configuration.</li>
           <li>Find the Webhooks section and click "Edit".</li>
           <li>
             Paste the <strong>Webhook URL</strong> (from above) into the "Callback URL" field.
@@ -85,10 +85,10 @@ export function WhatsAppConfig({
       </InstructionsSection>
 
       <Alert>
-        <Network className="h-4 w-4" />
+        <Network className='h-4 w-4' />
         <AlertTitle>Requirements</AlertTitle>
         <AlertDescription>
-          <ul className="mt-1 list-outside list-disc space-y-1 pl-4">
+          <ul className='mt-1 list-outside list-disc space-y-1 pl-4'>
             <li>Your Sim Studio webhook URL must use HTTPS and be publicly accessible.</li>
             <li>Self-signed SSL certificates are not supported by WhatsApp.</li>
             <li>For local testing, use a tunneling service like ngrok or Cloudflare Tunnel.</li>

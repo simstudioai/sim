@@ -1,13 +1,13 @@
-import { db } from "@/db"
-import { memory } from "@/db/schema"
-import { createLogger } from "@/lib/logs/console-logger"
-import { and, eq, isNull, like } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
+import { db } from '@/db'
+import { memory } from '@/db/schema'
+import { createLogger } from '@/lib/logs/console-logger'
+import { and, eq, isNull, like } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 
-const logger = createLogger("MemoryAPI")
+const logger = createLogger('MemoryAPI')
 
-export const dynamic = "force-dynamic"
-export const runtime = "nodejs"
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 /**
  * GET handler for searching and retrieving memories
@@ -25,10 +25,10 @@ export async function GET(request: NextRequest) {
 
     // Extract workflowId from query parameters
     const url = new URL(request.url)
-    const workflowId = url.searchParams.get("workflowId")
-    const searchQuery = url.searchParams.get("query")
-    const type = url.searchParams.get("type")
-    const limit = Number.parseInt(url.searchParams.get("limit") || "50")
+    const workflowId = url.searchParams.get('workflowId')
+    const searchQuery = url.searchParams.get('query')
+    const type = url.searchParams.get('type')
+    const limit = Number.parseInt(url.searchParams.get('limit') || '50')
 
     // Require workflowId for security
     if (!workflowId) {
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         {
           success: false,
           error: {
-            message: "workflowId parameter is required",
+            message: 'workflowId parameter is required',
           },
         },
         { status: 400 }
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error: {
-          message: error.message || "Failed to search memories",
+          message: error.message || 'Failed to search memories',
         },
       },
       { status: 500 }
@@ -117,20 +117,20 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: {
-            message: "Memory key is required",
+            message: 'Memory key is required',
           },
         },
         { status: 400 }
       )
     }
 
-    if (!type || !["agent", "raw"].includes(type)) {
+    if (!type || !['agent', 'raw'].includes(type)) {
       logger.warn(`[${requestId}] Invalid memory type: ${type}`)
       return NextResponse.json(
         {
           success: false,
           error: {
-            message: "Valid memory type (agent or raw) is required",
+            message: 'Valid memory type (agent or raw) is required',
           },
         },
         { status: 400 }
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: {
-            message: "Memory data is required",
+            message: 'Memory data is required',
           },
         },
         { status: 400 }
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: {
-            message: "workflowId is required",
+            message: 'workflowId is required',
           },
         },
         { status: 400 }
@@ -164,27 +164,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Additional validation for agent type
-    if (type === "agent") {
+    if (type === 'agent') {
       if (!data.role || !data.content) {
         logger.warn(`[${requestId}] Missing agent memory fields`)
         return NextResponse.json(
           {
             success: false,
             error: {
-              message: "Agent memory requires role and content",
+              message: 'Agent memory requires role and content',
             },
           },
           { status: 400 }
         )
       }
 
-      if (!["user", "assistant", "system"].includes(data.role)) {
+      if (!['user', 'assistant', 'system'].includes(data.role)) {
         logger.warn(`[${requestId}] Invalid agent role: ${data.role}`)
         return NextResponse.json(
           {
             success: false,
             error: {
-              message: "Agent role must be user, assistant, or system",
+              message: 'Agent role must be user, assistant, or system',
             },
           },
           { status: 400 }
@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
       // Handle appending based on memory type
       let updatedData
 
-      if (type === "agent") {
+      if (type === 'agent') {
         // For agent type
         const newMessage = data
         const existingData = existingMemory[0].data
@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
       } else {
         // For raw type
         // Merge objects if they're objects, otherwise use the new data
-        if (typeof existingMemory[0].data === "object" && typeof data === "object") {
+        if (typeof existingMemory[0].data === 'object' && typeof data === 'object') {
           updatedData = { ...existingMemory[0].data, ...data }
         } else {
           updatedData = data
@@ -259,11 +259,11 @@ export async function POST(request: NextRequest) {
     } else {
       // Insert the new memory
       const newMemory = {
-        id: `mem_${crypto.randomUUID().replace(/-/g, "")}`,
+        id: `mem_${crypto.randomUUID().replace(/-/g, '')}`,
         workflowId,
         key,
         type,
-        data: type === "agent" ? (Array.isArray(data) ? data : [data]) : data,
+        data: type === 'agent' ? (Array.isArray(data) ? data : [data]) : data,
         createdAt: new Date(),
         updatedAt: new Date(),
       }
@@ -286,7 +286,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: {
-            message: "Failed to retrieve memory after creation/update",
+            message: 'Failed to retrieve memory after creation/update',
           },
         },
         { status: 500 }
@@ -306,13 +306,13 @@ export async function POST(request: NextRequest) {
     )
   } catch (error: any) {
     // Handle unique constraint violation
-    if (error.code === "23505") {
+    if (error.code === '23505') {
       logger.warn(`[${requestId}] Duplicate key violation`)
       return NextResponse.json(
         {
           success: false,
           error: {
-            message: "Memory with this key already exists",
+            message: 'Memory with this key already exists',
           },
         },
         { status: 409 }
@@ -323,7 +323,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: {
-          message: error.message || "Failed to create memory",
+          message: error.message || 'Failed to create memory',
         },
       },
       { status: 500 }

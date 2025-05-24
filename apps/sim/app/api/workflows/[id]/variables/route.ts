@@ -1,13 +1,13 @@
-import { db } from "@/db"
-import { workflow, workspaceMember } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import type { Variable } from "@/stores/panel/variables/types"
-import { and, eq } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
-import { z } from "zod"
+import { db } from '@/db'
+import { workflow, workspaceMember } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import type { Variable } from '@/stores/panel/variables/types'
+import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 
-const logger = createLogger("WorkflowVariablesAPI")
+const logger = createLogger('WorkflowVariablesAPI')
 
 // Schema for workflow variables updates
 const VariablesSchema = z.object({
@@ -16,7 +16,7 @@ const VariablesSchema = z.object({
       id: z.string(),
       workflowId: z.string(),
       name: z.string(),
-      type: z.enum(["string", "number", "boolean", "object", "array", "plain"]),
+      type: z.enum(['string', 'number', 'boolean', 'object', 'array', 'plain']),
       value: z.union([z.string(), z.number(), z.boolean(), z.record(z.any()), z.array(z.any())]),
     })
   ),
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized workflow variables update attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get the workflow record
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (!workflowRecord.length) {
       logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
-      return NextResponse.json({ error: "Workflow not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
     const workflowData = workflowRecord[0]
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted to update variables for workflow ${workflowId} without permission`
       )
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await req.json()
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           errors: validationError.errors,
         })
         return NextResponse.json(
-          { error: "Invalid request data", details: validationError.errors },
+          { error: 'Invalid request data', details: validationError.errors },
           { status: 400 }
         )
       }
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   } catch (error) {
     logger.error(`[${requestId}] Error updating workflow variables`, error)
-    return NextResponse.json({ error: "Failed to update workflow variables" }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to update workflow variables' }, { status: 500 })
   }
 }
 
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized workflow variables access attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get the workflow record
@@ -146,7 +146,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     if (!workflowRecord.length) {
       logger.warn(`[${requestId}] Workflow not found: ${workflowId}`)
-      return NextResponse.json({ error: "Workflow not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
     const workflowData = workflowRecord[0]
@@ -175,7 +175,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted to access variables for workflow ${workflowId} without permission`
       )
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Return variables if they exist
@@ -183,7 +183,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     // Add cache headers to prevent frequent reloading
     const headers = new Headers({
-      "Cache-Control": "max-age=60, stale-while-revalidate=300", // Cache for 1 minute, stale for 5
+      'Cache-Control': 'max-age=60, stale-while-revalidate=300', // Cache for 1 minute, stale for 5
       ETag: `"${requestId}-${Object.keys(variables).length}"`,
     })
 

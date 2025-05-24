@@ -1,8 +1,8 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { FreestyleSandboxes } from "freestyle-sandboxes"
-import { env } from "./env"
+import { createLogger } from '@/lib/logs/console-logger'
+import { FreestyleSandboxes } from 'freestyle-sandboxes'
+import { env } from './env'
 
-const logger = createLogger("Freestyle")
+const logger = createLogger('Freestyle')
 
 // Singleton instance of FreestyleSandboxes
 let freestyleInstance: FreestyleSandboxes | null = null
@@ -22,7 +22,7 @@ export async function getFreestyleClient(): Promise<FreestyleSandboxes> {
 
     return freestyleInstance
   } catch (error) {
-    logger.error("Freestyle client initialization error:", { error })
+    logger.error('Freestyle client initialization error:', { error })
     throw error
   }
 }
@@ -60,10 +60,10 @@ export async function executeCode(
     // Extract package names from import statements
     for (const match of matches) {
       const packageName = match[1] || match[2]
-      if (packageName && !packageName.startsWith(".") && !packageName.startsWith("/")) {
+      if (packageName && !packageName.startsWith('.') && !packageName.startsWith('/')) {
         // Extract just the package name without version or subpath
-        const basePackageName = packageName.split("/")[0]
-        packages[basePackageName] = "latest" // Use latest version
+        const basePackageName = packageName.split('/')[0]
+        packages[basePackageName] = 'latest' // Use latest version
       }
     }
 
@@ -107,13 +107,13 @@ export async function executeCode(
     const executionTime = Date.now() - startTime
 
     // Process result
-    if (result && typeof result === "object" && "success" in result) {
+    if (result && typeof result === 'object' && 'success' in result) {
       if (result.success) {
         return {
           success: true,
           output: {
             result: result.result,
-            stdout: "", // Freestyle doesn't provide stdout separately
+            stdout: '', // Freestyle doesn't provide stdout separately
             executionTime,
           },
         }
@@ -122,10 +122,10 @@ export async function executeCode(
       const errorResult = result as unknown as { success: false; error: string }
       return {
         success: false,
-        error: errorResult.error || "Execution failed",
+        error: errorResult.error || 'Execution failed',
         output: {
           result: null,
-          stdout: "",
+          stdout: '',
           executionTime,
         },
       }
@@ -136,12 +136,12 @@ export async function executeCode(
       success: true,
       output: {
         result,
-        stdout: "",
+        stdout: '',
         executionTime,
       },
     }
   } catch (error: any) {
-    logger.error("Freestyle execution failed:", {
+    logger.error('Freestyle execution failed:', {
       error: error.message,
       name: error.name,
       stack: error.stack,
@@ -149,10 +149,10 @@ export async function executeCode(
 
     return {
       success: false,
-      error: error.message || "Unknown error occurred during execution",
+      error: error.message || 'Unknown error occurred during execution',
       output: {
         result: null,
-        stdout: "",
+        stdout: '',
         executionTime: Date.now() - startTime,
       },
     }

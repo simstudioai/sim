@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import { Button } from "@/components/ui/button"
+import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -8,12 +8,12 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { LoadingAgent } from "@/components/ui/loading-agent"
-import { client, useSession } from "@/lib/auth-client"
-import { BotIcon, CheckCircle } from "lucide-react"
-import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+} from '@/components/ui/card'
+import { LoadingAgent } from '@/components/ui/loading-agent'
+import { client, useSession } from '@/lib/auth-client'
+import { BotIcon, CheckCircle } from 'lucide-react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 export default function Invite() {
   const router = useRouter()
@@ -28,20 +28,20 @@ export default function Invite() {
   const [accepted, setAccepted] = useState(false)
   const [isNewUser, setIsNewUser] = useState(false)
   const [token, setToken] = useState<string | null>(null)
-  const [invitationType, setInvitationType] = useState<"organization" | "workspace">("workspace")
+  const [invitationType, setInvitationType] = useState<'organization' | 'workspace'>('workspace')
 
   // Check if this is a new user vs. existing user and get token from query
   useEffect(() => {
-    const isNew = searchParams.get("new") === "true"
+    const isNew = searchParams.get('new') === 'true'
     setIsNewUser(isNew)
 
     // Get token from URL or use inviteId as token
-    const tokenFromQuery = searchParams.get("token")
+    const tokenFromQuery = searchParams.get('token')
     const effectiveToken = tokenFromQuery || inviteId
 
     if (effectiveToken) {
       setToken(effectiveToken)
-      sessionStorage.setItem("inviteToken", effectiveToken)
+      sessionStorage.setItem('inviteToken', effectiveToken)
     }
   }, [searchParams, inviteId])
 
@@ -56,17 +56,17 @@ export default function Invite() {
         const workspaceInviteResponse = await fetch(
           `/api/workspaces/invitations/details?token=${token}`,
           {
-            method: "GET",
+            method: 'GET',
           }
         )
 
         if (workspaceInviteResponse.ok) {
           const data = await workspaceInviteResponse.json()
-          setInvitationType("workspace")
+          setInvitationType('workspace')
           setInvitationDetails({
-            type: "workspace",
+            type: 'workspace',
             data,
-            name: data.workspaceName || "a workspace",
+            name: data.workspaceName || 'a workspace',
           })
           setIsLoading(false)
           return
@@ -79,11 +79,11 @@ export default function Invite() {
           })
 
           if (data) {
-            setInvitationType("organization")
+            setInvitationType('organization')
             setInvitationDetails({
-              type: "organization",
+              type: 'organization',
               data,
-              name: data.organizationName || "an organization",
+              name: data.organizationName || 'an organization',
             })
 
             // Get organization details
@@ -95,20 +95,20 @@ export default function Invite() {
               if (orgResponse.data) {
                 setInvitationDetails((prev: any) => ({
                   ...prev,
-                  name: orgResponse.data.name || "an organization",
+                  name: orgResponse.data.name || 'an organization',
                 }))
               }
             }
           } else {
-            throw new Error("Invitation not found or has expired")
+            throw new Error('Invitation not found or has expired')
           }
         } catch (err) {
           // If neither workspace nor organization invitation is found
-          throw new Error("Invitation not found or has expired")
+          throw new Error('Invitation not found or has expired')
         }
       } catch (err: any) {
-        console.error("Error fetching invitation:", err)
-        setError(err.message || "Failed to load invitation details")
+        console.error('Error fetching invitation:', err)
+        setError(err.message || 'Failed to load invitation details')
       } finally {
         setIsLoading(false)
       }
@@ -123,22 +123,22 @@ export default function Invite() {
 
     setIsAccepting(true)
     try {
-      if (invitationType === "workspace") {
+      if (invitationType === 'workspace') {
         // For workspace invites, call the API route with token
         const response = await fetch(
-          `/api/workspaces/invitations/accept?token=${encodeURIComponent(token || "")}`
+          `/api/workspaces/invitations/accept?token=${encodeURIComponent(token || '')}`
         )
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || "Failed to accept invitation")
+          throw new Error(errorData.error || 'Failed to accept invitation')
         }
 
         setAccepted(true)
 
         // Redirect to workspace after a brief delay
         setTimeout(() => {
-          router.push("/w")
+          router.push('/w')
         }, 2000)
       } else {
         // For organization invites, use the client API
@@ -160,12 +160,12 @@ export default function Invite() {
 
         // Redirect to workspace after a brief delay
         setTimeout(() => {
-          router.push("/w")
+          router.push('/w')
         }, 2000)
       }
     } catch (err: any) {
-      console.error("Error accepting invitation:", err)
-      setError(err.message || "Failed to accept invitation")
+      console.error('Error accepting invitation:', err)
+      setError(err.message || 'Failed to accept invitation')
     } finally {
       setIsAccepting(false)
     }
@@ -173,7 +173,7 @@ export default function Invite() {
 
   // Prepare the callback URL - this ensures after login, user returns to invite page
   const getCallbackUrl = () => {
-    return `/invite/${inviteId}${token && token !== inviteId ? `?token=${token}` : ""}`
+    return `/invite/${inviteId}${token && token !== inviteId ? `?token=${token}` : ''}`
   }
 
   // Show login/signup prompt if not logged in
@@ -181,28 +181,28 @@ export default function Invite() {
     const callbackUrl = encodeURIComponent(getCallbackUrl())
 
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
-        <Card className="w-full max-w-md p-6">
-          <CardHeader className="px-0 pt-0 text-center">
+      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+        <Card className='w-full max-w-md p-6'>
+          <CardHeader className='px-0 pt-0 text-center'>
             <CardTitle>You've been invited to join a workspace</CardTitle>
             <CardDescription>
               {isNewUser
-                ? "Create an account to join this workspace on Sim Studio"
-                : "Sign in to your account to accept this invitation"}
+                ? 'Create an account to join this workspace on Sim Studio'
+                : 'Sign in to your account to accept this invitation'}
             </CardDescription>
           </CardHeader>
-          <CardFooter className="flex flex-col space-y-2 px-0">
+          <CardFooter className='flex flex-col space-y-2 px-0'>
             {isNewUser ? (
               <>
                 <Button
-                  className="w-full"
+                  className='w-full'
                   onClick={() => router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`)}
                 >
                   Create an account
                 </Button>
                 <Button
-                  variant="outline"
-                  className="w-full"
+                  variant='outline'
+                  className='w-full'
                   onClick={() => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)}
                 >
                   I already have an account
@@ -211,14 +211,14 @@ export default function Invite() {
             ) : (
               <>
                 <Button
-                  className="w-full"
+                  className='w-full'
                   onClick={() => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)}
                 >
                   Sign in
                 </Button>
                 <Button
-                  variant="outline"
-                  className="w-full"
+                  variant='outline'
+                  className='w-full'
                   onClick={() =>
                     router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true&new=true`)
                   }
@@ -236,9 +236,9 @@ export default function Invite() {
   // Show loading state
   if (isLoading || isPending) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
-        <LoadingAgent size="lg" />
-        <p className="mt-4 text-muted-foreground text-sm">Loading invitation...</p>
+      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+        <LoadingAgent size='lg' />
+        <p className='mt-4 text-muted-foreground text-sm'>Loading invitation...</p>
       </div>
     )
   }
@@ -246,13 +246,13 @@ export default function Invite() {
   // Show error state
   if (error) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
-        <Card className="max-w-md space-y-2 p-6 text-center">
-          <div className="flex justify-center">
-            <BotIcon className="h-16 w-16 text-muted-foreground" />
+      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+        <Card className='max-w-md space-y-2 p-6 text-center'>
+          <div className='flex justify-center'>
+            <BotIcon className='h-16 w-16 text-muted-foreground' />
           </div>
-          <h3 className="font-semibold text-lg">Invitation Error</h3>
-          <p className="text-muted-foreground">{error}</p>
+          <h3 className='font-semibold text-lg'>Invitation Error</h3>
+          <p className='text-muted-foreground'>{error}</p>
         </Card>
       </div>
     )
@@ -261,14 +261,14 @@ export default function Invite() {
   // Show success state
   if (accepted) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
-        <Card className="max-w-md space-y-2 p-6 text-center">
-          <div className="flex justify-center">
-            <CheckCircle className="h-16 w-16 text-green-500" />
+      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+        <Card className='max-w-md space-y-2 p-6 text-center'>
+          <div className='flex justify-center'>
+            <CheckCircle className='h-16 w-16 text-green-500' />
           </div>
-          <h3 className="font-semibold text-lg">Invitation Accepted</h3>
-          <p className="text-muted-foreground">
-            You have successfully joined {invitationDetails?.name || "the workspace"}. Redirecting
+          <h3 className='font-semibold text-lg'>Invitation Accepted</h3>
+          <p className='text-muted-foreground'>
+            You have successfully joined {invitationDetails?.name || 'the workspace'}. Redirecting
             to your workspace...
           </p>
         </Card>
@@ -278,21 +278,21 @@ export default function Invite() {
 
   // Show invitation details
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="mb-1">Workspace Invitation</CardTitle>
-          <CardDescription className="text-md">
-            You've been invited to join{" "}
-            <span className="font-medium">{invitationDetails?.name || "a workspace"}</span>
+    <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+      <Card className='w-full max-w-md'>
+        <CardHeader className='text-center'>
+          <CardTitle className='mb-1'>Workspace Invitation</CardTitle>
+          <CardDescription className='text-md'>
+            You've been invited to join{' '}
+            <span className='font-medium'>{invitationDetails?.name || 'a workspace'}</span>
           </CardDescription>
-          <p className="mt-2 text-md text-muted-foreground">
+          <p className='mt-2 text-md text-muted-foreground'>
             Click the accept below to join the workspace.
           </p>
         </CardHeader>
-        <CardFooter className="flex justify-center">
-          <Button onClick={handleAcceptInvitation} disabled={isAccepting} className="w-full">
-            <span className="ml-2">{isAccepting ? "" : ""}Accept Invitation</span>
+        <CardFooter className='flex justify-center'>
+          <Button onClick={handleAcceptInvitation} disabled={isAccepting} className='w-full'>
+            <span className='ml-2'>{isAccepting ? '' : ''}Accept Invitation</span>
           </Button>
         </CardFooter>
       </Card>

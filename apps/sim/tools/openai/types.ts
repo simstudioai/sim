@@ -1,4 +1,4 @@
-import type { ToolResponse } from "../types"
+import type { ToolResponse } from '../types'
 
 export interface BaseImageRequestBody {
   model: string
@@ -22,6 +22,6 @@ export interface OpenAIEmbeddingsParams {
   apiKey: string
   input: string | string[]
   model?: string
-  encoding_format?: "float" | "base64"
+  encoding_format?: 'float' | 'base64'
   user?: string
 }

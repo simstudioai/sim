@@ -1,11 +1,11 @@
-"use client"
+'use client'
 
-import { createLogger } from "@/lib/logs/console-logger"
-import { useEffect } from "react"
-import { SYNC_INTERVALS } from "./constants"
-import { DEFAULT_SYNC_CONFIG, type SyncConfig, type SyncOperations, performSync } from "./sync-core"
+import { createLogger } from '@/lib/logs/console-logger'
+import { useEffect } from 'react'
+import { SYNC_INTERVALS } from './constants'
+import { DEFAULT_SYNC_CONFIG, type SyncConfig, type SyncOperations, performSync } from './sync-core'
 
-const logger = createLogger("Sync")
+const logger = createLogger('Sync')
 
 // Client-side sync manager with lifecycle and registry management
 export interface SyncManager extends SyncOperations {
@@ -30,7 +30,7 @@ export function createSyncManager(config: SyncConfig): SyncManager {
   // Optimistic sync - fire and forget
   const sync = (): void => {
     performSync(fullConfig).catch((err) => {
-      logger.error("Sync failed:", { err })
+      logger.error('Sync failed:', { err })
     })
   }
 
@@ -78,20 +78,20 @@ export function createSyncManager(config: SyncConfig): SyncManager {
 
 // Initializes the sync system with exit handlers
 export function initializeSyncSystem(): () => void {
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     return () => {}
   }
 
   const handleBeforeUnload = (event: BeforeUnloadEvent) => {
     // Check if we're on an authentication page and skip confirmation if we are
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       const path = window.location.pathname
       // Skip confirmation for auth-related pages
       if (
-        path === "/login" ||
-        path === "/signup" ||
-        path === "/reset-password" ||
-        path === "/verify"
+        path === '/login' ||
+        path === '/signup' ||
+        path === '/reset-password' ||
+        path === '/verify'
       ) {
         return
       }
@@ -111,13 +111,13 @@ export function initializeSyncSystem(): () => void {
 
     // Standard beforeunload pattern
     event.preventDefault()
-    event.returnValue = ""
+    event.returnValue = ''
   }
 
-  window.addEventListener("beforeunload", handleBeforeUnload)
+  window.addEventListener('beforeunload', handleBeforeUnload)
 
   return () => {
-    window.removeEventListener("beforeunload", handleBeforeUnload)
+    window.removeEventListener('beforeunload', handleBeforeUnload)
   }
 }
 
@@ -139,7 +139,7 @@ export function createSingletonSyncManager(
   key: string,
   configFactory: () => SyncConfig
 ): SyncManager {
-  if (typeof window === "undefined") {
+  if (typeof window === 'undefined') {
     // Return a no-op manager for server-side rendering
     return {
       id: key,

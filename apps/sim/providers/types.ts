@@ -1,14 +1,14 @@
-import type { StreamingExecution } from "@/executor/types"
+import type { StreamingExecution } from '@/executor/types'
 
 export type ProviderId =
-  | "openai"
-  | "anthropic"
-  | "google"
-  | "deepseek"
-  | "xai"
-  | "cerebras"
-  | "groq"
-  | "ollama"
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'deepseek'
+  | 'xai'
+  | 'cerebras'
+  | 'groq'
+  | 'ollama'
 
 /**
  * Model pricing information per million tokens
@@ -61,7 +61,7 @@ export interface FunctionCallResponse {
 }
 
 export interface TimeSegment {
-  type: "model" | "tool"
+  type: 'model' | 'tool'
   name: string
   startTime: number
   endTime: number
@@ -96,7 +96,7 @@ export interface ProviderResponse {
   }
 }
 
-export type ToolUsageControl = "auto" | "force" | "none"
+export type ToolUsageControl = 'auto' | 'force' | 'none'
 
 export interface ProviderToolConfig {
   id: string
@@ -112,7 +112,7 @@ export interface ProviderToolConfig {
 }
 
 export interface Message {
-  role: "system" | "user" | "assistant" | "function" | "tool"
+  role: 'system' | 'user' | 'assistant' | 'function' | 'tool'
   content: string | null
   name?: string
   function_call?: {
@@ -121,7 +121,7 @@ export interface Message {
   }
   tool_calls?: Array<{
     id: string
-    type: "function"
+    type: 'function'
     function: {
       name: string
       arguments: string

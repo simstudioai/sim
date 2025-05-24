@@ -7,33 +7,33 @@ import {
   mockSubscription,
   mockTeamSubscription,
   mockUser,
-} from "@/app/api/__test-utils__/utils"
+} from '@/app/api/__test-utils__/utils'
 /**
  * Tests for Subscription Seats Update API
  *
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe("Subscription Seats Update API Routes", () => {
+describe('Subscription Seats Update API Routes', () => {
   beforeEach(() => {
     vi.resetModules()
 
-    vi.doMock("@/lib/auth", () => ({
+    vi.doMock('@/lib/auth', () => ({
       getSession: vi.fn().mockResolvedValue({
         user: mockUser,
       }),
     }))
 
-    vi.doMock("@/lib/subscription/utils", () => ({
+    vi.doMock('@/lib/subscription/utils', () => ({
       checkEnterprisePlan: vi.fn().mockReturnValue(true),
     }))
 
-    vi.doMock("@/lib/logs/console-logger", () => ({
+    vi.doMock('@/lib/logs/console-logger', () => ({
       createLogger: vi.fn().mockReturnValue(mockLogger),
     }))
 
-    vi.doMock("@/db", () => ({
+    vi.doMock('@/db', () => ({
       db: mockDb,
     }))
 
@@ -55,9 +55,9 @@ describe("Subscription Seats Update API Routes", () => {
     vi.clearAllMocks()
   })
 
-  describe("POST handler", () => {
-    it("should encounter a permission error when trying to update subscription seats", async () => {
-      vi.doMock("@/lib/subscription/utils", () => ({
+  describe('POST handler', () => {
+    it('should encounter a permission error when trying to update subscription seats', async () => {
+      vi.doMock('@/lib/subscription/utils', () => ({
         checkEnterprisePlan: vi.fn().mockReturnValue(true),
       }))
 
@@ -73,25 +73,25 @@ describe("Subscription Seats Update API Routes", () => {
         then: vi.fn().mockResolvedValue([]),
       }))
 
-      const req = createMockRequest("POST", {
+      const req = createMockRequest('POST', {
         seats: 10,
       })
 
-      const { POST } = await import("./route")
+      const { POST } = await import('./route')
 
-      const response = await POST(req, { params: Promise.resolve({ id: "sub-123" }) })
+      const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
       expect(response.status).toBe(403)
       expect(data).toHaveProperty(
-        "error",
-        "Unauthorized - you do not have permission to modify this subscription"
+        'error',
+        'Unauthorized - you do not have permission to modify this subscription'
       )
       expect(mockDb.update).not.toHaveBeenCalled()
     })
 
-    it("should reject team plan subscription updates", async () => {
-      vi.doMock("@/lib/subscription/utils", () => ({
+    it('should reject team plan subscription updates', async () => {
+      vi.doMock('@/lib/subscription/utils', () => ({
         checkEnterprisePlan: vi.fn().mockReturnValue(false),
       }))
 
@@ -101,25 +101,25 @@ describe("Subscription Seats Update API Routes", () => {
         then: vi.fn().mockResolvedValue([mockTeamSubscription]),
       })
 
-      const req = createMockRequest("POST", {
+      const req = createMockRequest('POST', {
         seats: 10,
       })
 
-      const { POST } = await import("./route")
+      const { POST } = await import('./route')
 
-      const response = await POST(req, { params: Promise.resolve({ id: "sub-123" }) })
+      const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
       expect(response.status).toBe(400)
       expect(data).toHaveProperty(
-        "error",
-        "Only enterprise subscriptions can be updated through this endpoint"
+        'error',
+        'Only enterprise subscriptions can be updated through this endpoint'
       )
       expect(mockDb.update).not.toHaveBeenCalled()
     })
 
-    it("should encounter permission issues with personal subscription updates", async () => {
-      vi.doMock("@/lib/subscription/utils", () => ({
+    it('should encounter permission issues with personal subscription updates', async () => {
+      vi.doMock('@/lib/subscription/utils', () => ({
         checkEnterprisePlan: vi.fn().mockReturnValue(true),
       }))
 
@@ -129,21 +129,21 @@ describe("Subscription Seats Update API Routes", () => {
         then: vi.fn().mockResolvedValue([mockPersonalSubscription]),
       })
 
-      const req = createMockRequest("POST", {
+      const req = createMockRequest('POST', {
         seats: 10,
       })
 
-      const { POST } = await import("./route")
+      const { POST } = await import('./route')
 
-      const response = await POST(req, { params: Promise.resolve({ id: "sub-123" }) })
+      const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
       expect(response.status).toBe(403)
-      expect(data).toHaveProperty("error")
+      expect(data).toHaveProperty('error')
     })
 
-    it("should reject updates from non-admin members", async () => {
-      vi.doMock("@/lib/subscription/utils", () => ({
+    it('should reject updates from non-admin members', async () => {
+      vi.doMock('@/lib/subscription/utils', () => ({
         checkEnterprisePlan: vi.fn().mockReturnValue(true),
       }))
 
@@ -162,89 +162,89 @@ describe("Subscription Seats Update API Routes", () => {
 
       mockDb.select.mockImplementation(mockSelectImpl)
 
-      const req = createMockRequest("POST", {
+      const req = createMockRequest('POST', {
         seats: 10,
       })
 
-      const { POST } = await import("./route")
+      const { POST } = await import('./route')
 
-      const response = await POST(req, { params: Promise.resolve({ id: "sub-123" }) })
+      const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
       expect(response.status).toBe(403)
-      expect(data).toHaveProperty("error")
+      expect(data).toHaveProperty('error')
     })
 
-    it("should reject invalid request parameters", async () => {
-      const req = createMockRequest("POST", {
+    it('should reject invalid request parameters', async () => {
+      const req = createMockRequest('POST', {
         seats: -5,
       })
 
-      const { POST } = await import("./route")
+      const { POST } = await import('./route')
 
-      const response = await POST(req, { params: Promise.resolve({ id: "sub-123" }) })
+      const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data).toHaveProperty("error", "Invalid request parameters")
+      expect(data).toHaveProperty('error', 'Invalid request parameters')
       expect(mockDb.update).not.toHaveBeenCalled()
     })
 
-    it("should handle subscription not found with permission error", async () => {
+    it('should handle subscription not found with permission error', async () => {
       mockDb.select.mockReturnValue({
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
         then: vi.fn().mockResolvedValue([]),
       })
 
-      const req = createMockRequest("POST", {
+      const req = createMockRequest('POST', {
         seats: 10,
       })
 
-      const { POST } = await import("./route")
+      const { POST } = await import('./route')
 
-      const response = await POST(req, { params: Promise.resolve({ id: "sub-123" }) })
+      const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
       expect(response.status).toBe(403)
-      expect(data).toHaveProperty("error")
+      expect(data).toHaveProperty('error')
     })
 
-    it("should handle authentication error", async () => {
-      vi.doMock("@/lib/auth", () => ({
+    it('should handle authentication error', async () => {
+      vi.doMock('@/lib/auth', () => ({
         getSession: vi.fn().mockResolvedValue(null),
       }))
 
-      const req = createMockRequest("POST", {
+      const req = createMockRequest('POST', {
         seats: 10,
       })
 
-      const { POST } = await import("./route")
+      const { POST } = await import('./route')
 
-      const response = await POST(req, { params: Promise.resolve({ id: "sub-123" }) })
+      const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
       expect(response.status).toBe(401)
-      expect(data).toHaveProperty("error", "Unauthorized")
+      expect(data).toHaveProperty('error', 'Unauthorized')
       expect(mockDb.update).not.toHaveBeenCalled()
     })
 
-    it("should handle internal server error", async () => {
+    it('should handle internal server error', async () => {
       mockDb.select.mockImplementation(() => {
-        throw new Error("Database error")
+        throw new Error('Database error')
       })
 
-      const req = createMockRequest("POST", {
+      const req = createMockRequest('POST', {
         seats: 10,
       })
 
-      const { POST } = await import("./route")
+      const { POST } = await import('./route')
 
-      const response = await POST(req, { params: Promise.resolve({ id: "sub-123" }) })
+      const response = await POST(req, { params: Promise.resolve({ id: 'sub-123' }) })
       const data = await response.json()
 
       expect(response.status).toBe(500)
-      expect(data).toHaveProperty("error", "Failed to update subscription seats")
+      expect(data).toHaveProperty('error', 'Failed to update subscription seats')
       expect(mockLogger.error).toHaveBeenCalled()
     })
   })

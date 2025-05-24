@@ -1,5 +1,5 @@
-import type { TraceSpan } from "@/app/w/logs/stores/types"
-import type { ExecutionResult } from "@/executor/types"
+import type { TraceSpan } from '@/app/w/logs/stores/types'
+import type { ExecutionResult } from '@/executor/types'
 
 // Helper function to build a tree of trace spans from execution logs
 export function buildTraceSpans(result: ExecutionResult): {
@@ -50,7 +50,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       duration: duration,
       startTime: log.startedAt,
       endTime: log.endedAt,
-      status: log.error ? "error" : "success",
+      status: log.error ? 'error' : 'success',
       children: [],
       // Store the block ID for later use in identifying direct parent-child relationships
       blockId: log.blockId,
@@ -82,7 +82,7 @@ export function buildTraceSpans(result: ExecutionResult): {
             let segmentEnd: number
 
             // Handle different time formats - some providers use ISO strings, some use timestamps
-            if (typeof segment.startTime === "string") {
+            if (typeof segment.startTime === 'string') {
               try {
                 segmentStart = new Date(segment.startTime).getTime()
               } catch (e) {
@@ -92,7 +92,7 @@ export function buildTraceSpans(result: ExecutionResult): {
               segmentStart = segment.startTime
             }
 
-            if (typeof segment.endTime === "string") {
+            if (typeof segment.endTime === 'string') {
               try {
                 segmentEnd = new Date(segment.endTime).getTime()
               } catch (e) {
@@ -120,17 +120,17 @@ export function buildTraceSpans(result: ExecutionResult): {
               endTime: new Date(segmentEnd).toISOString(),
               duration: segment.duration || segmentEnd - segmentStart,
               type:
-                segment.type === "model"
-                  ? "model"
-                  : segment.type === "tool"
-                    ? "tool"
-                    : "processing",
-              status: "success",
+                segment.type === 'model'
+                  ? 'model'
+                  : segment.type === 'tool'
+                    ? 'tool'
+                    : 'processing',
+              status: 'success',
               children: [],
             }
 
             // Add any additional metadata
-            if (segment.type === "tool" && typeof segment.name === "string") {
+            if (segment.type === 'tool' && typeof segment.name === 'string') {
               // Add as a custom attribute using type assertion
               ;(childSpan as any).toolName = segment.name
             }
@@ -149,26 +149,26 @@ export function buildTraceSpans(result: ExecutionResult): {
         // Create a child span for the provider execution
         const providerSpan: TraceSpan = {
           id: `${spanId}-provider`,
-          name: log.output.response.model || "AI Provider",
-          type: "provider",
+          name: log.output.response.model || 'AI Provider',
+          type: 'provider',
           duration: providerTiming.duration || 0,
           startTime: providerTiming.startTime || log.startedAt,
           endTime: providerTiming.endTime || log.endedAt,
-          status: "success",
+          status: 'success',
           tokens: log.output.response.tokens?.total,
         }
 
         // If we have model time, create a child span for just the model processing
         if (providerTiming.modelTime) {
-          const modelName = log.output.response.model || ""
+          const modelName = log.output.response.model || ''
           const modelSpan: TraceSpan = {
             id: `${spanId}-model`,
-            name: `Model Generation${modelName ? ` (${modelName})` : ""}`,
-            type: "model",
+            name: `Model Generation${modelName ? ` (${modelName})` : ''}`,
+            type: 'model',
             duration: providerTiming.modelTime,
             startTime: providerTiming.startTime, // Approximate
             endTime: providerTiming.endTime, // Approximate
-            status: "success",
+            status: 'success',
             tokens: log.output.response.tokens?.completion,
           }
 
@@ -186,7 +186,7 @@ export function buildTraceSpans(result: ExecutionResult): {
             duration: tc.duration || 0,
             startTime: tc.startTime || log.startedAt,
             endTime: tc.endTime || log.endedAt,
-            status: tc.error ? "error" : "success",
+            status: tc.error ? 'error' : 'success',
             input: tc.arguments || tc.input,
             output: tc.result || tc.output,
             error: tc.error,
@@ -235,11 +235,11 @@ export function buildTraceSpans(result: ExecutionResult): {
 
             try {
               return {
-                name: stripCustomToolPrefix(tc.name || "unnamed-tool"),
+                name: stripCustomToolPrefix(tc.name || 'unnamed-tool'),
                 duration: tc.duration || 0,
                 startTime: tc.startTime || log.startedAt,
                 endTime: tc.endTime || log.endedAt,
-                status: tc.error ? "error" : "success",
+                status: tc.error ? 'error' : 'success',
                 input: tc.arguments || tc.input,
                 output: tc.result || tc.output,
                 error: tc.error,
@@ -291,7 +291,7 @@ export function buildTraceSpans(result: ExecutionResult): {
 
   workflowConnections.forEach((conn) => {
     // If the source is starter or doesn't exist in our connections as a target, it's top level
-    if (conn.source === "starter" || !parentValues.includes(conn.source)) {
+    if (conn.source === 'starter' || !parentValues.includes(conn.source)) {
       topLevelBlocks.add(conn.target)
     }
   })
@@ -310,7 +310,7 @@ export function buildTraceSpans(result: ExecutionResult): {
     // 1. Have no parent (or parent is starter)
     // 2. Are identified as top level in our analysis
     const isTopLevel =
-      !parentBlockId || parentBlockId === "starter" || topLevelBlocks.has(log.blockId)
+      !parentBlockId || parentBlockId === 'starter' || topLevelBlocks.has(log.blockId)
 
     if (isTopLevel) {
       // This is a top level span
@@ -396,7 +396,7 @@ export function buildTraceSpans(result: ExecutionResult): {
       }
 
       // Check if this span could be a parent to future spans
-      if (log.blockType === "agent" || log.blockType === "workflow") {
+      if (log.blockType === 'agent' || log.blockType === 'workflow') {
         spanStack.push(span)
       }
     })
@@ -428,11 +428,11 @@ export function buildTraceSpans(result: ExecutionResult): {
 
     // Check if any spans have errors to determine overall workflow status
     const hasErrors = rootSpans.some((span) => {
-      if (span.status === "error") return true
+      if (span.status === 'error') return true
       // Recursively check children for errors
       const checkChildren = (children: TraceSpan[] = []): boolean => {
         return children.some(
-          (child) => child.status === "error" || (child.children && checkChildren(child.children))
+          (child) => child.status === 'error' || (child.children && checkChildren(child.children))
         )
       }
       return span.children && checkChildren(span.children)
@@ -440,13 +440,13 @@ export function buildTraceSpans(result: ExecutionResult): {
 
     // Create the workflow span
     const workflowSpan: TraceSpan = {
-      id: "workflow-execution",
-      name: "Workflow Execution",
-      type: "workflow",
+      id: 'workflow-execution',
+      name: 'Workflow Execution',
+      type: 'workflow',
       duration: actualWorkflowDuration, // Always use actual duration for the span
       startTime: new Date(earliestStart).toISOString(),
       endTime: new Date(latestEnd).toISOString(),
-      status: hasErrors ? "error" : "success",
+      status: hasErrors ? 'error' : 'success',
       children: rootSpans,
     }
 
@@ -458,5 +458,5 @@ export function buildTraceSpans(result: ExecutionResult): {
 }
 
 export function stripCustomToolPrefix(name: string) {
-  return name.startsWith("custom_") ? name.replace("custom_", "") : name
+  return name.startsWith('custom_') ? name.replace('custom_', '') : name
 }

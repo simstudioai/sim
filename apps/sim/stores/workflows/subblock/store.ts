@@ -1,13 +1,13 @@
-import type { SubBlockConfig } from "@/blocks/types"
-import { create } from "zustand"
-import { devtools, persist } from "zustand/middleware"
-import { useEnvironmentStore } from "../../settings/environment/store"
-import { useGeneralStore } from "../../settings/general/store"
-import { loadSubblockValues, saveSubblockValues } from "../persistence"
-import { useWorkflowRegistry } from "../registry/store"
-import { workflowSync } from "../sync"
-import type { SubBlockStore } from "./types"
-import { extractEnvVarName, findMatchingEnvVar, isEnvVarReference } from "./utils"
+import type { SubBlockConfig } from '@/blocks/types'
+import { create } from 'zustand'
+import { devtools, persist } from 'zustand/middleware'
+import { useEnvironmentStore } from '../../settings/environment/store'
+import { useGeneralStore } from '../../settings/general/store'
+import { loadSubblockValues, saveSubblockValues } from '../persistence'
+import { useWorkflowRegistry } from '../registry/store'
+import { workflowSync } from '../sync'
+import type { SubBlockStore } from './types'
+import { extractEnvVarName, findMatchingEnvVar, isEnvVarReference } from './utils'
 
 // Add debounce utility for syncing
 let syncDebounceTimer: NodeJS.Timeout | null = null
@@ -134,7 +134,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
         // Tool params related functionality
         setToolParam: (toolId: string, paramId: string, value: string) => {
           // If setting a non-empty value, we should remove it from clearedParams if it exists
-          if (value.trim() !== "") {
+          if (value.trim() !== '') {
             set((state) => {
               const newClearedParams = { ...state.clearedParams }
               if (newClearedParams[toolId]?.[paramId]) {
@@ -162,9 +162,9 @@ export const useSubBlockStore = create<SubBlockStore>()(
 
           // For API keys, also store under a normalized tool name for cross-referencing
           // This allows both blocks and tools to share the same parameters
-          if (paramId.toLowerCase() === "apikey" || paramId.toLowerCase() === "api_key") {
+          if (paramId.toLowerCase() === 'apikey' || paramId.toLowerCase() === 'api_key') {
             // Extract the tool name part (e.g., "exa" from "exa-search")
-            const baseTool = toolId.split("-")[0].toLowerCase()
+            const baseTool = toolId.split('-')[0].toLowerCase()
 
             if (baseTool !== toolId) {
               // Set the same value for the base tool to enable cross-referencing
@@ -220,15 +220,15 @@ export const useSubBlockStore = create<SubBlockStore>()(
           if (directValue) return directValue
 
           // Try base tool name if it's a compound tool ID
-          if (toolId.includes("-")) {
-            const baseTool = toolId.split("-")[0].toLowerCase()
+          if (toolId.includes('-')) {
+            const baseTool = toolId.split('-')[0].toLowerCase()
             return get().toolParams[baseTool]?.[paramId]
           }
 
           // Try matching against any stored tool that starts with this ID
           // This helps match "exa" with "exa-search" etc.
           const matchingToolIds = Object.keys(get().toolParams).filter(
-            (id) => id.startsWith(toolId) || id.split("-")[0] === toolId
+            (id) => id.startsWith(toolId) || id.split('-')[0] === toolId
           )
 
           for (const id of matchingToolIds) {
@@ -288,7 +288,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
 
           // If no stored value, try to guess based on parameter name
           // This handles cases where the user hasn't entered a value yet
-          if (paramId.toLowerCase() === "apikey" || paramId.toLowerCase() === "api_key") {
+          if (paramId.toLowerCase() === 'apikey' || paramId.toLowerCase() === 'api_key') {
             const matchingVar = findMatchingEnvVar(toolId)
             if (matchingVar) {
               const envReference = `{{${matchingVar}}}`
@@ -306,7 +306,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
         },
       }),
       {
-        name: "subblock-store",
+        name: 'subblock-store',
         partialize: (state) => ({
           workflowValues: state.workflowValues,
           toolParams: state.toolParams,
@@ -327,6 +327,6 @@ export const useSubBlockStore = create<SubBlockStore>()(
         },
       }
     ),
-    { name: "subblock-store" }
+    { name: 'subblock-store' }
   )
 )

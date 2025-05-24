@@ -1,19 +1,19 @@
-import { Buffer } from "node:buffer"
-import { createHash } from "node:crypto"
-import fsPromises, { readFile, unlink, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import path from "node:path"
-import { isSupportedFileType, parseFile } from "@/lib/file-parsers"
-import { createLogger } from "@/lib/logs/console-logger"
-import { downloadFromS3 } from "@/lib/uploads/s3-client"
-import { UPLOAD_DIR, USE_S3_STORAGE } from "@/lib/uploads/setup"
-import binaryExtensionsList from "binary-extensions"
-import { type NextRequest, NextResponse } from "next/server"
-import "@/lib/uploads/setup.server"
+import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
+import fsPromises, { readFile, unlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
+import { createLogger } from '@/lib/logs/console-logger'
+import { downloadFromS3 } from '@/lib/uploads/s3-client'
+import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import binaryExtensionsList from 'binary-extensions'
+import { type NextRequest, NextResponse } from 'next/server'
+import '@/lib/uploads/setup.server'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = createLogger("FilesParseAPI")
+const logger = createLogger('FilesParseAPI')
 
 // Constants for URL downloads
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
@@ -43,47 +43,47 @@ type ParseResult = ParseSuccessResult | ParseErrorResult
 // MIME type mapping for various file extensions
 const fileTypeMap: Record<string, string> = {
   // Text formats
-  txt: "text/plain",
-  csv: "text/csv",
-  json: "application/json",
-  xml: "application/xml",
-  md: "text/markdown",
-  html: "text/html",
-  css: "text/css",
-  js: "application/javascript",
-  ts: "application/typescript",
+  txt: 'text/plain',
+  csv: 'text/csv',
+  json: 'application/json',
+  xml: 'application/xml',
+  md: 'text/markdown',
+  html: 'text/html',
+  css: 'text/css',
+  js: 'application/javascript',
+  ts: 'application/typescript',
   // Document formats
-  pdf: "application/pdf",
-  doc: "application/msword",
-  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   // Spreadsheet formats
-  xls: "application/vnd.ms-excel",
-  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   // Presentation formats
-  ppt: "application/vnd.ms-powerpoint",
-  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   // Image formats
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  gif: "image/gif",
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
   // Archive formats
-  zip: "application/zip",
+  zip: 'application/zip',
 }
 
 // Binary file extensions
 const binaryExtensions = [
-  "doc",
-  "docx",
-  "xls",
-  "xlsx",
-  "ppt",
-  "pptx",
-  "zip",
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+  'zip',
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
 ]
 
 /**
@@ -94,10 +94,10 @@ export async function POST(request: NextRequest) {
     const requestData = await request.json()
     const { filePath, fileType } = requestData
 
-    logger.info("File parse request received:", { filePath, fileType })
+    logger.info('File parse request received:', { filePath, fileType })
 
     if (!filePath) {
-      return NextResponse.json({ error: "No file path provided" }, { status: 400 })
+      return NextResponse.json({ error: 'No file path provided' }, { status: 400 })
     }
 
     // Handle both single file path and array of file paths
@@ -133,9 +133,9 @@ export async function POST(request: NextRequest) {
       results,
     })
   } catch (error) {
-    logger.error("Error parsing file(s):", error)
+    logger.error('Error parsing file(s):', error)
     return NextResponse.json(
-      { error: "Failed to parse file(s)", message: (error as Error).message },
+      { error: 'Failed to parse file(s)', message: (error as Error).message },
       { status: 500 }
     )
   }
@@ -145,15 +145,15 @@ export async function POST(request: NextRequest) {
  * Parse a single file and return its content
  */
 async function parseFileSingle(filePath: string, fileType?: string): Promise<ParseResult> {
-  logger.info("Parsing file:", filePath)
+  logger.info('Parsing file:', filePath)
 
   // Check if this is an external URL
-  if (filePath.startsWith("http://") || filePath.startsWith("https://")) {
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
     return handleExternalUrl(filePath, fileType)
   }
 
   // Check if this is an S3 path
-  const isS3Path = filePath.includes("/api/files/serve/s3/")
+  const isS3Path = filePath.includes('/api/files/serve/s3/')
 
   // Use S3 handler if it's an S3 path or we're in S3 mode
   if (isS3Path || USE_S3_STORAGE) {
@@ -172,18 +172,18 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
 
   try {
     // Create a unique filename for the temporary file
-    const urlHash = createHash("md5").update(url).digest("hex")
+    const urlHash = createHash('md5').update(url).digest('hex')
     const urlObj = new URL(url)
-    const originalFilename = urlObj.pathname.split("/").pop() || "download"
+    const originalFilename = urlObj.pathname.split('/').pop() || 'download'
     const tmpFilename = `${urlHash}-${originalFilename}`
     const tmpFilePath = path.join(tmpdir(), tmpFilename)
 
     // Download the file using native fetch
     logger.info(`Downloading file from URL to ${tmpFilePath}`)
     const response = await fetch(url, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "User-Agent": "SimStudio/1.0",
+        'User-Agent': 'SimStudio/1.0',
       },
       signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS), // Add timeout
     })
@@ -193,7 +193,7 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
     }
 
     // Check file size before downloading content
-    const contentLength = response.headers.get("content-length")
+    const contentLength = response.headers.get('content-length')
     if (contentLength) {
       const fileSize = Number.parseInt(contentLength, 10)
       if (fileSize > MAX_DOWNLOAD_SIZE_BYTES) {
@@ -204,7 +204,7 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
         )
       }
     } else {
-      logger.warn("Content-Length header missing, cannot verify file size before download.")
+      logger.warn('Content-Length header missing, cannot verify file size before download.')
     }
 
     // Get the file buffer from response
@@ -216,18 +216,18 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
     logger.info(`Downloaded ${fileBuffer.length} bytes to ${tmpFilePath}`)
 
     // Determine file extension and type
-    const contentType = response.headers.get("content-type") || ""
+    const contentType = response.headers.get('content-type') || ''
     const extension =
       path.extname(originalFilename).toLowerCase().substring(1) ||
-      (contentType ? contentType.split("/").pop() || "unknown" : "unknown")
+      (contentType ? contentType.split('/').pop() || 'unknown' : 'unknown')
 
     try {
       // Process based on file type
       let result: ParseResult
 
-      if (extension === "pdf") {
+      if (extension === 'pdf') {
         result = await handlePdfBuffer(fileBuffer, originalFilename, fileType, url)
-      } else if (extension === "csv") {
+      } else if (extension === 'csv') {
         result = await handleCsvBuffer(fileBuffer, originalFilename, fileType, url)
       } else if (isSupportedFileType(extension)) {
         result = await handleGenericTextBuffer(
@@ -265,7 +265,7 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
   } catch (error) {
     logger.error(`Error handling external URL ${url}:`, error)
     let errorMessage = `Failed to download or process file from URL: ${(error as Error).message}`
-    if ((error as Error).name === "TimeoutError") {
+    if ((error as Error).name === 'TimeoutError') {
       errorMessage = `Download timed out after ${DOWNLOAD_TIMEOUT_MS / 1000} seconds.`
     }
     return {
@@ -282,26 +282,26 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
 async function handleS3File(filePath: string, fileType?: string): Promise<ParseResult> {
   try {
     // Extract the S3 key from the path
-    const isS3Path = filePath.includes("/api/files/serve/s3/")
+    const isS3Path = filePath.includes('/api/files/serve/s3/')
     const s3Key = isS3Path
-      ? decodeURIComponent(filePath.split("/api/files/serve/s3/")[1])
+      ? decodeURIComponent(filePath.split('/api/files/serve/s3/')[1])
       : filePath
 
-    logger.info("Extracted S3 key:", s3Key)
+    logger.info('Extracted S3 key:', s3Key)
 
     // Download the file from S3
     const fileBuffer = await downloadFromS3(s3Key)
     logger.info(`Downloaded file from S3: ${s3Key}, size: ${fileBuffer.length} bytes`)
 
     // Extract the filename from the S3 key
-    const filename = s3Key.split("/").pop() || s3Key
+    const filename = s3Key.split('/').pop() || s3Key
     const extension = path.extname(filename).toLowerCase().substring(1)
 
     // Process the file based on its content type
-    if (extension === "pdf") {
+    if (extension === 'pdf') {
       return await handlePdfBuffer(fileBuffer, filename, fileType, filePath)
     }
-    if (extension === "csv") {
+    if (extension === 'csv') {
       return await handleCsvBuffer(fileBuffer, filename, fileType, filePath)
     }
     if (isSupportedFileType(extension)) {
@@ -342,7 +342,7 @@ async function handlePdfBuffer(
       success: true,
       output: {
         content,
-        fileType: fileType || "application/pdf",
+        fileType: fileType || 'application/pdf',
         size: fileBuffer.length,
         name: filename,
         binary: false,
@@ -351,7 +351,7 @@ async function handlePdfBuffer(
       filePath: originalPath,
     }
   } catch (error) {
-    logger.error("Failed to parse PDF in memory:", error)
+    logger.error('Failed to parse PDF in memory:', error)
 
     // Create fallback message for PDF parsing failure
     const content = createPdfFailureMessage(
@@ -365,7 +365,7 @@ async function handlePdfBuffer(
       success: true,
       output: {
         content,
-        fileType: fileType || "application/pdf",
+        fileType: fileType || 'application/pdf',
         size: fileBuffer.length,
         name: filename,
         binary: false,
@@ -388,14 +388,14 @@ async function handleCsvBuffer(
     logger.info(`Parsing CSV in memory: ${filename}`)
 
     // Use the parseBuffer function from our library
-    const { parseBuffer } = await import("../../../../lib/file-parsers")
-    const result = await parseBuffer(fileBuffer, "csv")
+    const { parseBuffer } = await import('../../../../lib/file-parsers')
+    const result = await parseBuffer(fileBuffer, 'csv')
 
     return {
       success: true,
       output: {
         content: result.content,
-        fileType: fileType || "text/csv",
+        fileType: fileType || 'text/csv',
         size: fileBuffer.length,
         name: filename,
         binary: false,
@@ -404,7 +404,7 @@ async function handleCsvBuffer(
       filePath: originalPath,
     }
   } catch (error) {
-    logger.error("Failed to parse CSV in memory:", error)
+    logger.error('Failed to parse CSV in memory:', error)
     return {
       success: false,
       error: `Failed to parse CSV: ${(error as Error).message}`,
@@ -428,7 +428,7 @@ async function handleGenericTextBuffer(
 
     // Try to use a specialized parser if available
     try {
-      const { parseBuffer, isSupportedFileType } = await import("../../../../lib/file-parsers")
+      const { parseBuffer, isSupportedFileType } = await import('../../../../lib/file-parsers')
 
       if (isSupportedFileType(extension)) {
         const result = await parseBuffer(fileBuffer, extension)
@@ -447,11 +447,11 @@ async function handleGenericTextBuffer(
         }
       }
     } catch (parserError) {
-      logger.warn("Specialized parser failed, falling back to generic parsing:", parserError)
+      logger.warn('Specialized parser failed, falling back to generic parsing:', parserError)
     }
 
     // Fallback to generic text parsing
-    const content = fileBuffer.toString("utf-8")
+    const content = fileBuffer.toString('utf-8')
 
     return {
       success: true,
@@ -465,7 +465,7 @@ async function handleGenericTextBuffer(
       filePath: originalPath,
     }
   } catch (error) {
-    logger.error("Failed to parse text file in memory:", error)
+    logger.error('Failed to parse text file in memory:', error)
     return {
       success: false,
       error: `Failed to parse file: ${(error as Error).message}`,
@@ -486,7 +486,7 @@ function handleGenericBuffer(
   const isBinary = binaryExtensionsList.includes(extension)
   const content = isBinary
     ? `[Binary ${extension.toUpperCase()} file - ${fileBuffer.length} bytes]`
-    : fileBuffer.toString("utf-8")
+    : fileBuffer.toString('utf-8')
 
   return {
     success: true,
@@ -508,18 +508,18 @@ async function parseBufferAsPdf(buffer: Buffer) {
     // Import parsers dynamically to avoid initialization issues in tests
     // First try to use the main PDF parser
     try {
-      const { PdfParser } = await import("../../../../lib/file-parsers/pdf-parser")
+      const { PdfParser } = await import('../../../../lib/file-parsers/pdf-parser')
       const parser = new PdfParser()
-      logger.info("Using main PDF parser for buffer")
+      logger.info('Using main PDF parser for buffer')
 
       if (parser.parseBuffer) {
         return await parser.parseBuffer(buffer)
       }
-      throw new Error("PDF parser does not support buffer parsing")
+      throw new Error('PDF parser does not support buffer parsing')
     } catch (error) {
       // Fallback to raw PDF parser
-      logger.warn("Main PDF parser failed, using raw parser for buffer:", error)
-      const { RawPdfParser } = await import("../../../../lib/file-parsers/raw-pdf-parser")
+      logger.warn('Main PDF parser failed, using raw parser for buffer:', error)
+      const { RawPdfParser } = await import('../../../../lib/file-parsers/raw-pdf-parser')
       const rawParser = new RawPdfParser()
 
       return await rawParser.parseBuffer(buffer)
@@ -534,7 +534,7 @@ async function parseBufferAsPdf(buffer: Buffer) {
  */
 async function handleLocalFile(filePath: string, fileType?: string): Promise<ParseResult> {
   // Check if this is an S3 path that was incorrectly routed
-  if (filePath.includes("/api/files/serve/s3/")) {
+  if (filePath.includes('/api/files/serve/s3/')) {
     logger.warn(`S3 path detected in handleLocalFile, redirecting to S3 handler: ${filePath}`)
     return handleS3File(filePath, fileType)
   }
@@ -544,8 +544,8 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
 
     // Extract the filename from the path for API serve paths
     let localFilePath = filePath
-    if (filePath.startsWith("/api/files/serve/")) {
-      const filename = filePath.replace("/api/files/serve/", "")
+    if (filePath.startsWith('/api/files/serve/')) {
+      const filename = filePath.replace('/api/files/serve/', '')
       localFilePath = path.join(UPLOAD_DIR, filename)
       logger.info(`Resolved API path to local file: ${localFilePath}`)
     }
@@ -613,8 +613,8 @@ async function processWithSpecializedParser(
 
     // Handle PDF-specific validation
     if (
-      extension === "pdf" &&
-      (result.content.includes("\u0000") ||
+      extension === 'pdf' &&
+      (result.content.includes('\u0000') ||
         result.content.match(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]{10,}/g))
     ) {
       result.content = createPdfFallbackMessage(result.metadata?.pageCount, fileSize, originalPath)
@@ -636,13 +636,13 @@ async function processWithSpecializedParser(
     logger.error(`Specialized parser failed for ${extension} file:`, error)
 
     // Special handling for PDFs
-    if (extension === "pdf") {
+    if (extension === 'pdf') {
       const fileBuffer = await readFile(filePath)
       const fileSize = fileBuffer.length
 
       // Get page count using a simple regex pattern
       let pageCount = 0
-      const pdfContent = fileBuffer.toString("utf-8")
+      const pdfContent = fileBuffer.toString('utf-8')
       const pageMatches = pdfContent.match(/\/Type\s*\/Page\b/gi)
       if (pageMatches) {
         pageCount = pageMatches.length
@@ -710,7 +710,7 @@ async function handleGenericFile(
       },
     }
   } catch (error) {
-    logger.error("Error handling generic file:", error)
+    logger.error('Error handling generic file:', error)
     return {
       success: false,
       error: `Failed to parse file: ${(error as Error).message}`,
@@ -724,7 +724,7 @@ async function handleGenericFile(
  */
 async function parseTextFile(fileBuffer: Buffer): Promise<string> {
   try {
-    return fileBuffer.toString("utf-8")
+    return fileBuffer.toString('utf-8')
   } catch (error) {
     return `[Unable to parse file as text: ${(error as Error).message}]`
   }
@@ -734,16 +734,16 @@ async function parseTextFile(fileBuffer: Buffer): Promise<string> {
  * Get MIME type from file extension
  */
 function getMimeType(extension: string): string {
-  return fileTypeMap[extension] || "application/octet-stream"
+  return fileTypeMap[extension] || 'application/octet-stream'
 }
 
 /**
  * Format bytes to human readable size
  */
 function prettySize(bytes: number): string {
-  if (bytes === 0) return "0 Bytes"
+  if (bytes === 0) return '0 Bytes'
 
-  const sizes = ["Bytes", "KB", "MB", "GB", "TB"]
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
 
   return `${Number.parseFloat((bytes / 1024 ** i).toFixed(2))} ${sizes[i]}`
@@ -754,10 +754,10 @@ function prettySize(bytes: number): string {
  */
 function createPdfFallbackMessage(pageCount: number, size: number, path?: string): string {
   const formattedPath = path
-    ? path.includes("/api/files/serve/s3/")
-      ? `S3 path: ${decodeURIComponent(path.split("/api/files/serve/s3/")[1])}`
+    ? path.includes('/api/files/serve/s3/')
+      ? `S3 path: ${decodeURIComponent(path.split('/api/files/serve/s3/')[1])}`
       : `Local path: ${path}`
-    : "Unknown path"
+    : 'Unknown path'
 
   return `PDF document - ${pageCount} page(s), ${prettySize(size)}
 Path: ${formattedPath}
@@ -775,8 +775,8 @@ function createPdfFailureMessage(
   path: string,
   error: string
 ): string {
-  const formattedPath = path.includes("/api/files/serve/s3/")
-    ? `S3 path: ${decodeURIComponent(path.split("/api/files/serve/s3/")[1])}`
+  const formattedPath = path.includes('/api/files/serve/s3/')
+    ? `S3 path: ${decodeURIComponent(path.split('/api/files/serve/s3/')[1])}`
     : `Local path: ${path}`
 
   return `PDF document - Processing failed, ${prettySize(size)}

@@ -1,31 +1,31 @@
-import { writeFile } from "node:fs/promises"
-import { join } from "node:path"
-import { createLogger } from "@/lib/logs/console-logger"
-import { uploadToS3 } from "@/lib/uploads/s3-client"
-import { UPLOAD_DIR, USE_S3_STORAGE } from "@/lib/uploads/setup"
-import { type NextRequest, NextResponse } from "next/server"
-import { v4 as uuidv4 } from "uuid"
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { createLogger } from '@/lib/logs/console-logger'
+import { uploadToS3 } from '@/lib/uploads/s3-client'
+import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 // Import to ensure the uploads directory is created
-import "@/lib/uploads/setup.server"
-import { InvalidRequestError, createErrorResponse, createOptionsResponse } from "../utils"
+import '@/lib/uploads/setup.server'
+import { InvalidRequestError, createErrorResponse, createOptionsResponse } from '../utils'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = createLogger("FilesUploadAPI")
+const logger = createLogger('FilesUploadAPI')
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
 
     // Check if multiple files are being uploaded or a single file
-    const files = formData.getAll("file") as File[]
+    const files = formData.getAll('file') as File[]
 
     if (!files || files.length === 0) {
-      throw new InvalidRequestError("No files provided")
+      throw new InvalidRequestError('No files provided')
     }
 
     // Log storage mode
-    logger.info(`Using storage mode: ${USE_S3_STORAGE ? "S3" : "Local"} for file upload`)
+    logger.info(`Using storage mode: ${USE_S3_STORAGE ? 'S3' : 'Local'} for file upload`)
 
     const uploadResults = []
 
@@ -43,12 +43,12 @@ export async function POST(request: NextRequest) {
           logger.info(`Successfully uploaded to S3: ${result.key}`)
           uploadResults.push(result)
         } catch (error) {
-          logger.error("Error uploading to S3:", error)
+          logger.error('Error uploading to S3:', error)
           throw error
         }
       } else {
         // Upload to local file system in development
-        const extension = originalName.split(".").pop() || ""
+        const extension = originalName.split('.').pop() || ''
         const uniqueFilename = `${uuidv4()}.${extension}`
         const filePath = join(UPLOAD_DIR, uniqueFilename)
 
@@ -68,8 +68,8 @@ export async function POST(request: NextRequest) {
     // Return all file information
     return NextResponse.json(files.length === 1 ? uploadResults[0] : uploadResults)
   } catch (error) {
-    logger.error("Error uploading files:", error)
-    return createErrorResponse(error instanceof Error ? error : new Error("Failed to upload files"))
+    logger.error('Error uploading files:', error)
+    return createErrorResponse(error instanceof Error ? error : new Error('Failed to upload files'))
   }
 }
 

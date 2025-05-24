@@ -1,10 +1,10 @@
-"use client"
+'use client'
 
-import { Skeleton } from "@/components/ui/skeleton"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import clsx from "clsx"
-import Link from "next/link"
-import type { ReactNode } from "react"
+import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import clsx from 'clsx'
+import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 interface NavSectionProps {
   children: ReactNode
@@ -21,7 +21,7 @@ interface NavItemProps {
   onClick?: () => void
   isCollapsed?: boolean
   shortcutCommand?: string
-  shortcutCommandPosition?: "inline" | "below"
+  shortcutCommandPosition?: 'inline' | 'below'
 }
 
 export function NavSection({
@@ -32,7 +32,7 @@ export function NavSection({
 }: NavSectionProps) {
   if (isLoading) {
     return (
-      <nav className="space-y-1">
+      <nav className='space-y-1'>
         {Array(itemCount)
           .fill(0)
           .map((_, i) => (
@@ -42,7 +42,7 @@ export function NavSection({
     )
   }
 
-  return <nav className="space-y-1">{children}</nav>
+  return <nav className='space-y-1'>{children}</nav>
 }
 
 function NavItem({
@@ -53,23 +53,23 @@ function NavItem({
   onClick,
   isCollapsed,
   shortcutCommand,
-  shortcutCommandPosition = "inline",
+  shortcutCommandPosition = 'inline',
 }: NavItemProps) {
   const className = clsx(
-    "flex items-center gap-2 rounded-md px-2 py-[6px] text-sm font-medium",
-    active ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50",
+    'flex items-center gap-2 rounded-md px-2 py-[6px] text-sm font-medium',
+    active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50',
     {
-      "cursor-pointer": onClick,
-      "justify-center": isCollapsed,
-      "w-full": !isCollapsed,
-      "w-8 mx-auto": isCollapsed,
+      'cursor-pointer': onClick,
+      'justify-center': isCollapsed,
+      'w-full': !isCollapsed,
+      'w-8 mx-auto': isCollapsed,
     }
   )
 
   const content = (
     <>
-      {isCollapsed ? <div className="p-[1px]">{icon}</div> : icon}
-      {!isCollapsed && <span className="truncate">{label}</span>}
+      {isCollapsed ? <div className='p-[1px]'>{icon}</div> : icon}
+      {!isCollapsed && <span className='truncate'>{label}</span>}
     </>
   )
 
@@ -83,7 +83,7 @@ function NavItem({
             </Link>
           </TooltipTrigger>
           <TooltipContent
-            side="right"
+            side='right'
             command={shortcutCommand}
             commandPosition={shortcutCommandPosition}
           >
@@ -101,7 +101,7 @@ function NavItem({
           </button>
         </TooltipTrigger>
         <TooltipContent
-          side="right"
+          side='right'
           command={shortcutCommand}
           commandPosition={shortcutCommandPosition}
         >
@@ -129,16 +129,16 @@ function NavItem({
 function NavItemSkeleton({ isCollapsed }: { isCollapsed?: boolean }) {
   if (isCollapsed) {
     return (
-      <div className="mx-auto flex h-8 w-8 items-center justify-center">
-        <Skeleton className="h-[18px] w-[18px]" />
+      <div className='mx-auto flex h-8 w-8 items-center justify-center'>
+        <Skeleton className='h-[18px] w-[18px]' />
       </div>
     )
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-md px-2 py-[6px]">
-      <Skeleton className="h-[18px] w-[18px]" />
-      <Skeleton className="h-4 w-24" />
+    <div className='flex items-center gap-2 rounded-md px-2 py-[6px]'>
+      <Skeleton className='h-[18px] w-[18px]' />
+      <Skeleton className='h-4 w-24' />
     </div>
   )
 }

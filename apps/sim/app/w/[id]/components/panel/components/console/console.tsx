@@ -1,10 +1,10 @@
-"use client"
+'use client'
 
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { useConsoleStore } from "@/stores/panel/console/store"
-import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
-import { useMemo } from "react"
-import { ConsoleEntry } from "./components/console-entry/console-entry"
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { useConsoleStore } from '@/stores/panel/console/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useMemo } from 'react'
+import { ConsoleEntry } from './components/console-entry/console-entry'
 
 interface ConsoleProps {
   panelWidth: number
@@ -19,10 +19,10 @@ export function Console({ panelWidth }: ConsoleProps) {
   }, [entries, activeWorkflowId])
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className='h-full'>
       <div>
         {filteredEntries.length === 0 ? (
-          <div className="flex h-32 items-center justify-center pt-4 text-muted-foreground text-sm">
+          <div className='flex h-32 items-center justify-center pt-4 text-muted-foreground text-sm'>
             No console entries
           </div>
         ) : (

@@ -1,14 +1,14 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { NextResponse } from "next/server"
-import { OpenAI } from "openai"
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions"
-import { z } from "zod"
+import { createLogger } from '@/lib/logs/console-logger'
+import { NextResponse } from 'next/server'
+import { OpenAI } from 'openai'
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { z } from 'zod'
 
-const logger = createLogger("CopilotAPI")
+const logger = createLogger('CopilotAPI')
 
 // Validation schemas
 const MessageSchema = z.object({
-  role: z.enum(["user", "assistant", "system"]),
+  role: z.enum(['user', 'assistant', 'system']),
   content: z.string(),
 })
 
@@ -23,75 +23,75 @@ const RequestSchema = z.object({
 // Define function schemas with strict typing
 const workflowActions = {
   addBlock: {
-    description: "Add one new block to the workflow",
+    description: 'Add one new block to the workflow',
     parameters: {
-      type: "object",
-      required: ["type"],
+      type: 'object',
+      required: ['type'],
       properties: {
         type: {
-          type: "string",
-          enum: ["agent", "api", "condition", "function", "router"],
-          description: "The type of block to add",
+          type: 'string',
+          enum: ['agent', 'api', 'condition', 'function', 'router'],
+          description: 'The type of block to add',
         },
         name: {
-          type: "string",
+          type: 'string',
           description:
-            "Optional custom name for the block. Do not provide a name unless the user has specified it.",
+            'Optional custom name for the block. Do not provide a name unless the user has specified it.',
         },
         position: {
-          type: "object",
+          type: 'object',
           description:
-            "Optional position for the block. Do not provide a position unless the user has specified it.",
+            'Optional position for the block. Do not provide a position unless the user has specified it.',
           properties: {
-            x: { type: "number" },
-            y: { type: "number" },
+            x: { type: 'number' },
+            y: { type: 'number' },
           },
         },
       },
     },
   },
   addEdge: {
-    description: "Create a connection (edge) between two blocks",
+    description: 'Create a connection (edge) between two blocks',
     parameters: {
-      type: "object",
-      required: ["sourceId", "targetId"],
+      type: 'object',
+      required: ['sourceId', 'targetId'],
       properties: {
         sourceId: {
-          type: "string",
-          description: "ID of the source block",
+          type: 'string',
+          description: 'ID of the source block',
         },
         targetId: {
-          type: "string",
-          description: "ID of the target block",
+          type: 'string',
+          description: 'ID of the target block',
         },
         sourceHandle: {
-          type: "string",
-          description: "Optional handle identifier for the source connection point",
+          type: 'string',
+          description: 'Optional handle identifier for the source connection point',
         },
         targetHandle: {
-          type: "string",
-          description: "Optional handle identifier for the target connection point",
+          type: 'string',
+          description: 'Optional handle identifier for the target connection point',
         },
       },
     },
   },
   removeBlock: {
-    description: "Remove a block from the workflow",
+    description: 'Remove a block from the workflow',
     parameters: {
-      type: "object",
-      required: ["id"],
+      type: 'object',
+      required: ['id'],
       properties: {
-        id: { type: "string", description: "ID of the block to remove" },
+        id: { type: 'string', description: 'ID of the block to remove' },
       },
     },
   },
   removeEdge: {
-    description: "Remove a connection (edge) between blocks",
+    description: 'Remove a connection (edge) between blocks',
     parameters: {
-      type: "object",
-      required: ["id"],
+      type: 'object',
+      required: ['id'],
       properties: {
-        id: { type: "string", description: "ID of the edge to remove" },
+        id: { type: 'string', description: 'ID of the edge to remove' },
       },
     },
   },
@@ -105,23 +105,23 @@ const getSystemPrompt = (workflowState: any) => {
   // Create a summary of existing blocks
   const blockSummary = Object.values(workflowState.blocks)
     .map((block: any) => `- ${block.type} block named "${block.name}" with id ${block.id}`)
-    .join("\n")
+    .join('\n')
 
   // Create a summary of existing edges
   const edgeSummary = workflowState.edges
     .map((edge: any) => `- ${edge.source} -> ${edge.target} with id ${edge.id}`)
-    .join("\n")
+    .join('\n')
 
   return `You are a workflow assistant that helps users modify their workflow by adding/removing blocks and connections.
 
 Current Workflow State:
 ${
   blockCount === 0
-    ? "The workflow is empty."
+    ? 'The workflow is empty.'
     : `${blockSummary}
 
 Connections:
-${edgeCount === 0 ? "No connections between blocks." : edgeSummary}`
+${edgeCount === 0 ? 'No connections between blocks.' : edgeSummary}`
 }
 
 When users request changes:
@@ -142,9 +142,9 @@ export async function POST(request: Request) {
 
   try {
     // Validate API key
-    const apiKey = request.headers.get("X-OpenAI-Key")
+    const apiKey = request.headers.get('X-OpenAI-Key')
     if (!apiKey) {
-      return NextResponse.json({ error: "OpenAI API key is required" }, { status: 401 })
+      return NextResponse.json({ error: 'OpenAI API key is required' }, { status: 401 })
     }
 
     // Parse and validate request body
@@ -157,23 +157,23 @@ export async function POST(request: Request) {
 
     // Create message history with workflow context
     const messageHistory = [
-      { role: "system", content: getSystemPrompt(workflowState) },
+      { role: 'system', content: getSystemPrompt(workflowState) },
       ...messages,
     ]
 
     // Make OpenAI API call with workflow context
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: 'gpt-4o',
       messages: messageHistory as ChatCompletionMessageParam[],
       tools: Object.entries(workflowActions).map(([name, config]) => ({
-        type: "function",
+        type: 'function',
         function: {
           name,
           description: config.description,
           parameters: config.parameters,
         },
       })),
-      tool_choice: "auto",
+      tool_choice: 'auto',
     })
 
     const message = completion.choices[0].message
@@ -206,11 +206,11 @@ export async function POST(request: Request) {
     // Handle specific error types
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request format", details: error.errors },
+        { error: 'Invalid request format', details: error.errors },
         { status: 400 }
       )
     }
 
-    return NextResponse.json({ error: "Failed to process copilot message" }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to process copilot message' }, { status: 500 })
   }
 }

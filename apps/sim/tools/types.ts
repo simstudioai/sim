@@ -1,6 +1,6 @@
-import type { OAuthService } from "@/lib/oauth"
+import type { OAuthService } from '@/lib/oauth'
 
-export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH"
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
 export interface ToolResponse {
   success: boolean // Whether the tool execution was successful

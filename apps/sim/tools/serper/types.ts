@@ -1,4 +1,4 @@
-import type { ToolResponse } from "../types"
+import type { ToolResponse } from '../types'
 
 export interface SearchParams {
   query: string
@@ -6,7 +6,7 @@ export interface SearchParams {
   num?: number
   gl?: string // country code
   hl?: string // language code
-  type?: "search" | "news" | "places" | "images"
+  type?: 'search' | 'news' | 'places' | 'images'
 }
 
 export interface SearchResult {

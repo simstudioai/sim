@@ -1,13 +1,13 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { getS3Client } from "@/lib/uploads/s3-client"
-import { S3_CONFIG, USE_S3_STORAGE } from "@/lib/uploads/setup"
-import { PutObjectCommand } from "@aws-sdk/client-s3"
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
-import { type NextRequest, NextResponse } from "next/server"
-import { v4 as uuidv4 } from "uuid"
-import { createErrorResponse, createOptionsResponse } from "../utils"
+import { createLogger } from '@/lib/logs/console-logger'
+import { getS3Client } from '@/lib/uploads/s3-client'
+import { S3_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
+import { createErrorResponse, createOptionsResponse } from '../utils'
 
-const logger = createLogger("PresignedUploadAPI")
+const logger = createLogger('PresignedUploadAPI')
 
 interface PresignedUrlRequest {
   fileName: string
@@ -22,14 +22,14 @@ export async function POST(request: NextRequest) {
     const { fileName, contentType, fileSize } = data
 
     if (!fileName || !contentType) {
-      return NextResponse.json({ error: "Missing fileName or contentType" }, { status: 400 })
+      return NextResponse.json({ error: 'Missing fileName or contentType' }, { status: 400 })
     }
 
     // Only proceed if S3 storage is enabled
     if (!USE_S3_STORAGE) {
       return NextResponse.json(
         {
-          error: "Direct uploads are only available when S3 storage is enabled",
+          error: 'Direct uploads are only available when S3 storage is enabled',
           directUploadSupported: false,
         },
         { status: 400 }
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create a unique key for the file
-    const safeFileName = fileName.replace(/\s+/g, "-")
+    const safeFileName = fileName.replace(/\s+/g, '-')
     const uniqueKey = `${Date.now()}-${uuidv4()}-${safeFileName}`
 
     // Create the S3 command
@@ -71,9 +71,9 @@ export async function POST(request: NextRequest) {
       directUploadSupported: true,
     })
   } catch (error) {
-    logger.error("Error generating presigned URL:", error)
+    logger.error('Error generating presigned URL:', error)
     return createErrorResponse(
-      error instanceof Error ? error : new Error("Failed to generate presigned URL")
+      error instanceof Error ? error : new Error('Failed to generate presigned URL')
     )
   }
 }

@@ -1,10 +1,10 @@
-import { readFile } from "node:fs/promises"
-import { promisify } from "node:util"
-import zlib from "node:zlib"
-import { createLogger } from "@/lib/logs/console-logger"
-import type { FileParseResult, FileParser } from "./types"
+import { readFile } from 'node:fs/promises'
+import { promisify } from 'node:util'
+import zlib from 'node:zlib'
+import { createLogger } from '@/lib/logs/console-logger'
+import type { FileParseResult, FileParser } from './types'
 
-const logger = createLogger("RawPdfParser")
+const logger = createLogger('RawPdfParser')
 
 // Promisify zlib functions
 const inflateAsync = promisify(zlib.inflate)
@@ -17,26 +17,26 @@ const unzipAsync = promisify(zlib.unzip)
 export class RawPdfParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
-      logger.info("Starting to parse file:", filePath)
+      logger.info('Starting to parse file:', filePath)
 
       if (!filePath) {
-        throw new Error("No file path provided")
+        throw new Error('No file path provided')
       }
 
       // Read the file
-      logger.info("Reading file...")
+      logger.info('Reading file...')
       const dataBuffer = await readFile(filePath)
-      logger.info("File read successfully, size:", dataBuffer.length)
+      logger.info('File read successfully, size:', dataBuffer.length)
 
       return this.parseBuffer(dataBuffer)
     } catch (error) {
-      logger.error("Error parsing PDF:", error)
+      logger.error('Error parsing PDF:', error)
       return {
         content: `Error parsing PDF: ${(error as Error).message}`,
         metadata: {
           error: (error as Error).message,
           pageCount: 0,
-          version: "unknown",
+          version: 'unknown',
         },
       }
     }
@@ -44,16 +44,16 @@ export class RawPdfParser implements FileParser {
 
   async parseBuffer(dataBuffer: Buffer): Promise<FileParseResult> {
     try {
-      logger.info("Starting to parse buffer, size:", dataBuffer.length)
+      logger.info('Starting to parse buffer, size:', dataBuffer.length)
 
       // Instead of trying to parse the binary PDF data directly,
       // we'll extract only the text sections that are readable
 
       // First convert to string but only for pattern matching, not for display
-      const rawContent = dataBuffer.toString("utf-8")
+      const rawContent = dataBuffer.toString('utf-8')
 
       // Extract basic PDF info
-      let version = "Unknown"
+      let version = 'Unknown'
       let pageCount = 0
 
       // Try to extract PDF version
@@ -67,7 +67,7 @@ export class RawPdfParser implements FileParser {
       const typePageMatches = rawContent.match(/\/Type\s*\/Page\b/gi)
       if (typePageMatches) {
         pageCount = typePageMatches.length
-        logger.info("Found page count using /Type /Page:", pageCount)
+        logger.info('Found page count using /Type /Page:', pageCount)
       }
 
       // Method 2: Look for "/Page" dictionary references
@@ -75,7 +75,7 @@ export class RawPdfParser implements FileParser {
         const pageMatches = rawContent.match(/\/Page\s*\//gi)
         if (pageMatches) {
           pageCount = pageMatches.length
-          logger.info("Found page count using /Page/ pattern:", pageCount)
+          logger.info('Found page count using /Page/ pattern:', pageCount)
         }
       }
 
@@ -88,14 +88,14 @@ export class RawPdfParser implements FileParser {
           if (pagesObjRef?.[1]) {
             const objNum = pagesObjRef[1]
             // Find the referenced object
-            const objRegex = new RegExp(`${objNum}\\s+0\\s+obj[\\s\\S]*?endobj`, "i")
+            const objRegex = new RegExp(`${objNum}\\s+0\\s+obj[\\s\\S]*?endobj`, 'i')
             const objMatch = rawContent.match(objRegex)
             if (objMatch) {
               // Look for /Count within the Pages object
               const countMatch = objMatch[0].match(/\/Count\s+(\d+)/i)
               if (countMatch?.[1]) {
                 pageCount = Number.parseInt(countMatch[1], 10)
-                logger.info("Found page count using /Count in Pages object:", pageCount)
+                logger.info('Found page count using /Count in Pages object:', pageCount)
               }
             }
           }
@@ -108,23 +108,23 @@ export class RawPdfParser implements FileParser {
         if (trailerMatches) {
           // This is just a rough estimate, not accurate
           pageCount = Math.max(1, Math.ceil(trailerMatches.length / 2))
-          logger.info("Estimated page count using trailer references:", pageCount)
+          logger.info('Estimated page count using trailer references:', pageCount)
         }
       }
 
       // Default to at least 1 page if we couldn't find any
       if (pageCount === 0) {
         pageCount = 1
-        logger.info("Defaulting to 1 page as no count was found")
+        logger.info('Defaulting to 1 page as no count was found')
       }
 
       // Extract text content using text markers commonly found in PDFs
-      let extractedText = ""
+      let extractedText = ''
 
       // Method 1: Extract text between BT (Begin Text) and ET (End Text) markers
       const textMatches = rawContent.match(/BT[\s\S]*?ET/g)
       if (textMatches && textMatches.length > 0) {
-        logger.info("Found", textMatches.length, "text blocks")
+        logger.info('Found', textMatches.length, 'text blocks')
 
         extractedText = textMatches
           .map((textBlock) => {
@@ -134,21 +134,21 @@ export class RawPdfParser implements FileParser {
               return textObjects
                 .map((obj) => {
                   // Clean up text objects
-                  let text = ""
-                  if (obj.includes("Tj")) {
+                  let text = ''
+                  if (obj.includes('Tj')) {
                     // Handle Tj operator (simple string)
                     const match = obj.match(/\(([^)]*)\)\s*Tj/)
                     if (match?.[1]) {
                       text = match[1]
                     }
-                  } else if (obj.includes("TJ")) {
+                  } else if (obj.includes('TJ')) {
                     // Handle TJ operator (array of strings and positioning)
                     const match = obj.match(/\[(.*)\]\s*TJ/)
                     if (match?.[1]) {
                       // Extract only the string parts from the array
                       const parts = match[1].match(/\([^)]*\)/g)
                       if (parts) {
-                        text = parts.map((p) => p.slice(1, -1)).join(" ")
+                        text = parts.map((p) => p.slice(1, -1)).join(' ')
                       }
                     }
                   }
@@ -158,36 +158,36 @@ export class RawPdfParser implements FileParser {
                     .replace(/\\(\d{3})/g, (_, octal) =>
                       String.fromCharCode(Number.parseInt(octal, 8))
                     )
-                    .replace(/\\\\/g, "\\")
-                    .replace(/\\\(/g, "(")
-                    .replace(/\\\)/g, ")")
+                    .replace(/\\\\/g, '\\')
+                    .replace(/\\\(/g, '(')
+                    .replace(/\\\)/g, ')')
                 })
-                .join(" ")
+                .join(' ')
             }
-            return ""
+            return ''
           })
-          .join("\n")
+          .join('\n')
           .trim()
       }
 
       // Try to extract metadata from XML
-      let metadataText = ""
+      let metadataText = ''
       const xmlMatch = rawContent.match(/<x:xmpmeta[\s\S]*?<\/x:xmpmeta>/)
       if (xmlMatch) {
         const xmlContent = xmlMatch[0]
-        logger.info("Found XML metadata")
+        logger.info('Found XML metadata')
 
         // Extract document title
         const titleMatch = xmlContent.match(/<dc:title>[\s\S]*?<rdf:li[^>]*>(.*?)<\/rdf:li>/i)
         if (titleMatch?.[1]) {
-          const title = titleMatch[1].replace(/<[^>]+>/g, "").trim()
+          const title = titleMatch[1].replace(/<[^>]+>/g, '').trim()
           metadataText += `Document Title: ${title}\n\n`
         }
 
         // Extract creator/author
         const creatorMatch = xmlContent.match(/<dc:creator>[\s\S]*?<rdf:li[^>]*>(.*?)<\/rdf:li>/i)
         if (creatorMatch?.[1]) {
-          const creator = creatorMatch[1].replace(/<[^>]+>/g, "").trim()
+          const creator = creatorMatch[1].replace(/<[^>]+>/g, '').trim()
           metadataText += `Author: ${creator}\n`
         }
 
@@ -205,13 +205,13 @@ export class RawPdfParser implements FileParser {
       }
 
       // Try to extract actual text content from content streams
-      if (!extractedText || extractedText.length < 100 || extractedText.includes("/Type /Page")) {
-        logger.info("Trying advanced text extraction from content streams")
+      if (!extractedText || extractedText.length < 100 || extractedText.includes('/Type /Page')) {
+        logger.info('Trying advanced text extraction from content streams')
 
         // Find content stream references
         const contentRefs = rawContent.match(/\/Contents\s+\[?\s*(\d+)\s+\d+\s+R\s*\]?/g)
         if (contentRefs && contentRefs.length > 0) {
-          logger.info("Found", contentRefs.length, "content stream references")
+          logger.info('Found', contentRefs.length, 'content stream references')
 
           // Extract object numbers from content references
           const objNumbers = contentRefs
@@ -221,14 +221,14 @@ export class RawPdfParser implements FileParser {
             })
             .filter(Boolean)
 
-          logger.info("Content stream object numbers:", objNumbers)
+          logger.info('Content stream object numbers:', objNumbers)
 
           // Try to find those objects in the content
           if (objNumbers.length > 0) {
-            let textFromStreams = ""
+            let textFromStreams = ''
 
             for (const objNum of objNumbers) {
-              const objRegex = new RegExp(`${objNum}\\s+0\\s+obj[\\s\\S]*?endobj`, "i")
+              const objRegex = new RegExp(`${objNum}\\s+0\\s+obj[\\s\\S]*?endobj`, 'i')
               const objMatch = rawContent.match(objRegex)
 
               if (objMatch) {
@@ -242,17 +242,17 @@ export class RawPdfParser implements FileParser {
                   if (textFragments && textFragments.length > 0) {
                     const extractedFragments = textFragments
                       .map((fragment) => {
-                        if (fragment.includes("Tj")) {
+                        if (fragment.includes('Tj')) {
                           return fragment
-                            .replace(/\(([^)]*)\)\s*Tj/, "$1")
+                            .replace(/\(([^)]*)\)\s*Tj/, '$1')
                             .replace(/\\(\d{3})/g, (_, octal) =>
                               String.fromCharCode(Number.parseInt(octal, 8))
                             )
-                            .replace(/\\\\/g, "\\")
-                            .replace(/\\\(/g, "(")
-                            .replace(/\\\)/g, ")")
+                            .replace(/\\\\/g, '\\')
+                            .replace(/\\\(/g, '(')
+                            .replace(/\\\)/g, ')')
                         }
-                        if (fragment.includes("TJ")) {
+                        if (fragment.includes('TJ')) {
                           const parts = fragment.match(/\([^)]*\)/g)
                           if (parts) {
                             return parts
@@ -262,17 +262,17 @@ export class RawPdfParser implements FileParser {
                                   .replace(/\\(\d{3})/g, (_, octal) =>
                                     String.fromCharCode(Number.parseInt(octal, 8))
                                   )
-                                  .replace(/\\\\/g, "\\")
-                                  .replace(/\\\(/g, "(")
-                                  .replace(/\\\)/g, ")")
+                                  .replace(/\\\\/g, '\\')
+                                  .replace(/\\\(/g, '(')
+                                  .replace(/\\\)/g, ')')
                               )
-                              .join(" ")
+                              .join(' ')
                           }
                         }
-                        return ""
+                        return ''
                       })
                       .filter(Boolean)
-                      .join(" ")
+                      .join(' ')
 
                     if (extractedFragments.trim().length > 0) {
                       textFromStreams += `${extractedFragments.trim()}\n`
@@ -283,7 +283,7 @@ export class RawPdfParser implements FileParser {
             }
 
             if (textFromStreams.trim().length > 0) {
-              logger.info("Successfully extracted text from content streams")
+              logger.info('Successfully extracted text from content streams')
               extractedText = textFromStreams.trim()
             }
           }
@@ -293,14 +293,14 @@ export class RawPdfParser implements FileParser {
       // Try to decompress PDF streams
       // This is especially helpful for PDFs with compressed content
       if (!extractedText || extractedText.length < 100) {
-        logger.info("Trying to decompress PDF streams")
+        logger.info('Trying to decompress PDF streams')
 
         // Find compressed streams (FlateDecode)
         const compressedStreams = rawContent.match(
           /\/Filter\s*\/FlateDecode[\s\S]*?stream[\s\S]*?endstream/g
         )
         if (compressedStreams && compressedStreams.length > 0) {
-          logger.info("Found", compressedStreams.length, "compressed streams")
+          logger.info('Found', compressedStreams.length, 'compressed streams')
 
           // Process each stream
           const decompressedContents = await Promise.all(
@@ -308,22 +308,22 @@ export class RawPdfParser implements FileParser {
               try {
                 // Extract stream content between stream and endstream
                 const streamMatch = stream.match(/stream\r?\n([\s\S]*?)\r?\nendstream/)
-                if (!streamMatch || !streamMatch[1]) return ""
+                if (!streamMatch || !streamMatch[1]) return ''
 
-                const compressedData = Buffer.from(streamMatch[1], "binary")
+                const compressedData = Buffer.from(streamMatch[1], 'binary')
 
                 // Try different decompression methods
                 try {
                   // Try inflate (most common)
                   const decompressed = await inflateAsync(compressedData)
-                  const content = decompressed.toString("utf-8")
+                  const content = decompressed.toString('utf-8')
 
                   // Check if it contains readable text
-                  const readable = content.replace(/[^\x20-\x7E\r\n]/g, " ").trim()
+                  const readable = content.replace(/[^\x20-\x7E\r\n]/g, ' ').trim()
                   if (
                     readable.length > 50 &&
-                    readable.includes(" ") &&
-                    (readable.includes(".") || readable.includes(",")) &&
+                    readable.includes(' ') &&
+                    (readable.includes('.') || readable.includes(',')) &&
                     !/[\x00-\x1F\x7F]/.test(readable)
                   ) {
                     return readable
@@ -332,39 +332,39 @@ export class RawPdfParser implements FileParser {
                   // Try unzip as fallback
                   try {
                     const decompressed = await unzipAsync(compressedData)
-                    const content = decompressed.toString("utf-8")
+                    const content = decompressed.toString('utf-8')
 
                     // Check if it contains readable text
-                    const readable = content.replace(/[^\x20-\x7E\r\n]/g, " ").trim()
+                    const readable = content.replace(/[^\x20-\x7E\r\n]/g, ' ').trim()
                     if (
                       readable.length > 50 &&
-                      readable.includes(" ") &&
-                      (readable.includes(".") || readable.includes(",")) &&
+                      readable.includes(' ') &&
+                      (readable.includes('.') || readable.includes(',')) &&
                       !/[\x00-\x1F\x7F]/.test(readable)
                     ) {
                       return readable
                     }
                   } catch (unzipErr) {
                     // Both methods failed, continue to next stream
-                    return ""
+                    return ''
                   }
                 }
               } catch (error) {
                 // Error processing this stream, skip it
-                return ""
+                return ''
               }
 
-              return ""
+              return ''
             })
           )
 
           // Filter out empty results and combine
           const decompressedText = decompressedContents
             .filter((text) => text && text.length > 0)
-            .join("\n\n")
+            .join('\n\n')
 
           if (decompressedText && decompressedText.length > 0) {
-            logger.info("Successfully decompressed text content, length:", decompressedText.length)
+            logger.info('Successfully decompressed text content, length:', decompressedText.length)
             extractedText = decompressedText
           }
         }
@@ -372,36 +372,36 @@ export class RawPdfParser implements FileParser {
 
       // Method 2: Look for text stream data
       if (!extractedText || extractedText.length < 50) {
-        logger.info("Trying alternative text extraction method with streams")
+        logger.info('Trying alternative text extraction method with streams')
 
         // Find text streams
         const streamMatches = rawContent.match(/stream[\s\S]*?endstream/g)
         if (streamMatches && streamMatches.length > 0) {
-          logger.info("Found", streamMatches.length, "streams")
+          logger.info('Found', streamMatches.length, 'streams')
 
           // Process each stream to look for text content
           const textContent = streamMatches
             .map((stream) => {
               // Remove 'stream' and 'endstream' markers
-              const content = stream.replace(/^stream\r?\n|\r?\nendstream$/g, "")
+              const content = stream.replace(/^stream\r?\n|\r?\nendstream$/g, '')
 
               // Look for readable ASCII text (more strict heuristic)
               // Only keep ASCII printable characters
-              const readable = content.replace(/[^\x20-\x7E\r\n]/g, " ").trim()
+              const readable = content.replace(/[^\x20-\x7E\r\n]/g, ' ').trim()
 
               // Only keep content that looks like real text (has spaces, periods, etc.)
               if (
                 readable.length > 20 &&
-                readable.includes(" ") &&
-                (readable.includes(".") || readable.includes(",")) &&
+                readable.includes(' ') &&
+                (readable.includes('.') || readable.includes(',')) &&
                 !/[\x00-\x1F\x7F]/.test(readable)
               ) {
                 return readable
               }
-              return ""
+              return ''
             })
-            .filter((text) => text.length > 0 && text.split(" ").length > 5) // Must have at least 5 words
-            .join("\n\n")
+            .filter((text) => text.length > 0 && text.split(' ').length > 5) // Must have at least 5 words
+            .join('\n\n')
 
           if (textContent.length > 0) {
             extractedText = textContent
@@ -411,36 +411,36 @@ export class RawPdfParser implements FileParser {
 
       // Method 3: Look for object streams
       if (!extractedText || extractedText.length < 50) {
-        logger.info("Trying object streams for text")
+        logger.info('Trying object streams for text')
 
         // Find object stream content
         const objMatches = rawContent.match(/\d+\s+\d+\s+obj[\s\S]*?endobj/g)
         if (objMatches && objMatches.length > 0) {
-          logger.info("Found", objMatches.length, "objects")
+          logger.info('Found', objMatches.length, 'objects')
 
           // Process objects looking for text content
           const textContent = objMatches
             .map((obj) => {
               // Find readable text in the object - only keep ASCII printable characters
-              const readable = obj.replace(/[^\x20-\x7E\r\n]/g, " ").trim()
+              const readable = obj.replace(/[^\x20-\x7E\r\n]/g, ' ').trim()
 
               // Only include if it looks like actual text (strict heuristic)
               if (
                 readable.length > 50 &&
-                readable.includes(" ") &&
-                !readable.includes("/Filter") &&
-                readable.split(" ").length > 10 &&
-                (readable.includes(".") || readable.includes(","))
+                readable.includes(' ') &&
+                !readable.includes('/Filter') &&
+                readable.split(' ').length > 10 &&
+                (readable.includes('.') || readable.includes(','))
               ) {
                 return readable
               }
-              return ""
+              return ''
             })
             .filter((text) => text.length > 0)
-            .join("\n\n")
+            .join('\n\n')
 
           if (textContent.length > 0) {
-            extractedText += (extractedText ? "\n\n" : "") + textContent
+            extractedText += (extractedText ? '\n\n' : '') + textContent
           }
         }
       }
@@ -449,32 +449,32 @@ export class RawPdfParser implements FileParser {
       // provide a clearer message
       if (
         extractedText &&
-        (extractedText.includes("endobj") ||
-          extractedText.includes("/Type /Page") ||
+        (extractedText.includes('endobj') ||
+          extractedText.includes('/Type /Page') ||
           extractedText.match(/\d+\s+\d+\s+obj/g)) &&
         metadataText
       ) {
         logger.info(
-          "Extracted content appears to be PDF structure information, using metadata instead"
+          'Extracted content appears to be PDF structure information, using metadata instead'
         )
         extractedText = metadataText
-      } else if (metadataText && !extractedText.includes("Document Title:")) {
+      } else if (metadataText && !extractedText.includes('Document Title:')) {
         // Prepend metadata to extracted text if available
-        extractedText = metadataText + (extractedText ? `\n\n${extractedText}` : "")
+        extractedText = metadataText + (extractedText ? `\n\n${extractedText}` : '')
       }
 
       // Validate that the extracted text looks meaningful
       // Count how many recognizable words/characters it contains
-      const validCharCount = (extractedText || "").replace(/[^\x20-\x7E\r\n]/g, "").length
-      const totalCharCount = (extractedText || "").length
+      const validCharCount = (extractedText || '').replace(/[^\x20-\x7E\r\n]/g, '').length
+      const totalCharCount = (extractedText || '').length
       const validRatio = validCharCount / (totalCharCount || 1)
 
       // Check for common PDF artifacts that indicate binary corruption
       const hasBinaryArtifacts =
         extractedText &&
-        (extractedText.includes("\\u") ||
-          extractedText.includes("\\x") ||
-          extractedText.includes("\0") ||
+        (extractedText.includes('\\u') ||
+          extractedText.includes('\\x') ||
+          extractedText.includes('\0') ||
           /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\xFF]{10,}/g.test(extractedText) ||
           validRatio < 0.7) // Less than 70% valid characters
 
@@ -482,24 +482,24 @@ export class RawPdfParser implements FileParser {
       const looksLikeGibberish =
         extractedText &&
         // Too many special characters
-        (extractedText.replace(/[a-zA-Z0-9\s.,:'"()[\]{}]/g, "").length / extractedText.length >
+        (extractedText.replace(/[a-zA-Z0-9\s.,:'"()[\]{}]/g, '').length / extractedText.length >
           0.3 ||
           // Not enough spaces (real text has spaces between words)
-          extractedText.split(" ").length < extractedText.length / 20)
+          extractedText.split(' ').length < extractedText.length / 20)
 
       // If no text was extracted, or if it's binary/gibberish,
       // provide a helpful message instead
       if (!extractedText || extractedText.length < 50 || hasBinaryArtifacts || looksLikeGibberish) {
-        logger.info("Could not extract meaningful text, providing fallback message")
-        logger.info("Valid character ratio:", validRatio)
-        logger.info("Has binary artifacts:", hasBinaryArtifacts)
-        logger.info("Looks like gibberish:", looksLikeGibberish)
+        logger.info('Could not extract meaningful text, providing fallback message')
+        logger.info('Valid character ratio:', validRatio)
+        logger.info('Has binary artifacts:', hasBinaryArtifacts)
+        logger.info('Looks like gibberish:', looksLikeGibberish)
 
         // Start with metadata if available
         if (metadataText) {
           extractedText = `${metadataText}\n`
         } else {
-          extractedText = ""
+          extractedText = ''
         }
 
         // Add basic PDF info
@@ -510,7 +510,7 @@ export class RawPdfParser implements FileParser {
           rawContent.match(/title\s*:\s*([^\n]+)/i) ||
           rawContent.match(/Microsoft Word -\s*([^\n]+)/i)
 
-        if (titleInStructure?.[1] && !extractedText.includes("Document Title:")) {
+        if (titleInStructure?.[1] && !extractedText.includes('Document Title:')) {
           const title = titleInStructure[1].trim()
           extractedText = `Document Title: ${title}\n\n${extractedText}`
         }
@@ -518,7 +518,7 @@ export class RawPdfParser implements FileParser {
         extractedText += `The text content could not be properly extracted due to encoding or compression issues.\nFile size: ${dataBuffer.length} bytes.\n\nTo view this PDF properly, please download the file and open it with a PDF reader.`
       }
 
-      logger.info("PDF parsed with basic extraction, found text length:", extractedText.length)
+      logger.info('PDF parsed with basic extraction, found text length:', extractedText.length)
 
       return {
         content: extractedText,
@@ -533,13 +533,13 @@ export class RawPdfParser implements FileParser {
         },
       }
     } catch (error) {
-      logger.error("Error parsing buffer:", error)
+      logger.error('Error parsing buffer:', error)
       return {
         content: `Error parsing PDF buffer: ${(error as Error).message}`,
         metadata: {
           error: (error as Error).message,
           pageCount: 0,
-          version: "unknown",
+          version: 'unknown',
         },
       }
     }

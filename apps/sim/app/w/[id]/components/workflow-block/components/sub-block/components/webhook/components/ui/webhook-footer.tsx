@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
-import { Trash2 } from "lucide-react"
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { Trash2 } from 'lucide-react'
 
 interface WebhookDialogFooterProps {
   webhookId?: string
@@ -30,59 +30,59 @@ export function WebhookDialogFooter({
   onClose,
 }: WebhookDialogFooterProps) {
   return (
-    <div className="flex w-full justify-between">
+    <div className='flex w-full justify-between'>
       <div>
         {webhookId && (
           <Button
-            type="button"
-            variant="destructive"
+            type='button'
+            variant='destructive'
             onClick={onDelete}
             disabled={isDeleting || isSaving || isLoadingToken}
-            size="default"
-            className="h-10"
+            size='default'
+            className='h-10'
           >
             {isDeleting ? (
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+              <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
             ) : (
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className='mr-2 h-4 w-4' />
             )}
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isDeleting ? 'Deleting...' : 'Delete'}
           </Button>
         )}
       </div>
-      <div className="flex gap-2">
-        {webhookId && webhookProvider !== "gmail" && (
+      <div className='flex gap-2'>
+        {webhookId && webhookProvider !== 'gmail' && (
           <Button
-            type="button"
-            variant="outline"
+            type='button'
+            variant='outline'
             onClick={onTest}
             disabled={isTesting || isSaving || isDeleting || isLoadingToken || !webhookId}
-            className="h-10"
+            className='h-10'
           >
             {isTesting && (
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+              <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
             )}
-            {isTesting ? "Testing..." : "Test Webhook"}
+            {isTesting ? 'Testing...' : 'Test Webhook'}
           </Button>
         )}
-        <Button variant="outline" onClick={onClose} size="default" className="h-10">
+        <Button variant='outline' onClick={onClose} size='default' className='h-10'>
           Cancel
         </Button>
         <Button
           onClick={onSave}
           disabled={isLoadingToken || isSaving || !isCurrentConfigValid}
           className={cn(
-            "h-10",
-            !isLoadingToken && isCurrentConfigValid ? "bg-primary hover:bg-primary/90" : "",
+            'h-10',
+            !isLoadingToken && isCurrentConfigValid ? 'bg-primary hover:bg-primary/90' : '',
             isSaving &&
-              "relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20"
+              'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20'
           )}
-          size="default"
+          size='default'
         >
           {isSaving && (
-            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+            <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           )}
-          {isSaving ? "Saving..." : "Save Changes"}
+          {isSaving ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
     </div>
