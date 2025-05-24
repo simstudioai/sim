@@ -183,6 +183,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
 
   // Handle Microsoft Teams selector
   if (isMicrosoftTeams) {
+    // Get credential using the same pattern as other tools
     const credential = getValue(blockId, 'credential') as string || ''
     
     // Determine the selector type based on the subBlock ID

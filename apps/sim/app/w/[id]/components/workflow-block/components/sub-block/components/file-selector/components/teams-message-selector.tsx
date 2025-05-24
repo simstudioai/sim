@@ -61,7 +61,6 @@ export function TeamsMessageSelector({
   serviceId,
   showPreview = true,
   onMessageInfoChange,
-  credential,
   selectionType = 'team',
   initialTeamId,
   workflowId,
@@ -71,7 +70,7 @@ export function TeamsMessageSelector({
   const [teams, setTeams] = useState<TeamsMessageInfo[]>([])
   const [channels, setChannels] = useState<TeamsMessageInfo[]>([])
   const [chats, setChats] = useState<TeamsMessageInfo[]>([])
-  const [selectedCredentialId, setSelectedCredentialId] = useState<string>(credential || '')
+  const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
   const [selectedTeamId, setSelectedTeamId] = useState<string>('')
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
   const [selectedChatId, setSelectedChatId] = useState<string>('')
@@ -95,7 +94,7 @@ export function TeamsMessageSelector({
     return getProviderIdFromServiceId(effectiveServiceId)
   }
 
-  // Fetch available credentials for this provider
+
   const fetchCredentials = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -147,7 +146,6 @@ export function TeamsMessageSelector({
         },
         body: JSON.stringify({
           credential: selectedCredentialId,
-          workflowId: workflowId, // Pass the workflowId for server-side authentication
         }),
       })
 
@@ -209,7 +207,6 @@ export function TeamsMessageSelector({
           body: JSON.stringify({
             credential: selectedCredentialId,
             teamId,
-            workflowId: workflowId, // Pass the workflowId for server-side authentication
           }),
         })
 
@@ -384,7 +381,7 @@ export function TeamsMessageSelector({
     setSelectedChatId('')
     setSelectedMessage(channel)
     setSelectedMessageId(channel.id)
-    onChange(channel.channelId || '', channel)
+    onChange(channel.id, channel)
     onMessageInfoChange?.(channel)
     setOpen(false)
   }
@@ -646,13 +643,6 @@ export function TeamsMessageSelector({
     }
   }, [selectedCredentialId, selectionType, onMessageInfoChange, workflowId])
 
-  // Keep internal selectedCredentialId in sync with the credential prop
-  useEffect(() => {
-    if (credential && credential !== selectedCredentialId) {
-      setSelectedCredentialId(credential)
-    }
-  }, [credential, selectedCredentialId])
-
   // Set initial team ID if provided
   useEffect(() => {
     if (initialTeamId && !selectedTeamId && selectionType === 'channel') {
@@ -794,7 +784,10 @@ export function TeamsMessageSelector({
                       <CommandItem
                         key={cred.id}
                         value={`account-${cred.id}`}
-                        onSelect={() => setSelectedCredentialId(cred.id)}
+                        onSelect={() => {
+                          setSelectedCredentialId(cred.id)
+                          setOpen(false)
+                        }}
                       >
                         <div className="flex items-center gap-2">
                           <MicrosoftTeamsIcon className="h-4 w-4" />
