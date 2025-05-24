@@ -20,7 +20,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   bgColor: '#E0E0E0',
   icon: MicrosoftTeamsIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -33,7 +32,6 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
         { label: 'Write Channel Message', id: 'write_channel' },
       ],
     },
-    // Microsoft Teams Credentials
     {
       id: 'credential',
       title: 'Microsoft Account',

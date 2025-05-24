@@ -5,13 +5,12 @@ import { getSession } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('teams-channels')
+const logger = createLogger('TeamsChannelsAPI')
 
 export async function POST(request: Request) {
   try {
     const session = await getSession()
     const body = await request.json()
-    logger.info('Request body parsed', { body })
     
     const { credential, teamId, workflowId } = body
 
@@ -25,8 +24,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Team ID is required' }, { status: 400 })
     }
 
-    logger.info('Credential found, attempting to fetch token', { credentialId: credential })
-
     try {
       // Get the userId either from the session or from the workflowId
       const userId = session?.user?.id || ''
@@ -36,7 +33,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
       
-      logger.info('Refreshing token if needed', { userId, credentialId: credential })
       const accessToken = await refreshAccessTokenIfNeeded(credential, userId, workflowId)
       
       if (!accessToken) {
@@ -47,8 +43,6 @@ export async function POST(request: Request) {
         }, { status: 401 })
       }
 
-      logger.info('Successfully obtained access token, calling Microsoft Graph API')
-
       const response = await fetch(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels`, {
         method: 'GET',
         headers: {
@@ -56,8 +50,6 @@ export async function POST(request: Request) {
           'Content-Type': 'application/json',
         },
       })
-      
-      logger.info('Microsoft Graph API response', { status: response.status })
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -72,7 +64,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ 
             error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
             authRequired: true
-          }, { status: 401 });
+          }, { status: 401 })
         }
         
         throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
@@ -81,8 +73,6 @@ export async function POST(request: Request) {
       const data = await response.json()
       const channels = data.value
       
-      logger.info('Successfully retrieved channels data', { count: channels?.length || 0 })
-
       return NextResponse.json({
         channels: channels
       })
@@ -90,14 +80,14 @@ export async function POST(request: Request) {
       logger.error('Error during API requests:', innerError)
       
       // Check if it's an authentication error
-      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError);
+      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError)
       if (errorMessage.includes('auth') || errorMessage.includes('token') || 
           errorMessage.includes('unauthorized') || errorMessage.includes('unauthenticated')) {
         return NextResponse.json({ 
           error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
           authRequired: true,
           details: errorMessage
-        }, { status: 401 });
+        }, { status: 401 })
       }
       
       throw innerError

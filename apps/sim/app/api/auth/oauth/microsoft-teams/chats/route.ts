@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getBaseUrl } from '@/lib/urls/utils'
 import { refreshAccessTokenIfNeeded } from '../../utils'
 import { getSession } from '@/lib/auth'
 
@@ -13,7 +12,7 @@ const getChatDisplayName = async (chatId: string, accessToken: string, chatTopic
   try {
     // If the chat already has a topic, use it
     if (chatTopic && chatTopic.trim() && chatTopic !== 'null') {
-      return chatTopic;
+      return chatTopic
     }
 
     // Fetch chat members to create a meaningful name
@@ -23,25 +22,25 @@ const getChatDisplayName = async (chatId: string, accessToken: string, chatTopic
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-    });
+    })
 
     if (membersResponse.ok) {
-      const membersData = await membersResponse.json();
-      const members = membersData.value || [];
+      const membersData = await membersResponse.json()
+      const members = membersData.value || []
       
       // Filter out the current user and get display names
       const memberNames = members
         .filter((member: any) => member.displayName && member.displayName !== 'Unknown')
         .map((member: any) => member.displayName)
-        .slice(0, 3); // Limit to first 3 names to avoid very long names
+        .slice(0, 3) // Limit to first 3 names to avoid very long names
 
       if (memberNames.length > 0) {
         if (memberNames.length === 1) {
-          return memberNames[0]; // 1:1 chat
+          return memberNames[0] // 1:1 chat
         } else if (memberNames.length === 2) {
-          return memberNames.join(' & '); // 2-person group
+          return memberNames.join(' & ') // 2-person group
         } else {
-          return `${memberNames.slice(0, 2).join(', ')} & ${memberNames.length - 2} more`; // Larger group
+          return `${memberNames.slice(0, 2).join(', ')} & ${memberNames.length - 2} more` // Larger group
         }
       }
     }
@@ -54,16 +53,16 @@ const getChatDisplayName = async (chatId: string, accessToken: string, chatTopic
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-      });
+      })
 
       if (messagesResponse.ok) {
-        const messagesData = await messagesResponse.json();
-        const messages = messagesData.value || [];
+        const messagesData = await messagesResponse.json()
+        const messages = messagesData.value || []
 
         // Look for chat rename events
         for (const message of messages) {
           if (message.eventDetail && message.eventDetail.chatDisplayName) {
-            return message.eventDetail.chatDisplayName;
+            return message.eventDetail.chatDisplayName
           }
         }
 
@@ -72,36 +71,34 @@ const getChatDisplayName = async (chatId: string, accessToken: string, chatTopic
           messages
             .filter((msg: any) => msg.from?.user?.displayName && msg.from.user.displayName !== 'Unknown')
             .map((msg: any) => msg.from.user.displayName)
-        )].slice(0, 3);
+        )].slice(0, 3)
 
         if (senderNames.length > 0) {
           if (senderNames.length === 1) {
-            return senderNames[0] as string;
+            return senderNames[0] as string
           } else if (senderNames.length === 2) {
-            return senderNames.join(' & ');
+            return senderNames.join(' & ')
           } else {
-            return `${senderNames.slice(0, 2).join(', ')} & ${senderNames.length - 2} more`;
+            return `${senderNames.slice(0, 2).join(', ')} & ${senderNames.length - 2} more`
           }
         }
       }
     } catch (error) {
-      logger.warn(`Failed to get better name from messages for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`);
+      logger.warn(`Failed to get better name from messages for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`)
     }
 
     // Final fallback
-    return `Chat ${chatId.split(':')[0] || chatId.substring(0, 8)}...`;
+    return `Chat ${chatId.split(':')[0] || chatId.substring(0, 8)}...`
   } catch (error) {
-    logger.warn(`Failed to get display name for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`);
-    return `Chat ${chatId.split(':')[0] || chatId.substring(0, 8)}...`;
+    logger.warn(`Failed to get display name for chat ${chatId}: ${error instanceof Error ? error.message : String(error)}`)
+    return `Chat ${chatId.split(':')[0] || chatId.substring(0, 8)}...`
   }
 }
 
 export async function POST(request: Request) {
-  logger.info('POST request received at /api/auth/oauth/microsoft-teams/chats')
   try {
     const session = await getSession()
     const body = await request.json()
-    logger.info('Request body parsed', { body })
     
     const { credential } = body
 
@@ -109,8 +106,6 @@ export async function POST(request: Request) {
       logger.error('Missing credential in request')
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
     }
-
-    logger.info('Credential found, attempting to fetch token', { credentialId: credential })
 
     try {
       // Get the userId either from the session or from the workflowId
@@ -121,7 +116,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
       
-      logger.info('Refreshing token if needed', { userId, credentialId: credential })
       const accessToken = await refreshAccessTokenIfNeeded(credential, userId, body.workflowId)
       
       if (!accessToken) {
@@ -129,17 +123,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Could not retrieve access token' }, { status: 401 })
       }
 
-      logger.info('Successfully obtained access token, calling Microsoft Graph API', { 
-        tokenLength: accessToken.length 
-      })
-      
-      // Only log the first 20 chars of the token for security
-      logger.info('Authorization header being sent', { 
-        header: `Bearer ${accessToken?.substring(0, 20)}...`, 
-      })
-
       // Now try to fetch the chats
-      logger.info('Calling Microsoft Graph API to fetch chats')
       const response = await fetch('https://graph.microsoft.com/v1.0/me/chats', {
         method: 'GET',
         headers: {
@@ -147,8 +131,6 @@ export async function POST(request: Request) {
           'Content-Type': 'application/json',
         },
       })
-      
-      logger.info('Microsoft Graph API response', { status: response.status })
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -163,14 +145,13 @@ export async function POST(request: Request) {
           return NextResponse.json({ 
             error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
             authRequired: true
-          }, { status: 401 });
+          }, { status: 401 })
         }
         
         throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
       }
       
       const data = await response.json()
-      logger.info('Successfully retrieved chats data', { count: data.value?.length || 0 })
       
       // Process chats with enhanced display names
       const chats = await Promise.all(
@@ -180,8 +161,6 @@ export async function POST(request: Request) {
         }))
       )
 
-      logger.info('Processed chats data with enhanced names', { count: chats.length })
-      
       return NextResponse.json({
         chats: chats
       })
@@ -189,14 +168,14 @@ export async function POST(request: Request) {
       logger.error('Error during API requests:', innerError)
       
       // Check if it's an authentication error
-      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError);
+      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError)
       if (errorMessage.includes('auth') || errorMessage.includes('token') || 
           errorMessage.includes('unauthorized') || errorMessage.includes('unauthenticated')) {
         return NextResponse.json({ 
           error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
           authRequired: true,
           details: errorMessage
-        }, { status: 401 });
+        }, { status: 401 })
       }
       
       throw innerError

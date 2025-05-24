@@ -12,11 +12,9 @@ interface Team {
   displayName: string
 }
 export async function POST(request: Request) {
-  logger.info('POST request received at /api/auth/oauth/microsoft-teams/teams')
   try {
     const session = await getSession()
     const body = await request.json()
-    logger.info('Request body parsed', { body })
     
     const { credential, workflowId } = body
 
@@ -24,8 +22,6 @@ export async function POST(request: Request) {
       logger.error('Missing credential in request')
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
     }
-
-    logger.info('Credential found, attempting to fetch token', { credentialId: credential })
 
     try {
       // Get the userId either from the session or from the workflowId
@@ -36,7 +32,6 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
       
-      logger.info('Refreshing token if needed', { userId, credentialId: credential })
       const accessToken = await refreshAccessTokenIfNeeded(credential, userId, workflowId)
       
       if (!accessToken) {
@@ -47,8 +42,6 @@ export async function POST(request: Request) {
         }, { status: 401 })
       }
 
-      logger.info('Successfully obtained access token, calling Microsoft Graph API')
-
       const response = await fetch('https://graph.microsoft.com/v1.0/me/joinedTeams', {
         method: 'GET',
         headers: {
@@ -56,8 +49,6 @@ export async function POST(request: Request) {
           'Content-Type': 'application/json',
         },
       })
-      
-      logger.info('Microsoft Graph API response', { status: response.status })
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -72,7 +63,7 @@ export async function POST(request: Request) {
           return NextResponse.json({ 
             error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
             authRequired: true
-          }, { status: 401 });
+          }, { status: 401 })
         }
         
         throw new Error(`Microsoft Graph API error: ${JSON.stringify(errorData)}`)
@@ -81,8 +72,6 @@ export async function POST(request: Request) {
       const data = await response.json()
       const teams = data.value
       
-      logger.info('Successfully retrieved teams data', { count: teams?.length || 0 })
-
       return NextResponse.json({
         teams: teams
       })
@@ -90,14 +79,14 @@ export async function POST(request: Request) {
       logger.error('Error during API requests:', innerError)
       
       // Check if it's an authentication error
-      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError);
+      const errorMessage = innerError instanceof Error ? innerError.message : String(innerError)
       if (errorMessage.includes('auth') || errorMessage.includes('token') || 
           errorMessage.includes('unauthorized') || errorMessage.includes('unauthenticated')) {
         return NextResponse.json({ 
           error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
           authRequired: true,
           details: errorMessage
-        }, { status: 401 });
+        }, { status: 401 })
       }
       
       throw innerError

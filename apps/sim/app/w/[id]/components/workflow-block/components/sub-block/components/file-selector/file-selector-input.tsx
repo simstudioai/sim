@@ -11,7 +11,6 @@ import { DiscordChannelInfo, DiscordChannelSelector } from './components/discord
 import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
 import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
 import { TeamsMessageInfo, TeamsMessageSelector } from './components/teams-message-selector'
-import { Logger } from '@/lib/logs/console-logger'
 
 interface FileSelectorInputProps {
   blockId: string
@@ -20,7 +19,6 @@ interface FileSelectorInputProps {
 }
 
 export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileSelectorInputProps) {
-  const logger = new Logger('file-selector-input')
   const { getValue, setValue } = useSubBlockStore()
   const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFileId, setSelectedFileId] = useState<string>('')

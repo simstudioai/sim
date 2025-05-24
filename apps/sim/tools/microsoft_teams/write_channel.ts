@@ -1,8 +1,5 @@
 import { ToolConfig } from '../types'
 import { MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse } from './types'
-import { createLogger } from '@/lib/logs/console-logger'
-
-const logger = createLogger('teams-write-channel')
 
 export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse> = {
   id: 'microsoft_teams_write_channel',

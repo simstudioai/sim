@@ -395,32 +395,6 @@ export const auth = betterAuth({
           prompt: 'consent',
           pkce: true,
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/microsoft-teams`,
-          getUserInfo: async (tokens) => {
-            try {
-              const res = await fetch('https://graph.microsoft.com/v1.0/me', {
-                headers: {
-                  Authorization: `Bearer ${tokens.accessToken}`,
-                },
-              })
-        
-              if (!res.ok) return null
-              const profile = await res.json()
-              const now = new Date()
-        
-              return {
-                id: profile.id,
-                name: profile.displayName || 'Microsoft User',
-                email: profile.mail || profile.userPrincipalName,
-                image: null,
-                emailVerified: true,
-                createdAt: now,
-                updatedAt: now,
-              }
-            } catch (err) {
-              logger.error('Error fetching Microsoft user info:', { err })
-              return null
-            }
-          },
         },
 
         // Supabase provider

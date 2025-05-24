@@ -1,8 +1,5 @@
 import { ToolConfig } from '../types'
 import { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
-import { createLogger } from '@/lib/logs/console-logger'
-
-const logger = createLogger('teams-read-channel')
 
 export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_channel',
@@ -48,15 +45,6 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
 
       // Fetch the most recent messages from the channel
       const url = `https://graph.microsoft.com/v1.0/teams/${encodedTeamId}/channels/${encodedChannelId}/messages`
-      
-      // Log the URL for debugging
-      logger.info('Microsoft Teams Read Channel Request', {
-        url,
-        teamId,
-        channelId,
-        encodedTeamId,
-        encodedChannelId
-      })
       
       return url
     },

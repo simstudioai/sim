@@ -173,7 +173,6 @@ export function TeamsMessageSelector({
         webViewLink: `https://teams.microsoft.com/l/team/${team.id}`,
       }))
 
-      logger.info(`Fetched ${teamsData.length} teams`)
       setTeams(teamsData)
 
       // If we have a selected team ID, find it in the list
@@ -237,7 +236,6 @@ export function TeamsMessageSelector({
           webViewLink: `https://teams.microsoft.com/l/channel/${teamId}/${encodeURIComponent(channel.displayName)}/${channel.id}`,
         }))
 
-        logger.info(`Fetched ${channelsData.length} channels for team ${teamId}`)
         setChannels(channelsData)
 
         // If we have a selected channel ID, find it in the list
@@ -300,7 +298,6 @@ export function TeamsMessageSelector({
         webViewLink: `https://teams.microsoft.com/l/chat/${chat.id}`,
       }))
 
-      logger.info(`Fetched ${chatsData.length} chats`)
       setChats(chatsData)
 
       // If we have a selected chat ID, find it in the list
@@ -343,9 +340,6 @@ export function TeamsMessageSelector({
       setSelectionStage('team')
     }
   }, [selectedTeamId, selectedChannelId, selectedChatId, selectionType])
-
-  // Note: Removed auto-fetch useEffect to prevent race conditions when selectedTeamId changes rapidly.
-  // Channel fetching is handled by handleOpenChange() and handleSelectTeam() instead.
 
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
@@ -456,7 +450,7 @@ export function TeamsMessageSelector({
             </CommandItem>
           ))}
         </CommandGroup>
-      );
+      )
     }
 
     if (selectionStage === 'channel' && channels.length > 0) {
@@ -479,7 +473,7 @@ export function TeamsMessageSelector({
             </CommandItem>
           ))}
         </CommandGroup>
-      );
+      )
     }
 
     if (selectionStage === 'chat' && chats.length > 0) {
@@ -502,11 +496,11 @@ export function TeamsMessageSelector({
             </CommandItem>
           ))}
         </CommandGroup>
-      );
+      )
     }
 
-    return null;
-  };
+    return null
+  }
 
   // Restore team selection on page refresh
   const restoreTeamSelection = useCallback(async (teamId: string) => {
@@ -677,10 +671,10 @@ export function TeamsMessageSelector({
   // Fetch appropriate data on initial mount based on selectionType
   useEffect(() => {
     if (!initialFetchRef.current) {
-      fetchCredentials();
-      initialFetchRef.current = true;
+      fetchCredentials()
+      initialFetchRef.current = true
     }
-  }, [fetchCredentials]);
+  }, [fetchCredentials])
 
   // Restore selection based on selectionType and value
   useEffect(() => {

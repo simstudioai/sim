@@ -106,7 +106,6 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
         return error.message
       }
     }
-
     // Default fallback message
     return 'An error occurred while writing Microsoft Teams message'
   },
