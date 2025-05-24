@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { MemoryResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { MemoryResponse } from './types'
 
 export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
   id: 'memory_get',

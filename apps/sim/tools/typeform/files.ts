@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { TypeformFilesParams, TypeformFilesResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { TypeformFilesParams, TypeformFilesResponse } from './types'
 
 export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> = {
   id: 'typeform_files',
@@ -66,14 +66,14 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
 
       try {
         const errorData = await response.json()
-        if (errorData && errorData.message) {
+        if (errorData?.message) {
           errorMessage = errorData.message
-        } else if (errorData && errorData.description) {
+        } else if (errorData?.description) {
           errorMessage = errorData.description
         } else if (typeof errorData === 'string') {
           errorMessage = errorData
         }
-      } catch (e) {
+      } catch (_e) {
         // If we can't parse the error as JSON, just use the status text
       }
 
@@ -87,7 +87,7 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
     // Try to extract filename from content-disposition if possible
     let filename = ''
     const filenameMatch = contentDisposition.match(/filename="(.+?)"/)
-    if (filenameMatch && filenameMatch[1]) {
+    if (filenameMatch?.[1]) {
       filename = filenameMatch[1]
     }
 
@@ -126,6 +126,6 @@ export const filesTool: ToolConfig<TypeformFilesParams, TypeformFilesResponse> =
       return `Failed to retrieve Typeform file: ${JSON.stringify(error)}`
     }
 
-    return `Failed to retrieve Typeform file: An unknown error occurred`
+    return 'Failed to retrieve Typeform file: An unknown error occurred'
   },
 }

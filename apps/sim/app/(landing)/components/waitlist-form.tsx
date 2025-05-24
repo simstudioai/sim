@@ -13,8 +13,8 @@ export default function WaitlistForm() {
   const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'exists' | 'ratelimited'>(
     'idle'
   )
-  const [errorMessage, setErrorMessage] = useState('')
-  const [retryAfter, setRetryAfter] = useState<number | null>(null)
+  const [_errorMessage, setErrorMessage] = useState('')
+  const [_retryAfter, setRetryAfter] = useState<number | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,7 +57,7 @@ export default function WaitlistForm() {
 
       setStatus('success')
       setEmail('')
-    } catch (error) {
+    } catch (_error) {
       setStatus('error')
       setErrorMessage('Please try again')
     } finally {
@@ -70,7 +70,7 @@ export default function WaitlistForm() {
     if (status === 'success') return 'Joined!'
     if (status === 'error') return 'Try again'
     if (status === 'exists') return 'Already joined'
-    if (status === 'ratelimited') return `Try again later`
+    if (status === 'ratelimited') return 'Try again later'
     return 'Join waitlist'
   }
 
@@ -92,20 +92,20 @@ export default function WaitlistForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-3 items-center max-w-lg mx-auto mt-8"
+      className='mx-auto mt-8 flex max-w-lg flex-col items-center gap-3'
     >
-      <div className="flex w-full gap-3">
+      <div className='flex w-full gap-3'>
         <Input
-          type="email"
-          placeholder="you@example.com"
-          className="flex-1 text-sm md:text-md lg:text-[16px] bg-[#020817] border-white/20 focus:border-white/30 focus:ring-white/30 rounded-md h-[49px]"
+          type='email'
+          placeholder='you@example.com'
+          className='h-[49px] flex-1 rounded-md border-white/20 bg-[#020817] text-sm focus:border-white/30 focus:ring-white/30 md:text-md lg:text-[16px]'
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           disabled={isSubmitting || status === 'ratelimited'}
         />
         <Button
-          type="submit"
-          className={`rounded-md px-8 h-[48px] text-sm md:text-md ${getButtonStyle()}`}
+          type='submit'
+          className={`h-[48px] rounded-md px-8 text-sm md:text-md ${getButtonStyle()}`}
           disabled={isSubmitting || status === 'ratelimited'}
         >
           {getButtonText()}

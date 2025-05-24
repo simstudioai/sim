@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Copy, KeySquare, Loader2, Plus, X } from 'lucide-react'
+import { Check, Copy, Loader2, Plus, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -153,24 +152,24 @@ export function DeployForm({
           e.preventDefault()
           onSubmit(form.getValues())
         }}
-        className="space-y-6"
+        className='space-y-6'
       >
         {/* API Key selection */}
         <FormField
           control={form.control}
-          name="apiKey"
+          name='apiKey'
           render={({ field }) => (
-            <FormItem className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <FormLabel className="font-medium text-sm">Select API Key</FormLabel>
+            <FormItem className='space-y-1.5'>
+              <div className='flex items-center justify-between'>
+                <FormLabel className='font-medium text-sm'>Select API Key</FormLabel>
                 <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs gap-1 text-primary"
+                  type='button'
+                  variant='ghost'
+                  size='sm'
+                  className='h-7 gap-1 px-2 text-primary text-xs'
                   onClick={() => setIsCreatingKey(true)}
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus className='h-3.5 w-3.5' />
                   <span>Create new</span>
                 </Button>
               </div>
@@ -178,26 +177,26 @@ export function DeployForm({
                 <FormControl>
                   <SelectTrigger className={!keysLoaded ? 'opacity-70' : ''}>
                     {!keysLoaded ? (
-                      <div className="flex items-center space-x-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <div className='flex items-center space-x-2'>
+                        <Loader2 className='h-3.5 w-3.5 animate-spin' />
                         <span>Loading API keys...</span>
                       </div>
                     ) : (
-                      <SelectValue placeholder="Select an API key" className="text-sm" />
+                      <SelectValue placeholder='Select an API key' className='text-sm' />
                     )}
                   </SelectTrigger>
                 </FormControl>
-                <SelectContent align="start" className="w-[var(--radix-select-trigger-width)] py-1">
+                <SelectContent align='start' className='w-[var(--radix-select-trigger-width)] py-1'>
                   {apiKeys.map((apiKey) => (
                     <SelectItem
                       key={apiKey.id}
                       value={apiKey.key}
-                      className="flex items-center px-3 py-2.5 my-0.5 rounded-sm cursor-pointer data-[state=checked]:bg-muted [&>span.absolute]:hidden"
+                      className='my-0.5 flex cursor-pointer items-center rounded-sm px-3 py-2.5 data-[state=checked]:bg-muted [&>span.absolute]:hidden'
                     >
-                      <div className="flex items-center w-full">
-                        <div className="flex items-center justify-between w-full">
-                          <span className="text-sm truncate mr-2">{apiKey.name}</span>
-                          <span className="text-xs text-muted-foreground font-mono flex-shrink-0 bg-muted px-1.5 py-0.5 mt-[1px] rounded">
+                      <div className='flex w-full items-center'>
+                        <div className='flex w-full items-center justify-between'>
+                          <span className='mr-2 truncate text-sm'>{apiKey.name}</span>
+                          <span className='mt-[1px] flex-shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground text-xs'>
                             {apiKey.key.slice(-5)}
                           </span>
                         </div>
@@ -213,43 +212,43 @@ export function DeployForm({
 
         {/* Create API Key Dialog */}
         <Dialog open={isCreatingKey} onOpenChange={setIsCreatingKey}>
-          <DialogContent className="sm:max-w-md flex flex-col p-0 gap-0" hideCloseButton>
-            <DialogHeader className="px-6 py-4 border-b">
-              <div className="flex items-center justify-between">
-                <DialogTitle className="text-lg font-medium">Create new API key</DialogTitle>
+          <DialogContent className='flex flex-col gap-0 p-0 sm:max-w-md' hideCloseButton>
+            <DialogHeader className='border-b px-6 py-4'>
+              <div className='flex items-center justify-between'>
+                <DialogTitle className='font-medium text-lg'>Create new API key</DialogTitle>
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 p-0"
+                  variant='ghost'
+                  size='icon'
+                  className='h-8 w-8 p-0'
                   onClick={() => setIsCreatingKey(false)}
                 >
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Close</span>
+                  <X className='h-4 w-4' />
+                  <span className='sr-only'>Close</span>
                 </Button>
               </div>
             </DialogHeader>
 
-            <div className="pt-4 px-6 pb-6 flex-1">
-              <div className="space-y-2">
-                <Label htmlFor="keyName">API Key Name</Label>
+            <div className='flex-1 px-6 pt-4 pb-6'>
+              <div className='space-y-2'>
+                <Label htmlFor='keyName'>API Key Name</Label>
                 <Input
-                  id="keyName"
-                  placeholder="e.g., Development, Production, etc."
+                  id='keyName'
+                  placeholder='e.g., Development, Production, etc.'
                   value={newKeyName}
                   onChange={(e) => setNewKeyName(e.target.value)}
-                  className="focus-visible:ring-primary"
+                  className='focus-visible:ring-primary'
                 />
               </div>
             </div>
 
-            <div className="border-t px-6 py-4 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsCreatingKey(false)}>
+            <div className='flex justify-end gap-2 border-t px-6 py-4'>
+              <Button variant='outline' onClick={() => setIsCreatingKey(false)}>
                 Cancel
               </Button>
               <Button onClick={handleCreateKey} disabled={!newKeyName.trim() || isCreating}>
                 {isCreating ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
                     Creating...
                   </>
                 ) : (
@@ -268,55 +267,55 @@ export function DeployForm({
             if (!open) setNewKey(null)
           }}
         >
-          <DialogContent className="sm:max-w-md flex flex-col p-0 gap-0" hideCloseButton>
-            <DialogHeader className="px-6 py-4 border-b">
-              <div className="flex items-center justify-between">
-                <DialogTitle className="text-lg font-medium">
+          <DialogContent className='flex flex-col gap-0 p-0 sm:max-w-md' hideCloseButton>
+            <DialogHeader className='border-b px-6 py-4'>
+              <div className='flex items-center justify-between'>
+                <DialogTitle className='font-medium text-lg'>
                   Your API key has been created
                 </DialogTitle>
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 p-0"
+                  variant='ghost'
+                  size='icon'
+                  className='h-8 w-8 p-0'
                   onClick={() => {
                     setShowNewKeyDialog(false)
                     setNewKey(null)
                   }}
                 >
-                  <X className="h-4 w-4" />
-                  <span className="sr-only">Close</span>
+                  <X className='h-4 w-4' />
+                  <span className='sr-only'>Close</span>
                 </Button>
               </div>
-              <DialogDescription className="pt-2">
+              <DialogDescription className='pt-2'>
                 This is the only time you will see your API key. Copy it now and store it securely.
               </DialogDescription>
             </DialogHeader>
 
             {newKey && (
-              <div className="pt-4 px-6 pb-6 flex-1">
-                <div className="space-y-2">
+              <div className='flex-1 px-6 pt-4 pb-6'>
+                <div className='space-y-2'>
                   <Label>API Key</Label>
-                  <div className="relative">
+                  <div className='relative'>
                     <Input
                       readOnly
                       value={newKey.key}
-                      className="font-mono text-sm pr-10 bg-muted/50 border-slate-300"
+                      className='border-slate-300 bg-muted/50 pr-10 font-mono text-sm'
                     />
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                      variant='ghost'
+                      size='sm'
+                      className='-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7'
                       onClick={() => copyToClipboard(newKey.key)}
                     >
                       {copySuccess ? (
-                        <Check className="h-4 w-4 text-green-500" />
+                        <Check className='h-4 w-4 text-green-500' />
                       ) : (
-                        <Copy className="h-4 w-4" />
+                        <Copy className='h-4 w-4' />
                       )}
-                      <span className="sr-only">Copy to clipboard</span>
+                      <span className='sr-only'>Copy to clipboard</span>
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className='mt-1 text-muted-foreground text-xs'>
                     For security, we don&apos;t store the complete key. You won&apos;t be able to
                     view it again.
                   </p>
@@ -324,7 +323,7 @@ export function DeployForm({
               </div>
             )}
 
-            <div className="border-t px-6 py-4 flex justify-end">
+            <div className='flex justify-end border-t px-6 py-4'>
               <Button
                 onClick={() => {
                   setShowNewKeyDialog(false)

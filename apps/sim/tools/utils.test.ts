@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ToolConfig, ToolResponse } from './types'
+import type { ToolConfig } from './types'
 import {
   createCustomToolRequestBody,
   createParamSchema,
@@ -322,7 +322,7 @@ describe('executeRequest', () => {
 
   it('should use default transform response if not provided', async () => {
     // Remove custom transform response
-    delete mockTool.transformResponse
+    mockTool.transformResponse = undefined
 
     // Setup a successful mock response
     mockFetch.mockResolvedValueOnce({

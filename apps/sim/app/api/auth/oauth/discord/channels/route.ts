@@ -50,7 +50,7 @@ export async function POST(request: Request) {
           const errorData = await response.json()
           logger.error('Error details:', errorData)
           errorMessage = errorData.message || `Failed to fetch channel (${response.status})`
-        } catch (e) {
+        } catch (_e) {
           errorMessage = `Failed to fetch channel: ${response.status} ${response.statusText}`
         }
         return NextResponse.json({ error: errorMessage }, { status: response.status })
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
         const errorData = await response.json()
         logger.error('Error details:', errorData)
         errorMessage = errorData.message || `Failed to fetch channels (${response.status})`
-      } catch (e) {
+      } catch (_e) {
         errorMessage = `Failed to fetch channels: ${response.status} ${response.statusText}`
       }
       return NextResponse.json({ error: errorMessage }, { status: response.status })

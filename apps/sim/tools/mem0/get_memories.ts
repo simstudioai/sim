@@ -1,4 +1,4 @@
-import { ToolConfig } from '../types'
+import type { ToolConfig } from '../types'
 
 // Get Memories Tool
 export const mem0GetMemoriesTool: ToolConfig = {

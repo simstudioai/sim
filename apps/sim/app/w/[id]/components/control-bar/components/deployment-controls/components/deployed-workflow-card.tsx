@@ -29,27 +29,27 @@ export function DeployedWorkflowCard({
   const workflowToShow = showingDeployed ? deployedWorkflowState : currentWorkflowState
 
   return (
-    <Card className={cn('overflow-hidden relative', className)}>
+    <Card className={cn('relative overflow-hidden', className)}>
       <CardHeader
         className={cn(
-          'space-y-4 p-4 sticky top-0 z-10',
+          'sticky top-0 z-10 space-y-4 p-4',
           'backdrop-blur-xl',
           'bg-background/70 dark:bg-background/50',
-          'border-b border-border/30 dark:border-border/20',
+          'border-border/30 border-b dark:border-border/20',
           'shadow-sm'
         )}
       >
-        <div className="flex items-center justify-between">
-          <h3 className="font-medium">
+        <div className='flex items-center justify-between'>
+          <h3 className='font-medium'>
             {showingDeployed ? 'Deployed Workflow' : 'Current Workflow'}
           </h3>
           {/* Controls */}
-          <div className="flex items-center gap-4">
+          <div className='flex items-center gap-4'>
             {/* Version toggle - only show if there's a current version */}
             {currentWorkflowState && (
               <Button
-                variant="outline"
-                size="sm"
+                variant='outline'
+                size='sm'
                 onClick={() => setShowingDeployed(!showingDeployed)}
               >
                 {showingDeployed ? 'Show Current' : 'Show Deployed'}
@@ -59,21 +59,21 @@ export function DeployedWorkflowCard({
         </div>
       </CardHeader>
 
-      <CardContent className="p-0">
+      <CardContent className='p-0'>
         {/* Workflow preview with fixed height */}
-        <div className="h-[500px] w-full">
+        <div className='h-[500px] w-full'>
           {workflowToShow ? (
             <WorkflowPreview
               workflowState={workflowToShow}
               showSubBlocks={true}
-              height="100%"
-              width="100%"
+              height='100%'
+              width='100%'
               isPannable={true}
               defaultPosition={{ x: 0, y: 0 }}
               defaultZoom={1}
             />
           ) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground">
+            <div className='flex h-full items-center justify-center text-muted-foreground'>
               No workflow data available
             </div>
           )}

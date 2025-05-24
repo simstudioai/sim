@@ -38,7 +38,7 @@ const WordWrap = ({ text }: { text: string }) => {
         }
 
         return (
-          <span key={index} className="break-all">
+          <span key={index} className='break-all'>
             {chunks.map((chunk, chunkIndex) => (
               <span key={chunkIndex}>{chunk}</span>
             ))}
@@ -71,17 +71,17 @@ export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
   }, [message.content, isJsonObject])
 
   return (
-    <div className="w-full border-b border-border p-4 space-y-4 hover:bg-accent/50 transition-colors">
+    <div className='w-full space-y-4 border-border border-b p-4 transition-colors hover:bg-accent/50'>
       {/* Header with time on left and message type on right */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <span className="text-muted-foreground">{relativeTime}</span>
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center gap-2 text-sm'>
+          <Clock className='h-4 w-4 text-muted-foreground' />
+          <span className='text-muted-foreground'>{relativeTime}</span>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          {message.type !== 'user' && <span className="text-muted-foreground">Workflow</span>}
+        <div className='flex items-center gap-2 text-sm'>
+          {message.type !== 'user' && <span className='text-muted-foreground'>Workflow</span>}
           {message.isStreaming && (
-            <span className="text-primary ml-2 animate-pulse" title="Streaming">
+            <span className='ml-2 animate-pulse text-primary' title='Streaming'>
               •••
             </span>
           )}
@@ -89,14 +89,14 @@ export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
       </div>
 
       {/* Message content with proper word wrapping */}
-      <div className="text-sm font-mono flex-1 break-normal whitespace-normal overflow-wrap-anywhere relative">
+      <div className='overflow-wrap-anywhere relative flex-1 whitespace-normal break-normal font-mono text-sm'>
         {isJsonObject ? (
           <JSONView data={message.content} initiallyExpanded={false} />
         ) : (
-          <div className="whitespace-pre-wrap text-foreground break-words">
+          <div className='whitespace-pre-wrap break-words text-foreground'>
             <WordWrap text={formattedContent} />
             {message.isStreaming && (
-              <span className="inline-block h-4 w-2 bg-primary ml-1 animate-pulse"></span>
+              <span className='ml-1 inline-block h-4 w-2 animate-pulse bg-primary' />
             )}
           </div>
         )}

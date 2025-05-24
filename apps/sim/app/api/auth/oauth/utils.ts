@@ -29,18 +29,17 @@ export async function getUserId(
     }
 
     return workflows[0].userId
-  } else {
-    // This is a client-side request, use the session
-    const session = await getSession()
-
-    // Check if the user is authenticated
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthenticated request rejected`)
-      return undefined
-    }
-
-    return session.user.id
   }
+  // This is a client-side request, use the session
+  const session = await getSession()
+
+  // Check if the user is authenticated
+  if (!session?.user?.id) {
+    logger.warn(`[${requestId}] Unauthenticated request rejected`)
+    return undefined
+  }
+
+  return session.user.id
 }
 
 /**
@@ -169,7 +168,7 @@ export async function refreshAccessTokenIfNeeded(
   const now = new Date()
   const needsRefresh = !expiresAt || expiresAt <= now
 
-  let accessToken = credential.accessToken
+  const accessToken = credential.accessToken
 
   if (needsRefresh && credential.refreshToken) {
     logger.info(`[${requestId}] Token expired, attempting to refresh for credential`)

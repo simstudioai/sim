@@ -1,4 +1,4 @@
-import { StreamingExecution } from '@/executor/types'
+import type { StreamingExecution } from '@/executor/types'
 
 export type ProviderId =
   | 'openai'

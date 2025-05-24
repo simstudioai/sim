@@ -1,10 +1,10 @@
 import { GoogleDriveIcon } from '@/components/icons'
-import {
+import type {
   GoogleDriveGetContentResponse,
   GoogleDriveListResponse,
   GoogleDriveUploadResponse,
 } from '@/tools/google_drive/types'
-import { BlockConfig } from '../types'
+import type { BlockConfig } from '../types'
 
 type GoogleDriveResponse =
   | GoogleDriveUploadResponse
@@ -242,7 +242,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
         return {
           accessToken: credential,
           folderId: effectiveFolderId.trim(),
-          pageSize: rest.pageSize ? parseInt(rest.pageSize as string, 10) : undefined,
+          pageSize: rest.pageSize ? Number.parseInt(rest.pageSize as string, 10) : undefined,
           mimeType: mimeType,
           ...rest,
         }

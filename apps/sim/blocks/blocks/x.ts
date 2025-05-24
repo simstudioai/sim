@@ -1,6 +1,6 @@
 import { xIcon } from '@/components/icons'
-import { XReadResponse, XSearchResponse, XUserResponse, XWriteResponse } from '@/tools/x/types'
-import { BlockConfig } from '../types'
+import type { XReadResponse, XSearchResponse, XUserResponse, XWriteResponse } from '@/tools/x/types'
+import type { BlockConfig } from '../types'
 
 type XResponse = XWriteResponse | XReadResponse | XSearchResponse | XUserResponse
 
@@ -162,7 +162,7 @@ export const XBlock: BlockConfig<XResponse> = {
 
         // Add other params
         Object.keys(rest).forEach((key) => {
-          let value = rest[key]
+          const value = rest[key]
 
           // Convert string boolean values to actual booleans
           if (value === 'true' || value === 'false') {
@@ -170,7 +170,7 @@ export const XBlock: BlockConfig<XResponse> = {
           }
           // Convert numeric strings to numbers where appropriate
           else if (key === 'maxResults' && value) {
-            parsedParams[key] = parseInt(value as string, 10)
+            parsedParams[key] = Number.parseInt(value as string, 10)
           }
           // Handle mediaIds conversion from comma-separated string to array
           else if (key === 'mediaIds' && typeof value === 'string') {

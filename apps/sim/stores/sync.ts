@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { SYNC_INTERVALS } from './constants'
-import { DEFAULT_SYNC_CONFIG, performSync, SyncConfig, SyncOperations } from './sync-core'
+import { DEFAULT_SYNC_CONFIG, performSync, type SyncConfig, type SyncOperations } from './sync-core'
 
 const logger = createLogger('Sync')
 

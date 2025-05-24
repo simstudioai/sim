@@ -1,6 +1,6 @@
 import { ElevenLabsIcon } from '@/components/icons'
-import { ToolResponse } from '@/tools/types'
-import { BlockConfig } from '../types'
+import type { ToolResponse } from '@/tools/types'
+import type { BlockConfig } from '../types'
 
 interface ElevenLabsBlockResponse extends ToolResponse {
   output: {

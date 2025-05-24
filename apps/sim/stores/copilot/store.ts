@@ -3,7 +3,7 @@ import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useEnvironmentStore } from '../settings/environment/store'
 import { useWorkflowStore } from '../workflows/workflow/store'
-import { CopilotMessage, CopilotStore } from './types'
+import type { CopilotMessage, CopilotStore } from './types'
 import { calculateBlockPosition, getNextBlockNumber } from './utils'
 
 const logger = createLogger('CopilotStore')

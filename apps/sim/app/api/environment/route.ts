@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { decryptSecret, encryptSecret } from '@/lib/utils'
-import { EnvironmentVariable } from '@/stores/settings/environment/types'
 import { db } from '@/db'
 import { environment } from '@/db/schema'
+import type { EnvironmentVariable } from '@/stores/settings/environment/types'
 
 const logger = createLogger('EnvironmentAPI')
 

@@ -1,6 +1,7 @@
-import React, {
+import type React from 'react'
+import {
   createContext,
-  ReactNode,
+  type ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -213,8 +214,8 @@ export function CommandInput({
   }, [])
 
   return (
-    <div className="flex items-center border-b px-3">
-      <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+    <div className='flex items-center border-b px-3'>
+      <Search className='mr-2 h-4 w-4 shrink-0 opacity-50' />
       <input
         ref={inputRef}
         className={cn(
@@ -245,7 +246,7 @@ export function CommandEmpty({ children, className }: CommandEmptyProps) {
   if (filteredItems.length > 0) return null
 
   return (
-    <div className={cn('pt-3.5 pb-2 text-center text-sm text-muted-foreground', className)}>
+    <div className={cn('pt-3.5 pb-2 text-center text-muted-foreground text-sm', className)}>
       {children}
     </div>
   )
@@ -256,12 +257,12 @@ export function CommandGroup({ children, className, heading }: CommandGroupProps
   return (
     <div
       className={cn(
-        'overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground',
+        'overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:text-xs',
         className
       )}
     >
       {heading && (
-        <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">{heading}</div>
+        <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>{heading}</div>
       )}
       {children}
     </div>
@@ -298,7 +299,7 @@ export function CommandItem({
     <button
       id={value}
       className={cn(
-        'relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 hover:bg-accent hover:text-accent-foreground',
+        'relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled=true]:pointer-events-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50',
         isActive && 'bg-accent text-accent-foreground',
         className
       )}

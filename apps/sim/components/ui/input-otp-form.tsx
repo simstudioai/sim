@@ -32,32 +32,32 @@ export function OTPInputForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="flex justify-center">
+    <form onSubmit={handleSubmit} className='space-y-4'>
+      <div className='flex justify-center'>
         <InputOTP
           maxLength={length}
           value={value}
           onChange={setValue}
           onComplete={handleComplete}
           disabled={isLoading}
-          pattern="[0-9]*"
-          inputMode="numeric"
-          containerClassName="gap-2"
+          pattern='[0-9]*'
+          inputMode='numeric'
+          containerClassName='gap-2'
         >
           <InputOTPGroup>
             {Array.from({ length }).map((_, i) => (
-              <InputOTPSlot key={i} index={i} className="w-10 h-12" />
+              <InputOTPSlot key={i} index={i} className='h-12 w-10' />
             ))}
           </InputOTPGroup>
         </InputOTP>
       </div>
 
-      {error && <p className="text-sm text-destructive text-center">{error}</p>}
+      {error && <p className='text-center text-destructive text-sm'>{error}</p>}
 
-      <Button type="submit" className="w-full" disabled={value.length !== length || isLoading}>
+      <Button type='submit' className='w-full' disabled={value.length !== length || isLoading}>
         {isLoading ? (
-          <div className="flex items-center justify-center">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <div className='flex items-center justify-center'>
+            <Loader2 className='mr-2 h-4 w-4 animate-spin' />
             Verifying...
           </div>
         ) : (

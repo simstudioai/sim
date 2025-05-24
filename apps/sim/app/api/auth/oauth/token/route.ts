@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getCredential, getUserId, refreshTokenIfNeeded } from '../utils'
 
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       // Refresh the token if needed
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
       return NextResponse.json({ accessToken }, { status: 200 })
-    } catch (error) {
+    } catch (_error) {
       return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
   } catch (error) {
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
       // Refresh the token if needed
       const { accessToken } = await refreshTokenIfNeeded(requestId, credential, credentialId)
       return NextResponse.json({ accessToken }, { status: 200 })
-    } catch (error) {
+    } catch (_error) {
       return NextResponse.json({ error: 'Failed to refresh access token' }, { status: 401 })
     }
   } catch (error) {

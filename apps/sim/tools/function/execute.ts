@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { CodeExecutionInput, CodeExecutionOutput } from './types'
+import type { ToolConfig } from '../types'
+import type { CodeExecutionInput, CodeExecutionOutput } from './types'
 
 const DEFAULT_TIMEOUT = 10000 // 10 seconds
 

@@ -1,10 +1,10 @@
+import { NextRequest } from 'next/server'
 /**
  * Tests for subdomain validation API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NextRequest } from 'next/server'
 
 describe('Subdomain Validation API Route', () => {
   // Mock database responses

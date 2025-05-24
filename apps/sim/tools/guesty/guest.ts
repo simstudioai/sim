@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { GuestyGuestParams, GuestyGuestResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { GuestyGuestParams, GuestyGuestResponse } from './types'
 
 export const guestyGuestTool: ToolConfig<GuestyGuestParams, GuestyGuestResponse> = {
   id: 'guesty_guest',

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ToolResponse } from '../types'
+import type { ToolResponse } from '../types'
 
 export interface StagehandExtractParams {
   instruction: string
@@ -51,7 +51,7 @@ export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
 
   // Handle different schema types
   switch (jsonSchema.type) {
-    case 'object':
+    case 'object': {
       if (!jsonSchema.properties) {
         return z.object({})
       }
@@ -77,6 +77,7 @@ export function jsonSchemaToZod(jsonSchema: Record<string, any>): z.ZodTypeAny {
       }
 
       return z.object(shape)
+    }
 
     case 'array':
       if (!jsonSchema.items) {

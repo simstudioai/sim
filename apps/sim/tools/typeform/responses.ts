@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { TypeformResponsesParams, TypeformResponsesResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { TypeformResponsesParams, TypeformResponsesResponse } from './types'
 
 export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponsesResponse> = {
   id: 'typeform_responses',
@@ -74,14 +74,14 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
 
       try {
         const errorData = await response.json()
-        if (errorData && errorData.message) {
+        if (errorData?.message) {
           errorMessage = errorData.message
-        } else if (errorData && errorData.description) {
+        } else if (errorData?.description) {
           errorMessage = errorData.description
         } else if (typeof errorData === 'string') {
           errorMessage = errorData
         }
-      } catch (e) {
+      } catch (_e) {
         // If we can't parse the error as JSON, just use the status text
       }
 
@@ -110,6 +110,6 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
       return `Failed to retrieve Typeform responses: ${JSON.stringify(error)}`
     }
 
-    return `Failed to retrieve Typeform responses: An unknown error occurred`
+    return 'Failed to retrieve Typeform responses: An unknown error occurred'
   },
 }

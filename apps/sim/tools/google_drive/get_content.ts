@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import { GoogleDriveGetContentResponse, GoogleDriveToolParams } from './types'
+import type { ToolConfig } from '../types'
+import type { GoogleDriveGetContentResponse, GoogleDriveToolParams } from './types'
 import { DEFAULT_EXPORT_FORMATS, GOOGLE_WORKSPACE_MIME_TYPES } from './utils'
 
 const logger = createLogger('GoogleDriveGetContentTool')

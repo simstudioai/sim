@@ -200,29 +200,29 @@ export function TelemetryConsentDialog() {
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogContent className="max-w-md">
+      <AlertDialogContent className='max-w-md'>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-2xl font-bold mb-2">Telemetry</AlertDialogTitle>
+          <AlertDialogTitle className='mb-2 font-bold text-2xl'>Telemetry</AlertDialogTitle>
         </AlertDialogHeader>
 
-        <div className="space-y-4 text-base text-muted-foreground">
+        <div className='space-y-4 text-base text-muted-foreground'>
           <div>
             To help us improve Sim Studio, we collect anonymous usage data by default. This helps us
             understand which features are most useful and identify areas for improvement.
           </div>
 
-          <div className="py-2">
-            <div className="font-semibold text-foreground mb-2">We only collect:</div>
-            <ul className="list-disc pl-6 space-y-1">
+          <div className='py-2'>
+            <div className='mb-2 font-semibold text-foreground'>We only collect:</div>
+            <ul className='list-disc space-y-1 pl-6'>
               <li>Feature usage statistics</li>
               <li>Error reports (without personal info)</li>
               <li>Performance metrics</li>
             </ul>
           </div>
 
-          <div className="py-2">
-            <div className="font-semibold text-foreground mb-2">We never collect:</div>
-            <ul className="list-disc pl-6 space-y-1">
+          <div className='py-2'>
+            <div className='mb-2 font-semibold text-foreground'>We never collect:</div>
+            <ul className='list-disc space-y-1 pl-6'>
               <li>Personal information</li>
               <li>Workflow content or outputs</li>
               <li>API keys or tokens</li>
@@ -230,20 +230,20 @@ export function TelemetryConsentDialog() {
             </ul>
           </div>
 
-          <div className="text-sm text-muted-foreground pt-2">
+          <div className='pt-2 text-muted-foreground text-sm'>
             You can change this setting anytime in{' '}
-            <span className="font-medium">Settings → Privacy</span>.
+            <span className='font-medium'>Settings → Privacy</span>.
           </div>
         </div>
 
-        <AlertDialogFooter className="flex flex-col sm:flex-row gap-3 mt-4">
+        <AlertDialogFooter className='mt-4 flex flex-col gap-3 sm:flex-row'>
           <AlertDialogCancel asChild onClick={handleDecline}>
-            <Button variant="outline" className="flex-1">
+            <Button variant='outline' className='flex-1'>
               Disable telemetry
             </Button>
           </AlertDialogCancel>
           <AlertDialogAction asChild onClick={handleAccept}>
-            <Button className="flex-1">Continue with telemetry</Button>
+            <Button className='flex-1'>Continue with telemetry</Button>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { YouTubeSearchParams, YouTubeSearchResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { YouTubeSearchParams, YouTubeSearchResponse } from './types'
 
 export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchResponse> = {
   id: 'youtube_search',

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
@@ -7,12 +7,12 @@ import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
-import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
 import { getOAuthToken } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { environment, userStats, webhook } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
+import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
 
 const logger = createLogger('WebhookUtils')
 
@@ -104,7 +104,7 @@ export async function validateSlackSignature(
 
     // Check if the timestamp is too old (> 5 minutes)
     const currentTime = Math.floor(Date.now() / 1000)
-    if (Math.abs(currentTime - parseInt(timestamp)) > 300) {
+    if (Math.abs(currentTime - Number.parseInt(timestamp)) > 300) {
       return false
     }
 
@@ -254,29 +254,28 @@ export function formatWebhookInput(
         },
         workflowId: foundWorkflow.id,
       }
-    } else {
-      return null
     }
-  } else if (foundWebhook.provider === 'gmail') {
+    return null
+  }
+  if (foundWebhook.provider === 'gmail') {
     if (body && typeof body === 'object' && 'email' in body) {
       return body // { email: {...}, timestamp: ... }
     }
     return body
-  } else {
-    // Generic format for Slack and other providers
-    return {
-      webhook: {
-        data: {
-          path: foundWebhook.path,
-          provider: foundWebhook.provider,
-          providerConfig: foundWebhook.providerConfig,
-          payload: body,
-          headers: Object.fromEntries(request.headers.entries()),
-          method: request.method,
-        },
+  }
+  // Generic format for Slack and other providers
+  return {
+    webhook: {
+      data: {
+        path: foundWebhook.path,
+        provider: foundWebhook.provider,
+        providerConfig: foundWebhook.providerConfig,
+        payload: body,
+        headers: Object.fromEntries(request.headers.entries()),
+        method: request.method,
       },
-      workflowId: foundWorkflow.id,
-    }
+    },
+    workflowId: foundWorkflow.id,
   }
 }
 
@@ -332,7 +331,7 @@ export async function executeWorkflowFromPayload(
   // Log the full input format to help diagnose data issues
   logger.debug(`[${requestId}] Workflow input format:`, {
     inputKeys: Object.keys(input || {}),
-    hasAirtableChanges: input && input.airtableChanges && Array.isArray(input.airtableChanges),
+    hasAirtableChanges: input?.airtableChanges && Array.isArray(input.airtableChanges),
     airtableChangesCount: input?.airtableChanges?.length || 0,
   })
 
@@ -674,7 +673,7 @@ export function verifyProviderWebhook(
         }
       }
       break
-    case 'telegram':
+    case 'telegram': {
       // Check User-Agent to ensure it's not blocked by middleware
       // Log the user agent for debugging purposes
       const userAgent = request.headers.get('user-agent') || ''
@@ -700,6 +699,7 @@ export function verifyProviderWebhook(
       logger.debug(`[${requestId}] Telegram webhook request from IP: ${clientIp}`)
 
       break
+    }
     case 'generic':
       // Generic auth logic: requireAuth, token, secretHeaderName, allowedIps
       if (providerConfig.requireAuth) {
@@ -772,7 +772,7 @@ export async function fetchAndProcessAirtablePayloads(
   let apiCallCount = 0
   // Use a Map to consolidate changes per record ID
   const consolidatedChangesMap = new Map<string, AirtableChange>()
-  let localProviderConfig = { ...((webhookData.providerConfig as Record<string, any>) || {}) } // Local copy
+  const localProviderConfig = { ...((webhookData.providerConfig as Record<string, any>) || {}) } // Local copy
 
   // DEBUG: Log start of function execution with critical info
   logger.debug(`[${requestId}] TRACE: fetchAndProcessAirtablePayloads started`, {
@@ -1278,7 +1278,7 @@ export async function generateRequestHash(path: string, body: any): Promise<stri
       hash = hash & hash // Convert to 32bit integer
     }
     return `request:${path}:${hash}`
-  } catch (error) {
+  } catch (_error) {
     return `request:${path}:${uuidv4()}`
   }
 }
@@ -1299,17 +1299,16 @@ export function normalizeBody(body: any): any {
   ] // Made case-insensitive check below
   if (Array.isArray(result)) {
     return result.map((item) => normalizeBody(item))
-  } else {
-    for (const key in result) {
-      // Use lowercase check for broader matching
-      if (fieldsToRemove.includes(key.toLowerCase())) {
-        delete result[key]
-      } else if (typeof result[key] === 'object' && result[key] !== null) {
-        result[key] = normalizeBody(result[key])
-      }
-    }
-    return result
   }
+  for (const key in result) {
+    // Use lowercase check for broader matching
+    if (fieldsToRemove.includes(key.toLowerCase())) {
+      delete result[key]
+    } else if (typeof result[key] === 'object' && result[key] !== null) {
+      result[key] = normalizeBody(result[key])
+    }
+  }
+  return result
 }
 
 // Define an interface for AirtableChange
@@ -1343,12 +1342,12 @@ export async function configureGmailPolling(
 
     const maxEmailsPerPoll =
       typeof providerConfig.maxEmailsPerPoll === 'string'
-        ? parseInt(providerConfig.maxEmailsPerPoll, 10) || 25
+        ? Number.parseInt(providerConfig.maxEmailsPerPoll, 10) || 25
         : providerConfig.maxEmailsPerPoll || 25
 
     const pollingInterval =
       typeof providerConfig.pollingInterval === 'string'
-        ? parseInt(providerConfig.pollingInterval, 10) || 5
+        ? Number.parseInt(providerConfig.pollingInterval, 10) || 5
         : providerConfig.pollingInterval || 5
 
     const now = new Date()

@@ -1,4 +1,4 @@
-import { ToolResponse } from '../types'
+import type { ToolResponse } from '../types'
 
 // Base parameters shared by all GitHub operations
 export interface BaseGitHubParams {

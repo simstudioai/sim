@@ -10,14 +10,8 @@
       "settings": {
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
-          "source.fixAll.eslint": true
-        },
-        "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "[typescript]": {
-          "editor.defaultFormatter": "esbenp.prettier-vscode"
-        },
-        "[typescriptreact]": {
-          "editor.defaultFormatter": "esbenp.prettier-vscode"
+          "source.fixAll.biome": "explicit",
+          "source.organizeImports.biome": "explicit"
         },
         "terminal.integrated.defaultProfile.linux": "bash",
         "terminal.integrated.profiles.linux": {
@@ -29,13 +23,11 @@
         "terminal.integrated.shellIntegration.enabled": true
       },
       "extensions": [
-        "dbaeumer.vscode-eslint",
-        "esbenp.prettier-vscode",
+        "biomejs.biome",
         "bradlc.vscode-tailwindcss",
         "ms-vscode.vscode-typescript-next",
         "github.copilot",
         "github.copilot-chat",
-        "rvest.vs-code-prettier-eslint",
         "mikestead.dotenv",
         "dsznajder.es7-react-js-snippets",
         "steoates.autoimport",
@@ -55,7 +47,7 @@
   "features": {
     "ghcr.io/devcontainers/features/git:1": {},
     "ghcr.io/prulloac/devcontainer-features/bun:1": {
-       "version": "latest"
-     }
+      "version": "latest"
+    }
   }
 }

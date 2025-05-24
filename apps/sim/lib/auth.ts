@@ -1,10 +1,10 @@
-import { headers } from 'next/headers'
 import { stripe } from '@better-auth/stripe'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
 import { emailOTP, genericOAuth, organization } from 'better-auth/plugins'
 import { and, eq } from 'drizzle-orm'
+import { headers } from 'next/headers'
 import { Resend } from 'resend'
 import Stripe from 'stripe'
 import {
@@ -91,10 +91,9 @@ export const auth = betterAuth({
                   activeOrganizationId: members[0].organizationId,
                 },
               }
-            } else {
-              logger.info('No organizations found for user', { userId: session.userId })
-              return { data: session }
             }
+            logger.info('No organizations found for user', { userId: session.userId })
+            return { data: session }
           } catch (error) {
             logger.error('Error setting active organization', { error, userId: session.userId })
             return { data: session }
@@ -710,7 +709,7 @@ export const auth = betterAuth({
                 name: profile.name || profile.bot?.owner?.user?.name || 'Notion User',
                 email: profile.person?.email || `${profile.id}@notion.user`,
                 image: null, // Notion API doesn't provide profile images
-                emailVerified: profile.person?.email ? true : false,
+                emailVerified: !!profile.person?.email,
                 createdAt: now,
                 updatedAt: now,
               }
@@ -742,7 +741,7 @@ export const auth = betterAuth({
                   name: 'free',
                   priceId: env.STRIPE_FREE_PRICE_ID || '',
                   limits: {
-                    cost: env.FREE_TIER_COST_LIMIT ? parseInt(env.FREE_TIER_COST_LIMIT) : 5,
+                    cost: env.FREE_TIER_COST_LIMIT ? Number.parseInt(env.FREE_TIER_COST_LIMIT) : 5,
                     sharingEnabled: 0,
                     multiplayerEnabled: 0,
                     workspaceCollaborationEnabled: 0,
@@ -752,7 +751,7 @@ export const auth = betterAuth({
                   name: 'pro',
                   priceId: env.STRIPE_PRO_PRICE_ID || '',
                   limits: {
-                    cost: env.PRO_TIER_COST_LIMIT ? parseInt(env.PRO_TIER_COST_LIMIT) : 20,
+                    cost: env.PRO_TIER_COST_LIMIT ? Number.parseInt(env.PRO_TIER_COST_LIMIT) : 20,
                     sharingEnabled: 1,
                     multiplayerEnabled: 0,
                     workspaceCollaborationEnabled: 0,
@@ -762,7 +761,7 @@ export const auth = betterAuth({
                   name: 'team',
                   priceId: env.STRIPE_TEAM_PRICE_ID || '',
                   limits: {
-                    cost: env.TEAM_TIER_COST_LIMIT ? parseInt(env.TEAM_TIER_COST_LIMIT) : 40, // $40 per seat
+                    cost: env.TEAM_TIER_COST_LIMIT ? Number.parseInt(env.TEAM_TIER_COST_LIMIT) : 40, // $40 per seat
                     sharingEnabled: 1,
                     multiplayerEnabled: 1,
                     workspaceCollaborationEnabled: 1,

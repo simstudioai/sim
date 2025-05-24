@@ -1,16 +1,15 @@
 'use client'
 
-import { KeyboardEvent, useEffect, useMemo, useRef } from 'react'
-import { ArrowUp, CornerDownLeft, Loader2, X } from 'lucide-react'
+import { type KeyboardEvent, useEffect, useMemo, useRef } from 'react'
+import { ArrowUp, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
-import { useExecutionStore } from '@/stores/execution/store'
-import { useChatStore } from '@/stores/panel/chat/store'
-import { ChatMessage as ChatMessageType } from '@/stores/panel/chat/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { JSONView } from '@/app/w/[id]/components/panel/components/console/components/json-view/json-view'
 import { useWorkflowExecution } from '@/app/w/[id]/hooks/use-workflow-execution'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useChatStore } from '@/stores/panel/chat/store'
+import type { ChatMessage as ChatMessageType } from '@/stores/panel/chat/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface ChatMessageProps {
   message: ChatMessageType
@@ -26,11 +25,11 @@ function ModalChatMessage({ message }: ChatMessageProps) {
   // For user messages (on the right)
   if (message.type === 'user') {
     return (
-      <div className="py-5 px-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex justify-end">
-            <div className="bg-[#F4F4F4] dark:bg-primary/10 rounded-3xl max-w-[80%] py-3 px-4 shadow-sm">
-              <div className="whitespace-pre-wrap break-words text-base leading-relaxed text-[#0D0D0D] dark:text-white">
+      <div className='px-4 py-5'>
+        <div className='mx-auto max-w-3xl'>
+          <div className='flex justify-end'>
+            <div className='max-w-[80%] rounded-3xl bg-[#F4F4F4] px-4 py-3 shadow-sm dark:bg-primary/10'>
+              <div className='whitespace-pre-wrap break-words text-[#0D0D0D] text-base leading-relaxed dark:text-white'>
                 {isJsonObject ? (
                   <JSONView data={message.content} initiallyExpanded={false} />
                 ) : (
@@ -46,11 +45,11 @@ function ModalChatMessage({ message }: ChatMessageProps) {
 
   // For assistant messages (on the left)
   return (
-    <div className="py-5 px-4">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex">
-          <div className="max-w-[80%]">
-            <div className="whitespace-pre-wrap break-words text-base leading-relaxed">
+    <div className='px-4 py-5'>
+      <div className='mx-auto max-w-3xl'>
+        <div className='flex'>
+          <div className='max-w-[80%]'>
+            <div className='whitespace-pre-wrap break-words text-base leading-relaxed'>
               {isJsonObject ? (
                 <JSONView data={message.content} initiallyExpanded={false} />
               ) : (
@@ -149,7 +148,7 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+    <div className='fixed inset-0 z-[100] flex flex-col bg-background'>
       <style jsx>{`
         @keyframes growShrink {
           0%,
@@ -166,27 +165,27 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
       `}</style>
 
       {/* Header with title and close button */}
-      <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="text-lg font-medium">Chat</h2>
+      <div className='flex items-center justify-between px-4 py-3'>
+        <h2 className='font-medium text-lg'>Chat</h2>
         <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 rounded-md hover:bg-accent/50"
+          variant='ghost'
+          size='icon'
+          className='h-8 w-8 rounded-md hover:bg-accent/50'
           onClick={() => onOpenChange(false)}
         >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
+          <X className='h-4 w-4' />
+          <span className='sr-only'>Close</span>
         </Button>
       </div>
 
       {/* Messages container */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto">
+      <div ref={messagesContainerRef} className='flex-1 overflow-y-auto'>
+        <div className='mx-auto max-w-3xl'>
           {workflowMessages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full py-10 px-4">
-              <div className="text-center space-y-2">
-                <h3 className="text-lg font-medium">How can I help you today?</h3>
-                <p className="text-muted-foreground text-sm">
+            <div className='flex h-full flex-col items-center justify-center px-4 py-10'>
+              <div className='space-y-2 text-center'>
+                <h3 className='font-medium text-lg'>How can I help you today?</h3>
+                <p className='text-muted-foreground text-sm'>
                   Ask me anything about your workflow.
                 </p>
               </div>
@@ -199,12 +198,12 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
 
           {/* Loading indicator (shows only when executing) */}
           {isExecuting && (
-            <div className="py-5 px-4">
-              <div className="max-w-3xl mx-auto">
-                <div className="flex">
-                  <div className="max-w-[80%]">
-                    <div className="flex items-center h-6">
-                      <div className="w-3 h-3 rounded-full bg-black dark:bg-black loading-dot"></div>
+            <div className='px-4 py-5'>
+              <div className='mx-auto max-w-3xl'>
+                <div className='flex'>
+                  <div className='max-w-[80%]'>
+                    <div className='flex h-6 items-center'>
+                      <div className='loading-dot h-3 w-3 rounded-full bg-black dark:bg-black' />
                     </div>
                   </div>
                 </div>
@@ -212,34 +211,34 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
             </div>
           )}
 
-          <div ref={messagesEndRef} className="h-1" />
+          <div ref={messagesEndRef} className='h-1' />
         </div>
       </div>
 
       {/* Input area (fixed at bottom) */}
-      <div className="bg-background p-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="relative rounded-2xl border bg-background shadow-sm">
+      <div className='bg-background p-4'>
+        <div className='mx-auto max-w-3xl'>
+          <div className='relative rounded-2xl border bg-background shadow-sm'>
             <Input
               ref={inputRef}
               value={chatMessage}
               onChange={(e) => setChatMessage(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder="Message..."
-              className="flex-1 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 py-7 pr-16 bg-transparent pl-6 text-base min-h-[50px] rounded-2xl"
+              placeholder='Message...'
+              className='min-h-[50px] flex-1 rounded-2xl border-0 bg-transparent py-7 pr-16 pl-6 text-base focus-visible:ring-0 focus-visible:ring-offset-0'
               disabled={!activeWorkflowId}
             />
             <Button
               onClick={handleSendMessage}
-              size="icon"
+              size='icon'
               disabled={!chatMessage.trim() || !activeWorkflowId || isExecuting}
-              className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-xl bg-black dark:bg-primary text-white hover:bg-gray-800 dark:hover:bg-primary/80"
+              className='-translate-y-1/2 absolute top-1/2 right-3 h-10 w-10 rounded-xl bg-black p-0 text-white hover:bg-gray-800 dark:bg-primary dark:hover:bg-primary/80'
             >
-              <ArrowUp className="h-4 w-4 dark:text-black" />
+              <ArrowUp className='h-4 w-4 dark:text-black' />
             </Button>
           </div>
 
-          <div className="mt-2 text-center text-xs text-muted-foreground">
+          <div className='mt-2 text-center text-muted-foreground text-xs'>
             <p>
               {activeWorkflowId
                 ? 'Your messages will be processed by the active workflow'

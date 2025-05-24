@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { isEqual } from 'lodash'
+import { getProviderFromModel } from '@/providers/utils'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { getProviderFromModel } from '@/providers/utils'
 
 /**
  * Helper to handle API key auto-fill for provider-based blocks
@@ -147,7 +147,7 @@ function storeApiKeyValue(
 export function useSubBlockValue<T = any>(
   blockId: string,
   subBlockId: string,
-  triggerWorkflowUpdate: boolean = false
+  triggerWorkflowUpdate = false
 ): readonly [T | null, (value: T) => void] {
   const blockType = useWorkflowStore(
     useCallback((state) => state.blocks?.[blockId]?.type, [blockId])

@@ -1,6 +1,6 @@
 import { StagehandIcon } from '@/components/icons'
-import { ToolResponse } from '@/tools/types'
-import { BlockConfig } from '../types'
+import type { ToolResponse } from '@/tools/types'
+import type { BlockConfig } from '../types'
 
 interface StagehandExtractResponse extends ToolResponse {
   output: {
@@ -46,7 +46,7 @@ export const StagehandBlock: BlockConfig<StagehandExtractResponse> = {
       title: 'Schema',
       type: 'code',
       layout: 'full',
-      placeholder: `Enter JSON Schema...`,
+      placeholder: 'Enter JSON Schema...',
       language: 'json',
       generationType: 'json-schema',
     },

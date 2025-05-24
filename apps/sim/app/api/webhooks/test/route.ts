@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { webhook } from '@/db/schema'
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
         let responseText = ''
         try {
           responseText = await response.text()
-        } catch (e) {
+        } catch (_e) {
           // Ignore if we can't get response text
         }
 

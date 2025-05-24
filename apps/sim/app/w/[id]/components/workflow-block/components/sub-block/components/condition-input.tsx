@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
+
 import Editor from 'react-simple-code-editor'
 import { Handle, Position, useUpdateNodeInternals } from 'reactflow'
 import { Button } from '@/components/ui/button'
@@ -107,11 +108,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       if (!Array.isArray(parsed)) return null
 
       // Validate that the parsed data has the expected structure
-      if (
-        parsed.length === 0 ||
-        !parsed[0].hasOwnProperty('id') ||
-        !parsed[0].hasOwnProperty('title')
-      ) {
+      if (parsed.length === 0 || !('id' in parsed[0]) || !('title' in parsed[0])) {
         return null
       }
 
@@ -332,7 +329,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
         numbers.push(
           <div
             key={`${blockId}-${lineNumber}-${i}`}
-            className={cn('text-xs text-muted-foreground leading-[21px]', i > 0 && 'invisible')}
+            className={cn('text-muted-foreground text-xs leading-[21px]', i > 0 && 'invisible')}
           >
             {lineNumber}
           </div>
@@ -359,8 +356,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       setConditionalBlocks((blocks) =>
         blocks.map((block) => {
           if (block.id === blockId) {
-            const newValue =
-              block.value.slice(0, dropPosition) + '<' + block.value.slice(dropPosition)
+            const newValue = `${block.value.slice(0, dropPosition)}<${block.value.slice(dropPosition)}`
             return {
               ...block,
               value: newValue,
@@ -516,28 +512,28 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   // Show loading or empty state if not ready or no blocks
   if (!isReady || conditionalBlocks.length === 0) {
     return (
-      <div className="min-h-[150px] flex items-center justify-center text-muted-foreground">
+      <div className='flex min-h-[150px] items-center justify-center text-muted-foreground'>
         Loading conditions...
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
+    <div className='space-y-4'>
       {conditionalBlocks.map((block, index) => (
         <div
           key={block.id}
-          className="overflow-visible rounded-lg border bg-background group relative"
+          className='group relative overflow-visible rounded-lg border bg-background'
         >
           <div
             className={cn(
-              'flex h-10 items-center justify-between bg-card px-3 overflow-hidden',
+              'flex h-10 items-center justify-between overflow-hidden bg-card px-3',
               block.title === 'else' ? 'rounded-lg border-0' : 'rounded-t-lg border-b'
             )}
           >
-            <span className="text-sm font-medium">{block.title}</span>
+            <span className='font-medium text-sm'>{block.title}</span>
             <Handle
-              type="source"
+              type='source'
               position={Position.Right}
               id={`condition-${block.id}`}
               key={`${block.id}-${index}`}
@@ -565,34 +561,34 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                 return sourceNodeId !== targetNodeId
               }}
             />
-            <div className="flex items-center gap-1">
+            <div className='flex items-center gap-1'>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant='ghost'
+                    size='sm'
                     onClick={() => addBlock(block.id)}
-                    className="h-8 w-8"
+                    className='h-8 w-8'
                   >
-                    <Plus className="h-4 w-4" />
-                    <span className="sr-only">Add Block</span>
+                    <Plus className='h-4 w-4' />
+                    <span className='sr-only'>Add Block</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Add Block</TooltipContent>
               </Tooltip>
 
-              <div className="flex items-center">
+              <div className='flex items-center'>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="ghost"
-                      size="sm"
+                      variant='ghost'
+                      size='sm'
                       onClick={() => moveBlock(block.id, 'up')}
                       disabled={index === 0}
-                      className="h-8 w-8"
+                      className='h-8 w-8'
                     >
-                      <ChevronUp className="h-4 w-4" />
-                      <span className="sr-only">Move Up</span>
+                      <ChevronUp className='h-4 w-4' />
+                      <span className='sr-only'>Move Up</span>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Move Up</TooltipContent>
@@ -601,14 +597,14 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="ghost"
-                      size="sm"
+                      variant='ghost'
+                      size='sm'
                       onClick={() => moveBlock(block.id, 'down')}
                       disabled={index === conditionalBlocks.length - 1}
-                      className="h-8 w-8"
+                      className='h-8 w-8'
                     >
-                      <ChevronDown className="h-4 w-4" />
-                      <span className="sr-only">Move Down</span>
+                      <ChevronDown className='h-4 w-4' />
+                      <span className='sr-only'>Move Down</span>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Move Down</TooltipContent>
@@ -618,14 +614,14 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    variant='ghost'
+                    size='sm'
                     onClick={() => removeBlock(block.id)}
                     disabled={conditionalBlocks.length === 1}
-                    className="h-8 w-8 text-destructive hover:text-destructive"
+                    className='h-8 w-8 text-destructive hover:text-destructive'
                   >
-                    <Trash className="h-4 w-4" />
-                    <span className="sr-only">Delete Block</span>
+                    <Trash className='h-4 w-4' />
+                    <span className='sr-only'>Delete Block</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Delete Condition</TooltipContent>
@@ -635,7 +631,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
           {block.title !== 'else' && (
             <div
               className={cn(
-                'relative min-h-[100px] bg-background font-mono text-sm rounded-b-lg',
+                'relative min-h-[100px] rounded-b-lg bg-background font-mono text-sm',
                 isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
               )}
               onDragOver={(e) => e.preventDefault()}
@@ -643,19 +639,19 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
             >
               {/* Line numbers */}
               <div
-                className="absolute left-0 top-0 bottom-0 w-[30px] bg-muted/30 flex flex-col items-end pr-3 pt-3 select-none"
-                aria-hidden="true"
+                className='absolute top-0 bottom-0 left-0 flex w-[30px] select-none flex-col items-end bg-muted/30 pt-3 pr-3'
+                aria-hidden='true'
               >
                 {renderLineNumbers(block.id)}
               </div>
 
               <div
-                className="pl-[30px] pt-0 mt-0 relative"
+                className='relative mt-0 pt-0 pl-[30px]'
                 ref={editorRef}
                 data-block-id={block.id}
               >
                 {block.value.length === 0 && (
-                  <div className="absolute left-[42px] top-[12px] text-muted-foreground/50 select-none pointer-events-none">
+                  <div className='pointer-events-none absolute top-[12px] left-[42px] select-none text-muted-foreground/50'>
                     {'<response> === true'}
                   </div>
                 )}
@@ -683,8 +679,8 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                     minHeight: '46px',
                     lineHeight: '21px',
                   }}
-                  className="focus:outline-none"
-                  textareaClassName="focus:outline-none focus:ring-0 bg-transparent"
+                  className='focus:outline-none'
+                  textareaClassName='focus:outline-none focus:ring-0 bg-transparent'
                 />
 
                 {block.showEnvVars && (

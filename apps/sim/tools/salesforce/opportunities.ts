@@ -1,4 +1,4 @@
-import { ToolConfig, ToolResponse } from '../types'
+import type { ToolConfig, ToolResponse } from '../types'
 
 export interface OpportunityParams {
   apiKey: string
@@ -130,7 +130,7 @@ export const opportunitiesTool: ToolConfig<OpportunityParams, OpportunityRespons
         totalResults: data.totalSize,
         pagination: {
           hasMore: !data.done,
-          offset: data.nextRecordsUrl ? parseInt(data.nextRecordsUrl.split('-')[1]) : 0,
+          offset: data.nextRecordsUrl ? Number.parseInt(data.nextRecordsUrl.split('-')[1]) : 0,
         },
       },
     }

@@ -1,5 +1,5 @@
 import { useSubBlockStore } from './subblock/store'
-import { BlockState, SubBlockState } from './workflow/types'
+import type { BlockState, SubBlockState } from './workflow/types'
 
 /**
  * Merges workflow block states with subblock values while maintaining block structure
@@ -130,7 +130,7 @@ export async function mergeSubblockStateAsync(
           if (workflowId) {
             // Try to get the value from the subblock store for this specific workflow
             const workflowValues = subBlockStore.workflowValues[workflowId]
-            if (workflowValues && workflowValues[id]) {
+            if (workflowValues?.[id]) {
               storedValue = workflowValues[id][subBlockId]
             }
           } else {

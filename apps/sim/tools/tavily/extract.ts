@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { TavilyExtractParams, TavilyExtractResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { TavilyExtractParams, TavilyExtractResponse } from './types'
 
 export const extractTool: ToolConfig<TavilyExtractParams, TavilyExtractResponse> = {
   id: 'tavily_extract',

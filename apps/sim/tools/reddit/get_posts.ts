@@ -1,6 +1,5 @@
-import fetch from 'node-fetch'
-import { ToolConfig } from '../types'
-import { RedditPostsParams, RedditPostsResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { RedditPostsParams, RedditPostsResponse } from './types'
 
 export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = {
   id: 'reddit_get_posts',
@@ -51,8 +50,9 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
     },
     method: 'GET',
     headers: () => ({
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+      Accept: 'application/json',
     }),
   },
 
@@ -70,7 +70,7 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       let data
       try {
         data = await response.json()
-      } catch (error) {
+      } catch (_error) {
         throw new Error('Failed to parse Reddit API response: Response was not valid JSON')
       }
 
@@ -80,26 +80,28 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       }
 
       // Extract subreddit name from response (with fallback)
-      const subredditName = data.data?.children[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
+      const subredditName =
+        data.data?.children[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
 
       // Transform posts data with proper error handling
-      const posts = data.data?.children?.map((child: any) => {
-        const post = child.data || {}
-        return {
-          id: post.id || '',
-          title: post.title || '',
-          author: post.author || '[deleted]',
-          url: post.url || '',
-          permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
-          created_utc: post.created_utc || 0,
-          score: post.score || 0,
-          num_comments: post.num_comments || 0,
-          is_self: !!post.is_self,
-          selftext: post.selftext || '',
-          thumbnail: post.thumbnail || '',
-          subreddit: post.subreddit || subredditName,
-        }
-      }) || []
+      const posts =
+        data.data?.children?.map((child: any) => {
+          const post = child.data || {}
+          return {
+            id: post.id || '',
+            title: post.title || '',
+            author: post.author || '[deleted]',
+            url: post.url || '',
+            permalink: post.permalink ? `https://www.reddit.com${post.permalink}` : '',
+            created_utc: post.created_utc || 0,
+            score: post.score || 0,
+            num_comments: post.num_comments || 0,
+            is_self: !!post.is_self,
+            selftext: post.selftext || '',
+            thumbnail: post.thumbnail || '',
+            subreddit: post.subreddit || subredditName,
+          }
+        }) || []
 
       return {
         success: true,
@@ -116,7 +118,7 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
           subreddit: requestParams?.subreddit || 'unknown',
           posts: [],
         },
-        error: errorMessage
+        error: errorMessage,
       }
     }
   },
@@ -124,15 +126,16 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
   transformError: (error): string => {
     // Create detailed error message
     let errorMessage = error.message || 'Unknown error'
-    
+
     if (errorMessage.includes('blocked') || errorMessage.includes('rate limited')) {
       errorMessage = `Reddit access is currently unavailable: ${errorMessage}. Consider reducing request frequency or using the official Reddit API with authentication.`
     }
-    
+
     if (errorMessage.includes('not valid JSON')) {
-      errorMessage = 'Unable to process Reddit response: Received non-JSON response, which typically happens when Reddit blocks automated access.'
+      errorMessage =
+        'Unable to process Reddit response: Received non-JSON response, which typically happens when Reddit blocks automated access.'
     }
-    
+
     return `Error fetching Reddit posts: ${errorMessage}`
   },
 }

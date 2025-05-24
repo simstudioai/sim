@@ -45,7 +45,7 @@ interface GmailLabel {
 }
 
 const formatLabelName = (label: GmailLabel): string => {
-  let formattedName = label.name.replace(/0$/, '')
+  const formattedName = label.name.replace(/0$/, '')
   if (formattedName.startsWith('Category_')) {
     return formattedName
       .replace('Category_', '')
@@ -160,52 +160,52 @@ export function GmailConfig({
   }
 
   return (
-    <div className="space-y-6">
+    <div className='space-y-6'>
       <ConfigSection>
-        <div className="flex items-center gap-2 mb-3">
-          <h3 className="text-sm font-medium">Email Labels to Monitor</h3>
+        <div className='mb-3 flex items-center gap-2'>
+          <h3 className='font-medium text-sm'>Email Labels to Monitor</h3>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant="ghost"
-                size="sm"
-                className="text-gray-500 p-1 h-6 w-6"
-                aria-label="Learn more about email labels"
+                variant='ghost'
+                size='sm'
+                className='h-6 w-6 p-1 text-gray-500'
+                aria-label='Learn more about email labels'
               >
-                <Info className="h-4 w-4" />
+                <Info className='h-4 w-4' />
               </Button>
             </TooltipTrigger>
             <TooltipContent
-              side="right"
-              align="center"
-              className="max-w-[300px] p-3 z-[100]"
-              role="tooltip"
+              side='right'
+              align='center'
+              className='z-[100] max-w-[300px] p-3'
+              role='tooltip'
             >
-              <p className="text-sm">{TOOLTIPS.labels}</p>
+              <p className='text-sm'>{TOOLTIPS.labels}</p>
             </TooltipContent>
           </Tooltip>
         </div>
 
         {isLoadingLabels ? (
-          <div className="flex flex-wrap gap-2 py-2">
+          <div className='flex flex-wrap gap-2 py-2'>
             {Array(5)
               .fill(0)
               .map((_, i) => (
-                <Skeleton key={i} className="h-6 w-16 rounded-full" />
+                <Skeleton key={i} className='h-6 w-16 rounded-full' />
               ))}
           </div>
         ) : (
           <>
             {labelError && (
-              <p className="text-sm text-amber-500 dark:text-amber-400">{labelError}</p>
+              <p className='text-amber-500 text-sm dark:text-amber-400'>{labelError}</p>
             )}
 
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className='mt-2 flex flex-wrap gap-2'>
               {labels.map((label) => (
                 <Badge
                   key={label.id}
                   variant={selectedLabels.includes(label.id) ? 'default' : 'outline'}
-                  className="cursor-pointer"
+                  className='cursor-pointer'
                   onClick={() => toggleLabel(label.id)}
                 >
                   {formatLabelName(label)}
@@ -215,40 +215,40 @@ export function GmailConfig({
           </>
         )}
 
-        <div className="mt-4">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="label-behavior" className="text-sm font-medium">
+        <div className='mt-4'>
+          <div className='flex items-center gap-2'>
+            <Label htmlFor='label-behavior' className='font-medium text-sm'>
               Label Filter Behavior
             </Label>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500 p-1 h-6 w-6"
-                  aria-label="Learn more about label filter behavior"
+                  variant='ghost'
+                  size='sm'
+                  className='h-6 w-6 p-1 text-gray-500'
+                  aria-label='Learn more about label filter behavior'
                 >
-                  <Info className="h-4 w-4" />
+                  <Info className='h-4 w-4' />
                 </Button>
               </TooltipTrigger>
               <TooltipContent
-                side="right"
-                align="center"
-                className="max-w-[300px] p-3 z-[100]"
-                role="tooltip"
+                side='right'
+                align='center'
+                className='z-[100] max-w-[300px] p-3'
+                role='tooltip'
               >
-                <p className="text-sm">{TOOLTIPS.labelFilter}</p>
+                <p className='text-sm'>{TOOLTIPS.labelFilter}</p>
               </TooltipContent>
             </Tooltip>
           </div>
-          <div className="mt-1">
+          <div className='mt-1'>
             <Select value={labelFilterBehavior} onValueChange={setLabelFilterBehavior}>
-              <SelectTrigger id="label-behavior" className="w-full">
-                <SelectValue placeholder="Select behavior" />
+              <SelectTrigger id='label-behavior' className='w-full'>
+                <SelectValue placeholder='Select behavior' />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="INCLUDE">Include selected labels</SelectItem>
-                <SelectItem value="EXCLUDE">Exclude selected labels</SelectItem>
+                <SelectItem value='INCLUDE'>Include selected labels</SelectItem>
+                <SelectItem value='EXCLUDE'>Exclude selected labels</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -256,32 +256,32 @@ export function GmailConfig({
       </ConfigSection>
 
       <ConfigSection>
-        <h3 className="text-sm font-medium mb-3">Email Processing Options</h3>
+        <h3 className='mb-3 font-medium text-sm'>Email Processing Options</h3>
 
-        <div className="space-y-3">
-          <div className="flex items-center">
-            <div className="flex items-center gap-2 flex-1">
+        <div className='space-y-3'>
+          <div className='flex items-center'>
+            <div className='flex flex-1 items-center gap-2'>
               <Checkbox
-                id="mark-as-read"
+                id='mark-as-read'
                 checked={markAsRead}
                 onCheckedChange={(checked) => setMarkAsRead(checked as boolean)}
               />
-              <Label htmlFor="mark-as-read" className="text-sm font-normal cursor-pointer">
+              <Label htmlFor='mark-as-read' className='cursor-pointer font-normal text-sm'>
                 Mark emails as read after processing
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-500 p-1 h-6 w-6"
-                    aria-label="Learn more about marking emails as read"
+                    variant='ghost'
+                    size='sm'
+                    className='h-6 w-6 p-1 text-gray-500'
+                    aria-label='Learn more about marking emails as read'
                   >
-                    <Info className="h-4 w-4" />
+                    <Info className='h-4 w-4' />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="top" align="center" className="max-w-[300px] p-3 z-[100]">
-                  <p className="text-sm">{TOOLTIPS.markAsRead}</p>
+                <TooltipContent side='top' align='center' className='z-[100] max-w-[300px] p-3'>
+                  <p className='text-sm'>{TOOLTIPS.markAsRead}</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -290,12 +290,12 @@ export function GmailConfig({
       </ConfigSection>
 
       <Notice
-        variant="default"
-        className="bg-white border-slate-200 dark:bg-background dark:border-border"
-        icon={<GmailIcon className="h-5 w-5 text-red-500 mt-0.5 mr-3.5 flex-shrink-0" />}
-        title="Gmail Event Payload Example"
+        variant='default'
+        className='border-slate-200 bg-white dark:border-border dark:bg-background'
+        icon={<GmailIcon className='mt-0.5 mr-3.5 h-5 w-5 flex-shrink-0 text-red-500' />}
+        title='Gmail Event Payload Example'
       >
-        <div className="mt-2 text-sm font-mono break-normal whitespace-normal overflow-wrap-anywhere">
+        <div className='overflow-wrap-anywhere mt-2 whitespace-normal break-normal font-mono text-sm'>
           <JSONView data={exampleEmailEvent} />
         </div>
       </Notice>

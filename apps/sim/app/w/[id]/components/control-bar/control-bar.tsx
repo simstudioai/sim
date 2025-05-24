@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
 import {
   Bell,
@@ -16,6 +15,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -161,7 +161,7 @@ export function ControlBar() {
   }
 
   // Check if the current workflow is published to marketplace
-  const isPublishedToMarketplace = () => {
+  const _isPublishedToMarketplace = () => {
     const marketplaceData = getMarketplaceData()
     return !!marketplaceData
   }
@@ -452,27 +452,26 @@ export function ControlBar() {
    * Render workflow name section (editable/non-editable)
    */
   const renderWorkflowName = () => (
-    <div className="flex flex-col gap-[2px]">
+    <div className='flex flex-col gap-[2px]'>
       {isEditing ? (
         <input
-          type="text"
+          type='text'
           value={editedName}
           onChange={(e) => setEditedName(e.target.value)}
           onBlur={handleNameSubmit}
           onKeyDown={handleNameKeyDown}
-          autoFocus
-          className="text-sm font-medium bg-transparent border-none outline-none p-0 w-[200px]"
+          className='w-[200px] border-none bg-transparent p-0 font-medium text-sm outline-none'
         />
       ) : (
         <h2
-          className="text-sm font-medium hover:text-muted-foreground w-fit cursor-pointer"
+          className='w-fit cursor-pointer font-medium text-sm hover:text-muted-foreground'
           onClick={handleNameClick}
         >
           {activeWorkflowId ? workflows[activeWorkflowId]?.name : 'Workflow'}
         </h2>
       )}
       {mounted && (
-        <p className="text-xs text-muted-foreground">
+        <p className='text-muted-foreground text-xs'>
           Saved{' '}
           {formatDistanceToNow(lastSaved || Date.now(), {
             addSuffix: true,
@@ -491,13 +490,13 @@ export function ControlBar() {
         <TooltipTrigger asChild>
           <AlertDialogTrigger asChild>
             <Button
-              variant="ghost"
-              size="icon"
+              variant='ghost'
+              size='icon'
               disabled={Object.keys(workflows).length <= 1}
-              className="hover:text-red-600"
+              className='hover:text-red-600'
             >
-              <Trash2 className="h-5 w-5" />
-              <span className="sr-only">Delete Workflow</span>
+              <Trash2 className='h-5 w-5' />
+              <span className='sr-only'>Delete Workflow</span>
             </Button>
           </AlertDialogTrigger>
         </TooltipTrigger>
@@ -515,7 +514,7 @@ export function ControlBar() {
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDeleteWorkflow}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
           >
             Delete
           </AlertDialogAction>
@@ -543,9 +542,9 @@ export function ControlBar() {
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant='ghost' size='icon'>
               <History />
-              <span className="sr-only">Version History</span>
+              <span className='sr-only'>Version History</span>
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
@@ -553,13 +552,13 @@ export function ControlBar() {
       </Tooltip>
 
       {history.past.length === 0 && history.future.length === 0 ? (
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem className="text-sm text-muted-foreground">
+        <DropdownMenuContent align='end' className='w-40'>
+          <DropdownMenuItem className='text-muted-foreground text-sm'>
             No history available
           </DropdownMenuItem>
         </DropdownMenuContent>
       ) : (
-        <DropdownMenuContent align="end" className="w-60 max-h-[300px] overflow-y-auto">
+        <DropdownMenuContent align='end' className='max-h-[300px] w-60 overflow-y-auto'>
           <>
             {[...history.future].reverse().map((entry, index) => (
               <HistoryDropdownItem
@@ -608,9 +607,9 @@ export function ControlBar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant='ghost' size='icon'>
                 <Bell />
-                <span className="sr-only">Notifications</span>
+                <span className='sr-only'>Notifications</span>
               </Button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
@@ -618,13 +617,13 @@ export function ControlBar() {
         </Tooltip>
 
         {currentWorkflowNotifications.length === 0 ? (
-          <DropdownMenuContent align="end" className="w-40">
-            <DropdownMenuItem className="text-sm text-muted-foreground">
+          <DropdownMenuContent align='end' className='w-40'>
+            <DropdownMenuItem className='text-muted-foreground text-sm'>
               No new notifications
             </DropdownMenuItem>
           </DropdownMenuContent>
         ) : (
-          <DropdownMenuContent align="end" className="w-60 max-h-[300px] overflow-y-auto">
+          <DropdownMenuContent align='end' className='max-h-[300px] w-60 overflow-y-auto'>
             {[...currentWorkflowNotifications]
               .sort((a, b) => b.timestamp - a.timestamp)
               .map((notification) => (
@@ -686,13 +685,13 @@ export function ControlBar() {
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant="ghost"
-          size="icon"
+          variant='ghost'
+          size='icon'
           onClick={handleDuplicateWorkflow}
-          className="hover:text-primary"
+          className='hover:text-primary'
         >
-          <Copy className="h-5 w-5" />
-          <span className="sr-only">Duplicate Workflow</span>
+          <Copy className='h-5 w-5' />
+          <span className='sr-only'>Duplicate Workflow</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>Duplicate Workflow</TooltipContent>
@@ -708,23 +707,23 @@ export function ControlBar() {
     const pendingCount = pendingBlocks.length
 
     return (
-      <div className="flex items-center gap-2 ml-2 bg-muted rounded-md px-2 py-1">
-        <div className="flex flex-col">
-          <span className="text-xs text-muted-foreground">Debug Mode</span>
-          <span className="text-xs font-medium">
+      <div className='ml-2 flex items-center gap-2 rounded-md bg-muted px-2 py-1'>
+        <div className='flex flex-col'>
+          <span className='text-muted-foreground text-xs'>Debug Mode</span>
+          <span className='font-medium text-xs'>
             {pendingCount} block{pendingCount !== 1 ? 's' : ''} pending
           </span>
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="outline"
-              size="icon"
+              variant='outline'
+              size='icon'
               onClick={handleStepDebug}
-              className="h-8 w-8 bg-background"
+              className='h-8 w-8 bg-background'
               disabled={pendingCount === 0}
             >
-              <StepForward className="h-4 w-4" />
+              <StepForward className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Step Forward</TooltipContent>
@@ -732,13 +731,13 @@ export function ControlBar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="outline"
-              size="icon"
+              variant='outline'
+              size='icon'
               onClick={handleResumeDebug}
-              className="h-8 w-8 bg-background"
+              className='h-8 w-8 bg-background'
               disabled={pendingCount === 0}
             >
-              <SkipForward className="h-4 w-4" />
+              <SkipForward className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Resume Until End</TooltipContent>
@@ -746,12 +745,12 @@ export function ControlBar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="outline"
-              size="icon"
+              variant='outline'
+              size='icon'
               onClick={handleCancelDebug}
-              className="h-8 w-8 bg-background"
+              className='h-8 w-8 bg-background'
             >
-              <X className="h-4 w-4" />
+              <X className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Cancel Debugging</TooltipContent>
@@ -778,14 +777,14 @@ export function ControlBar() {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant="ghost"
-            size="icon"
+            variant='ghost'
+            size='icon'
             onClick={handleToggleDebugMode}
             disabled={isExecuting || isMultiRunning}
             className={cn(isDebugModeEnabled && 'text-amber-500')}
           >
-            <Bug className="h-5 w-5" />
-            <span className="sr-only">Toggle Debug Mode</span>
+            <Bug className='h-5 w-5' />
+            <span className='sr-only'>Toggle Debug Mode</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -810,11 +809,11 @@ export function ControlBar() {
    * Render run workflow button with multi-run dropdown and cancel button
    */
   const renderRunButton = () => (
-    <div className="flex items-center">
+    <div className='flex items-center'>
       {showRunProgress && isMultiRunning && (
-        <div className="mr-3 w-28">
-          <Progress value={(completedRuns / runCount) * 100} className="h-2 bg-muted" />
-          <p className="text-xs text-muted-foreground mt-1 text-center">
+        <div className='mr-3 w-28'>
+          <Progress value={(completedRuns / runCount) * 100} className='h-2 bg-muted' />
+          <p className='mt-1 text-center text-muted-foreground text-xs'>
             {completedRuns}/{runCount} runs
           </p>
         </div>
@@ -822,16 +821,16 @@ export function ControlBar() {
 
       {/* Show how many blocks have been executed in debug mode if debugging */}
       {isDebugging && (
-        <div className="mr-3 min-w-28 px-1 py-0.5 bg-muted rounded">
-          <div className="text-xs text-muted-foreground text-center">
-            <span className="font-medium">Debugging Mode</span>
+        <div className='mr-3 min-w-28 rounded bg-muted px-1 py-0.5'>
+          <div className='text-center text-muted-foreground text-xs'>
+            <span className='font-medium'>Debugging Mode</span>
           </div>
         </div>
       )}
 
       {renderDebugControls()}
 
-      <div className="flex ml-1">
+      <div className='ml-1 flex'>
         {/* Main Run/Debug Button */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -846,8 +845,8 @@ export function ControlBar() {
                   'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
                 'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
                 isDebugModeEnabled || isMultiRunning
-                  ? 'rounded py-2 px-4 h-10'
-                  : 'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
+                  ? 'h-10 rounded px-4 py-2'
+                  : 'h-10 rounded-r-none border-r border-r-[#6420cc] px-4 py-2'
               )}
               onClick={
                 usageExceeded
@@ -859,9 +858,9 @@ export function ControlBar() {
               disabled={isExecuting || isMultiRunning || isCancelling}
             >
               {isCancelling ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
               ) : isDebugModeEnabled ? (
-                <Bug className={cn('h-3.5 w-3.5 mr-1.5', 'fill-current stroke-current')} />
+                <Bug className={cn('mr-1.5 h-3.5 w-3.5', 'fill-current stroke-current')} />
               ) : (
                 <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
               )}
@@ -882,9 +881,9 @@ export function ControlBar() {
           </TooltipTrigger>
           <TooltipContent command={getKeyboardShortcutText('Enter', true)}>
             {usageExceeded ? (
-              <div className="text-center">
-                <p className="font-medium text-destructive">Usage Limit Exceeded</p>
-                <p className="text-xs">
+              <div className='text-center'>
+                <p className='font-medium text-destructive'>Usage Limit Exceeded</p>
+                <p className='text-xs'>
                   You've used {usageData?.currentUsage.toFixed(2)}$ of {usageData?.limit}$. Upgrade
                   your plan to continue.
                 </p>
@@ -915,14 +914,14 @@ export function ControlBar() {
                     !isCancelling &&
                     'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
                   'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
-                  'rounded-l-none h-10'
+                  'h-10 rounded-l-none'
                 )}
                 disabled={isExecuting || isMultiRunning || isCancelling}
               >
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className='h-4 w-4' />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-20">
+            <DropdownMenuContent align='end' className='w-20'>
               {RUN_COUNT_OPTIONS.map((count) => (
                 <DropdownMenuItem
                   key={count}
@@ -941,18 +940,18 @@ export function ControlBar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant="outline"
-                size="icon"
+                variant='outline'
+                size='icon'
                 onClick={() => {
                   logger.info('Cancel button clicked - setting ref and state')
                   cancelFlagRef.current = true
                   setIsCancelling(true)
                 }}
                 disabled={isCancelling}
-                className="ml-2 h-10 w-10"
+                className='ml-2 h-10 w-10'
               >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Cancel Runs</span>
+                <X className='h-4 w-4' />
+                <span className='sr-only'>Cancel Runs</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>{runCount > 1 ? 'Cancel Runs' : 'Cancel Run'}</TooltipContent>
@@ -963,15 +962,15 @@ export function ControlBar() {
   )
 
   return (
-    <div className="flex h-16 w-full items-center justify-between bg-background border-b">
+    <div className='flex h-16 w-full items-center justify-between border-b bg-background'>
       {/* Left Section - Workflow Info */}
-      <div className="pl-4">{renderWorkflowName()}</div>
+      <div className='pl-4'>{renderWorkflowName()}</div>
 
       {/* Middle Section - Reserved for future use */}
-      <div className="flex-1" />
+      <div className='flex-1' />
 
       {/* Right Section - Actions */}
-      <div className="flex items-center gap-1 pr-4">
+      <div className='flex items-center gap-1 pr-4'>
         {renderDeleteButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}

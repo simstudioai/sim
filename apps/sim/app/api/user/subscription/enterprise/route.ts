@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
+import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { checkEnterprisePlan } from '@/lib/subscription/utils'

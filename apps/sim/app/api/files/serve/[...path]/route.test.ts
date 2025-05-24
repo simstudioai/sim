@@ -1,10 +1,10 @@
+import { NextRequest } from 'next/server'
 /**
  * Tests for file serve API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NextRequest } from 'next/server'
 
 describe('File Serve API Route', () => {
   // Mock file system and S3 client modules
@@ -100,7 +100,7 @@ describe('File Serve API Route', () => {
     const { GET } = await import('./route')
 
     // Call the handler
-    const response = await GET(req, { params: Promise.resolve(params) })
+    const _response = await GET(req, { params: Promise.resolve(params) })
 
     // Verify file was read with correct path
     expect(mockReadFile).toHaveBeenCalledWith('/test/uploads/nested/path/file.txt')
@@ -240,7 +240,7 @@ describe('File Serve API Route', () => {
         // Mock utils functions that determine content type
         vi.doMock('@/app/api/files/utils', () => ({
           getContentType: () => test.contentType,
-          findLocalFile: () => '/test/uploads/file.' + test.ext,
+          findLocalFile: () => `/test/uploads/file.${test.ext}`,
           createFileResponse: (obj: { buffer: Buffer; contentType: string; filename: string }) =>
             new Response(obj.buffer, {
               status: 200,

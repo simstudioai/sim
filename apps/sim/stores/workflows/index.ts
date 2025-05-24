@@ -4,7 +4,7 @@ import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
 import { mergeSubblockState } from './utils'
 import { useWorkflowStore } from './workflow/store'
-import { BlockState, WorkflowState } from './workflow/types'
+import type { BlockState, WorkflowState } from './workflow/types'
 
 const logger = createLogger('Workflows')
 

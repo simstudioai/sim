@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { InputResolver } from './resolver'
 
 // Mock logger

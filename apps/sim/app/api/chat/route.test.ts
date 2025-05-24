@@ -1,10 +1,10 @@
+import { NextRequest } from 'next/server'
 /**
  * Tests for chat API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NextRequest } from 'next/server'
 import { env } from '@/lib/env'
 
 describe('Chat API Route', () => {

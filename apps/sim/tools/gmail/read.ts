@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { GmailMessage, GmailReadParams, GmailToolResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { GmailMessage, GmailReadParams, GmailToolResponse } from './types'
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
@@ -277,7 +277,7 @@ function processMessage(message: GmailMessage): GmailToolResponse {
   const date = headers.find((h) => h.name.toLowerCase() === 'date')?.value || ''
 
   // Extract the message body
-  let body = extractMessageBody(message.payload)
+  const body = extractMessageBody(message.payload)
 
   return {
     success: true,

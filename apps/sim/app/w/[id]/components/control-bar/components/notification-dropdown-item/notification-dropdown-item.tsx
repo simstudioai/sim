@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
-import { AlertCircle, Rocket, Store, Terminal, X } from 'lucide-react'
+import { AlertCircle, Rocket, Store, Terminal } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { Notification, NotificationOptions, NotificationType } from '@/stores/notifications/types'
+import type {
+  Notification,
+  NotificationOptions,
+  NotificationType,
+} from '@/stores/notifications/types'
 
 interface NotificationDropdownItemProps {
   id: string
@@ -82,11 +86,11 @@ export function NotificationDropdownItem({
   const timeAgo = rawTimeAgo.replace('less than a minute ago', '<1 minute ago')
 
   return (
-    <DropdownMenuItem className="flex items-start gap-2 p-3 cursor-pointer" onClick={handleClick}>
+    <DropdownMenuItem className='flex cursor-pointer items-start gap-2 p-3' onClick={handleClick}>
       <Icon className={cn('h-4 w-4', NotificationColors[type])} />
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium">
+      <div className='flex flex-col gap-1'>
+        <div className='flex items-center gap-2'>
+          <span className='font-medium text-xs'>
             {type === 'error'
               ? 'Error'
               : type === 'marketplace'
@@ -95,9 +99,9 @@ export function NotificationDropdownItem({
                   ? 'Info'
                   : 'Console'}
           </span>
-          <span className="text-xs text-muted-foreground">{timeAgo}</span>
+          <span className='text-muted-foreground text-xs'>{timeAgo}</span>
         </div>
-        <p className="text-sm text-foreground break-normal whitespace-normal hyphens-auto overflow-wrap-anywhere">
+        <p className='overflow-wrap-anywhere hyphens-auto whitespace-normal break-normal text-foreground text-sm'>
           {message.length > 100 ? `${message.slice(0, 60)}...` : message}
         </p>
       </div>

@@ -16,7 +16,7 @@ interface StripeConfigProps {
 
 export function StripeConfig({ testResult, copied, copyToClipboard }: StripeConfigProps) {
   return (
-    <div className="space-y-4">
+    <div className='space-y-4'>
       {/* No specific config fields for Stripe, just instructions */}
 
       <TestResultDisplay
@@ -26,15 +26,15 @@ export function StripeConfig({ testResult, copied, copyToClipboard }: StripeConf
         showCurlCommand={false} // Stripe requires signed requests, curl test not applicable here
       />
 
-      <InstructionsSection tip="Stripe will send a test event to verify your webhook endpoint after adding it.">
-        <ol className="list-decimal list-inside space-y-1">
+      <InstructionsSection tip='Stripe will send a test event to verify your webhook endpoint after adding it.'>
+        <ol className='list-inside list-decimal space-y-1'>
           <li>
             Go to your{' '}
             <a
-              href="https://dashboard.stripe.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link"
+              href='https://dashboard.stripe.com/'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='link'
             >
               Stripe Dashboard
             </a>
@@ -51,7 +51,7 @@ export function StripeConfig({ testResult, copied, copyToClipboard }: StripeConf
       </InstructionsSection>
 
       <Alert>
-        <ShieldCheck className="h-4 w-4" />
+        <ShieldCheck className='h-4 w-4' />
         <AlertTitle>Webhook Signing</AlertTitle>
         <AlertDescription>
           For production use, it's highly recommended to verify Stripe webhook signatures to ensure

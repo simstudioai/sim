@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { JiraWriteParams, JiraWriteResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { JiraWriteParams, JiraWriteResponse } from './types'
 import { getJiraCloudId } from './utils'
 
 export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
@@ -77,11 +77,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
   directExecution: async (params) => {
     // Pre-fetch the cloudId if not provided
     if (!params.cloudId) {
-      try {
-        params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
-      } catch (error) {
-        throw error
-      }
+      params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
     }
     return undefined // Let the regular request handling take over
   },
@@ -169,9 +165,8 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
               data.message ||
               'Failed to create Jira issue'
           )
-        } else {
-          throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
         }
+        throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
       } catch (e) {
         if (e instanceof SyntaxError) {
           // If we can't parse the response as JSON, return the raw text
@@ -207,7 +202,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
           url: `https://${params?.domain}/browse/${data.key}`,
         },
       }
-    } catch (e) {
+    } catch (_e) {
       return {
         success: true,
         output: {

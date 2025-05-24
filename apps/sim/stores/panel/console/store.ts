@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/utils'
 import { useChatStore } from '../chat/store'
-import { ConsoleEntry, ConsoleStore } from './types'
+import type { ConsoleEntry, ConsoleStore } from './types'
 
 const MAX_ENTRIES = 50 // MAX across all workflows
 const MAX_IMAGE_DATA_SIZE = 1000 // Maximum size of image data to store (in characters)
@@ -183,7 +183,7 @@ export const useConsoleStore = create<ConsoleStore>()(
                   // If this block matches the selected output for this workflow
                   if (selectedBlockId && entry.blockId === selectedBlockId) {
                     // Extract the specific value from the output using the path
-                    let specificValue: any = undefined
+                    let specificValue: any
 
                     if (selectedPath) {
                       specificValue = getValueByPath(entry.output, selectedPath)
@@ -198,7 +198,8 @@ export const useConsoleStore = create<ConsoleStore>()(
                       // Skip adding a message since we'll handle streaming in workflow execution
                       // This prevents the "Output value not found" message for streams
                       continue
-                    } else if (specificValue === undefined) {
+                    }
+                    if (specificValue === undefined) {
                       formattedValue = 'Output value not found'
                     } else if (typeof specificValue === 'object') {
                       formattedValue = JSON.stringify(specificValue, null, 2)

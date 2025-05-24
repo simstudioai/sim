@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
+import { usePathname } from 'next/navigation'
 import { getFormattedGitHubStars } from '../actions/github'
 import GitHubStarsClient from './github-stars-client'
 import NavClient from './nav-client'
@@ -43,25 +43,25 @@ export default function NavWrapper({ onOpenTypeformLink }: NavWrapperProps) {
 
   return (
     <>
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode='wait'>
         {!isLoaded ? (
           <motion.div
-            key="loading"
+            key='loading'
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.5 }}
             exit={{ opacity: 0 }}
-            className="absolute top-1 left-0 right-0 z-30 px-4 py-8"
+            className='absolute top-1 right-0 left-0 z-30 px-4 py-8'
           >
-            <div className="max-w-7xl mx-auto flex justify-between items-center relative">
-              <div className="flex-1"></div>
-              <div className="flex-1 flex justify-end">
-                <div className="w-[43px] h-[43px]"></div>
+            <div className='relative mx-auto flex max-w-7xl items-center justify-between'>
+              <div className='flex-1' />
+              <div className='flex flex-1 justify-end'>
+                <div className='h-[43px] w-[43px]' />
               </div>
             </div>
           </motion.div>
         ) : (
           <motion.div
-            key="loaded"
+            key='loaded'
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}

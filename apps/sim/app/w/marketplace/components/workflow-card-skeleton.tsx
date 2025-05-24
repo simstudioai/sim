@@ -10,25 +10,25 @@ import { Skeleton } from '@/components/ui/skeleton'
  */
 export function WorkflowCardSkeleton() {
   return (
-    <Card className="overflow-hidden flex flex-col h-full">
+    <Card className='flex h-full flex-col overflow-hidden'>
       {/* Thumbnail area skeleton */}
-      <div className="h-40 relative overflow-hidden bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-800 dark:to-slate-700">
-        <Skeleton className="h-full w-full" />
+      <div className='relative h-40 overflow-hidden bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-800 dark:to-slate-700'>
+        <Skeleton className='h-full w-full' />
       </div>
-      <div className="flex flex-col flex-grow">
+      <div className='flex flex-grow flex-col'>
         {/* Title skeleton */}
-        <CardHeader className="p-4 pb-2">
-          <Skeleton className="h-4 w-3/4" />
+        <CardHeader className='p-4 pb-2'>
+          <Skeleton className='h-4 w-3/4' />
         </CardHeader>
         {/* Description skeleton */}
-        <CardContent className="p-4 pt-0 pb-2 flex-grow flex flex-col">
-          <Skeleton className="h-3 w-full mb-1" />
-          <Skeleton className="h-3 w-4/5" />
+        <CardContent className='flex flex-grow flex-col p-4 pt-0 pb-2'>
+          <Skeleton className='mb-1 h-3 w-full' />
+          <Skeleton className='h-3 w-4/5' />
         </CardContent>
         {/* Footer with author and views skeletons */}
-        <CardFooter className="p-4 pt-2 mt-auto flex justify-between items-center">
-          <Skeleton className="h-3 w-1/4" />
-          <Skeleton className="h-3 w-10" />
+        <CardFooter className='mt-auto flex items-center justify-between p-4 pt-2'>
+          <Skeleton className='h-3 w-1/4' />
+          <Skeleton className='h-3 w-10' />
         </CardFooter>
       </div>
     </Card>

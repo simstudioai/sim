@@ -1,6 +1,6 @@
 import { NotionIcon } from '@/components/icons'
-import { NotionResponse } from '@/tools/notion/types'
-import { BlockConfig } from '../types'
+import type { NotionResponse } from '@/tools/notion/types'
+import type { BlockConfig } from '../types'
 
 export const NotionBlock: BlockConfig<NotionResponse> = {
   type: 'notion',

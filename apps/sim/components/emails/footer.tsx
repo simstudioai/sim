@@ -1,4 +1,3 @@
-import * as React from 'react'
 import { Container, Img, Link, Section, Text } from '@react-email/components'
 import { env } from '@/lib/env'
 
@@ -14,31 +13,31 @@ export const EmailFooter = ({
       <Section style={{ maxWidth: '580px', margin: '0 auto', padding: '20px 0' }}>
         <table style={{ width: '100%' }}>
           <tr>
-            <td align="center">
+            <td align='center'>
               <table cellPadding={0} cellSpacing={0} style={{ border: 0 }}>
                 <tr>
-                  <td align="center" style={{ padding: '0 8px' }}>
-                    <Link href="https://x.com/simstudioai" rel="noopener noreferrer">
-                      <Img src={`${baseUrl}/static/x-icon.png`} width="24" height="24" alt="X" />
+                  <td align='center' style={{ padding: '0 8px' }}>
+                    <Link href='https://x.com/simstudioai' rel='noopener noreferrer'>
+                      <Img src={`${baseUrl}/static/x-icon.png`} width='24' height='24' alt='X' />
                     </Link>
                   </td>
-                  <td align="center" style={{ padding: '0 8px' }}>
-                    <Link href="https://discord.gg/Hr4UWYEcTT" rel="noopener noreferrer">
+                  <td align='center' style={{ padding: '0 8px' }}>
+                    <Link href='https://discord.gg/Hr4UWYEcTT' rel='noopener noreferrer'>
                       <Img
                         src={`${baseUrl}/static/discord-icon.png`}
-                        width="24"
-                        height="24"
-                        alt="Discord"
+                        width='24'
+                        height='24'
+                        alt='Discord'
                       />
                     </Link>
                   </td>
-                  <td align="center" style={{ padding: '0 8px' }}>
-                    <Link href="https://github.com/simstudioai/sim" rel="noopener noreferrer">
+                  <td align='center' style={{ padding: '0 8px' }}>
+                    <Link href='https://github.com/simstudioai/sim' rel='noopener noreferrer'>
                       <Img
                         src={`${baseUrl}/static/github-icon.png`}
-                        width="24"
-                        height="24"
-                        alt="GitHub"
+                        width='24'
+                        height='24'
+                        alt='GitHub'
                       />
                     </Link>
                   </td>
@@ -47,7 +46,7 @@ export const EmailFooter = ({
             </td>
           </tr>
           <tr>
-            <td align="center" style={{ paddingTop: '12px' }}>
+            <td align='center' style={{ paddingTop: '12px' }}>
               <Text
                 style={{
                   fontSize: '12px',
@@ -59,7 +58,7 @@ export const EmailFooter = ({
                 <br />
                 If you have any questions, please contact us at{' '}
                 <a
-                  href="mailto:help@simstudio.ai"
+                  href='mailto:help@simstudio.ai'
                   style={{
                     color: '#706a7b !important',
                     textDecoration: 'underline',
@@ -72,7 +71,7 @@ export const EmailFooter = ({
               </Text>
               <table cellPadding={0} cellSpacing={0} style={{ width: '100%', marginTop: '4px' }}>
                 <tr>
-                  <td align="center">
+                  <td align='center'>
                     <p
                       style={{
                         fontSize: '12px',
@@ -89,7 +88,7 @@ export const EmailFooter = ({
                           fontWeight: 'normal',
                           fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
                         }}
-                        rel="noopener noreferrer"
+                        rel='noopener noreferrer'
                       >
                         Privacy Policy
                       </a>{' '}
@@ -102,7 +101,7 @@ export const EmailFooter = ({
                           fontWeight: 'normal',
                           fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
                         }}
-                        rel="noopener noreferrer"
+                        rel='noopener noreferrer'
                       >
                         Terms of Service
                       </a>

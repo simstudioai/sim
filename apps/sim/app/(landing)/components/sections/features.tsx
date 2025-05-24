@@ -1,20 +1,22 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import type React from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CodeXml, WorkflowIcon } from 'lucide-react'
 import ReactFlow, {
   ConnectionLineType,
-  Edge,
-  Node,
-  NodeTypes,
+  type Edge,
+  type Node,
+  type NodeTypes,
   Position,
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { AgentIcon, ConnectIcon, SlackIcon, StartIcon } from '@/components/icons'
+
+import { AgentIcon, ConnectIcon, StartIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { DotPattern } from '../dot-pattern'
 import { HeroBlock } from '../hero-block'
@@ -48,8 +50,8 @@ const features: FeaturesArray = [
     name: 'Agent 1',
     feature: {
       icon: (
-        <div className="w-8 h-8 flex items-center justify-center rounded bg-[#7c3aed]">
-          <AgentIcon className="text-white w-5 h-5" />
+        <div className='flex h-8 w-8 items-center justify-center rounded bg-[#7c3aed]'>
+          <AgentIcon className='h-5 w-5 text-white' />
         </div>
       ),
       title: 'Agents',
@@ -95,8 +97,8 @@ const features: FeaturesArray = [
     name: 'Custom Workflows',
     feature: {
       icon: (
-        <div className="w-8 h-8 flex items-center justify-center rounded bg-[#2563eb]">
-          <StartIcon className="text-white w-5 h-5" />
+        <div className='flex h-8 w-8 items-center justify-center rounded bg-[#2563eb]'>
+          <StartIcon className='h-5 w-5 text-white' />
         </div>
       ),
       title: 'Custom Workflows',
@@ -142,8 +144,8 @@ const features: FeaturesArray = [
     name: 'Function 1',
     feature: {
       icon: (
-        <div className="w-8 h-8 flex items-center justify-center rounded bg-[#ef4444]">
-          <CodeXml className="text-white w-5 h-5" />
+        <div className='flex h-8 w-8 items-center justify-center rounded bg-[#ef4444]'>
+          <CodeXml className='h-5 w-5 text-white' />
         </div>
       ),
       title: 'Custom Functions',
@@ -189,8 +191,8 @@ const features: FeaturesArray = [
     name: 'Router 1',
     feature: {
       icon: (
-        <div className="w-8 h-8 flex items-center justify-center rounded bg-[#22c55e]">
-          <ConnectIcon className="text-white w-5 h-5" />
+        <div className='flex h-8 w-8 items-center justify-center rounded bg-[#22c55e]'>
+          <ConnectIcon className='h-5 w-5 text-white' />
         </div>
       ),
       title: 'Routers',
@@ -248,7 +250,7 @@ function FeaturesFlow({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) {
     setRfEdges(edges)
   }, [nodes, edges, setRfNodes, setRfEdges])
   return (
-    <motion.div className="w-full h-full relative">
+    <motion.div className='relative h-full w-full'>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -269,7 +271,7 @@ function FeaturesFlow({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) {
         selectionOnDrag={false}
         preventScrolling={true}
         proOptions={{ hideAttribution: true }}
-        className="pointer-events-none"
+        className='pointer-events-none'
       />
     </motion.div>
   )
@@ -281,21 +283,21 @@ function Features() {
 
   return (
     <motion.section
-      className="flex flex-col py-20 w-full gap-20 px-8 md:px-0"
+      className='flex w-full flex-col gap-20 px-8 py-20 md:px-0'
       initial={{ opacity: 0 }}
       whileInView={{ opacity: 1 }}
       viewport={{ once: true, amount: 0.2 }}
       transition={{ duration: 0.7, ease: 'easeOut' }}
     >
       <motion.div
-        className="flex flex-col gap-7 w-full items-center"
+        className='flex w-full flex-col items-center gap-7'
         initial={{ opacity: 0, y: 40 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.3 }}
         transition={{ duration: 0.7, delay: 0.1, ease: 'easeOut' }}
       >
         <motion.p
-          className="text-white font-medium tracking-tight text-5xl text-center"
+          className='text-center font-medium text-5xl text-white tracking-tight'
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.3 }}
@@ -304,7 +306,7 @@ function Features() {
           Powerful tools for Agent success
         </motion.p>
         <motion.p
-          className="text-white/60 text-xl tracking-normal max-w-xl text-center font-light"
+          className='max-w-xl text-center font-light text-white/60 text-xl tracking-normal'
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.3 }}
@@ -315,59 +317,59 @@ function Features() {
         </motion.p>
       </motion.div>
 
-      <div className="flex w-full">
-        <div className="lg:flex relative w-full hidden">
-          <div className="absolute -top-48 left-0">
+      <div className='flex w-full'>
+        <div className='relative hidden w-full lg:flex'>
+          <div className='-top-48 absolute left-0'>
             <svg
-              width="1021"
-              height="1126"
-              viewBox="0 0 1021 1126"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
+              width='1021'
+              height='1126'
+              viewBox='0 0 1021 1126'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
             >
-              <g filter="url(#filter0_f_82_4275)">
-                <ellipse cx="342.5" cy="556" rx="278.5" ry="280" fill="#593859" />
+              <g filter='url(#filter0_f_82_4275)'>
+                <ellipse cx='342.5' cy='556' rx='278.5' ry='280' fill='#593859' />
               </g>
               <defs>
                 <filter
-                  id="filter0_f_82_4275"
-                  x="-336"
-                  y="-124"
-                  width="1357"
-                  height="1360"
-                  filterUnits="userSpaceOnUse"
-                  colorInterpolationFilters="sRGB"
+                  id='filter0_f_82_4275'
+                  x='-336'
+                  y='-124'
+                  width='1357'
+                  height='1360'
+                  filterUnits='userSpaceOnUse'
+                  colorInterpolationFilters='sRGB'
                 >
-                  <feFlood floodOpacity="0" result="BackgroundImageFix" />
+                  <feFlood floodOpacity='0' result='BackgroundImageFix' />
                   <feBlend
-                    mode="normal"
-                    in="SourceGraphic"
-                    in2="BackgroundImageFix"
-                    result="shape"
+                    mode='normal'
+                    in='SourceGraphic'
+                    in2='BackgroundImageFix'
+                    result='shape'
                   />
-                  <feGaussianBlur stdDeviation="200" result="effect1_foregroundBlur_82_4275" />
+                  <feGaussianBlur stdDeviation='200' result='effect1_foregroundBlur_82_4275' />
                 </filter>
               </defs>
             </svg>
           </div>
           <motion.div
-            className="lg:flex relative w-full hidden flex-col bg-[#0f0f0f] border border-[#606060]/30 rounded-r-3xl min-h-[44rem] z-10 overflow-hidden"
+            className='relative z-10 hidden min-h-[44rem] w-full flex-col overflow-hidden rounded-r-3xl border border-[#606060]/30 bg-[#0f0f0f] lg:flex'
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.7, delay: 0.2, ease: 'easeOut' }}
           >
-            <DotPattern className="rounded-r-3xl opacity-20" x={-5} y={-5} />
-            <div className="flex-1 flex items-center justify-center w-full">
+            <DotPattern className='rounded-r-3xl opacity-20' x={-5} y={-5} />
+            <div className='flex w-full flex-1 items-center justify-center'>
               <ReactFlowProvider>
                 <FeaturesFlow nodes={selectedFeature.nodes} edges={selectedFeature.edges} />
               </ReactFlowProvider>
             </div>
           </motion.div>
         </div>
-        <div className="w-full flex px-4 md:px-24 lg:px-32 xl:px-48">
+        <div className='flex w-full px-4 md:px-24 lg:px-32 xl:px-48'>
           <motion.div
-            className="w-full bg-[#0f0f0f] border border-[#606060]/30 rounded-3xl flex flex-col overflow-hidden"
+            className='flex w-full flex-col overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f]'
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
@@ -379,7 +381,7 @@ function Features() {
                 <motion.div
                   key={f.feature.title}
                   className={cn(
-                    'h-full w-full border-b border-[#222222] flex flex-col justify-center',
+                    'flex h-full w-full flex-col justify-center border-[#222222] border-b',
                     isOpen ? f.color : ''
                   )}
                   initial={{ opacity: 0, y: 30 }}
@@ -388,41 +390,41 @@ function Features() {
                   transition={{ duration: 0.5, delay: 0.1 + i * 0.08, ease: 'easeInOut' }}
                 >
                   <button
-                    className="flex items-center w-full gap-4 px-8 py-6 focus:outline-none transition-colors"
+                    className='flex w-full items-center gap-4 px-8 py-6 transition-colors focus:outline-none'
                     onClick={() => setOpen(i)}
                     aria-expanded={isOpen}
                   >
                     {f.feature.icon}
-                    <span className="text-xl font-semibold text-white/70">{f.feature.title}</span>
+                    <span className='font-semibold text-white/70 text-xl'>{f.feature.title}</span>
                   </button>
                   <AnimatePresence initial={false}>
                     {isOpen && (
                       <motion.div
-                        key="content"
+                        key='content'
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.45, ease: 'easeInOut' }}
-                        className="px-8 overflow-hidden"
+                        className='overflow-hidden px-8'
                       >
                         <motion.div
                           initial={{ opacity: 0, y: 16 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: 16 }}
                           transition={{ duration: 0.35, ease: 'easeInOut' }}
-                          className="pb-8"
+                          className='pb-8'
                         >
                           {f.feature.bullets.length > 0 && (
-                            <ul className="flex flex-col gap-5 mt-2">
+                            <ul className='mt-2 flex flex-col gap-5'>
                               {f.feature.bullets.map((b, j) => (
                                 <li
                                   key={j}
-                                  className="flex items-start text-white/80 text-lg max-w-sm"
+                                  className='flex max-w-sm items-start text-lg text-white/80'
                                 >
                                   <span
-                                    className={`w-2 h-2 ${bulletColors[i]} inline-block mt-2 mr-2`}
+                                    className={`h-2 w-2 ${bulletColors[i]} mt-2 mr-2 inline-block`}
                                   />
-                                  <span className="text-base leading-[1.4] text-white/70 font-light">
+                                  <span className='font-light text-base text-white/70 leading-[1.4]'>
                                     {b}
                                   </span>
                                 </li>

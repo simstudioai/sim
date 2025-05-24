@@ -5,7 +5,7 @@
  * without requiring all the complex dependencies.
  */
 import { Executor } from '..'
-import { ExecutionResult, NormalizedBlockOutput } from '../types'
+import type { ExecutionResult, NormalizedBlockOutput } from '../types'
 
 /**
  * Test implementation of Executor for unit testing.

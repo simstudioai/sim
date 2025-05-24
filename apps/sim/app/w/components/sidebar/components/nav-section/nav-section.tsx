@@ -1,8 +1,8 @@
 'use client'
 
-import { ReactNode } from 'react'
-import Link from 'next/link'
+import type { ReactNode } from 'react'
 import clsx from 'clsx'
+import Link from 'next/link'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
@@ -32,7 +32,7 @@ export function NavSection({
 }: NavSectionProps) {
   if (isLoading) {
     return (
-      <nav className="space-y-1">
+      <nav className='space-y-1'>
         {Array(itemCount)
           .fill(0)
           .map((_, i) => (
@@ -42,7 +42,7 @@ export function NavSection({
     )
   }
 
-  return <nav className="space-y-1">{children}</nav>
+  return <nav className='space-y-1'>{children}</nav>
 }
 
 function NavItem({
@@ -68,8 +68,8 @@ function NavItem({
 
   const content = (
     <>
-      {isCollapsed ? <div className="p-[1px]">{icon}</div> : icon}
-      {!isCollapsed && <span className="truncate">{label}</span>}
+      {isCollapsed ? <div className='p-[1px]'>{icon}</div> : icon}
+      {!isCollapsed && <span className='truncate'>{label}</span>}
     </>
   )
 
@@ -83,7 +83,7 @@ function NavItem({
             </Link>
           </TooltipTrigger>
           <TooltipContent
-            side="right"
+            side='right'
             command={shortcutCommand}
             commandPosition={shortcutCommandPosition}
           >
@@ -101,7 +101,7 @@ function NavItem({
           </button>
         </TooltipTrigger>
         <TooltipContent
-          side="right"
+          side='right'
           command={shortcutCommand}
           commandPosition={shortcutCommandPosition}
         >
@@ -129,16 +129,16 @@ function NavItem({
 function NavItemSkeleton({ isCollapsed }: { isCollapsed?: boolean }) {
   if (isCollapsed) {
     return (
-      <div className="w-8 h-8 mx-auto flex items-center justify-center">
-        <Skeleton className="h-[18px] w-[18px]" />
+      <div className='mx-auto flex h-8 w-8 items-center justify-center'>
+        <Skeleton className='h-[18px] w-[18px]' />
       </div>
     )
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-md px-2 py-[6px]">
-      <Skeleton className="h-[18px] w-[18px]" />
-      <Skeleton className="h-4 w-24" />
+    <div className='flex items-center gap-2 rounded-md px-2 py-[6px]'>
+      <Skeleton className='h-[18px] w-[18px]' />
+      <Skeleton className='h-4 w-24' />
     </div>
   )
 }

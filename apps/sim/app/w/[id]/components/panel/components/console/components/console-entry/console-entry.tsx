@@ -11,8 +11,8 @@ import {
   Terminal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
 import { getBlock } from '@/blocks'
+import type { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
 import { JSONView } from '../json-view/json-view'
 
 interface ConsoleEntryProps {
@@ -44,7 +44,7 @@ const WordWrap = ({ text }: { text: string }) => {
         }
 
         return (
-          <span key={index} className="break-all">
+          <span key={index} className='break-all'>
             {chunks.map((chunk, chunkIndex) => (
               <span key={chunkIndex}>{chunk}</span>
             ))}
@@ -66,12 +66,12 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
 
   const BlockIcon = blockConfig?.icon
 
-  const statusIcon = entry.error ? (
-    <AlertCircle className="h-4 w-4 text-destructive" />
+  const _statusIcon = entry.error ? (
+    <AlertCircle className='h-4 w-4 text-destructive' />
   ) : entry.warning ? (
-    <AlertTriangle className="h-4 w-4 text-warning" />
+    <AlertTriangle className='h-4 w-4 text-warning' />
   ) : (
-    <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+    <CheckCircle2 className='h-4 w-4 text-muted-foreground' />
   )
 
   // Helper function to check if data has nested objects or arrays
@@ -92,71 +92,71 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
 
   return (
     <div
-      className={`border-b border-border transition-colors ${
-        !entry.error && !entry.warning ? 'hover:bg-accent/50 cursor-pointer' : ''
+      className={`border-border border-b transition-colors ${
+        !entry.error && !entry.warning ? 'cursor-pointer hover:bg-accent/50' : ''
       }`}
       onClick={() => !entry.error && !entry.warning && setIsExpanded(!isExpanded)}
     >
-      <div className="p-4 space-y-4">
+      <div className='space-y-4 p-4'>
         <div
           className={`${
-            consoleWidth >= 400 ? 'flex items-center justify-between' : 'grid gap-4 grid-cols-1'
+            consoleWidth >= 400 ? 'flex items-center justify-between' : 'grid grid-cols-1 gap-4'
           }`}
         >
           {entry.blockName && (
-            <div className="flex items-center gap-2 text-sm">
+            <div className='flex items-center gap-2 text-sm'>
               {BlockIcon ? (
-                <BlockIcon className="h-4 w-4 text-muted-foreground" />
+                <BlockIcon className='h-4 w-4 text-muted-foreground' />
               ) : (
-                <Terminal className="h-4 w-4 text-muted-foreground" />
+                <Terminal className='h-4 w-4 text-muted-foreground' />
               )}
-              <span className="text-muted-foreground">{entry.blockName}</span>
+              <span className='text-muted-foreground'>{entry.blockName}</span>
             </div>
           )}
           <div
             className={`${
               consoleWidth >= 400 ? 'flex gap-4' : 'grid grid-cols-2 gap-4'
-            } text-sm text-muted-foreground`}
+            } text-muted-foreground text-sm`}
           >
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
+            <div className='flex items-center gap-2'>
+              <Calendar className='h-4 w-4' />
               <span>{format(new Date(entry.startedAt), 'HH:mm:ss')}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
+            <div className='flex items-center gap-2'>
+              <Clock className='h-4 w-4' />
               <span>Duration: {entry.durationMs}ms</span>
             </div>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className='space-y-4'>
           {!entry.error && !entry.warning && (
-            <div className="flex items-start gap-2">
-              <Terminal className="h-4 w-4 text-muted-foreground mt-1" />
-              <div className="text-sm font-mono flex-1 break-normal whitespace-normal overflow-wrap-anywhere relative">
+            <div className='flex items-start gap-2'>
+              <Terminal className='mt-1 h-4 w-4 text-muted-foreground' />
+              <div className='overflow-wrap-anywhere relative flex-1 whitespace-normal break-normal font-mono text-sm'>
                 {typeof entry.output === 'object' &&
                   entry.output !== null &&
                   hasNestedStructure(entry.output) && (
-                    <div className="absolute right-0 top-0 z-10">
+                    <div className='absolute top-0 right-0 z-10'>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-muted-foreground hover:text-foreground"
+                        variant='ghost'
+                        size='sm'
+                        className='h-6 px-2 text-muted-foreground hover:text-foreground'
                         onClick={(e) => {
                           e.stopPropagation()
                           setExpandAllJson(!expandAllJson)
                         }}
                       >
-                        <span className="flex items-center">
+                        <span className='flex items-center'>
                           {expandAllJson ? (
                             <>
-                              <ChevronUp className="h-3 w-3 mr-1" />
-                              <span className="text-xs">Collapse</span>
+                              <ChevronUp className='mr-1 h-3 w-3' />
+                              <span className='text-xs'>Collapse</span>
                             </>
                           ) : (
                             <>
-                              <ChevronDown className="h-3 w-3 mr-1" />
-                              <span className="text-xs">Expand</span>
+                              <ChevronDown className='mr-1 h-3 w-3' />
+                              <span className='text-xs'>Expand</span>
                             </>
                           )}
                         </span>
@@ -169,11 +169,11 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           )}
 
           {entry.error && (
-            <div className="flex items-start gap-2 border rounded-md p-3 border-red-500 bg-red-50 text-destructive dark:border-border dark:text-foreground dark:bg-background">
-              <AlertCircle className="h-4 w-4 text-red-500 mt-1 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium">Error</div>
-                <div className="text-sm whitespace-pre-wrap overflow-hidden w-full">
+            <div className='flex items-start gap-2 rounded-md border border-red-500 bg-red-50 p-3 text-destructive dark:border-border dark:bg-background dark:text-foreground'>
+              <AlertCircle className='mt-1 h-4 w-4 flex-shrink-0 text-red-500' />
+              <div className='min-w-0 flex-1'>
+                <div className='font-medium'>Error</div>
+                <div className='w-full overflow-hidden whitespace-pre-wrap text-sm'>
                   <WordWrap text={entry.error} />
                 </div>
               </div>
@@ -181,11 +181,11 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
           )}
 
           {entry.warning && (
-            <div className="flex items-start gap-2 border rounded-md p-3 border-yellow-500 bg-yellow-50 text-yellow-700 dark:border-border dark:text-yellow-500 dark:bg-background">
-              <AlertTriangle className="h-4 w-4 text-yellow-500 mt-1 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium">Warning</div>
-                <div className="text-sm whitespace-pre-wrap overflow-hidden w-full">
+            <div className='flex items-start gap-2 rounded-md border border-yellow-500 bg-yellow-50 p-3 text-yellow-700 dark:border-border dark:bg-background dark:text-yellow-500'>
+              <AlertTriangle className='mt-1 h-4 w-4 flex-shrink-0 text-yellow-500' />
+              <div className='min-w-0 flex-1'>
+                <div className='font-medium'>Warning</div>
+                <div className='w-full overflow-hidden whitespace-pre-wrap text-sm'>
                   <WordWrap text={entry.warning} />
                 </div>
               </div>

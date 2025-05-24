@@ -1,5 +1,5 @@
-import { Executor } from '@/executor'
-import { ExecutionContext } from '@/executor/types'
+import type { Executor } from '@/executor'
+import type { ExecutionContext } from '@/executor/types'
 
 export interface ExecutionState {
   activeBlockIds: Set<string>

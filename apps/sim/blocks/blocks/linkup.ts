@@ -1,6 +1,6 @@
 import { LinkupIcon } from '@/components/icons'
-import { LinkupSearchToolResponse } from '@/tools/linkup/types'
-import { BlockConfig } from '../types'
+import type { LinkupSearchToolResponse } from '@/tools/linkup/types'
+import type { BlockConfig } from '../types'
 
 export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
   type: 'linkup',

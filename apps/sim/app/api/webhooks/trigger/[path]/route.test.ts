@@ -1,10 +1,10 @@
+import { NextRequest } from 'next/server'
 /**
  * Integration tests for webhook trigger API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NextRequest } from 'next/server'
 import {
   createMockRequest,
   mockExecutionDependencies,
@@ -160,7 +160,7 @@ describe('Webhook Trigger API Route', () => {
     processWebhookMock.mockResolvedValue(new Response('Webhook processed', { status: 200 }))
 
     // Restore original crypto.randomUUID if it was mocked
-    if ((global as any).crypto && (global as any).crypto.randomUUID) {
+    if ((global as any).crypto?.randomUUID) {
       vi.spyOn(crypto, 'randomUUID').mockRestore()
     }
 
@@ -577,9 +577,8 @@ describe('Webhook Trigger API Route', () => {
       callCount++
       if (callCount === 1) {
         return { from: fromMock }
-      } else {
-        return { from: fromMock2 }
       }
+      return { from: fromMock2 }
     })
 
     // Create a mock request with Airtable payload

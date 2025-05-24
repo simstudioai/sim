@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
-import { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/settings/environment/types'
+import type { EnvironmentVariable as StoreEnvironmentVariable } from '@/stores/settings/environment/types'
 
 // Constants
 const GRID_COLS = 'grid grid-cols-[minmax(0,1fr),minmax(0,1fr),40px] gap-4'
@@ -205,19 +205,19 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
   const renderEnvVarRow = (envVar: UIEnvironmentVariable, index: number) => (
     <div key={envVar.id || index} className={`${GRID_COLS} items-center`}>
       <Input
-        data-input-type="key"
+        data-input-type='key'
         value={envVar.key}
         onChange={(e) => updateEnvVar(index, 'key', e.target.value)}
         onPaste={(e) => handlePaste(e, index)}
-        placeholder="API_KEY"
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="off"
-        spellCheck="false"
+        placeholder='API_KEY'
+        autoComplete='off'
+        autoCorrect='off'
+        autoCapitalize='off'
+        spellCheck='false'
         name={`env-var-key-${envVar.id || index}-${Math.random()}`}
       />
       <Input
-        data-input-type="value"
+        data-input-type='value'
         value={envVar.value}
         onChange={(e) => updateEnvVar(index, 'value', e.target.value)}
         type={focusedValueIndex === index ? 'text' : 'password'}
@@ -225,26 +225,26 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
         onClick={handleValueClick}
         onBlur={() => setFocusedValueIndex(null)}
         onPaste={(e) => handlePaste(e, index)}
-        placeholder="Enter value"
-        className="allow-scroll"
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize="off"
-        spellCheck="false"
+        placeholder='Enter value'
+        className='allow-scroll'
+        autoComplete='off'
+        autoCorrect='off'
+        autoCapitalize='off'
+        spellCheck='false'
         name={`env-var-value-${envVar.id || index}-${Math.random()}`}
       />
-      <Button variant="ghost" size="icon" onClick={() => removeEnvVar(index)} className="h-10 w-10">
+      <Button variant='ghost' size='icon' onClick={() => removeEnvVar(index)} className='h-10 w-10'>
         ×
       </Button>
     </div>
   )
 
   return (
-    <div className="flex flex-col h-full">
+    <div className='flex h-full flex-col'>
       {/* Fixed Header */}
-      <div className="px-6 pt-6">
-        <h2 className="text-lg font-medium mb-6">Environment Variables</h2>
-        <div className={`${GRID_COLS} px-0.5 mb-2`}>
+      <div className='px-6 pt-6'>
+        <h2 className='mb-6 font-medium text-lg'>Environment Variables</h2>
+        <div className={`${GRID_COLS} mb-2 px-0.5`}>
           <Label>Key</Label>
           <Label>Value</Label>
           <div />
@@ -254,20 +254,20 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
       {/* Scrollable Content */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 px-6 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent"
+        className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
       >
-        <div className="space-y-2 py-2">{envVars.map(renderEnvVarRow)}</div>
+        <div className='space-y-2 py-2'>{envVars.map(renderEnvVarRow)}</div>
       </div>
 
       {/* Fixed Footer */}
-      <div className="px-6 pb-6 pt-4 border-t mt-auto">
-        <div className="flex flex-col gap-4">
-          <Button variant="outline" size="sm" onClick={addEnvVar}>
+      <div className='mt-auto border-t px-6 pt-4 pb-6'>
+        <div className='flex flex-col gap-4'>
+          <Button variant='outline' size='sm' onClick={addEnvVar}>
             Add Variable
           </Button>
 
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={handleClose}>
+          <div className='flex justify-end space-x-2'>
+            <Button variant='outline' onClick={handleClose}>
               Cancel
             </Button>
             <Button onClick={handleSave} disabled={!hasChanges}>

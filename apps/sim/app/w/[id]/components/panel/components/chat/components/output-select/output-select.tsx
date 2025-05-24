@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getBlock } from '@/blocks'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface OutputSelectProps {
   workflowId: string | null
@@ -227,21 +227,21 @@ export function OutputSelect({
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className='relative' ref={dropdownRef}>
       <button
-        type="button"
+        type='button'
         onClick={() => setIsOutputDropdownOpen(!isOutputDropdownOpen)}
-        className={`flex w-full items-center justify-between px-3 py-1.5 text-sm rounded-md transition-colors ${
+        className={`flex w-full items-center justify-between rounded-md px-3 py-1.5 text-sm transition-colors ${
           isOutputDropdownOpen
             ? 'bg-accent text-foreground'
-            : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+            : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
         }`}
         disabled={workflowOutputs.length === 0 || disabled}
       >
         {selectedOutputInfo ? (
-          <div className="flex items-center gap-2 w-[calc(100%-24px)] overflow-hidden">
+          <div className='flex w-[calc(100%-24px)] items-center gap-2 overflow-hidden'>
             <div
-              className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0"
+              className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
               style={{
                 backgroundColor: getOutputColor(
                   selectedOutputInfo.blockId,
@@ -249,62 +249,62 @@ export function OutputSelect({
                 ),
               }}
             >
-              <span className="w-3 h-3 text-white font-bold text-xs">
+              <span className='h-3 w-3 font-bold text-white text-xs'>
                 {selectedOutputInfo.blockName.charAt(0).toUpperCase()}
               </span>
             </div>
-            <span className="truncate">{selectedOutputsDisplayText}</span>
+            <span className='truncate'>{selectedOutputsDisplayText}</span>
           </div>
         ) : (
-          <span className="truncate w-[calc(100%-24px)]">{selectedOutputsDisplayText}</span>
+          <span className='w-[calc(100%-24px)] truncate'>{selectedOutputsDisplayText}</span>
         )}
         <ChevronDown
-          className={`h-4 w-4 transition-transform ml-1 flex-shrink-0 ${
+          className={`ml-1 h-4 w-4 flex-shrink-0 transition-transform ${
             isOutputDropdownOpen ? 'rotate-180' : ''
           }`}
         />
       </button>
 
       {isOutputDropdownOpen && workflowOutputs.length > 0 && (
-        <div className="absolute z-50 mt-1 pt-1 w-full bg-popover rounded-md border shadow-md overflow-hidden">
-          <div className="max-h-[240px] overflow-y-auto">
+        <div className='absolute z-50 mt-1 w-full overflow-hidden rounded-md border bg-popover pt-1 shadow-md'>
+          <div className='max-h-[240px] overflow-y-auto'>
             {Object.entries(groupedOutputs).map(([blockName, outputs]) => (
               <div key={blockName}>
-                <div className="px-2 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground border-t first:border-t-0">
+                <div className='border-t px-2 pt-1.5 pb-0.5 font-medium text-muted-foreground text-xs first:border-t-0'>
                   {blockName}
                 </div>
                 <div>
                   {outputs.map((output) => (
                     <button
-                      type="button"
+                      type='button'
                       key={output.id}
                       onClick={() => handleOutputSelection(output.id)}
                       className={cn(
-                        'flex items-center gap-2 text-sm text-left w-full px-3 py-1.5',
+                        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
                         'hover:bg-accent hover:text-accent-foreground',
                         'focus:bg-accent focus:text-accent-foreground focus:outline-none'
                       )}
                     >
-                      <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+                      <div className='flex h-5 w-5 flex-shrink-0 items-center justify-center'>
                         {selectedOutputs.includes(output.id) ? (
-                          <div className="w-4 h-4 rounded bg-primary flex items-center justify-center">
-                            <Check className="h-3 w-3 text-white" />
+                          <div className='flex h-4 w-4 items-center justify-center rounded bg-primary'>
+                            <Check className='h-3 w-3 text-white' />
                           </div>
                         ) : (
-                          <div className="w-4 h-4 rounded border border-input" />
+                          <div className='h-4 w-4 rounded border border-input' />
                         )}
                       </div>
                       <div
-                        className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0"
+                        className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
                         style={{
                           backgroundColor: getOutputColor(output.blockId, output.blockType),
                         }}
                       >
-                        <span className="w-3 h-3 text-white font-bold text-xs">
+                        <span className='h-3 w-3 font-bold text-white text-xs'>
                           {blockName.charAt(0).toUpperCase()}
                         </span>
                       </div>
-                      <span className="truncate max-w-[calc(100%-48px)]">{output.path}</span>
+                      <span className='max-w-[calc(100%-48px)] truncate'>{output.path}</span>
                     </button>
                   ))}
                 </div>
@@ -313,12 +313,12 @@ export function OutputSelect({
           </div>
 
           {/* Done button to close dropdown */}
-          <div className="border-t p-2">
+          <div className='border-t p-2'>
             <Button
-              variant="secondary"
-              size="sm"
+              variant='secondary'
+              size='sm'
               onClick={() => setIsOutputDropdownOpen(false)}
-              className="w-full bg-secondary/80 text-secondary-foreground hover:bg-secondary/90"
+              className='w-full bg-secondary/80 text-secondary-foreground hover:bg-secondary/90'
             >
               Done
             </Button>

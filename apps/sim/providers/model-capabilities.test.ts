@@ -32,8 +32,8 @@ describe('supportsTemperature', () => {
       'claude-opus-4-20250514',
       'claude-3-7-sonnet-20250219',
       'claude-3-5-sonnet-20240620',
-      `grok-3-latest`,
-      `grok-3-fast-latest`,
+      'grok-3-latest',
+      'grok-3-fast-latest',
     ]
 
     for (const model of supportedModels) {

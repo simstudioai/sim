@@ -1,8 +1,8 @@
 import { getNodeEnv } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { HttpMethod, TableRow, ToolConfig } from '../types'
-import { RequestParams, RequestResponse } from './types'
+import type { HttpMethod, TableRow, ToolConfig } from '../types'
+import type { RequestParams, RequestResponse } from './types'
 
 const logger = createLogger('HTTPRequestTool')
 
@@ -14,7 +14,7 @@ const getReferer = (): string => {
 
   try {
     return getBaseUrl()
-  } catch (error) {
+  } catch (_error) {
     return 'http://localhost:3000'
   }
 }
@@ -47,10 +47,10 @@ const getDefaultHeaders = (
   if (url) {
     try {
       const hostname = new URL(url).host
-      if (hostname && !customHeaders['Host'] && !customHeaders['host']) {
-        headers['Host'] = hostname
+      if (hostname && !customHeaders.Host && !customHeaders.host) {
+        headers.Host = hostname
       }
-    } catch (e) {
+    } catch (_e) {
       // Invalid URL, will be caught later
     }
   }
@@ -119,7 +119,7 @@ const shouldUseProxy = (url: string): boolean => {
   }
 
   try {
-    const urlObj = new URL(url)
+    const _urlObj = new URL(url)
     const currentOrigin = window.location.origin
 
     // Don't proxy same-origin or localhost requests
@@ -135,7 +135,7 @@ const shouldUseProxy = (url: string): boolean => {
 }
 
 // Default headers that will be applied if not explicitly overridden by user
-const DEFAULT_HEADERS: Record<string, string> = {
+const _DEFAULT_HEADERS: Record<string, string> = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
   Accept: '*/*',
@@ -225,7 +225,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   directExecution: async (params: RequestParams): Promise<RequestResponse | undefined> => {
     try {
       // Process the URL with parameters
-      let url = processUrl(params.url, params.pathParams, params.params)
+      const url = processUrl(params.url, params.pathParams, params.params)
 
       // Update the URL in params for any subsequent operations
       params.url = url
@@ -335,7 +335,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           } else {
             data = await response.text()
           }
-        } catch (error) {
+        } catch (_error) {
           data = await response.text()
         }
 
@@ -439,7 +439,8 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       if (params.formData) {
         // Don't set Content-Type for FormData, browser will set it with boundary
         return allHeaders
-      } else if (params.body) {
+      }
+      if (params.body) {
         allHeaders['Content-Type'] = 'application/json'
       }
 
@@ -530,6 +531,6 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     const statusText = error.statusText || ''
 
     // Format the error message
-    return code ? `HTTP error ${code}${statusText ? ': ' + statusText : ''} - ${message}` : message
+    return code ? `HTTP error ${code}${statusText ? `: ${statusText}` : ''} - ${message}` : message
   },
 }

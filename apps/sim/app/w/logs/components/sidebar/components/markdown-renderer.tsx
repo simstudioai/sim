@@ -11,7 +11,7 @@ export default function LogMarkdownRenderer({ content }: { content: string }) {
   const customComponents = {
     // Default component to ensure monospace font with minimal spacing
     p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
-      <p className="whitespace-pre-wrap font-mono text-sm leading-tight my-0.5">{children}</p>
+      <p className='my-0.5 whitespace-pre-wrap font-mono text-sm leading-tight'>{children}</p>
     ),
 
     // Inline code - no background to maintain clean appearance
@@ -22,7 +22,7 @@ export default function LogMarkdownRenderer({ content }: { content: string }) {
       ...props
     }: React.HTMLAttributes<HTMLElement> & { className?: string; inline?: boolean }) => {
       return (
-        <code className="font-mono text-sm" {...props}>
+        <code className='font-mono text-sm' {...props}>
           {children}
         </code>
       )
@@ -32,9 +32,9 @@ export default function LogMarkdownRenderer({ content }: { content: string }) {
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
       <a
         href={href}
-        className="font-mono text-sm text-blue-600 dark:text-blue-400 hover:underline"
-        target="_blank"
-        rel="noopener noreferrer"
+        className='font-mono text-blue-600 text-sm hover:underline dark:text-blue-400'
+        target='_blank'
+        rel='noopener noreferrer'
         {...props}
       >
         {children}
@@ -43,37 +43,37 @@ export default function LogMarkdownRenderer({ content }: { content: string }) {
 
     // Tighter lists with minimal spacing
     ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
-      <ul className="list-disc pl-5 font-mono text-sm -mt-1.5 mb-1 leading-none">{children}</ul>
+      <ul className='-mt-1.5 mb-1 list-disc pl-5 font-mono text-sm leading-none'>{children}</ul>
     ),
     ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
-      <ol className="list-decimal pl-5 font-mono text-sm -mt-1.5 mb-1 leading-none">{children}</ol>
+      <ol className='-mt-1.5 mb-1 list-decimal pl-5 font-mono text-sm leading-none'>{children}</ol>
     ),
     li: ({ children }: React.HTMLAttributes<HTMLLIElement>) => (
-      <li className="font-mono text-sm mb-0 leading-tight">{children}</li>
+      <li className='mb-0 font-mono text-sm leading-tight'>{children}</li>
     ),
 
     // Keep blockquotes minimal
     blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
-      <blockquote className="font-mono text-sm my-0">{children}</blockquote>
+      <blockquote className='my-0 font-mono text-sm'>{children}</blockquote>
     ),
 
     // Make headings compact with minimal spacing after
     h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h1 className="font-mono text-sm font-medium mt-2 mb-0">{children}</h1>
+      <h1 className='mt-2 mb-0 font-medium font-mono text-sm'>{children}</h1>
     ),
     h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h2 className="font-mono text-sm font-medium mt-2 mb-0">{children}</h2>
+      <h2 className='mt-2 mb-0 font-medium font-mono text-sm'>{children}</h2>
     ),
     h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h3 className="font-mono text-sm font-medium mt-1.5 mb-0">{children}</h3>
+      <h3 className='mt-1.5 mb-0 font-medium font-mono text-sm'>{children}</h3>
     ),
     h4: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h4 className="font-mono text-sm font-medium mt-1.5 mb-0">{children}</h4>
+      <h4 className='mt-1.5 mb-0 font-medium font-mono text-sm'>{children}</h4>
     ),
   }
 
   return (
-    <div className="text-sm whitespace-pre-wrap w-full overflow-visible font-mono leading-tight [&>ul]:mt-0 [&>h2+ul]:-mt-2.5 [&>h3+ul]:-mt-2.5">
+    <div className='[&>h2+ul]:-mt-2.5 [&>h3+ul]:-mt-2.5 w-full overflow-visible whitespace-pre-wrap font-mono text-sm leading-tight [&>ul]:mt-0'>
       <ReactMarkdown components={customComponents}>{processedContent}</ReactMarkdown>
     </div>
   )

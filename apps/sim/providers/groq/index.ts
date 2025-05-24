@@ -1,8 +1,8 @@
 import { Groq } from 'groq-sdk'
 import { createLogger } from '@/lib/logs/console-logger'
-import { StreamingExecution } from '@/executor/types'
+import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
-import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
 const logger = createLogger('GroqProvider')
 
@@ -121,7 +121,7 @@ export const groqProvider: ProviderConfig = {
         // Always use 'auto' for Groq, regardless of the tool_choice setting
         payload.tool_choice = 'auto'
 
-        logger.info(`Groq request configuration:`, {
+        logger.info('Groq request configuration:', {
           toolCount: filteredTools.length,
           toolChoice: 'auto', // Groq always uses auto
           model: request.model || 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
@@ -144,7 +144,7 @@ export const groqProvider: ProviderConfig = {
       })
 
       // Start collecting token usage
-      let tokenUsage = {
+      const tokenUsage = {
         prompt: 0,
         completion: 0,
         total: 0,
@@ -208,14 +208,14 @@ export const groqProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
-      let tokens = {
+      const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
-      let toolCalls = []
-      let toolResults = []
-      let currentMessages = [...allMessages]
+      const toolCalls = []
+      const toolResults = []
+      const currentMessages = [...allMessages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 

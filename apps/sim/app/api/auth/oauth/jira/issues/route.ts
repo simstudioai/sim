@@ -63,9 +63,9 @@ export async function POST(request: Request) {
         logger.error('Could not parse error response as JSON:', e)
 
         try {
-          const text = await response.text()
+          const _text = await response.text()
           errorMessage = `Failed to fetch Jira issues: ${response.status} ${response.statusText}`
-        } catch (textError) {
+        } catch (_textError) {
           errorMessage = `Failed to fetch Jira issues: ${response.status} ${response.statusText}`
         }
       }
@@ -109,7 +109,7 @@ export async function GET(request: Request) {
     const domain = url.searchParams.get('domain')?.trim()
     const accessToken = url.searchParams.get('accessToken')
     const providedCloudId = url.searchParams.get('cloudId')
-    let query = url.searchParams.get('query') || ''
+    const query = url.searchParams.get('query') || ''
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -153,7 +153,7 @@ export async function GET(request: Request) {
         const errorData = await response.json()
         logger.error('Error details:', errorData)
         errorMessage = errorData.message || `Failed to fetch issue suggestions (${response.status})`
-      } catch (e) {
+      } catch (_e) {
         errorMessage = `Failed to fetch issue suggestions: ${response.status} ${response.statusText}`
       }
       return NextResponse.json({ error: errorMessage }, { status: response.status })

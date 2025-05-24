@@ -8,7 +8,7 @@ import { ControlBar } from './components/control-bar/control-bar'
 import { Filters } from './components/filters/filters'
 import { Sidebar } from './components/sidebar/sidebar'
 import { useFilterStore } from './stores/store'
-import { LogsResponse, WorkflowLog } from './stores/types'
+import type { LogsResponse, WorkflowLog } from './stores/types'
 import { formatDate } from './utils/format-date'
 
 const logger = createLogger('Logs')
@@ -140,7 +140,7 @@ export default function Logs() {
   }, [selectedLogIndex])
 
   const fetchLogs = useCallback(
-    async (pageNum: number, append: boolean = false) => {
+    async (pageNum: number, append = false) => {
       try {
         if (pageNum === 1) {
           setLoading(true)
@@ -288,7 +288,7 @@ export default function Logs() {
 
   return (
     <div
-      className={`flex flex-col h-[100vh] transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+      className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
     >
       {/* Add the animation styles */}
       <style jsx global>
@@ -296,47 +296,47 @@ export default function Logs() {
       </style>
 
       <ControlBar />
-      <div className="flex flex-1 overflow-hidden">
+      <div className='flex flex-1 overflow-hidden'>
         <Filters />
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className='flex flex-1 flex-col overflow-hidden'>
           {/* Table container */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className='flex flex-1 flex-col overflow-hidden'>
             {/* Table header - fixed */}
-            <div className="border-b bg-background z-10 sticky top-0">
-              <table className="w-full table-fixed">
+            <div className='sticky top-0 z-10 border-b bg-background'>
+              <table className='w-full table-fixed'>
                 <colgroup>
                   <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[19%]'}`} />
-                  <col className="w-[8%] md:w-[7%]" />
-                  <col className="w-[12%] md:w-[10%]" />
-                  <col className="w-[8%] hidden lg:table-column" />
-                  <col className="w-[8%] hidden lg:table-column" />
+                  <col className='w-[8%] md:w-[7%]' />
+                  <col className='w-[12%] md:w-[10%]' />
+                  <col className='hidden w-[8%] lg:table-column' />
+                  <col className='hidden w-[8%] lg:table-column' />
                   <col
                     className={`${isSidebarCollapsed ? 'w-auto md:w-[53%] lg:w-auto' : 'w-auto md:w-[50%] lg:w-auto'}`}
                   />
-                  <col className="w-[8%] md:w-[10%]" />
+                  <col className='w-[8%] md:w-[10%]' />
                 </colgroup>
                 <thead>
                   <tr>
-                    <th className="px-4 pt-2 pb-3 text-left font-medium">
-                      <span className="text-xs text-muted-foreground leading-none">Time</span>
+                    <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                      <span className='text-muted-foreground text-xs leading-none'>Time</span>
                     </th>
-                    <th className="px-4 pt-2 pb-3 text-left font-medium">
-                      <span className="text-xs text-muted-foreground leading-none">Status</span>
+                    <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                      <span className='text-muted-foreground text-xs leading-none'>Status</span>
                     </th>
-                    <th className="px-4 pt-2 pb-3 text-left font-medium">
-                      <span className="text-xs text-muted-foreground leading-none">Workflow</span>
+                    <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                      <span className='text-muted-foreground text-xs leading-none'>Workflow</span>
                     </th>
-                    <th className="px-4 pt-2 pb-3 text-left font-medium hidden lg:table-cell">
-                      <span className="text-xs text-muted-foreground leading-none">id</span>
+                    <th className='hidden px-4 pt-2 pb-3 text-left font-medium lg:table-cell'>
+                      <span className='text-muted-foreground text-xs leading-none'>id</span>
                     </th>
-                    <th className="px-4 pt-2 pb-3 text-left font-medium hidden lg:table-cell">
-                      <span className="text-xs text-muted-foreground leading-none">Trigger</span>
+                    <th className='hidden px-4 pt-2 pb-3 text-left font-medium lg:table-cell'>
+                      <span className='text-muted-foreground text-xs leading-none'>Trigger</span>
                     </th>
-                    <th className="px-4 pt-2 pb-3 text-left font-medium">
-                      <span className="text-xs text-muted-foreground leading-none">Message</span>
+                    <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                      <span className='text-muted-foreground text-xs leading-none'>Message</span>
                     </th>
-                    <th className="px-4 pt-2 pb-3 text-left font-medium">
-                      <span className="text-xs text-muted-foreground leading-none">Duration</span>
+                    <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                      <span className='text-muted-foreground text-xs leading-none'>Duration</span>
                     </th>
                   </tr>
                 </thead>
@@ -344,68 +344,68 @@ export default function Logs() {
             </div>
 
             {/* Table body - scrollable */}
-            <div className="flex-1 overflow-auto" ref={scrollContainerRef}>
+            <div className='flex-1 overflow-auto' ref={scrollContainerRef}>
               {loading && page === 1 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <span className="text-sm">Loading logs...</span>
+                <div className='flex h-full items-center justify-center'>
+                  <div className='flex items-center gap-2 text-muted-foreground'>
+                    <Loader2 className='h-5 w-5 animate-spin' />
+                    <span className='text-sm'>Loading logs...</span>
                   </div>
                 </div>
               ) : error ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="flex items-center gap-2 text-destructive">
-                    <AlertCircle className="h-5 w-5" />
-                    <span className="text-sm">Error: {error}</span>
+                <div className='flex h-full items-center justify-center'>
+                  <div className='flex items-center gap-2 text-destructive'>
+                    <AlertCircle className='h-5 w-5' />
+                    <span className='text-sm'>Error: {error}</span>
                   </div>
                 </div>
               ) : filteredLogs.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Info className="h-5 w-5" />
-                    <span className="text-sm">No logs found</span>
+                <div className='flex h-full items-center justify-center'>
+                  <div className='flex items-center gap-2 text-muted-foreground'>
+                    <Info className='h-5 w-5' />
+                    <span className='text-sm'>No logs found</span>
                   </div>
                 </div>
               ) : (
-                <table className="w-full table-fixed">
+                <table className='w-full table-fixed'>
                   <colgroup>
                     <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[19%]'}`} />
-                    <col className="w-[8%] md:w-[7%]" />
-                    <col className="w-[12%] md:w-[10%]" />
-                    <col className="w-[8%] hidden lg:table-column" />
-                    <col className="w-[8%] hidden lg:table-column" />
+                    <col className='w-[8%] md:w-[7%]' />
+                    <col className='w-[12%] md:w-[10%]' />
+                    <col className='hidden w-[8%] lg:table-column' />
+                    <col className='hidden w-[8%] lg:table-column' />
                     <col
                       className={`${isSidebarCollapsed ? 'w-auto md:w-[53%] lg:w-auto' : 'w-auto md:w-[50%] lg:w-auto'}`}
                     />
-                    <col className="w-[8%] md:w-[10%]" />
+                    <col className='w-[8%] md:w-[10%]' />
                   </colgroup>
                   <tbody>
                     {filteredLogs.map((log) => {
                       const formattedDate = formatDate(log.createdAt)
                       const isSelected = selectedLog?.id === log.id
-                      const isWorkflowExecutionLog =
+                      const _isWorkflowExecutionLog =
                         log.executionId && executionGroups[log.executionId].length === 1
 
                       return (
                         <tr
                           key={log.id}
                           ref={isSelected ? selectedRowRef : null}
-                          className={`border-b transition-colors cursor-pointer ${
+                          className={`cursor-pointer border-b transition-colors ${
                             isSelected
-                              ? 'bg-accent/40 hover:bg-accent/50 border-l-2 selected-row'
+                              ? 'selected-row border-l-2 bg-accent/40 hover:bg-accent/50'
                               : 'hover:bg-accent/30'
                           }`}
                           onClick={() => handleLogClick(log)}
                         >
                           {/* Time column */}
-                          <td className="px-4 py-3">
-                            <div className="flex flex-col justify-center">
-                              <div className="text-xs font-medium flex items-center">
+                          <td className='px-4 py-3'>
+                            <div className='flex flex-col justify-center'>
+                              <div className='flex items-center font-medium text-xs'>
                                 <span>{formattedDate.formatted}</span>
-                                <span className="mx-1.5 text-muted-foreground hidden xl:inline">
+                                <span className='mx-1.5 hidden text-muted-foreground xl:inline'>
                                   •
                                 </span>
-                                <span className="text-muted-foreground hidden xl:inline">
+                                <span className='hidden text-muted-foreground xl:inline'>
                                   {new Date(log.createdAt).toLocaleDateString('en-US', {
                                     month: 'short',
                                     day: 'numeric',
@@ -413,65 +413,65 @@ export default function Logs() {
                                   })}
                                 </span>
                               </div>
-                              <div className="text-xs text-muted-foreground mt-0.5">
+                              <div className='mt-0.5 text-muted-foreground text-xs'>
                                 <span>{formattedDate.relative}</span>
                               </div>
                             </div>
                           </td>
 
                           {/* Level column */}
-                          <td className="px-4 py-3">
+                          <td className='px-4 py-3'>
                             <div
-                              className={`inline-flex items-center justify-center px-2 py-1 text-xs rounded-md ${getLevelBadgeStyles(log.level)}`}
+                              className={`inline-flex items-center justify-center rounded-md px-2 py-1 text-xs ${getLevelBadgeStyles(log.level)}`}
                             >
-                              <span className="font-medium">{log.level}</span>
+                              <span className='font-medium'>{log.level}</span>
                             </div>
                           </td>
 
                           {/* Workflow column */}
-                          <td className="px-4 py-3">
+                          <td className='px-4 py-3'>
                             {log.workflow && (
                               <div
-                                className="inline-flex items-center px-2 py-1 text-xs rounded-md truncate max-w-full"
+                                className='inline-flex max-w-full items-center truncate rounded-md px-2 py-1 text-xs'
                                 style={{
                                   backgroundColor: `${log.workflow.color}20`,
                                   color: log.workflow.color,
                                 }}
                                 title={log.workflow.name}
                               >
-                                <span className="font-medium truncate">{log.workflow.name}</span>
+                                <span className='truncate font-medium'>{log.workflow.name}</span>
                               </div>
                             )}
                           </td>
 
                           {/* ID column - hidden on small screens */}
-                          <td className="px-4 py-3 hidden lg:table-cell">
-                            <div className="text-xs font-mono text-muted-foreground">
+                          <td className='hidden px-4 py-3 lg:table-cell'>
+                            <div className='font-mono text-muted-foreground text-xs'>
                               {log.executionId ? `#${log.executionId.substring(0, 4)}` : '—'}
                             </div>
                           </td>
 
                           {/* Trigger column - hidden on medium screens and below */}
-                          <td className="px-4 py-3 hidden lg:table-cell">
+                          <td className='hidden px-4 py-3 lg:table-cell'>
                             {log.trigger && (
                               <div
-                                className={`inline-flex items-center px-2 py-1 text-xs rounded-md ${getTriggerBadgeStyles(log.trigger)}`}
+                                className={`inline-flex items-center rounded-md px-2 py-1 text-xs ${getTriggerBadgeStyles(log.trigger)}`}
                               >
-                                <span className="font-medium">{log.trigger}</span>
+                                <span className='font-medium'>{log.trigger}</span>
                               </div>
                             )}
                           </td>
 
                           {/* Message column */}
-                          <td className="px-4 py-3">
-                            <div className="text-sm truncate" title={log.message}>
+                          <td className='px-4 py-3'>
+                            <div className='truncate text-sm' title={log.message}>
                               {log.message}
                             </div>
                           </td>
 
                           {/* Duration column */}
-                          <td className="px-4 py-3">
-                            <div className="text-xs text-muted-foreground">
+                          <td className='px-4 py-3'>
+                            <div className='text-muted-foreground text-xs'>
                               {log.duration || '—'}
                             </div>
                           </td>
@@ -485,13 +485,13 @@ export default function Logs() {
                         <td colSpan={7}>
                           <div
                             ref={loaderRef}
-                            className="py-2 flex items-center justify-center"
+                            className='flex items-center justify-center py-2'
                             style={{ height: '50px' }}
                           >
                             {isFetchingMore && (
-                              <div className="flex items-center gap-2 text-muted-foreground opacity-70">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span className="text-xs">Loading more logs...</span>
+                              <div className='flex items-center gap-2 text-muted-foreground opacity-70'>
+                                <Loader2 className='h-4 w-4 animate-spin' />
+                                <span className='text-xs'>Loading more logs...</span>
                               </div>
                             )}
                           </div>
@@ -500,18 +500,18 @@ export default function Logs() {
                     )}
 
                     {/* Footer status indicator - useful for development */}
-                    <tr className="border-t">
+                    <tr className='border-t'>
                       <td colSpan={7}>
-                        <div className="py-2 px-4 text-xs text-muted-foreground flex justify-between items-center">
+                        <div className='flex items-center justify-between px-4 py-2 text-muted-foreground text-xs'>
                           <span>Showing {filteredLogs.length} logs</span>
-                          <div className="flex items-center gap-4">
+                          <div className='flex items-center gap-4'>
                             {isFetchingMore ? (
-                              <div className="flex items-center gap-2"></div>
+                              <div className='flex items-center gap-2' />
                             ) : hasMore ? (
                               <button
-                                type="button"
+                                type='button'
                                 onClick={loadMoreLogs}
-                                className="text-xs text-primary hover:underline"
+                                className='text-primary text-xs hover:underline'
                               >
                                 Load more logs
                               </button>

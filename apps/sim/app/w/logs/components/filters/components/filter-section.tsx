@@ -15,23 +15,23 @@ export default function FilterSection({
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mb-3">
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className='mb-3'>
       <CollapsibleTrigger asChild>
         <Button
-          variant="ghost"
-          className="flex w-full justify-between px-2 text-sm font-medium hover:bg-accent rounded-md"
+          variant='ghost'
+          className='flex w-full justify-between rounded-md px-2 font-medium text-sm hover:bg-accent'
         >
           <span>{title}</span>
           <ChevronDown
-            className={`h-4 w-4 text-muted-foreground transition-transform mr-[5px] ${
+            className={`mr-[5px] h-4 w-4 text-muted-foreground transition-transform ${
               isOpen ? 'rotate-180' : ''
             }`}
           />
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-2">
+      <CollapsibleContent className='pt-2'>
         {content || (
-          <div className="text-sm text-muted-foreground">
+          <div className='text-muted-foreground text-sm'>
             Filter options for {title} will go here
           </div>
         )}

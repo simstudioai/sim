@@ -1,8 +1,8 @@
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
-import { StreamingExecution } from '@/executor/types'
+import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
-import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('XAIProvider')
@@ -107,7 +107,8 @@ export const xAIProvider: ProviderConfig = {
       } else {
         allMessages.unshift({
           role: 'system',
-          content: `You MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.`,
+          content:
+            'You MUST respond with a valid JSON object. DO NOT include any other text, explanations, or markdown formatting in your response - ONLY the JSON object.',
         })
       }
     }
@@ -123,7 +124,7 @@ export const xAIProvider: ProviderConfig = {
         payload.tools = filteredTools
         payload.tool_choice = toolChoice
 
-        logger.info(`XAI request configuration:`, {
+        logger.info('XAI request configuration:', {
           toolCount: filteredTools.length,
           toolChoice:
             typeof toolChoice === 'string'
@@ -155,7 +156,7 @@ export const xAIProvider: ProviderConfig = {
       })
 
       // Start collecting token usage
-      let tokenUsage = {
+      const tokenUsage = {
         prompt: 0,
         completion: 0,
         total: 0,
@@ -227,14 +228,14 @@ export const xAIProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
-      let tokens = {
+      const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
-      let toolCalls = []
-      let toolResults = []
-      let currentMessages = [...allMessages]
+      const toolCalls = []
+      const toolResults = []
+      const currentMessages = [...allMessages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10
 

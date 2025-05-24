@@ -97,12 +97,12 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
 
   const renderHeader = () => (
     <thead>
-      <tr className="border-b">
+      <tr className='border-b'>
         {columns.map((column, index) => (
           <th
             key={column}
             className={cn(
-              'px-4 py-2 text-left text-sm font-medium',
+              'px-4 py-2 text-left font-medium text-sm',
               index < columns.length - 1 && 'border-r'
             )}
           >
@@ -120,9 +120,9 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
     return (
       <td
         key={`${row.id}-${column}`}
-        className={cn('p-1 relative', cellIndex < columns.length - 1 && 'border-r')}
+        className={cn('relative p-1', cellIndex < columns.length - 1 && 'border-r')}
       >
-        <div className="relative w-full">
+        <div className='relative w-full'>
           <Input
             ref={(el) => {
               if (el) inputRefs.current.set(cellKey, el)
@@ -172,13 +172,13 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
                 setActiveCell(null)
               }
             }}
-            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 w-full"
+            className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div
             data-overlay={cellKey}
-            className="absolute inset-0 pointer-events-none px-3 flex items-center text-sm bg-transparent overflow-hidden"
+            className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'
           >
-            <div className="whitespace-pre">{formatDisplayText(cellValue)}</div>
+            <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
           </div>
         </div>
       </td>
@@ -187,26 +187,26 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
 
   const renderDeleteButton = (rowIndex: number) =>
     rows.length > 1 && (
-      <td className="w-0 p-0">
+      <td className='w-0 p-0'>
         <Button
-          variant="ghost"
-          size="icon"
-          className="opacity-0 group-hover:opacity-100 h-8 w-8 absolute right-2 top-1/2 -translate-y-1/2"
+          variant='ghost'
+          size='icon'
+          className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
-          <Trash2 className="h-4 w-4 text-muted-foreground" />
+          <Trash2 className='h-4 w-4 text-muted-foreground' />
         </Button>
       </td>
     )
 
   return (
-    <div className="relative">
-      <div className="border rounded-md overflow-hidden">
-        <table className="w-full">
+    <div className='relative'>
+      <div className='overflow-hidden rounded-md border'>
+        <table className='w-full'>
           {renderHeader()}
           <tbody>
             {rows.map((row, rowIndex) => (
-              <tr key={row.id} className="border-t group relative">
+              <tr key={row.id} className='group relative border-t'>
                 {columns.map((column, cellIndex) => renderCell(row, rowIndex, column, cellIndex))}
                 {renderDeleteButton(rowIndex)}
               </tr>
@@ -229,7 +229,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
             onClose={() => {
               setActiveCell((prev) => (prev ? { ...prev, showEnvVars: false } : null))
             }}
-            className="w-[200px] absolute"
+            className='absolute w-[200px]'
           />
           <TagDropdown
             visible={activeCell.showTags}
@@ -246,7 +246,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
                 prev ? { ...prev, showTags: false, activeSourceBlockId: null } : null
               )
             }}
-            className="absolute"
+            className='absolute'
           />
         </>
       )}

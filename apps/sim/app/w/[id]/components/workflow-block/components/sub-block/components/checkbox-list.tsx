@@ -17,7 +17,7 @@ export function CheckboxList({ blockId, subBlockId, title, options, layout }: Ch
       {options.map((option) => {
         const [value, setValue] = useSubBlockValue(blockId, option.id)
         return (
-          <div key={option.id} className="flex items-center space-x-2">
+          <div key={option.id} className='flex items-center space-x-2'>
             <Checkbox
               id={`${blockId}-${option.id}`}
               checked={Boolean(value)}
@@ -25,7 +25,7 @@ export function CheckboxList({ blockId, subBlockId, title, options, layout }: Ch
             />
             <Label
               htmlFor={`${blockId}-${option.id}`}
-              className="text-sm font-normal leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              className='cursor-pointer font-normal text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
             >
               {option.label}
             </Label>

@@ -2,7 +2,7 @@ import { readFile } from 'fs/promises'
 // @ts-ignore
 import * as pdfParseLib from 'pdf-parse/lib/pdf-parse.js'
 import { createLogger } from '@/lib/logs/console-logger'
-import { FileParser, FileParseResult } from './types'
+import type { FileParseResult, FileParser } from './types'
 
 const logger = createLogger('PdfParser')
 
@@ -63,7 +63,7 @@ export class PdfParser implements FileParser {
 
         // Try to extract PDF version
         const versionMatch = rawContent.match(/%PDF-(\d+\.\d+)/)
-        if (versionMatch && versionMatch[1]) {
+        if (versionMatch?.[1]) {
           version = versionMatch[1]
         }
 

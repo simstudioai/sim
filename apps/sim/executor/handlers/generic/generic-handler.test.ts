@@ -1,11 +1,12 @@
 import '../../__test-utils__/mock-dependencies'
-import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
-import { BlockOutput } from '@/blocks/types'
-import { SerializedBlock } from '@/serializer/types'
+
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import type { BlockOutput } from '@/blocks/types'
+import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
-import { ToolConfig } from '@/tools/types'
+import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
-import { ExecutionContext } from '../../types'
+import type { ExecutionContext } from '../../types'
 import { GenericBlockHandler } from './generic-handler'
 
 const mockGetTool = vi.mocked(getTool)

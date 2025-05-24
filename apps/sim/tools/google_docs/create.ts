@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import { GoogleDocsCreateResponse, GoogleDocsToolParams } from './types'
+import type { ToolConfig } from '../types'
+import type { GoogleDocsCreateResponse, GoogleDocsToolParams } from './types'
 
 const logger = createLogger('GoogleDocsCreateTool')
 
@@ -104,7 +104,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
         const responseClone = response.clone()
         const responseText = await responseClone.text()
         errorText = responseText
-      } catch (e) {
+      } catch (_e) {
         errorText = 'Unable to read error response'
       }
 

@@ -1,4 +1,4 @@
-import { ToolConfig } from '../types'
+import type { ToolConfig } from '../types'
 
 // Add Memories Tool
 export const mem0AddMemoriesTool: ToolConfig = {
@@ -38,7 +38,7 @@ export const mem0AddMemoriesTool: ToolConfig = {
       if (typeof messagesArray === 'string') {
         try {
           messagesArray = JSON.parse(messagesArray)
-        } catch (e) {
+        } catch (_e) {
           throw new Error('Messages must be a valid JSON array of objects with role and content')
         }
       }

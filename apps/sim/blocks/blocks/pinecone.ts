@@ -1,7 +1,7 @@
 import { PineconeIcon } from '@/components/icons'
 // You'll need to create this icon
-import { PineconeResponse } from '@/tools/pinecone/types'
-import { BlockConfig } from '../types'
+import type { PineconeResponse } from '@/tools/pinecone/types'
+import type { BlockConfig } from '../types'
 
 export const PineconeBlock: BlockConfig<PineconeResponse> = {
   type: 'pinecone',

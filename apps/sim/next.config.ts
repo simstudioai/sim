@@ -1,6 +1,6 @@
-import type { NextConfig } from 'next'
-import { withSentryConfig } from '@sentry/nextjs'
 import path from 'path'
+import { withSentryConfig } from '@sentry/nextjs'
+import type { NextConfig } from 'next'
 import { env } from './lib/env'
 
 const nextConfig: NextConfig = {

@@ -30,15 +30,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { useNotificationStore } from '@/stores/notifications/store'
-import { getWorkflowWithValues } from '@/stores/workflows'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import {
   CATEGORIES,
   getCategoryColor,
   getCategoryIcon,
   getCategoryLabel,
 } from '@/app/w/marketplace/constants/categories'
+import { useNotificationStore } from '@/stores/notifications/store'
+import { getWorkflowWithValues } from '@/stores/workflows'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('MarketplaceModal')
 
@@ -344,14 +344,14 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   }
 
   const LabelWithTooltip = ({ name, tooltip }: { name: string; tooltip: string }) => (
-    <div className="flex items-center gap-1.5">
+    <div className='flex items-center gap-1.5'>
       <FormLabel>{name}</FormLabel>
       <Tooltip>
         <TooltipTrigger asChild>
-          <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+          <HelpCircle className='h-4 w-4 cursor-help text-muted-foreground' />
         </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[300px] p-3">
-          <p className="text-sm">{tooltip}</p>
+        <TooltipContent side='top' className='max-w-[300px] p-3'>
+          <p className='text-sm'>{tooltip}</p>
         </TooltipContent>
       </Tooltip>
     </div>
@@ -361,61 +361,61 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   const renderMarketplaceInfo = () => {
     if (isLoading) {
       return (
-        <div className="flex items-center justify-center py-12">
-          <LoadingAgent size="md" />
+        <div className='flex items-center justify-center py-12'>
+          <LoadingAgent size='md' />
         </div>
       )
     }
 
     if (!marketplaceInfo) {
       return (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <div className="flex flex-col items-center gap-2">
-            <Info className="h-5 w-5" />
-            <p className="text-sm">No marketplace information available</p>
+        <div className='flex items-center justify-center py-12 text-muted-foreground'>
+          <div className='flex flex-col items-center gap-2'>
+            <Info className='h-5 w-5' />
+            <p className='text-sm'>No marketplace information available</p>
           </div>
         </div>
       )
     }
 
     return (
-      <div className="space-y-5 px-1">
+      <div className='space-y-5 px-1'>
         {/* Header section with title and stats */}
-        <div className="space-y-2.5">
-          <div className="flex items-start justify-between">
-            <h3 className="text-xl font-medium leading-tight">{marketplaceInfo.name}</h3>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 rounded-md px-2 py-1">
-                <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">
+        <div className='space-y-2.5'>
+          <div className='flex items-start justify-between'>
+            <h3 className='font-medium text-xl leading-tight'>{marketplaceInfo.name}</h3>
+            <div className='flex items-center gap-3'>
+              <div className='flex items-center gap-1.5 rounded-md px-2 py-1'>
+                <Eye className='h-3.5 w-3.5 text-muted-foreground' />
+                <span className='font-medium text-muted-foreground text-xs'>
                   {marketplaceInfo.views}
                 </span>
               </div>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground">{marketplaceInfo.description}</p>
+          <p className='text-muted-foreground text-sm'>{marketplaceInfo.description}</p>
         </div>
 
         {/* Category and Author Info */}
-        <div className="flex items-center gap-6">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Category</Label>
+        <div className='flex items-center gap-6'>
+          <div className='space-y-1.5'>
+            <Label className='text-muted-foreground text-xs'>Category</Label>
             <div
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1"
+              className='flex items-center gap-1.5 rounded-md px-2.5 py-1'
               style={{
                 backgroundColor: `${getCategoryColor(marketplaceInfo.category)}15`,
                 color: getCategoryColor(marketplaceInfo.category),
               }}
             >
               {getCategoryIcon(marketplaceInfo.category)}
-              <span className="text-sm font-medium">
+              <span className='font-medium text-sm'>
                 {getCategoryLabel(marketplaceInfo.category)}
               </span>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Author</Label>
-            <div className="flex items-center text-sm font-medium">
+          <div className='space-y-1.5'>
+            <Label className='text-muted-foreground text-xs'>Author</Label>
+            <div className='flex items-center font-medium text-sm'>
               {marketplaceInfo.authorName}
             </div>
           </div>
@@ -423,18 +423,18 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
         {/* Action buttons - Only show unpublish if owner */}
         {isOwner() && (
-          <div className="flex justify-end gap-2 pt-2">
+          <div className='flex justify-end gap-2 pt-2'>
             <Button
-              type="button"
-              variant="destructive"
+              type='button'
+              variant='destructive'
               onClick={handleUnpublish}
               disabled={isUnpublishing}
-              className="gap-2"
+              className='gap-2'
             >
               {isUnpublishing ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent mr-2" />
+                <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
               ) : (
-                <Trash className="h-4 w-4 mr-2" />
+                <Trash className='mr-2 h-4 w-4' />
               )}
               {isUnpublishing ? 'Unpublishing...' : 'Unpublish'}
             </Button>
@@ -447,19 +447,19 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
   // Render publish form for unpublished workflows
   const renderPublishForm = () => (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Notice variant="warning" title="Security">
+      <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
+        <Notice variant='warning' title='Security'>
           API keys and environment variables will be automatically removed before publishing.
         </Notice>
 
         <FormField
           control={form.control}
-          name="name"
+          name='name'
           render={({ field }) => (
             <FormItem>
               <FormLabel>Workflow Name</FormLabel>
               <FormControl>
-                <Input placeholder="Enter workflow name" {...field} />
+                <Input placeholder='Enter workflow name' {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -468,14 +468,14 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
         <FormField
           control={form.control}
-          name="description"
+          name='description'
           render={({ field }) => (
             <FormItem>
               <FormLabel>Description</FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder="Describe what your workflow does and how it can help others"
-                  className="min-h-24"
+                  placeholder='Describe what your workflow does and how it can help others'
+                  className='min-h-24'
                   {...field}
                 />
               </FormControl>
@@ -486,14 +486,14 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
         <FormField
           control={form.control}
-          name="category"
+          name='category'
           render={({ field }) => (
             <FormItem>
-              <LabelWithTooltip name="Category" tooltip={TOOLTIPS.category} />
+              <LabelWithTooltip name='Category' tooltip={TOOLTIPS.category} />
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
+                    <SelectValue placeholder='Select a category' />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
@@ -501,9 +501,9 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
                     <SelectItem
                       key={category.value}
                       value={category.value}
-                      className="flex items-center"
+                      className='flex items-center'
                     >
-                      <div className="flex items-center">
+                      <div className='flex items-center'>
                         {category.icon}
                         {category.label}
                       </div>
@@ -518,24 +518,24 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
         <FormField
           control={form.control}
-          name="authorName"
+          name='authorName'
           render={({ field }) => (
             <FormItem>
-              <LabelWithTooltip name="Author Name" tooltip={TOOLTIPS.authorName} />
+              <LabelWithTooltip name='Author Name' tooltip={TOOLTIPS.authorName} />
               <FormControl>
-                <Input placeholder="Enter author name" {...field} />
+                <Input placeholder='Enter author name' {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="flex justify-between gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+        <div className='flex justify-between gap-2'>
+          <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            type="submit"
+            type='submit'
             disabled={isSubmitting}
             className={cn(
               // Base styles
@@ -562,25 +562,25 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] flex flex-col p-0 gap-0" hideCloseButton>
-        <DialogHeader className="px-6 py-4 border-b">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">
+      <DialogContent className='flex flex-col gap-0 p-0 sm:max-w-[600px]' hideCloseButton>
+        <DialogHeader className='border-b px-6 py-4'>
+          <div className='flex items-center justify-between'>
+            <DialogTitle className='font-medium text-lg'>
               {isPublished() ? 'Marketplace Information' : 'Publish to Marketplace'}
             </DialogTitle>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 p-0"
+              variant='ghost'
+              size='icon'
+              className='h-8 w-8 p-0'
               onClick={() => onOpenChange(false)}
             >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
+              <X className='h-4 w-4' />
+              <span className='sr-only'>Close</span>
             </Button>
           </div>
         </DialogHeader>
 
-        <div className="pt-4 px-6 pb-6 overflow-y-auto">
+        <div className='overflow-y-auto px-6 pt-4 pb-6'>
           {isPublished() ? renderMarketplaceInfo() : renderPublishForm()}
         </div>
       </DialogContent>

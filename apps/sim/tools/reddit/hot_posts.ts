@@ -1,5 +1,5 @@
-import { ToolConfig, ToolResponse } from '../types'
-import { RedditHotPostsResponse, RedditPost } from './types'
+import type { ToolConfig } from '../types'
+import type { RedditHotPostsResponse, RedditPost } from './types'
 
 interface HotPostsParams {
   subreddit: string
@@ -30,13 +30,14 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
       // Sanitize inputs and enforce limits
       const subreddit = params.subreddit.trim().replace(/^r\//, '')
       const limit = Math.min(Math.max(1, params.limit || 10), 100)
-      
+
       return `https://www.reddit.com/r/${subreddit}/hot.json?limit=${limit}&raw_json=1`
     },
     method: 'GET',
     headers: () => ({
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+      Accept: 'application/json',
     }),
   },
 
@@ -54,7 +55,7 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
       let data
       try {
         data = await response.json()
-      } catch (error) {
+      } catch (_error) {
         throw new Error('Failed to parse Reddit API response: Response was not valid JSON')
       }
 
@@ -86,7 +87,7 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
 
       // Extract the subreddit name from the response data with fallback
       const subreddit =
-        data.data?.children?.[0]?.data?.subreddit || 
+        data.data?.children?.[0]?.data?.subreddit ||
         (posts.length > 0 ? posts[0].subreddit : requestParams?.subreddit || '')
 
       return {
@@ -104,7 +105,7 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
           subreddit: requestParams?.subreddit || '',
           posts: [],
         },
-        error: errorMessage
+        error: errorMessage,
       }
     }
   },
@@ -112,15 +113,16 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
   transformError: (error): string => {
     // Create detailed error message
     let errorMessage = error.message || 'Unknown error'
-    
+
     if (errorMessage.includes('blocked') || errorMessage.includes('rate limited')) {
       errorMessage = `Reddit access is currently unavailable: ${errorMessage}. Consider reducing request frequency or using the official Reddit API with authentication.`
     }
-    
+
     if (errorMessage.includes('not valid JSON')) {
-      errorMessage = 'Unable to process Reddit response: Received non-JSON response, which typically happens when Reddit blocks automated access.'
+      errorMessage =
+        'Unable to process Reddit response: Received non-JSON response, which typically happens when Reddit blocks automated access.'
     }
-    
+
     return `Error fetching Reddit posts: ${errorMessage}`
   },
 }

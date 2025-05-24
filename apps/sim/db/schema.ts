@@ -1,13 +1,13 @@
 import {
   boolean,
   decimal,
+  index,
   integer,
   json,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
-  index,
 } from 'drizzle-orm/pg-core'
 
 export const user = pgTable('user', {
@@ -398,12 +398,15 @@ export const memory = pgTable(
     return {
       // Add index on key for faster lookups
       keyIdx: index('memory_key_idx').on(table.key),
-      
+
       // Add index on workflowId for faster filtering
       workflowIdx: index('memory_workflow_idx').on(table.workflowId),
-      
+
       // Compound unique index to ensure keys are unique per workflow
-      uniqueKeyPerWorkflowIdx: uniqueIndex('memory_workflow_key_idx').on(table.workflowId, table.key),
+      uniqueKeyPerWorkflowIdx: uniqueIndex('memory_workflow_key_idx').on(
+        table.workflowId,
+        table.key
+      ),
     }
   }
 )

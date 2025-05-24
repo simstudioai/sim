@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { hasWorkflowChanged } from '@/lib/workflows/utils'
 import { validateWorkflowAccess } from '../../middleware'

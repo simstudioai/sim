@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { PineconeResponse, PineconeSearchHit, PineconeSearchTextParams } from './types'
+import type { ToolConfig } from '../types'
+import type { PineconeResponse, PineconeSearchHit, PineconeSearchTextParams } from './types'
 
 export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeResponse> = {
   id: 'pinecone_search_text',
@@ -65,7 +65,7 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
       // Format the query object
       const query = {
         inputs: { text: params.searchQuery },
-        top_k: parseInt(params.topK || '10'),
+        top_k: Number.parseInt(params.topK || '10'),
       }
 
       // Build the request body

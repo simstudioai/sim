@@ -5,14 +5,17 @@ import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   Background,
   ConnectionLineType,
-  EdgeTypes,
-  NodeTypes,
+  type EdgeTypes,
+  type NodeTypes,
   ReactFlowProvider,
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { createLogger } from '@/lib/logs/console-logger'
+import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
+import { getBlock } from '@/blocks'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -22,8 +25,6 @@ import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registr
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
-import { getBlock } from '@/blocks'
 import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorBoundary } from './components/error/index'
 import { Panel } from './components/panel/panel'
@@ -99,8 +100,8 @@ function WorkflowContent() {
           type: block.type,
           position: block.position,
           distance: Math.sqrt(
-            Math.pow(block.position.x - newNodePosition.x, 2) +
-              Math.pow(block.position.y - newNodePosition.y, 2)
+            (block.position.x - newNodePosition.x) ** 2 +
+              (block.position.y - newNodePosition.y) ** 2
           ),
         }))
         .sort((a, b) => a.distance - b.distance)
@@ -470,20 +471,20 @@ function WorkflowContent() {
 
   if (!isInitialized) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center">
-        <LoadingAgent size="lg" />
+      <div className='flex h-[calc(100vh-4rem)] w-full items-center justify-center'>
+        <LoadingAgent size='lg' />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden">
+    <div className='flex h-screen w-full flex-col overflow-hidden'>
       <div className={`transition-all duration-200 ${isSidebarCollapsed ? 'ml-14' : 'ml-60'}`}>
         <ControlBar />
       </div>
       <Toolbar />
       <div
-        className={`flex-1 relative w-full h-full transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+        className={`relative h-full w-full flex-1 transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
       >
         <Panel />
         <NotificationList />
@@ -520,10 +521,10 @@ function WorkflowContent() {
           nodesConnectable={true}
           nodesDraggable={true}
           draggable={false}
-          noWheelClassName="allow-scroll"
+          noWheelClassName='allow-scroll'
           edgesFocusable={true}
           edgesUpdatable={true}
-          className="workflow-container h-full"
+          className='workflow-container h-full'
         >
           <Background />
         </ReactFlow>

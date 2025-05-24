@@ -66,10 +66,10 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
 
     return (
       <div
-        className="flex h-9 items-center justify-between px-3 py-1 cursor-pointer"
+        className='flex h-9 cursor-pointer items-center justify-between px-3 py-1'
         onClick={() => toggleCollapse(field.id)}
       >
-        <div className="flex items-center">
+        <div className='flex items-center'>
           <span
             className={cn(
               'text-sm',
@@ -79,26 +79,26 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
             {field.name ? field.name : `Field ${index + 1}`}
           </span>
           {field.name && (
-            <Badge variant="outline" className="ml-2 py-0 h-5 text-xs font-normal bg-muted">
+            <Badge variant='outline' className='ml-2 h-5 bg-muted py-0 font-normal text-xs'>
               {field.type}
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="icon" onClick={addField} className="h-6 w-6 rounded-full">
-            <Plus className="h-3.5 w-3.5" />
-            <span className="sr-only">Add Field</span>
+        <div className='flex items-center gap-1' onClick={(e) => e.stopPropagation()}>
+          <Button variant='ghost' size='icon' onClick={addField} className='h-6 w-6 rounded-full'>
+            <Plus className='h-3.5 w-3.5' />
+            <span className='sr-only'>Add Field</span>
           </Button>
 
           <Button
-            variant="ghost"
-            size="icon"
+            variant='ghost'
+            size='icon'
             onClick={() => removeField(field.id)}
             disabled={fields.length === 1}
-            className="h-6 w-6 rounded-full text-destructive hover:text-destructive"
+            className='h-6 w-6 rounded-full text-destructive hover:text-destructive'
           >
-            <Trash className="h-3.5 w-3.5" />
-            <span className="sr-only">Delete Field</span>
+            <Trash className='h-3.5 w-3.5' />
+            <span className='sr-only'>Delete Field</span>
           </Button>
         </div>
       </div>
@@ -110,7 +110,7 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
 
   // Main render
   return (
-    <div className="space-y-2">
+    <div className='space-y-2'>
       {fields.map((field, index) => {
         const isUnconfigured = !field.name || field.name.trim() === ''
 
@@ -127,63 +127,63 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
             {renderFieldHeader(field, index)}
 
             {!field.collapsed && (
-              <div className="px-3 pt-1.5 pb-2 space-y-2 border-t">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Name</Label>
+              <div className='space-y-2 border-t px-3 pt-1.5 pb-2'>
+                <div className='space-y-1.5'>
+                  <Label className='text-xs'>Name</Label>
                   <Input
-                    name="name"
+                    name='name'
                     value={field.name}
                     onChange={(e) => updateField(field.id, 'name', e.target.value)}
-                    placeholder="firstName"
-                    className="h-9 placeholder:text-muted-foreground/50"
+                    placeholder='firstName'
+                    className='h-9 placeholder:text-muted-foreground/50'
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Type</Label>
+                <div className='space-y-1.5'>
+                  <Label className='text-xs'>Type</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between h-9 font-normal">
-                        <div className="flex items-center">
+                      <Button variant='outline' className='h-9 w-full justify-between font-normal'>
+                        <div className='flex items-center'>
                           <span>{field.type}</span>
                         </div>
-                        <ChevronDown className="h-4 w-4 opacity-50" />
+                        <ChevronDown className='h-4 w-4 opacity-50' />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-[200px]">
+                    <DropdownMenuContent align='end' className='w-[200px]'>
                       <DropdownMenuItem
                         onClick={() => updateField(field.id, 'type', 'string')}
-                        className="cursor-pointer"
+                        className='cursor-pointer'
                       >
-                        <span className="font-mono mr-2">Aa</span>
+                        <span className='mr-2 font-mono'>Aa</span>
                         <span>String</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => updateField(field.id, 'type', 'number')}
-                        className="cursor-pointer"
+                        className='cursor-pointer'
                       >
-                        <span className="font-mono mr-2">123</span>
+                        <span className='mr-2 font-mono'>123</span>
                         <span>Number</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => updateField(field.id, 'type', 'boolean')}
-                        className="cursor-pointer"
+                        className='cursor-pointer'
                       >
-                        <span className="font-mono mr-2">0/1</span>
+                        <span className='mr-2 font-mono'>0/1</span>
                         <span>Boolean</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => updateField(field.id, 'type', 'object')}
-                        className="cursor-pointer"
+                        className='cursor-pointer'
                       >
-                        <span className="font-mono mr-2">{'{}'}</span>
+                        <span className='mr-2 font-mono'>{'{}'}</span>
                         <span>Object</span>
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => updateField(field.id, 'type', 'array')}
-                        className="cursor-pointer"
+                        className='cursor-pointer'
                       >
-                        <span className="font-mono mr-2">[]</span>
+                        <span className='mr-2 font-mono'>[]</span>
                         <span>Array</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -196,7 +196,7 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
       })}
 
       {!hasConfiguredFields && (
-        <div className="text-xs text-muted-foreground/70 italic mt-1 px-1">
+        <div className='mt-1 px-1 text-muted-foreground/70 text-xs italic'>
           Define fields above to enable structured API input
         </div>
       )}

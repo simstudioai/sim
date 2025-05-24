@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
@@ -29,7 +29,7 @@ export async function POST(
     let parsedBody
     try {
       parsedBody = await request.json()
-    } catch (error) {
+    } catch (_error) {
       return addCorsHeaders(createErrorResponse('Invalid request body', 400), request)
     }
 

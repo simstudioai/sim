@@ -1,10 +1,10 @@
 import { RedditIcon } from '@/components/icons'
-import {
+import type {
   RedditCommentsResponse,
   RedditHotPostsResponse,
   RedditPostsResponse,
 } from '@/tools/reddit/types'
-import { BlockConfig } from '../types'
+import type { BlockConfig } from '../types'
 
 export const RedditBlock: BlockConfig<
   RedditHotPostsResponse | RedditPostsResponse | RedditCommentsResponse
@@ -157,14 +157,14 @@ export const RedditBlock: BlockConfig<
             postId: inputs.postId,
             subreddit: inputs.subreddit,
             sort: inputs.commentSort,
-            limit: inputs.commentLimit ? parseInt(inputs.commentLimit) : undefined,
+            limit: inputs.commentLimit ? Number.parseInt(inputs.commentLimit) : undefined,
           }
         }
 
         return {
           subreddit: inputs.subreddit,
           sort: inputs.sort,
-          limit: inputs.limit ? parseInt(inputs.limit) : undefined,
+          limit: inputs.limit ? Number.parseInt(inputs.limit) : undefined,
           time: inputs.sort === 'top' ? inputs.time : undefined,
         }
       },

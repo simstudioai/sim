@@ -98,24 +98,24 @@ export function SocialLoginButtons({
 
   const githubButton = (
     <Button
-      variant="outline"
-      className="w-full bg-neutral-900 border-neutral-700 text-white hover:bg-neutral-800 hover:text-white"
+      variant='outline'
+      className='w-full border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:text-white'
       disabled={!githubAvailable || isGithubLoading}
       onClick={signInWithGithub}
     >
-      <GithubIcon className="mr-2 h-4 w-4" />
+      <GithubIcon className='mr-2 h-4 w-4' />
       {isGithubLoading ? 'Connecting...' : 'Continue with GitHub'}
     </Button>
   )
 
   const googleButton = (
     <Button
-      variant="outline"
-      className="w-full bg-neutral-900 border-neutral-700 text-white hover:bg-neutral-800 hover:text-white"
+      variant='outline'
+      className='w-full border-neutral-700 bg-neutral-900 text-white hover:bg-neutral-800 hover:text-white'
       disabled={!googleAvailable || isGoogleLoading}
       onClick={signInWithGoogle}
     >
-      <GoogleIcon className="mr-2 h-4 w-4" />
+      <GoogleIcon className='mr-2 h-4 w-4' />
       {isGoogleLoading ? 'Connecting...' : 'Continue with Google'}
     </Button>
   )
@@ -129,12 +129,12 @@ export function SocialLoginButtons({
           <TooltipTrigger asChild>
             <div>{githubButton}</div>
           </TooltipTrigger>
-          <TooltipContent className="bg-neutral-800 text-white border-neutral-700">
+          <TooltipContent className='border-neutral-700 bg-neutral-800 text-white'>
             <p>
               GitHub login requires OAuth credentials to be configured. Add the following
               environment variables:
             </p>
-            <ul className="mt-2 text-xs space-y-1 text-neutral-300">
+            <ul className='mt-2 space-y-1 text-neutral-300 text-xs'>
               <li>• GITHUB_CLIENT_ID</li>
               <li>• GITHUB_CLIENT_SECRET</li>
             </ul>
@@ -153,12 +153,12 @@ export function SocialLoginButtons({
           <TooltipTrigger asChild>
             <div>{googleButton}</div>
           </TooltipTrigger>
-          <TooltipContent className="bg-neutral-800 text-white border-neutral-700">
+          <TooltipContent className='border-neutral-700 bg-neutral-800 text-white'>
             <p>
               Google login requires OAuth credentials to be configured. Add the following
               environment variables:
             </p>
-            <ul className="mt-2 text-xs space-y-1 text-neutral-300">
+            <ul className='mt-2 space-y-1 text-neutral-300 text-xs'>
               <li>• GOOGLE_CLIENT_ID</li>
               <li>• GOOGLE_CLIENT_SECRET</li>
             </ul>
@@ -169,7 +169,7 @@ export function SocialLoginButtons({
   }
 
   return (
-    <div className="grid gap-3">
+    <div className='grid gap-3'>
       {renderGithubButton()}
       {renderGoogleButton()}
     </div>

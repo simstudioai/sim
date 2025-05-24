@@ -1,18 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
 import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
 import { Executor } from '@/executor'
-import { BlockLog } from '@/executor/types'
+import type { BlockLog } from '@/executor/types'
 import { Serializer } from '@/serializer'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 declare global {
   var __chatStreamProcessingTasks: Promise<{ success: boolean; error?: any }>[] | undefined
@@ -30,7 +30,7 @@ export const encryptAuthToken = (subdomainId: string, type: string): string => {
 export const validateAuthToken = (token: string, subdomainId: string): boolean => {
   try {
     const decoded = Buffer.from(token, 'base64').toString()
-    const [storedId, type, timestamp] = decoded.split(':')
+    const [storedId, _type, timestamp] = decoded.split(':')
 
     // Check if token is for this subdomain
     if (storedId !== subdomainId) {
@@ -38,7 +38,7 @@ export const validateAuthToken = (token: string, subdomainId: string): boolean =
     }
 
     // Check if token is not expired (24 hours)
-    const createdAt = parseInt(timestamp)
+    const createdAt = Number.parseInt(timestamp)
     const now = Date.now()
     const expireTime = 24 * 60 * 60 * 1000 // 24 hours
 
@@ -47,7 +47,7 @@ export const validateAuthToken = (token: string, subdomainId: string): boolean =
     }
 
     return true
-  } catch (e) {
+  } catch (_e) {
     return false
   }
 }
@@ -214,7 +214,7 @@ export async function validateChatAuth(
  * Extract a specific output from a block using the blockId and path
  * This mimics how the chat panel extracts outputs from blocks
  */
-function extractBlockOutput(logs: any[], blockId: string, path?: string) {
+function _extractBlockOutput(logs: any[], blockId: string, path?: string) {
   // Find the block in logs
   const blockLog = logs.find((log) => log.blockId === blockId)
   if (!blockLog || !blockLog.output) return null
@@ -238,19 +238,25 @@ function extractBlockOutput(logs: any[], blockId: string, path?: string) {
 
 /**
  * Executes a workflow for a chat request and returns the formatted output.
- * 
+ *
  * When workflows reference <start.response.input>, they receive a structured JSON
  * containing both the message and conversationId for maintaining chat context.
- * 
+ *
  * @param chatId - Chat deployment identifier
  * @param message - User's chat message
  * @param conversationId - Optional ID for maintaining conversation context
  * @returns Workflow execution result formatted for the chat interface
  */
-export async function executeWorkflowForChat(chatId: string, message: string, conversationId?: string) {
+export async function executeWorkflowForChat(
+  chatId: string,
+  message: string,
+  conversationId?: string
+) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
-  logger.debug(`[${requestId}] Executing workflow for chat: ${chatId}${conversationId ? `, conversationId: ${conversationId}` : ''}`)
+  logger.debug(
+    `[${requestId}] Executing workflow for chat: ${chatId}${conversationId ? `, conversationId: ${conversationId}` : ''}`
+  )
 
   // Find the chat deployment
   const deploymentResult = await db
@@ -483,7 +489,7 @@ export async function executeWorkflowForChat(chatId: string, message: string, co
               ) {
                 // Remove tokens from console display to avoid confusion
                 // They'll be properly estimated in the execution logger
-                delete response.tokens
+                response.tokens = undefined
               }
             }
           })
@@ -502,9 +508,9 @@ export async function executeWorkflowForChat(chatId: string, message: string, co
           if (!enrichedResult.metadata) {
             enrichedResult.metadata = {
               duration: totalDuration,
-            };
+            }
           }
-          (enrichedResult.metadata as any).conversationId = conversationId;
+          ;(enrichedResult.metadata as any).conversationId = conversationId
         }
 
         const executionId = uuidv4()
@@ -555,7 +561,7 @@ export async function executeWorkflowForChat(chatId: string, message: string, co
         // Ensure the stream is properly closed even if an error occurs
         try {
           const controller = new AbortController()
-          const signal = controller.signal
+          const _signal = controller.signal
           controller.abort()
         } catch (cleanupError) {
           logger.debug(`[${requestId}] Error during stream cleanup: ${cleanupError}`)
@@ -584,7 +590,7 @@ export async function executeWorkflowForChat(chatId: string, message: string, co
 
     // Add conversationId to metadata if available
     if (conversationId) {
-      (result as any).metadata.conversationId = conversationId
+      ;(result as any).metadata.conversationId = conversationId
     }
   }
 
@@ -635,9 +641,9 @@ export async function executeWorkflowForChat(chatId: string, message: string, co
       if (!enrichedResult.metadata) {
         enrichedResult.metadata = {
           duration: totalDuration,
-        };
+        }
       }
-      (enrichedResult.metadata as any).conversationId = conversationId;
+      ;(enrichedResult.metadata as any).conversationId = conversationId
     }
 
     // Generate a unique execution ID for this chat interaction
@@ -649,7 +655,8 @@ export async function executeWorkflowForChat(chatId: string, message: string, co
     logger.debug(
       `[${requestId}] Persisted execution logs for chat with ID: ${executionId}${
         conversationId ? `, conversationId: ${conversationId}` : ''
-      }`)
+      }`
+    )
   } catch (error) {
     // Don't fail the chat response if logging fails
     logger.error(`[${requestId}] Failed to persist chat execution logs:`, error)
@@ -665,7 +672,7 @@ export async function executeWorkflowForChat(chatId: string, message: string, co
   )
 
   // Get the outputs from all selected blocks
-  let outputs: { content: any }[] = []
+  const outputs: { content: any }[] = []
   let hasFoundOutputs = false
 
   if (outputBlockIds.length > 0 && result.logs) {
@@ -753,7 +760,8 @@ export async function executeWorkflowForChat(chatId: string, message: string, co
       timestamp: new Date().toISOString(),
       type: 'workflow',
     }
-  } else if (outputs.length > 1) {
+  }
+  if (outputs.length > 1) {
     // For multiple outputs, create a structured object that can be handled better by the client
     // This approach allows the client to decide how to render multiple outputs
     return {
@@ -763,14 +771,13 @@ export async function executeWorkflowForChat(chatId: string, message: string, co
       timestamp: new Date().toISOString(),
       type: 'workflow',
     }
-  } else {
-    // Fallback for no outputs - should rarely happen
-    return {
-      id: uuidv4(),
-      content: 'No output returned from workflow',
-      timestamp: new Date().toISOString(),
-      type: 'workflow',
-    }
+  }
+  // Fallback for no outputs - should rarely happen
+  return {
+    id: uuidv4(),
+    content: 'No output returned from workflow',
+    timestamp: new Date().toISOString(),
+    type: 'workflow',
   }
 }
 

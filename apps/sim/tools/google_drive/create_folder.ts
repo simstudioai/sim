@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { GoogleDriveToolParams, GoogleDriveUploadResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from './types'
 
 export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResponse> = {
   id: 'google_drive_create_folder',

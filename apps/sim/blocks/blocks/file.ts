@@ -1,8 +1,8 @@
 import { DocumentIcon } from '@/components/icons'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
-import { FileParserOutput } from '@/tools/file/types'
-import { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
+import type { FileParserOutput } from '@/tools/file/types'
+import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
 
 const logger = createLogger('FileBlock')
 
@@ -52,12 +52,11 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   type: 'file',
   name: 'File',
   description: 'Read and parse multiple files',
-  longDescription:
-    'Upload and extract contents from structured file formats including PDFs, CSV spreadsheets, and Word documents (DOCX). ' +
-    (shouldEnableURLInput
+  longDescription: `Upload and extract contents from structured file formats including PDFs, CSV spreadsheets, and Word documents (DOCX). ${
+    shouldEnableURLInput
       ? 'You can either provide a URL to a file or upload files directly. '
-      : 'Upload files directly. ') +
-    'Specialized parsers extract text and metadata from each format. You can upload multiple files at once and access them individually or as a combined document.',
+      : 'Upload files directly. '
+  }Specialized parsers extract text and metadata from each format. You can upload multiple files at once and access them individually or as a combined document.`,
   docsLink: 'https://docs.simstudio.ai/tools/dropdown',
   category: 'tools',
   bgColor: '#40916C',
@@ -104,7 +103,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
           }
 
           // Handle case where 'file' is a single file object
-          if (params.file && params.file.path) {
+          if (params.file?.path) {
             return {
               filePath: params.file.path,
               fileType: params.fileType || 'auto',

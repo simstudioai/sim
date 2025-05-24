@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { z } from 'zod'
 import { env } from '@/lib/env'
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     logger.info(`[${requestId}] Processing help request`, {
       type,
-      email: email.substring(0, 3) + '***', // Log partial email for privacy
+      email: `${email.substring(0, 3)}***`, // Log partial email for privacy
     })
 
     // Validate the form data

@@ -1,6 +1,5 @@
-import fetch from 'node-fetch'
-import { ToolConfig } from '../types'
-import { RedditCommentsParams, RedditCommentsResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { RedditCommentsParams, RedditCommentsResponse } from './types'
 
 export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsResponse> = {
   id: 'reddit_get_comments',
@@ -44,8 +43,9 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
     },
     method: 'GET',
     headers: () => ({
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-      'Accept': 'application/json',
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+      Accept: 'application/json',
     }),
   },
 
@@ -63,7 +63,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
       let data
       try {
         data = await response.json()
-      } catch (error) {
+      } catch (_error) {
         throw new Error('Failed to parse Reddit API response: Response was not valid JSON')
       }
 
@@ -90,10 +90,9 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
             }
 
             // Process nested replies if they exist
-            const replies =
-              commentData.replies && commentData.replies.data && commentData.replies.data.children
-                ? processComments(commentData.replies.data.children)
-                : []
+            const replies = commentData.replies?.data?.children
+              ? processComments(commentData.replies.data.children)
+              : []
 
             return {
               id: commentData.id || '',
@@ -101,7 +100,9 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
               body: commentData.body || '',
               created_utc: commentData.created_utc || 0,
               score: commentData.score || 0,
-              permalink: commentData.permalink ? `https://www.reddit.com${commentData.permalink}` : '',
+              permalink: commentData.permalink
+                ? `https://www.reddit.com${commentData.permalink}`
+                : '',
               replies: replies.filter(Boolean),
             }
           })
@@ -141,7 +142,7 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
           },
           comments: [],
         },
-        error: errorMessage
+        error: errorMessage,
       }
     }
   },
@@ -149,15 +150,16 @@ export const getCommentsTool: ToolConfig<RedditCommentsParams, RedditCommentsRes
   transformError: (error): string => {
     // Create detailed error message
     let errorMessage = error.message || 'Unknown error'
-    
+
     if (errorMessage.includes('blocked') || errorMessage.includes('rate limited')) {
       errorMessage = `Reddit access is currently unavailable: ${errorMessage}. Consider reducing request frequency or using the official Reddit API with authentication.`
     }
-    
+
     if (errorMessage.includes('not valid JSON')) {
-      errorMessage = 'Unable to process Reddit response: Received non-JSON response, which typically happens when Reddit blocks automated access.'
+      errorMessage =
+        'Unable to process Reddit response: Received non-JSON response, which typically happens when Reddit blocks automated access.'
     }
-    
+
     return `Error fetching Reddit comments: ${errorMessage}`
   },
 }

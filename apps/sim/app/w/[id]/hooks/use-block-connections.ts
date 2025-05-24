@@ -83,7 +83,7 @@ function findAllPathNodes(edges: any[], targetNodeId: string): string[] {
 
     if (visited.has(currentNodeId)) {
       // If we've seen this node before, update its distance if this path is shorter
-      const currentDistance = nodeDistances.get(currentNodeId) || Infinity
+      const currentDistance = nodeDistances.get(currentNodeId) || Number.POSITIVE_INFINITY
       if (distance < currentDistance) {
         nodeDistances.set(currentNodeId, distance)
       }

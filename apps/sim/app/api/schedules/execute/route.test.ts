@@ -42,7 +42,8 @@ describe('Scheduled Workflow Execution API Route', () => {
                   ]),
                 })),
               }
-            } else if (table === 'workflow') {
+            }
+            if (table === 'workflow') {
               return {
                 where: vi.fn().mockImplementation(() => ({
                   limit: vi.fn().mockImplementation(() => [
@@ -54,7 +55,8 @@ describe('Scheduled Workflow Execution API Route', () => {
                   ]),
                 })),
               }
-            } else if (table === 'environment') {
+            }
+            if (table === 'environment') {
               return {
                 where: vi.fn().mockImplementation(() => ({
                   limit: vi.fn().mockImplementation(() => [
@@ -68,12 +70,11 @@ describe('Scheduled Workflow Execution API Route', () => {
                   ]),
                 })),
               }
-            } else {
-              return {
-                where: vi.fn().mockImplementation(() => ({
-                  limit: vi.fn().mockImplementation(() => []),
-                })),
-              }
+            }
+            return {
+              where: vi.fn().mockImplementation(() => ({
+                limit: vi.fn().mockImplementation(() => []),
+              })),
             }
           }),
         })),

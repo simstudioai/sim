@@ -22,13 +22,13 @@ export function ErrorMessage({ message }: ErrorMessageProps) {
 
   return (
     <motion.div
-      className="mb-8 p-4 border border-red-200 bg-red-50 text-red-700 rounded-md"
+      className='mb-8 rounded-md border border-red-200 bg-red-50 p-4 text-red-700'
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <p className="flex items-center">
-        <AlertCircle className="h-4 w-4 mr-2" />
+      <p className='flex items-center'>
+        <AlertCircle className='mr-2 h-4 w-4' />
         {message}
       </p>
     </motion.div>

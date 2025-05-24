@@ -1,6 +1,6 @@
 'use client'
 
-import * as React from 'react'
+import type * as React from 'react'
 
 interface BlockInfoCardProps {
   type: string
@@ -16,16 +16,16 @@ export function BlockInfoCard({
   iconSvg,
 }: BlockInfoCardProps): React.ReactNode {
   return (
-    <div className="mb-6 rounded-lg overflow-hidden border border-border">
-      <div className="flex items-center justify-center p-6">
+    <div className='mb-6 overflow-hidden rounded-lg border border-border'>
+      <div className='flex items-center justify-center p-6'>
         <div
-          className="h-20 w-20 rounded-lg flex items-center justify-center"
+          className='flex h-20 w-20 items-center justify-center rounded-lg'
           style={{ backgroundColor: color }}
         >
           {iconSvg ? (
-            <div className="w-10 h-10 text-white" dangerouslySetInnerHTML={{ __html: iconSvg }} />
+            <div className='h-10 w-10 text-white' dangerouslySetInnerHTML={{ __html: iconSvg }} />
           ) : (
-            <div className="text-xl font-mono opacity-70">{type.substring(0, 2)}</div>
+            <div className='font-mono text-xl opacity-70'>{type.substring(0, 2)}</div>
           )}
         </div>
       </div>

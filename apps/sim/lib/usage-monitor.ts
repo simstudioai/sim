@@ -2,10 +2,10 @@ import { eq } from 'drizzle-orm'
 import { isProd } from '@/lib/environment'
 import { db } from '@/db'
 import { userStats } from '@/db/schema'
+import { env } from './env'
 import { createLogger } from './logs/console-logger'
 import { getHighestPrioritySubscription } from './subscription/subscription'
 import { calculateUsageLimit } from './subscription/utils'
-import { env } from './env'
 
 const logger = createLogger('UsageMonitor')
 
@@ -31,7 +31,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       // Get actual usage from the database for display purposes
       const statsRecords = await db.select().from(userStats).where(eq(userStats.userId, userId))
       const currentUsage =
-        statsRecords.length > 0 ? parseFloat(statsRecords[0].totalCost.toString()) : 0
+        statsRecords.length > 0 ? Number.parseFloat(statsRecords[0].totalCost.toString()) : 0
 
       return {
         percentUsed: Math.min(Math.round((currentUsage / 1000) * 100), 100),
@@ -43,7 +43,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
     }
 
     // Determine subscription (single source of truth)
-    let activeSubscription = await getHighestPrioritySubscription(userId)
+    const activeSubscription = await getHighestPrioritySubscription(userId)
     let limit = 0
 
     if (activeSubscription) {
@@ -56,7 +56,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       })
     } else {
       // Free tier limit
-      limit = parseFloat(env.FREE_TIER_COST_LIMIT!)
+      limit = Number.parseFloat(env.FREE_TIER_COST_LIMIT!)
       logger.info('Using free tier limit', { userId, limit })
     }
 
@@ -77,7 +77,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
     }
 
     // Get the current cost from the user stats
-    const currentUsage = parseFloat(statsRecords[0].totalCost.toString())
+    const currentUsage = Number.parseFloat(statsRecords[0].totalCost.toString())
 
     // Calculate percentage used
     const percentUsed = Math.min(Math.round((currentUsage / limit) * 100), 100)

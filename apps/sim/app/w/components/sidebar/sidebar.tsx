@@ -1,16 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
 import clsx from 'clsx'
 import { HelpCircle, ScrollText, Send, Settings } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
+import { getKeyboardShortcutText, useGlobalShortcuts } from '@/app/w/hooks/use-keyboard-shortcuts'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { getKeyboardShortcutText, useGlobalShortcuts } from '@/app/w/hooks/use-keyboard-shortcuts'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useRegistryLoading } from '../../hooks/use-registry-loading'
 import { HelpModal } from './components/help-modal/help-modal'
 import { InviteModal } from './components/invite-modal/invite-modal'
@@ -163,7 +163,7 @@ export function Sidebar() {
   return (
     <aside
       className={clsx(
-        'fixed inset-y-0 left-0 z-10 flex flex-col border-r bg-background sm:flex transition-all duration-200',
+        'fixed inset-y-0 left-0 z-10 flex flex-col border-r bg-background transition-all duration-200 sm:flex',
         isCollapsed ? 'w-14' : 'w-60',
         showOverlay ? 'shadow-lg' : '',
         mode === 'hover' ? 'main-content-overlay' : ''
@@ -185,7 +185,7 @@ export function Sidebar() {
       }}
     >
       {/* Workspace Header - Fixed at top */}
-      <div className="flex-shrink-0">
+      <div className='flex-shrink-0'>
         <WorkspaceHeader
           onCreateWorkflow={handleCreateWorkflow}
           isCollapsed={isCollapsed}
@@ -221,17 +221,17 @@ export function Sidebar() {
       </div> */}
 
       {/* Scrollable Content Area - Contains Workflows and Logs/Settings */}
-      <div className="flex-1 overflow-auto scrollbar-none flex flex-col px-2 py-0">
+      <div className='scrollbar-none flex flex-1 flex-col overflow-auto px-2 py-0'>
         {/* Workflows Section */}
-        <div className="flex-shrink-0">
+        <div className='flex-shrink-0'>
           <h2
-            className={`mb-1 px-2 text-xs font-medium text-muted-foreground ${isCollapsed ? 'text-center' : ''}`}
+            className={`mb-1 px-2 font-medium text-muted-foreground text-xs ${isCollapsed ? 'text-center' : ''}`}
           >
             {isLoading ? (
               isCollapsed ? (
                 ''
               ) : (
-                <Skeleton className="w-16 h-4" />
+                <Skeleton className='h-4 w-16' />
               )
             ) : isCollapsed ? (
               ''
@@ -248,45 +248,45 @@ export function Sidebar() {
         </div>
 
         {/* Logs and Settings Navigation - Follows workflows */}
-        <div className="mt-6 flex-shrink-0">
+        <div className='mt-6 flex-shrink-0'>
           <NavSection isLoading={isLoading} itemCount={2} isCollapsed={isCollapsed}>
             <NavSection.Item
-              icon={<ScrollText className="h-[18px] w-[18px]" />}
-              href="/w/logs"
-              label="Logs"
+              icon={<ScrollText className='h-[18px] w-[18px]' />}
+              href='/w/logs'
+              label='Logs'
               active={pathname === '/w/logs'}
               isCollapsed={isCollapsed}
               shortcutCommand={getKeyboardShortcutText('L', true, true)}
-              shortcutCommandPosition="below"
+              shortcutCommandPosition='below'
             />
             <NavSection.Item
-              icon={<Settings className="h-[18px] w-[18px]" />}
+              icon={<Settings className='h-[18px] w-[18px]' />}
               onClick={() => setShowSettings(true)}
-              label="Settings"
+              label='Settings'
               isCollapsed={isCollapsed}
             />
           </NavSection>
         </div>
 
         {/* Push the bottom controls down when content is short */}
-        <div className="flex-grow"></div>
+        <div className='flex-grow' />
       </div>
 
       {isCollapsed ? (
-        <div className="flex-shrink-0 px-3 pb-3 pt-1">
-          <div className="flex flex-col space-y-[1px]">
+        <div className='flex-shrink-0 px-3 pt-1 pb-3'>
+          <div className='flex flex-col space-y-[1px]'>
             {/* Invite members button */}
             {!isDevEnvironment && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
                     onClick={() => setShowInviteMembers(true)}
-                    className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
+                    className='mx-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-md font-medium text-muted-foreground text-sm hover:bg-accent/50'
                   >
-                    <Send className="h-[18px] w-[18px]" />
+                    <Send className='h-[18px] w-[18px]' />
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="right">Invite Members</TooltipContent>
+                <TooltipContent side='right'>Invite Members</TooltipContent>
               </Tooltip>
             )}
 
@@ -295,12 +295,12 @@ export function Sidebar() {
               <TooltipTrigger asChild>
                 <div
                   onClick={() => setShowHelp(true)}
-                  className="flex items-center justify-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer w-8 h-8 mx-auto"
+                  className='mx-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-md font-medium text-muted-foreground text-sm hover:bg-accent/50'
                 >
-                  <HelpCircle className="h-[18px] w-[18px]" />
+                  <HelpCircle className='h-[18px] w-[18px]' />
                 </div>
               </TooltipTrigger>
-              <TooltipContent side="right">Help</TooltipContent>
+              <TooltipContent side='right'>Help</TooltipContent>
             </Tooltip>
 
             {/* Sidebar control */}
@@ -308,7 +308,7 @@ export function Sidebar() {
               <TooltipTrigger asChild>
                 <SidebarControl />
               </TooltipTrigger>
-              <TooltipContent side="right">Toggle sidebar</TooltipContent>
+              <TooltipContent side='right'>Toggle sidebar</TooltipContent>
             </Tooltip>
           </div>
         </div>
@@ -316,26 +316,26 @@ export function Sidebar() {
         <>
           {/* Invite members bar */}
           {!isDevEnvironment && (
-            <div className="flex-shrink-0 px-3 pt-1">
+            <div className='flex-shrink-0 px-3 pt-1'>
               <div
                 onClick={() => setShowInviteMembers(true)}
-                className="flex items-center rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+                className='flex cursor-pointer items-center rounded-md px-2 py-1.5 font-medium text-muted-foreground text-sm hover:bg-accent/50'
               >
-                <Send className="h-[18px] w-[18px]" />
-                <span className="ml-2">Invite members</span>
+                <Send className='h-[18px] w-[18px]' />
+                <span className='ml-2'>Invite members</span>
               </div>
             </div>
           )}
 
           {/* Bottom buttons container */}
-          <div className="flex-shrink-0 px-3 pb-3 pt-1">
-            <div className="flex justify-between">
+          <div className='flex-shrink-0 px-3 pt-1 pb-3'>
+            <div className='flex justify-between'>
               {/* Sidebar control on left with tooltip */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <SidebarControl />
                 </TooltipTrigger>
-                <TooltipContent side="top">Toggle sidebar</TooltipContent>
+                <TooltipContent side='top'>Toggle sidebar</TooltipContent>
               </Tooltip>
 
               {/* Help button on right with tooltip */}
@@ -343,13 +343,13 @@ export function Sidebar() {
                 <TooltipTrigger asChild>
                   <div
                     onClick={() => setShowHelp(true)}
-                    className="flex items-center justify-center rounded-md w-8 h-8 text-sm font-medium text-muted-foreground hover:bg-accent/50 cursor-pointer"
+                    className='flex h-8 w-8 cursor-pointer items-center justify-center rounded-md font-medium text-muted-foreground text-sm hover:bg-accent/50'
                   >
-                    <HelpCircle className="h-[18px] w-[18px]" />
-                    <span className="sr-only">Help</span>
+                    <HelpCircle className='h-[18px] w-[18px]' />
+                    <span className='sr-only'>Help</span>
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="top">Help, contact</TooltipContent>
+                <TooltipContent side='top'>Help, contact</TooltipContent>
               </Tooltip>
             </div>
           </div>

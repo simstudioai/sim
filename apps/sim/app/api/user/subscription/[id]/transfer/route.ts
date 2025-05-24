@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     let body
     try {
       body = await request.json()
-    } catch (parseError) {
+    } catch (_parseError) {
       return NextResponse.json(
         {
           error: 'Invalid JSON in request body',

@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { AirtableUpdateParams, AirtableUpdateResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { AirtableUpdateParams, AirtableUpdateResponse } from './types'
 
 // import { logger } from '@/utils/logger' // Removed logger due to import issues
 

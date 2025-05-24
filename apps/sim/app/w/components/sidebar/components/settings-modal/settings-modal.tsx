@@ -140,25 +140,25 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] h-[70vh] flex flex-col p-0 gap-0" hideCloseButton>
-        <DialogHeader className="px-6 py-4 border-b">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Settings</DialogTitle>
+      <DialogContent className='flex h-[70vh] flex-col gap-0 p-0 sm:max-w-[800px]' hideCloseButton>
+        <DialogHeader className='border-b px-6 py-4'>
+          <div className='flex items-center justify-between'>
+            <DialogTitle className='font-medium text-lg'>Settings</DialogTitle>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 p-0"
+              variant='ghost'
+              size='icon'
+              className='h-8 w-8 p-0'
               onClick={() => onOpenChange(false)}
             >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
+              <X className='h-4 w-4' />
+              <span className='sr-only'>Close</span>
             </Button>
           </div>
         </DialogHeader>
 
-        <div className="flex flex-1 min-h-0">
+        <div className='flex min-h-0 flex-1'>
           {/* Navigation Sidebar */}
-          <div className="w-[200px] border-r">
+          <div className='w-[200px] border-r'>
             <SettingsNavigation
               activeSection={activeSection}
               onSectionChange={setActiveSection}
@@ -168,7 +168,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 overflow-y-auto">
+          <div className='flex-1 overflow-y-auto'>
             <div className={cn('h-full', activeSection === 'general' ? 'block' : 'hidden')}>
               <General />
             </div>

@@ -7,7 +7,7 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { SubBlockConfig } from '@/blocks/types'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 const logger = createLogger('LongInput')
@@ -127,7 +127,7 @@ export function LongInput({
 
     const handleMouseUp = () => {
       if (textareaRef.current) {
-        const finalHeight = parseInt(textareaRef.current.style.height, 10) || height
+        const finalHeight = Number.parseInt(textareaRef.current.style.height, 10) || height
         setHeight(finalHeight)
       }
 
@@ -159,7 +159,7 @@ export function LongInput({
 
       // Insert '<' at drop position to trigger the dropdown
       const currentValue = value?.toString() ?? ''
-      const newValue = currentValue.slice(0, dropPosition) + '<' + currentValue.slice(dropPosition)
+      const newValue = `${currentValue.slice(0, dropPosition)}<${currentValue.slice(dropPosition)}`
 
       // Focus the textarea first
       textareaRef.current?.focus()
@@ -209,7 +209,7 @@ export function LongInput({
 
       // Calculate zoom factor based on wheel delta
       const delta = e.deltaY > 0 ? 1 : -1
-      const zoomFactor = Math.pow(0.96, delta)
+      const zoomFactor = 0.96 ** delta
 
       // Calculate new zoom level with min/max constraints
       const newZoom = Math.min(Math.max(currentZoom * zoomFactor, 0.1), 1)
@@ -244,14 +244,14 @@ export function LongInput({
   }
 
   return (
-    <div ref={containerRef} className="relative w-full" style={{ height: `${height}px` }}>
+    <div ref={containerRef} className='relative w-full' style={{ height: `${height}px` }}>
       <Textarea
         ref={textareaRef}
         className={cn(
-          'w-full min-h-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50 allow-scroll',
+          'allow-scroll min-h-full w-full resize-none text-transparent caret-foreground placeholder:text-muted-foreground/50',
           isConnecting &&
             config?.connectionDroppable !== false &&
-            'focus-visible:ring-blue-500 ring-2 ring-blue-500 ring-offset-2'
+            'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
         )}
         rows={rows ?? DEFAULT_ROWS}
         placeholder={placeholder ?? ''}
@@ -275,7 +275,7 @@ export function LongInput({
       />
       <div
         ref={overlayRef}
-        className="absolute inset-0 pointer-events-none px-3 py-2 overflow-auto whitespace-pre-wrap break-words text-sm bg-transparent"
+        className='pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words bg-transparent px-3 py-2 text-sm'
         style={{
           fontFamily: 'inherit',
           lineHeight: 'inherit',
@@ -288,10 +288,10 @@ export function LongInput({
 
       {/* Custom resize handle */}
       <div
-        className="absolute bottom-1 right-1 w-4 h-4 cursor-s-resize flex items-center justify-center bg-background rounded-sm"
+        className='absolute right-1 bottom-1 flex h-4 w-4 cursor-s-resize items-center justify-center rounded-sm bg-background'
         onMouseDown={startResize}
       >
-        <ChevronsUpDown className="h-3 w-3 text-muted-foreground/70" />
+        <ChevronsUpDown className='h-3 w-3 text-muted-foreground/70' />
       </div>
 
       <EnvVarDropdown

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { ChatMessage, ChatStore } from './types'
+import type { ChatMessage, ChatStore } from './types'
 
 // MAX across all workflows
 const MAX_MESSAGES = 50

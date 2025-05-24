@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { PineconeGenerateEmbeddingsParams, PineconeResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { PineconeGenerateEmbeddingsParams, PineconeResponse } from './types'
 
 export const generateEmbeddingsTool: ToolConfig<
   PineconeGenerateEmbeddingsParams,

@@ -11,14 +11,9 @@ import {
   saveWorkflowState,
 } from '../persistence'
 import { useSubBlockStore } from '../subblock/store'
-import {
-  fetchWorkflowsFromDB,
-  markWorkflowsDirty,
-  resetRegistryInitialization,
-  workflowSync,
-} from '../sync'
+import { fetchWorkflowsFromDB, resetRegistryInitialization, workflowSync } from '../sync'
 import { useWorkflowStore } from '../workflow/store'
-import { DeploymentStatus, WorkflowMetadata, WorkflowRegistry } from './types'
+import type { DeploymentStatus, WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
 
 const logger = createLogger('WorkflowRegistry')
@@ -70,10 +65,7 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
               if (parsed.workspaceId === workspaceId) {
                 localStorage.removeItem(key)
               }
-            } catch (e) {
-              // Skip if we can't parse the data
-              continue
-            }
+            } catch (_e) {}
           } else {
             // If we can't determine the workspace, remove it to be safe
             localStorage.removeItem(key)
@@ -85,7 +77,7 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
           if (exists) {
             try {
               const parsed = JSON.parse(exists)
-              if (parsed && parsed.workspaceId && parsed.workspaceId !== workspaceId) {
+              if (parsed?.workspaceId && parsed.workspaceId !== workspaceId) {
                 // Check if this workspace still exists in our list
                 const workspacesData = localStorage.getItem('workspaces')
                 if (workspacesData) {
@@ -98,12 +90,12 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
                       parsed.workspaceId = workspaceId
                       localStorage.setItem(`workflow-${workflowId}`, JSON.stringify(parsed))
                     }
-                  } catch (e) {
+                  } catch (_e) {
                     // Skip if we can't parse workspaces data
                   }
                 }
               }
-            } catch (e) {
+            } catch (_e) {
               // Skip if we can't parse the data
             }
           }
@@ -539,7 +531,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           let workflowNeedsRedeployment = needsRedeployment
 
           // Check if we have a workflow-specific deployment status
-          if (deploymentStatuses && deploymentStatuses[id]) {
+          if (deploymentStatuses?.[id]) {
             workflowIsDeployed = deploymentStatuses[id].isDeployed
             workflowDeployedAt = deploymentStatuses[id].deployedAt
             workflowNeedsRedeployment = deploymentStatuses[id].needsRedeployment
@@ -883,7 +875,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Generate workflow metadata with marketplace properties
         const newWorkflow: WorkflowMetadata = {
           id,
-          name: metadata.name || `Marketplace workflow`,
+          name: metadata.name || 'Marketplace workflow',
           lastModified: new Date(),
           description: metadata.description || 'Imported from marketplace',
           color: metadata.color || getNextWorkflowColor(workflows),

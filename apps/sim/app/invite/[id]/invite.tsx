@@ -1,17 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { BotIcon, CheckCircle } from 'lucide-react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { client, useSession } from '@/lib/auth-client'
 
@@ -102,7 +95,7 @@ export default function Invite() {
           } else {
             throw new Error('Invitation not found or has expired')
           }
-        } catch (err) {
+        } catch (_err) {
           // If neither workspace nor organization invitation is found
           throw new Error('Invitation not found or has expired')
         }
@@ -181,9 +174,9 @@ export default function Invite() {
     const callbackUrl = encodeURIComponent(getCallbackUrl())
 
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted/40">
-        <Card className="w-full max-w-md p-6">
-          <CardHeader className="text-center pt-0 px-0">
+      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+        <Card className='w-full max-w-md p-6'>
+          <CardHeader className='px-0 pt-0 text-center'>
             <CardTitle>You've been invited to join a workspace</CardTitle>
             <CardDescription>
               {isNewUser
@@ -191,18 +184,18 @@ export default function Invite() {
                 : 'Sign in to your account to accept this invitation'}
             </CardDescription>
           </CardHeader>
-          <CardFooter className="flex flex-col space-y-2 px-0">
+          <CardFooter className='flex flex-col space-y-2 px-0'>
             {isNewUser ? (
               <>
                 <Button
-                  className="w-full"
+                  className='w-full'
                   onClick={() => router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true`)}
                 >
                   Create an account
                 </Button>
                 <Button
-                  variant="outline"
-                  className="w-full"
+                  variant='outline'
+                  className='w-full'
                   onClick={() => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)}
                 >
                   I already have an account
@@ -211,14 +204,14 @@ export default function Invite() {
             ) : (
               <>
                 <Button
-                  className="w-full"
+                  className='w-full'
                   onClick={() => router.push(`/login?callbackUrl=${callbackUrl}&invite_flow=true`)}
                 >
                   Sign in
                 </Button>
                 <Button
-                  variant="outline"
-                  className="w-full"
+                  variant='outline'
+                  className='w-full'
                   onClick={() =>
                     router.push(`/signup?callbackUrl=${callbackUrl}&invite_flow=true&new=true`)
                   }
@@ -236,9 +229,9 @@ export default function Invite() {
   // Show loading state
   if (isLoading || isPending) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted/40">
-        <LoadingAgent size="lg" />
-        <p className="mt-4 text-sm text-muted-foreground">Loading invitation...</p>
+      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+        <LoadingAgent size='lg' />
+        <p className='mt-4 text-muted-foreground text-sm'>Loading invitation...</p>
       </div>
     )
   }
@@ -246,13 +239,13 @@ export default function Invite() {
   // Show error state
   if (error) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted/40">
-        <Card className="p-6 max-w-md text-center space-y-2">
-          <div className="flex justify-center">
-            <BotIcon className="w-16 h-16 text-muted-foreground" />
+      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+        <Card className='max-w-md space-y-2 p-6 text-center'>
+          <div className='flex justify-center'>
+            <BotIcon className='h-16 w-16 text-muted-foreground' />
           </div>
-          <h3 className="text-lg font-semibold">Invitation Error</h3>
-          <p className="text-muted-foreground">{error}</p>
+          <h3 className='font-semibold text-lg'>Invitation Error</h3>
+          <p className='text-muted-foreground'>{error}</p>
         </Card>
       </div>
     )
@@ -261,13 +254,13 @@ export default function Invite() {
   // Show success state
   if (accepted) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted/40">
-        <Card className="p-6 max-w-md text-center space-y-2">
-          <div className="flex justify-center">
-            <CheckCircle className="w-16 h-16 text-green-500" />
+      <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+        <Card className='max-w-md space-y-2 p-6 text-center'>
+          <div className='flex justify-center'>
+            <CheckCircle className='h-16 w-16 text-green-500' />
           </div>
-          <h3 className="text-lg font-semibold">Invitation Accepted</h3>
-          <p className="text-muted-foreground">
+          <h3 className='font-semibold text-lg'>Invitation Accepted</h3>
+          <p className='text-muted-foreground'>
             You have successfully joined {invitationDetails?.name || 'the workspace'}. Redirecting
             to your workspace...
           </p>
@@ -278,21 +271,21 @@ export default function Invite() {
 
   // Show invitation details
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-muted/40">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="mb-1">Workspace Invitation</CardTitle>
-          <CardDescription className="text-md">
+    <div className='flex min-h-screen flex-col items-center justify-center bg-muted/40 p-4'>
+      <Card className='w-full max-w-md'>
+        <CardHeader className='text-center'>
+          <CardTitle className='mb-1'>Workspace Invitation</CardTitle>
+          <CardDescription className='text-md'>
             You've been invited to join{' '}
-            <span className="font-medium">{invitationDetails?.name || 'a workspace'}</span>
+            <span className='font-medium'>{invitationDetails?.name || 'a workspace'}</span>
           </CardDescription>
-          <p className="text-md text-muted-foreground mt-2">
+          <p className='mt-2 text-md text-muted-foreground'>
             Click the accept below to join the workspace.
           </p>
         </CardHeader>
-        <CardFooter className="flex justify-center">
-          <Button onClick={handleAcceptInvitation} disabled={isAccepting} className="w-full">
-            <span className="ml-2">{isAccepting ? '' : ''}Accept Invitation</span>
+        <CardFooter className='flex justify-center'>
+          <Button onClick={handleAcceptInvitation} disabled={isAccepting} className='w-full'>
+            <span className='ml-2'>{isAccepting ? '' : ''}Accept Invitation</span>
           </Button>
         </CardFooter>
       </Card>

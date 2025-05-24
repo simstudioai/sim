@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useFilterStore } from '@/app/w/logs/stores/store'
-import { TimeRange } from '@/app/w/logs/stores/types'
+import type { TimeRange } from '@/app/w/logs/stores/types'
 
 export default function Timeline() {
   const { timeRange, setTimeRange } = useFilterStore()
@@ -16,12 +16,12 @@ export default function Timeline() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full justify-between text-sm font-normal">
+        <Button variant='outline' size='sm' className='w-full justify-between font-normal text-sm'>
           {timeRange}
-          <ChevronDown className="h-4 w-4 ml-2 text-muted-foreground" />
+          <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[180px]">
+      <DropdownMenuContent align='start' className='w-[180px]'>
         {timeRanges.map((range) => (
           <DropdownMenuItem
             key={range}
@@ -29,10 +29,10 @@ export default function Timeline() {
               e.preventDefault()
               setTimeRange(range)
             }}
-            className="flex items-center justify-between p-2 cursor-pointer text-sm"
+            className='flex cursor-pointer items-center justify-between p-2 text-sm'
           >
             <span>{range}</span>
-            {timeRange === range && <Check className="h-4 w-4 text-primary" />}
+            {timeRange === range && <Check className='h-4 w-4 text-primary' />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

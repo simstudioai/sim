@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { OpenAI } from 'openai'
-import { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 

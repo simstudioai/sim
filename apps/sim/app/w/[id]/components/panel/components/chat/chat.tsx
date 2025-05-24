@@ -1,17 +1,17 @@
 'use client'
 
-import { KeyboardEvent, useEffect, useMemo, useRef } from 'react'
+import { type KeyboardEvent, useEffect, useMemo, useRef } from 'react'
 import { ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import type { BlockLog } from '@/executor/types'
+import { calculateCost } from '@/providers/utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { BlockLog } from '@/executor/types'
-import { calculateCost } from '@/providers/utils'
 import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
 import { ChatMessage } from './components/chat-message/chat-message'
 import { OutputSelect } from './components/output-select/output-select'
@@ -113,7 +113,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
       let initialContent = ''
       let fullContent = '' // Store the complete content for updating logs later
       let hasAddedMessage = false
-      let executionResult = (result as any).execution // Store the execution result with type assertion
+      const executionResult = (result as any).execution // Store the execution result with type assertion
 
       try {
         // Process the stream
@@ -178,7 +178,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
             const formattedContent = fullContent
 
             // Calculate cost based on token usage if available
-            let costData = undefined
+            let costData: any
 
             if (executionResult.output?.response?.tokens) {
               const tokens = executionResult.output.response.tokens
@@ -316,26 +316,26 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className='flex h-full flex-col'>
       {/* Output Source Dropdown */}
-      <div className="flex-none border-b px-4 py-2">
+      <div className='flex-none border-b px-4 py-2'>
         <OutputSelect
           workflowId={activeWorkflowId}
           selectedOutputs={selectedOutputs}
           onOutputSelect={handleOutputSelection}
           disabled={!activeWorkflowId}
-          placeholder="Select output sources"
+          placeholder='Select output sources'
         />
       </div>
 
       {/* Main layout with fixed heights to ensure input stays visible */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className='flex flex-1 flex-col overflow-hidden'>
         {/* Chat messages section - Scrollable area */}
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full">
+        <div className='flex-1 overflow-hidden'>
+          <ScrollArea className='h-full'>
             <div>
               {workflowMessages.length === 0 ? (
-                <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                <div className='flex h-32 items-center justify-center text-muted-foreground text-sm'>
                   No messages yet
                 </div>
               ) : (
@@ -349,23 +349,23 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         </div>
 
         {/* Input section - Fixed height */}
-        <div className="flex-none border-t bg-background pt-4 px-4 pb-4 relative -mt-[1px]">
-          <div className="flex gap-2">
+        <div className='-mt-[1px] relative flex-none border-t bg-background px-4 pt-4 pb-4'>
+          <div className='flex gap-2'>
             <Input
               value={chatMessage}
               onChange={(e) => setChatMessage(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder="Type a message..."
-              className="flex-1 focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
+              placeholder='Type a message...'
+              className='h-10 flex-1 focus-visible:ring-0 focus-visible:ring-offset-0'
               disabled={!activeWorkflowId || isExecuting}
             />
             <Button
               onClick={handleSendMessage}
-              size="icon"
+              size='icon'
               disabled={!chatMessage.trim() || !activeWorkflowId || isExecuting}
-              className="h-10 w-10 bg-[#802FFF] hover:bg-[#7028E6] text-white"
+              className='h-10 w-10 bg-[#802FFF] text-white hover:bg-[#7028E6]'
             >
-              <ArrowUp className="h-4 w-4" />
+              <ArrowUp className='h-4 w-4' />
             </Button>
           </div>
         </div>

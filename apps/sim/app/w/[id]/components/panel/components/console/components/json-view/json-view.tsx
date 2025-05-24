@@ -22,9 +22,9 @@ const TruncatedValue = ({ value }: { value: string }) => {
     <span>
       {isExpanded ? value : `${value.slice(0, MAX_STRING_LENGTH)}...`}
       <Button
-        variant="link"
-        size="sm"
-        className="px-1 h-auto text-xs text-muted-foreground hover:text-foreground"
+        variant='link'
+        size='sm'
+        className='h-auto px-1 text-muted-foreground text-xs hover:text-foreground'
         onClick={(e) => {
           e.stopPropagation()
           setIsExpanded(!isExpanded)
@@ -100,8 +100,7 @@ const hasImageContent = (obj: any): boolean => {
 
   // Case 2: Has explicit image type in metadata
   const hasExplicitImageType =
-    obj.metadata &&
-    obj.metadata.type &&
+    obj.metadata?.type &&
     typeof obj.metadata.type === 'string' &&
     obj.metadata.type.toLowerCase() === 'image'
 
@@ -176,11 +175,11 @@ const ImagePreview = ({
     (isBase64 && imageData && imageData.length > 0) || (imageUrl && imageUrl.length > 0)
 
   if (!hasValidData) {
-    return <div className="my-2 text-muted-foreground">Image data unavailable</div>
+    return <div className='my-2 text-muted-foreground'>Image data unavailable</div>
   }
 
   if (loadError) {
-    return <div className="my-2 text-muted-foreground">Failed to load image</div>
+    return <div className='my-2 text-muted-foreground'>Failed to load image</div>
   }
 
   // Determine the source for the image
@@ -190,11 +189,11 @@ const ImagePreview = ({
       : imageUrl || ''
 
   return (
-    <div className="my-2 relative group">
+    <div className='group relative my-2'>
       <img
         src={imageSrc}
-        alt="Generated image"
-        className="max-w-full h-auto rounded-md border"
+        alt='Generated image'
+        className='h-auto max-w-full rounded-md border'
         onError={(e) => {
           console.error('Image failed to load:', imageSrc)
           setLoadError(true)
@@ -208,18 +207,18 @@ const ImagePreview = ({
         }}
       />
       {!loadError && (
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className='absolute top-2 right-2 opacity-0 transition-opacity group-hover:opacity-100'>
           <Button
-            variant="secondary"
-            size="icon"
-            className="h-8 w-8 bg-background/80 backdrop-blur-sm"
+            variant='secondary'
+            size='icon'
+            className='h-8 w-8 bg-background/80 backdrop-blur-sm'
             onClick={(e) => {
               e.stopPropagation()
               downloadImage()
             }}
           >
-            <Download className="h-4 w-4" />
-            <span className="sr-only">Download image</span>
+            <Download className='h-4 w-4' />
+            <span className='sr-only'>Download image</span>
           </Button>
         </div>
       )}
@@ -267,7 +266,7 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
   const isToolResponseWithImage =
     data && typeof data === 'object' && data.output && hasImageContent(data.output)
 
-  if (data === null) return <span className="text-muted-foreground">null</span>
+  if (data === null) return <span className='text-muted-foreground'>null</span>
 
   // Handle base64 image strings directly
   if (isBase64ImageString) {
@@ -276,24 +275,24 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
         <ImagePreview imageData={data} isBase64={true} />
         {contextMenuPosition && (
           <div
-            className="fixed z-50 bg-popover border rounded-md shadow-md py-1 min-w-[160px]"
+            className='fixed z-50 min-w-[160px] rounded-md border bg-popover py-1 shadow-md'
             style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
           >
             <button
-              className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent"
+              className='w-full px-3 py-1.5 text-left text-sm hover:bg-accent'
               onClick={() => copyToClipboard(data)}
             >
               Copy base64 string
             </button>
             <button
-              className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+              className='flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent'
               onClick={() => {
                 document
                   .querySelector<HTMLButtonElement>('.group .bg-background\\/80 button')
                   ?.click()
               }}
             >
-              <Download className="h-4 w-4" />
+              <Download className='h-4 w-4' />
               Download image
             </button>
           </div>
@@ -307,16 +306,16 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
     return (
       <span
         onContextMenu={handleContextMenu}
-        className={`${typeof data === 'string' ? 'text-success' : 'text-info'} break-all relative`}
+        className={`${typeof data === 'string' ? 'text-success' : 'text-info'} relative break-all`}
       >
         {typeof data === 'string' ? <TruncatedValue value={stringValue} /> : stringValue}
         {contextMenuPosition && (
           <div
-            className="fixed z-50 bg-popover border rounded-md shadow-md py-1 min-w-[160px]"
+            className='fixed z-50 min-w-[160px] rounded-md border bg-popover py-1 shadow-md'
             style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
           >
             <button
-              className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent"
+              className='w-full px-3 py-1.5 text-left text-sm hover:bg-accent'
               onClick={() => copyToClipboard(data)}
             >
               Copy value
@@ -335,27 +334,27 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
     const hasValidImage = data.image && typeof data.image === 'string' && data.image.length > 0
 
     return (
-      <div className="relative" onContextMenu={handleContextMenu}>
+      <div className='relative' onContextMenu={handleContextMenu}>
         <span
-          className="cursor-pointer select-none inline-flex items-center text-muted-foreground"
+          className='inline-flex cursor-pointer select-none items-center text-muted-foreground'
           onClick={(e) => {
             e.stopPropagation()
             setIsCollapsed(!isCollapsed)
           }}
         >
-          <span className="text-xs leading-none mr-1">{isCollapsed ? '▶' : '▼'}</span>
+          <span className='mr-1 text-xs leading-none'>{isCollapsed ? '▶' : '▼'}</span>
           <span>{'{'}</span>
           {isCollapsed ? '...' : ''}
         </span>
 
         {!isCollapsed && (
-          <div className="ml-4 break-words">
+          <div className='ml-4 break-words'>
             {Object.entries(data).map(([key, value], index) => {
               const isImageKey = key === 'image'
 
               return (
-                <div key={key} className="break-all">
-                  <span className="text-muted-foreground">{key}</span>:{' '}
+                <div key={key} className='break-all'>
+                  <span className='text-muted-foreground'>{key}</span>:{' '}
                   {isImageKey ? (
                     <div>
                       {/* Show image preview within the image field */}
@@ -383,30 +382,30 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
 
         {contextMenuPosition && (
           <div
-            className="fixed z-50 bg-popover border rounded-md shadow-md py-1 min-w-[160px]"
+            className='fixed z-50 min-w-[160px] rounded-md border bg-popover py-1 shadow-md'
             style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
           >
             <button
-              className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent"
+              className='w-full px-3 py-1.5 text-left text-sm hover:bg-accent'
               onClick={() => copyToClipboard(data)}
             >
               Copy object
             </button>
             <button
-              className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+              className='flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent'
               onClick={() => {
                 document
                   .querySelector<HTMLButtonElement>('.group .bg-background\\/80 button')
                   ?.click()
               }}
             >
-              <Download className="h-4 w-4" />
+              <Download className='h-4 w-4' />
               Download image
             </button>
           </div>
         )}
 
-        <span className="text-muted-foreground">{'}'}</span>
+        <span className='text-muted-foreground'>{'}'}</span>
       </div>
     )
   }
@@ -420,31 +419,31 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
       outputData.image && typeof outputData.image === 'string' && outputData.image.length > 0
 
     return (
-      <div className="relative" onContextMenu={handleContextMenu}>
+      <div className='relative' onContextMenu={handleContextMenu}>
         <span
-          className="cursor-pointer select-none inline-flex items-center text-muted-foreground"
+          className='inline-flex cursor-pointer select-none items-center text-muted-foreground'
           onClick={(e) => {
             e.stopPropagation()
             setIsCollapsed(!isCollapsed)
           }}
         >
-          <span className="text-xs leading-none mr-1">{isCollapsed ? '▶' : '▼'}</span>
+          <span className='mr-1 text-xs leading-none'>{isCollapsed ? '▶' : '▼'}</span>
           <span>{'{'}</span>
           {isCollapsed ? '...' : ''}
         </span>
 
         {!isCollapsed && (
-          <div className="ml-4 break-words">
+          <div className='ml-4 break-words'>
             {Object.entries(data).map(([key, value]: [string, any], index) => {
               const isOutputKey = key === 'output'
 
               return (
-                <div key={key} className="break-all">
-                  <span className="text-muted-foreground">{key}</span>:{' '}
+                <div key={key} className='break-all'>
+                  <span className='text-muted-foreground'>{key}</span>:{' '}
                   {isOutputKey ? (
-                    <div className="relative">
+                    <div className='relative'>
                       <span
-                        className="cursor-pointer select-none inline-flex items-center text-muted-foreground"
+                        className='inline-flex cursor-pointer select-none items-center text-muted-foreground'
                         onClick={(e) => {
                           e.stopPropagation()
                           const nestedElem = e.currentTarget.nextElementSibling
@@ -453,17 +452,17 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
                           }
                         }}
                       >
-                        <span className="text-xs leading-none mr-1">▼</span>
+                        <span className='mr-1 text-xs leading-none'>▼</span>
                         <span>{'{'}</span>
                       </span>
-                      <div className="ml-4 break-words">
+                      <div className='ml-4 break-words'>
                         {Object.entries(value).map(
                           ([outputKey, outputValue]: [string, any], idx) => {
                             const isImageSubKey = outputKey === 'image'
 
                             return (
-                              <div key={outputKey} className="break-all">
-                                <span className="text-muted-foreground">{outputKey}</span>:{' '}
+                              <div key={outputKey} className='break-all'>
+                                <span className='text-muted-foreground'>{outputKey}</span>:{' '}
                                 {isImageSubKey ? (
                                   <div>
                                     {/* Show image preview within nested image field */}
@@ -490,7 +489,7 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
                           }
                         )}
                       </div>
-                      <span className="text-muted-foreground">{'}'}</span>
+                      <span className='text-muted-foreground'>{'}'}</span>
                     </div>
                   ) : (
                     <JSONView
@@ -508,30 +507,30 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
 
         {contextMenuPosition && (
           <div
-            className="fixed z-50 bg-popover border rounded-md shadow-md py-1 min-w-[160px]"
+            className='fixed z-50 min-w-[160px] rounded-md border bg-popover py-1 shadow-md'
             style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
           >
             <button
-              className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent"
+              className='w-full px-3 py-1.5 text-left text-sm hover:bg-accent'
               onClick={() => copyToClipboard(data)}
             >
               Copy object
             </button>
             <button
-              className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+              className='flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent'
               onClick={() => {
                 document
                   .querySelector<HTMLButtonElement>('.group .bg-background\\/80 button')
                   ?.click()
               }}
             >
-              <Download className="h-4 w-4" />
+              <Download className='h-4 w-4' />
               Download image
             </button>
           </div>
         )}
 
-        <span className="text-muted-foreground">{'}'}</span>
+        <span className='text-muted-foreground'>{'}'}</span>
       </div>
     )
   }
@@ -541,19 +540,19 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
   const isEmpty = items.length === 0
 
   if (isEmpty) {
-    return <span className="text-muted-foreground">{isArray ? '[]' : '{}'}</span>
+    return <span className='text-muted-foreground'>{isArray ? '[]' : '{}'}</span>
   }
 
   return (
-    <div className="relative" onContextMenu={handleContextMenu}>
+    <div className='relative' onContextMenu={handleContextMenu}>
       <span
-        className="cursor-pointer select-none inline-flex items-center text-muted-foreground"
+        className='inline-flex cursor-pointer select-none items-center text-muted-foreground'
         onClick={(e) => {
           e.stopPropagation()
           setIsCollapsed(!isCollapsed)
         }}
       >
-        <span className="text-xs leading-none mr-1">{isCollapsed ? '▶' : '▼'}</span>
+        <span className='mr-1 text-xs leading-none'>{isCollapsed ? '▶' : '▼'}</span>
         <span>{isArray ? '[' : '{'}</span>
         {isCollapsed ? '...' : ''}
       </span>
@@ -566,25 +565,25 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
 
       {contextMenuPosition && (
         <div
-          className="fixed z-50 bg-popover border rounded-md shadow-md py-1 min-w-[160px]"
+          className='fixed z-50 min-w-[160px] rounded-md border bg-popover py-1 shadow-md'
           style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
         >
           <button
-            className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent"
+            className='w-full px-3 py-1.5 text-left text-sm hover:bg-accent'
             onClick={() => copyToClipboard(data)}
           >
             Copy object
           </button>
           {hasImageUrl && (
             <button
-              className="w-full px-3 py-1.5 text-sm text-left hover:bg-accent flex items-center gap-2"
+              className='flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent'
               onClick={() => {
                 document
                   .querySelector<HTMLButtonElement>('.group .bg-background\\/80 button')
                   ?.click()
               }}
             >
-              <Download className="h-4 w-4" />
+              <Download className='h-4 w-4' />
               Download image
             </button>
           )}
@@ -592,10 +591,10 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
       )}
 
       {!isCollapsed && (
-        <div className="ml-4 break-words">
+        <div className='ml-4 break-words'>
           {isArray
             ? items.map((item, index) => (
-                <div key={index} className="break-all">
+                <div key={index} className='break-all'>
                   <JSONView data={item} level={level + 1} initiallyExpanded={initiallyExpanded} />
                   {index < items.length - 1 && ','}
                 </div>
@@ -606,8 +605,8 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
                   key === 'image' && typeof value === 'string' && value.length > 100
 
                 return (
-                  <div key={key} className="break-all">
-                    <span className="text-muted-foreground">{key}</span>:{' '}
+                  <div key={key} className='break-all'>
+                    <span className='text-muted-foreground'>{key}</span>:{' '}
                     {isImageField ? (
                       <JSONView
                         data={value}
@@ -627,7 +626,7 @@ export const JSONView = ({ data, level = 0, initiallyExpanded = false }: JSONVie
               })}
         </div>
       )}
-      <span className="text-muted-foreground">{isArray ? ']' : '}'}</span>
+      <span className='text-muted-foreground'>{isArray ? ']' : '}'}</span>
     </div>
   )
 }

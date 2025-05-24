@@ -7,33 +7,33 @@ import { NotificationList } from '../w/[id]/components/notifications/notificatio
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-[#0C0C0C] text-white relative font-geist-sans flex flex-col">
+    <main className='relative flex min-h-screen flex-col bg-[#0C0C0C] font-geist-sans text-white'>
       {/* Background pattern */}
       <GridPattern
         x={-5}
         y={-5}
-        className="stroke-[#ababab]/5 absolute inset-0 z-0"
+        className='absolute inset-0 z-0 stroke-[#ababab]/5'
         width={90}
         height={90}
-        aria-hidden="true"
+        aria-hidden='true'
       />
 
       {/* Header */}
-      <div className="px-6 pt-9 relative z-10">
-        <div className="max-w-7xl mx-auto">
-          <Link href="/" className="inline-flex">
-            <Image src="/sim.svg" alt="Sim Logo" width={42} height={42} />
+      <div className='relative z-10 px-6 pt-9'>
+        <div className='mx-auto max-w-7xl'>
+          <Link href='/' className='inline-flex'>
+            <Image src='/sim.svg' alt='Sim Logo' width={42} height={42} />
           </Link>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex items-center justify-center px-4 pb-6 relative z-10">
-        <div className="w-full max-w-md">{children}</div>
+      <div className='relative z-10 flex flex-1 items-center justify-center px-4 pb-6'>
+        <div className='w-full max-w-md'>{children}</div>
       </div>
 
       {/* Notifications */}
-      <div className="fixed bottom-4 right-4 z-50">
+      <div className='fixed right-4 bottom-4 z-50'>
         <NotificationList />
       </div>
     </main>

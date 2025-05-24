@@ -386,7 +386,7 @@ export function FileUpload({
     if (!value) return
 
     const filesToDelete = Array.isArray(value) ? value : [value]
-    const fileCount = filesToDelete.length
+    const _fileCount = filesToDelete.length
 
     // Mark all files as deleting
     const deletingStatus: Record<string, boolean> = {}
@@ -463,24 +463,24 @@ export function FileUpload({
     return (
       <div
         key={file.path}
-        className="flex items-center justify-between px-3 py-2 rounded border border-border bg-background"
+        className='flex items-center justify-between rounded border border-border bg-background px-3 py-2'
       >
-        <div className="flex-1 truncate pr-2">
-          <div className="font-normal text-sm truncate">{file.name}</div>
-          <div className="text-xs text-muted-foreground">{formatFileSize(file.size)}</div>
+        <div className='flex-1 truncate pr-2'>
+          <div className='truncate font-normal text-sm'>{file.name}</div>
+          <div className='text-muted-foreground text-xs'>{formatFileSize(file.size)}</div>
         </div>
         <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='h-8 w-8 shrink-0'
           onClick={(e) => handleRemoveFile(file, e)}
           disabled={isDeleting}
         >
           {isDeleting ? (
-            <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+            <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <X className="h-4 w-4" />
+            <X className='h-4 w-4' />
           )}
         </Button>
       </div>
@@ -492,14 +492,14 @@ export function FileUpload({
     return (
       <div
         key={file.id}
-        className="flex items-center justify-between px-3 py-2 rounded border border-border bg-background"
+        className='flex items-center justify-between rounded border border-border bg-background px-3 py-2'
       >
-        <div className="flex-1 truncate pr-2">
-          <div className="font-normal text-sm truncate">{file.name}</div>
-          <div className="text-xs text-muted-foreground">{formatFileSize(file.size)}</div>
+        <div className='flex-1 truncate pr-2'>
+          <div className='truncate font-normal text-sm'>{file.name}</div>
+          <div className='text-muted-foreground text-xs'>{formatFileSize(file.size)}</div>
         </div>
-        <div className="flex items-center justify-center h-8 w-8 shrink-0">
-          <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+        <div className='flex h-8 w-8 shrink-0 items-center justify-center'>
+          <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         </div>
       </div>
     )
@@ -511,21 +511,21 @@ export function FileUpload({
   const isUploading = uploadingFiles.length > 0
 
   return (
-    <div className="w-full" onClick={(e) => e.stopPropagation()}>
+    <div className='w-full' onClick={(e) => e.stopPropagation()}>
       <input
-        type="file"
+        type='file'
         ref={fileInputRef}
         onChange={handleFileChange}
         style={{ display: 'none' }}
         accept={acceptedTypes}
         multiple={multiple}
-        data-testid="file-input-element"
+        data-testid='file-input-element'
       />
 
-      <div className="bg-background">
+      <div className='bg-background'>
         {/* File list with consistent spacing */}
         {(hasFiles || isUploading) && (
-          <div className="space-y-2 mb-2">
+          <div className='mb-2 space-y-2'>
             {/* Only show files that aren't currently uploading */}
             {filesArray.map((file) => {
               // Don't show files that have duplicates in the uploading list
@@ -537,9 +537,9 @@ export function FileUpload({
             {isUploading && (
               <>
                 {uploadingFiles.map(renderUploadingItem)}
-                <div className="mt-1">
-                  <Progress value={uploadProgress} className="w-full h-2" />
-                  <div className="text-xs text-center text-muted-foreground mt-1">
+                <div className='mt-1'>
+                  <Progress value={uploadProgress} className='h-2 w-full' />
+                  <div className='mt-1 text-center text-muted-foreground text-xs'>
                     {uploadProgress < 100 ? 'Uploading...' : 'Upload complete!'}
                   </div>
                 </div>
@@ -550,12 +550,12 @@ export function FileUpload({
 
         {/* Action buttons */}
         {(hasFiles || isUploading) && (
-          <div className="flex space-x-2">
+          <div className='flex space-x-2'>
             <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="flex-1 h-10 text-sm font-normal"
+              type='button'
+              variant='outline'
+              size='sm'
+              className='h-10 flex-1 font-normal text-sm'
               onClick={handleRemoveAllFiles}
               disabled={isUploading}
             >
@@ -563,10 +563,10 @@ export function FileUpload({
             </Button>
             {multiple && !isUploading && (
               <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="flex-1 h-10 text-sm font-normal"
+                type='button'
+                variant='outline'
+                size='sm'
+                className='h-10 flex-1 font-normal text-sm'
                 onClick={handleOpenFileDialog}
               >
                 Add More
@@ -578,17 +578,17 @@ export function FileUpload({
 
       {/* Show upload button if no files and not uploading */}
       {!hasFiles && !isUploading && (
-        <div className="flex items-center">
+        <div className='flex items-center'>
           <Button
-            type="button"
-            variant="outline"
-            className="w-full justify-center text-center h-10 bg-background text-sm font-normal"
+            type='button'
+            variant='outline'
+            className='h-10 w-full justify-center bg-background text-center font-normal text-sm'
             onClick={handleOpenFileDialog}
           >
-            <div className="flex items-center justify-center gap-2 w-full">
+            <div className='flex w-full items-center justify-center gap-2'>
               {/* <Upload className="h-4 w-4" /> */}
               <span>{multiple ? 'Upload Files' : 'Upload File'}</span>
-              <span className="text-xs text-muted-foreground">({maxSize}MB max)</span>
+              <span className='text-muted-foreground text-xs'>({maxSize}MB max)</span>
             </div>
           </Button>
         </div>

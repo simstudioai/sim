@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { createLogger } from '@/lib/logs/console-logger'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '../../stores/store'
-import { LogsResponse } from '../../stores/types'
+import type { LogsResponse } from '../../stores/types'
 
 const logger = createLogger('ControlBar')
 
@@ -116,41 +116,41 @@ export function ControlBar() {
   }
 
   return (
-    <div className="flex h-16 w-full items-center justify-between bg-background px-6 border-b transition-all duration-300">
+    <div className='flex h-16 w-full items-center justify-between border-b bg-background px-6 transition-all duration-300'>
       {/* Left Section - Search */}
-      <div className="relative w-[400px]">
-        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-          <Search className="h-4 w-4 text-muted-foreground" />
+      <div className='relative w-[400px]'>
+        <div className='pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3'>
+          <Search className='h-4 w-4 text-muted-foreground' />
         </div>
         <Input
-          type="search"
-          placeholder="Search logs..."
-          className="pl-10 h-9"
+          type='search'
+          placeholder='Search logs...'
+          className='h-9 pl-10'
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
 
       {/* Middle Section - Reserved for future use */}
-      <div className="flex-1" />
+      <div className='flex-1' />
 
       {/* Right Section - Actions */}
-      <div className="flex items-center gap-3">
+      <div className='flex items-center gap-3'>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="ghost"
-              size="icon"
+              variant='ghost'
+              size='icon'
               onClick={handleRefresh}
-              className="hover:text-foreground"
+              className='hover:text-foreground'
               disabled={isRefreshing}
             >
               {isRefreshing ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className='h-5 w-5 animate-spin' />
               ) : (
-                <RefreshCw className="h-5 w-5" />
+                <RefreshCw className='h-5 w-5' />
               )}
-              <span className="sr-only">Refresh</span>
+              <span className='sr-only'>Refresh</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>{isRefreshing ? 'Refreshing...' : 'Refresh'}</TooltipContent>
@@ -163,9 +163,9 @@ export function ControlBar() {
           onClick={toggleLive}
         >
           {isLive ? (
-            <Square className="!h-3.5 !w-3.5 text-[#802FFF]" />
+            <Square className='!h-3.5 !w-3.5 text-[#802FFF]' />
           ) : (
-            <Play className="!h-3.5 !w-3.5" />
+            <Play className='!h-3.5 !w-3.5' />
           )}
           <span className={`${isLive ? 'text-[#802FFF]' : 'text-foreground'}`}>Live</span>
         </Button>

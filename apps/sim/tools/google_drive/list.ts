@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { GoogleDriveListResponse, GoogleDriveToolParams } from './types'
+import type { ToolConfig } from '../types'
+import type { GoogleDriveListResponse, GoogleDriveToolParams } from './types'
 
 export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse> = {
   id: 'google_drive_list',

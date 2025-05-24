@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -126,7 +126,6 @@ export async function POST(req: NextRequest) {
               logger.warn(
                 `[${requestId}] Silent continuation on unauthorized tool update attempt: ${tool.id}`
               )
-              continue
             }
           } else {
             // No ID provided, create a new tool

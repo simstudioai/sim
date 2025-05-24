@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@/lib/logs/console-logger'
-import { StreamingExecution } from '@/executor/types'
+import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
-import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('AnthropicProvider')
@@ -87,7 +87,7 @@ export const anthropicProvider: ProviderConfig = {
             ],
           })
         } else if (msg.function_call) {
-          const toolUseId = msg.function_call.name + '-' + Date.now()
+          const toolUseId = `${msg.function_call.name}-${Date.now()}`
           messages.push({
             role: 'assistant',
             content: [
@@ -158,7 +158,7 @@ export const anthropicProvider: ProviderConfig = {
             } else {
               // Default to auto if we got a non-Anthropic object format
               toolChoice = 'auto'
-              logger.warn(`Received non-Anthropic tool_choice format, defaulting to auto`)
+              logger.warn('Received non-Anthropic tool_choice format, defaulting to auto')
             }
           } else if (tc === 'auto' || tc === 'none') {
             toolChoice = tc
@@ -166,7 +166,7 @@ export const anthropicProvider: ProviderConfig = {
           } else {
             // Default to auto if we got something unexpected
             toolChoice = 'auto'
-            logger.warn(`Unexpected tool_choice format, defaulting to auto`)
+            logger.warn('Unexpected tool_choice format, defaulting to auto')
           }
         }
       } catch (error) {
@@ -184,7 +184,7 @@ export const anthropicProvider: ProviderConfig = {
       // Build a system prompt for structured output based on the JSON schema
       let schemaInstructions = ''
 
-      if (schema && schema.properties) {
+      if (schema?.properties) {
         // Create a template of the expected JSON structure
         const jsonTemplate = Object.entries(schema.properties).reduce(
           (acc: Record<string, any>, [key, prop]: [string, any]) => {
@@ -252,8 +252,8 @@ ${fieldDescriptions}
       model: request.model || 'claude-3-7-sonnet-20250219',
       messages,
       system: systemPrompt,
-      max_tokens: parseInt(String(request.maxTokens)) || 1024,
-      temperature: parseFloat(String(request.temperature ?? 0.7)),
+      max_tokens: Number.parseInt(String(request.maxTokens)) || 1024,
+      temperature: Number.parseFloat(String(request.temperature ?? 0.7)),
     }
 
     // Use the tools in the payload
@@ -281,7 +281,7 @@ ${fieldDescriptions}
       })
 
       // Start collecting token usage
-      let tokenUsage = {
+      const tokenUsage = {
         prompt: 0,
         completion: 0,
         total: 0,
@@ -362,16 +362,16 @@ ${fieldDescriptions}
           .join('\n')
       }
 
-      let tokens = {
+      const tokens = {
         prompt: currentResponse.usage?.input_tokens || 0,
         completion: currentResponse.usage?.output_tokens || 0,
         total:
           (currentResponse.usage?.input_tokens || 0) + (currentResponse.usage?.output_tokens || 0),
       }
 
-      let toolCalls = []
-      let toolResults = []
-      let currentMessages = [...messages]
+      const toolCalls = []
+      const toolResults = []
+      const currentMessages = [...messages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 
@@ -543,12 +543,12 @@ ${fieldDescriptions}
               logger.info(`Forcing next tool: ${remainingTools[0]}`)
             } else {
               // All forced tools have been used, switch to auto by removing tool_choice
-              delete nextPayload.tool_choice
+              nextPayload.tool_choice = undefined
               logger.info('All forced tools have been used, removing tool_choice parameter')
             }
           } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
             // Handle the case of a single forced tool that was used
-            delete nextPayload.tool_choice
+            nextPayload.tool_choice = undefined
             logger.info(
               'Removing tool_choice parameter for subsequent requests after forced tool was used'
             )
@@ -634,7 +634,7 @@ ${fieldDescriptions}
         }
 
         // Remove the tool_choice parameter as Anthropic doesn't accept 'none' as a string value
-        delete streamingPayload.tool_choice
+        streamingPayload.tool_choice = undefined
 
         const streamResponse: any = await anthropic.messages.create(streamingPayload)
 

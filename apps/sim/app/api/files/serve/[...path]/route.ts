@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { readFile } from 'fs/promises'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { downloadFromS3, getPresignedUrl } from '@/lib/uploads/s3-client'
 import { USE_S3_STORAGE } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
+
 import {
   createErrorResponse,
   createFileResponse,
@@ -67,7 +68,7 @@ async function handleS3File(
   try {
     // First try direct access via presigned URL (most efficient)
     return await handleS3PresignedUrl(s3Key)
-  } catch (error) {
+  } catch (_error) {
     logger.info('Falling back to proxy method for S3 file')
     // Fall back to proxy method if presigned URL fails
     return await handleS3Proxy(s3Key)

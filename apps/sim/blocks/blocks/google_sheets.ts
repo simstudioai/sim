@@ -1,11 +1,11 @@
 import { GoogleSheetsIcon } from '@/components/icons'
-import {
+import type {
   GoogleSheetsAppendResponse,
   GoogleSheetsReadResponse,
   GoogleSheetsUpdateResponse,
   GoogleSheetsWriteResponse,
 } from '@/tools/google_sheets/types'
-import { BlockConfig } from '../types'
+import type { BlockConfig } from '../types'
 
 type GoogleSheetsResponse =
   | GoogleSheetsReadResponse

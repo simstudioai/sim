@@ -1,5 +1,5 @@
-import { SubBlockState } from '@/stores/workflows/workflow/types'
-import { BlockOutput, OutputConfig } from '@/blocks/types'
+import type { BlockOutput, OutputConfig } from '@/blocks/types'
+import type { SubBlockState } from '@/stores/workflows/workflow/types'
 
 interface CodeLine {
   id: string

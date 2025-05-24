@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { PanelStore, PanelTab } from './types'
+import type { PanelStore, PanelTab } from './types'
 
 export const usePanelStore = create<PanelStore>()(
   devtools(

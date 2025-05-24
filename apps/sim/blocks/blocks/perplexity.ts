@@ -1,6 +1,6 @@
 import { PerplexityIcon } from '@/components/icons'
-import { ToolResponse } from '@/tools/types'
-import { BlockConfig } from '../types'
+import type { ToolResponse } from '@/tools/types'
+import type { BlockConfig } from '../types'
 
 interface PerplexityChatResponse extends ToolResponse {
   output: {
@@ -89,8 +89,8 @@ export const PerplexityBlock: BlockConfig<PerplexityChatResponse> = {
           model: params.model,
           prompt: params.prompt,
           system: params.system,
-          max_tokens: params.max_tokens ? parseInt(params.max_tokens) : undefined,
-          temperature: params.temperature ? parseFloat(params.temperature) : undefined,
+          max_tokens: params.max_tokens ? Number.parseInt(params.max_tokens) : undefined,
+          temperature: params.temperature ? Number.parseFloat(params.temperature) : undefined,
         }
 
         return toolParams

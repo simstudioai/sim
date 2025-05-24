@@ -8,7 +8,7 @@
  *
  * Please maintain ethical telemetry practices if modified.
  */
-import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api'
+import { DiagConsoleLogger, DiagLogLevel, diag } from '@opentelemetry/api'
 import { createLogger } from '@/lib/logs/console-logger'
 import { env } from './env'
 

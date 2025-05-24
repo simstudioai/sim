@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { ChevronDown, Lock, LogOut, User, UserPlus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { AgentIcon } from '@/components/icons'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -50,7 +50,7 @@ export function Account({ onOpenChange }: AccountProps) {
 
   // Get session data using the client hook
   const { data: session, isPending, error } = useSession()
-  const [isLoadingUserData, setIsLoadingUserData] = useState(false)
+  const [isLoadingUserData, _setIsLoadingUserData] = useState(false)
 
   // Reset password states
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false)
@@ -186,35 +186,35 @@ export function Account({ onOpenChange }: AccountProps) {
 
   // Loading animation component
   const LoadingAccountBlock = () => (
-    <div className="group flex items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm">
-      <div className="flex items-center gap-3">
-        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted animate-pulse">
+    <div className='group flex items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm'>
+      <div className='flex items-center gap-3'>
+        <div className='relative flex h-10 w-10 shrink-0 animate-pulse items-center justify-center overflow-hidden rounded-lg bg-muted'>
           <div
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_1.5s_infinite]"
+            className='absolute inset-0 animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/20 to-transparent'
             style={{
               transform: 'translateX(-100%)',
               animation: 'shimmer 1.5s infinite',
             }}
-          ></div>
+          />
         </div>
-        <div className="flex flex-col gap-2">
-          <div className="h-4 w-24 bg-muted rounded animate-pulse"></div>
-          <div className="h-3 w-32 bg-muted rounded animate-pulse"></div>
+        <div className='flex flex-col gap-2'>
+          <div className='h-4 w-24 animate-pulse rounded bg-muted' />
+          <div className='h-3 w-32 animate-pulse rounded bg-muted' />
         </div>
       </div>
-      <div className="h-4 w-4 bg-muted rounded"></div>
+      <div className='h-4 w-4 rounded bg-muted' />
     </div>
   )
 
   return (
-    <div className="p-6 space-y-6">
+    <div className='space-y-6 p-6'>
       <div>
-        <h3 className="text-lg font-medium mb-4">Account</h3>
+        <h3 className='mb-4 font-medium text-lg'>Account</h3>
       </div>
 
       {/* Account Dropdown Component */}
-      <div className="max-w-xs">
-        <div className="relative">
+      <div className='max-w-xs'>
+        <div className='relative'>
           {isPending || isLoadingUserData ? (
             <LoadingAccountBlock />
           ) : (
@@ -222,34 +222,34 @@ export function Account({ onOpenChange }: AccountProps) {
               <DropdownMenuTrigger asChild>
                 <div
                   className={cn(
-                    'group flex items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm transition-all cursor-pointer',
+                    'group flex cursor-pointer items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm transition-all',
                     'hover:bg-accent/50 hover:shadow-md',
                     open && 'bg-accent/50 shadow-md'
                   )}
                   data-state={open ? 'open' : 'closed'}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-blue-500">
+                  <div className='flex items-center gap-3'>
+                    <div className='relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-blue-500'>
                       {userData.isLoggedIn ? (
-                        <div className="h-full w-full flex items-center justify-center bg-[#802FFF]">
-                          <AgentIcon className="text-white transition-transform duration-200 group-hover:scale-110 -translate-y-[0.5px]" />
+                        <div className='flex h-full w-full items-center justify-center bg-[#802FFF]'>
+                          <AgentIcon className='-translate-y-[0.5px] text-white transition-transform duration-200 group-hover:scale-110' />
                         </div>
                       ) : (
-                        <div className="bg-gray-500 h-full w-full flex items-center justify-center">
-                          <AgentIcon className="text-white transition-transform duration-200 group-hover:scale-110" />
+                        <div className='flex h-full w-full items-center justify-center bg-gray-500'>
+                          <AgentIcon className='text-white transition-transform duration-200 group-hover:scale-110' />
                         </div>
                       )}
                       {userData.isLoggedIn && accounts.length > 1 && (
-                        <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+                        <div className='-bottom-1 -right-1 absolute flex h-5 w-5 items-center justify-center rounded-full bg-primary font-medium text-[10px] text-primary-foreground'>
                           {accounts.length}
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-col gap-1 mb-[-2px]">
-                      <h3 className="font-medium leading-none truncate max-w-[200px]">
+                    <div className='mb-[-2px] flex flex-col gap-1'>
+                      <h3 className='max-w-[200px] truncate font-medium leading-none'>
                         {userData.isLoggedIn ? activeAccount?.name : 'Sign in'}
                       </h3>
-                      <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                      <p className='max-w-[200px] truncate text-muted-foreground text-sm'>
                         {userData.isLoggedIn ? activeAccount?.email : 'Click to sign in'}
                       </p>
                     </div>
@@ -263,31 +263,31 @@ export function Account({ onOpenChange }: AccountProps) {
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                align="start"
-                className="w-[280px] max-h-[350px] overflow-y-auto"
+                align='start'
+                className='max-h-[350px] w-[280px] overflow-y-auto'
                 sideOffset={8}
               >
                 {userData.isLoggedIn ? (
                   <>
                     {accounts.length > 1 && (
                       <>
-                        <div className="mb-2 px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                        <div className='mb-2 px-2 py-1.5 font-medium text-muted-foreground text-sm'>
                           Switch Account
                         </div>
                         {accounts.map((account) => (
                           <DropdownMenuItem
                             key={account.id}
                             className={cn(
-                              'flex items-center gap-2 p-3 cursor-pointer',
+                              'flex cursor-pointer items-center gap-2 p-3',
                               account.isActive && 'bg-accent'
                             )}
                           >
-                            <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#802FFF]">
-                              <User className="text-white w-4 h-4" />
+                            <div className='relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#802FFF]'>
+                              <User className='h-4 w-4 text-white' />
                             </div>
-                            <div className="flex flex-col">
-                              <span className="font-medium leading-none">{account.name}</span>
-                              <span className="text-xs text-muted-foreground">{account.email}</span>
+                            <div className='flex flex-col'>
+                              <span className='font-medium leading-none'>{account.name}</span>
+                              <span className='text-muted-foreground text-xs'>{account.email}</span>
                             </div>
                           </DropdownMenuItem>
                         ))}
@@ -295,31 +295,31 @@ export function Account({ onOpenChange }: AccountProps) {
                       </>
                     )}
                     <DropdownMenuItem
-                      className="flex items-center gap-2 pl-3 py-2.5 cursor-pointer"
+                      className='flex cursor-pointer items-center gap-2 py-2.5 pl-3'
                       onClick={() => {
                         setResetPasswordDialogOpen(true)
                         setOpen(false)
                       }}
                     >
-                      <Lock className="h-4 w-4" />
+                      <Lock className='h-4 w-4' />
                       <span>Reset Password</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      className="flex items-center gap-2 pl-3 py-2.5 cursor-pointer text-destructive focus:text-destructive"
+                      className='flex cursor-pointer items-center gap-2 py-2.5 pl-3 text-destructive focus:text-destructive'
                       onClick={handleSignOut}
                     >
-                      <LogOut className="h-4 w-4" />
+                      <LogOut className='h-4 w-4' />
                       <span>Sign Out</span>
                     </DropdownMenuItem>
                   </>
                 ) : (
                   <>
                     <DropdownMenuItem
-                      className="flex items-center gap-2 pl-3 py-2.5 cursor-pointer"
+                      className='flex cursor-pointer items-center gap-2 py-2.5 pl-3'
                       onClick={handleSignIn}
                     >
-                      <UserPlus className="h-4 w-4" />
+                      <UserPlus className='h-4 w-4' />
                       <span>Sign in</span>
                     </DropdownMenuItem>
                   </>
@@ -332,7 +332,7 @@ export function Account({ onOpenChange }: AccountProps) {
 
       {/* Reset Password Dialog */}
       <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className='sm:max-w-[425px]'>
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
           </DialogHeader>
@@ -343,7 +343,7 @@ export function Account({ onOpenChange }: AccountProps) {
             isSubmitting={isSubmittingResetPassword}
             statusType={resetPasswordStatus.type}
             statusMessage={resetPasswordStatus.message}
-            className="py-4"
+            className='py-4'
           />
         </DialogContent>
       </Dialog>

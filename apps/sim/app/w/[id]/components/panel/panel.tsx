@@ -61,13 +61,13 @@ export function Panel() {
         <TooltipTrigger asChild>
           <button
             onClick={togglePanel}
-            className="fixed right-4 bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-background text-muted-foreground transition-colors hover:text-foreground hover:bg-accent border"
+            className='fixed right-4 bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
           >
-            <PanelRight className="h-5 w-5" />
-            <span className="sr-only">Open Panel</span>
+            <PanelRight className='h-5 w-5' />
+            <span className='sr-only'>Open Panel</span>
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top">Open Panel</TooltipContent>
+        <TooltipContent side='top'>Open Panel</TooltipContent>
       </Tooltip>
     )
   }
@@ -75,43 +75,43 @@ export function Panel() {
   return (
     <>
       <div
-        className="fixed right-0 top-16 z-10 h-[calc(100vh-4rem)] border-l bg-background flex flex-col"
+        className='fixed top-16 right-0 z-10 flex h-[calc(100vh-4rem)] flex-col border-l bg-background'
         style={{ width: `${width}px` }}
       >
         <div
-          className="absolute left-[-4px] top-0 bottom-0 w-4 cursor-ew-resize hover:bg-accent/50 z-50"
+          className='absolute top-0 bottom-0 left-[-4px] z-50 w-4 cursor-ew-resize hover:bg-accent/50'
           onMouseDown={handleMouseDown}
         />
 
         {/* Panel Header */}
-        <div className="flex-none flex items-center justify-between h-14 px-4 border-b">
-          <div className="flex gap-2">
+        <div className='flex h-14 flex-none items-center justify-between border-b px-4'>
+          <div className='flex gap-2'>
             <button
               onClick={() => setActiveTab('chat')}
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              className={`rounded-md px-3 py-1 text-sm transition-colors ${
                 activeTab === 'chat'
                   ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
               }`}
             >
               Chat
             </button>
             <button
               onClick={() => setActiveTab('console')}
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              className={`rounded-md px-3 py-1 text-sm transition-colors ${
                 activeTab === 'console'
                   ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
               }`}
             >
               Console
             </button>
             <button
               onClick={() => setActiveTab('variables')}
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              className={`rounded-md px-3 py-1 text-sm transition-colors ${
                 activeTab === 'variables'
                   ? 'bg-accent text-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
               }`}
             >
               Variables
@@ -125,9 +125,7 @@ export function Panel() {
                   ? clearConsole(activeWorkflowId)
                   : clearChat(activeWorkflowId)
               }
-              className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                true ? 'text-muted-foreground hover:text-foreground hover:bg-accent/50' : ''
-              }`}
+              className='rounded-md px-3 py-1 text-muted-foreground text-sm transition-colors hover:bg-accent/50 hover:text-foreground'
             >
               Clear
             </button>
@@ -135,7 +133,7 @@ export function Panel() {
         </div>
 
         {/* Panel Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className='flex-1 overflow-hidden'>
           {activeTab === 'chat' ? (
             <Chat panelWidth={width} chatMessage={chatMessage} setChatMessage={setChatMessage} />
           ) : activeTab === 'console' ? (
@@ -146,18 +144,18 @@ export function Panel() {
         </div>
 
         {/* Panel Footer */}
-        <div className="flex-none h-16 bg-background border-t flex items-center justify-between px-4">
+        <div className='flex h-16 flex-none items-center justify-between border-t bg-background px-4'>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={togglePanel}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+                className='flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
               >
-                <PanelRight className="h-5 w-5 transform rotate-180" />
-                <span className="sr-only">Close Panel</span>
+                <PanelRight className='h-5 w-5 rotate-180 transform' />
+                <span className='sr-only'>Close Panel</span>
               </button>
             </TooltipTrigger>
-            <TooltipContent side="right">Close Panel</TooltipContent>
+            <TooltipContent side='right'>Close Panel</TooltipContent>
           </Tooltip>
 
           {activeTab === 'chat' && (
@@ -165,13 +163,13 @@ export function Panel() {
               <TooltipTrigger asChild>
                 <button
                   onClick={() => setIsChatModalOpen(true)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+                  className='flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
                 >
-                  <Expand className="h-5 w-5" />
-                  <span className="sr-only">Expand Chat</span>
+                  <Expand className='h-5 w-5' />
+                  <span className='sr-only'>Expand Chat</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="left">Expand Chat</TooltipContent>
+              <TooltipContent side='left'>Expand Chat</TooltipContent>
             </Tooltip>
           )}
         </div>

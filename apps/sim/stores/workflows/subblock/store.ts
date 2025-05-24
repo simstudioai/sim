@@ -1,12 +1,12 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { SubBlockConfig } from '@/blocks/types'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useEnvironmentStore } from '../../settings/environment/store'
 import { useGeneralStore } from '../../settings/general/store'
 import { loadSubblockValues, saveSubblockValues } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
 import { workflowSync } from '../sync'
-import { SubBlockStore } from './types'
+import type { SubBlockStore } from './types'
 import { extractEnvVarName, findMatchingEnvVar, isEnvVarReference } from './utils'
 
 // Add debounce utility for syncing
@@ -137,7 +137,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
           if (value.trim() !== '') {
             set((state) => {
               const newClearedParams = { ...state.clearedParams }
-              if (newClearedParams[toolId] && newClearedParams[toolId][paramId]) {
+              if (newClearedParams[toolId]?.[paramId]) {
                 delete newClearedParams[toolId][paramId]
                 // Clean up empty objects
                 if (Object.keys(newClearedParams[toolId]).length === 0) {
@@ -198,7 +198,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
           // Remove the cleared flag for this parameter
           set((state) => {
             const newClearedParams = { ...state.clearedParams }
-            if (newClearedParams[instanceId] && newClearedParams[instanceId][paramId]) {
+            if (newClearedParams[instanceId]?.[paramId]) {
               delete newClearedParams[instanceId][paramId]
               // Clean up empty objects
               if (Object.keys(newClearedParams[instanceId]).length === 0) {
@@ -277,10 +277,9 @@ export const useSubBlockStore = create<SubBlockStore>()(
               if (envValue) {
                 // Environment variable exists, return the reference
                 return storedValue
-              } else {
-                // Environment variable no longer exists
-                return undefined
               }
+              // Environment variable no longer exists
+              return undefined
             }
 
             // Return the stored value directly if it's not an env var reference

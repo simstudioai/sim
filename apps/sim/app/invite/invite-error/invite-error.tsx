@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 function getErrorMessage(reason: string, details?: string): string {
@@ -44,24 +44,24 @@ export default function InviteError() {
   const displayMessage = errorMessage || 'Loading error details...'
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center">
-      <div className="mx-auto max-w-md px-6 py-12 bg-card border rounded-lg">
-        <div className="flex flex-col items-center text-center">
-          <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+    <div className='flex min-h-screen flex-col items-center justify-center'>
+      <div className='mx-auto max-w-md rounded-lg border bg-card px-6 py-12'>
+        <div className='flex flex-col items-center text-center'>
+          <AlertTriangle className='mb-4 h-12 w-12 text-amber-500' />
 
-          <h1 className="text-2xl font-bold tracking-tight mb-2">Invitation Error</h1>
+          <h1 className='mb-2 font-bold text-2xl tracking-tight'>Invitation Error</h1>
 
-          <p className="text-muted-foreground mb-6">{displayMessage}</p>
+          <p className='mb-6 text-muted-foreground'>{displayMessage}</p>
 
-          <div className="flex flex-col gap-4 w-full">
-            <Link href="/w" passHref>
-              <Button variant="default" className="w-full">
+          <div className='flex w-full flex-col gap-4'>
+            <Link href='/w' passHref>
+              <Button variant='default' className='w-full'>
                 Go to Dashboard
               </Button>
             </Link>
 
-            <Link href="/" passHref>
-              <Button variant="outline" className="w-full">
+            <Link href='/' passHref>
+              <Button variant='outline' className='w-full'>
                 Return to Home
               </Button>
             </Link>

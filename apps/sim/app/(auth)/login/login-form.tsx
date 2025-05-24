@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -47,7 +47,7 @@ export default function LoginPage({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const [_mounted, setMounted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
@@ -121,11 +121,12 @@ export default function LoginPage({
         {
           onError: (ctx) => {
             console.error('Login error:', ctx.error)
-            let errorMessage: string[] = ['Invalid email or password']
+            const errorMessage: string[] = ['Invalid email or password']
 
             if (ctx.error.code?.includes('EMAIL_NOT_VERIFIED')) {
               return
-            } else if (
+            }
+            if (
               ctx.error.code?.includes('BAD_REQUEST') ||
               ctx.error.message?.includes('Email and password sign in is not enabled')
             ) {
@@ -189,9 +190,9 @@ export default function LoginPage({
             sessionStorage.setItem('verificationEmail', email)
           }
 
-          router.push(`/verify`)
+          router.push('/verify')
           return
-        } catch (verifyErr) {
+        } catch (_verifyErr) {
           setPasswordErrors(['Failed to send verification code. Please try again later.'])
           setShowValidationError(true)
           setIsLoading(false)
@@ -255,16 +256,16 @@ export default function LoginPage({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2 text-center">
-        <h1 className="text-[32px] font-semibold tracking-tight text-white">Sign In</h1>
-        <p className="text-sm text-neutral-400">
+    <div className='space-y-6'>
+      <div className='space-y-2 text-center'>
+        <h1 className='font-semibold text-[32px] text-white tracking-tight'>Sign In</h1>
+        <p className='text-neutral-400 text-sm'>
           Enter your email below to sign in to your account
         </p>
       </div>
 
-      <div className="flex flex-col gap-6">
-        <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/40 rounded-xl p-6">
+      <div className='flex flex-col gap-6'>
+        <div className='rounded-xl border border-neutral-700/40 bg-neutral-800/50 p-6 backdrop-blur-sm'>
           <SocialLoginButtons
             googleAvailable={googleAvailable}
             githubAvailable={githubAvailable}
@@ -272,53 +273,53 @@ export default function LoginPage({
             callbackURL={callbackUrl}
           />
 
-          <div className="relative py-4 mt-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-neutral-700/50"></div>
+          <div className='relative mt-2 py-4'>
+            <div className='absolute inset-0 flex items-center'>
+              <div className='w-full border-neutral-700/50 border-t' />
             </div>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-5">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-neutral-300">
+          <form onSubmit={onSubmit} className='space-y-5'>
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='email' className='text-neutral-300'>
                   Email
                 </Label>
                 <Input
-                  id="email"
-                  name="email"
-                  placeholder="Enter your email"
+                  id='email'
+                  name='email'
+                  placeholder='Enter your email'
                   required
-                  type="email"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  autoCorrect="off"
-                  className="bg-neutral-900 border-neutral-700 text-white placeholder:text-white/60"
+                  type='email'
+                  autoCapitalize='none'
+                  autoComplete='email'
+                  autoCorrect='off'
+                  className='border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60'
                 />
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-neutral-300">
+              <div className='space-y-2'>
+                <div className='flex items-center justify-between'>
+                  <Label htmlFor='password' className='text-neutral-300'>
                     Password
                   </Label>
                   <button
-                    type="button"
+                    type='button'
                     onClick={() => setForgotPasswordOpen(true)}
-                    className="text-xs text-neutral-400 hover:text-white transition font-medium"
+                    className='font-medium text-neutral-400 text-xs transition hover:text-white'
                   >
                     Forgot password?
                   </button>
                 </div>
-                <div className="relative">
+                <div className='relative'>
                   <Input
-                    id="password"
-                    name="password"
+                    id='password'
+                    name='password'
                     required
                     type={showPassword ? 'text' : 'password'}
-                    autoCapitalize="none"
-                    autoComplete="current-password"
-                    autoCorrect="off"
-                    placeholder="Enter your password"
+                    autoCapitalize='none'
+                    autoComplete='current-password'
+                    autoCorrect='off'
+                    placeholder='Enter your password'
                     value={password}
                     onChange={(e) => {
                       setPassword(e.target.value)
@@ -327,19 +328,19 @@ export default function LoginPage({
                         setPasswordErrors([])
                       }
                     }}
-                    className="bg-neutral-900 border-neutral-700 text-white pr-10 placeholder:text-white/60"
+                    className='border-neutral-700 bg-neutral-900 pr-10 text-white placeholder:text-white/60'
                   />
                   <button
-                    type="button"
+                    type='button'
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white transition"
+                    className='-translate-y-1/2 absolute top-1/2 right-3 text-neutral-400 transition hover:text-white'
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
                 {showValidationError && passwordErrors.length > 0 && (
-                  <div className="text-xs text-red-400 mt-1 space-y-1">
+                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
                     {passwordErrors.map((error, index) => (
                       <p key={index}>{error}</p>
                     ))}
@@ -349,8 +350,8 @@ export default function LoginPage({
             </div>
 
             <Button
-              type="submit"
-              className="w-full bg-[#701ffc] hover:bg-[#802FFF] h-11 font-medium text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200 flex items-center justify-center gap-2"
+              type='submit'
+              className='flex h-11 w-full items-center justify-center gap-2 bg-[#701ffc] font-medium text-base text-white shadow-[#701ffc]/20 shadow-lg transition-colors duration-200 hover:bg-[#802FFF]'
               disabled={isLoading}
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
@@ -358,11 +359,11 @@ export default function LoginPage({
           </form>
         </div>
 
-        <div className="text-center text-sm">
-          <span className="text-neutral-400">Don't have an account? </span>
+        <div className='text-center text-sm'>
+          <span className='text-neutral-400'>Don't have an account? </span>
           <Link
             href={isInviteFlow ? `/signup?invite_flow=true&callbackUrl=${callbackUrl}` : '/signup'}
-            className="text-[#9D54FF] hover:text-[#a66fff] font-medium transition underline-offset-4 hover:underline"
+            className='font-medium text-[#9D54FF] underline-offset-4 transition hover:text-[#a66fff] hover:underline'
           >
             Sign up
           </Link>
@@ -370,28 +371,28 @@ export default function LoginPage({
       </div>
 
       <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
-        <DialogContent className="bg-neutral-800/90 border border-neutral-700/50 text-white backdrop-blur-sm">
+        <DialogContent className='border border-neutral-700/50 bg-neutral-800/90 text-white backdrop-blur-sm'>
           <DialogHeader>
-            <DialogTitle className="text-xl font-semibold tracking-tight text-white">
+            <DialogTitle className='font-semibold text-white text-xl tracking-tight'>
               Reset Password
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="text-sm text-neutral-300">
+          <div className='space-y-4'>
+            <div className='text-neutral-300 text-sm'>
               Enter your email address and we'll send you a link to reset your password.
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="reset-email" className="text-neutral-300">
+            <div className='space-y-2'>
+              <Label htmlFor='reset-email' className='text-neutral-300'>
                 Email
               </Label>
               <Input
-                id="reset-email"
+                id='reset-email'
                 value={forgotPasswordEmail}
                 onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                placeholder="Enter your email"
+                placeholder='Enter your email'
                 required
-                type="email"
-                className="bg-neutral-900 border-neutral-700/80 text-white focus:border-[#802FFF]/70 focus:ring-[#802FFF]/20 placeholder:text-white/60"
+                type='email'
+                className='border-neutral-700/80 bg-neutral-900 text-white placeholder:text-white/60 focus:border-[#802FFF]/70 focus:ring-[#802FFF]/20'
               />
             </div>
             {resetStatus.type && (
@@ -404,9 +405,9 @@ export default function LoginPage({
               </div>
             )}
             <Button
-              type="button"
+              type='button'
               onClick={handleForgotPassword}
-              className="w-full bg-[#701ffc] hover:bg-[#802FFF] h-11 font-medium text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200"
+              className='h-11 w-full bg-[#701ffc] font-medium text-base text-white shadow-[#701ffc]/20 shadow-lg transition-colors duration-200 hover:bg-[#802FFF]'
               disabled={isSubmittingReset}
             >
               {isSubmittingReset ? 'Sending...' : 'Send Reset Link'}

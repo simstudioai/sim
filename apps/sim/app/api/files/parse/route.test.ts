@@ -1,11 +1,10 @@
+import path from 'path'
 /**
  * Tests for file parse API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NextRequest } from 'next/server'
-import path from 'path'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 // Create actual mocks for path functions that we can use instead of using vi.doMock for path

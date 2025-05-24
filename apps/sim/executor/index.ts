@@ -1,9 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
+import type { BlockOutput } from '@/blocks/types'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
-import { BlockOutput } from '@/blocks/types'
-import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import {
   AgentBlockHandler,
   ApiBlockHandler,
@@ -16,7 +16,7 @@ import {
 import { LoopManager } from './loops'
 import { PathTracker } from './path'
 import { InputResolver } from './resolver'
-import {
+import type {
   BlockHandler,
   BlockLog,
   ExecutionContext,
@@ -58,7 +58,7 @@ export class Executor {
   private pathTracker: PathTracker
   private blockHandlers: BlockHandler[]
   private workflowInput: any
-  private isDebugging: boolean = false
+  private isDebugging = false
   private contextExtensions: any = {}
   private actualWorkflow: SerializedWorkflow
 
@@ -283,6 +283,7 @@ export class Executor {
                   let fullContent = ''
 
                   // Process the stream in the background to collect the full content
+
                   ;(async () => {
                     try {
                       while (true) {
@@ -465,7 +466,7 @@ export class Executor {
       // Track workflow execution failure
       trackWorkflowTelemetry('workflow_execution_failed', {
         workflowId,
-        duration: new Date().getTime() - startTime.getTime(),
+        duration: Date.now() - startTime.getTime(),
         error: this.extractErrorMessage(error),
         executedBlockCount: context.executedBlocks.size,
         blockLogs: context.blockLogs.length,
@@ -663,7 +664,7 @@ export class Executor {
     if (starterBlock) {
       // Initialize the starter block with the workflow input
       try {
-        const blockParams = starterBlock.config.params
+        const _blockParams = starterBlock.config.params
         /* Commenting out input format handling
         const inputFormat = blockParams?.inputFormat
 
@@ -783,7 +784,7 @@ export class Executor {
           },
         }
 
-        logger.info(`[Executor] Fallback starter output:`, JSON.stringify(starterOutput, null, 2))
+        logger.info('[Executor] Fallback starter output:', JSON.stringify(starterOutput, null, 2))
 
         context.blockStates.set(starterBlock.id, {
           output: starterOutput,
@@ -1238,7 +1239,7 @@ export class Executor {
 
     if (output && typeof output === 'object' && 'response' in output) {
       // If response already contains an error, maintain it
-      if (output.response && output.response.error) {
+      if (output.response?.error) {
         return {
           ...output,
           error: output.response.error,

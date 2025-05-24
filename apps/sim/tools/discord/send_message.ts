@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import {
+import type { ToolConfig } from '../types'
+import type {
   DiscordAPIError,
   DiscordMessage,
   DiscordSendMessageParams,
@@ -54,7 +54,7 @@ export const discordSendMessageTool: ToolConfig<
       }
 
       if (params.botToken) {
-        headers['Authorization'] = `Bot ${params.botToken}`
+        headers.Authorization = `Bot ${params.botToken}`
       }
 
       return headers

@@ -1,6 +1,6 @@
 import { ImageIcon } from '@/components/icons'
-import { DalleResponse } from '@/tools/openai/types'
-import { BlockConfig } from '../types'
+import type { DalleResponse } from '@/tools/openai/types'
+import type { BlockConfig } from '../types'
 
 export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
   type: 'image_generator',
@@ -131,7 +131,8 @@ export const ImageGeneratorBlock: BlockConfig<DalleResponse> = {
             quality: params.quality || 'standard',
             style: params.style || 'vivid',
           }
-        } else if (params.model === 'gpt-image-1') {
+        }
+        if (params.model === 'gpt-image-1') {
           return {
             ...baseParams,
             ...(params.background && { background: params.background }),

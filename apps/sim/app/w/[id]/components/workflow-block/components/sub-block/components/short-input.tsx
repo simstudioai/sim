@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { SubBlockConfig } from '@/blocks/types'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 const logger = createLogger('ShortInput')
@@ -152,7 +152,7 @@ export function ShortInput({
       // Use a smaller factor for smoother zooming that matches ReactFlow's native behavior
       const delta = e.deltaY > 0 ? 1 : -1
       // Using 0.98 instead of 0.95 makes the zoom much slower and more gradual
-      const zoomFactor = Math.pow(0.96, delta)
+      const zoomFactor = 0.96 ** delta
 
       // Calculate new zoom level with min/max constraints
       const newZoom = Math.min(Math.max(currentZoom * zoomFactor, 0.1), 1)
@@ -204,7 +204,7 @@ export function ShortInput({
 
       // Insert '<' at drop position to trigger the dropdown
       const currentValue = value?.toString() ?? ''
-      const newValue = currentValue.slice(0, dropPosition) + '<' + currentValue.slice(dropPosition)
+      const newValue = `${currentValue.slice(0, dropPosition)}<${currentValue.slice(dropPosition)}`
 
       // Focus the input first
       inputRef.current?.focus()
@@ -271,17 +271,17 @@ export function ShortInput({
   }
 
   return (
-    <div className="relative w-full">
+    <div className='relative w-full'>
       <Input
         ref={inputRef}
         className={cn(
-          'w-full placeholder:text-muted-foreground/50 allow-scroll text-transparent caret-foreground overflow-auto',
+          'allow-scroll w-full overflow-auto text-transparent caret-foreground placeholder:text-muted-foreground/50',
           isConnecting &&
             config?.connectionDroppable !== false &&
-            'focus-visible:ring-blue-500 ring-2 ring-blue-500 ring-offset-2'
+            'ring-2 ring-blue-500 ring-offset-2 focus-visible:ring-blue-500'
         )}
         placeholder={placeholder ?? ''}
-        type="text"
+        type='text'
         value={displayValue}
         onChange={handleChange}
         onFocus={() => {
@@ -311,16 +311,16 @@ export function ShortInput({
         onPaste={handlePaste}
         onWheel={handleWheel}
         onKeyDown={handleKeyDown}
-        autoComplete="off"
+        autoComplete='off'
         style={{ overflowX: 'auto' }}
       />
       <div
         ref={overlayRef}
-        className="absolute inset-0 pointer-events-none px-3 flex items-center overflow-x-auto text-sm bg-transparent"
+        className='pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-3 text-sm'
         style={{ overflowX: 'auto' }}
       >
         <div
-          className="whitespace-pre w-full"
+          className='w-full whitespace-pre'
           style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
         >
           {password && !isFocused

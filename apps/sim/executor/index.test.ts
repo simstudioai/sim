@@ -8,7 +8,7 @@
  * resolving inputs and dependencies, and managing errors.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { SerializedWorkflow } from '../serializer/types'
+import type { SerializedWorkflow } from '../serializer/types'
 import { Executor } from './index'
 
 vi.mock('@/lib/logs/console-logger', () => ({
@@ -300,7 +300,7 @@ describe('Executor', () => {
       const validateSpy = vi.spyOn(Executor.prototype as any, 'validateWorkflow')
 
       const workflow = createMinimalWorkflow()
-      const executor = new Executor(workflow)
+      const _executor = new Executor(workflow)
 
       expect(validateSpy).toHaveBeenCalled()
     })
@@ -686,7 +686,7 @@ describe('Executor', () => {
       testError.status = 400
 
       // Create a context with blockLogs
-      const mockContext = {
+      const _mockContext = {
         blockLogs: [],
         blockStates: new Map(),
         executedBlocks: new Set<string>(),
@@ -967,7 +967,7 @@ describe('Executor', () => {
 
       // Import the executor with mocks applied
       const { Executor } = await import('./index')
-      const executor = new Executor(workflow)
+      const _executor = new Executor(workflow)
 
       // Manually simulate execution to populate capturedIndices
       // First iteration - both blocks with index 0

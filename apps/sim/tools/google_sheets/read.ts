@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { GoogleSheetsReadResponse, GoogleSheetsToolParams } from './types'
+import type { ToolConfig } from '../types'
+import type { GoogleSheetsReadResponse, GoogleSheetsToolParams } from './types'
 
 export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadResponse> = {
   id: 'google_sheets_read',
@@ -120,7 +120,7 @@ export const readTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsReadRespon
       // If we have a complex object, stringify it for debugging
       try {
         return `Google Sheets API error: ${JSON.stringify(error)}`
-      } catch (e) {
+      } catch (_e) {
         // In case the error object can't be stringified (e.g., circular references)
         return 'Google Sheets API error: Unable to parse error details'
       }

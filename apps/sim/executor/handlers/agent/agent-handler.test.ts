@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { isHosted } from '@/lib/environment'
 import { getAllBlocks } from '@/blocks'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
-import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
-import { ExecutionContext, StreamingExecution } from '../../types'
+import type { ExecutionContext, StreamingExecution } from '../../types'
 import { AgentBlockHandler } from './agent-handler'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
@@ -169,7 +169,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      const expectedProviderRequest = {
+      const _expectedProviderRequest = {
         model: 'gpt-4o',
         systemPrompt: 'You are a helpful assistant.',
         context: 'User query: Hello!',
@@ -206,7 +206,7 @@ describe('AgentBlockHandler', () => {
 
         // When result resolves, capture the tools
         result.then((tools: any[]) => {
-          if (tools && tools.length) {
+          if (tools?.length) {
             capturedTools = tools.filter((t) => t !== null)
           }
         })
@@ -331,7 +331,7 @@ describe('AgentBlockHandler', () => {
       expect(typeof autoTool.executeFunction).toBe('function')
       expect(typeof forceTool.executeFunction).toBe('function')
 
-      const autoResult = await autoTool.executeFunction({ input: 'test input' })
+      const _autoResult = await autoTool.executeFunction({ input: 'test input' })
       expect(mockExecuteTool).toHaveBeenCalledWith(
         'function_execute',
         expect.objectContaining({
@@ -340,7 +340,7 @@ describe('AgentBlockHandler', () => {
         })
       )
 
-      const forceResult = await forceTool.executeFunction({ input: 'another test' })
+      const _forceResult = await forceTool.executeFunction({ input: 'another test' })
       expect(mockExecuteTool).toHaveBeenCalledWith(
         'function_execute',
         expect.objectContaining({
@@ -529,7 +529,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      const expectedProviderRequest = {
+      const _expectedProviderRequest = {
         model: 'gpt-4o',
         systemPrompt: 'You are a helpful assistant.',
         context: 'User query: Hello!',
@@ -569,7 +569,7 @@ describe('AgentBlockHandler', () => {
       mockTransformBlockTool.mockReturnValue(mockToolDetails)
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      const expectedProviderRequest = {
+      const _expectedProviderRequest = {
         model: 'gpt-4o',
         systemPrompt: undefined,
         context: 'Analyze this data.',
@@ -767,7 +767,7 @@ describe('AgentBlockHandler', () => {
         model: 'gpt-4o',
         messages: [
           { role: 'system', content: 'You are a helpful assistant.' },
-          { role: 'user', content: 'Hello, how are you?' }
+          { role: 'user', content: 'Hello, how are you?' },
         ],
         apiKey: 'test-api-key',
       }
@@ -784,7 +784,7 @@ describe('AgentBlockHandler', () => {
       expect(requestBody.messages.length).toBe(2)
       expect(requestBody.messages[0].role).toBe('system')
       expect(requestBody.messages[1].role).toBe('user')
-      
+
       // Verify system prompt and context are not included
       expect(requestBody.systemPrompt).toBeUndefined()
       expect(requestBody.context).toBeUndefined()
@@ -820,7 +820,7 @@ describe('AgentBlockHandler', () => {
         // Valid messages array should take priority
         messages: [
           { role: 'system', content: 'You are an AI assistant.' },
-          { role: 'user', content: 'What is the capital of France?' }
+          { role: 'user', content: 'What is the capital of France?' },
         ],
         // These should be ignored since messages are valid
         systemPrompt: 'You are a helpful assistant.',
@@ -840,7 +840,7 @@ describe('AgentBlockHandler', () => {
       expect(requestBody.messages.length).toBe(2)
       expect(requestBody.messages[0].content).toBe('You are an AI assistant.')
       expect(requestBody.messages[1].content).toBe('What is the capital of France?')
-      
+
       // Verify system prompt and context are not included
       expect(requestBody.systemPrompt).toBeUndefined()
       expect(requestBody.context).toBeUndefined()
@@ -852,7 +852,7 @@ describe('AgentBlockHandler', () => {
         // Invalid messages array (missing required 'role' field)
         messages: [
           { content: 'This message is missing the role field' },
-          { role: 'user', content: 'Hello' }
+          { role: 'user', content: 'Hello' },
         ],
         // These should be used as fallback
         systemPrompt: 'You are a helpful assistant.',
@@ -892,7 +892,9 @@ describe('AgentBlockHandler', () => {
       expect(requestBody.messages).toBeDefined()
       expect(requestBody.messages.length).toBe(2)
       expect(requestBody.messages[0].role).toBe('system')
-      expect(requestBody.messages[0].content).toBe("Only answer questions about the United States. If someone asks about something else, just say you can't help with that.")
+      expect(requestBody.messages[0].content).toBe(
+        "Only answer questions about the United States. If someone asks about something else, just say you can't help with that."
+      )
       expect(requestBody.messages[1].role).toBe('user')
       expect(requestBody.messages[1].content).toBe("What's the capital of Bosnia and Herzegovina?")
     })
@@ -1010,7 +1012,7 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should handle combined stream+execution responses', async () => {
-      const mockStreamObj = new ReadableStream({
+      const _mockStreamObj = new ReadableStream({
         start(controller) {
           controller.close()
         },

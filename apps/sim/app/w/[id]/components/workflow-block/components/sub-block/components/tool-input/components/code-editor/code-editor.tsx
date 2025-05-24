@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-json'
 import 'prismjs/themes/prism.css'
+
 import Editor from 'react-simple-code-editor'
 import { cn } from '@/lib/utils'
 
@@ -97,7 +98,7 @@ export function CodeEditor({
         numbers.push(
           <div
             key={`${lineNumber}-${i}`}
-            className={cn('text-xs text-muted-foreground leading-[21px]', i > 0 && 'invisible')}
+            className={cn('text-muted-foreground text-xs leading-[21px]', i > 0 && 'invisible')}
           >
             {lineNumber}
           </div>
@@ -144,7 +145,7 @@ export function CodeEditor({
   return (
     <div
       className={cn(
-        'relative min-h-[100px] rounded-md border bg-background font-mono text-sm group',
+        'group relative min-h-[100px] rounded-md border bg-background font-mono text-sm',
         className
       )}
     >
@@ -152,10 +153,10 @@ export function CodeEditor({
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
-            'absolute right-2 top-2 z-10 p-1.5 rounded-md',
-            'bg-accent/50 hover:bg-accent text-muted-foreground hover:text-foreground',
-            'opacity-0 group-hover:opacity-100 transition-opacity',
-            'text-xs font-medium'
+            'absolute top-2 right-2 z-10 rounded-md p-1.5',
+            'bg-accent/50 text-muted-foreground hover:bg-accent hover:text-foreground',
+            'opacity-0 transition-opacity group-hover:opacity-100',
+            'font-medium text-xs'
           )}
         >
           {isCollapsed ? 'Expand' : 'Collapse'}
@@ -163,8 +164,8 @@ export function CodeEditor({
       )}
 
       <div
-        className="absolute left-0 top-0 bottom-0 bg-muted/30 flex flex-col items-end pr-3 pt-3 select-none overflow-hidden"
-        aria-hidden="true"
+        className='absolute top-0 bottom-0 left-0 flex select-none flex-col items-end overflow-hidden bg-muted/30 pt-3 pr-3'
+        aria-hidden='true'
         style={{
           width: gutterWidth,
         }}
@@ -173,7 +174,7 @@ export function CodeEditor({
       </div>
 
       <div
-        className={cn('pt-0 mt-0 relative', isCollapsed && 'max-h-[126px] overflow-hidden')}
+        className={cn('relative mt-0 pt-0', isCollapsed && 'max-h-[126px] overflow-hidden')}
         ref={editorRef}
         style={{
           minHeight,
@@ -182,7 +183,7 @@ export function CodeEditor({
       >
         {code.length === 0 && placeholder && (
           <pre
-            className="absolute top-[12px] text-muted-foreground/50 select-none pointer-events-none whitespace-pre-wrap overflow-visible"
+            className='pointer-events-none absolute top-[12px] select-none overflow-visible whitespace-pre-wrap text-muted-foreground/50'
             style={{ left: `calc(${gutterWidth} + 12px)`, fontFamily: 'inherit', margin: 0 }}
           >
             {placeholder}

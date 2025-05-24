@@ -1,5 +1,5 @@
-import { BlockOutput } from '@/blocks/types'
-import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import type { BlockOutput } from '@/blocks/types'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 /**
  * Standardized block output format that ensures compatibility with the execution engine.

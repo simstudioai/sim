@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import type React from 'react'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 
@@ -56,17 +57,17 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
       const endText = closeIndex !== -1 ? textAfterCursor.slice(closeIndex + 2) : textAfterCursor
 
       // Construct the new value with proper env var syntax
-      const newValue = startText + '{{' + envVar + '}}' + endText
+      const newValue = `${startText}{{${envVar}}}${endText}`
       onSelect(newValue)
     } else {
       // For direct typing mode (API key fields), check if we need to replace existing text
       // This handles the case where user has already typed part of a variable name
       if (inputValue.trim() !== '') {
         // Replace the entire input with the selected env var
-        onSelect('{{' + envVar + '}}')
+        onSelect(`{{${envVar}}}`)
       } else {
         // Empty input, just insert the env var
-        onSelect('{{' + envVar + '}}')
+        onSelect(`{{${envVar}}}`)
       }
     }
 
@@ -113,22 +114,22 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   return (
     <div
       className={cn(
-        'absolute z-[9999] w-full mt-1 overflow-hidden bg-popover rounded-md border shadow-md',
+        'absolute z-[9999] mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-md',
         className
       )}
       style={style}
     >
       {filteredEnvVars.length === 0 ? (
-        <div className="px-3 py-2 text-sm text-muted-foreground">
+        <div className='px-3 py-2 text-muted-foreground text-sm'>
           No matching environment variables
         </div>
       ) : (
-        <div className="py-1">
+        <div className='py-1'>
           {filteredEnvVars.map((envVar, index) => (
             <button
               key={envVar}
               className={cn(
-                'w-full px-3 py-1.5 text-sm text-left',
+                'w-full px-3 py-1.5 text-left text-sm',
                 'hover:bg-accent hover:text-accent-foreground',
                 'focus:bg-accent focus:text-accent-foreground focus:outline-none',
                 index === selectedIndex && 'bg-accent text-accent-foreground'

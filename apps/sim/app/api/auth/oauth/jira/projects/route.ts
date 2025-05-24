@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const domain = url.searchParams.get('domain')?.trim()
     const accessToken = url.searchParams.get('accessToken')
     const providedCloudId = url.searchParams.get('cloudId')
-    let query = url.searchParams.get('query') || ''
+    const query = url.searchParams.get('query') || ''
 
     if (!domain) {
       return NextResponse.json({ error: 'Domain is required' }, { status: 400 })
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
         const errorData = await response.json()
         logger.error('Error details:', errorData)
         errorMessage = errorData.message || `Failed to fetch projects (${response.status})`
-      } catch (e) {
+      } catch (_e) {
         errorMessage = `Failed to fetch projects: ${response.status} ${response.statusText}`
       }
       return NextResponse.json({ error: errorMessage }, { status: response.status })

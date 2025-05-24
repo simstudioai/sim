@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { NextResponse } from 'next/server'
 import { UPLOAD_DIR } from '@/lib/uploads/setup'
 
 /**
@@ -162,7 +162,7 @@ export function createFileResponse(file: FileResponse): NextResponse {
 /**
  * Create a standardized error response
  */
-export function createErrorResponse(error: Error, status: number = 500): NextResponse {
+export function createErrorResponse(error: Error, status = 500): NextResponse {
   // Map error types to appropriate status codes
   const statusCode =
     error instanceof FileNotFoundError ? 404 : error instanceof InvalidRequestError ? 400 : status

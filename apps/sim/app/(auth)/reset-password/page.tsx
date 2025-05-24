@@ -82,10 +82,10 @@ function ResetPasswordContent() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-8">Sim Studio</h1>
-        <Card className="w-full">
+    <main className='flex min-h-screen flex-col items-center justify-center bg-gray-50'>
+      <div className='sm:mx-auto sm:w-full sm:max-w-md'>
+        <h1 className='mb-8 text-center font-bold text-2xl'>Sim Studio</h1>
+        <Card className='w-full'>
           <CardHeader>
             <CardTitle>Reset your password</CardTitle>
             <CardDescription>Enter a new password for your account</CardDescription>
@@ -100,8 +100,8 @@ function ResetPasswordContent() {
             />
           </CardContent>
           <CardFooter>
-            <p className="text-sm text-gray-500 text-center w-full">
-              <Link href="/login" className="text-primary hover:underline">
+            <p className='w-full text-center text-gray-500 text-sm'>
+              <Link href='/login' className='text-primary hover:underline'>
                 Back to login
               </Link>
             </p>
@@ -115,7 +115,7 @@ function ResetPasswordContent() {
 export default function ResetPasswordPage() {
   return (
     <Suspense
-      fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}
+      fallback={<div className='flex min-h-screen items-center justify-center'>Loading...</div>}
     >
       <ResetPasswordContent />
     </Suspense>

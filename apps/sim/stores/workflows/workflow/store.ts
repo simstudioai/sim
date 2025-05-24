@@ -1,19 +1,19 @@
-import { Edge } from 'reactflow'
+import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { createLogger } from '@/lib/logs/console-logger'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
-import { createLogger } from '@/lib/logs/console-logger'
-import { pushHistory, withHistory, WorkflowStoreWithHistory } from '../middleware'
+import { pushHistory, type WorkflowStoreWithHistory, withHistory } from '../middleware'
 import { saveWorkflowState } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
 import { markWorkflowsDirty, workflowSync } from '../sync'
 import { mergeSubblockState } from '../utils'
-import { Loop, Position, SubBlockState, SyncControl, WorkflowState } from './types'
+import type { Loop, Position, SubBlockState, SyncControl, WorkflowState } from './types'
 import { detectCycle } from './utils'
 
-const logger = createLogger('WorkflowStore')
+const _logger = createLogger('WorkflowStore')
 
 const initialState = {
   blocks: {},
@@ -432,8 +432,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         // More efficient name handling
         const match = block.name.match(/(.*?)(\d+)?$/)
-        const newName =
-          match && match[2] ? `${match[1]}${parseInt(match[2]) + 1}` : `${block.name} 1`
+        const newName = match?.[2]
+          ? `${match[1]}${Number.parseInt(match[2]) + 1}`
+          : `${block.name} 1`
 
         // Get merged state to capture current subblock values
         const mergedBlock = mergeSubblockState(get().blocks, id)[id]
@@ -716,12 +717,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
       revertToDeployedState: (deployedState: WorkflowState) => {
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        
+
         // Preserving the workflow-specific deployment status if it exists
-        const deploymentStatus = activeWorkflowId 
+        const deploymentStatus = activeWorkflowId
           ? useWorkflowRegistry.getState().getWorkflowDeploymentStatus(activeWorkflowId)
-          : null;
-        
+          : null
+
         const newState = {
           blocks: deployedState.blocks,
           edges: deployedState.edges,
@@ -733,10 +734,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           // Keep existing deployment statuses and update for the active workflow if needed
           deploymentStatuses: {
             ...get().deploymentStatuses,
-            ...(activeWorkflowId && deploymentStatus ? {
-              [activeWorkflowId]: deploymentStatus
-            } : {})
-          }
+            ...(activeWorkflowId && deploymentStatus
+              ? {
+                  [activeWorkflowId]: deploymentStatus,
+                }
+              : {}),
+          },
         }
 
         // Update the main workflow state
@@ -796,14 +799,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         set(newState)
-        
+
         // Clear the appropriate subblock values based on the new mode
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (activeWorkflowId) {
           const subBlockStore = useSubBlockStore.getState()
           const blockValues = subBlockStore.workflowValues[activeWorkflowId]?.[id] || {}
           const updatedValues = { ...blockValues }
-          
+
           if (!block.advancedMode) {
             // Switching TO advanced mode, clear system prompt and context (basic mode fields)
             updatedValues.systemPrompt = null
@@ -812,19 +815,19 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             // Switching TO basic mode, clear messages (advanced mode field)
             updatedValues.messages = null
           }
-          
+
           // Update subblock store with the cleared values
           useSubBlockStore.setState({
             workflowValues: {
               ...subBlockStore.workflowValues,
               [activeWorkflowId]: {
                 ...subBlockStore.workflowValues[activeWorkflowId],
-                [id]: updatedValues
-              }
-            }
+                [id]: updatedValues,
+              },
+            },
           })
         }
-        
+
         get().triggerUpdate()
         get().sync.markDirty()
         get().sync.forceSync()

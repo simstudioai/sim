@@ -1,0 +1,169 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.0.0-beta.5/schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": false },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": [
+      "**",
+      "!**/.next",
+      "!**/out",
+      "!**/dist",
+      "!**/build",
+      "!**/node_modules",
+      "!**/.bun",
+      "!**/.cache",
+      "!**/.turbo",
+      "!**/.DS_Store",
+      "!**/*.pem",
+      "!**/bun-debug.log*",
+      "!**/.env*.local",
+      "!**/.env",
+      "!**/.vercel",
+      "!**/coverage",
+      "!**/public/sw.js",
+      "!**/public/workbox-*.js",
+      "!**/public/worker-*.js",
+      "!**/public/fallback-*.js",
+      "!**/apps/docs/.source/**"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "useEditorconfig": true,
+    "formatWithErrors": false,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 100,
+    "attributePosition": "auto",
+    "bracketSpacing": true,
+    "includes": [
+      "**",
+      "!**/.next",
+      "!**/out",
+      "!**/dist",
+      "!**/build",
+      "!**/node_modules",
+      "!**/.bun",
+      "!**/.cache",
+      "!**/.turbo",
+      "!**/.DS_Store",
+      "!**/*.pem",
+      "!**/bun-debug.log*",
+      "!**/.env*.local",
+      "!**/.env",
+      "!**/.vercel",
+      "!**/coverage",
+      "!**/public/sw.js",
+      "!**/public/workbox-*.js",
+      "!**/public/worker-*.js",
+      "!**/public/fallback-*.js",
+      "!**/apps/docs/.source/**"
+    ]
+  },
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              [":NODE:", "react", "react/**"],
+              ":PACKAGE:",
+              "@/components/**",
+              "@/lib/**",
+              "@/app/**",
+              ":ALIAS:",
+              ":RELATIVE:"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "nursery": {
+        "useSortedClasses": "error"
+      },
+      "a11y": {
+        "noSvgWithoutTitle": "off",
+        "useAltText": "off",
+        "useKeyWithClickEvents": "off",
+        "noRedundantAlt": "off",
+        "useSemanticElements": "off",
+        "useButtonType": "off",
+        "useFocusableInteractive": "off",
+        "noStaticElementInteractions": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "useAriaPropsForRole": "off"
+      },
+      "suspicious": {
+        "noImplicitAnyLet": "off",
+        "noArrayIndexKey": "off",
+        "noExplicitAny": "off",
+        "noControlCharactersInRegex": "off",
+        "noThenProperty": "off",
+        "noAssignInExpressions": "off",
+        "noDocumentCookie": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "off",
+        "noUnusedFunctionParameters": "off",
+        "noUnusedVariables": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "off",
+        "noParameterAssign": "off",
+        "useNodejsImportProtocol": "off",
+        "useAsConstAssertion": "error",
+        "useDefaultParameterLast": "error",
+        "useEnumInitializers": "error",
+        "useSelfClosingElements": "error",
+        "useSingleVarDeclarator": "error",
+        "noUnusedTemplateLiteral": "off",
+        "useNumberNamespace": "error",
+        "noInferrableTypes": "error",
+        "noUselessElse": "error"
+      },
+      "complexity": {
+        "noForEach": "off",
+        "noUselessFragments": "off"
+      },
+      "performance": {
+        "noAccumulatingSpread": "off",
+        "noDelete": "error"
+      }
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "jsxQuoteStyle": "single",
+      "quoteProperties": "asNeeded",
+      "trailingCommas": "es5",
+      "semicolons": "asNeeded",
+      "arrowParentheses": "always",
+      "bracketSameLine": false,
+      "quoteStyle": "single",
+      "attributePosition": "auto",
+      "bracketSpacing": true
+    }
+  },
+  "css": {
+    "formatter": {
+      "enabled": true,
+      "indentWidth": 2
+    }
+  },
+  "json": {
+    "formatter": {
+      "enabled": true,
+      "indentWidth": 2
+    }
+  }
+}

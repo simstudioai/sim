@@ -38,7 +38,7 @@ async function initializeOpenTelemetry() {
     try {
       // Use dynamic import for ES modules
       telemetryConfig = (await import('./telemetry.config.ts')).default
-    } catch (e) {
+    } catch (_e) {
       telemetryConfig = DEFAULT_TELEMETRY_CONFIG
     }
 

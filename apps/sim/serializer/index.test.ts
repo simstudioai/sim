@@ -20,7 +20,7 @@ import {
   createMissingMetadataWorkflow,
 } from './__test-utils__/test-workflows'
 import { Serializer } from './index'
-import { SerializedWorkflow } from './types'
+import type { SerializedWorkflow } from './types'
 
 // Mock getBlock function
 vi.mock('@/blocks', () => ({

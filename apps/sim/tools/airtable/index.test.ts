@@ -21,7 +21,7 @@ describe('Airtable Tools Integration', () => {
 
   afterEach(() => {
     vi.resetAllMocks()
-    delete process.env.NEXT_PUBLIC_APP_URL
+    process.env.NEXT_PUBLIC_APP_URL = undefined
   })
 
   describe('Airtable List Records Tool', () => {
@@ -44,7 +44,7 @@ describe('Airtable Tools Integration', () => {
       expect(url).toContain('/base123/table456')
       expect(url).toContain('maxRecords=100')
       expect(url).toContain(`filterByFormula=Status='Active'`)
-      expect(headers['Authorization']).toBe('Bearer token789')
+      expect(headers.Authorization).toBe('Bearer token789')
     })
 
     test('should handle successful list response', async () => {
@@ -88,7 +88,7 @@ describe('Airtable Tools Integration', () => {
       const headers = tester.getRequestHeaders(params)
 
       expect(url).toContain('/base123/table456/rec789')
-      expect(headers['Authorization']).toBe('Bearer token789')
+      expect(headers.Authorization).toBe('Bearer token789')
     })
 
     test('should handle successful get response', async () => {
@@ -132,7 +132,7 @@ describe('Airtable Tools Integration', () => {
       const body = tester.getRequestBody(params)
 
       expect(url).toContain('/base123/table456')
-      expect(headers['Authorization']).toBe('Bearer token789')
+      expect(headers.Authorization).toBe('Bearer token789')
       expect(body).toEqual({ records: [{ fields: { Name: 'New Record' } }] })
     })
 
@@ -175,7 +175,7 @@ describe('Airtable Tools Integration', () => {
       const body = tester.getRequestBody(params)
 
       expect(url).toContain('/base123/table456/rec789')
-      expect(headers['Authorization']).toBe('Bearer token789')
+      expect(headers.Authorization).toBe('Bearer token789')
       expect(body).toEqual({ fields: { Name: 'Updated Record' } })
     })
 

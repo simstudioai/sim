@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { JiraUpdateParams, JiraUpdateResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { JiraUpdateParams, JiraUpdateResponse } from './types'
 import { getJiraCloudId } from './utils'
 
 export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = {
@@ -73,11 +73,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
   directExecution: async (params) => {
     // Pre-fetch the cloudId if not provided
     if (!params.cloudId) {
-      try {
-        params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
-      } catch (error) {
-        throw error
-      }
+      params.cloudId = await getJiraCloudId(params.domain, params.accessToken)
     }
     return undefined // Let the regular request handling take over
   },
@@ -163,9 +159,8 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
               data.message ||
               'Failed to update Jira issue'
           )
-        } else {
-          throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
         }
+        throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
       } catch (e) {
         if (e instanceof SyntaxError) {
           // If we can't parse the response as JSON, return the raw text
@@ -200,7 +195,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
           success: true,
         },
       }
-    } catch (e) {
+    } catch (_e) {
       // If we can't parse the response but it was successful, still return success
       return {
         success: true,

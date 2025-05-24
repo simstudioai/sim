@@ -1,6 +1,5 @@
 import { stripeClient } from '@better-auth/stripe/client'
-import { emailOTPClient, genericOAuthClient } from 'better-auth/client/plugins'
-import { organizationClient } from 'better-auth/client/plugins'
+import { emailOTPClient, genericOAuthClient, organizationClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
 import { isProd } from '@/lib/environment'
 

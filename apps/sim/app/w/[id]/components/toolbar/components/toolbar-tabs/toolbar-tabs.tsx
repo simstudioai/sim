@@ -30,12 +30,12 @@ export function ToolbarTabs({ activeTab, onTabChange }: ToolbarTabsProps) {
   }, [activeTab])
 
   return (
-    <div className="relative pt-5">
-      <div className="flex gap-8 px-6">
+    <div className='relative pt-5'>
+      <div className='flex gap-8 px-6'>
         <button
           ref={blocksRef}
           onClick={() => onTabChange('blocks')}
-          className={`text-sm font-medium transition-colors hover:text-foreground ${
+          className={`font-medium text-sm transition-colors hover:text-foreground ${
             activeTab === 'blocks' ? 'text-foreground' : 'text-muted-foreground'
           }`}
         >
@@ -44,7 +44,7 @@ export function ToolbarTabs({ activeTab, onTabChange }: ToolbarTabsProps) {
         <button
           ref={toolsRef}
           onClick={() => onTabChange('tools')}
-          className={`text-sm font-medium transition-colors hover:text-foreground ${
+          className={`font-medium text-sm transition-colors hover:text-foreground ${
             activeTab === 'tools' ? 'text-foreground' : 'text-muted-foreground'
           }`}
         >
@@ -52,10 +52,10 @@ export function ToolbarTabs({ activeTab, onTabChange }: ToolbarTabsProps) {
         </button>
       </div>
 
-      <div className="relative mt-2">
-        <div className="absolute bottom-0 h-[1px] w-full border-b" />
+      <div className='relative mt-2'>
+        <div className='absolute bottom-0 h-[1px] w-full border-b' />
         <div
-          className="absolute bottom-0 h-[1.5px] bg-foreground transition-transform duration-200"
+          className='absolute bottom-0 h-[1.5px] bg-foreground transition-transform duration-200'
           style={{
             width: `${underlineStyle.width}px`,
             transform: underlineStyle.transform,

@@ -54,7 +54,7 @@ export async function POST(request: Request) {
         const errorData = await response.json()
         logger.error('Error details:', errorData)
         errorMessage = errorData.message || `Failed to fetch issue (${response.status})`
-      } catch (e) {
+      } catch (_e) {
         errorMessage = `Failed to fetch issue: ${response.status} ${response.statusText}`
       }
       return NextResponse.json({ error: errorMessage }, { status: response.status })

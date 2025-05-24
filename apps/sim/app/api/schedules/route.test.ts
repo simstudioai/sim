@@ -6,7 +6,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createMockRequest,
-  getMockedDependencies,
   mockExecutionDependencies,
   sampleWorkflowState,
 } from '@/app/api/__test-utils__/utils'
@@ -29,7 +28,7 @@ describe('Schedule Configuration API Route', () => {
     }))
 
     // Extend sampleWorkflowState for scheduling
-    const workflowStateWithSchedule = {
+    const _workflowStateWithSchedule = {
       ...sampleWorkflowState,
       blocks: {
         ...sampleWorkflowState.blocks,
@@ -67,12 +66,11 @@ describe('Schedule Configuration API Route', () => {
                   ]),
                 })),
               }
-            } else {
-              return {
-                where: vi.fn().mockImplementation(() => ({
-                  limit: vi.fn().mockImplementation(() => []),
-                })),
-              }
+            }
+            return {
+              where: vi.fn().mockImplementation(() => ({
+                limit: vi.fn().mockImplementation(() => []),
+              })),
             }
           }),
         })),

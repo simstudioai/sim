@@ -1,4 +1,4 @@
-import { ToolResponse } from '../types'
+import type { ToolResponse } from '../types'
 
 export interface BaseImageRequestBody {
   model: string

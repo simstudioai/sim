@@ -1,10 +1,10 @@
 import { GoogleDocsIcon } from '@/components/icons'
-import {
+import type {
   GoogleDocsCreateResponse,
   GoogleDocsReadResponse,
   GoogleDocsWriteResponse,
 } from '@/tools/google_docs/types'
-import { BlockConfig } from '../types'
+import type { BlockConfig } from '../types'
 
 type GoogleDocsResponse =
   | GoogleDocsReadResponse

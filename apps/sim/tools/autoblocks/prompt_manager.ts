@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import { PromptManagerParams, PromptManagerResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { PromptManagerParams, PromptManagerResponse } from './types'
 
 const logger = createLogger('AutoblocksPromptManagerTool')
 

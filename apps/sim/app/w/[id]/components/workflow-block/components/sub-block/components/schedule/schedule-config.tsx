@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
 import { Calendar, ExternalLink } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -47,7 +47,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   // Get the startWorkflow value to determine if scheduling is enabled
   // and expose the setter so we can update it
   const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
-  const isScheduleEnabled = startWorkflow === 'schedule'
+  const _isScheduleEnabled = startWorkflow === 'schedule'
 
   // Function to check if schedule exists in the database
   const checkSchedule = async () => {
@@ -64,7 +64,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
 
       if (response.ok) {
         const data = await response.json()
-        logger.debug(`Schedule check response:`, data)
+        logger.debug('Schedule check response:', data)
 
         if (data.schedule) {
           setScheduleId(data.schedule.id)
@@ -114,8 +114,8 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
 
     return (
       <>
-        <div className="font-normal text-sm truncate">{scheduleTiming}</div>
-        <div className="text-xs text-muted-foreground">
+        <div className='truncate font-normal text-sm'>{scheduleTiming}</div>
+        <div className='text-muted-foreground text-xs'>
           <div>Next run: {formatDateTime(new Date(nextRunAt), timezone)}</div>
           {lastRanAt && <div>Last run: {formatDateTime(new Date(lastRanAt), timezone)}</div>}
         </div>
@@ -169,7 +169,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
       // 4. Make a direct API call instead of relying on sync
       // This gives us more control and better error handling
       logger.debug('Making direct API call to save schedule with complete state')
-      const response = await fetch(`/api/schedules`, {
+      const response = await fetch('/api/schedules', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -297,43 +297,43 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   const isScheduleActive = !!scheduleId && !!nextRunAt
 
   return (
-    <div className="w-full" onClick={(e) => e.stopPropagation()}>
-      {error && <div className="text-sm text-red-500 dark:text-red-400 mb-2">{error}</div>}
+    <div className='w-full' onClick={(e) => e.stopPropagation()}>
+      {error && <div className='mb-2 text-red-500 text-sm dark:text-red-400'>{error}</div>}
 
       {isScheduleActive ? (
-        <div className="flex flex-col space-y-2">
-          <div className="flex items-center justify-between px-3 py-2 rounded border border-border bg-background">
-            <div className="flex items-center gap-2 flex-1">
-              <div className="flex-1 truncate">{getScheduleInfo()}</div>
+        <div className='flex flex-col space-y-2'>
+          <div className='flex items-center justify-between rounded border border-border bg-background px-3 py-2'>
+            <div className='flex flex-1 items-center gap-2'>
+              <div className='flex-1 truncate'>{getScheduleInfo()}</div>
             </div>
             <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0"
+              type='button'
+              variant='ghost'
+              size='icon'
+              className='h-8 w-8 shrink-0'
               onClick={handleOpenModal}
               disabled={isDeleting || isConnecting}
             >
               {isDeleting ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+                <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
               ) : (
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className='h-4 w-4' />
               )}
             </Button>
           </div>
         </div>
       ) : (
         <Button
-          variant="outline"
-          size="sm"
-          className="w-full h-10 text-sm font-normal bg-background flex items-center"
+          variant='outline'
+          size='sm'
+          className='flex h-10 w-full items-center bg-background font-normal text-sm'
           onClick={handleOpenModal}
           disabled={isConnecting || isSaving || isDeleting}
         >
           {isLoading ? (
-            <div className="h-4 w-4 mr-2 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+            <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <Calendar className="h-4 w-4 mr-2" />
+            <Calendar className='mr-2 h-4 w-4' />
           )}
           Configure Schedule
         </Button>

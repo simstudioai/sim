@@ -1,10 +1,10 @@
+import { NextRequest } from 'next/server'
 /**
  * Tests for custom tools API routes
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NextRequest } from 'next/server'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('Custom Tools API Routes', () => {
@@ -209,7 +209,7 @@ describe('Custom Tools API Routes', () => {
       const { GET } = await import('./route')
 
       // Call the handler
-      const response = await GET(req)
+      const _response = await GET(req)
 
       // Verify getUserId was called with correct parameters
       const getUserId = (await import('@/app/api/auth/oauth/utils')).getUserId

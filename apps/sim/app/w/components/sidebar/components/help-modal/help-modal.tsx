@@ -30,25 +30,25 @@ export function HelpModal({ open, onOpenChange }: HelpModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[700px] h-[80vh] flex flex-col p-0 gap-0 overflow-hidden"
+        className='flex h-[80vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[700px]'
         hideCloseButton
       >
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Help & Support</DialogTitle>
+        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
+          <div className='flex items-center justify-between'>
+            <DialogTitle className='font-medium text-lg'>Help & Support</DialogTitle>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 p-0"
+              variant='ghost'
+              size='icon'
+              className='h-8 w-8 p-0'
               onClick={() => onOpenChange(false)}
             >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
+              <X className='h-4 w-4' />
+              <span className='sr-only'>Close</span>
             </Button>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col">
+        <div className='flex flex-1 flex-col overflow-hidden'>
           <HelpForm onClose={() => onOpenChange(false)} />
         </div>
       </DialogContent>

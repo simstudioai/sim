@@ -3,8 +3,9 @@ import { ChevronDown } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
+
 import Editor from 'react-simple-code-editor'
-import { NodeProps } from 'reactflow'
+import type { NodeProps } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -47,10 +48,10 @@ export function LoopInput({ id }: NodeProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
-    const numValue = parseInt(sanitizedValue)
+    const numValue = Number.parseInt(sanitizedValue)
 
     // Only update if it's a valid number and <= 50
-    if (!isNaN(numValue)) {
+    if (!Number.isNaN(numValue)) {
       setInputValue(Math.min(50, numValue).toString())
     } else {
       setInputValue(sanitizedValue)
@@ -58,9 +59,9 @@ export function LoopInput({ id }: NodeProps) {
   }
 
   const handleSave = () => {
-    const value = parseInt(inputValue)
+    const value = Number.parseInt(inputValue)
 
-    if (!isNaN(value)) {
+    if (!Number.isNaN(value)) {
       const newValue = Math.min(50, Math.max(1, value))
       updateLoopIterations(loopId, newValue)
       // Sync input with store value
@@ -115,49 +116,49 @@ export function LoopInput({ id }: NodeProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
         <Badge
-          variant="outline"
+          variant='outline'
           className={cn(
-            'bg-background border-border text-foreground font-medium pr-1.5 pl-2.5 py-0.5 text-sm',
-            'hover:bg-accent/50 transition-colors duration-150 cursor-pointer',
+            'border-border bg-background py-0.5 pr-1.5 pl-2.5 font-medium text-foreground text-sm',
+            'cursor-pointer transition-colors duration-150 hover:bg-accent/50',
             'flex items-center gap-1'
           )}
         >
           {getLabel()}
-          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          <ChevronDown className='h-3 w-3 text-muted-foreground' />
         </Badge>
       </PopoverTrigger>
       <PopoverContent
         className={cn('p-3', loopType !== 'for' ? 'w-72' : 'w-48')}
-        align="start"
+        align='start'
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-medium text-muted-foreground">
+        <div className='space-y-2'>
+          <div className='flex items-center justify-between'>
+            <div className='font-medium text-muted-foreground text-xs'>
               {loopType === 'for' ? 'Loop Iterations' : 'Collection Items'}
             </div>
           </div>
 
           {loopType === 'for' ? (
             // Number input for 'for' loops
-            <div className="flex items-center gap-2">
+            <div className='flex items-center gap-2'>
               <Input
-                type="text"
+                type='text'
                 value={inputValue}
                 onChange={handleChange}
                 onBlur={handleSave}
                 onKeyDown={handleKeyDown}
-                className="h-8 text-sm"
+                className='h-8 text-sm'
               />
             </div>
           ) : (
             // Code editor for 'forEach' loops
             <div
-              className="relative min-h-[80px] rounded-md bg-background font-mono text-sm px-3 pt-2 pb-3 border border-input"
+              className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'
               ref={editorRef}
             >
               {editorValue === '' && (
-                <div className="absolute top-[8.5px] left-3 text-muted-foreground/50 pointer-events-none select-none">
+                <div className='pointer-events-none absolute top-[8.5px] left-3 select-none text-muted-foreground/50'>
                   {getPlaceholder()}
                 </div>
               )}
@@ -170,13 +171,13 @@ export function LoopInput({ id }: NodeProps) {
                   fontFamily: 'monospace',
                   lineHeight: '21px',
                 }}
-                className="focus:outline-none w-full"
-                textareaClassName="focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap"
+                className='w-full focus:outline-none'
+                textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap'
               />
             </div>
           )}
 
-          <div className="text-[10px] text-muted-foreground">
+          <div className='text-[10px] text-muted-foreground'>
             {loopType === 'for'
               ? 'Enter a number between 1 and 50'
               : 'Array or object to iterate over'}

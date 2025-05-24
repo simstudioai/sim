@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { desc, eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { CATEGORIES } from '@/app/w/marketplace/constants/categories'
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const sectionParam = url.searchParams.get('section')
     const categoryParam = url.searchParams.get('category')
     const limitParam = url.searchParams.get('limit') || '6'
-    const limit = parseInt(limitParam, 10)
+    const limit = Number.parseInt(limitParam, 10)
     const includeState = url.searchParams.get('includeState') === 'true'
     const workflowId = url.searchParams.get('workflowId')
     const marketplaceId = url.searchParams.get('marketplaceId')

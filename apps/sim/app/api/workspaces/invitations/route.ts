@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { render } from '@react-email/render'
 import { randomUUID } from 'crypto'
+import { render } from '@react-email/render'
 import { and, eq, inArray } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { WorkspaceInvitationEmail } from '@/components/emails/workspace-invitation'
 import { getSession } from '@/lib/auth'
@@ -217,7 +217,7 @@ async function sendInvitationEmail({
     )
 
     if (!resend) {
-      logger.error(`RESEND_API_KEY not configured`)
+      logger.error('RESEND_API_KEY not configured')
       return NextResponse.json(
         {
           error:

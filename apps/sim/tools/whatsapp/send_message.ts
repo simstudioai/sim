@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import { WhatsAppToolResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { WhatsAppToolResponse } from './types'
 
 const logger = createLogger('WhatsAppSendMessageTool')
 

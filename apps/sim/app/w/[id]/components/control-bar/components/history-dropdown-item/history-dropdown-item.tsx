@@ -25,7 +25,7 @@ export function HistoryDropdownItem({
   return (
     <DropdownMenuItem
       className={cn(
-        'flex items-start gap-2 p-3 cursor-pointer',
+        'flex cursor-pointer items-start gap-2 p-3',
         isFuture && 'text-muted-foreground/50'
       )}
       onClick={onClick}
@@ -33,8 +33,8 @@ export function HistoryDropdownItem({
       <Clock
         className={cn('h-4 w-4', isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground')}
       />
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
+      <div className='flex flex-col gap-1'>
+        <div className='flex items-center gap-2'>
           {isCurrent ? (
             <span
               className={cn(

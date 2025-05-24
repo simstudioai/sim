@@ -1,5 +1,5 @@
-import { TraceSpan } from '@/app/w/logs/stores/types'
-import { ExecutionResult } from '@/executor/types'
+import type { TraceSpan } from '@/app/w/logs/stores/types'
+import type { ExecutionResult } from '@/executor/types'
 
 // Helper function to build a tree of trace spans from execution logs
 export function buildTraceSpans(result: ExecutionResult): {
@@ -85,7 +85,7 @@ export function buildTraceSpans(result: ExecutionResult): {
             if (typeof segment.startTime === 'string') {
               try {
                 segmentStart = new Date(segment.startTime).getTime()
-              } catch (e) {
+              } catch (_e) {
                 segmentStart = segmentStartTime + index * 1000 // Fallback offset
               }
             } else {
@@ -95,7 +95,7 @@ export function buildTraceSpans(result: ExecutionResult): {
             if (typeof segment.endTime === 'string') {
               try {
                 segmentEnd = new Date(segment.endTime).getTime()
-              } catch (e) {
+              } catch (_e) {
                 segmentEnd = segmentStart + (segment.duration || 1000) // Fallback duration
               }
             } else {
@@ -103,7 +103,11 @@ export function buildTraceSpans(result: ExecutionResult): {
             }
 
             // For streaming responses, make sure our timing is valid
-            if (isNaN(segmentStart) || isNaN(segmentEnd) || segmentEnd < segmentStart) {
+            if (
+              Number.isNaN(segmentStart) ||
+              Number.isNaN(segmentEnd) ||
+              segmentEnd < segmentStart
+            ) {
               // Use fallback values
               segmentStart = segmentStartTime + index * 1000
               segmentEnd = segmentStart + (segment.duration || 1000)
@@ -411,7 +415,7 @@ export function buildTraceSpans(result: ExecutionResult): {
     const earliestStart = allSpansList.reduce((earliest, span) => {
       const startTime = new Date(span.startTime).getTime()
       return startTime < earliest ? startTime : earliest
-    }, Infinity)
+    }, Number.POSITIVE_INFINITY)
 
     const latestEnd = allSpansList.reduce((latest, span) => {
       const endTime = new Date(span.endTime).getTime()

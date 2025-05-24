@@ -1,18 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ChevronDown, Pencil, Plus, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import {
-  ChevronDown,
-  GitPullRequestCreate,
-  GitPullRequestCreateArrow,
-  Pencil,
-  PenLine,
-  Plus,
-  Trash2,
-  X,
-} from 'lucide-react'
 import { AgentIcon } from '@/components/icons'
 import {
   AlertDialog,
@@ -77,44 +68,44 @@ function WorkspaceModal({ open, onOpenChange, onCreateWorkspace }: WorkspaceModa
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[500px] flex flex-col p-0 gap-0 overflow-hidden"
+        className='flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]'
         hideCloseButton
       >
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Create New Workspace</DialogTitle>
+        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
+          <div className='flex items-center justify-between'>
+            <DialogTitle className='font-medium text-lg'>Create New Workspace</DialogTitle>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 p-0"
+              variant='ghost'
+              size='icon'
+              className='h-8 w-8 p-0'
               onClick={() => onOpenChange(false)}
             >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
+              <X className='h-4 w-4' />
+              <span className='sr-only'>Close</span>
             </Button>
           </div>
         </DialogHeader>
 
-        <div className="px-6 pt-4 pb-6">
+        <div className='px-6 pt-4 pb-6'>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="workspace-name" className="text-sm font-medium">
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <label htmlFor='workspace-name' className='font-medium text-sm'>
                   Workspace Name
                 </label>
                 <Input
-                  id="workspace-name"
+                  id='workspace-name'
                   value={workspaceName}
                   onChange={(e) => setWorkspaceName(e.target.value)}
-                  placeholder="Enter workspace name"
-                  className="w-full"
+                  placeholder='Enter workspace name'
+                  className='w-full'
                   autoFocus
                 />
               </div>
-              <div className="flex justify-end">
+              <div className='flex justify-end'>
                 <Button
-                  type="submit"
-                  size="sm"
+                  type='submit'
+                  size='sm'
                   disabled={!workspaceName.trim()}
                   className={cn(
                     'gap-2 font-medium',
@@ -169,44 +160,44 @@ function WorkspaceEditModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[500px] flex flex-col p-0 gap-0 overflow-hidden"
+        className='flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]'
         hideCloseButton
       >
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Edit Workspace</DialogTitle>
+        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
+          <div className='flex items-center justify-between'>
+            <DialogTitle className='font-medium text-lg'>Edit Workspace</DialogTitle>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 p-0"
+              variant='ghost'
+              size='icon'
+              className='h-8 w-8 p-0'
               onClick={() => onOpenChange(false)}
             >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
+              <X className='h-4 w-4' />
+              <span className='sr-only'>Close</span>
             </Button>
           </div>
         </DialogHeader>
 
-        <div className="px-6 pt-4 pb-6">
+        <div className='px-6 pt-4 pb-6'>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="workspace-name-edit" className="text-sm font-medium">
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <label htmlFor='workspace-name-edit' className='font-medium text-sm'>
                   Workspace Name
                 </label>
                 <Input
-                  id="workspace-name-edit"
+                  id='workspace-name-edit'
                   value={workspaceName}
                   onChange={(e) => setWorkspaceName(e.target.value)}
-                  placeholder="Enter workspace name"
-                  className="w-full"
+                  placeholder='Enter workspace name'
+                  className='w-full'
                   autoFocus
                 />
               </div>
-              <div className="flex justify-end">
+              <div className='flex justify-end'>
                 <Button
-                  type="submit"
-                  size="sm"
+                  type='submit'
+                  size='sm'
                   disabled={!workspaceName.trim()}
                   className={cn(
                     'gap-2 font-medium',
@@ -475,7 +466,7 @@ export function WorkspaceHeader({
   }, [isWorkspaceModalOpen, isEditModalOpen, isDeleting, setAnyModalOpen])
 
   return (
-    <div className="py-2 px-2">
+    <div className='px-2 py-2'>
       {/* Workspace Modal */}
       <WorkspaceModal
         open={isWorkspaceModalOpen}
@@ -493,7 +484,7 @@ export function WorkspaceHeader({
 
       <DropdownMenu open={isOpen} onOpenChange={handleDropdownOpenChange}>
         <div
-          className={`group relative rounded-md cursor-pointer ${isCollapsed ? 'flex justify-center' : ''}`}
+          className={`group relative cursor-pointer rounded-md ${isCollapsed ? 'flex justify-center' : ''}`}
           onClick={(e) => {
             // In hover mode, prevent clicks on the container from collapsing the sidebar
             if (mode === 'hover') {
@@ -502,43 +493,43 @@ export function WorkspaceHeader({
           }}
         >
           {/* Hover background with consistent padding - only when not collapsed */}
-          {!isCollapsed && <div className="absolute inset-0 rounded-md group-hover:bg-accent/50" />}
+          {!isCollapsed && <div className='absolute inset-0 rounded-md group-hover:bg-accent/50' />}
 
           {/* Content with consistent padding */}
           {isCollapsed ? (
-            <div className="flex items-center justify-center px-2 py-[6px] relative z-10">
+            <div className='relative z-10 flex items-center justify-center px-2 py-[6px]'>
               <Link
                 href={workspaceUrl}
-                className="group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]"
+                className='group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]'
               >
-                <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
+                <AgentIcon className='-translate-y-[0.5px] h-[18px] w-[18px] text-white transition-all group-hover:scale-105' />
               </Link>
             </div>
           ) : (
-            <div className="relative">
+            <div className='relative'>
               <DropdownMenuTrigger asChild>
                 <div
-                  className="flex items-center px-2 py-[6px] relative z-10 w-full"
+                  className='relative z-10 flex w-full items-center px-2 py-[6px]'
                   onClick={handleTriggerClick}
                 >
-                  <div className="flex items-center gap-2 overflow-hidden cursor-pointer">
+                  <div className='flex cursor-pointer items-center gap-2 overflow-hidden'>
                     <Link
                       href={workspaceUrl}
-                      className="group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]"
+                      className='group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]'
                       onClick={(e) => {
                         if (isOpen) e.preventDefault()
                       }}
                     >
-                      <AgentIcon className="text-white transition-all group-hover:scale-105 -translate-y-[0.5px] w-[18px] h-[18px]" />
+                      <AgentIcon className='-translate-y-[0.5px] h-[18px] w-[18px] text-white transition-all group-hover:scale-105' />
                     </Link>
                     {isClientLoading || isWorkspacesLoading ? (
-                      <Skeleton className="h-4 w-[140px]" />
+                      <Skeleton className='h-4 w-[140px]' />
                     ) : (
-                      <div className="flex items-center gap-1">
-                        <span className="truncate max-w-[120px] text-sm font-medium">
+                      <div className='flex items-center gap-1'>
+                        <span className='max-w-[120px] truncate font-medium text-sm'>
                           {activeWorkspace?.name || `${userName}'s Workspace`}
                         </span>
-                        <ChevronDown className="h-3 w-3 opacity-60" />
+                        <ChevronDown className='h-3 w-3 opacity-60' />
                       </div>
                     )}
                   </div>
@@ -547,23 +538,23 @@ export function WorkspaceHeader({
 
               {/* Plus button positioned absolutely */}
               {!isCollapsed && (
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30">
+                <div className='-translate-y-1/2 absolute top-1/2 right-2 z-30'>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div>
                         {isClientLoading ? (
-                          <Skeleton className="h-6 w-6 shrink-0" />
+                          <Skeleton className='h-6 w-6 shrink-0' />
                         ) : (
                           <Button
-                            variant="ghost"
-                            size="icon"
+                            variant='ghost'
+                            size='icon'
                             onClick={(e) => {
                               onCreateWorkflow()
                             }}
-                            className="h-6 w-6 shrink-0 p-0 flex items-center justify-center"
+                            className='flex h-6 w-6 shrink-0 items-center justify-center p-0'
                           >
-                            <Plus className="h-[18px] w-[18px] stroke-[2px]" />
-                            <span className="sr-only">New Workflow</span>
+                            <Plus className='h-[18px] w-[18px] stroke-[2px]' />
+                            <span className='sr-only'>New Workflow</span>
                           </Button>
                         )}
                       </div>
@@ -575,25 +566,25 @@ export function WorkspaceHeader({
             </div>
           )}
         </div>
-        <DropdownMenuContent align="start" className="p-1 min-w-[224px]">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-1">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#802FFF]">
-                  <AgentIcon className="text-white w-5 h-5" />
+        <DropdownMenuContent align='start' className='min-w-[224px] p-1'>
+          <div className='space-y-3'>
+            <div className='flex items-center justify-between p-1'>
+              <div className='flex items-center gap-2'>
+                <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#802FFF]'>
+                  <AgentIcon className='h-5 w-5 text-white' />
                 </div>
-                <div className="flex flex-col max-w-full">
+                <div className='flex max-w-full flex-col'>
                   {isClientLoading || isWorkspacesLoading ? (
                     <>
-                      <Skeleton className="h-4 w-[140px] mb-1" />
-                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className='mb-1 h-4 w-[140px]' />
+                      <Skeleton className='h-3 w-16' />
                     </>
                   ) : (
                     <>
-                      <span className="text-sm font-medium truncate">
+                      <span className='truncate font-medium text-sm'>
                         {activeWorkspace?.name || `${userName}'s Workspace`}
                       </span>
-                      <span className="text-xs text-muted-foreground">{plan}</span>
+                      <span className='text-muted-foreground text-xs'>{plan}</span>
                     </>
                   )}
                 </div>
@@ -604,44 +595,44 @@ export function WorkspaceHeader({
           <DropdownMenuSeparator />
 
           {/* Workspaces list */}
-          <div className="py-1 px-1">
-            <div className="text-xs font-medium text-muted-foreground mb-1 pl-1">Workspaces</div>
+          <div className='px-1 py-1'>
+            <div className='mb-1 pl-1 font-medium text-muted-foreground text-xs'>Workspaces</div>
             {isWorkspacesLoading ? (
-              <div className="py-1 px-2">
-                <Skeleton className="h-5 w-full" />
+              <div className='px-2 py-1'>
+                <Skeleton className='h-5 w-full' />
               </div>
             ) : (
-              <div className="space-y-1">
+              <div className='space-y-1'>
                 {workspaces.map((workspace) => (
                   <DropdownMenuItem
                     key={workspace.id}
-                    className={`text-sm rounded-md px-2 py-1.5 cursor-pointer ${activeWorkspace?.id === workspace.id ? 'bg-accent' : ''} group relative`}
+                    className={`cursor-pointer rounded-md px-2 py-1.5 text-sm ${activeWorkspace?.id === workspace.id ? 'bg-accent' : ''} group relative`}
                     onClick={() => switchWorkspace(workspace)}
                   >
-                    <span className="truncate pr-16">{workspace.name}</span>
+                    <span className='truncate pr-16'>{workspace.name}</span>
                     {workspace.role === 'owner' && (
-                      <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                      <div className='absolute right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 p-0 text-muted-foreground"
+                          variant='ghost'
+                          size='icon'
+                          className='h-6 w-6 p-0 text-muted-foreground'
                           onClick={(e) => openEditModal(workspace, e)}
                         >
-                          <Pencil className="h-3.5 w-3.5" />
-                          <span className="sr-only">Edit</span>
+                          <Pencil className='h-3.5 w-3.5' />
+                          <span className='sr-only'>Edit</span>
                         </Button>
 
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 p-0 text-muted-foreground"
+                              variant='ghost'
+                              size='icon'
+                              className='h-6 w-6 p-0 text-muted-foreground'
                               onClick={(e) => e.stopPropagation()}
                               disabled={isDeleting || workspaces.length <= 1}
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              <span className="sr-only">Delete</span>
+                              <Trash2 className='h-3.5 w-3.5' />
+                              <span className='sr-only'>Delete</span>
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
@@ -661,7 +652,7 @@ export function WorkspaceHeader({
                                   e.stopPropagation()
                                   handleDeleteWorkspace(workspace.id)
                                 }}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
                               >
                                 Delete
                               </AlertDialogAction>
@@ -677,10 +668,10 @@ export function WorkspaceHeader({
 
             {/* Create new workspace button */}
             <DropdownMenuItem
-              className="text-sm rounded-md px-2 py-1.5 cursor-pointer mt-1 text-muted-foreground"
+              className='mt-1 cursor-pointer rounded-md px-2 py-1.5 text-muted-foreground text-sm'
               onClick={() => setIsWorkspaceModalOpen(true)}
             >
-              <span className="truncate">+ New workspace</span>
+              <span className='truncate'>+ New workspace</span>
             </DropdownMenuItem>
           </div>
         </DropdownMenuContent>

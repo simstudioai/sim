@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { SupabaseInsertParams, SupabaseInsertResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { SupabaseInsertParams, SupabaseInsertResponse } from './types'
 
 export const insertTool: ToolConfig<SupabaseInsertParams, SupabaseInsertResponse> = {
   id: 'supabase_insert',

@@ -1,6 +1,6 @@
 import { StartIcon } from '@/components/icons'
-import { ToolResponse } from '@/tools/types'
-import { BlockConfig } from '../types'
+import type { ToolResponse } from '@/tools/types'
+import type { BlockConfig } from '../types'
 
 interface StarterBlockOutput extends ToolResponse {
   output: {

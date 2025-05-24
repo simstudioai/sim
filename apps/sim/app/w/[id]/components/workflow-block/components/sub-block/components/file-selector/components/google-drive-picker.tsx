@@ -16,12 +16,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
-  Credential,
+  type Credential,
   getProviderIdFromServiceId,
   getServiceByProviderAndId,
   getServiceIdFromScopes,
   OAUTH_PROVIDERS,
-  OAuthProvider,
+  type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
@@ -80,7 +80,7 @@ export function GoogleDrivePicker({
   const [isLoadingSelectedFile, setIsLoadingSelectedFile] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
-  const [openPicker, authResponse] = useDrivePicker()
+  const [openPicker, _authResponse] = useDrivePicker()
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -232,9 +232,11 @@ export function GoogleDrivePicker({
         // Return appropriate view based on mime type filter
         if (mimeTypeFilter?.includes('folder')) {
           return 'FOLDERS'
-        } else if (mimeTypeFilter?.includes('spreadsheet')) {
+        }
+        if (mimeTypeFilter?.includes('spreadsheet')) {
           return 'SPREADSHEETS'
-        } else if (mimeTypeFilter?.includes('document')) {
+        }
+        if (mimeTypeFilter?.includes('document')) {
           return 'DOCUMENTS'
         }
         return 'DOCS' // Default view
@@ -251,7 +253,7 @@ export function GoogleDrivePicker({
         multiselect: false,
         appId: env.NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER,
         // Enable folder selection when mimeType is folder
-        setSelectFolderEnabled: mimeTypeFilter?.includes('folder') ? true : false,
+        setSelectFolderEnabled: !!mimeTypeFilter?.includes('folder'),
         callbackFunction: (data) => {
           if (data.action === 'picked') {
             const file = data.docs[0]
@@ -312,7 +314,7 @@ export function GoogleDrivePicker({
     const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
     if (!baseProviderConfig) {
-      return <ExternalLink className="h-4 w-4" />
+      return <ExternalLink className='h-4 w-4' />
     }
 
     // For compound providers, find the specific service
@@ -335,7 +337,7 @@ export function GoogleDrivePicker({
       // First try to get the service by provider and service ID
       const service = getServiceByProviderAndId(providerName, effectiveServiceId)
       return service.name
-    } catch (error) {
+    } catch (_error) {
       // If that fails, try to get the service by parsing the provider
       try {
         const { baseProvider } = parseProvider(providerName)
@@ -355,7 +357,7 @@ export function GoogleDrivePicker({
         if (baseProviderConfig) {
           return baseProviderConfig.name
         }
-      } catch (parseError) {
+      } catch (_parseError) {
         // Ignore parse error and continue to final fallback
       }
 
@@ -373,7 +375,8 @@ export function GoogleDrivePicker({
 
     if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
       return <GoogleSheetsIcon className={iconSize} />
-    } else if (file.mimeType === 'application/vnd.google-apps.document') {
+    }
+    if (file.mimeType === 'application/vnd.google-apps.document') {
       return <GoogleDocsIcon className={iconSize} />
     }
     return <FileIcon className={`${iconSize} text-muted-foreground`} />
@@ -381,51 +384,51 @@ export function GoogleDrivePicker({
 
   return (
     <>
-      <div className="space-y-2">
+      <div className='space-y-2'>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
-              variant="outline"
-              role="combobox"
+              variant='outline'
+              role='combobox'
               aria-expanded={open}
-              className="w-full justify-between"
+              className='w-full justify-between'
               disabled={disabled}
             >
               {selectedFile ? (
-                <div className="flex items-center gap-2 overflow-hidden">
+                <div className='flex items-center gap-2 overflow-hidden'>
                   {getFileIcon(selectedFile, 'sm')}
-                  <span className="font-normal truncate">{selectedFile.name}</span>
+                  <span className='truncate font-normal'>{selectedFile.name}</span>
                 </div>
               ) : selectedFileId && (isLoadingSelectedFile || !selectedCredentialId) ? (
-                <div className="flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span className="text-muted-foreground">Loading document...</span>
+                <div className='flex items-center gap-2'>
+                  <RefreshCw className='h-4 w-4 animate-spin' />
+                  <span className='text-muted-foreground'>Loading document...</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className='flex items-center gap-2'>
                   {getProviderIcon(provider)}
-                  <span className="text-muted-foreground">{label}</span>
+                  <span className='text-muted-foreground'>{label}</span>
                 </div>
               )}
-              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[300px]" align="start">
+          <PopoverContent className='w-[300px] p-0' align='start'>
             {/* Current account indicator */}
             {selectedCredentialId && credentials.length > 0 && (
-              <div className="px-3 py-2 border-b flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className='flex items-center justify-between border-b px-3 py-2'>
+                <div className='flex items-center gap-2'>
                   {getProviderIcon(provider)}
-                  <span className="text-xs text-muted-foreground">
+                  <span className='text-muted-foreground text-xs'>
                     {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
                       'Unknown'}
                   </span>
                 </div>
                 {credentials.length > 1 && (
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
+                    variant='ghost'
+                    size='sm'
+                    className='h-6 px-2 text-xs'
                     onClick={() => setOpen(true)}
                   >
                     Switch
@@ -438,21 +441,21 @@ export function GoogleDrivePicker({
               <CommandList>
                 <CommandEmpty>
                   {isLoading ? (
-                    <div className="flex items-center justify-center p-4">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span className="ml-2">Loading...</span>
+                    <div className='flex items-center justify-center p-4'>
+                      <RefreshCw className='h-4 w-4 animate-spin' />
+                      <span className='ml-2'>Loading...</span>
                     </div>
                   ) : credentials.length === 0 ? (
-                    <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No accounts connected.</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className='p-4 text-center'>
+                      <p className='font-medium text-sm'>No accounts connected.</p>
+                      <p className='text-muted-foreground text-xs'>
                         Connect a {getProviderName(provider)} account to continue.
                       </p>
                     </div>
                   ) : (
-                    <div className="p-4 text-center">
-                      <p className="text-sm font-medium">Ready to select files.</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className='p-4 text-center'>
+                      <p className='font-medium text-sm'>Ready to select files.</p>
+                      <p className='text-muted-foreground text-xs'>
                         Click the button below to open the file picker.
                       </p>
                     </div>
@@ -462,7 +465,7 @@ export function GoogleDrivePicker({
                 {/* Account selection - only show if we have multiple accounts */}
                 {credentials.length > 1 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                       Switch Account
                     </div>
                     {credentials.map((cred) => (
@@ -471,11 +474,11 @@ export function GoogleDrivePicker({
                         value={`account-${cred.id}`}
                         onSelect={() => setSelectedCredentialId(cred.id)}
                       >
-                        <div className="flex items-center gap-2">
+                        <div className='flex items-center gap-2'>
                           {getProviderIcon(cred.provider)}
-                          <span className="font-normal">{cred.name}</span>
+                          <span className='font-normal'>{cred.name}</span>
                         </div>
-                        {cred.id === selectedCredentialId && <Check className="ml-auto h-4 w-4" />}
+                        {cred.id === selectedCredentialId && <Check className='ml-auto h-4 w-4' />}
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -484,9 +487,9 @@ export function GoogleDrivePicker({
                 {/* Open picker button - only show if we have credentials */}
                 {credentials.length > 0 && selectedCredentialId && (
                   <CommandGroup>
-                    <div className="p-2">
+                    <div className='p-2'>
                       <Button
-                        className="w-full"
+                        className='w-full'
                         onClick={() => {
                           setOpen(false)
                           handleOpenPicker()
@@ -502,7 +505,7 @@ export function GoogleDrivePicker({
                 {credentials.length === 0 && (
                   <CommandGroup>
                     <CommandItem onSelect={handleAddCredential}>
-                      <div className="flex items-center gap-2 text-primary">
+                      <div className='flex items-center gap-2 text-primary'>
                         {getProviderIcon(provider)}
                         <span>Connect {getProviderName(provider)} account</span>
                       </div>
@@ -516,26 +519,26 @@ export function GoogleDrivePicker({
 
         {/* File preview */}
         {showPreview && selectedFile && (
-          <div className="mt-2 rounded-md border border-muted bg-muted/10 p-2 relative">
-            <div className="absolute top-2 right-2">
+          <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
+            <div className='absolute top-2 right-2'>
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 hover:bg-muted"
+                variant='ghost'
+                size='icon'
+                className='h-5 w-5 hover:bg-muted'
                 onClick={handleClearSelection}
               >
-                <X className="h-3 w-3" />
+                <X className='h-3 w-3' />
               </Button>
             </div>
-            <div className="flex items-center gap-3 pr-4">
-              <div className="flex-shrink-0 flex items-center justify-center h-6 w-6 bg-muted/20 rounded">
+            <div className='flex items-center gap-3 pr-4'>
+              <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
                 {getFileIcon(selectedFile, 'sm')}
               </div>
-              <div className="overflow-hidden flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-xs font-medium truncate">{selectedFile.name}</h4>
+              <div className='min-w-0 flex-1 overflow-hidden'>
+                <div className='flex items-center gap-2'>
+                  <h4 className='truncate font-medium text-xs'>{selectedFile.name}</h4>
                   {selectedFile.modifiedTime && (
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    <span className='whitespace-nowrap text-muted-foreground text-xs'>
                       {new Date(selectedFile.modifiedTime).toLocaleDateString()}
                     </span>
                   )}
@@ -543,24 +546,24 @@ export function GoogleDrivePicker({
                 {selectedFile.webViewLink ? (
                   <a
                     href={selectedFile.webViewLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='flex items-center gap-1 text-primary text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>Open in Drive</span>
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className='h-3 w-3' />
                   </a>
                 ) : (
                   <a
                     href={`https://drive.google.com/file/d/${selectedFile.id}/view`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='flex items-center gap-1 text-primary text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>Open in Drive</span>
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className='h-3 w-3' />
                   </a>
                 )}
               </div>

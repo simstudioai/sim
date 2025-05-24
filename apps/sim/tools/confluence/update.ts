@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { ConfluenceUpdateParams, ConfluenceUpdateResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { ConfluenceUpdateParams, ConfluenceUpdateResponse } from './types'
 
 export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, ConfluenceUpdateResponse> = {
   id: 'confluence_update',

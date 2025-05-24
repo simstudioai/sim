@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { BrowserUseRunTaskParams, BrowserUseRunTaskResponse } from './types'
 
 const logger = createLogger('BrowserUseTool')
 
@@ -60,7 +60,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
         if (Array.isArray(params.variables)) {
           logger.info('Converting variables array to dictionary format')
           params.variables.forEach((row) => {
-            if (row.cells && row.cells.Key && row.cells.Value !== undefined) {
+            if (row.cells?.Key && row.cells.Value !== undefined) {
               secrets[row.cells.Key] = row.cells.Value
               logger.info(`Added secret for key: ${row.cells.Key}`)
             } else if (row.Key && row.Value !== undefined) {
@@ -180,7 +180,7 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
             const taskData = await taskResponse.json()
             result.output = {
               id: taskId,
-              success: status === 'finished' ? true : false,
+              success: status === 'finished',
               output: taskData.output,
               steps: taskData.steps || [],
             }

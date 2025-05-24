@@ -54,39 +54,39 @@ export function InvitesSent() {
   }, [activeWorkspaceId])
 
   const TableSkeleton = () => (
-    <div className="space-y-2">
+    <div className='space-y-2'>
       {Array(5)
         .fill(0)
         .map((_, i) => (
-          <div key={i} className="flex items-center justify-between">
-            <Skeleton className="h-6 w-3/4" />
-            <Skeleton className="h-6 w-16" />
+          <div key={i} className='flex items-center justify-between'>
+            <Skeleton className='h-6 w-3/4' />
+            <Skeleton className='h-6 w-16' />
           </div>
         ))}
     </div>
   )
 
   if (error) {
-    return <div className="text-sm text-red-500 py-2">{error}</div>
+    return <div className='py-2 text-red-500 text-sm'>{error}</div>
   }
 
   return (
-    <div className="transition-all duration-300 mt-4">
-      <h3 className="text-sm font-medium">Sent Invitations</h3>
+    <div className='mt-4 transition-all duration-300'>
+      <h3 className='font-medium text-sm'>Sent Invitations</h3>
 
       {isLoading ? (
         <TableSkeleton />
       ) : invitations.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-2">No invitations sent yet</div>
+        <div className='py-2 text-muted-foreground text-sm'>No invitations sent yet</div>
       ) : (
-        <div className="overflow-auto" style={{ maxHeight: '250px' }}>
+        <div className='overflow-auto' style={{ maxHeight: '250px' }}>
           <Table>
             <TableHeader>
-              <TableRow className="border-b border-t-0 border-x-0 hover:bg-transparent">
-                <TableHead className="text-muted-foreground px-2 w-3/4 !font-sm !text-sm">
+              <TableRow className='border-x-0 border-t-0 border-b hover:bg-transparent'>
+                <TableHead className='!font-sm !text-sm w-3/4 px-2 text-muted-foreground'>
                   Email
                 </TableHead>
-                <TableHead className="text-muted-foreground px-2 w-1/4 !font-sm !text-sm">
+                <TableHead className='!font-sm !text-sm w-1/4 px-2 text-muted-foreground'>
                   Status
                 </TableHead>
               </TableRow>
@@ -95,15 +95,15 @@ export function InvitesSent() {
               {invitations.map((invitation) => (
                 <TableRow
                   key={invitation.id}
-                  className={cn('border-b border-t-0 border-x-0', 'hover:bg-transparent')}
+                  className={cn('border-x-0 border-t-0 border-b', 'hover:bg-transparent')}
                 >
-                  <TableCell className="py-2 px-2 w-3/4">{invitation.email}</TableCell>
-                  <TableCell className="py-2 px-2 w-1/4">
+                  <TableCell className='w-3/4 px-2 py-2'>{invitation.email}</TableCell>
+                  <TableCell className='w-1/4 px-2 py-2'>
                     <span
-                      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${
+                      className={`inline-flex items-center rounded-md border px-2 py-0.5 font-semibold text-xs ${
                         invitation.status === 'accepted'
-                          ? 'bg-green-50 border-green-200 text-green-700'
-                          : 'bg-gray-100 border-gray-200 text-slate-700'
+                          ? 'border-green-200 bg-green-50 text-green-700'
+                          : 'border-gray-200 bg-gray-100 text-slate-700'
                       }`}
                     >
                       {invitation.status.charAt(0).toUpperCase() + invitation.status.slice(1)}

@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander'
-import chalk from 'chalk'
-import { spawn, execSync } from 'child_process'
-import { mkdirSync, existsSync } from 'fs'
+import { execSync, spawn } from 'child_process'
+import { existsSync, mkdirSync } from 'fs'
+import { homedir } from 'os'
 import { join } from 'path'
 import { createInterface } from 'readline'
-import { homedir } from 'os'
-import inquirer from 'inquirer'
+import chalk from 'chalk'
+import { Command } from 'commander'
 
 const NETWORK_NAME = 'simstudio-network'
 const DB_CONTAINER = 'simstudio-db'
@@ -17,10 +16,7 @@ const DEFAULT_PORT = '3000'
 
 const program = new Command()
 
-program
-  .name('simstudio')
-  .description('Run Sim Studio using Docker')
-  .version('0.1.0')
+program.name('simstudio').description('Run Sim Studio using Docker').version('0.1.0')
 
 program
   .option('-p, --port <port>', 'Port to run Sim Studio on', DEFAULT_PORT)
@@ -30,7 +26,7 @@ program
 function isDockerRunning(): Promise<boolean> {
   return new Promise((resolve) => {
     const docker = spawn('docker', ['info'])
-    
+
     docker.on('close', (code) => {
       resolve(code === 0)
     })
@@ -72,7 +68,7 @@ async function stopAndRemoveContainer(name: string): Promise<void> {
   try {
     execSync(`docker stop ${name} 2>/dev/null || true`)
     execSync(`docker rm ${name} 2>/dev/null || true`)
-  } catch (error) {
+  } catch (_error) {
     // Ignore errors, container might not exist
   }
 }
@@ -86,65 +82,76 @@ async function cleanupExistingContainers(): Promise<void> {
 
 async function main() {
   const options = program.parse().opts()
-  
+
   console.log(chalk.blue('🚀 Starting Sim Studio...'))
-  
+
   // Check if Docker is installed and running
   const dockerRunning = await isDockerRunning()
   if (!dockerRunning) {
-    console.error(chalk.red('❌ Docker is not running or not installed. Please start Docker and try again.'))
+    console.error(
+      chalk.red('❌ Docker is not running or not installed. Please start Docker and try again.')
+    )
     process.exit(1)
   }
 
   // Use port from options, with 3000 as default
   const port = options.port
-  
+
   // Pull latest images if not skipped
   if (options.pull) {
     await pullImage('ghcr.io/simstudioai/simstudio:latest')
     await pullImage('ghcr.io/simstudioai/migrations:latest')
     await pullImage('postgres:17-alpine')
   }
-  
+
   // Ensure Docker network exists
-  if (!await ensureNetworkExists()) {
+  if (!(await ensureNetworkExists())) {
     console.error(chalk.red('❌ Failed to create Docker network'))
     process.exit(1)
   }
-  
+
   // Clean up any existing containers
   await cleanupExistingContainers()
-  
+
   // Create data directory
   const dataDir = join(homedir(), '.simstudio', 'data')
   if (!existsSync(dataDir)) {
     try {
       mkdirSync(dataDir, { recursive: true })
-    } catch (error) {
+    } catch (_error) {
       console.error(chalk.red(`❌ Failed to create data directory: ${dataDir}`))
       process.exit(1)
     }
   }
-  
+
   // Start PostgreSQL container
   console.log(chalk.blue('🔄 Starting PostgreSQL database...'))
   const dbSuccess = await runCommand([
-    'docker', 'run', '-d',
-    '--name', DB_CONTAINER,
-    '--network', NETWORK_NAME,
-    '-e', 'POSTGRES_USER=postgres',
-    '-e', 'POSTGRES_PASSWORD=postgres',
-    '-e', 'POSTGRES_DB=simstudio',
-    '-v', `${dataDir}/postgres:/var/lib/postgresql/data`,
-    '-p', '5432:5432',
-    'postgres:17-alpine'
+    'docker',
+    'run',
+    '-d',
+    '--name',
+    DB_CONTAINER,
+    '--network',
+    NETWORK_NAME,
+    '-e',
+    'POSTGRES_USER=postgres',
+    '-e',
+    'POSTGRES_PASSWORD=postgres',
+    '-e',
+    'POSTGRES_DB=simstudio',
+    '-v',
+    `${dataDir}/postgres:/var/lib/postgresql/data`,
+    '-p',
+    '5432:5432',
+    'postgres:17-alpine',
   ])
-  
+
   if (!dbSuccess) {
     console.error(chalk.red('❌ Failed to start PostgreSQL'))
     process.exit(1)
   }
-  
+
   // Wait for PostgreSQL to be ready
   console.log(chalk.blue('⏳ Waiting for PostgreSQL to be ready...'))
   let pgReady = false
@@ -153,74 +160,97 @@ async function main() {
       execSync(`docker exec ${DB_CONTAINER} pg_isready -U postgres`)
       pgReady = true
       break
-    } catch (error) {
-      await new Promise(resolve => setTimeout(resolve, 1000))
+    } catch (_error) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
     }
   }
-  
+
   if (!pgReady) {
     console.error(chalk.red('❌ PostgreSQL failed to become ready'))
     process.exit(1)
   }
-  
+
   // Run migrations
   console.log(chalk.blue('🔄 Running database migrations...'))
   const migrationsSuccess = await runCommand([
-    'docker', 'run', '--rm',
-    '--name', MIGRATIONS_CONTAINER,
-    '--network', NETWORK_NAME,
-    '-e', `DATABASE_URL=postgresql://postgres:postgres@${DB_CONTAINER}:5432/simstudio`,
+    'docker',
+    'run',
+    '--rm',
+    '--name',
+    MIGRATIONS_CONTAINER,
+    '--network',
+    NETWORK_NAME,
+    '-e',
+    `DATABASE_URL=postgresql://postgres:postgres@${DB_CONTAINER}:5432/simstudio`,
     'ghcr.io/simstudioai/migrations:latest',
-    'bun', 'run', 'db:push'
+    'bun',
+    'run',
+    'db:push',
   ])
-  
+
   if (!migrationsSuccess) {
     console.error(chalk.red('❌ Failed to run migrations'))
     process.exit(1)
   }
-  
+
   // Start the main application
   console.log(chalk.blue('🔄 Starting Sim Studio...'))
   const appSuccess = await runCommand([
-    'docker', 'run', '-d',
-    '--name', APP_CONTAINER,
-    '--network', NETWORK_NAME,
-    '-p', `${port}:3000`,
-    '-e', `DATABASE_URL=postgresql://postgres:postgres@${DB_CONTAINER}:5432/simstudio`,
-    '-e', `BETTER_AUTH_URL=http://localhost:${port}`,
-    '-e', `NEXT_PUBLIC_APP_URL=http://localhost:${port}`,
-    '-e', 'BETTER_AUTH_SECRET=your_auth_secret_here',
-    '-e', 'ENCRYPTION_KEY=your_encryption_key_here',
-    'ghcr.io/simstudioai/simstudio:latest'
+    'docker',
+    'run',
+    '-d',
+    '--name',
+    APP_CONTAINER,
+    '--network',
+    NETWORK_NAME,
+    '-p',
+    `${port}:3000`,
+    '-e',
+    `DATABASE_URL=postgresql://postgres:postgres@${DB_CONTAINER}:5432/simstudio`,
+    '-e',
+    `BETTER_AUTH_URL=http://localhost:${port}`,
+    '-e',
+    `NEXT_PUBLIC_APP_URL=http://localhost:${port}`,
+    '-e',
+    'BETTER_AUTH_SECRET=your_auth_secret_here',
+    '-e',
+    'ENCRYPTION_KEY=your_encryption_key_here',
+    'ghcr.io/simstudioai/simstudio:latest',
   ])
-  
+
   if (!appSuccess) {
     console.error(chalk.red('❌ Failed to start Sim Studio'))
     process.exit(1)
   }
-  
-  console.log(chalk.green(`✅ Sim Studio is now running at ${chalk.bold(`http://localhost:${port}`)}`))
-  console.log(chalk.yellow(`🛑 To stop all containers, run: ${chalk.bold('docker stop simstudio-app simstudio-db')}`))
-  
+
+  console.log(
+    chalk.green(`✅ Sim Studio is now running at ${chalk.bold(`http://localhost:${port}`)}`)
+  )
+  console.log(
+    chalk.yellow(
+      `🛑 To stop all containers, run: ${chalk.bold('docker stop simstudio-app simstudio-db')}`
+    )
+  )
+
   // Handle Ctrl+C
   const rl = createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
   })
-  
+
   rl.on('SIGINT', async () => {
     console.log(chalk.yellow('\n🛑 Stopping Sim Studio...'))
-    
+
     // Stop containers
     await stopAndRemoveContainer(APP_CONTAINER)
     await stopAndRemoveContainer(DB_CONTAINER)
-    
+
     console.log(chalk.green('✅ Sim Studio has been stopped'))
     process.exit(0)
   })
 }
 
-main().catch(error => {
+main().catch((error) => {
   console.error(chalk.red('❌ An error occurred:'), error)
   process.exit(1)
-}) 
+})

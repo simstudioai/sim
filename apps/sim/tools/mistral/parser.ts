@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { ToolConfig } from '../types'
-import { MistralParserInput, MistralParserOutput } from './types'
+import type { ToolConfig } from '../types'
+import type { MistralParserInput, MistralParserOutput } from './types'
 
 const logger = createLogger('MistralParserTool')
 
@@ -159,8 +159,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         throw new Error(
-          `Invalid URL format: ${errorMessage}. ` +
-            'Please provide a valid HTTP or HTTPS URL to a PDF document (e.g., https://example.com/document.pdf)'
+          `Invalid URL format: ${errorMessage}. Please provide a valid HTTP or HTTPS URL to a PDF document (e.g., https://example.com/document.pdf)`
         )
       }
 
@@ -196,8 +195,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
 
             if (validPages.length !== params.pages.length) {
               logger.warn(
-                `Some invalid page numbers were removed. ` +
-                  `Using ${validPages.length} valid pages: ${validPages.join(', ')}`
+                `Some invalid page numbers were removed. Using ${validPages.length} valid pages: ${validPages.join(', ')}`
               )
             }
           } else {
@@ -313,7 +311,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       if (resultType === 'text') {
         // Strip markdown formatting
         content = content
-          .replace(/\#\#*\s/g, '') // Remove markdown headers
+          .replace(/##*\s/g, '') // Remove markdown headers
           .replace(/\*\*/g, '') // Remove bold markers
           .replace(/\*/g, '') // Remove italic markers
           .replace(/\n{3,}/g, '\n\n') // Normalize newlines
@@ -430,7 +428,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
 
     // Handle common API error status codes
     if (typeof error === 'object' && error !== null) {
-      const status = error.status || (error.response && error.response.status)
+      const status = error.status || error.response?.status
 
       if (status) {
         switch (status) {

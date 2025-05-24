@@ -33,20 +33,20 @@ export function RequestResetForm({
 
   return (
     <form onSubmit={handleSubmit} className={className}>
-      <div className="grid gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="reset-email">Email</Label>
+      <div className='grid gap-4'>
+        <div className='grid gap-2'>
+          <Label htmlFor='reset-email'>Email</Label>
           <Input
-            id="reset-email"
+            id='reset-email'
             value={email}
             onChange={(e) => onEmailChange(e.target.value)}
-            placeholder="your@email.com"
-            type="email"
+            placeholder='your@email.com'
+            type='email'
             disabled={isSubmitting}
             required
-            className="placeholder:text-white/60"
+            className='placeholder:text-white/60'
           />
-          <p className="text-sm text-muted-foreground">
+          <p className='text-muted-foreground text-sm'>
             We'll send a password reset link to this email address.
           </p>
         </div>
@@ -55,20 +55,20 @@ export function RequestResetForm({
         {statusType && (
           <div
             className={cn(
-              'p-3 rounded-md text-sm border',
+              'rounded-md border p-3 text-sm',
               statusType === 'success'
-                ? 'bg-green-50 text-green-700 border-green-200'
-                : 'bg-red-50 text-red-700 border-red-200'
+                ? 'border-green-200 bg-green-50 text-green-700'
+                : 'border-red-200 bg-red-50 text-red-700'
             )}
           >
             {statusMessage}
           </div>
         )}
 
-        <Button type="submit" disabled={isSubmitting} className="w-full">
+        <Button type='submit' disabled={isSubmitting} className='w-full'>
           {isSubmitting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
               Sending...
             </>
           ) : (
@@ -121,42 +121,42 @@ export function SetNewPasswordForm({
 
   return (
     <form onSubmit={handleSubmit} className={className}>
-      <div className="grid gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="password">New Password</Label>
+      <div className='grid gap-4'>
+        <div className='grid gap-2'>
+          <Label htmlFor='password'>New Password</Label>
           <Input
-            id="password"
-            type="password"
-            autoCapitalize="none"
-            autoComplete="new-password"
-            autoCorrect="off"
+            id='password'
+            type='password'
+            autoCapitalize='none'
+            autoComplete='new-password'
+            autoCorrect='off'
             disabled={isSubmitting || !token}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            placeholder="Enter new password"
-            className="placeholder:text-white/60"
+            placeholder='Enter new password'
+            className='placeholder:text-white/60'
           />
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="confirmPassword">Confirm Password</Label>
+        <div className='grid gap-2'>
+          <Label htmlFor='confirmPassword'>Confirm Password</Label>
           <Input
-            id="confirmPassword"
-            type="password"
-            autoCapitalize="none"
-            autoComplete="new-password"
-            autoCorrect="off"
+            id='confirmPassword'
+            type='password'
+            autoCapitalize='none'
+            autoComplete='new-password'
+            autoCorrect='off'
             disabled={isSubmitting || !token}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            placeholder="Confirm new password"
-            className="placeholder:text-white/60"
+            placeholder='Confirm new password'
+            className='placeholder:text-white/60'
           />
         </div>
 
         {validationMessage && (
-          <div className="p-3 rounded-md text-sm border bg-red-50 text-red-700 border-red-200">
+          <div className='rounded-md border border-red-200 bg-red-50 p-3 text-red-700 text-sm'>
             {validationMessage}
           </div>
         )}
@@ -164,20 +164,20 @@ export function SetNewPasswordForm({
         {statusType && (
           <div
             className={cn(
-              'p-3 rounded-md text-sm border',
+              'rounded-md border p-3 text-sm',
               statusType === 'success'
-                ? 'bg-green-50 text-green-700 border-green-200'
-                : 'bg-red-50 text-red-700 border-red-200'
+                ? 'border-green-200 bg-green-50 text-green-700'
+                : 'border-red-200 bg-red-50 text-red-700'
             )}
           >
             {statusMessage}
           </div>
         )}
 
-        <Button disabled={isSubmitting || !token} type="submit" className="w-full">
+        <Button disabled={isSubmitting || !token} type='submit' className='w-full'>
           {isSubmitting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
               Resetting...
             </>
           ) : (

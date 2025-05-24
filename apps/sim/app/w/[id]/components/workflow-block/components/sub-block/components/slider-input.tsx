@@ -47,17 +47,17 @@ export function SliderInput({
   }, [normalizedValue, value, setValue])
 
   return (
-    <div className="relative pt-2 pb-6">
+    <div className='relative pt-2 pb-6'>
       <Slider
         value={[normalizedValue]}
         min={min}
         max={max}
         step={integer ? 1 : step}
         onValueChange={(value) => setValue(integer ? Math.round(value[0]) : value[0])}
-        className="[&_[role=slider]]:h-4 [&_[role=slider]]:w-4 [&_[class*=SliderTrack]]:h-1"
+        className='[&_[class*=SliderTrack]]:h-1 [&_[role=slider]]:h-4 [&_[role=slider]]:w-4'
       />
       <div
-        className="absolute text-sm text-muted-foreground"
+        className='absolute text-muted-foreground text-sm'
         style={{
           left: `clamp(0%, ${((normalizedValue - min) / (max - min)) * 100}%, 100%)`,
           transform: `translateX(-${(() => {

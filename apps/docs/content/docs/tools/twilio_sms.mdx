@@ -3,16 +3,16 @@ title: Twilio SMS
 description: Send SMS messages
 ---
 
-import { BlockInfoCard } from '@/components/ui/block-info-card'
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="twilio_sms"
   color="#F22F46"
   icon={true}
-  iconSvg={`<svg className="block-icon"  xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  iconSvg={`<svg className="block-icon"  xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'>
       <path
-        fill="currentColor"
-        d="M128 0c70.656 0 128 57.344 128 128s-57.344 128-128 128S0 198.656 0 128 57.344 0 128 0zm0 33.792c-52.224 0-94.208 41.984-94.208 94.208S75.776 222.208 128 222.208s94.208-41.984 94.208-94.208S180.224 33.792 128 33.792zm31.744 99.328c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm-63.488 0c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm63.488-63.488c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm-63.488 0c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624z"
+        fill='currentColor'
+        d='M128 0c70.656 0 128 57.344 128 128s-57.344 128-128 128S0 198.656 0 128 57.344 0 128 0zm0 33.792c-52.224 0-94.208 41.984-94.208 94.208S75.776 222.208 128 222.208s94.208-41.984 94.208-94.208S180.224 33.792 128 33.792zm31.744 99.328c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm-63.488 0c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm63.488-63.488c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624zm-63.488 0c14.704 0 26.624 11.92 26.624 26.624 0 14.704-11.92 26.624-26.624 26.624-14.704 0-26.624-11.92-26.624-26.624 0-14.704 11.92-26.624 26.624-26.624z'
       />
     </svg>`}
 />
@@ -31,9 +31,12 @@ Key features of Twilio SMS include:
 In Sim Studio, the Twilio SMS integration enables your agents to leverage these powerful messaging capabilities as part of their workflows. This creates opportunities for sophisticated customer engagement scenarios like appointment reminders, verification codes, alerts, and interactive conversations. The integration bridges the gap between your AI workflows and customer communication channels, allowing your agents to deliver timely, relevant information directly to users' mobile devices. By connecting Sim Studio with Twilio SMS, you can build intelligent agents that engage customers through their preferred communication channel, enhancing user experience while automating routine messaging tasks.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
 Send text messages to single or multiple recipients using the Twilio API.
+
+
 
 ## Tools
 
@@ -43,39 +46,44 @@ Send text messages to single or multiple recipients using the Twilio API.
 
 #### Input
 
-| Parameter      | Type   | Required | Description                                                 |
-| -------------- | ------ | -------- | ----------------------------------------------------------- |
-| `phoneNumbers` | string | Yes      | Phone numbers to send the message to, separated by newlines |
-| `message`      | string | Yes      | Message to send                                             |
-| `accountSid`   | string | Yes      | Twilio Account SID                                          |
-| `authToken`    | string | Yes      | Twilio Auth Token                                           |
-| `fromNumber`   | string | Yes      | Twilio phone number to send the message from                |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `phoneNumbers` | string | Yes | Phone numbers to send the message to, separated by newlines |
+| `message` | string | Yes | Message to send |
+| `accountSid` | string | Yes | Twilio Account SID |
+| `authToken` | string | Yes | Twilio Auth Token |
+| `fromNumber` | string | Yes | Twilio phone number to send the message from |
 
 #### Output
 
-| Parameter   | Type   |
-| ----------- | ------ |
-| `success`   | string |
+| Parameter | Type |
+| --------- | ---- |
+| `success` | string |
 | `messageId` | string |
-| `status`    | string |
+| `status` | string |
+
+
 
 ## Block Configuration
 
 ### Input
 
-| Parameter      | Type   | Required | Description                                                                                         |
-| -------------- | ------ | -------- | --------------------------------------------------------------------------------------------------- |
-| `phoneNumbers` | string | Yes      | Recipient Phone Numbers - Enter phone numbers with country code \(one per line, e.g., +1234567890\) |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `phoneNumbers` | string | Yes | Recipient Phone Numbers - Enter phone numbers with country code \(one per line, e.g., +1234567890\) |
+
+
 
 ### Outputs
 
-| Output        | Type    | Description               |
-| ------------- | ------- | ------------------------- |
-| `response`    | object  | Output from response      |
-| ↳ `success`   | boolean | success of the response   |
-| ↳ `messageId` | any     | messageId of the response |
-| ↳ `status`    | any     | status of the response    |
-| ↳ `error`     | any     | error of the response     |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `success` | boolean | success of the response |
+| ↳ `messageId` | any | messageId of the response |
+| ↳ `status` | any | status of the response |
+| ↳ `error` | any | error of the response |
+
 
 ## Notes
 

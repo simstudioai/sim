@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { VariableManager } from '@/lib/variables/variable-manager'
 
 /**
@@ -10,7 +10,7 @@ import { VariableManager } from '@/lib/variables/variable-manager'
  * @param text The text to format
  * @param stripQuotes Whether to strip unnecessary quotes from the text (for plain text variables)
  */
-export function formatDisplayText(text: string, stripQuotes: boolean = false): ReactNode[] {
+export function formatDisplayText(text: string, stripQuotes = false): ReactNode[] {
   if (!text) return []
 
   // If stripQuotes is true, remove surrounding quotes that might have been added
@@ -30,7 +30,7 @@ export function formatDisplayText(text: string, stripQuotes: boolean = false): R
     // Handle block references
     if (part.startsWith('<') && part.endsWith('>')) {
       return (
-        <span key={index} className="text-blue-500">
+        <span key={index} className='text-blue-500'>
           {part}
         </span>
       )
@@ -39,7 +39,7 @@ export function formatDisplayText(text: string, stripQuotes: boolean = false): R
     // Handle environment variables
     if (part.match(/^\{\{[^}]+\}\}$/)) {
       return (
-        <span key={index} className="text-blue-500">
+        <span key={index} className='text-blue-500'>
           {part}
         </span>
       )

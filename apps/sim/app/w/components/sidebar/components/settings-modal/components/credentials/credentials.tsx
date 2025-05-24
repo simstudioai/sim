@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, ChevronDown, ExternalLink, Plus, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { client, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
-import { OAUTH_PROVIDERS, OAuthServiceConfig } from '@/lib/oauth'
+import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { loadFromStorage, removeFromStorage, saveToStorage } from '@/stores/workflows/persistence'
 
@@ -35,7 +35,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [isConnecting, setIsConnecting] = useState<string | null>(null)
   const [pendingService, setPendingService] = useState<string | null>(null)
-  const [pendingScopes, setPendingScopes] = useState<string[]>([])
+  const [_pendingScopes, setPendingScopes] = useState<string[]>([])
   const [authSuccess, setAuthSuccess] = useState(false)
   const [showActionRequired, setShowActionRequired] = useState(false)
 
@@ -302,23 +302,23 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className='space-y-6 p-6'>
       <div>
-        <h3 className="text-lg font-medium mb-1">Credentials</h3>
-        <p className="text-sm text-muted-foreground mb-6">
+        <h3 className='mb-1 font-medium text-lg'>Credentials</h3>
+        <p className='mb-6 text-muted-foreground text-sm'>
           Connect your accounts to use tools that require authentication.
         </p>
       </div>
 
       {/* Success message */}
       {authSuccess && (
-        <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <Check className="h-5 w-5 text-green-400" />
+        <div className='mb-4 rounded-md border border-green-200 bg-green-50 p-4'>
+          <div className='flex'>
+            <div className='flex-shrink-0'>
+              <Check className='h-5 w-5 text-green-400' />
             </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-green-800">Account connected successfully!</p>
+            <div className='ml-3'>
+              <p className='font-medium text-green-800 text-sm'>Account connected successfully!</p>
             </div>
           </div>
         </div>
@@ -326,23 +326,23 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 
       {/* Pending service message - only shown when coming from OAuth required modal */}
       {pendingService && showActionRequired && (
-        <div className="mb-6 p-5 bg-primary/5 border border-primary/20 rounded-md text-sm flex items-start gap-3 shadow-sm">
-          <div className="min-w-5 mt-0.5">
-            <ExternalLink className="h-4 w-4 text-primary" />
+        <div className='mb-6 flex items-start gap-3 rounded-md border border-primary/20 bg-primary/5 p-5 text-sm shadow-sm'>
+          <div className='mt-0.5 min-w-5'>
+            <ExternalLink className='h-4 w-4 text-primary' />
           </div>
-          <div className="flex flex-col flex-1">
-            <p className="text-muted-foreground">
-              <span className="font-medium text-primary">Action Required:</span> Please connect your
+          <div className='flex flex-1 flex-col'>
+            <p className='text-muted-foreground'>
+              <span className='font-medium text-primary'>Action Required:</span> Please connect your
               account to enable the requested features. The required service is highlighted below.
             </p>
             <Button
-              variant="outline"
-              size="sm"
+              variant='outline'
+              size='sm'
               onClick={scrollToHighlightedService}
-              className="mt-3 self-start text-sm font-medium text-primary border-primary/20 hover:bg-primary/10 hover:text-primary hover:border-primary transition-colors flex items-center gap-1.5 px-3 h-8"
+              className='mt-3 flex h-8 items-center gap-1.5 self-start border-primary/20 px-3 font-medium text-primary text-sm transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary'
             >
               <span>Go to service</span>
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className='h-3.5 w-3.5' />
             </Button>
           </div>
         </div>
@@ -350,21 +350,21 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 
       {/* Loading state */}
       {isLoading ? (
-        <div className="space-y-4">
+        <div className='space-y-4'>
           <ConnectionSkeleton />
           <ConnectionSkeleton />
           <ConnectionSkeleton />
           <ConnectionSkeleton />
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className='space-y-6'>
           {/* Group services by provider */}
           {Object.entries(groupedServices).map(([providerKey, providerServices]) => (
-            <div key={providerKey} className="space-y-4">
-              <h4 className="text-sm font-medium text-muted-foreground">
+            <div key={providerKey} className='space-y-4'>
+              <h4 className='font-medium text-muted-foreground text-sm'>
                 {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
               </h4>
-              <div className="space-y-4">
+              <div className='space-y-4'>
                 {providerServices.map((service) => (
                   <Card
                     key={service.id}
@@ -374,42 +374,42 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                     )}
                     ref={pendingService === service.id ? pendingServiceRef : undefined}
                   >
-                    <div className="flex items-start w-full gap-4">
-                      <div className="flex items-start gap-4 w-full">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted shrink-0">
+                    <div className='flex w-full items-start gap-4'>
+                      <div className='flex w-full items-start gap-4'>
+                        <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted'>
                           {typeof service.icon === 'function'
                             ? service.icon({ className: 'h-5 w-5' })
                             : service.icon}
                         </div>
-                        <div className="space-y-1 w-full">
+                        <div className='w-full space-y-1'>
                           <div>
-                            <h4 className="font-medium leading-none">{service.name}</h4>
-                            <p className="text-sm text-muted-foreground mt-1">
+                            <h4 className='font-medium leading-none'>{service.name}</h4>
+                            <p className='mt-1 text-muted-foreground text-sm'>
                               {service.description}
                             </p>
                           </div>
                           {service.accounts && service.accounts.length > 0 && (
-                            <div className="pt-3 space-y-2 w-full">
+                            <div className='w-full space-y-2 pt-3'>
                               {service.accounts.map((account) => (
                                 <div
                                   key={account.id}
-                                  className="flex items-center justify-between gap-2 rounded-md border bg-card/50 p-2 w-full"
+                                  className='flex w-full items-center justify-between gap-2 rounded-md border bg-card/50 p-2'
                                 >
-                                  <div className="flex items-center gap-2">
-                                    <div className="h-6 w-6 rounded-full bg-green-500/10 flex items-center justify-center">
-                                      <Check className="h-3 w-3 text-green-600" />
+                                  <div className='flex items-center gap-2'>
+                                    <div className='flex h-6 w-6 items-center justify-center rounded-full bg-green-500/10'>
+                                      <Check className='h-3 w-3 text-green-600' />
                                     </div>
-                                    <span className="text-sm font-medium">{account.name}</span>
+                                    <span className='font-medium text-sm'>{account.name}</span>
                                   </div>
                                   <Button
-                                    variant="ghost"
-                                    size="sm"
+                                    variant='ghost'
+                                    size='sm'
                                     onClick={() => handleDisconnect(service, account.id)}
                                     disabled={isConnecting === `${service.id}-${account.id}`}
-                                    className="h-7 px-2"
+                                    className='h-7 px-2'
                                   >
                                     {isConnecting === `${service.id}-${account.id}` ? (
-                                      <RefreshCw className="h-3 w-3 animate-spin" />
+                                      <RefreshCw className='h-3 w-3 animate-spin' />
                                     ) : (
                                       'Disconnect'
                                     )}
@@ -441,17 +441,17 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
                       </div>
 
                       {!service.accounts?.length && (
-                        <div className="flex justify-end ml-auto">
+                        <div className='ml-auto flex justify-end'>
                           <Button
-                            variant="default"
-                            size="sm"
+                            variant='default'
+                            size='sm'
                             onClick={() => handleConnect(service)}
                             disabled={isConnecting === service.id}
-                            className="shrink-0"
+                            className='shrink-0'
                           >
                             {isConnecting === service.id ? (
                               <>
-                                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                                <RefreshCw className='mr-2 h-4 w-4 animate-spin' />
                                 Connecting...
                               </>
                             ) : (
@@ -475,16 +475,16 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
 // Loading skeleton for connections
 function ConnectionSkeleton() {
   return (
-    <Card className="p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <Skeleton className="h-12 w-12 rounded-lg" />
-          <div className="space-y-2">
-            <Skeleton className="h-5 w-32" />
-            <Skeleton className="h-4 w-48" />
+    <Card className='p-6'>
+      <div className='flex items-start justify-between gap-4'>
+        <div className='flex items-start gap-4'>
+          <Skeleton className='h-12 w-12 rounded-lg' />
+          <div className='space-y-2'>
+            <Skeleton className='h-5 w-32' />
+            <Skeleton className='h-4 w-48' />
           </div>
         </div>
-        <Skeleton className="h-9 w-24 shrink-0" />
+        <Skeleton className='h-9 w-24 shrink-0' />
       </div>
     </Card>
   )

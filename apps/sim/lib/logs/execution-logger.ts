@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { redactApiKeys } from '@/lib/utils'
 import { db } from '@/db'
 import { userStats, workflow, workflowLogs } from '@/db/schema'
-import { ExecutionResult as ExecutorResult } from '@/executor/types'
+import type { ExecutionResult as ExecutorResult } from '@/executor/types'
 import { calculateCost } from '@/providers/utils'
 import { stripCustomToolPrefix } from '../workflows/utils'
 
@@ -94,13 +94,13 @@ export async function persistExecutionLogs(
     let totalPromptTokens = 0
     let totalCompletionTokens = 0
     let totalTokens = 0
-    let modelCounts: Record<string, number> = {}
+    const modelCounts: Record<string, number> = {}
     let primaryModel = ''
 
     // Log each execution step
     for (const log of result.logs || []) {
       // Check for agent block and tool calls
-      let metadata: ToolCallMetadata | undefined = undefined
+      let metadata: ToolCallMetadata | undefined
 
       // If this is an agent block
       if (log.blockType === 'agent' && log.output) {
@@ -200,7 +200,7 @@ export async function persistExecutionLogs(
           const response = log.output.response
 
           // Process tool calls
-          if (response.toolCalls && response.toolCalls.list) {
+          if (response.toolCalls?.list) {
             metadata = {
               toolCalls: response.toolCalls.list.map((tc: any) => ({
                 name: stripCustomToolPrefix(tc.name),
@@ -317,7 +317,7 @@ export async function persistExecutionLogs(
             )
 
             // Log what we extracted
-            logger.debug(`Tool call list timing extracted:`, {
+            logger.debug('Tool call list timing extracted:', {
               name: toolCall.name,
               extracted_duration: duration,
               extracted_startTime: timing.startTime,
@@ -337,7 +337,7 @@ export async function persistExecutionLogs(
           })
         }
         // Case 3: Response has toolCalls
-        else if (log.output.response && log.output.response.toolCalls) {
+        else if (log.output.response?.toolCalls) {
           const toolCalls = Array.isArray(log.output.response.toolCalls)
             ? log.output.response.toolCalls
             : log.output.response.toolCalls.list || []
@@ -413,7 +413,7 @@ export async function persistExecutionLogs(
             )
 
             // Log what we extracted
-            logger.debug(`toolCalls object list timing extracted:`, {
+            logger.debug('toolCalls object list timing extracted:', {
               name: toolCall.name,
               extracted_duration: duration,
               extracted_startTime: timing.startTime,
@@ -510,7 +510,7 @@ export async function persistExecutionLogs(
                 )
 
                 // Log what we extracted
-                logger.debug(`Parsed response timing extracted:`, {
+                logger.debug('Parsed response timing extracted:', {
                   name: toolCall.name,
                   extracted_duration: duration,
                   extracted_startTime: timing.startTime,
@@ -539,7 +539,7 @@ export async function persistExecutionLogs(
         // Verbose output debugging as a fallback
         else {
           logger.debug('Could not find tool calls in standard formats, output data:', {
-            outputSample: JSON.stringify(log.output).substring(0, 500) + '...',
+            outputSample: `${JSON.stringify(log.output).substring(0, 500)}...`,
           })
         }
 
@@ -702,7 +702,7 @@ export async function persistExecutionLogs(
               .where(eq(userStats.userId, userId))
           }
         } catch (error) {
-          logger.error(`Error upserting user stats:`, error)
+          logger.error('Error upserting user stats:', error)
         }
       }
     }
@@ -874,10 +874,10 @@ function extractDuration(toolCall: any): number {
     try {
       const start = new Date(toolCall.startTime).getTime()
       const end = new Date(toolCall.endTime).getTime()
-      if (!isNaN(start) && !isNaN(end) && end >= start) {
+      if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
         return end - start
       }
-    } catch (e) {
+    } catch (_e) {
       // Silently fail if date parsing fails
     }
   }
@@ -887,10 +887,10 @@ function extractDuration(toolCall: any): number {
     try {
       const start = new Date(toolCall.startedAt).getTime()
       const end = new Date(toolCall.endedAt).getTime()
-      if (!isNaN(start) && !isNaN(end) && end >= start) {
+      if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
         return end - start
       }
-    } catch (e) {
+    } catch (_e) {
       // Silently fail if date parsing fails
     }
   }
@@ -901,10 +901,10 @@ function extractDuration(toolCall: any): number {
       try {
         const start = new Date(toolCall.timing.startTime).getTime()
         const end = new Date(toolCall.timing.endTime).getTime()
-        if (!isNaN(start) && !isNaN(end) && end >= start) {
+        if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
           return end - start
         }
-      } catch (e) {
+      } catch (_e) {
         // Silently fail if date parsing fails
       }
     }
@@ -926,8 +926,8 @@ function extractTimingInfo(
   blockStartTime?: Date,
   blockEndTime?: Date
 ): { startTime?: Date; endTime?: Date } {
-  let startTime: Date | undefined = undefined
-  let endTime: Date | undefined = undefined
+  let startTime: Date | undefined
+  let endTime: Date | undefined
 
   // Try to get direct timing properties
   if (toolCall.startTime && isValidDate(toolCall.startTime)) {
@@ -976,8 +976,8 @@ function isValidDate(dateString: string): boolean {
 
   try {
     const timestamp = Date.parse(dateString)
-    return !isNaN(timestamp)
-  } catch (e) {
+    return !Number.isNaN(timestamp)
+  } catch (_e) {
     return false
   }
 }

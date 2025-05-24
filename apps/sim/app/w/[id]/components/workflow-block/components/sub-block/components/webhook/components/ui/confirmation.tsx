@@ -33,7 +33,7 @@ export function DeleteConfirmDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-red-600 hover:bg-red-700">
+          <AlertDialogAction onClick={onConfirm} className='bg-red-600 hover:bg-red-700'>
             {isDeleting ? 'Deleting...' : 'Delete'}
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -66,7 +66,7 @@ export function UnsavedChangesDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm} className="bg-red-600 hover:bg-red-700">
+          <AlertDialogAction onClick={onConfirm} className='bg-red-600 hover:bg-red-700'>
             Discard changes
           </AlertDialogAction>
         </AlertDialogFooter>

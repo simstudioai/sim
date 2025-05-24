@@ -2,6 +2,9 @@ import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { Executor } from '@/executor'
+import type { ExecutionResult } from '@/executor/types'
+import { Serializer } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -12,9 +15,6 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { Executor } from '@/executor'
-import { ExecutionResult } from '@/executor/types'
-import { Serializer } from '@/serializer'
 
 const logger = createLogger('useWorkflowExecution')
 
@@ -136,7 +136,7 @@ export function useWorkflowExecution() {
         'input' in workflowInput
 
       // If this is a chat execution, get the selected outputs
-      let selectedOutputIds: string[] | undefined = undefined
+      let selectedOutputIds: string[] | undefined
       if (isChatExecution && activeWorkflowId) {
         // Get selected outputs from chat store
         const chatStore = await import('@/stores/panel/chat/store').then((mod) => mod.useChatStore)
@@ -277,12 +277,11 @@ export function useWorkflowExecution() {
                 ) {
                   // Remove tokens from console display to avoid confusion
                   // They'll be properly estimated in the execution logger
-                  delete response.tokens
+                  response.tokens = undefined
                 }
               }
             })
           }
-
           // Mark the execution as streaming so that downstream code can recognise it
           ;(result.execution as any).isStreaming = true
 
@@ -400,10 +399,10 @@ export function useWorkflowExecution() {
         setActiveBlocks(new Set())
 
         // Create a more user-friendly notification message
-        let notificationMessage = `Workflow execution failed`
+        let notificationMessage = 'Workflow execution failed'
 
         // Add URL for HTTP errors
-        if (error && error.request && error.request.url) {
+        if (error?.request?.url) {
           // Don't show empty URL errors
           if (error.request.url && error.request.url.trim() !== '') {
             notificationMessage += `: Request to ${error.request.url} failed`
@@ -653,7 +652,7 @@ export function useWorkflowExecution() {
 
         currentResult = await executor.continueExecution(currentPendingBlocks, currentContext)
 
-        logger.info(`Resume iteration result:`, {
+        logger.info('Resume iteration result:', {
           success: currentResult.success,
           hasPendingBlocks: !!currentResult.metadata?.pendingBlocks,
           pendingBlockCount: currentResult.metadata?.pendingBlocks?.length || 0,

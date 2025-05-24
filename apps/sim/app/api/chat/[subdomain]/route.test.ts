@@ -93,7 +93,7 @@ describe('Chat Subdomain API Route', () => {
 
     // Mock API response helpers
     vi.doMock('@/app/api/workflows/utils', () => ({
-      createErrorResponse: vi.fn().mockImplementation((message, status = 400, code) => {
+      createErrorResponse: vi.fn().mockImplementation((message, status, code) => {
         return new Response(
           JSON.stringify({
             error: code || 'Error',

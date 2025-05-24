@@ -1,9 +1,9 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { BlockOutput } from '@/blocks/types'
+import type { BlockOutput } from '@/blocks/types'
 import { getProviderFromModel } from '@/providers/utils'
-import { SerializedBlock } from '@/serializer/types'
-import { BlockHandler, ExecutionContext } from '../../types'
+import type { SerializedBlock } from '@/serializer/types'
+import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('EvaluatorBlockHandler')
 
@@ -32,7 +32,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
           try {
             const parsed = JSON.parse(inputs.content)
             processedContent = JSON.stringify(parsed, null, 2)
-          } catch (e) {
+          } catch (_e) {
             processedContent = inputs.content
           }
         } else {
@@ -58,7 +58,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     const metrics = Array.isArray(inputs.metrics) ? inputs.metrics : []
     logger.info('Metrics for evaluator:', metrics)
     const metricDescriptions = metrics
-      .filter((m: any) => m && m.name && m.range) // Filter out invalid/incomplete metrics
+      .filter((m: any) => m?.name && m.range) // Filter out invalid/incomplete metrics
       .map((m: any) => `"${m.name}" (${m.range.min}-${m.range.max}): ${m.description || ''}`)
       .join('\n')
 
@@ -66,7 +66,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     const responseProperties: Record<string, any> = {}
     metrics.forEach((m: any) => {
       // Ensure metric and name are valid before using them
-      if (m && m.name) {
+      if (m?.name) {
         responseProperties[m.name.toLowerCase()] = { type: 'number' } // Use lowercase for consistency
       } else {
         logger.warn('Skipping invalid metric entry during response format generation:', m)
@@ -89,7 +89,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
           type: 'object',
           properties: responseProperties,
           // Filter out invalid names before creating the required array
-          required: metrics.filter((m: any) => m && m.name).map((m: any) => m.name.toLowerCase()),
+          required: metrics.filter((m: any) => m?.name).map((m: any) => m.name.toLowerCase()),
           additionalProperties: false,
         },
         strict: true,
@@ -140,7 +140,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
           if (errorData.error) {
             errorMessage = errorData.error
           }
-        } catch (e) {
+        } catch (_e) {
           // If JSON parsing fails, use the original error message
         }
         throw new Error(errorMessage)
@@ -230,7 +230,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
           // If we couldn't parse any content, set all metrics to 0
           validMetrics.forEach((metric: any) => {
             // Ensure metric and name are valid before setting default score
-            if (metric && metric.name) {
+            if (metric?.name) {
               metricScores[metric.name.toLowerCase()] = 0
             } else {
               logger.warn('Skipping invalid metric entry when setting default scores:', metric)

@@ -77,11 +77,11 @@ describe('Subscription Transfer API Routes', () => {
             where: () => {
               if (mockDb.select.mock.calls.length === 1) {
                 return Promise.resolve([mockSubscriptionWithReferenceId])
-              } else if (mockDb.select.mock.calls.length === 2) {
-                return Promise.resolve([mockOrganization])
-              } else {
-                return Promise.resolve([mockAdminMember])
               }
+              if (mockDb.select.mock.calls.length === 2) {
+                return Promise.resolve([mockOrganization])
+              }
+              return Promise.resolve([mockAdminMember])
             },
           }),
         }

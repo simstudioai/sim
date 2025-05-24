@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import { StagehandExtractParams, StagehandExtractResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { StagehandExtractParams, StagehandExtractResponse } from './types'
 
 const logger = createLogger('StagehandExtractTool')
 

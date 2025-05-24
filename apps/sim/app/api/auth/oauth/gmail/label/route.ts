@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       try {
         const error = JSON.parse(errorText)
         return NextResponse.json({ error }, { status: response.status })
-      } catch (e) {
+      } catch (_e) {
         return NextResponse.json({ error: errorText }, { status: response.status })
       }
     }

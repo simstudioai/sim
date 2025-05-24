@@ -1,6 +1,6 @@
 import { FirecrawlIcon } from '@/components/icons'
-import { ScrapeResponse } from '@/tools/firecrawl/types'
-import { BlockConfig } from '../types'
+import type { ScrapeResponse } from '@/tools/firecrawl/types'
+import type { BlockConfig } from '../types'
 
 export const FirecrawlBlock: BlockConfig<ScrapeResponse> = {
   type: 'firecrawl',

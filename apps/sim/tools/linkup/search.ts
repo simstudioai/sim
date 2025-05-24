@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { LinkupSearchParams, LinkupSearchResponse, LinkupSearchToolResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { LinkupSearchParams, LinkupSearchResponse, LinkupSearchToolResponse } from './types'
 
 export const searchTool: ToolConfig<LinkupSearchParams, LinkupSearchToolResponse> = {
   id: 'linkup_search',

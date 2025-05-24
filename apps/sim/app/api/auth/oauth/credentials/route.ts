@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import type { OAuthService } from '@/lib/oauth'
 import { parseProvider } from '@/lib/oauth'
-import { OAuthService } from '@/lib/oauth'
 import { db } from '@/db'
 import { account, user } from '@/db/schema'
 
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
             } else if (decoded.name) {
               displayName = decoded.name
             }
-          } catch (error) {
+          } catch (_error) {
             logger.warn(`[${requestId}] Error decoding ID token`, {
               accountId: acc.id,
             })
@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
             if (userRecord.length > 0) {
               displayName = userRecord[0].email
             }
-          } catch (error) {
+          } catch (_error) {
             logger.warn(`[${requestId}] Error fetching user email`, {
               userId: acc.userId,
             })

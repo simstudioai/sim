@@ -1,13 +1,13 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { PanelLeftClose, PanelRight, PanelRightClose, Search } from 'lucide-react'
+import { PanelLeftClose, PanelRight, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useSidebarStore } from '@/stores/sidebar/store'
 import { getAllBlocks, getBlocksByCategory } from '@/blocks'
-import { BlockCategory } from '@/blocks/types'
+import type { BlockCategory } from '@/blocks/types'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { ToolbarBlock } from './components/toolbar-block/toolbar-block'
 import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
 
@@ -43,13 +43,13 @@ export function Toolbar() {
         <TooltipTrigger asChild>
           <button
             onClick={() => setIsToolbarOpen(true)}
-            className={`fixed transition-all duration-200 ${isSidebarCollapsed ? 'left-20' : 'left-64'} bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-background text-muted-foreground hover:text-foreground hover:bg-accent border`}
+            className={`fixed transition-all duration-200 ${isSidebarCollapsed ? 'left-20' : 'left-64'} bottom-[18px] z-10 flex h-9 w-9 items-center justify-center rounded-lg border bg-background text-muted-foreground hover:bg-accent hover:text-foreground`}
           >
-            <PanelRight className="h-5 w-5" />
-            <span className="sr-only">Open Toolbar</span>
+            <PanelRight className='h-5 w-5' />
+            <span className='sr-only'>Open Toolbar</span>
           </button>
         </TooltipTrigger>
-        <TooltipContent side="right">Open Toolbar</TooltipContent>
+        <TooltipContent side='right'>Open Toolbar</TooltipContent>
       </Tooltip>
     )
   }
@@ -58,32 +58,32 @@ export function Toolbar() {
     <div
       className={`fixed transition-all duration-200 ${isSidebarCollapsed ? 'left-14' : 'left-60'} top-16 z-10 h-[calc(100vh-4rem)] w-60 border-r bg-background sm:block`}
     >
-      <div className="flex flex-col h-full">
-        <div className="px-4 pt-4 pb-1 sticky top-0 bg-background z-20">
-          <div className="relative">
-            <Search className="absolute left-3 top-[50%] h-4 w-4 -translate-y-[50%] text-muted-foreground" />
+      <div className='flex h-full flex-col'>
+        <div className='sticky top-0 z-20 bg-background px-4 pt-4 pb-1'>
+          <div className='relative'>
+            <Search className='-translate-y-[50%] absolute top-[50%] left-3 h-4 w-4 text-muted-foreground' />
             <Input
-              placeholder="Search..."
-              className="pl-9 rounded-md"
+              placeholder='Search...'
+              className='rounded-md pl-9'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck="false"
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='off'
+              spellCheck='false'
             />
           </div>
         </div>
 
         {!searchQuery && (
-          <div className="sticky top-[72px] bg-background z-20">
+          <div className='sticky top-[72px] z-20 bg-background'>
             <ToolbarTabs activeTab={activeTab} onTabChange={setActiveTab} />
           </div>
         )}
 
-        <ScrollArea className="h-[calc(100%-4rem)]">
-          <div className="p-4 pb-20">
-            <div className="flex flex-col gap-3">
+        <ScrollArea className='h-[calc(100%-4rem)]'>
+          <div className='p-4 pb-20'>
+            <div className='flex flex-col gap-3'>
               {blocks.map((block) => (
                 <ToolbarBlock key={block.type} config={block} />
               ))}
@@ -91,18 +91,18 @@ export function Toolbar() {
           </div>
         </ScrollArea>
 
-        <div className="absolute left-0 right-0 bottom-0 h-16 bg-background border-t">
+        <div className='absolute right-0 bottom-0 left-0 h-16 border-t bg-background'>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={() => setIsToolbarOpen(false)}
-                className="absolute right-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent"
+                className='absolute right-4 bottom-[18px] flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground'
               >
-                <PanelLeftClose className="h-5 w-5" />
-                <span className="sr-only">Close Toolbar</span>
+                <PanelLeftClose className='h-5 w-5' />
+                <span className='sr-only'>Close Toolbar</span>
               </button>
             </TooltipTrigger>
-            <TooltipContent side="left">Close Toolbar</TooltipContent>
+            <TooltipContent side='left'>Close Toolbar</TooltipContent>
           </Tooltip>
         </div>
       </div>

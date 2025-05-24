@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import binaryExtensionsList from 'binary-extensions'
 import { Buffer } from 'buffer'
 import { createHash } from 'crypto'
 import fsPromises, { readFile, unlink, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
+import binaryExtensionsList from 'binary-extensions'
+import { type NextRequest, NextResponse } from 'next/server'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console-logger'
 import { downloadFromS3 } from '@/lib/uploads/s3-client'
@@ -72,7 +72,7 @@ const fileTypeMap: Record<string, string> = {
 }
 
 // Binary file extensions
-const binaryExtensions = [
+const _binaryExtensions = [
   'doc',
   'docx',
   'xls',
@@ -195,7 +195,7 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
     // Check file size before downloading content
     const contentLength = response.headers.get('content-length')
     if (contentLength) {
-      const fileSize = parseInt(contentLength, 10)
+      const fileSize = Number.parseInt(contentLength, 10)
       if (fileSize > MAX_DOWNLOAD_SIZE_BYTES) {
         throw new Error(
           `File size (${prettySize(fileSize)}) exceeds the limit of ${prettySize(
@@ -256,7 +256,7 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
       // Clean up temporary file on error
       try {
         await unlink(tmpFilePath)
-      } catch (cleanupError) {
+      } catch (_cleanupError) {
         // Ignore cleanup errors on parse failure
       }
 
@@ -300,15 +300,16 @@ async function handleS3File(filePath: string, fileType?: string): Promise<ParseR
     // Process the file based on its content type
     if (extension === 'pdf') {
       return await handlePdfBuffer(fileBuffer, filename, fileType, filePath)
-    } else if (extension === 'csv') {
+    }
+    if (extension === 'csv') {
       return await handleCsvBuffer(fileBuffer, filename, fileType, filePath)
-    } else if (isSupportedFileType(extension)) {
+    }
+    if (isSupportedFileType(extension)) {
       // For other supported types that we have parsers for
       return await handleGenericTextBuffer(fileBuffer, filename, extension, fileType, filePath)
-    } else {
-      // For binary or unknown files
-      return handleGenericBuffer(fileBuffer, filename, extension, fileType)
     }
+    // For binary or unknown files
+    return handleGenericBuffer(fileBuffer, filename, extension, fileType)
   } catch (error) {
     logger.error(`Error handling S3 file ${filePath}:`, error)
     return {
@@ -350,7 +351,7 @@ async function handlePdfBuffer(
       filePath: originalPath,
     }
   } catch (error) {
-    logger.error(`Failed to parse PDF in memory:`, error)
+    logger.error('Failed to parse PDF in memory:', error)
 
     // Create fallback message for PDF parsing failure
     const content = createPdfFailureMessage(
@@ -403,7 +404,7 @@ async function handleCsvBuffer(
       filePath: originalPath,
     }
   } catch (error) {
-    logger.error(`Failed to parse CSV in memory:`, error)
+    logger.error('Failed to parse CSV in memory:', error)
     return {
       success: false,
       error: `Failed to parse CSV: ${(error as Error).message}`,
@@ -446,7 +447,7 @@ async function handleGenericTextBuffer(
         }
       }
     } catch (parserError) {
-      logger.warn(`Specialized parser failed, falling back to generic parsing:`, parserError)
+      logger.warn('Specialized parser failed, falling back to generic parsing:', parserError)
     }
 
     // Fallback to generic text parsing
@@ -464,7 +465,7 @@ async function handleGenericTextBuffer(
       filePath: originalPath,
     }
   } catch (error) {
-    logger.error(`Failed to parse text file in memory:`, error)
+    logger.error('Failed to parse text file in memory:', error)
     return {
       success: false,
       error: `Failed to parse file: ${(error as Error).message}`,
@@ -513,9 +514,8 @@ async function parseBufferAsPdf(buffer: Buffer) {
 
       if (parser.parseBuffer) {
         return await parser.parseBuffer(buffer)
-      } else {
-        throw new Error('PDF parser does not support buffer parsing')
       }
+      throw new Error('PDF parser does not support buffer parsing')
     } catch (error) {
       // Fallback to raw PDF parser
       logger.warn('Main PDF parser failed, using raw parser for buffer:', error)
@@ -746,7 +746,7 @@ function prettySize(bytes: number): string {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
 
-  return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(2))} ${sizes[i]}`
+  return `${Number.parseFloat((bytes / 1024 ** i).toFixed(2))} ${sizes[i]}`
 }
 
 /**

@@ -1,5 +1,5 @@
-import { notFound } from 'next/navigation'
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page'
+import { notFound } from 'next/navigation'
 import mdxComponents from '@/components/mdx-components'
 import { source } from '@/lib/source'
 
@@ -19,7 +19,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
       tableOfContent={{
         style: 'clerk',
         enabled: true,
-        header: <div className="mb-2 text-sm font-medium">On this page</div>,
+        header: <div className='mb-2 font-medium text-sm'>On this page</div>,
         single: false,
       }}
       article={{

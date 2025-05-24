@@ -77,7 +77,7 @@ export default function Marketplace() {
   })
   const [activeSection, setActiveSection] = useState<string | null>(null)
   const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(['popular', 'recent']))
-  const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set(['popular']))
+  const [_visibleSections, setVisibleSections] = useState<Set<string>>(new Set(['popular']))
 
   // Create refs for each section
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -203,7 +203,7 @@ export default function Marketplace() {
 
       // Debug logging
       console.log(
-        `Category data received:`,
+        'Category data received:',
         data.byCategory ? Object.keys(data.byCategory) : 'No byCategory',
         data.byCategory?.[categoryName]?.length || 0
       )
@@ -458,13 +458,14 @@ export default function Marketplace() {
       // Find section whose position is closest to middle of viewport
       // This creates smoother transitions as we scroll
       let closestSection = null
-      let closestDistance = Infinity
+      let closestDistance = Number.POSITIVE_INFINITY
 
       Object.entries(sectionRefs.current).forEach(([id, ref]) => {
         if (!ref || !currentSectionIds.includes(id)) return
 
         const rect = ref.getBoundingClientRect()
-        const sectionTop = rect.top + scrollTop - contentRef.current!.getBoundingClientRect().top
+        const sectionTop =
+          rect.top + scrollTop - (contentRef.current?.getBoundingClientRect().top || 0)
         const sectionMiddle = sectionTop + rect.height / 2
         const distance = Math.abs(viewportMiddle - sectionMiddle)
 
@@ -496,36 +497,34 @@ export default function Marketplace() {
   }, [initialFetchCompleted.current, loading, filteredWorkflows, loadedSections])
 
   return (
-    <div className="flex flex-col h-[100vh]">
+    <div className='flex h-[100vh] flex-col'>
       {/* Control Bar */}
       <ControlBar setSearchQuery={setSearchQuery} />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className='flex flex-1 overflow-hidden'>
         {/* Toolbar */}
         <Toolbar scrollToSection={scrollToSection} activeSection={activeSection} />
 
         {/* Main content */}
-        <div ref={contentRef} className="flex-1 overflow-y-auto py-6 px-6 pb-16">
+        <div ref={contentRef} className='flex-1 overflow-y-auto px-6 py-6 pb-16'>
           {/* Error message */}
           <ErrorMessage message={error} />
 
           {/* Loading state */}
           {loading && (
-            <>
-              <Section
-                id="loading"
-                title="Popular"
-                ref={(el) => {
-                  sectionRefs.current['loading'] = el
-                }}
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Array.from({ length: 6 }).map((_, index) => (
-                    <WorkflowCardSkeleton key={`skeleton-${index}`} />
-                  ))}
-                </div>
-              </Section>
-            </>
+            <Section
+              id='loading'
+              title='Popular'
+              ref={(el) => {
+                sectionRefs.current.loading = el
+              }}
+            >
+              <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <WorkflowCardSkeleton key={`skeleton-${index}`} />
+                ))}
+              </div>
+            </Section>
           )}
 
           {/* Render workflow sections */}
@@ -544,7 +543,7 @@ export default function Marketplace() {
                         }
                       }}
                     >
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
                         {workflows.map((workflow, index) => (
                           <WorkflowCard
                             key={workflow.id}
@@ -559,9 +558,9 @@ export default function Marketplace() {
               )}
 
               {sortedFilteredWorkflows.length === 0 && !loading && (
-                <div className="flex flex-col items-center justify-center h-64">
-                  <AlertCircle className="h-8 w-8 text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No workflows found matching your search.</p>
+                <div className='flex h-64 flex-col items-center justify-center'>
+                  <AlertCircle className='mb-4 h-8 w-8 text-muted-foreground' />
+                  <p className='text-muted-foreground'>No workflows found matching your search.</p>
                 </div>
               )}
             </>

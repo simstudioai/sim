@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { NotionResponse, NotionUpdatePageParams } from './types'
+import type { ToolConfig } from '../types'
+import type { NotionResponse, NotionUpdatePageParams } from './types'
 
 export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResponse> = {
   id: 'notion_update_page',
@@ -64,7 +64,7 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
     let pageTitle = 'Untitled'
 
     // Try to extract the title from properties
-    if (data.properties && data.properties.title) {
+    if (data.properties?.title) {
       const titleProperty = data.properties.title
       if (
         titleProperty.title &&
@@ -78,7 +78,7 @@ export const notionUpdatePageTool: ToolConfig<NotionUpdatePageParams, NotionResp
     return {
       success: true,
       output: {
-        content: `Successfully updated page properties`,
+        content: 'Successfully updated page properties',
         metadata: {
           title: pageTitle,
           pageId: data.id,

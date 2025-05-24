@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { SerializedBlock, SerializedConnection, SerializedLoop } from '@/serializer/types'
-import { ExecutionContext } from './types'
+import type { SerializedBlock, SerializedConnection, SerializedLoop } from '@/serializer/types'
+import type { ExecutionContext } from './types'
 
 const logger = createLogger('LoopManager')
 
@@ -10,7 +10,7 @@ const logger = createLogger('LoopManager')
 export class LoopManager {
   constructor(
     private loops: Record<string, SerializedLoop>,
-    private defaultIterations: number = 5
+    private defaultIterations = 5
   ) {}
 
   /**
@@ -361,14 +361,15 @@ export class LoopManager {
     }
 
     // As a fallback, try to find the first non-empty array or object in the context
-    for (const [blockId, blockState] of context.blockStates.entries()) {
+    for (const [_blockId, blockState] of context.blockStates.entries()) {
       const output = blockState.output?.response
       if (output) {
         // Look for arrays or objects in the response that could be iterated over
-        for (const [key, value] of Object.entries(output)) {
+        for (const [_key, value] of Object.entries(output)) {
           if (Array.isArray(value) && value.length > 0) {
             return value
-          } else if (typeof value === 'object' && value !== null && Object.keys(value).length > 0) {
+          }
+          if (typeof value === 'object' && value !== null && Object.keys(value).length > 0) {
             return value
           }
         }
@@ -404,24 +405,24 @@ export class LoopManager {
 
     for (const nodeId of nodeIds) {
       // Count connections coming from outside the loop
-      const externalIncomingCount = context.workflow!.connections.filter(
+      const externalIncomingCount = context.workflow?.connections.filter(
         (conn) => conn.target === nodeId && !nodeIds.includes(conn.source)
       ).length
 
       // Count connections going to outside the loop
-      const externalOutgoingCount = context.workflow!.connections.filter(
+      const externalOutgoingCount = context.workflow?.connections.filter(
         (conn) => conn.source === nodeId && !nodeIds.includes(conn.target)
       ).length
 
       // Count internal incoming connections that aren't self-connections
-      const internalIncomingCount = context.workflow!.connections.filter(
+      const internalIncomingCount = context.workflow?.connections.filter(
         (conn) => conn.target === nodeId && conn.source !== nodeId && nodeIds.includes(conn.source)
       ).length
 
       blocksWithExternalConnections.set(nodeId, {
-        incomingExternal: externalIncomingCount,
-        outgoingExternal: externalOutgoingCount,
-        incomingInternal: internalIncomingCount,
+        incomingExternal: externalIncomingCount || 0,
+        outgoingExternal: externalOutgoingCount || 0,
+        incomingInternal: internalIncomingCount || 0,
       })
     }
 
@@ -505,7 +506,7 @@ export class LoopManager {
       return true
     }
 
-    for (const [loopId, loop] of Object.entries(this.loops)) {
+    for (const [_loopId, loop] of Object.entries(this.loops)) {
       if (loop.nodes.includes(connection.source) && loop.nodes.includes(connection.target)) {
         // For single-node loops, any connection to itself is a feedback path
         if (

@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { NotionCreatePageParams, NotionResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { NotionCreatePageParams, NotionResponse } from './types'
 
 export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResponse> = {
   id: 'notion_create_page',
@@ -132,7 +132,7 @@ export const notionCreatePageTool: ToolConfig<NotionCreatePageParams, NotionResp
     let pageTitle = 'Untitled'
 
     // Try to extract the title from properties
-    if (data.properties && data.properties.title) {
+    if (data.properties?.title) {
       const titleProperty = data.properties.title
       if (
         titleProperty.title &&

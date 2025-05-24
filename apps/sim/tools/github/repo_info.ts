@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { BaseGitHubParams, RepoInfoResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { BaseGitHubParams, RepoInfoResponse } from './types'
 
 export const repoInfoTool: ToolConfig<BaseGitHubParams, RepoInfoResponse> = {
   id: 'github_repo_info',

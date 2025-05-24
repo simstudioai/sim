@@ -42,7 +42,7 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
   const updateProgress = () => {
     if (audioRef.current) {
       const value = (audioRef.current.currentTime / audioRef.current.duration) * 100
-      setProgress(isNaN(value) ? 0 : value)
+      setProgress(Number.isNaN(value) ? 0 : value)
     }
   }
 
@@ -87,28 +87,28 @@ export function AudioPlayer({ audioUrl }: AudioPlayerProps) {
   }
 
   return (
-    <div className="flex items-center gap-2 mt-2 p-2 rounded-md bg-background/40 w-full max-w-xs">
+    <div className='mt-2 flex w-full max-w-xs items-center gap-2 rounded-md bg-background/40 p-2'>
       <button
-        className="inline-flex items-center justify-center h-7 w-7 bg-primary/10 hover:bg-primary/20 text-primary rounded-full transition-colors"
+        className='inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors hover:bg-primary/20'
         onClick={togglePlay}
         aria-label={isPlaying ? 'Pause' : 'Play'}
       >
-        {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 ml-0.5" />}
+        {isPlaying ? <Pause className='h-3.5 w-3.5' /> : <Play className='ml-0.5 h-3.5 w-3.5' />}
       </button>
 
       <div
-        className="flex-grow h-1.5 bg-muted rounded-full overflow-hidden cursor-pointer"
+        className='h-1.5 flex-grow cursor-pointer overflow-hidden rounded-full bg-muted'
         onClick={seekAudio}
       >
-        <div className="h-full bg-primary/40 rounded-full" style={{ width: `${progress}%` }} />
+        <div className='h-full rounded-full bg-primary/40' style={{ width: `${progress}%` }} />
       </div>
 
       <button
-        className="inline-flex items-center justify-center h-6 w-6 text-muted-foreground hover:text-foreground transition-colors"
+        className='inline-flex h-6 w-6 items-center justify-center text-muted-foreground transition-colors hover:text-foreground'
         onClick={downloadAudio}
-        aria-label="Download audio"
+        aria-label='Download audio'
       >
-        <Download className="h-3 w-3" />
+        <Download className='h-3 w-3' />
       </button>
     </div>
   )

@@ -1,10 +1,9 @@
-import { StateCreator } from 'zustand'
+import type { StateCreator } from 'zustand'
 import { saveSubblockValues, saveWorkflowState } from './persistence'
 import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
-import { WorkflowState, WorkflowStore } from './workflow/types'
+import type { WorkflowState, WorkflowStore } from './workflow/types'
 
-// Types
 interface HistoryEntry {
   state: WorkflowState
   timestamp: number

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { ExecutionActions, ExecutionState, initialState } from './types'
+import { type ExecutionActions, type ExecutionState, initialState } from './types'
 
 export const useExecutionStore = create<ExecutionState & ExecutionActions>()((set) => ({
   ...initialState,

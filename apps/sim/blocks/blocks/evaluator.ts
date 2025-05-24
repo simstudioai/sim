@@ -1,10 +1,10 @@
 import { ChartBarIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useOllamaStore } from '@/stores/ollama/store'
-import { ProviderId } from '@/providers/types'
+import type { ProviderId } from '@/providers/types'
 import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
-import { ToolResponse } from '@/tools/types'
-import { BlockConfig, ParamType } from '../types'
+import { useOllamaStore } from '@/stores/ollama/store'
+import type { ToolResponse } from '@/tools/types'
+import type { BlockConfig, ParamType } from '../types'
 
 const logger = createLogger('EvaluatorBlock')
 
@@ -32,7 +32,7 @@ interface EvaluatorResponse extends ToolResponse {
 
 export const generateEvaluatorPrompt = (metrics: Metric[], content: string): string => {
   // Filter out invalid/incomplete metrics first
-  const validMetrics = metrics.filter((m) => m && m.name && m.range)
+  const validMetrics = metrics.filter((m) => m?.name && m.range)
 
   // Create a clear metrics description with name, range, and description
   const metricsDescription = validMetrics
@@ -67,7 +67,7 @@ export const generateEvaluatorPrompt = (metrics: Metric[], content: string): str
   const exampleOutput = validMetrics.reduce(
     (acc, metric) => {
       // Ensure metric and name are valid before using them
-      if (metric && metric.name) {
+      if (metric?.name) {
         acc[metric.name.toLowerCase()] = Math.floor((metric.range.min + metric.range.max) / 2) // Use middle of range as example
       } else {
         logger.warn('Skipping invalid metric during example generation:', metric)
@@ -104,7 +104,7 @@ Remember: Your response MUST be a valid JSON object containing only the lowercas
 // Simplified response format generator that matches the agent block schema structure
 const generateResponseFormat = (metrics: Metric[]) => {
   // Filter out invalid/incomplete metrics first
-  const validMetrics = metrics.filter((m) => m && m.name)
+  const validMetrics = metrics.filter((m) => m?.name)
 
   // Create properties for each metric
   const properties: Record<string, any> = {}
@@ -112,7 +112,7 @@ const generateResponseFormat = (metrics: Metric[]) => {
   // Add each metric as a property
   validMetrics.forEach((metric) => {
     // We've already filtered, but double-check just in case
-    if (metric && metric.name) {
+    if (metric?.name) {
       properties[metric.name.toLowerCase()] = {
         type: 'number',
         description: `${metric.description || ''} (Score between ${metric.range?.min ?? 0}-${metric.range?.max ?? 'N/A'})`, // Safely access range
@@ -130,7 +130,7 @@ const generateResponseFormat = (metrics: Metric[]) => {
       properties,
       // Use only valid, lowercase metric names for the required array
       required: validMetrics
-        .filter((metric) => metric && metric.name)
+        .filter((metric) => metric?.name)
         .map((metric) => metric.name.toLowerCase()),
       additionalProperties: false,
     },

@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { GoogleSheetsToolParams, GoogleSheetsUpdateResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { GoogleSheetsToolParams, GoogleSheetsUpdateResponse } from './types'
 
 export const updateTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsUpdateResponse> = {
   id: 'google_sheets_update',

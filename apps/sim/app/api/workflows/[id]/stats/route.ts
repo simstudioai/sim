@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { userStats, workflow } from '@/db/schema'
@@ -9,9 +9,9 @@ const logger = createLogger('WorkflowStatsAPI')
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const searchParams = request.nextUrl.searchParams
-  const runs = parseInt(searchParams.get('runs') || '1', 10)
+  const runs = Number.parseInt(searchParams.get('runs') || '1', 10)
 
-  if (isNaN(runs) || runs < 1 || runs > 100) {
+  if (Number.isNaN(runs) || runs < 1 || runs > 100) {
     logger.error(`Invalid number of runs: ${runs}`)
     return NextResponse.json(
       { error: 'Invalid number of runs. Must be between 1 and 100.' },

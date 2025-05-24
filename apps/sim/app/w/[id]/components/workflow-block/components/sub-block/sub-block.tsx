@@ -1,10 +1,10 @@
 import { Info } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { getBlock } from '@/blocks/index'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { getBlock } from '@/blocks/index'
-import { SubBlockConfig } from '@/blocks/types'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
 import { ConditionInput } from './components/condition-input'
@@ -192,16 +192,16 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
   const required = isFieldRequired()
 
   return (
-    <div className="space-y-[6px] pt-[2px]" onMouseDown={handleMouseDown}>
+    <div className='space-y-[6px] pt-[2px]' onMouseDown={handleMouseDown}>
       {config.type !== 'switch' && (
-        <Label className="flex items-center gap-1">
+        <Label className='flex items-center gap-1'>
           {config.title}
           {required && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-red-500 cursor-help">*</span>
+                <span className='cursor-help text-red-500'>*</span>
               </TooltipTrigger>
-              <TooltipContent side="top">
+              <TooltipContent side='top'>
                 <p>This field is required</p>
               </TooltipContent>
             </Tooltip>
@@ -209,13 +209,13 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
           {config.description && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Info className="h-4 w-4 text-muted-foreground cursor-pointer" />
+                <Info className='h-4 w-4 cursor-pointer text-muted-foreground' />
               </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[400px] select-text whitespace-pre-wrap">
+              <TooltipContent side='top' className='max-w-[400px] select-text whitespace-pre-wrap'>
                 {config.description.split('\n').map((line, idx) => (
                   <p
                     key={idx}
-                    className={idx === 0 ? 'text-sm mb-1' : 'text-xs text-muted-foreground'}
+                    className={idx === 0 ? 'mb-1 text-sm' : 'text-muted-foreground text-xs'}
                   >
                     {line}
                   </p>

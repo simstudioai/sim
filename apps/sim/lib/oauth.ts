@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import {
   AirtableIcon,
   ConfluenceIcon,
@@ -32,6 +32,7 @@ export type OAuthProvider =
   | 'jira'
   | 'discord'
   | string
+
 export type OAuthService =
   | 'google'
   | 'google-email'
@@ -305,13 +306,17 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
   if (provider === 'google') {
     if (scopes.some((scope) => scope.includes('gmail') || scope.includes('mail'))) {
       return 'gmail'
-    } else if (scopes.some((scope) => scope.includes('drive'))) {
+    }
+    if (scopes.some((scope) => scope.includes('drive'))) {
       return 'google-drive'
-    } else if (scopes.some((scope) => scope.includes('docs'))) {
+    }
+    if (scopes.some((scope) => scope.includes('docs'))) {
       return 'google-docs'
-    } else if (scopes.some((scope) => scope.includes('sheets'))) {
+    }
+    if (scopes.some((scope) => scope.includes('sheets'))) {
       return 'google-sheets'
-    } else if (scopes.some((scope) => scope.includes('calendar'))) {
+    }
+    if (scopes.some((scope) => scope.includes('calendar'))) {
       return 'google-calendar'
     }
   } else if (provider === 'github') {
@@ -476,7 +481,7 @@ export async function refreshOAuthToken(
     }
 
     // Prepare request body
-    const bodyParams: Record<string, string> = {
+    const bodyParams: Record<string, string | undefined> = {
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
     }
@@ -487,12 +492,12 @@ export async function refreshOAuthToken(
       // Do not include client_id or client_secret in the body when using Basic Auth
       if (clientId && clientSecret) {
         const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-        headers['Authorization'] = `Basic ${basicAuth}`
+        headers.Authorization = `Basic ${basicAuth}`
 
         // Make sure to include refresh_token in body params but not client_id/client_secret
         // This ensures we're not sending credentials in both header and body
-        delete bodyParams.client_id
-        delete bodyParams.client_secret
+        bodyParams.client_id = undefined
+        bodyParams.client_secret = undefined
       } else {
         throw new Error('Both client ID and client secret are required for Airtable OAuth')
       }
@@ -504,16 +509,16 @@ export async function refreshOAuthToken(
     ) {
       const authString = `${clientId}:${clientSecret}`
       const basicAuth = Buffer.from(authString).toString('base64')
-      headers['Authorization'] = `Basic ${basicAuth}`
+      headers.Authorization = `Basic ${basicAuth}`
 
       // When using Basic Auth, don't include client_id in body
-      delete bodyParams.client_id
-      delete bodyParams.client_secret
+      bodyParams.client_id = undefined
+      bodyParams.client_secret = undefined
     } else {
       // For other providers, use the general approach
       if (useBasicAuth) {
         const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-        headers['Authorization'] = `Basic ${basicAuth}`
+        headers.Authorization = `Basic ${basicAuth}`
       }
 
       if (!useBasicAuth) {
@@ -526,7 +531,7 @@ export async function refreshOAuthToken(
     const response = await fetch(tokenEndpoint, {
       method: 'POST',
       headers,
-      body: new URLSearchParams(bodyParams).toString(),
+      body: new URLSearchParams(bodyParams as Record<string, string>).toString(),
     })
 
     if (!response.ok) {
@@ -536,7 +541,7 @@ export async function refreshOAuthToken(
       // Try to parse the error as JSON for better diagnostics
       try {
         errorData = JSON.parse(errorText)
-      } catch (e) {
+      } catch (_e) {
         // Not JSON, keep as text
       }
 

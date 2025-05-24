@@ -33,11 +33,11 @@ export const ClientChatMessage = memo(
     // For user messages (on the right)
     if (message.type === 'user') {
       return (
-        <div className="py-5 px-4" data-message-id={message.id}>
-          <div className="max-w-3xl mx-auto">
-            <div className="flex justify-end">
-              <div className="bg-[#F4F4F4] dark:bg-gray-600 rounded-3xl max-w-[80%] py-3 px-4">
-                <div className="whitespace-pre-wrap break-words text-base leading-relaxed text-gray-800 dark:text-gray-100">
+        <div className='px-4 py-5' data-message-id={message.id}>
+          <div className='mx-auto max-w-3xl'>
+            <div className='flex justify-end'>
+              <div className='max-w-[80%] rounded-3xl bg-[#F4F4F4] px-4 py-3 dark:bg-gray-600'>
+                <div className='whitespace-pre-wrap break-words text-base text-gray-800 leading-relaxed dark:text-gray-100'>
                   {isJsonObject ? (
                     <pre>{JSON.stringify(message.content, null, 2)}</pre>
                   ) : (
@@ -53,13 +53,13 @@ export const ClientChatMessage = memo(
 
     // For assistant messages (on the left)
     return (
-      <div className="pt-5 pb-2 px-4" data-message-id={message.id}>
-        <div className="max-w-3xl mx-auto">
-          <div className="flex flex-col">
+      <div className='px-4 pt-5 pb-2' data-message-id={message.id}>
+        <div className='mx-auto max-w-3xl'>
+          <div className='flex flex-col'>
             <div>
-              <div className="break-words text-base">
+              <div className='break-words text-base'>
                 {isJsonObject ? (
-                  <pre className="text-gray-800 dark:text-gray-100">
+                  <pre className='text-gray-800 dark:text-gray-100'>
                     {JSON.stringify(message.content, null, 2)}
                   </pre>
                 ) : (
@@ -71,14 +71,14 @@ export const ClientChatMessage = memo(
               !isJsonObject &&
               !message.isInitialMessage &&
               !message.isStreaming && (
-                <div className="flex justify-start">
+                <div className='flex justify-start'>
                   <TooltipProvider>
                     <Tooltip delayDuration={300}>
                       <TooltipTrigger asChild>
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          className="flex items-center gap-1.5 px-2 py-1"
+                          variant='ghost'
+                          size='sm'
+                          className='flex items-center gap-1.5 px-2 py-1'
                           onClick={() => {
                             navigator.clipboard.writeText(message.content as string)
                             setIsCopied(true)
@@ -87,16 +87,16 @@ export const ClientChatMessage = memo(
                         >
                           {isCopied ? (
                             <>
-                              <Check className="h-3.5 w-3.5 text-green-500" />
+                              <Check className='h-3.5 w-3.5 text-green-500' />
                             </>
                           ) : (
                             <>
-                              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                              <Copy className='h-3.5 w-3.5 text-muted-foreground' />
                             </>
                           )}
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent side="top" align="center" sideOffset={5}>
+                      <TooltipContent side='top' align='center' sideOffset={5}>
                         {isCopied ? 'Copied!' : 'Copy to clipboard'}
                       </TooltipContent>
                     </Tooltip>

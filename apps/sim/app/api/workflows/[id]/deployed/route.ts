@@ -1,5 +1,5 @@
-import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflow } from '@/db/schema'

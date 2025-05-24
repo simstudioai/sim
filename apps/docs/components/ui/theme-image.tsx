@@ -41,7 +41,7 @@ export function ThemeImage({
   }
 
   return (
-    <div className="flex justify-center">
+    <div className='flex justify-center'>
       <Image src={imageSrc} alt={alt} width={width} height={height} className={className} />
     </div>
   )

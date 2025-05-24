@@ -54,11 +54,11 @@ export function DeployedWorkflowModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className="sm:max-w-[1100px] max-h-[100vh] overflow-y-auto"
+        className='max-h-[100vh] overflow-y-auto sm:max-w-[1100px]'
         style={{ zIndex: 1000 }}
         hideCloseButton={true}
       >
-        <div className="sr-only">
+        <div className='sr-only'>
           <DialogHeader>
             <DialogTitle>Deployed Workflow</DialogTitle>
           </DialogHeader>
@@ -69,12 +69,12 @@ export function DeployedWorkflowModal({
           deployedWorkflowState={deployedWorkflowState}
         />
 
-        <div className="flex justify-between mt-6">
+        <div className='mt-6 flex justify-between'>
           <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive">Revert to Deployed</Button>
+              <Button variant='destructive'>Revert to Deployed</Button>
             </AlertDialogTrigger>
-            <AlertDialogContent style={{ zIndex: 1001 }} className="sm:max-w-[425px]">
+            <AlertDialogContent style={{ zIndex: 1001 }} className='sm:max-w-[425px]'>
               <AlertDialogHeader>
                 <AlertDialogTitle>Revert to Deployed Version?</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -86,7 +86,7 @@ export function DeployedWorkflowModal({
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleRevert}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
                 >
                   Revert
                 </AlertDialogAction>
@@ -94,7 +94,7 @@ export function DeployedWorkflowModal({
             </AlertDialogContent>
           </AlertDialog>
 
-          <Button variant="outline" onClick={onClose}>
+          <Button variant='outline' onClick={onClose}>
             Close
           </Button>
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { KeyboardEvent, RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import EmailAuth from './components/auth/email/email-auth'
@@ -9,8 +9,8 @@ import { ChatErrorState } from './components/error-state/error-state'
 import { ChatHeader } from './components/header/header'
 import { ChatInput } from './components/input/input'
 import { ChatLoadingState } from './components/loading-state/loading-state'
+import type { ChatMessage } from './components/message/message'
 import { ChatMessageContainer } from './components/message-container/message-container'
-import { ChatMessage } from './components/message/message'
 import { useChatStreaming } from './hooks/use-chat-streaming'
 
 interface ChatConfig {
@@ -81,7 +81,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   }, [])
 
   const scrollToMessage = useCallback(
-    (messageId: string, scrollToShowOnlyMessage: boolean = false) => {
+    (messageId: string, scrollToShowOnlyMessage = false) => {
       const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
       if (messageElement && messagesContainerRef.current) {
         const container = messagesContainerRef.current
@@ -164,7 +164,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           if (errorData.error === 'auth_required_password') {
             setAuthRequired('password')
             return
-          } else if (errorData.error === 'auth_required_email') {
+          }
+          if (errorData.error === 'auth_required_email') {
             setAuthRequired('email')
             return
           }
@@ -305,7 +306,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             if (typeof formattedContent === 'object' && formattedContent !== null) {
               try {
                 formattedContent = JSON.stringify(formattedContent)
-              } catch (e) {
+              } catch (_e) {
                 formattedContent = 'Received structured data response'
               }
             }
@@ -331,7 +332,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               } else {
                 try {
                   messageContent = JSON.stringify(responseData.content)
-                } catch (e) {
+                } catch (_e) {
                   messageContent = 'Received structured data response'
                 }
               }
@@ -386,7 +387,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           primaryColor={primaryColor}
         />
       )
-    } else if (authRequired === 'email') {
+    }
+    if (authRequired === 'email') {
       return (
         <EmailAuth
           subdomain={subdomain}
@@ -404,7 +406,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+    <div className='fixed inset-0 z-[100] flex flex-col bg-background'>
       <style jsx>{`
         @keyframes growShrink {
           0%,
@@ -436,8 +438,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       />
 
       {/* Input area (free-standing at the bottom) */}
-      <div className="p-4 pb-6 relative">
-        <div className="max-w-3xl mx-auto relative">
+      <div className='relative p-4 pb-6'>
+        <div className='relative mx-auto max-w-3xl'>
           <ChatInput
             onSubmit={(value) => {
               void handleSendMessage(value)

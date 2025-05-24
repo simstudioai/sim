@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { Logger } from '@/lib/logs/console-logger'
 import { markWaitlistUserAsSignedUp } from '@/lib/waitlist/service'
 import { verifyToken } from '@/lib/waitlist/token'
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       logger.warn(`Failed to mark user as signed up: ${result.message}`, { email })
       // Continue even if this fails - we still want to allow the user to sign up
     } else {
-      logger.info(`Successfully marked waitlist user as signed up`, { email })
+      logger.info('Successfully marked waitlist user as signed up', { email })
     }
 
     return NextResponse.json({

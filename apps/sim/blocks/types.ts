@@ -1,6 +1,5 @@
-import type { SVGProps } from 'react'
-import type { JSX } from 'react'
-import { ToolResponse } from '@/tools/types'
+import type { JSX, SVGProps } from 'react'
+import type { ToolResponse } from '@/tools/types'
 
 // Basic types
 export type BlockIcon = (props: SVGProps<SVGSVGElement>) => JSX.Element
@@ -41,20 +40,19 @@ export type SubBlockLayout = 'full' | 'half'
 export type ExtractToolOutput<T> = T extends ToolResponse ? T['output'] : never
 
 // Convert tool output to types
-export type ToolOutputToValueType<T> =
-  T extends Record<string, any>
-    ? {
-        [K in keyof T]: T[K] extends string
-          ? 'string'
-          : T[K] extends number
-            ? 'number'
-            : T[K] extends boolean
-              ? 'boolean'
-              : T[K] extends object
-                ? 'json'
-                : 'any'
-      }
-    : never
+export type ToolOutputToValueType<T> = T extends Record<string, any>
+  ? {
+      [K in keyof T]: T[K] extends string
+        ? 'string'
+        : T[K] extends number
+          ? 'number'
+          : T[K] extends boolean
+            ? 'boolean'
+            : T[K] extends object
+              ? 'json'
+              : 'any'
+    }
+  : never
 
 // Block output definition
 export type BlockOutput =

@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Wand2 } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
+
 import Editor from 'react-simple-code-editor'
 import { Button } from '@/components/ui/button'
 import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
@@ -60,7 +61,7 @@ export function Code({
   // State management
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [code, setCode] = useState<string>('')
-  const [lineCount, setLineCount] = useState(1)
+  const [_lineCount, setLineCount] = useState(1)
   const [showTags, setShowTags] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -195,7 +196,7 @@ export function Code({
 
       const textarea = editorRef.current?.querySelector('textarea')
       const dropPosition = textarea?.selectionStart ?? code.length
-      const newValue = code.slice(0, dropPosition) + '<' + code.slice(dropPosition)
+      const newValue = `${code.slice(0, dropPosition)}<${code.slice(dropPosition)}`
 
       setCode(newValue)
       setStoreValue(newValue)
@@ -247,7 +248,7 @@ export function Code({
 
     visualLineHeights.forEach((height, index) => {
       numbers.push(
-        <div key={`${lineNumber}-0`} className={cn('text-xs text-muted-foreground leading-[21px]')}>
+        <div key={`${lineNumber}-0`} className={cn('text-muted-foreground text-xs leading-[21px]')}>
           {lineNumber}
         </div>
       )
@@ -255,7 +256,7 @@ export function Code({
         numbers.push(
           <div
             key={`${lineNumber}-${i}`}
-            className={cn('text-xs text-muted-foreground leading-[21px] invisible')}
+            className={cn('invisible text-muted-foreground text-xs leading-[21px]')}
           >
             {lineNumber}
           </div>
@@ -266,7 +267,7 @@ export function Code({
 
     if (numbers.length === 0) {
       numbers.push(
-        <div key="1-0" className={cn('text-xs text-muted-foreground leading-[21px]')}>
+        <div key='1-0' className={cn('text-muted-foreground text-xs leading-[21px]')}>
           1
         </div>
       )
@@ -290,56 +291,56 @@ export function Code({
 
       <div
         className={cn(
-          'relative min-h-[100px] rounded-md border bg-background font-mono text-sm group',
+          'group relative min-h-[100px] rounded-md border bg-background font-mono text-sm',
           isConnecting && 'ring-2 ring-blue-500 ring-offset-2'
         )}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-        <div className="absolute right-3 top-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
           {!isCollapsed && !isAiStreaming && (
             <Button
-              variant="ghost"
-              size="icon"
+              variant='ghost'
+              size='icon'
               onClick={isPromptVisible ? hidePromptInline : showPromptInline}
               disabled={isAiLoading || isAiStreaming}
-              aria-label="Generate code with AI"
-              className="h-8 w-8 rounded-full bg-muted/80 hover:bg-muted shadow-sm hover:shadow text-muted-foreground hover:text-primary transition-all duration-200 border border-transparent hover:border-primary/20"
+              aria-label='Generate code with AI'
+              className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover:border-primary/20 hover:bg-muted hover:text-primary hover:shadow'
             >
-              <Wand2 className="h-4 w-4" />
+              <Wand2 className='h-4 w-4' />
             </Button>
           )}
 
           {code.split('\n').length > 5 && !isAiStreaming && (
             <Button
-              variant="ghost"
-              size="sm"
+              variant='ghost'
+              size='sm'
               onClick={() => setIsCollapsed(!isCollapsed)}
               aria-label={isCollapsed ? 'Expand code' : 'Collapse code'}
-              className="h-8 px-2 text-muted-foreground hover:text-foreground"
+              className='h-8 px-2 text-muted-foreground hover:text-foreground'
             >
-              <span className="text-xs">{isCollapsed ? 'Expand' : 'Collapse'}</span>
+              <span className='text-xs'>{isCollapsed ? 'Expand' : 'Collapse'}</span>
             </Button>
           )}
         </div>
 
         <div
-          className="absolute left-0 top-0 bottom-0 w-[30px] bg-muted/30 flex flex-col items-end pr-3 pt-3 select-none overflow-hidden"
-          aria-hidden="true"
+          className='absolute top-0 bottom-0 left-0 flex w-[30px] select-none flex-col items-end overflow-hidden bg-muted/30 pt-3 pr-3'
+          aria-hidden='true'
         >
           {renderLineNumbers()}
         </div>
 
         <div
           className={cn(
-            'pl-[30px] pt-0 mt-0 relative',
+            'relative mt-0 pt-0 pl-[30px]',
             isCollapsed && 'max-h-[126px] overflow-hidden',
             isAiStreaming && 'streaming-effect'
           )}
           ref={editorRef}
         >
           {code.length === 0 && !isCollapsed && (
-            <div className="absolute left-[42px] top-[12px] text-muted-foreground/50 select-none pointer-events-none">
+            <div className='pointer-events-none absolute top-[12px] left-[42px] select-none text-muted-foreground/50'>
               {placeholder}
             </div>
           )}
@@ -391,7 +392,7 @@ export function Code({
             className={cn(
               'code-editor-area caret-primary',
               'bg-transparent focus:outline-none',
-              (isCollapsed || isAiStreaming) && 'opacity-50 cursor-not-allowed'
+              (isCollapsed || isAiStreaming) && 'cursor-not-allowed opacity-50'
             )}
             textareaClassName={cn(
               'focus:outline-none focus:ring-0 border-none bg-transparent resize-none',

@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { AirtableListParams, AirtableListResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { AirtableListParams, AirtableListResponse } from './types'
 
 export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableListResponse> = {
   id: 'airtable_list_records',
@@ -52,7 +52,7 @@ export const airtableListRecordsTool: ToolConfig<AirtableListParams, AirtableLis
         // but standard encodeURIComponent might over-encode.
         // Simple replacement for single quotes is often sufficient.
         // More complex formulas might need careful encoding.
-        const encodedFormula = params.filterFormula.replace(/'/g, "\'")
+        const encodedFormula = params.filterFormula.replace(/'/g, "'")
         queryParams.append('filterByFormula', encodedFormula)
       }
       const queryString = queryParams.toString()

@@ -1,6 +1,6 @@
 import { TelegramIcon } from '@/components/icons'
-import { TelegramMessageResponse } from '@/tools/telegram/types'
-import { BlockConfig } from '../types'
+import type { TelegramMessageResponse } from '@/tools/telegram/types'
+import type { BlockConfig } from '../types'
 
 export const TelegramBlock: BlockConfig<TelegramMessageResponse> = {
   type: 'telegram',

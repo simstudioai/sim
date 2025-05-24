@@ -1,4 +1,3 @@
-import { sql } from 'drizzle-orm'
 import { boolean, foreignKey, pgTable, text, timestamp, unique } from 'drizzle-orm/pg-core'
 
 export const verification = pgTable('verification', {

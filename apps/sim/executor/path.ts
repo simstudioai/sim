@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { SerializedWorkflow } from '@/serializer/types'
-import { ExecutionContext } from './types'
+import type { SerializedWorkflow } from '@/serializer/types'
+import type { ExecutionContext } from './types'
 
 const logger = createLogger('PathTracker')
 
@@ -139,9 +139,7 @@ export class PathTracker {
           }
 
           // Check if all loops this block belongs to are completed
-          const allLoopsCompleted = blockLoops.every(
-            ({ id }) => context.completedLoops && context.completedLoops.has(id)
-          )
+          const allLoopsCompleted = blockLoops.every(({ id }) => context.completedLoops?.has(id))
 
           // Skip external connections from loop blocks UNLESS all loops are completed
           if (isExternalLoopConnection && !allLoopsCompleted) {

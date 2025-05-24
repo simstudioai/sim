@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getS3Client } from '@/lib/uploads/s3-client'

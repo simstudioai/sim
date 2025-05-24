@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { PerplexityChatParams, PerplexityChatResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { PerplexityChatParams, PerplexityChatResponse } from './types'
 
 export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> = {
   id: 'perplexity_chat',

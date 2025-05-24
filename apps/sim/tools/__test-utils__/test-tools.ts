@@ -4,8 +4,8 @@
  * This file contains utility functions and classes for testing tools
  * in a controlled environment without external dependencies.
  */
-import { Mock, vi } from 'vitest'
-import { ToolConfig, ToolResponse } from '../types'
+import { type Mock, vi } from 'vitest'
+import type { ToolConfig, ToolResponse } from '../types'
 
 // Define a type that combines Mock with fetch properties
 type MockFetch = Mock & {
@@ -58,6 +58,7 @@ export function createMockFetch(
   })
 
   // Add preconnect property to satisfy TypeScript
+
   ;(mockFn as any).preconnect = vi.fn()
 
   return mockFn as MockFetch
@@ -78,30 +79,29 @@ export function createErrorFetch(errorMessage: string, status = 400) {
     const mockFn = vi.fn().mockRejectedValue(error)
     ;(mockFn as any).preconnect = vi.fn()
     return mockFn as MockFetch
-  } else {
-    // HTTP error with status code
-    const mockFn = vi.fn().mockResolvedValue({
-      ok: false,
-      status,
-      statusText: errorMessage,
-      headers: {
-        get: () => 'application/json',
-        forEach: () => {},
-      },
-      json: vi.fn().mockResolvedValue({
+  }
+  // HTTP error with status code
+  const mockFn = vi.fn().mockResolvedValue({
+    ok: false,
+    status,
+    statusText: errorMessage,
+    headers: {
+      get: () => 'application/json',
+      forEach: () => {},
+    },
+    json: vi.fn().mockResolvedValue({
+      error: errorMessage,
+      message: errorMessage,
+    }),
+    text: vi.fn().mockResolvedValue(
+      JSON.stringify({
         error: errorMessage,
         message: errorMessage,
-      }),
-      text: vi.fn().mockResolvedValue(
-        JSON.stringify({
-          error: errorMessage,
-          message: errorMessage,
-        })
-      ),
-    })
-    ;(mockFn as any).preconnect = vi.fn()
-    return mockFn as MockFetch
-  }
+      })
+    ),
+  })
+  ;(mockFn as any).preconnect = vi.fn()
+  return mockFn as MockFetch
 }
 
 /**
@@ -421,10 +421,10 @@ export class ToolTester<P = any, R = any> {
       // Add host header if missing
       try {
         const hostname = new URL(httpParams.url).host
-        if (hostname && !customHeaders['Host'] && !customHeaders['host']) {
-          customHeaders['Host'] = hostname
+        if (hostname && !customHeaders.Host && !customHeaders.host) {
+          customHeaders.Host = hostname
         }
-      } catch (e) {
+      } catch (_e) {
         // Invalid URL, will be handled elsewhere
       }
 
@@ -494,6 +494,7 @@ export function mockOAuthTokenRequest(accessToken = 'mock-access-token') {
   })
 
   // Add preconnect property
+
   ;(mockFn as any).preconnect = vi.fn()
 
   const mockTokenFetch = mockFn as MockFetch

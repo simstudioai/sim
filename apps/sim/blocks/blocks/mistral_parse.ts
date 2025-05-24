@@ -1,7 +1,7 @@
 import { MistralIcon } from '@/components/icons'
 import { isProd } from '@/lib/environment'
-import { MistralParserOutput } from '@/tools/mistral/types'
-import { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
+import type { MistralParserOutput } from '@/tools/mistral/types'
+import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
 
 // Create a safe client-only env subset to avoid server-side env access errors
 const clientEnv = {
@@ -41,12 +41,11 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
   type: 'mistral_parse',
   name: 'Mistral Parser',
   description: 'Extract text from PDF documents',
-  longDescription:
-    "Extract text and structure from PDF documents using Mistral's OCR API." +
-    (shouldEnableFileUpload
+  longDescription: `Extract text and structure from PDF documents using Mistral's OCR API.${
+    shouldEnableFileUpload
       ? ' Either enter a URL to a PDF document or upload a PDF file directly.'
-      : ' Enter a URL to a PDF document (.pdf extension required).') +
-    ' Configure processing options and get the content in your preferred format. For URLs, they must be publicly accessible and point to a valid PDF file. Note: Google Drive, Dropbox, and other cloud storage links are not supported; use a direct download URL from a web server instead.',
+      : ' Enter a URL to a PDF document (.pdf extension required).'
+  } Configure processing options and get the content in your preferred format. For URLs, they must be publicly accessible and point to a valid PDF file. Note: Google Drive, Dropbox, and other cloud storage links are not supported; use a direct download URL from a web server instead.`,
   docsLink: 'https://docs.simstudio.ai/tools/mistral_parse',
   category: 'tools',
   bgColor: '#000000',
@@ -167,7 +166,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
         }
 
         // Convert pages input from string to array of numbers if provided
-        let pagesArray: number[] | undefined = undefined
+        let pagesArray: number[] | undefined
         if (params.pages && params.pages.trim() !== '') {
           try {
             pagesArray = params.pages
@@ -175,8 +174,8 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
               .map((p: string) => p.trim())
               .filter((p: string) => p.length > 0)
               .map((p: string) => {
-                const num = parseInt(p, 10)
-                if (isNaN(num) || num < 0) {
+                const num = Number.parseInt(p, 10)
+                if (Number.isNaN(num) || num < 0) {
                   throw new Error(`Invalid page number: ${p}`)
                 }
                 return num

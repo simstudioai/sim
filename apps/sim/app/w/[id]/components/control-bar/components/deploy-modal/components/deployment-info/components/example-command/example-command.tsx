@@ -25,14 +25,14 @@ export function ExampleCommand({ command, apiKey, showLabel = true }: ExampleCom
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className='space-y-1.5'>
       {showLabel && (
-        <div className="flex items-center gap-1.5">
-          <Label className="font-medium text-sm">Example Command</Label>
+        <div className='flex items-center gap-1.5'>
+          <Label className='font-medium text-sm'>Example Command</Label>
         </div>
       )}
-      <div className="relative group rounded-md border bg-background hover:bg-muted/50 transition-colors">
-        <pre className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+      <div className='group relative rounded-md border bg-background transition-colors hover:bg-muted/50'>
+        <pre className='overflow-x-auto whitespace-pre-wrap p-3 font-mono text-xs'>
           {formatCurlCommand(command, apiKey)}
         </pre>
         <CopyButton text={command} />

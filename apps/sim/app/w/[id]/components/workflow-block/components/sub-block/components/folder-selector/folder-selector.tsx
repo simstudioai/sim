@@ -14,9 +14,9 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console-logger'
-import { Credential, getProviderIdFromServiceId, getServiceIdFromScopes } from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
+import { type Credential, getProviderIdFromServiceId, getServiceIdFromScopes } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/w/[id]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
+import { saveToStorage } from '@/stores/workflows/persistence'
 
 const logger = createLogger('FolderSelector')
 
@@ -268,50 +268,50 @@ export function FolderSelector({
 
   return (
     <>
-      <div className="space-y-2">
+      <div className='space-y-2'>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
-              variant="outline"
-              role="combobox"
+              variant='outline'
+              role='combobox'
               aria-expanded={open}
-              className="w-full justify-between"
+              className='w-full justify-between'
               disabled={disabled}
             >
               {selectedFolder ? (
-                <div className="flex items-center gap-2 overflow-hidden">
+                <div className='flex items-center gap-2 overflow-hidden'>
                   {getFolderIcon('sm')}
-                  <span className="font-normal truncate">{selectedFolder.name}</span>
+                  <span className='truncate font-normal'>{selectedFolder.name}</span>
                 </div>
               ) : selectedFolderId && (isLoadingSelectedFolder || !selectedCredentialId) ? (
-                <div className="flex items-center gap-2">
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span className="text-muted-foreground">Loading label...</span>
+                <div className='flex items-center gap-2'>
+                  <RefreshCw className='h-4 w-4 animate-spin' />
+                  <span className='text-muted-foreground'>Loading label...</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className='flex items-center gap-2'>
                   {getFolderIcon('sm')}
-                  <span className="text-muted-foreground">{label}</span>
+                  <span className='text-muted-foreground'>{label}</span>
                 </div>
               )}
-              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[300px]" align="start">
+          <PopoverContent className='w-[300px] p-0' align='start'>
             {/* Current account indicator */}
             {selectedCredentialId && credentials.length > 0 && (
-              <div className="px-3 py-2 border-b flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
+              <div className='flex items-center justify-between border-b px-3 py-2'>
+                <div className='flex items-center gap-2'>
+                  <span className='text-muted-foreground text-xs'>
                     {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
                       'Unknown'}
                   </span>
                 </div>
                 {credentials.length > 1 && (
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
+                    variant='ghost'
+                    size='sm'
+                    className='h-6 px-2 text-xs'
                     onClick={() => setOpen(true)}
                   >
                     Switch
@@ -321,25 +321,25 @@ export function FolderSelector({
             )}
 
             <Command>
-              <CommandInput placeholder="Search labels..." onValueChange={handleSearch} />
+              <CommandInput placeholder='Search labels...' onValueChange={handleSearch} />
               <CommandList>
                 <CommandEmpty>
                   {isLoading ? (
-                    <div className="flex items-center justify-center p-4">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span className="ml-2">Loading labels...</span>
+                    <div className='flex items-center justify-center p-4'>
+                      <RefreshCw className='h-4 w-4 animate-spin' />
+                      <span className='ml-2'>Loading labels...</span>
                     </div>
                   ) : credentials.length === 0 ? (
-                    <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No accounts connected.</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className='p-4 text-center'>
+                      <p className='font-medium text-sm'>No accounts connected.</p>
+                      <p className='text-muted-foreground text-xs'>
                         Connect a Gmail account to continue.
                       </p>
                     </div>
                   ) : (
-                    <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No labels found.</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className='p-4 text-center'>
+                      <p className='font-medium text-sm'>No labels found.</p>
+                      <p className='text-muted-foreground text-xs'>
                         Try a different search or account.
                       </p>
                     </div>
@@ -349,7 +349,7 @@ export function FolderSelector({
                 {/* Account selection - only show if we have multiple accounts */}
                 {credentials.length > 1 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                       Switch Account
                     </div>
                     {credentials.map((cred) => (
@@ -358,10 +358,10 @@ export function FolderSelector({
                         value={`account-${cred.id}`}
                         onSelect={() => setSelectedCredentialId(cred.id)}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="font-normal">{cred.name}</span>
+                        <div className='flex items-center gap-2'>
+                          <span className='font-normal'>{cred.name}</span>
                         </div>
-                        {cred.id === selectedCredentialId && <Check className="ml-auto h-4 w-4" />}
+                        {cred.id === selectedCredentialId && <Check className='ml-auto h-4 w-4' />}
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -370,7 +370,7 @@ export function FolderSelector({
                 {/* Folders list */}
                 {folders.length > 0 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                       Labels
                     </div>
                     {folders.map((folder) => (
@@ -379,10 +379,10 @@ export function FolderSelector({
                         value={`folder-${folder.id}-${folder.name}`}
                         onSelect={() => handleSelectFolder(folder)}
                       >
-                        <div className="flex items-center gap-2 overflow-hidden w-full">
+                        <div className='flex w-full items-center gap-2 overflow-hidden'>
                           {getFolderIcon('sm')}
-                          <span className="font-normal truncate">{folder.name}</span>
-                          {folder.id === selectedFolderId && <Check className="ml-auto h-4 w-4" />}
+                          <span className='truncate font-normal'>{folder.name}</span>
+                          {folder.id === selectedFolderId && <Check className='ml-auto h-4 w-4' />}
                         </div>
                       </CommandItem>
                     ))}
@@ -393,7 +393,7 @@ export function FolderSelector({
                 {credentials.length === 0 && (
                   <CommandGroup>
                     <CommandItem onSelect={handleAddCredential}>
-                      <div className="flex items-center gap-2 text-primary">
+                      <div className='flex items-center gap-2 text-primary'>
                         <span>Connect Gmail account</span>
                       </div>
                     </CommandItem>
@@ -421,7 +421,7 @@ export function FolderSelector({
           isOpen={showOAuthModal}
           onClose={() => setShowOAuthModal(false)}
           provider={provider}
-          toolName="Gmail"
+          toolName='Gmail'
           requiredScopes={requiredScopes}
           serviceId={getServiceId()}
         />

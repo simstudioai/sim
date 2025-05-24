@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import {
+import type { ToolConfig } from '../types'
+import type {
   DiscordAPIError,
   DiscordGetMessagesParams,
   DiscordGetMessagesResponse,
@@ -50,7 +50,7 @@ export const discordGetMessagesTool: ToolConfig<
       }
 
       if (params.botToken) {
-        headers['Authorization'] = `Bot ${params.botToken}`
+        headers.Authorization = `Bot ${params.botToken}`
       }
 
       return headers
@@ -81,7 +81,7 @@ export const discordGetMessagesTool: ToolConfig<
     let messages: DiscordMessage[]
     try {
       messages = await response.json()
-    } catch (e) {
+    } catch (_e) {
       return {
         success: false,
         error: 'Failed to parse messages',

@@ -1,8 +1,8 @@
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
-import { StreamingExecution } from '@/executor/types'
+import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
-import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('OpenAIProvider')
@@ -146,7 +146,7 @@ export const openaiProvider: ProviderConfig = {
         payload.tools = filteredTools
         payload.tool_choice = toolChoice
 
-        logger.info(`OpenAI request configuration:`, {
+        logger.info('OpenAI request configuration:', {
           toolCount: filteredTools.length,
           toolChoice:
             typeof toolChoice === 'string'
@@ -180,19 +180,19 @@ export const openaiProvider: ProviderConfig = {
         })
 
         // Start collecting token usage from the stream
-        let tokenUsage = {
+        const tokenUsage = {
           prompt: 0,
           completion: 0,
           total: 0,
         }
 
-        let streamContent = ''
+        let _streamContent = ''
 
         // Create a StreamingExecution response with a callback to update content and tokens
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
             // Update the execution data with the final content and token usage
-            streamContent = content
+            _streamContent = content
             streamingResult.execution.output.response.content = content
 
             // Update the timing information with the actual completion time
@@ -298,14 +298,14 @@ export const openaiProvider: ProviderConfig = {
 
       let content = currentResponse.choices[0]?.message?.content || ''
       // Collect token information but don't calculate costs - that will be done in execution-logger.ts
-      let tokens = {
+      const tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
-      let toolCalls = []
-      let toolResults = []
-      let currentMessages = [...allMessages]
+      const toolCalls = []
+      const toolResults = []
+      const currentMessages = [...allMessages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 
@@ -501,12 +501,12 @@ export const openaiProvider: ProviderConfig = {
         const streamResponse = await openai.chat.completions.create(streamingPayload)
 
         // Create the StreamingExecution object with all collected data
-        let streamContent = ''
+        let _streamContent = ''
 
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
             // Update the execution data with the final content and token usage
-            streamContent = content
+            _streamContent = content
             streamingResult.execution.output.response.content = content
 
             // Update token usage if available from the stream

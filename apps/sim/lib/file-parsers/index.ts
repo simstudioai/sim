@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises'
 import path from 'path'
 import { createLogger } from '@/lib/logs/console-logger'
 import { RawPdfParser } from './raw-pdf-parser'
-import { FileParser, FileParseResult, SupportedFileType } from './types'
+import type { FileParseResult, FileParser, SupportedFileType } from './types'
 
 const logger = createLogger('FileParser')
 
@@ -25,19 +25,19 @@ function getParserInstances(): Record<string, FileParser> {
           // First try to use the pdf-parse library
           // Import the PdfParser using ES module import to avoid test file access
           const { PdfParser } = require('./pdf-parser')
-          parserInstances['pdf'] = new PdfParser()
+          parserInstances.pdf = new PdfParser()
           logger.info('PDF parser loaded successfully')
         } catch (pdfParseError) {
           // If that fails, fallback to our raw PDF parser
           logger.error('Failed to load primary PDF parser:', pdfParseError)
           logger.info('Falling back to raw PDF parser')
-          parserInstances['pdf'] = new RawPdfParser()
+          parserInstances.pdf = new RawPdfParser()
           logger.info('Raw PDF parser loaded successfully')
         }
       } catch (error) {
         logger.error('Failed to load any PDF parser:', error)
         // Create a simple fallback that just returns the file size and a message
-        parserInstances['pdf'] = {
+        parserInstances.pdf = {
           async parseFile(filePath: string): Promise<FileParseResult> {
             const buffer = await readFile(filePath)
             return {
@@ -64,14 +64,14 @@ function getParserInstances(): Record<string, FileParser> {
 
       try {
         const { CsvParser } = require('./csv-parser')
-        parserInstances['csv'] = new CsvParser()
+        parserInstances.csv = new CsvParser()
       } catch (error) {
         logger.error('Failed to load CSV parser:', error)
       }
 
       try {
         const { DocxParser } = require('./docx-parser')
-        parserInstances['docx'] = new DocxParser()
+        parserInstances.docx = new DocxParser()
       } catch (error) {
         logger.error('Failed to load DOCX parser:', error)
       }
@@ -157,9 +157,8 @@ export async function parseBuffer(buffer: Buffer, extension: string): Promise<Fi
     // Check if parser supports buffer parsing
     if (parser.parseBuffer) {
       return await parser.parseBuffer(buffer)
-    } else {
-      throw new Error(`Parser for ${normalizedExtension} does not support buffer parsing`)
     }
+    throw new Error(`Parser for ${normalizedExtension} does not support buffer parsing`)
   } catch (error) {
     logger.error('Buffer parsing error:', error)
     throw error

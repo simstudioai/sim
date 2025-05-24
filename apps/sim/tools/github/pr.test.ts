@@ -34,7 +34,7 @@ describe('GitHub PR Tool', () => {
   }
 
   // Mock PR diff data
-  const mockPRDiff = `diff --git a/file.txt b/file.txt
+  const _mockPRDiff = `diff --git a/file.txt b/file.txt
 index 1234567..abcdefg 100644
 --- a/file.txt
 +++ b/file.txt

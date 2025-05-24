@@ -16,7 +16,7 @@ import {
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
   OAUTH_PROVIDERS,
-  OAuthProvider,
+  type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
@@ -187,7 +187,7 @@ export function OAuthRequiredModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className='sm:max-w-md'>
         <DialogHeader>
           <DialogTitle>Additional Access Required</DialogTitle>
           <DialogDescription>
@@ -195,49 +195,49 @@ export function OAuthRequiredModal({
             properly.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4 py-4">
-          <div className="flex items-center gap-4">
-            <div className="rounded-full bg-muted p-2">
-              <ProviderIcon className="h-5 w-5" />
+        <div className='flex flex-col gap-4 py-4'>
+          <div className='flex items-center gap-4'>
+            <div className='rounded-full bg-muted p-2'>
+              <ProviderIcon className='h-5 w-5' />
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium">Connect {providerName}</p>
-              <p className="text-sm text-muted-foreground">
+            <div className='flex-1'>
+              <p className='font-medium text-sm'>Connect {providerName}</p>
+              <p className='text-muted-foreground text-sm'>
                 You need to connect your {providerName} account to continue
               </p>
             </div>
           </div>
 
           {displayScopes.length > 0 && (
-            <div className="rounded-md border bg-muted/50">
-              <div className="px-4 py-3 border-b">
-                <h4 className="font-medium text-sm">Permissions requested</h4>
+            <div className='rounded-md border bg-muted/50'>
+              <div className='border-b px-4 py-3'>
+                <h4 className='font-medium text-sm'>Permissions requested</h4>
               </div>
-              <ul className="px-4 py-3 space-y-3">
+              <ul className='space-y-3 px-4 py-3'>
                 {displayScopes.map((scope) => (
-                  <li key={scope} className="flex items-start gap-2 text-sm">
-                    <div className="mt-1 rounded-full p-0.5 bg-muted">
-                      <Check className="h-3 w-3" />
+                  <li key={scope} className='flex items-start gap-2 text-sm'>
+                    <div className='mt-1 rounded-full bg-muted p-0.5'>
+                      <Check className='h-3 w-3' />
                     </div>
-                    <span className="text-muted-foreground">{getScopeDescription(scope)}</span>
+                    <span className='text-muted-foreground'>{getScopeDescription(scope)}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
         </div>
-        <DialogFooter className="flex flex-col sm:flex-row gap-2">
-          <Button variant="outline" onClick={onClose} className="sm:order-1">
+        <DialogFooter className='flex flex-col gap-2 sm:flex-row'>
+          <Button variant='outline' onClick={onClose} className='sm:order-1'>
             Cancel
           </Button>
-          <Button type="button" onClick={handleConnectDirectly} className="sm:order-3">
+          <Button type='button' onClick={handleConnectDirectly} className='sm:order-3'>
             Connect Now
           </Button>
           <Button
-            type="button"
-            variant="secondary"
+            type='button'
+            variant='secondary'
             onClick={handleRedirectToSettings}
-            className="sm:order-2"
+            className='sm:order-2'
           >
             Go to Settings
           </Button>

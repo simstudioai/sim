@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { ThinkingToolParams, ThinkingToolResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { ThinkingToolParams, ThinkingToolResponse } from './types'
 
 export const thinkingTool: ToolConfig<ThinkingToolParams, ThinkingToolResponse> = {
   id: 'thinking_tool',

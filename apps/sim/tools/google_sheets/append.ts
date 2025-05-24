@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { GoogleSheetsAppendResponse, GoogleSheetsToolParams } from './types'
+import type { ToolConfig } from '../types'
+import type { GoogleSheetsAppendResponse, GoogleSheetsToolParams } from './types'
 
 export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendResponse> = {
   id: 'google_sheets_append',
@@ -77,7 +77,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
         try {
           // Try to parse it as JSON
           processedValues = JSON.parse(processedValues)
-        } catch (error) {
+        } catch (_error) {
           // If the input contains literal newlines causing JSON parse to fail,
           // try a more robust approach
           try {
@@ -91,7 +91,7 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
 
             // Try to parse again with sanitized input
             processedValues = JSON.parse(sanitizedInput)
-          } catch (secondError) {
+          } catch (_secondError) {
             // If all parsing attempts fail, wrap as a single cell value
             processedValues = [[processedValues]]
           }

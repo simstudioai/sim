@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 

@@ -1,11 +1,11 @@
 import { ExaAIIcon } from '@/components/icons'
-import {
+import type {
   ExaAnswerResponse,
   ExaFindSimilarLinksResponse,
   ExaGetContentsResponse,
   ExaSearchResponse,
 } from '@/tools/exa/types'
-import { BlockConfig } from '../types'
+import type { BlockConfig } from '../types'
 
 type ExaResponse =
   | ExaSearchResponse

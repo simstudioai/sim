@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { DeployModal } from '../deploy-modal/deploy-modal'
 
-const logger = createLogger('DeploymentControls')
+const _logger = createLogger('DeploymentControls')
 
 interface DeploymentControlsProps {
   activeWorkflowId: string | null
@@ -23,53 +23,62 @@ export function DeploymentControls({
   setNeedsRedeployment,
 }: DeploymentControlsProps) {
   // Use workflow-specific deployment status
-  const deploymentStatus = useWorkflowRegistry(state => 
-    state.getWorkflowDeploymentStatus(activeWorkflowId))
+  const deploymentStatus = useWorkflowRegistry((state) =>
+    state.getWorkflowDeploymentStatus(activeWorkflowId)
+  )
   const isDeployed = deploymentStatus?.isDeployed || false
-  
+
   // Prioritize workflow-specific needsRedeployment flag, but fall back to prop if needed
-  const workflowNeedsRedeployment = deploymentStatus?.needsRedeployment !== undefined 
-    ? deploymentStatus.needsRedeployment 
-    : needsRedeployment
-    
-  const [isDeploying, setIsDeploying] = useState(false)
+  const workflowNeedsRedeployment =
+    deploymentStatus?.needsRedeployment !== undefined
+      ? deploymentStatus.needsRedeployment
+      : needsRedeployment
+
+  const [isDeploying, _setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Update parent component when workflow-specific status changes
   useEffect(() => {
-    if (deploymentStatus?.needsRedeployment !== undefined && 
-        deploymentStatus.needsRedeployment !== needsRedeployment) {
+    if (
+      deploymentStatus?.needsRedeployment !== undefined &&
+      deploymentStatus.needsRedeployment !== needsRedeployment
+    ) {
       setNeedsRedeployment(deploymentStatus.needsRedeployment)
     }
-  }, [deploymentStatus?.needsRedeployment, needsRedeployment, setNeedsRedeployment, deploymentStatus])
+  }, [
+    deploymentStatus?.needsRedeployment,
+    needsRedeployment,
+    setNeedsRedeployment,
+    deploymentStatus,
+  ])
 
   return (
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="relative">
+          <div className='relative'>
             <Button
-              variant="ghost"
-              size="icon"
+              variant='ghost'
+              size='icon'
               onClick={() => setIsModalOpen(true)}
               disabled={isDeploying}
               className={cn('hover:text-[#802FFF]', isDeployed && 'text-[#802FFF]')}
             >
               {isDeploying ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className='h-5 w-5 animate-spin' />
               ) : (
-                <Rocket className="h-5 w-5" />
+                <Rocket className='h-5 w-5' />
               )}
-              <span className="sr-only">Deploy API</span>
+              <span className='sr-only'>Deploy API</span>
             </Button>
 
             {isDeployed && workflowNeedsRedeployment && (
-              <div className="absolute top-0.5 right-0.5 flex items-center justify-center">
-                <div className="relative">
-                  <div className="absolute inset-0 w-2 h-2 rounded-full bg-amber-500/50 animate-ping"></div>
-                  <div className="relative w-2 h-2 rounded-full bg-amber-500 ring-1 ring-background animate-in zoom-in fade-in duration-300"></div>
+              <div className='absolute top-0.5 right-0.5 flex items-center justify-center'>
+                <div className='relative'>
+                  <div className='absolute inset-0 h-2 w-2 animate-ping rounded-full bg-amber-500/50' />
+                  <div className='zoom-in fade-in relative h-2 w-2 animate-in rounded-full bg-amber-500 ring-1 ring-background duration-300' />
                 </div>
-                <span className="sr-only">Needs Redeployment</span>
+                <span className='sr-only'>Needs Redeployment</span>
               </div>
             )}
           </div>

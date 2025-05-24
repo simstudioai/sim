@@ -365,19 +365,19 @@ export function Subscription({
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <h3 className="text-lg font-medium">Subscription Plans</h3>
+    <div className='space-y-6 p-6'>
+      <h3 className='font-medium text-lg'>Subscription Plans</h3>
 
       {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
+        <Alert variant='destructive' className='mb-4'>
+          <AlertCircle className='h-4 w-4' />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {(usageData.isWarning || usageData.isExceeded) && !isPro && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertCircle className="h-4 w-4" />
+        <Alert variant='destructive' className='mb-4'>
+          <AlertCircle className='h-4 w-4' />
           <AlertTitle>{usageData.isExceeded ? 'Usage Limit Exceeded' : 'Usage Warning'}</AlertTitle>
           <AlertDescription>
             You've used {usageData.percentUsed}% of your free tier limit (
@@ -393,52 +393,52 @@ export function Subscription({
         <SubscriptionSkeleton />
       ) : (
         <>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className='grid gap-6 md:grid-cols-2'>
             {/* Free Tier */}
             <div
-              className={`relative border rounded-lg transition-all ${
+              className={`relative rounded-lg border transition-all ${
                 !isPro
                   ? 'border-primary/50 bg-primary/5 shadow-sm'
                   : 'border-border hover:border-border/80 hover:bg-accent/20'
               }`}
             >
               {!isPro && (
-                <div className="absolute -top-2.5 left-4 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-sm font-medium">
+                <div className='-top-2.5 absolute left-4 rounded-sm bg-primary px-2 py-0.5 font-medium text-primary-foreground text-xs'>
                   Current Plan
                 </div>
               )}
-              <div className="p-5">
-                <h4 className="text-base font-semibold flex items-center">Free Tier</h4>
-                <p className="text-sm text-muted-foreground mt-1">For individual users</p>
+              <div className='p-5'>
+                <h4 className='flex items-center font-semibold text-base'>Free Tier</h4>
+                <p className='mt-1 text-muted-foreground text-sm'>For individual users</p>
 
-                <div className="my-4 py-2 border-y">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-bold">$0</span>
-                    <span className="text-muted-foreground text-sm">/month</span>
+                <div className='my-4 border-y py-2'>
+                  <div className='flex items-baseline justify-between'>
+                    <span className='font-bold text-3xl'>$0</span>
+                    <span className='text-muted-foreground text-sm'>/month</span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">
+                  <div className='mt-1 text-muted-foreground text-xs'>
                     ${!isPro ? 5 : usageData.limit} inference credits included
                   </div>
                 </div>
 
-                <ul className="mt-3 space-y-2 text-sm">
-                  <li className="flex items-start">
-                    <span className="text-primary mr-2">•</span>
+                <ul className='mt-3 space-y-2 text-sm'>
+                  <li className='flex items-start'>
+                    <span className='mr-2 text-primary'>•</span>
                     <span>Basic features</span>
                   </li>
-                  <li className="flex items-start">
-                    <span className="text-primary mr-2">•</span>
+                  <li className='flex items-start'>
+                    <span className='mr-2 text-primary'>•</span>
                     <span>No sharing capabilities</span>
                   </li>
-                  <li className="flex items-start">
-                    <span className="text-primary mr-2">•</span>
+                  <li className='flex items-start'>
+                    <span className='mr-2 text-primary'>•</span>
                     <span>7 day log retention</span>
                   </li>
                 </ul>
 
                 {!isPro && (
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between text-xs">
+                  <div className='mt-4 space-y-2'>
+                    <div className='flex justify-between text-xs'>
                       <span>Usage</span>
                       <span>
                         {usageData.currentUsage.toFixed(2)}$ / {usageData.limit}$
@@ -457,16 +457,16 @@ export function Subscription({
                   </div>
                 )}
 
-                <div className="mt-5">
+                <div className='mt-5'>
                   {!isPro ? (
-                    <div className="w-full bg-primary/10 text-primary py-2 px-3 rounded text-center text-xs font-medium">
+                    <div className='w-full rounded bg-primary/10 px-3 py-2 text-center font-medium text-primary text-xs'>
                       Current Plan
                     </div>
                   ) : (
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
+                      variant='outline'
+                      size='sm'
+                      className='w-full'
                       onClick={handleCancel}
                       disabled={isCanceling}
                     >
@@ -479,52 +479,52 @@ export function Subscription({
 
             {/* Pro Tier */}
             <div
-              className={`relative border rounded-lg transition-all ${
+              className={`relative rounded-lg border transition-all ${
                 isPro && !isTeam && !isEnterprise
                   ? 'border-primary/50 bg-primary/5 shadow-sm'
                   : 'border-border hover:border-border/80 hover:bg-accent/20'
               }`}
             >
               {isPro && !isTeam && !isEnterprise && (
-                <div className="absolute -top-2.5 left-4 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-sm font-medium">
+                <div className='-top-2.5 absolute left-4 rounded-sm bg-primary px-2 py-0.5 font-medium text-primary-foreground text-xs'>
                   Current Plan
                 </div>
               )}
-              <div className="p-5">
-                <h4 className="text-base font-semibold flex items-center">Pro Tier</h4>
-                <p className="text-sm text-muted-foreground mt-1">
+              <div className='p-5'>
+                <h4 className='flex items-center font-semibold text-base'>Pro Tier</h4>
+                <p className='mt-1 text-muted-foreground text-sm'>
                   For professional users and teams
                 </p>
 
-                <div className="my-4 py-2 border-y">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-bold">$20</span>
-                    <span className="text-muted-foreground text-sm">/month</span>
+                <div className='my-4 border-y py-2'>
+                  <div className='flex items-baseline justify-between'>
+                    <span className='font-bold text-3xl'>$20</span>
+                    <span className='text-muted-foreground text-sm'>/month</span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">
+                  <div className='mt-1 text-muted-foreground text-xs'>
                     ${isPro && !isTeam && !isEnterprise ? usageData.limit : 20} inference credits
                     included
                   </div>
                 </div>
 
-                <ul className="mt-3 space-y-2 text-sm">
-                  <li className="flex items-start">
-                    <span className="text-primary mr-2">•</span>
+                <ul className='mt-3 space-y-2 text-sm'>
+                  <li className='flex items-start'>
+                    <span className='mr-2 text-primary'>•</span>
                     <span>All features included</span>
                   </li>
-                  <li className="flex items-start">
-                    <span className="text-primary mr-2">•</span>
+                  <li className='flex items-start'>
+                    <span className='mr-2 text-primary'>•</span>
                     <span>Workflow sharing capabilities</span>
                   </li>
-                  <li className="flex items-start">
-                    <span className="text-primary mr-2">•</span>
+                  <li className='flex items-start'>
+                    <span className='mr-2 text-primary'>•</span>
                     <span>Extended log retention</span>
                   </li>
                 </ul>
 
                 {isPro && !isTeam && !isEnterprise && (
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between text-xs">
+                  <div className='mt-4 space-y-2'>
+                    <div className='flex justify-between text-xs'>
                       <span>Usage</span>
                       <span>
                         {usageData.currentUsage.toFixed(2)}$ / {usageData.limit}$
@@ -543,16 +543,16 @@ export function Subscription({
                   </div>
                 )}
 
-                <div className="mt-5">
+                <div className='mt-5'>
                   {isPro && !isTeam && !isEnterprise ? (
-                    <div className="w-full bg-primary/10 text-primary py-2 px-3 rounded text-center text-xs font-medium">
+                    <div className='w-full rounded bg-primary/10 px-3 py-2 text-center font-medium text-primary text-xs'>
                       Current Plan
                     </div>
                   ) : (
                     <Button
                       variant={!isPro ? 'default' : 'outline'}
-                      size="sm"
-                      className="w-full"
+                      size='sm'
+                      className='w-full'
                       onClick={() => handleUpgrade('pro')}
                       disabled={isUpgrading || isEnterprise}
                     >
@@ -569,53 +569,53 @@ export function Subscription({
 
             {/* Team Tier */}
             <div
-              className={`relative border rounded-lg transition-all ${
+              className={`relative rounded-lg border transition-all ${
                 isTeam
                   ? 'border-primary/50 bg-primary/5 shadow-sm'
                   : 'border-border hover:border-border/80 hover:bg-accent/20'
               }`}
             >
               {isTeam && (
-                <div className="absolute -top-2.5 left-4 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-sm font-medium">
+                <div className='-top-2.5 absolute left-4 rounded-sm bg-primary px-2 py-0.5 font-medium text-primary-foreground text-xs'>
                   Current Plan
                 </div>
               )}
-              <div className="p-5">
-                <h4 className="text-base font-semibold flex items-center">Team Tier</h4>
-                <p className="text-sm text-muted-foreground mt-1">For collaborative teams</p>
+              <div className='p-5'>
+                <h4 className='flex items-center font-semibold text-base'>Team Tier</h4>
+                <p className='mt-1 text-muted-foreground text-sm'>For collaborative teams</p>
 
-                <div className="my-4 py-2 border-y">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-3xl font-bold">$40</span>
-                    <span className="text-muted-foreground text-sm">/seat/month</span>
+                <div className='my-4 border-y py-2'>
+                  <div className='flex items-baseline justify-between'>
+                    <span className='font-bold text-3xl'>$40</span>
+                    <span className='text-muted-foreground text-sm'>/seat/month</span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">
+                  <div className='mt-1 text-muted-foreground text-xs'>
                     $40 inference credits per seat
                   </div>
                 </div>
 
-                <ul className="mt-3 space-y-2 text-sm">
-                  <li className="flex items-start">
-                    <span className="text-primary mr-2">•</span>
+                <ul className='mt-3 space-y-2 text-sm'>
+                  <li className='flex items-start'>
+                    <span className='mr-2 text-primary'>•</span>
                     <span>All Pro features included</span>
                   </li>
-                  <li className="flex items-start">
-                    <span className="text-primary mr-2">•</span>
+                  <li className='flex items-start'>
+                    <span className='mr-2 text-primary'>•</span>
                     <span>Real-time multiplayer collaboration</span>
                   </li>
-                  <li className="flex items-start">
-                    <span className="text-primary mr-2">•</span>
+                  <li className='flex items-start'>
+                    <span className='mr-2 text-primary'>•</span>
                     <span>Shared workspace for team members</span>
                   </li>
-                  <li className="flex items-start">
-                    <span className="text-primary mr-2">•</span>
+                  <li className='flex items-start'>
+                    <span className='mr-2 text-primary'>•</span>
                     <span>Unlimited log retention</span>
                   </li>
                 </ul>
 
                 {isTeam && (
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between text-xs">
+                  <div className='mt-4 space-y-2'>
+                    <div className='flex justify-between text-xs'>
                       <span>Usage</span>
                       <span>
                         {usageData.currentUsage.toFixed(2)}$ / {(subscriptionData?.seats || 1) * 40}
@@ -633,7 +633,7 @@ export function Subscription({
                       }`}
                     />
 
-                    <div className="flex justify-between text-xs mt-2">
+                    <div className='mt-2 flex justify-between text-xs'>
                       <span>Team Size</span>
                       <span>
                         {subscriptionData?.seats || 1}{' '}
@@ -643,16 +643,16 @@ export function Subscription({
                   </div>
                 )}
 
-                <div className="mt-5">
+                <div className='mt-5'>
                   {isTeam ? (
-                    <div className="w-full bg-primary/10 text-primary py-2 px-3 rounded text-center text-xs font-medium">
+                    <div className='w-full rounded bg-primary/10 px-3 py-2 text-center font-medium text-primary text-xs'>
                       Current Plan
                     </div>
                   ) : (
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
+                      variant='outline'
+                      size='sm'
+                      className='w-full'
                       onClick={handleTeamUpgrade}
                     >
                       Upgrade to Team
@@ -664,62 +664,62 @@ export function Subscription({
 
             {/* Enterprise Tier */}
             <div
-              className={`relative border rounded-lg md:col-span-2 transition-all ${
+              className={`relative rounded-lg border transition-all md:col-span-2 ${
                 isEnterprise
                   ? 'border-primary/50 bg-primary/5 shadow-sm'
                   : 'border-border hover:border-border/80 hover:bg-accent/20'
               }`}
             >
               {isEnterprise && (
-                <div className="absolute -top-2.5 left-4 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-sm font-medium">
+                <div className='-top-2.5 absolute left-4 rounded-sm bg-primary px-2 py-0.5 font-medium text-primary-foreground text-xs'>
                   Current Plan
                 </div>
               )}
-              <div className="p-5">
-                <div className="md:flex md:justify-between md:items-start">
-                  <div className="md:flex-1">
-                    <h4 className="text-base font-semibold">Enterprise</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
+              <div className='p-5'>
+                <div className='md:flex md:items-start md:justify-between'>
+                  <div className='md:flex-1'>
+                    <h4 className='font-semibold text-base'>Enterprise</h4>
+                    <p className='mt-1 text-muted-foreground text-sm'>
                       For larger teams and organizations
                     </p>
 
-                    <div className="my-4 py-2 border-y md:mr-6">
-                      <div className="text-3xl font-bold">Custom</div>
-                      <div className="text-xs text-muted-foreground mt-1">
+                    <div className='my-4 border-y py-2 md:mr-6'>
+                      <div className='font-bold text-3xl'>Custom</div>
+                      <div className='mt-1 text-muted-foreground text-xs'>
                         Contact us for custom pricing
                       </div>
                     </div>
                   </div>
 
-                  <div className="md:flex-1">
-                    <ul className="mt-3 space-y-2 text-sm">
-                      <li className="flex items-start">
-                        <span className="text-primary mr-2">•</span>
+                  <div className='md:flex-1'>
+                    <ul className='mt-3 space-y-2 text-sm'>
+                      <li className='flex items-start'>
+                        <span className='mr-2 text-primary'>•</span>
                         <span>Custom cost limits</span>
                       </li>
-                      <li className="flex items-start">
-                        <span className="text-primary mr-2">•</span>
+                      <li className='flex items-start'>
+                        <span className='mr-2 text-primary'>•</span>
                         <span>Priority support</span>
                       </li>
-                      <li className="flex items-start">
-                        <span className="text-primary mr-2">•</span>
+                      <li className='flex items-start'>
+                        <span className='mr-2 text-primary'>•</span>
                         <span>Custom integrations</span>
                       </li>
-                      <li className="flex items-start">
-                        <span className="text-primary mr-2">•</span>
+                      <li className='flex items-start'>
+                        <span className='mr-2 text-primary'>•</span>
                         <span>Dedicated account manager</span>
                       </li>
-                      <li className="flex items-start">
-                        <span className="text-primary mr-2">•</span>
+                      <li className='flex items-start'>
+                        <span className='mr-2 text-primary'>•</span>
                         <span>Unlimited log retention</span>
                       </li>
-                      <li className="flex items-start">
-                        <span className="text-primary mr-2">•</span>
+                      <li className='flex items-start'>
+                        <span className='mr-2 text-primary'>•</span>
                         <span>24/7 slack support</span>
                       </li>
                       {isEnterprise && subscriptionData?.metadata?.perSeatAllowance && (
-                        <li className="flex items-start">
-                          <span className="text-primary mr-2">•</span>
+                        <li className='flex items-start'>
+                          <span className='mr-2 text-primary'>•</span>
                           <span>
                             ${subscriptionData.metadata.perSeatAllowance} inference credits per seat
                           </span>
@@ -730,8 +730,8 @@ export function Subscription({
                 </div>
 
                 {isEnterprise && (
-                  <div className="mt-4 space-y-2">
-                    <div className="flex justify-between text-xs">
+                  <div className='mt-4 space-y-2'>
+                    <div className='flex justify-between text-xs'>
                       <span>Usage</span>
                       <span>
                         {usageData.currentUsage.toFixed(2)}$ / {usageData.limit}$
@@ -748,7 +748,7 @@ export function Subscription({
                       }`}
                     />
 
-                    <div className="flex justify-between text-xs mt-2">
+                    <div className='mt-2 flex justify-between text-xs'>
                       <span>Team Size</span>
                       <span>
                         {subscriptionData?.seats || 1}{' '}
@@ -757,7 +757,7 @@ export function Subscription({
                     </div>
 
                     {subscriptionData?.metadata?.totalAllowance && (
-                      <div className="flex justify-between text-xs mt-2">
+                      <div className='mt-2 flex justify-between text-xs'>
                         <span>Total Allowance</span>
                         <span>${subscriptionData.metadata.totalAllowance}</span>
                       </div>
@@ -765,16 +765,16 @@ export function Subscription({
                   </div>
                 )}
 
-                <div className="mt-5">
+                <div className='mt-5'>
                   {isEnterprise ? (
-                    <div className="w-full bg-primary/10 text-primary py-2 px-3 rounded text-center text-xs font-medium">
+                    <div className='w-full rounded bg-primary/10 px-3 py-2 text-center font-medium text-primary text-xs'>
                       Current Plan
                     </div>
                   ) : (
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
+                      variant='outline'
+                      size='sm'
+                      className='w-full'
                       onClick={() => {
                         window.open(
                           'https://calendly.com/emir-simstudio/15min',
@@ -792,22 +792,22 @@ export function Subscription({
           </div>
 
           {subscriptionData && (
-            <div className="mt-8 border-t pt-6">
-              <h4 className="text-md font-medium mb-4">Subscription Details</h4>
-              <div className="text-sm space-y-2">
+            <div className='mt-8 border-t pt-6'>
+              <h4 className='mb-4 font-medium text-md'>Subscription Details</h4>
+              <div className='space-y-2 text-sm'>
                 <p>
-                  <span className="font-medium">Status:</span>{' '}
-                  <span className="capitalize">{subscriptionData.status}</span>
+                  <span className='font-medium'>Status:</span>{' '}
+                  <span className='capitalize'>{subscriptionData.status}</span>
                 </p>
                 {subscriptionData.periodEnd && (
                   <p>
-                    <span className="font-medium">Next billing date:</span>{' '}
+                    <span className='font-medium'>Next billing date:</span>{' '}
                     {new Date(subscriptionData.periodEnd).toLocaleDateString()}
                   </p>
                 )}
                 {isPro && (
-                  <div className="mt-4">
-                    <Button variant="outline" onClick={handleCancel} disabled={isCanceling}>
+                  <div className='mt-4'>
+                    <Button variant='outline' onClick={handleCancel} disabled={isCanceling}>
                       {isCanceling ? <ButtonSkeleton /> : <span>Manage Subscription</span>}
                     </Button>
                   </div>
@@ -826,14 +826,14 @@ export function Subscription({
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="py-4">
-                <Label htmlFor="seats">Number of seats</Label>
+              <div className='py-4'>
+                <Label htmlFor='seats'>Number of seats</Label>
                 <Select
                   value={seats.toString()}
-                  onValueChange={(value) => setSeats(parseInt(value))}
+                  onValueChange={(value) => setSeats(Number.parseInt(value))}
                 >
-                  <SelectTrigger id="seats">
-                    <SelectValue placeholder="Select number of seats" />
+                  <SelectTrigger id='seats'>
+                    <SelectValue placeholder='Select number of seats' />
                   </SelectTrigger>
                   <SelectContent>
                     {[1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map((num) => (
@@ -844,7 +844,7 @@ export function Subscription({
                   </SelectContent>
                 </Select>
 
-                <p className="mt-2 text-sm text-muted-foreground">
+                <p className='mt-2 text-muted-foreground text-sm'>
                   Your team will have {seats} {seats === 1 ? 'seat' : 'seats'} with a total of $
                   {seats * 40} inference credits per month.
                 </p>
@@ -852,7 +852,7 @@ export function Subscription({
 
               <DialogFooter>
                 <Button
-                  variant="outline"
+                  variant='outline'
                   onClick={() => setIsTeamDialogOpen(false)}
                   disabled={isUpgradingTeam}
                 >
@@ -873,71 +873,71 @@ export function Subscription({
 // Skeleton component for subscription loading state
 function SubscriptionSkeleton() {
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-2">
+    <div className='space-y-6'>
+      <div className='grid gap-6 md:grid-cols-2'>
         {/* Free Tier Skeleton */}
-        <div className="border rounded-lg p-4">
-          <Skeleton className="h-5 w-24 mb-2" />
-          <Skeleton className="h-4 w-48 mb-4" />
+        <div className='rounded-lg border p-4'>
+          <Skeleton className='mb-2 h-5 w-24' />
+          <Skeleton className='mb-4 h-4 w-48' />
 
-          <div className="space-y-2 mt-3">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-4 w-36" />
-            <Skeleton className="h-4 w-44" />
+          <div className='mt-3 space-y-2'>
+            <Skeleton className='h-4 w-40' />
+            <Skeleton className='h-4 w-36' />
+            <Skeleton className='h-4 w-44' />
           </div>
 
-          <div className="mt-4">
-            <Skeleton className="h-9 w-24" />
+          <div className='mt-4'>
+            <Skeleton className='h-9 w-24' />
           </div>
         </div>
 
         {/* Pro Tier Skeleton */}
-        <div className="border rounded-lg p-4">
-          <Skeleton className="h-5 w-24 mb-2" />
-          <Skeleton className="h-4 w-48 mb-4" />
+        <div className='rounded-lg border p-4'>
+          <Skeleton className='mb-2 h-5 w-24' />
+          <Skeleton className='mb-4 h-4 w-48' />
 
-          <div className="space-y-2 mt-3">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-4 w-36" />
-            <Skeleton className="h-4 w-44" />
+          <div className='mt-3 space-y-2'>
+            <Skeleton className='h-4 w-40' />
+            <Skeleton className='h-4 w-36' />
+            <Skeleton className='h-4 w-44' />
           </div>
 
-          <div className="mt-4">
-            <Skeleton className="h-9 w-24" />
+          <div className='mt-4'>
+            <Skeleton className='h-9 w-24' />
           </div>
         </div>
 
         {/* Team Tier Skeleton */}
-        <div className="border rounded-lg p-4">
-          <Skeleton className="h-5 w-24 mb-2" />
-          <Skeleton className="h-4 w-48 mb-4" />
+        <div className='rounded-lg border p-4'>
+          <Skeleton className='mb-2 h-5 w-24' />
+          <Skeleton className='mb-4 h-4 w-48' />
 
-          <div className="space-y-2 mt-3">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-4 w-36" />
-            <Skeleton className="h-4 w-44" />
-            <Skeleton className="h-4 w-48" />
+          <div className='mt-3 space-y-2'>
+            <Skeleton className='h-4 w-40' />
+            <Skeleton className='h-4 w-36' />
+            <Skeleton className='h-4 w-44' />
+            <Skeleton className='h-4 w-48' />
           </div>
 
-          <div className="mt-4">
-            <Skeleton className="h-9 w-32" />
+          <div className='mt-4'>
+            <Skeleton className='h-9 w-32' />
           </div>
         </div>
 
         {/* Enterprise Tier Skeleton */}
-        <div className="border rounded-lg p-4 col-span-full">
-          <Skeleton className="h-5 w-24 mb-2" />
-          <Skeleton className="h-4 w-48 mb-4" />
+        <div className='col-span-full rounded-lg border p-4'>
+          <Skeleton className='mb-2 h-5 w-24' />
+          <Skeleton className='mb-4 h-4 w-48' />
 
-          <div className="space-y-2 mt-3">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="h-4 w-36" />
-            <Skeleton className="h-4 w-44" />
-            <Skeleton className="h-4 w-48" />
+          <div className='mt-3 space-y-2'>
+            <Skeleton className='h-4 w-40' />
+            <Skeleton className='h-4 w-36' />
+            <Skeleton className='h-4 w-44' />
+            <Skeleton className='h-4 w-48' />
           </div>
 
-          <div className="mt-4">
-            <Skeleton className="h-9 w-24" />
+          <div className='mt-4'>
+            <Skeleton className='h-9 w-24' />
           </div>
         </div>
       </div>
@@ -947,5 +947,5 @@ function SubscriptionSkeleton() {
 
 // Skeleton component for loading state in buttons
 function ButtonSkeleton() {
-  return <Skeleton className="h-9 w-24" />
+  return <Skeleton className='h-9 w-24' />
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { KeyboardEvent, useState } from 'react'
+import { type KeyboardEvent, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -23,17 +23,17 @@ interface EmailTagProps {
 
 const EmailTag = ({ email, onRemove, disabled, isInvalid }: EmailTagProps) => (
   <div
-    className={`flex items-center ${isInvalid ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-100 border-gray-200 text-slate-700'} border rounded-md py-0.5 px-2 gap-1 w-auto my-0 ml-0 text-sm`}
+    className={`flex items-center ${isInvalid ? 'border-red-200 bg-red-50 text-red-700' : 'border-gray-200 bg-gray-100 text-slate-700'} my-0 ml-0 w-auto gap-1 rounded-md border px-2 py-0.5 text-sm`}
   >
-    <span className="truncate max-w-[180px]">{email}</span>
+    <span className='max-w-[180px] truncate'>{email}</span>
     {!disabled && (
       <button
-        type="button"
+        type='button'
         onClick={onRemove}
-        className={`${isInvalid ? 'text-red-400 hover:text-red-600' : 'text-gray-400 hover:text-gray-600'} focus:outline-none flex-shrink-0`}
+        className={`${isInvalid ? 'text-red-400 hover:text-red-600' : 'text-gray-400 hover:text-gray-600'} flex-shrink-0 focus:outline-none`}
         aria-label={`Remove ${email}`}
       >
-        <X className="h-3 w-3" />
+        <X className='h-3 w-3' />
       </button>
     )}
   </div>
@@ -180,7 +180,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
             }
 
             return true
-          } catch (err) {
+          } catch (_err) {
             // Don't add to invalid emails if it's already in the valid emails array
             if (!invalidEmails.includes(email)) {
               failedInvites.push(email)
@@ -245,34 +245,34 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       }}
     >
       <DialogContent
-        className="sm:max-w-[500px] flex flex-col p-0 gap-0 overflow-hidden"
+        className='flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]'
         hideCloseButton
       >
-        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Invite Members to Workspace</DialogTitle>
+        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
+          <div className='flex items-center justify-between'>
+            <DialogTitle className='font-medium text-lg'>Invite Members to Workspace</DialogTitle>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 p-0"
+              variant='ghost'
+              size='icon'
+              className='h-8 w-8 p-0'
               onClick={() => onOpenChange(false)}
             >
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
+              <X className='h-4 w-4' />
+              <span className='sr-only'>Close</span>
             </Button>
           </div>
         </DialogHeader>
 
-        <div className="px-6 pt-4 pb-6">
+        <div className='px-6 pt-4 pb-6'>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="emails" className="text-sm font-medium">
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <label htmlFor='emails' className='font-medium text-sm'>
                   Email Addresses
                 </label>
                 <div
                   className={cn(
-                    'flex flex-wrap items-center gap-x-2 gap-y-1 border rounded-md px-3 py-1 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'
+                    'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-3 py-1 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'
                   )}
                 >
                   {invalidEmails.map((email, index) => (
@@ -293,8 +293,8 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     />
                   ))}
                   <Input
-                    id="emails"
-                    type="text"
+                    id='emails'
+                    type='text'
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
@@ -306,7 +306,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                         : 'Enter email addresses (comma or Enter to separate)'
                     }
                     className={cn(
-                      'border-none focus-visible:ring-0 focus-visible:ring-offset-0 py-1 min-w-[180px] flex-1 h-7',
+                      'h-7 min-w-[180px] flex-1 border-none py-1 focus-visible:ring-0 focus-visible:ring-offset-0',
                       emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-0'
                     )}
                     autoFocus
@@ -315,7 +315,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                 </div>
                 <p
                   className={cn(
-                    'text-xs mt-1',
+                    'mt-1 text-xs',
                     errorMessage
                       ? 'text-destructive'
                       : successMessage
@@ -329,10 +329,10 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                 </p>
               </div>
 
-              <div className="flex justify-end">
+              <div className='flex justify-end'>
                 <Button
-                  type="submit"
-                  size="sm"
+                  type='submit'
+                  size='sm'
                   disabled={
                     (emails.length === 0 && !inputValue.trim()) ||
                     isSubmitting ||
@@ -346,7 +346,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none'
                   )}
                 >
-                  {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
                   {showSent ? 'Sent!' : 'Send Invitations'}
                 </Button>
               </div>

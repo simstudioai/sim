@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
 import { zodResolver } from '@hookform/resolvers/zod'
 import imageCompression from 'browser-image-compression'
 import { AlertCircle, CheckCircle2, Upload, X } from 'lucide-react'
+import Image from 'next/image'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -119,7 +119,7 @@ export function HelpForm({ onClose }: HelpFormProps) {
       // Create a new File object with the original name and type to ensure compatibility
       return new File([compressedFile], file.name, {
         type: file.type,
-        lastModified: new Date().getTime(),
+        lastModified: Date.now(),
       })
     } catch (error) {
       logger.warn('Image compression failed, using original file:', { error })
@@ -270,32 +270,32 @@ export function HelpForm({ onClose }: HelpFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full">
+    <form onSubmit={handleSubmit(onSubmit)} className='flex h-full flex-col'>
       {/* Scrollable Content */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 px-6 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent"
+        className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
       >
-        <div className="py-4">
+        <div className='py-4'>
           {submitStatus === 'success' ? (
-            <Alert className="mb-6 border-border bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-900">
-              <div className="flex items-start gap-4 py-1">
-                <div className="flex-shrink-0 mt-[-1.5px]">
-                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <Alert className='mb-6 border-border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'>
+              <div className='flex items-start gap-4 py-1'>
+                <div className='mt-[-1.5px] flex-shrink-0'>
+                  <CheckCircle2 className='h-4 w-4 text-green-600 dark:text-green-400' />
                 </div>
-                <div className="flex-1 space-y-2 mr-4">
-                  <AlertTitle className="flex items-center justify-between -mt-0.5">
-                    <span className="text-green-600 dark:text-green-400 font-medium">Success</span>
+                <div className='mr-4 flex-1 space-y-2'>
+                  <AlertTitle className='-mt-0.5 flex items-center justify-between'>
+                    <span className='font-medium text-green-600 dark:text-green-400'>Success</span>
                   </AlertTitle>
-                  <AlertDescription className="text-green-600 dark:text-green-400">
+                  <AlertDescription className='text-green-600 dark:text-green-400'>
                     Your request has been submitted successfully. We'll get back to you soon.
                   </AlertDescription>
                 </div>
               </div>
             </Alert>
           ) : submitStatus === 'error' ? (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
+            <Alert variant='destructive' className='mb-6'>
+              <AlertCircle className='h-4 w-4' />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>
                 {errorMessage || 'There was an error submitting your request. Please try again.'}
@@ -303,63 +303,63 @@ export function HelpForm({ onClose }: HelpFormProps) {
             </Alert>
           ) : null}
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="type">Request</Label>
-              <Select defaultValue="bug" onValueChange={(value) => setValue('type', value as any)}>
-                <SelectTrigger id="type" className={errors.type ? 'border-red-500' : ''}>
-                  <SelectValue placeholder="Select a request type" />
+          <div className='space-y-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='type'>Request</Label>
+              <Select defaultValue='bug' onValueChange={(value) => setValue('type', value as any)}>
+                <SelectTrigger id='type' className={errors.type ? 'border-red-500' : ''}>
+                  <SelectValue placeholder='Select a request type' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bug">Bug Report</SelectItem>
-                  <SelectItem value="feedback">Feedback</SelectItem>
-                  <SelectItem value="feature_request">Feature Request</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value='bug'>Bug Report</SelectItem>
+                  <SelectItem value='feedback'>Feedback</SelectItem>
+                  <SelectItem value='feature_request'>Feature Request</SelectItem>
+                  <SelectItem value='other'>Other</SelectItem>
                 </SelectContent>
               </Select>
-              {errors.type && <p className="text-red-500 text-sm mt-1">{errors.type.message}</p>}
+              {errors.type && <p className='mt-1 text-red-500 text-sm'>{errors.type.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <div className='space-y-2'>
+              <Label htmlFor='email'>Email</Label>
               <Input
-                id="email"
-                placeholder="your.email@example.com"
+                id='email'
+                placeholder='your.email@example.com'
                 {...register('email')}
                 className={errors.email ? 'border-red-500' : ''}
               />
-              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
+              {errors.email && <p className='mt-1 text-red-500 text-sm'>{errors.email.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="subject">Subject</Label>
+            <div className='space-y-2'>
+              <Label htmlFor='subject'>Subject</Label>
               <Input
-                id="subject"
-                placeholder="Brief description of your request"
+                id='subject'
+                placeholder='Brief description of your request'
                 {...register('subject')}
                 className={errors.subject ? 'border-red-500' : ''}
               />
               {errors.subject && (
-                <p className="text-red-500 text-sm mt-1">{errors.subject.message}</p>
+                <p className='mt-1 text-red-500 text-sm'>{errors.subject.message}</p>
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="message">Message</Label>
+            <div className='space-y-2'>
+              <Label htmlFor='message'>Message</Label>
               <Textarea
-                id="message"
-                placeholder="Please provide details about your request..."
+                id='message'
+                placeholder='Please provide details about your request...'
                 rows={5}
                 {...register('message')}
                 className={errors.message ? 'border-red-500' : ''}
               />
               {errors.message && (
-                <p className="text-red-500 text-sm mt-1">{errors.message.message}</p>
+                <p className='mt-1 text-red-500 text-sm'>{errors.message.message}</p>
               )}
             </div>
 
             {/* Image Upload Section */}
-            <div className="space-y-2 mt-6">
+            <div className='mt-6 space-y-2'>
               <Label>Attach Images (Optional)</Label>
               <div
                 ref={dropZoneRef}
@@ -368,58 +368,58 @@ export function HelpForm({ onClose }: HelpFormProps) {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`flex items-center gap-4 ${
-                  isDragging ? 'bg-primary/5 rounded-md p-2' : ''
+                  isDragging ? 'rounded-md bg-primary/5 p-2' : ''
                 }`}
               >
                 <input
                   ref={fileInputRef}
-                  type="file"
+                  type='file'
                   accept={ACCEPTED_IMAGE_TYPES.join(',')}
                   onChange={handleFileChange}
-                  className="hidden"
+                  className='hidden'
                   multiple
                 />
                 <Button
-                  type="button"
-                  variant="outline"
+                  type='button'
+                  variant='outline'
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center justify-center gap-2"
+                  className='flex items-center justify-center gap-2'
                 >
-                  <Upload className="h-4 w-4" />
+                  <Upload className='h-4 w-4' />
                   Upload Images
                 </Button>
-                <p className="text-xs text-muted-foreground">
+                <p className='text-muted-foreground text-xs'>
                   Drop images here or click to upload. Max 20MB per image.
                 </p>
               </div>
-              {imageError && <p className="text-red-500 text-sm mt-1">{imageError}</p>}
+              {imageError && <p className='mt-1 text-red-500 text-sm'>{imageError}</p>}
               {isProcessing && (
-                <p className="text-sm text-muted-foreground">Processing images...</p>
+                <p className='text-muted-foreground text-sm'>Processing images...</p>
               )}
             </div>
 
             {/* Image Preview Section */}
             {images.length > 0 && (
-              <div className="space-y-2">
+              <div className='space-y-2'>
                 <Label>Uploaded Images</Label>
-                <div className="grid grid-cols-2 gap-4">
+                <div className='grid grid-cols-2 gap-4'>
                   {images.map((image, index) => (
-                    <div key={index} className="relative border rounded-md overflow-hidden group">
-                      <div className="aspect-video relative">
+                    <div key={index} className='group relative overflow-hidden rounded-md border'>
+                      <div className='relative aspect-video'>
                         <Image
                           src={image.preview}
                           alt={`Preview ${index + 1}`}
                           fill
-                          className="object-cover"
+                          className='object-cover'
                         />
                         <div
-                          className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                          className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
                           onClick={() => removeImage(index)}
                         >
-                          <X className="h-6 w-6 text-white" />
+                          <X className='h-6 w-6 text-white' />
                         </div>
                       </div>
-                      <div className="p-2 text-xs truncate bg-muted/50">{image.name}</div>
+                      <div className='truncate bg-muted/50 p-2 text-xs'>{image.name}</div>
                     </div>
                   ))}
                 </div>
@@ -430,12 +430,12 @@ export function HelpForm({ onClose }: HelpFormProps) {
       </div>
 
       {/* Fixed Footer */}
-      <div className="px-6 pb-6 pt-4 border-t mt-auto">
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={onClose} type="button">
+      <div className='mt-auto border-t px-6 pt-4 pb-6'>
+        <div className='flex justify-between'>
+          <Button variant='outline' onClick={onClose} type='button'>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting || isProcessing}>
+          <Button type='submit' disabled={isSubmitting || isProcessing}>
             {isSubmitting ? 'Submitting...' : 'Submit'}
           </Button>
         </div>

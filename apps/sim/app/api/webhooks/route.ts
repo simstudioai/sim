@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'

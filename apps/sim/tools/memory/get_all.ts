@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { MemoryResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { MemoryResponse } from './types'
 
 export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
   id: 'memory_get_all',
@@ -46,7 +46,7 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
 
       // Extract memories from the response
       const data = result.data || result
-      let rawMemories = data.memories || data || []
+      const rawMemories = data.memories || data || []
 
       // Transform memories to return them with their keys and types for better context
       const memories = rawMemories.map((memory: any) => ({

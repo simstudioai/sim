@@ -1,5 +1,5 @@
 import { OpenAIIcon } from '@/components/icons'
-import { BlockConfig } from '../types'
+import type { BlockConfig } from '../types'
 
 export const OpenAIBlock: BlockConfig = {
   type: 'openai',

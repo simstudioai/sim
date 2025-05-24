@@ -31,7 +31,7 @@ export function getBaseDomain(): string {
   try {
     const url = new URL(getBaseUrl())
     return url.host // host includes port if specified
-  } catch (e) {
+  } catch (_e) {
     const isProd = env.NODE_ENV === 'production'
     return isProd ? 'simstudio.ai' : 'localhost:3000'
   }

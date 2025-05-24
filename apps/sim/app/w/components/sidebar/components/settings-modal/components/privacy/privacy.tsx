@@ -48,36 +48,36 @@ export function Privacy() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className='space-y-6 p-6'>
       <div>
-        <h2 className="text-lg font-medium mb-[22px]">Privacy Settings</h2>
-        <div className="space-y-4">
+        <h2 className='mb-[22px] font-medium text-lg'>Privacy Settings</h2>
+        <div className='space-y-4'>
           {isLoading ? (
             <SettingRowSkeleton />
           ) : (
-            <div className="flex items-center justify-between py-1">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="telemetry" className="font-medium">
+            <div className='flex items-center justify-between py-1'>
+              <div className='flex items-center gap-2'>
+                <Label htmlFor='telemetry' className='font-medium'>
                   Allow anonymous telemetry
                 </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-500 p-1 h-7"
-                      aria-label="Learn more about telemetry data collection"
+                      variant='ghost'
+                      size='sm'
+                      className='h-7 p-1 text-gray-500'
+                      aria-label='Learn more about telemetry data collection'
                     >
-                      <Info className="h-5 w-5" />
+                      <Info className='h-5 w-5' />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-[300px] p-3">
-                    <p className="text-sm">{TOOLTIPS.telemetry}</p>
+                  <TooltipContent side='top' className='max-w-[300px] p-3'>
+                    <p className='text-sm'>{TOOLTIPS.telemetry}</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
               <Switch
-                id="telemetry"
+                id='telemetry'
                 checked={telemetryEnabled}
                 onCheckedChange={handleTelemetryToggle}
                 disabled={isLoading}
@@ -87,8 +87,8 @@ export function Privacy() {
         </div>
       </div>
 
-      <div className="border-t pt-4">
-        <p className="text-xs text-muted-foreground">
+      <div className='border-t pt-4'>
+        <p className='text-muted-foreground text-xs'>
           We use OpenTelemetry to collect anonymous usage data to improve Sim Studio. All data is
           collected in accordance with our privacy policy, and you can opt-out at any time. This
           setting applies to your account on all devices.
@@ -99,10 +99,10 @@ export function Privacy() {
 }
 
 const SettingRowSkeleton = () => (
-  <div className="flex items-center justify-between py-1">
-    <div className="flex items-center gap-2">
-      <Skeleton className="h-5 w-48" />
+  <div className='flex items-center justify-between py-1'>
+    <div className='flex items-center gap-2'>
+      <Skeleton className='h-5 w-48' />
     </div>
-    <Skeleton className="h-6 w-12" />
+    <Skeleton className='h-6 w-12' />
   </div>
 )

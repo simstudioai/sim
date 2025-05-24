@@ -1,10 +1,11 @@
-import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import type { Metadata, Viewport } from 'next'
 import { PublicEnvScript } from 'next-runtime-env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { TelemetryConsentDialog } from '@/app/telemetry-consent-dialog'
 import './globals.css'
+
 import { ZoomPrevention } from './zoom-prevention'
 
 const logger = createLogger('RootLayout')
@@ -139,22 +140,22 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang='en' suppressHydrationWarning>
       <head>
         {/* Additional meta tags for sharing */}
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="600" />
-        <meta name="twitter:image:width" content="1200" />
-        <meta name="twitter:image:height" content="675" />
-        <meta name="twitter:image:alt" content="Sim Studio" />
-        <meta name="twitter:image" content="https://simstudio.ai/social/twitter.png" />
-        <meta name="twitter:url" content="https://simstudio.ai" />
-        <meta property="og:image:alt" content="Sim Studio" />
-        <link rel="image_src" href="https://simstudio.ai/social/facebook.png" />
+        <meta property='og:image:width' content='1200' />
+        <meta property='og:image:height' content='600' />
+        <meta name='twitter:image:width' content='1200' />
+        <meta name='twitter:image:height' content='675' />
+        <meta name='twitter:image:alt' content='Sim Studio' />
+        <meta name='twitter:image' content='https://simstudio.ai/social/twitter.png' />
+        <meta name='twitter:url' content='https://simstudio.ai' />
+        <meta property='og:image:alt' content='Sim Studio' />
+        <link rel='image_src' href='https://simstudio.ai/social/facebook.png' />
         {/* Instagram image meta */}
-        <meta property="og:image" content="https://simstudio.ai/social/instagram.png" />
-        <meta property="og:image:width" content="1080" />
-        <meta property="og:image:height" content="1080" />
+        <meta property='og:image' content='https://simstudio.ai/social/instagram.png' />
+        <meta property='og:image:width' content='1080' />
+        <meta property='og:image:height' content='1080' />
 
         <PublicEnvScript />
       </head>

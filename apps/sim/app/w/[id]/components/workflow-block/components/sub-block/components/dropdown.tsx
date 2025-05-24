@@ -91,15 +91,15 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
       value={isValueInOptions ? effectiveValue : undefined}
       onValueChange={(newValue) => setValue(newValue)}
     >
-      <SelectTrigger className="text-left">
-        <SelectValue placeholder="Select an option" />
+      <SelectTrigger className='text-left'>
+        <SelectValue placeholder='Select an option' />
       </SelectTrigger>
-      <SelectContent className="max-h-48">
+      <SelectContent className='max-h-48'>
         {evaluatedOptions.map((option) => (
           <SelectItem
             key={getOptionValue(option)}
             value={getOptionValue(option)}
-            className="text-sm"
+            className='text-sm'
           >
             {getOptionLabel(option)}
           </SelectItem>

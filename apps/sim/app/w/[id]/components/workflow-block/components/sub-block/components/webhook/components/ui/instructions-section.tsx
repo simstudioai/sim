@@ -1,5 +1,4 @@
-import React from 'react'
-import { Lightbulb } from 'lucide-react'
+import type React from 'react'
 import { cn } from '@/lib/utils'
 
 interface InstructionsSectionProps {
@@ -16,9 +15,9 @@ export function InstructionsSection({
   className,
 }: InstructionsSectionProps) {
   return (
-    <div className={cn('bg-card/50 p-4 rounded-md mt-4 border border-border shadow-sm', className)}>
-      <h4 className="font-medium text-base mb-3">{title}</h4>
-      <div className="text-sm text-muted-foreground space-y-1 [&_a]:text-primary [&_a]:underline [&_a]:hover:text-primary/80 [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono">
+    <div className={cn('mt-4 rounded-md border border-border bg-card/50 p-4 shadow-sm', className)}>
+      <h4 className='mb-3 font-medium text-base'>{title}</h4>
+      <div className='space-y-1 text-muted-foreground text-sm [&_a]:text-primary [&_a]:underline [&_a]:hover:text-primary/80 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs'>
         {children} {/* Instructions list goes here */}
       </div>
     </div>

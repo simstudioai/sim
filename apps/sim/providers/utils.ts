@@ -1,5 +1,4 @@
-import { getCostMultiplier } from '@/lib/environment'
-import { isHosted } from '@/lib/environment'
+import { getCostMultiplier, isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { anthropicProvider } from './anthropic'
@@ -10,7 +9,7 @@ import { groqProvider } from './groq'
 import { ollamaProvider } from './ollama'
 import { openaiProvider } from './openai'
 import { getModelPricing } from './pricing'
-import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
+import type { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
 
 const logger = createLogger('ProviderUtils')
@@ -243,7 +242,7 @@ export function extractAndParseJSON(content: string): any {
 
   try {
     return JSON.parse(jsonStr)
-  } catch (error) {
+  } catch (_error) {
     // If parsing fails, try to clean up common issues
     const cleaned = jsonStr
       .replace(/\n/g, ' ') // Remove newlines
@@ -417,9 +416,9 @@ export async function transformBlockTool(
  */
 export function calculateCost(
   model: string,
-  promptTokens: number = 0,
-  completionTokens: number = 0,
-  useCachedInput: boolean = false
+  promptTokens = 0,
+  completionTokens = 0,
+  useCachedInput = false
 ) {
   const pricing = getModelPricing(model)
 
@@ -437,9 +436,9 @@ export function calculateCost(
   const costMultiplier = getCostMultiplier()
 
   return {
-    input: parseFloat((inputCost * costMultiplier).toFixed(6)),
-    output: parseFloat((outputCost * costMultiplier).toFixed(6)),
-    total: parseFloat((totalCost * costMultiplier).toFixed(6)),
+    input: Number.parseFloat((inputCost * costMultiplier).toFixed(6)),
+    output: Number.parseFloat((outputCost * costMultiplier).toFixed(6)),
+    total: Number.parseFloat((totalCost * costMultiplier).toFixed(6)),
     pricing,
   }
 }
@@ -456,20 +455,22 @@ export function formatCost(cost: number): string {
   if (cost >= 1) {
     // For costs >= $1, show two decimal places
     return `$${cost.toFixed(2)}`
-  } else if (cost >= 0.01) {
+  }
+  if (cost >= 0.01) {
     // For costs between 1¢ and $1, show three decimal places
     return `$${cost.toFixed(3)}`
-  } else if (cost >= 0.001) {
+  }
+  if (cost >= 0.001) {
     // For costs between 0.1¢ and 1¢, show four decimal places
     return `$${cost.toFixed(4)}`
-  } else if (cost > 0) {
+  }
+  if (cost > 0) {
     // For very small costs, still show as fixed decimal instead of scientific notation
     // Find the first non-zero digit and show a few more places
     const places = Math.max(4, Math.abs(Math.floor(Math.log10(cost))) + 3)
     return `$${cost.toFixed(places)}`
-  } else {
-    return '$0'
   }
+  return '$0'
 }
 
 /**
@@ -490,7 +491,7 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
       const { getRotatingApiKey } = require('@/lib/utils')
       const serverKey = getRotatingApiKey(provider)
       return serverKey
-    } catch (error) {
+    } catch (_error) {
       // If server key fails and we have a user key, fallback to that
       if (hasUserKey) {
         return userProvidedKey!
@@ -594,7 +595,7 @@ export function prepareToolsWithUsageControl(
         mode: 'AUTO' | 'ANY' | 'NONE'
         allowed_function_names?: string[]
       }
-    | undefined = undefined
+    | undefined
 
   if (forcedTools.length > 0) {
     // Force the first tool that has usageControl='force'
@@ -690,7 +691,7 @@ export function trackForcedToolUsage(
         mode: 'AUTO' | 'ANY' | 'NONE'
         allowed_function_names?: string[]
       }
-    | undefined = undefined
+    | undefined
 
   const updatedUsedForcedTools = [...usedForcedTools]
 
@@ -771,7 +772,7 @@ export function trackForcedToolUsage(
           nextToolChoice = 'auto'
         }
 
-        logger.info(`All forced tools have been used, switching to auto mode for future iterations`)
+        logger.info('All forced tools have been used, switching to auto mode for future iterations')
       }
     }
   }

@@ -42,7 +42,7 @@ export function parseTimeString(timeString: string | undefined | null): [number,
   }
 
   const [hours, minutes] = timeString.split(':').map(Number)
-  return [isNaN(hours) ? 9 : hours, isNaN(minutes) ? 0 : minutes]
+  return [Number.isNaN(hours) ? 9 : hours, Number.isNaN(minutes) ? 0 : minutes]
 }
 
 /**
@@ -73,11 +73,11 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
 
   // Get minutes interval (default to 15)
   const minutesIntervalStr = getSubBlockValue(starterBlock, 'minutesInterval')
-  const minutesInterval = parseInt(minutesIntervalStr) || 15
+  const minutesInterval = Number.parseInt(minutesIntervalStr) || 15
 
   // Get hourly minute (default to 0)
   const hourlyMinuteStr = getSubBlockValue(starterBlock, 'hourlyMinute')
-  const hourlyMinute = parseInt(hourlyMinuteStr) || 0
+  const hourlyMinute = Number.parseInt(hourlyMinuteStr) || 0
 
   // Get daily time
   const dailyTime = parseTimeString(getSubBlockValue(starterBlock, 'dailyTime'))
@@ -89,7 +89,7 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
 
   // Get monthly config
   const monthlyDayStr = getSubBlockValue(starterBlock, 'monthlyDay')
-  const monthlyDay = parseInt(monthlyDayStr) || 1
+  const monthlyDay = Number.parseInt(monthlyDayStr) || 1
   const monthlyTime = parseTimeString(getSubBlockValue(starterBlock, 'monthlyTime'))
 
   return {
@@ -119,7 +119,7 @@ export function getScheduleTimeValues(starterBlock: BlockState): {
 export function createDateWithTimezone(
   dateInput: string | Date,
   timeStr: string,
-  timezone: string = 'UTC'
+  timezone = 'UTC'
 ): Date {
   try {
     // 1. Parse the base date and target time
@@ -160,11 +160,11 @@ export function createDateWithTimezone(
     const getPart = (type: Intl.DateTimeFormatPartTypes) =>
       parts.find((p) => p.type === type)?.value
 
-    const formattedYear = parseInt(getPart('year') || '0', 10)
-    const formattedMonth = parseInt(getPart('month') || '0', 10) // 1-based
-    const formattedDay = parseInt(getPart('day') || '0', 10)
-    const formattedHour = parseInt(getPart('hour') || '0', 10)
-    const formattedMinute = parseInt(getPart('minute') || '0', 10)
+    const formattedYear = Number.parseInt(getPart('year') || '0', 10)
+    const formattedMonth = Number.parseInt(getPart('month') || '0', 10) // 1-based
+    const formattedDay = Number.parseInt(getPart('day') || '0', 10)
+    const formattedHour = Number.parseInt(getPart('hour') || '0', 10)
+    const formattedMinute = Number.parseInt(getPart('minute') || '0', 10)
 
     // Create a Date object representing the local time *in the target timezone*
     // when the tentative UTC date occurs.
@@ -273,7 +273,7 @@ export function calculateNextRunTime(
   const timezone = scheduleValues.timezone || 'UTC'
 
   // Get the current time
-  let baseDate = new Date()
+  const baseDate = new Date()
 
   // If we have both a start date and time, use them together with timezone awareness
   if (scheduleValues.scheduleStartAt && scheduleValues.scheduleTime) {
@@ -484,8 +484,8 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
 
   // Daily at specific time
   if (cronExpression.match(/^\d+ \d+ \* \* \*$/)) {
-    const minute = parseInt(parts[0], 10)
-    const hour = parseInt(parts[1], 10)
+    const minute = Number.parseInt(parts[0], 10)
+    const hour = Number.parseInt(parts[1], 10)
     const period = hour >= 12 ? 'PM' : 'AM'
     const hour12 = hour % 12 || 12
     return `Daily at ${hour12}:${minute.toString().padStart(2, '0')} ${period}`
@@ -499,9 +499,9 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
 
   // Specific day of week at specific time
   if (cronExpression.match(/^\d+ \d+ \* \* \d+$/)) {
-    const minute = parseInt(parts[0], 10)
-    const hour = parseInt(parts[1], 10)
-    const dayOfWeek = parseInt(parts[4], 10)
+    const minute = Number.parseInt(parts[0], 10)
+    const hour = Number.parseInt(parts[1], 10)
+    const dayOfWeek = Number.parseInt(parts[4], 10)
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const day = days[dayOfWeek % 7]
     const period = hour >= 12 ? 'PM' : 'AM'
@@ -511,8 +511,8 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
 
   // Specific day of month at specific time
   if (cronExpression.match(/^\d+ \d+ \d+ \* \*$/)) {
-    const minute = parseInt(parts[0], 10)
-    const hour = parseInt(parts[1], 10)
+    const minute = Number.parseInt(parts[0], 10)
+    const hour = Number.parseInt(parts[1], 10)
     const dayOfMonth = parts[2]
     const period = hour >= 12 ? 'PM' : 'AM'
     const hour12 = hour % 12 || 12
@@ -529,9 +529,9 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
 
   // Weekly at specific time
   if (cronExpression.match(/^\d+ \d+ \* \* [0-6]$/)) {
-    const minute = parseInt(parts[0], 10)
-    const hour = parseInt(parts[1], 10)
-    const dayOfWeek = parseInt(parts[4], 10)
+    const minute = Number.parseInt(parts[0], 10)
+    const hour = Number.parseInt(parts[1], 10)
+    const dayOfWeek = Number.parseInt(parts[4], 10)
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
     const day = days[dayOfWeek % 7]
     const period = hour >= 12 ? 'PM' : 'AM'
@@ -551,7 +551,7 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
       const interval = minute.split('/')[1]
       description += `every ${interval} minutes `
     } else if (minute !== '*' && hour !== '*') {
-      const hourVal = parseInt(hour, 10)
+      const hourVal = Number.parseInt(hour, 10)
       const period = hourVal >= 12 ? 'PM' : 'AM'
       const hour12 = hourVal % 12 || 12
       description += `at ${hour12}:${minute.padStart(2, '0')} ${period} `
@@ -574,26 +574,26 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
         'December',
       ]
       if (month.includes(',')) {
-        const monthNames = month.split(',').map((m) => months[parseInt(m, 10) - 1])
+        const monthNames = month.split(',').map((m) => months[Number.parseInt(m, 10) - 1])
         description += `on day ${dayOfMonth} of ${monthNames.join(', ')}`
       } else {
-        description += `on day ${dayOfMonth} of ${months[parseInt(month, 10) - 1]}`
+        description += `on day ${dayOfMonth} of ${months[Number.parseInt(month, 10) - 1]}`
       }
     } else if (dayOfWeek !== '*') {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
       if (dayOfWeek.includes(',')) {
-        const dayNames = dayOfWeek.split(',').map((d) => days[parseInt(d, 10) % 7])
+        const dayNames = dayOfWeek.split(',').map((d) => days[Number.parseInt(d, 10) % 7])
         description += `on ${dayNames.join(', ')}`
       } else if (dayOfWeek.includes('-')) {
-        const [start, end] = dayOfWeek.split('-').map((d) => parseInt(d, 10) % 7)
+        const [start, end] = dayOfWeek.split('-').map((d) => Number.parseInt(d, 10) % 7)
         description += `from ${days[start]} to ${days[end]}`
       } else {
-        description += `on ${days[parseInt(dayOfWeek, 10) % 7]}`
+        description += `on ${days[Number.parseInt(dayOfWeek, 10) % 7]}`
       }
     }
 
     return description.trim()
-  } catch (e) {
+  } catch (_e) {
     return `Schedule: ${cronExpression}`
   }
 }

@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
+import { NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getS3Client } from '@/lib/uploads/s3-client'
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     }
 
     if (!authHeader || authHeader !== `Bearer ${env.CRON_SECRET}`) {
-      logger.warn(`Unauthorized access attempt to logs cleanup endpoint`)
+      logger.warn('Unauthorized access attempt to logs cleanup endpoint')
       return new NextResponse('Unauthorized', { status: 401 })
     }
 

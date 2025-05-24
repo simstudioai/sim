@@ -404,7 +404,7 @@ async function searchEmails(accessToken: string, config: GmailWebhookConfig, req
     }
 
     // Process emails within the limit
-    let idsToFetch = searchData.messages.slice(0, config.maxEmailsPerPoll || 25)
+    const idsToFetch = searchData.messages.slice(0, config.maxEmailsPerPoll || 25)
     let latestHistoryId = config.historyId
 
     logger.info(
@@ -540,12 +540,12 @@ async function processEmails(
       if (headers.date) {
         try {
           date = new Date(headers.date).toISOString()
-        } catch (e) {
+        } catch (_e) {
           // Keep date as null if parsing fails
         }
       } else if (email.internalDate) {
         // Use internalDate as fallback (convert from timestamp to ISO string)
-        date = new Date(parseInt(email.internalDate)).toISOString()
+        date = new Date(Number.parseInt(email.internalDate)).toISOString()
       }
 
       // Extract attachment information if present

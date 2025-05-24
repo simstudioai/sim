@@ -1,6 +1,6 @@
 'use client'
 
-import { Component, ReactNode, useEffect } from 'react'
+import { Component, type ReactNode, useEffect } from 'react'
 import { BotIcon } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -27,12 +27,12 @@ export function ErrorUI({
 
   return (
     <div className={containerClass}>
-      <Card className="p-6 max-w-md text-center space-y-4">
-        <div className="flex justify-center">
-          <BotIcon className="w-16 h-16 text-muted-foreground" />
+      <Card className='max-w-md space-y-4 p-6 text-center'>
+        <div className='flex justify-center'>
+          <BotIcon className='h-16 w-16 text-muted-foreground' />
         </div>
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <p className="text-muted-foreground">{message}</p>
+        <h3 className='font-semibold text-lg'>{title}</h3>
+        <p className='text-muted-foreground'>{message}</p>
       </Card>
     </div>
   )
@@ -95,11 +95,11 @@ export function NextGlobalError({
   }, [error])
 
   return (
-    <html>
+    <html lang='en'>
       <body>
         <ErrorUI
-          title="Application Error"
-          message="Something went wrong with the application. Please try again later."
+          title='Application Error'
+          message='Something went wrong with the application. Please try again later.'
           onReset={reset}
           fullScreen={true}
         />

@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { XReadParams, XReadResponse, XTweet } from './types'
+import type { ToolConfig } from '../types'
+import type { XReadParams, XReadResponse, XTweet } from './types'
 
 export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
   id: 'x_read',

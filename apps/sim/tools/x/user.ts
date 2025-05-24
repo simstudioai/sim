@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import { XUser, XUserParams, XUserResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { XUser, XUserParams, XUserResponse } from './types'
 
 const logger = createLogger('XUserTool')
 
@@ -55,7 +55,7 @@ export const xUserTool: ToolConfig<XUserParams, XUserResponse> = {
       // Try to extract rate limit reset time from headers if available
       const resetTime = response.headers.get('x-rate-limit-reset')
       const message = resetTime
-        ? `Rate limit exceeded. Please try again after ${new Date(parseInt(resetTime) * 1000).toLocaleTimeString()}.`
+        ? `Rate limit exceeded. Please try again after ${new Date(Number.parseInt(resetTime) * 1000).toLocaleTimeString()}.`
         : 'X API rate limit exceeded. Please try again later.'
 
       throw new Error(message)

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { Stagehand } from '@browserbasehq/stagehand'
+import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     const params = validationResult.data
     const { url: rawUrl, instruction, selector, useTextExtract, apiKey, schema } = params
-    let url = normalizeUrl(rawUrl)
+    const url = normalizeUrl(rawUrl)
 
     logger.info('Starting Stagehand extraction process', {
       rawUrl,
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       logger.info('Navigation complete')
 
       logger.info('Preparing extraction schema', {
-        schema: JSON.stringify(schema).substring(0, 100) + '...',
+        schema: `${JSON.stringify(schema).substring(0, 100)}...`,
       })
 
       logger.info('Extracting data with Stagehand')

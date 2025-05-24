@@ -333,51 +333,51 @@ export function ScheduleModal({
   const formatDate = (date: string) => {
     try {
       return date ? format(new Date(date), 'PPP') : 'Select date'
-    } catch (e) {
+    } catch (_e) {
       return 'Select date'
     }
   }
 
   return (
     <>
-      <DialogContent className="sm:max-w-[600px] flex flex-col p-0 gap-0" hideCloseButton>
-        <DialogHeader className="px-6 py-4 border-b">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-medium">Schedule Configuration</DialogTitle>
-            <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleClose}>
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
+      <DialogContent className='flex flex-col gap-0 p-0 sm:max-w-[600px]' hideCloseButton>
+        <DialogHeader className='border-b px-6 py-4'>
+          <div className='flex items-center justify-between'>
+            <DialogTitle className='font-medium text-lg'>Schedule Configuration</DialogTitle>
+            <Button variant='ghost' size='icon' className='h-8 w-8 p-0' onClick={handleClose}>
+              <X className='h-4 w-4' />
+              <span className='sr-only'>Close</span>
             </Button>
           </div>
         </DialogHeader>
 
-        <div className="pt-4 px-6 pb-6 overflow-y-auto">
+        <div className='overflow-y-auto px-6 pt-4 pb-6'>
           {errorMessage && (
-            <Alert variant="destructive" className="mb-4">
+            <Alert variant='destructive' className='mb-4'>
               <AlertDescription>{errorMessage}</AlertDescription>
             </Alert>
           )}
 
-          <div className="space-y-6">
+          <div className='space-y-6'>
             {/* Common date and time fields */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label htmlFor="scheduleStartAt" className="text-sm font-medium">
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='space-y-1'>
+                <label htmlFor='scheduleStartAt' className='font-medium text-sm'>
                   Start At
                 </label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
-                      id="scheduleStartAt"
-                      variant="outline"
-                      className="justify-start text-left font-normal w-full h-10"
+                      id='scheduleStartAt'
+                      variant='outline'
+                      className='h-10 w-full justify-start text-left font-normal'
                     >
                       {formatDate(scheduleStartAt || '')}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className='w-auto p-0' align='start'>
                     <CalendarComponent
-                      mode="single"
+                      mode='single'
                       selected={scheduleStartAt ? new Date(scheduleStartAt) : undefined}
                       onSelect={(date) => setScheduleStartAt(date ? date.toISOString() : '')}
                       initialFocus
@@ -386,77 +386,77 @@ export function ScheduleModal({
                 </Popover>
               </div>
 
-              <div className="space-y-1">
-                <label htmlFor="scheduleTime" className="text-sm font-medium">
+              <div className='space-y-1'>
+                <label htmlFor='scheduleTime' className='font-medium text-sm'>
                   Time
                 </label>
                 <TimeInput
                   blockId={blockId}
-                  subBlockId="scheduleTime"
-                  placeholder="Select time"
-                  className="h-10"
+                  subBlockId='scheduleTime'
+                  placeholder='Select time'
+                  className='h-10'
                 />
               </div>
             </div>
 
             {/* Frequency selector */}
-            <div className="space-y-1">
-              <label htmlFor="scheduleType" className="text-sm font-medium">
+            <div className='space-y-1'>
+              <label htmlFor='scheduleType' className='font-medium text-sm'>
                 Frequency
               </label>
               <Select
                 value={scheduleType || 'daily'}
                 onValueChange={(value) => setScheduleType(value)}
               >
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Select frequency" />
+                <SelectTrigger className='h-10'>
+                  <SelectValue placeholder='Select frequency' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="minutes">Every X Minutes</SelectItem>
-                  <SelectItem value="hourly">Hourly</SelectItem>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="custom">Custom Cron</SelectItem>
+                  <SelectItem value='minutes'>Every X Minutes</SelectItem>
+                  <SelectItem value='hourly'>Hourly</SelectItem>
+                  <SelectItem value='daily'>Daily</SelectItem>
+                  <SelectItem value='weekly'>Weekly</SelectItem>
+                  <SelectItem value='monthly'>Monthly</SelectItem>
+                  <SelectItem value='custom'>Custom Cron</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* Minutes schedule options */}
             {scheduleType === 'minutes' && (
-              <div className="space-y-1">
-                <label htmlFor="minutesInterval" className="text-sm font-medium">
+              <div className='space-y-1'>
+                <label htmlFor='minutesInterval' className='font-medium text-sm'>
                   Run Every (minutes)
                 </label>
                 <Input
-                  id="minutesInterval"
+                  id='minutesInterval'
                   value={minutesInterval || ''}
                   onChange={(e) => setMinutesInterval(e.target.value)}
-                  placeholder="15"
-                  type="number"
-                  min="1"
-                  className="h-10"
+                  placeholder='15'
+                  type='number'
+                  min='1'
+                  className='h-10'
                 />
               </div>
             )}
 
             {/* Hourly schedule options */}
             {scheduleType === 'hourly' && (
-              <div className="space-y-1">
-                <label htmlFor="hourlyMinute" className="text-sm font-medium">
+              <div className='space-y-1'>
+                <label htmlFor='hourlyMinute' className='font-medium text-sm'>
                   Minute of the Hour
                 </label>
                 <Input
-                  id="hourlyMinute"
+                  id='hourlyMinute'
                   value={hourlyMinute || ''}
                   onChange={(e) => setHourlyMinute(e.target.value)}
-                  placeholder="0"
-                  type="number"
-                  min="0"
-                  max="59"
-                  className="h-10"
+                  placeholder='0'
+                  type='number'
+                  min='0'
+                  max='59'
+                  className='h-10'
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className='text-muted-foreground text-xs'>
                   Specify which minute of each hour the workflow should run (0-59)
                 </p>
               </div>
@@ -464,51 +464,51 @@ export function ScheduleModal({
 
             {/* Daily schedule options */}
             {scheduleType === 'daily' && (
-              <div className="space-y-1">
-                <label htmlFor="dailyTime" className="text-sm font-medium">
+              <div className='space-y-1'>
+                <label htmlFor='dailyTime' className='font-medium text-sm'>
                   Time of Day
                 </label>
                 <TimeInput
                   blockId={blockId}
-                  subBlockId="dailyTime"
-                  placeholder="Select time"
-                  className="h-10"
+                  subBlockId='dailyTime'
+                  placeholder='Select time'
+                  className='h-10'
                 />
               </div>
             )}
 
             {/* Weekly schedule options */}
             {scheduleType === 'weekly' && (
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <label htmlFor="weeklyDay" className="text-sm font-medium">
+              <div className='space-y-4'>
+                <div className='space-y-1'>
+                  <label htmlFor='weeklyDay' className='font-medium text-sm'>
                     Day of Week
                   </label>
                   <Select value={weeklyDay || 'MON'} onValueChange={(value) => setWeeklyDay(value)}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Select day" />
+                    <SelectTrigger className='h-10'>
+                      <SelectValue placeholder='Select day' />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="MON">Monday</SelectItem>
-                      <SelectItem value="TUE">Tuesday</SelectItem>
-                      <SelectItem value="WED">Wednesday</SelectItem>
-                      <SelectItem value="THU">Thursday</SelectItem>
-                      <SelectItem value="FRI">Friday</SelectItem>
-                      <SelectItem value="SAT">Saturday</SelectItem>
-                      <SelectItem value="SUN">Sunday</SelectItem>
+                      <SelectItem value='MON'>Monday</SelectItem>
+                      <SelectItem value='TUE'>Tuesday</SelectItem>
+                      <SelectItem value='WED'>Wednesday</SelectItem>
+                      <SelectItem value='THU'>Thursday</SelectItem>
+                      <SelectItem value='FRI'>Friday</SelectItem>
+                      <SelectItem value='SAT'>Saturday</SelectItem>
+                      <SelectItem value='SUN'>Sunday</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="weeklyDayTime" className="text-sm font-medium">
+                <div className='space-y-1'>
+                  <label htmlFor='weeklyDayTime' className='font-medium text-sm'>
                     Time of Day
                   </label>
                   <TimeInput
                     blockId={blockId}
-                    subBlockId="weeklyDayTime"
-                    placeholder="Select time"
-                    className="h-10"
+                    subBlockId='weeklyDayTime'
+                    placeholder='Select time'
+                    className='h-10'
                   />
                 </div>
               </div>
@@ -516,35 +516,35 @@ export function ScheduleModal({
 
             {/* Monthly schedule options */}
             {scheduleType === 'monthly' && (
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <label htmlFor="monthlyDay" className="text-sm font-medium">
+              <div className='space-y-4'>
+                <div className='space-y-1'>
+                  <label htmlFor='monthlyDay' className='font-medium text-sm'>
                     Day of Month
                   </label>
                   <Input
-                    id="monthlyDay"
+                    id='monthlyDay'
                     value={monthlyDay || ''}
                     onChange={(e) => setMonthlyDay(e.target.value)}
-                    placeholder="1"
-                    type="number"
-                    min="1"
-                    max="31"
-                    className="h-10"
+                    placeholder='1'
+                    type='number'
+                    min='1'
+                    max='31'
+                    className='h-10'
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className='text-muted-foreground text-xs'>
                     Specify which day of the month the workflow should run (1-31)
                   </p>
                 </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="monthlyTime" className="text-sm font-medium">
+                <div className='space-y-1'>
+                  <label htmlFor='monthlyTime' className='font-medium text-sm'>
                     Time of Day
                   </label>
                   <TimeInput
                     blockId={blockId}
-                    subBlockId="monthlyTime"
-                    placeholder="Select time"
-                    className="h-10"
+                    subBlockId='monthlyTime'
+                    placeholder='Select time'
+                    className='h-10'
                   />
                 </div>
               </div>
@@ -552,75 +552,75 @@ export function ScheduleModal({
 
             {/* Custom cron options */}
             {scheduleType === 'custom' && (
-              <div className="space-y-1">
-                <label htmlFor="cronExpression" className="text-sm font-medium">
+              <div className='space-y-1'>
+                <label htmlFor='cronExpression' className='font-medium text-sm'>
                   Cron Expression
                 </label>
                 <Input
-                  id="cronExpression"
+                  id='cronExpression'
                   value={cronExpression || ''}
                   onChange={(e) => setCronExpression(e.target.value)}
-                  placeholder="*/15 * * * *"
-                  className="h-10"
+                  placeholder='*/15 * * * *'
+                  className='h-10'
                 />
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className='mt-1 text-muted-foreground text-xs'>
                   Use standard cron format (e.g., "*/15 * * * *" for every 15 minutes)
                 </p>
               </div>
             )}
 
             {/* Timezone configuration */}
-            <div className="space-y-1">
-              <label htmlFor="timezone" className="text-sm font-medium">
+            <div className='space-y-1'>
+              <label htmlFor='timezone' className='font-medium text-sm'>
                 Timezone
               </label>
               <Select value={timezone || 'UTC'} onValueChange={(value) => setTimezone(value)}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Select timezone" />
+                <SelectTrigger className='h-10'>
+                  <SelectValue placeholder='Select timezone' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="UTC">UTC</SelectItem>
-                  <SelectItem value="America/New_York">US Eastern (UTC-4)</SelectItem>
-                  <SelectItem value="America/Chicago">US Central (UTC-5)</SelectItem>
-                  <SelectItem value="America/Denver">US Mountain (UTC-6)</SelectItem>
-                  <SelectItem value="America/Los_Angeles">US Pacific (UTC-7)</SelectItem>
-                  <SelectItem value="Europe/London">London (UTC+1)</SelectItem>
-                  <SelectItem value="Europe/Paris">Paris (UTC+2)</SelectItem>
-                  <SelectItem value="Asia/Singapore">Singapore (UTC+8)</SelectItem>
-                  <SelectItem value="Asia/Tokyo">Tokyo (UTC+9)</SelectItem>
-                  <SelectItem value="Australia/Sydney">Sydney (UTC+10)</SelectItem>
+                  <SelectItem value='UTC'>UTC</SelectItem>
+                  <SelectItem value='America/New_York'>US Eastern (UTC-4)</SelectItem>
+                  <SelectItem value='America/Chicago'>US Central (UTC-5)</SelectItem>
+                  <SelectItem value='America/Denver'>US Mountain (UTC-6)</SelectItem>
+                  <SelectItem value='America/Los_Angeles'>US Pacific (UTC-7)</SelectItem>
+                  <SelectItem value='Europe/London'>London (UTC+1)</SelectItem>
+                  <SelectItem value='Europe/Paris'>Paris (UTC+2)</SelectItem>
+                  <SelectItem value='Asia/Singapore'>Singapore (UTC+8)</SelectItem>
+                  <SelectItem value='Asia/Tokyo'>Tokyo (UTC+9)</SelectItem>
+                  <SelectItem value='Australia/Sydney'>Sydney (UTC+10)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="px-6 pt-0 pb-6 w-full">
-          <div className="flex w-full justify-between">
+        <DialogFooter className='w-full px-6 pt-0 pb-6'>
+          <div className='flex w-full justify-between'>
             <div>
               {scheduleId && onDelete && (
                 <Button
-                  type="button"
-                  variant="destructive"
+                  type='button'
+                  variant='destructive'
                   onClick={openDeleteConfirm}
                   disabled={isDeleting || isSaving}
-                  size="default"
-                  className="h-10"
+                  size='default'
+                  className='h-10'
                 >
-                  <Trash2 className="h-4 w-4 mr-2" />
+                  <Trash2 className='mr-2 h-4 w-4' />
                   {isDeleting ? 'Deleting...' : 'Delete Schedule'}
                 </Button>
               )}
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleClose} size="default" className="h-10">
+            <div className='flex gap-2'>
+              <Button variant='outline' onClick={handleClose} size='default' className='h-10'>
                 Cancel
               </Button>
               <Button
                 onClick={handleSave}
                 disabled={!hasChanges || isSaving}
                 className={cn('h-10', hasChanges ? 'bg-primary hover:bg-primary/90' : '')}
-                size="default"
+                size='default'
               >
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
@@ -648,7 +648,7 @@ export function ScheduleModal({
             <AlertDialogCancel onClick={() => setShowDeleteConfirm(false)}>
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction onClick={handleDelete} className='bg-red-600 hover:bg-red-700'>
               {isDeleting ? 'Deleting...' : 'Delete Schedule'}
             </AlertDialogAction>
           </AlertDialogFooter>

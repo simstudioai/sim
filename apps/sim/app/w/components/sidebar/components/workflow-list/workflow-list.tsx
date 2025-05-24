@@ -1,14 +1,13 @@
 'use client'
 
 import { useMemo } from 'react'
+import clsx from 'clsx'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import clsx from 'clsx'
-import { ScrollText } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -22,20 +21,20 @@ function WorkflowItem({ workflow, active, isMarketplace, isCollapsed }: Workflow
     <Link
       href={`/w/${workflow.id}`}
       className={clsx(
-        'flex items-center rounded-md px-2 py-1.5 text-sm font-medium',
+        'flex items-center rounded-md px-2 py-1.5 font-medium text-sm',
         active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50',
-        isCollapsed && 'justify-center w-8 h-8 mx-auto'
+        isCollapsed && 'mx-auto h-8 w-8 justify-center'
       )}
     >
       <div
         className={clsx(
           'flex-shrink-0 rounded',
-          isCollapsed ? 'h-[14px] w-[14px]' : 'h-[14px] w-[14px] mr-2'
+          isCollapsed ? 'h-[14px] w-[14px]' : 'mr-2 h-[14px] w-[14px]'
         )}
         style={{ backgroundColor: workflow.color }}
       />
       {!isCollapsed && (
-        <span className="truncate">
+        <span className='truncate'>
           {workflow.name}
           {isMarketplace && ' (Preview)'}
         </span>
@@ -68,16 +67,16 @@ export function WorkflowList({
       .map((_, i) => (
         <div
           key={`skeleton-${i}`}
-          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md mb-1 ${
+          className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 ${
             isCollapsed ? 'justify-center' : ''
           }`}
         >
           {isCollapsed ? (
-            <Skeleton className="h-[14px] w-[14px] rounded-md" />
+            <Skeleton className='h-[14px] w-[14px] rounded-md' />
           ) : (
             <>
-              <Skeleton className="h-[14px] w-[14px] rounded-md" />
-              <Skeleton className="h-4 w-20" />
+              <Skeleton className='h-[14px] w-[14px] rounded-md' />
+              <Skeleton className='h-4 w-20' />
             </>
           )}
         </div>
@@ -110,9 +109,9 @@ export function WorkflowList({
 
           {/* Marketplace Temp Workflows (if any) */}
           {marketplaceWorkflows.length > 0 && (
-            <div className="mt-2 pt-2 border-t border-border/30">
+            <div className='mt-2 border-border/30 border-t pt-2'>
               <h3
-                className={`mb-1 px-2 text-xs font-medium text-muted-foreground ${
+                className={`mb-1 px-2 font-medium text-muted-foreground text-xs ${
                   isCollapsed ? 'text-center' : ''
                 }`}
               >
@@ -132,7 +131,7 @@ export function WorkflowList({
 
           {/* Empty state */}
           {showEmptyState && !isCollapsed && (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">
+            <div className='px-2 py-1.5 text-muted-foreground text-xs'>
               No workflows in {activeWorkspaceId ? 'this workspace' : 'your account'}. Create one to
               get started.
             </div>

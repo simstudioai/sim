@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { SubBlockConfig } from '@/blocks/types'
-import { FolderInfo, FolderSelector } from '../folder-selector'
+import { type FolderInfo, FolderSelector } from '../folder-selector'
 
 interface FolderSelectorInputProps {
   blockId: string
@@ -18,7 +18,7 @@ export function FolderSelectorInput({
 }: FolderSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
-  const [folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
+  const [_folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
 
   // Get the current value from the store
   useEffect(() => {

@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { TavilySearchParams, TavilySearchResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { TavilySearchParams, TavilySearchResponse } from './types'
 
 export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = {
   id: 'tavily_search',

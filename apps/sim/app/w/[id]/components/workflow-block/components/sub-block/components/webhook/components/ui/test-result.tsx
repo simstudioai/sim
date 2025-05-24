@@ -37,8 +37,8 @@ export function TestResultDisplay({
       className={cn(
         'mb-4',
         testResult.success
-          ? 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800/50'
-          : 'bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800/50'
+          ? 'border-green-200 bg-green-50 dark:border-green-800/50 dark:bg-green-950/20'
+          : 'border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-950/20'
       )}
     >
       <div
@@ -52,25 +52,25 @@ export function TestResultDisplay({
         {testResult.message}
 
         {showCurlCommand && testResult.success && testResult.test?.curlCommand && (
-          <div className="mt-3 bg-black/10 dark:bg-white/10 p-2 rounded text-xs font-mono overflow-x-auto relative group border border-border">
-            <span className="text-muted-foreground text-[10px] absolute top-1 left-2 font-sans">
+          <div className='group relative mt-3 overflow-x-auto rounded border border-border bg-black/10 p-2 font-mono text-xs dark:bg-white/10'>
+            <span className='absolute top-1 left-2 font-sans text-[10px] text-muted-foreground'>
               Example Request:
             </span>
             <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 top-1 h-6 w-6 opacity-70 hover:opacity-100 text-inherit"
+              type='button'
+              variant='ghost'
+              size='icon'
+              className='absolute top-1 right-1 h-6 w-6 text-inherit opacity-70 hover:opacity-100'
               onClick={() => copyToClipboard(testResult.test?.curlCommand || '', 'curl-command')}
-              aria-label="Copy cURL command"
+              aria-label='Copy cURL command'
             >
               {copied === 'curl-command' ? (
-                <Check className="h-3 w-3" />
+                <Check className='h-3 w-3' />
               ) : (
-                <Copy className="h-3 w-3" />
+                <Copy className='h-3 w-3' />
               )}
             </Button>
-            <pre className="whitespace-pre-wrap break-all pt-4 pr-8">
+            <pre className='whitespace-pre-wrap break-all pt-4 pr-8'>
               {testResult.test.curlCommand}
             </pre>
           </div>

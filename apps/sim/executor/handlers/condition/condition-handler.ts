@@ -1,9 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { BlockOutput } from '@/blocks/types'
-import { SerializedBlock } from '@/serializer/types'
-import { PathTracker } from '../../path'
-import { InputResolver } from '../../resolver'
-import { BlockHandler, ExecutionContext } from '../../types'
+import type { BlockOutput } from '@/blocks/types'
+import type { SerializedBlock } from '@/serializer/types'
+import type { PathTracker } from '../../path'
+import type { InputResolver } from '../../resolver'
+import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('ConditionBlockHandler')
 
@@ -40,9 +40,9 @@ export class ConditionBlockHandler implements BlockHandler {
       conditions = Array.isArray(inputs.conditions)
         ? inputs.conditions
         : JSON.parse(inputs.conditions || '[]')
-      logger.info(`Parsed conditions:`, JSON.stringify(conditions, null, 2))
+      logger.info('Parsed conditions:', JSON.stringify(conditions, null, 2))
     } catch (error: any) {
-      logger.error(`Failed to parse conditions JSON:`, {
+      logger.error('Failed to parse conditions JSON:', {
         conditionsInput: inputs.conditions,
         error,
       })
@@ -76,7 +76,7 @@ export class ConditionBlockHandler implements BlockHandler {
       // Add other relevant context if needed, like loop variables
       ...(context.loopItems.get(block.id) || {}), // Example: Add loop context if applicable
     }
-    logger.info(`Base eval context:`, JSON.stringify(evalContext, null, 2))
+    logger.info('Base eval context:', JSON.stringify(evalContext, null, 2))
 
     // Get outgoing connections
     const outgoingConnections = context.workflow?.connections.filter(
@@ -184,9 +184,9 @@ export class ConditionBlockHandler implements BlockHandler {
     }
 
     // Find target block
-    const targetBlock = context.workflow?.blocks.find((b) => b.id === selectedConnection!.target)
+    const targetBlock = context.workflow?.blocks.find((b) => b.id === selectedConnection?.target)
     if (!targetBlock) {
-      throw new Error(`Target block ${selectedConnection!.target} not found`)
+      throw new Error(`Target block ${selectedConnection?.target} not found`)
     }
 
     // Log the decision

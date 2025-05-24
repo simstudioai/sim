@@ -7,7 +7,7 @@ import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { redactApiKeys } from '@/lib/utils'
-import { WorkflowLog } from '@/app/w/logs/stores/types'
+import type { WorkflowLog } from '@/app/w/logs/stores/types'
 import { formatDate } from '@/app/w/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
@@ -42,7 +42,7 @@ const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string 
     const parsed = JSON.parse(trimmed)
     const prettified = JSON.stringify(parsed, null, 2)
     return { isJson: true, formatted: prettified }
-  } catch (e) {
+  } catch (_e) {
     // If parsing fails, it's not valid JSON
     return { isJson: false, formatted: content }
   }
@@ -75,10 +75,10 @@ const formatJsonContent = (content: string, blockInput?: Record<string, any>): R
   const { isJson, formatted } = tryPrettifyJson(content)
 
   return (
-    <div className="bg-secondary/30 p-3 rounded-md relative group w-full">
-      <CopyButton text={formatted} className="h-7 w-7 z-10" />
+    <div className='group relative w-full rounded-md bg-secondary/30 p-3'>
+      <CopyButton text={formatted} className='z-10 h-7 w-7' />
       {isJson ? (
-        <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-y-auto max-h-[500px] overflow-x-hidden">
+        <pre className='max-h-[500px] w-full overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all text-sm'>
           {formatted}
         </pre>
       ) : (
@@ -112,34 +112,34 @@ const BlockContentDisplay = ({
       const parsedOutput = JSON.parse(formatted)
       const redactedJson = redactApiKeys(parsedOutput)
       return JSON.stringify(redactedJson, null, 2)
-    } catch (e) {
+    } catch (_e) {
       return formatted
     }
   }, [formatted, isJson])
 
   return (
-    <div className="w-full">
-      <div className="text-sm font-medium text-muted-foreground mb-2">{systemComment}</div>
+    <div className='w-full'>
+      <div className='mb-2 font-medium text-muted-foreground text-sm'>{systemComment}</div>
 
       {/* Tabs for switching between output and input */}
       {redactedBlockInput && (
-        <div className="flex space-x-1 mb-2">
+        <div className='mb-2 flex space-x-1'>
           <button
             onClick={() => setActiveTab('output')}
-            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+            className={`rounded-md px-3 py-1 text-xs transition-colors ${
               activeTab === 'output'
                 ? 'bg-secondary text-foreground'
-                : 'hover:bg-secondary/50 text-muted-foreground'
+                : 'text-muted-foreground hover:bg-secondary/50'
             }`}
           >
             Output
           </button>
           <button
             onClick={() => setActiveTab('input')}
-            className={`px-3 py-1 text-xs rounded-md transition-colors ${
+            className={`rounded-md px-3 py-1 text-xs transition-colors ${
               activeTab === 'input'
                 ? 'bg-secondary text-foreground'
-                : 'hover:bg-secondary/50 text-muted-foreground'
+                : 'text-muted-foreground hover:bg-secondary/50'
             }`}
           >
             Input
@@ -148,12 +148,12 @@ const BlockContentDisplay = ({
       )}
 
       {/* Content based on active tab */}
-      <div className="bg-secondary/30 p-3 rounded-md relative group">
+      <div className='group relative rounded-md bg-secondary/30 p-3'>
         {activeTab === 'output' ? (
           <>
-            <CopyButton text={redactedOutput} className="h-7 w-7 z-10" />
+            <CopyButton text={redactedOutput} className='z-10 h-7 w-7' />
             {isJson ? (
-              <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-visible">
+              <pre className='w-full overflow-visible whitespace-pre-wrap break-all text-sm'>
                 {redactedOutput}
               </pre>
             ) : (
@@ -164,9 +164,9 @@ const BlockContentDisplay = ({
           <>
             <CopyButton
               text={JSON.stringify(redactedBlockInput, null, 2)}
-              className="h-7 w-7 z-10"
+              className='z-10 h-7 w-7'
             />
-            <pre className="text-sm whitespace-pre-wrap break-all w-full overflow-visible">
+            <pre className='w-full overflow-visible whitespace-pre-wrap break-all text-sm'>
               {JSON.stringify(redactedBlockInput, null, 2)}
             </pre>
           </>
@@ -191,7 +191,7 @@ export function Sidebar({
 
   const [width, setWidth] = useState(DEFAULT_WIDTH) // Start with default width
   const [isDragging, setIsDragging] = useState(false)
-  const [currentLogId, setCurrentLogId] = useState<string | null>(null)
+  const [_currentLogId, setCurrentLogId] = useState<string | null>(null)
   const [isTraceExpanded, setIsTraceExpanded] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
@@ -207,7 +207,7 @@ export function Sidebar({
   const formattedContent = useMemo(() => {
     if (!log) return null
 
-    let blockInput: Record<string, any> | undefined = undefined
+    let blockInput: Record<string, any> | undefined
 
     if (log.metadata?.blockInput) {
       blockInput = log.metadata.blockInput
@@ -220,7 +220,7 @@ export function Sidebar({
           (span) => span.blockId === blockId || span.name.includes(`Block ${blockId}`)
         )
 
-        if (matchingSpan && matchingSpan.input) {
+        if (matchingSpan?.input) {
           blockInput = matchingSpan.input
         }
       }
@@ -247,7 +247,7 @@ export function Sidebar({
   }, [log])
 
   // Helper to determine if we have trace spans to display
-  const hasTraceSpans = useMemo(() => {
+  const _hasTraceSpans = useMemo(() => {
     return !!(log?.metadata?.traceSpans && log.metadata.traceSpans.length > 0)
   }, [log])
 
@@ -343,36 +343,36 @@ export function Sidebar({
 
   return (
     <div
-      className={`fixed inset-y-0 right-0 bg-background border-l transform ${
+      className={`fixed inset-y-0 right-0 transform border-l bg-background ${
         isOpen ? 'translate-x-0' : 'translate-x-full'
       } ${isDragging ? '' : 'transition-all duration-300 ease-in-out'} z-50 flex flex-col`}
       style={{ top: '64px', width: `${width}px`, minWidth: `${MIN_WIDTH}px` }}
     >
       <div
-        className="absolute left-[-4px] top-0 bottom-0 w-4 cursor-ew-resize hover:bg-accent/50 z-50"
+        className='absolute top-0 bottom-0 left-[-4px] z-50 w-4 cursor-ew-resize hover:bg-accent/50'
         onMouseDown={handleMouseDown}
       />
       {log && (
         <>
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
-            <h2 className="text-base font-medium">Log Details</h2>
-            <div className="flex items-center space-x-1">
+          <div className='flex flex-shrink-0 items-center justify-between border-b px-4 py-3'>
+            <h2 className='font-medium text-base'>Log Details</h2>
+            <div className='flex items-center space-x-1'>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 p-0"
+                      variant='ghost'
+                      size='icon'
+                      className='h-8 w-8 p-0'
                       onClick={() => hasPrev && handleNavigate(onNavigatePrev!)}
                       disabled={!hasPrev}
-                      aria-label="Previous log"
+                      aria-label='Previous log'
                     >
-                      <ChevronUp className="h-4 w-4" />
+                      <ChevronUp className='h-4 w-4' />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">Previous log (↑)</TooltipContent>
+                  <TooltipContent side='bottom'>Previous log (↑)</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
 
@@ -380,42 +380,42 @@ export function Sidebar({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 p-0"
+                      variant='ghost'
+                      size='icon'
+                      className='h-8 w-8 p-0'
                       onClick={() => hasNext && handleNavigate(onNavigateNext!)}
                       disabled={!hasNext}
-                      aria-label="Next log"
+                      aria-label='Next log'
                     >
-                      <ChevronDown className="h-4 w-4" />
+                      <ChevronDown className='h-4 w-4' />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom">Next log (↓)</TooltipContent>
+                  <TooltipContent side='bottom'>Next log (↓)</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
 
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 p-0"
+                variant='ghost'
+                size='icon'
+                className='h-8 w-8 p-0'
                 onClick={onClose}
-                aria-label="Close"
+                aria-label='Close'
               >
-                <X className="h-4 w-4" />
+                <X className='h-4 w-4' />
               </Button>
             </div>
           </div>
 
           {/* Content */}
           <ScrollArea
-            className="h-[calc(100vh-64px-49px)] w-full overflow-y-auto"
+            className='h-[calc(100vh-64px-49px)] w-full overflow-y-auto'
             ref={scrollAreaRef}
           >
-            <div className="p-4 space-y-4 w-full pr-6">
+            <div className='w-full space-y-4 p-4 pr-6'>
               {/* Timestamp */}
               <div>
-                <h3 className="text-xs font-medium text-muted-foreground mb-1">Timestamp</h3>
-                <div className="text-sm relative group">
+                <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Timestamp</h3>
+                <div className='group relative text-sm'>
                   <CopyButton text={formatDate(log.createdAt).full} />
                   {formatDate(log.createdAt).full}
                 </div>
@@ -424,16 +424,16 @@ export function Sidebar({
               {/* Workflow */}
               {log.workflow && (
                 <div>
-                  <h3 className="text-xs font-medium text-muted-foreground mb-1">Workflow</h3>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Workflow</h3>
                   <div
-                    className="text-sm relative group"
+                    className='group relative text-sm'
                     style={{
                       color: log.workflow.color,
                     }}
                   >
                     <CopyButton text={log.workflow.name} />
                     <div
-                      className="inline-flex items-center px-2 py-1 text-xs rounded-md"
+                      className='inline-flex items-center rounded-md px-2 py-1 text-xs'
                       style={{
                         backgroundColor: `${log.workflow.color}20`,
                         color: log.workflow.color,
@@ -448,8 +448,8 @@ export function Sidebar({
               {/* Execution ID */}
               {log.executionId && (
                 <div>
-                  <h3 className="text-xs font-medium text-muted-foreground mb-1">Execution ID</h3>
-                  <div className="text-sm font-mono break-all relative group">
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Execution ID</h3>
+                  <div className='group relative break-all font-mono text-sm'>
                     <CopyButton text={log.executionId} />
                     {log.executionId}
                   </div>
@@ -458,8 +458,8 @@ export function Sidebar({
 
               {/* Level */}
               <div>
-                <h3 className="text-xs font-medium text-muted-foreground mb-1">Level</h3>
-                <div className="text-sm capitalize relative group">
+                <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Level</h3>
+                <div className='group relative text-sm capitalize'>
                   <CopyButton text={log.level} />
                   {log.level}
                 </div>
@@ -468,8 +468,8 @@ export function Sidebar({
               {/* Trigger */}
               {log.trigger && (
                 <div>
-                  <h3 className="text-xs font-medium text-muted-foreground mb-1">Trigger</h3>
-                  <div className="text-sm capitalize relative group">
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Trigger</h3>
+                  <div className='group relative text-sm capitalize'>
                     <CopyButton text={log.trigger} />
                     {log.trigger}
                   </div>
@@ -479,8 +479,8 @@ export function Sidebar({
               {/* Duration */}
               {log.duration && (
                 <div>
-                  <h3 className="text-xs font-medium text-muted-foreground mb-1">Duration</h3>
-                  <div className="text-sm relative group">
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Duration</h3>
+                  <div className='group relative text-sm'>
                     <CopyButton text={log.duration} />
                     {log.duration}
                   </div>
@@ -488,15 +488,15 @@ export function Sidebar({
               )}
 
               {/* Message Content */}
-              <div className="pb-2 w-full">
-                <h3 className="text-xs font-medium text-muted-foreground mb-1">Message</h3>
-                <div className="w-full">{formattedContent}</div>
+              <div className='w-full pb-2'>
+                <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Message</h3>
+                <div className='w-full'>{formattedContent}</div>
               </div>
 
               {/* Trace Spans (if available and this is a workflow execution log) */}
               {isWorkflowExecutionLog && log.metadata?.traceSpans && (
-                <div className="w-full">
-                  <div className="w-full overflow-x-hidden">
+                <div className='w-full'>
+                  <div className='w-full overflow-x-hidden'>
                     <TraceSpansDisplay
                       traceSpans={log.metadata.traceSpans}
                       totalDuration={log.metadata.totalDuration}
@@ -508,9 +508,9 @@ export function Sidebar({
 
               {/* Tool Calls (if available) */}
               {log.metadata?.toolCalls && log.metadata.toolCalls.length > 0 && (
-                <div className="w-full">
-                  <h3 className="text-xs font-medium text-muted-foreground mb-1">Tool Calls</h3>
-                  <div className="w-full overflow-x-hidden bg-secondary/30 p-3 rounded-md">
+                <div className='w-full'>
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>Tool Calls</h3>
+                  <div className='w-full overflow-x-hidden rounded-md bg-secondary/30 p-3'>
                     <ToolCallsDisplay metadata={log.metadata} />
                   </div>
                 </div>
@@ -519,34 +519,34 @@ export function Sidebar({
               {/* Cost Information (moved to bottom) */}
               {hasCostInfo && log.metadata?.cost && (
                 <div>
-                  <h3 className="text-xs font-medium text-muted-foreground mb-1">
+                  <h3 className='mb-1 font-medium text-muted-foreground text-xs'>
                     {isWorkflowWithCost ? 'Total Model Cost' : 'Model Cost'}
                   </h3>
-                  <div className="rounded-md border overflow-hidden">
-                    <div className="p-3 space-y-2">
+                  <div className='overflow-hidden rounded-md border'>
+                    <div className='space-y-2 p-3'>
                       {log.metadata.cost.model && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">Model:</span>
-                          <span className="text-sm">{log.metadata.cost.model}</span>
+                        <div className='flex items-center justify-between'>
+                          <span className='text-muted-foreground text-sm'>Model:</span>
+                          <span className='text-sm'>{log.metadata.cost.model}</span>
                         </div>
                       )}
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Input:</span>
-                        <span className="text-sm">{formatCost(log.metadata.cost.input || 0)}</span>
+                      <div className='flex items-center justify-between'>
+                        <span className='text-muted-foreground text-sm'>Input:</span>
+                        <span className='text-sm'>{formatCost(log.metadata.cost.input || 0)}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Output:</span>
-                        <span className="text-sm">{formatCost(log.metadata.cost.output || 0)}</span>
+                      <div className='flex items-center justify-between'>
+                        <span className='text-muted-foreground text-sm'>Output:</span>
+                        <span className='text-sm'>{formatCost(log.metadata.cost.output || 0)}</span>
                       </div>
-                      <div className="flex justify-between items-center border-t pt-2 mt-1">
-                        <span className="text-sm text-muted-foreground">Total:</span>
-                        <span className="text-sm text-foreground">
+                      <div className='mt-1 flex items-center justify-between border-t pt-2'>
+                        <span className='text-muted-foreground text-sm'>Total:</span>
+                        <span className='text-foreground text-sm'>
                           {formatCost(log.metadata.cost.total || 0)}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-muted-foreground">Tokens:</span>
-                        <span className="text-xs text-muted-foreground">
+                      <div className='flex items-center justify-between'>
+                        <span className='text-muted-foreground text-xs'>Tokens:</span>
+                        <span className='text-muted-foreground text-xs'>
                           {log.metadata.cost.tokens?.prompt || 0} in /{' '}
                           {log.metadata.cost.tokens?.completion || 0} out
                         </span>
@@ -554,7 +554,7 @@ export function Sidebar({
                     </div>
 
                     {isWorkflowWithCost && (
-                      <div className="border-t bg-muted p-3 text-xs text-muted-foreground">
+                      <div className='border-t bg-muted p-3 text-muted-foreground text-xs'>
                         <p>
                           This is the total cost for all agent blocks in this workflow execution.
                         </p>

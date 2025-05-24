@@ -1,7 +1,7 @@
 'use client'
 
 import { createLogger } from '@/lib/logs/console-logger'
-import { SyncManager } from './sync'
+import type { SyncManager } from './sync'
 import {
   fetchWorkflowsFromDB,
   isRegistryInitialized,

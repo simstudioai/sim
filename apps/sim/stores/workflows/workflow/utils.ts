@@ -1,4 +1,4 @@
-import { Edge } from 'reactflow'
+import type { Edge } from 'reactflow'
 
 /**
  * Performs a depth-first search to detect all cycles in the graph

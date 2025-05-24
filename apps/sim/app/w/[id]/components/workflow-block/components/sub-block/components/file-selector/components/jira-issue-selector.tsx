@@ -15,10 +15,10 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Logger } from '@/lib/logs/console-logger'
 import {
-  Credential,
+  type Credential,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
-  OAuthProvider,
+  type OAuthProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
@@ -445,46 +445,46 @@ export function JiraIssueSelector({
 
   return (
     <>
-      <div className="space-y-2">
+      <div className='space-y-2'>
         <Popover open={open} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
             <Button
-              variant="outline"
-              role="combobox"
+              variant='outline'
+              role='combobox'
               aria-expanded={open}
-              className="w-full justify-between"
+              className='w-full justify-between'
               disabled={disabled || !domain}
             >
               {selectedIssue ? (
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <JiraIcon className="h-4 w-4" />
-                  <span className="font-normal truncate">{selectedIssue.name}</span>
+                <div className='flex items-center gap-2 overflow-hidden'>
+                  <JiraIcon className='h-4 w-4' />
+                  <span className='truncate font-normal'>{selectedIssue.name}</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <JiraIcon className="h-4 w-4" />
-                  <span className="text-muted-foreground">{label}</span>
+                <div className='flex items-center gap-2'>
+                  <JiraIcon className='h-4 w-4' />
+                  <span className='text-muted-foreground'>{label}</span>
                 </div>
               )}
-              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[300px]" align="start">
+          <PopoverContent className='w-[300px] p-0' align='start'>
             {/* Current account indicator */}
             {selectedCredentialId && credentials.length > 0 && (
-              <div className="px-3 py-2 border-b flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <JiraIcon className="h-4 w-4" />
-                  <span className="text-xs text-muted-foreground">
+              <div className='flex items-center justify-between border-b px-3 py-2'>
+                <div className='flex items-center gap-2'>
+                  <JiraIcon className='h-4 w-4' />
+                  <span className='text-muted-foreground text-xs'>
                     {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
                       'Unknown'}
                   </span>
                 </div>
                 {credentials.length > 1 && (
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
+                    variant='ghost'
+                    size='sm'
+                    className='h-6 px-2 text-xs'
                     onClick={() => setOpen(true)}
                   >
                     Switch
@@ -494,29 +494,29 @@ export function JiraIssueSelector({
             )}
 
             <Command>
-              <CommandInput placeholder="Search issues..." onValueChange={handleSearch} />
+              <CommandInput placeholder='Search issues...' onValueChange={handleSearch} />
               <CommandList>
                 <CommandEmpty>
                   {isLoading ? (
-                    <div className="flex items-center justify-center p-4">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span className="ml-2">Loading issues...</span>
+                    <div className='flex items-center justify-center p-4'>
+                      <RefreshCw className='h-4 w-4 animate-spin' />
+                      <span className='ml-2'>Loading issues...</span>
                     </div>
                   ) : error ? (
-                    <div className="p-4 text-center">
-                      <p className="text-sm text-destructive">{error}</p>
+                    <div className='p-4 text-center'>
+                      <p className='text-destructive text-sm'>{error}</p>
                     </div>
                   ) : credentials.length === 0 ? (
-                    <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No accounts connected.</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className='p-4 text-center'>
+                      <p className='font-medium text-sm'>No accounts connected.</p>
+                      <p className='text-muted-foreground text-xs'>
                         Connect a Jira account to continue.
                       </p>
                     </div>
                   ) : (
-                    <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No issues found.</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className='p-4 text-center'>
+                      <p className='font-medium text-sm'>No issues found.</p>
+                      <p className='text-muted-foreground text-xs'>
                         Try a different search or account.
                       </p>
                     </div>
@@ -526,7 +526,7 @@ export function JiraIssueSelector({
                 {/* Account selection - only show if we have multiple accounts */}
                 {credentials.length > 1 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                       Switch Account
                     </div>
                     {credentials.map((cred) => (
@@ -535,11 +535,11 @@ export function JiraIssueSelector({
                         value={`account-${cred.id}`}
                         onSelect={() => setSelectedCredentialId(cred.id)}
                       >
-                        <div className="flex items-center gap-2">
-                          <JiraIcon className="h-4 w-4" />
-                          <span className="font-normal">{cred.name}</span>
+                        <div className='flex items-center gap-2'>
+                          <JiraIcon className='h-4 w-4' />
+                          <span className='font-normal'>{cred.name}</span>
                         </div>
-                        {cred.id === selectedCredentialId && <Check className="ml-auto h-4 w-4" />}
+                        {cred.id === selectedCredentialId && <Check className='ml-auto h-4 w-4' />}
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -548,7 +548,7 @@ export function JiraIssueSelector({
                 {/* Issues list */}
                 {issues.length > 0 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                       Issues
                     </div>
                     {issues.map((issue) => (
@@ -557,11 +557,11 @@ export function JiraIssueSelector({
                         value={`issue-${issue.id}-${issue.name}`}
                         onSelect={() => handleSelectIssue(issue)}
                       >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <JiraIcon className="h-4 w-4" />
-                          <span className="font-normal truncate">{issue.name}</span>
+                        <div className='flex items-center gap-2 overflow-hidden'>
+                          <JiraIcon className='h-4 w-4' />
+                          <span className='truncate font-normal'>{issue.name}</span>
                         </div>
-                        {issue.id === selectedIssueId && <Check className="ml-auto h-4 w-4" />}
+                        {issue.id === selectedIssueId && <Check className='ml-auto h-4 w-4' />}
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -571,8 +571,8 @@ export function JiraIssueSelector({
                 {credentials.length === 0 && (
                   <CommandGroup>
                     <CommandItem onSelect={handleAddCredential}>
-                      <div className="flex items-center gap-2 text-primary">
-                        <JiraIcon className="h-4 w-4" />
+                      <div className='flex items-center gap-2 text-primary'>
+                        <JiraIcon className='h-4 w-4' />
                         <span>Connect Jira account</span>
                       </div>
                     </CommandItem>
@@ -585,26 +585,26 @@ export function JiraIssueSelector({
 
         {/* Issue preview */}
         {showPreview && selectedIssue && (
-          <div className="mt-2 rounded-md border border-muted bg-muted/10 p-2 relative">
-            <div className="absolute top-2 right-2">
+          <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
+            <div className='absolute top-2 right-2'>
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 hover:bg-muted"
+                variant='ghost'
+                size='icon'
+                className='h-5 w-5 hover:bg-muted'
                 onClick={handleClearSelection}
               >
-                <X className="h-3 w-3" />
+                <X className='h-3 w-3' />
               </Button>
             </div>
-            <div className="flex items-center gap-3 pr-4">
-              <div className="flex-shrink-0 flex items-center justify-center h-6 w-6 bg-muted/20 rounded">
-                <JiraIcon className="h-4 w-4" />
+            <div className='flex items-center gap-3 pr-4'>
+              <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
+                <JiraIcon className='h-4 w-4' />
               </div>
-              <div className="overflow-hidden flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-xs font-medium truncate">{selectedIssue.name}</h4>
+              <div className='min-w-0 flex-1 overflow-hidden'>
+                <div className='flex items-center gap-2'>
+                  <h4 className='truncate font-medium text-xs'>{selectedIssue.name}</h4>
                   {selectedIssue.modifiedTime && (
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    <span className='whitespace-nowrap text-muted-foreground text-xs'>
                       {new Date(selectedIssue.modifiedTime).toLocaleDateString()}
                     </span>
                   )}
@@ -612,13 +612,13 @@ export function JiraIssueSelector({
                 {selectedIssue.webViewLink ? (
                   <a
                     href={selectedIssue.webViewLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='flex items-center gap-1 text-primary text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>Open in Jira</span>
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className='h-3 w-3' />
                   </a>
                 ) : (
                   <></>
@@ -634,7 +634,7 @@ export function JiraIssueSelector({
           isOpen={showOAuthModal}
           onClose={() => setShowOAuthModal(false)}
           provider={provider}
-          toolName="Jira"
+          toolName='Jira'
           requiredScopes={requiredScopes}
           serviceId={getServiceId()}
         />

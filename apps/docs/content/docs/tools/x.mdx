@@ -3,16 +3,16 @@ title: X
 description: Interact with X
 ---
 
-import { BlockInfoCard } from '@/components/ui/block-info-card'
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="x"
   color="#000000"
   icon={true}
-  iconSvg={`<svg className="block-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"   >
+  iconSvg={`<svg className="block-icon" xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'   >
       <path
-        d="M 5.9199219 6 L 20.582031 27.375 L 6.2304688 44 L 9.4101562 44 L 21.986328 29.421875 L 31.986328 44 L 44 44 L 28.681641 21.669922 L 42.199219 6 L 39.029297 6 L 27.275391 19.617188 L 17.933594 6 L 5.9199219 6 z M 9.7167969 8 L 16.880859 8 L 40.203125 42 L 33.039062 42 L 9.7167969 8 z"
-        fill="currentColor"
+        d='M 5.9199219 6 L 20.582031 27.375 L 6.2304688 44 L 9.4101562 44 L 21.986328 29.421875 L 31.986328 44 L 44 44 L 28.681641 21.669922 L 42.199219 6 L 39.029297 6 L 27.275391 19.617188 L 17.933594 6 L 5.9199219 6 z M 9.7167969 8 L 16.880859 8 L 40.203125 42 L 33.039062 42 L 9.7167969 8 z'
+        fill='currentColor'
       />
     </svg>`}
 />
@@ -33,9 +33,12 @@ With the X integration, your agents can:
 In Sim Studio, the X integration enables sophisticated social media automation scenarios. Your agents can monitor brand mentions and respond appropriately, schedule and publish content based on specific triggers, conduct social listening for market research, or create interactive experiences that span both conversational AI and social media engagement. By connecting Sim Studio with X through OAuth, you can build intelligent agents that maintain a consistent and responsive social media presence while adhering to platform policies and best practices for API usage.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
 Connect with X to post tweets, read content, search for information, and access user profiles. Integrate social media capabilities into your workflow with comprehensive X platform access.
+
+
 
 ## Tools
 
@@ -45,26 +48,26 @@ Post new tweets, reply to tweets, or create polls on X (Twitter)
 
 #### Input
 
-| Parameter     | Type   | Required | Description                               |
-| ------------- | ------ | -------- | ----------------------------------------- |
-| `accessToken` | string | Yes      | X OAuth access token                      |
-| `text`        | string | Yes      | The text content of your tweet            |
-| `replyTo`     | string | No       | ID of the tweet to reply to               |
-| `mediaIds`    | array  | No       | Array of media IDs to attach to the tweet |
-| `poll`        | object | No       | Poll configuration for the tweet          |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | X OAuth access token |
+| `text` | string | Yes | The text content of your tweet |
+| `replyTo` | string | No | ID of the tweet to reply to |
+| `mediaIds` | array | No | Array of media IDs to attach to the tweet |
+| `poll` | object | No | Poll configuration for the tweet |
 
 #### Output
 
-| Parameter         | Type   |
-| ----------------- | ------ |
-| `tweet`           | string |
-| `text`            | string |
-| `createdAt`       | string |
-| `authorId`        | string |
-| `conversationId`  | string |
+| Parameter | Type |
+| --------- | ---- |
+| `tweet` | string |
+| `text` | string |
+| `createdAt` | string |
+| `authorId` | string |
+| `conversationId` | string |
 | `inReplyToUserId` | string |
-| `attachments`     | string |
-| `pollId`          | string |
+| `attachments` | string |
+| `pollId` | string |
 
 ### `x_read`
 
@@ -72,17 +75,17 @@ Read tweet details, including replies and conversation context
 
 #### Input
 
-| Parameter        | Type    | Required | Description                             |
-| ---------------- | ------- | -------- | --------------------------------------- |
-| `accessToken`    | string  | Yes      | X OAuth access token                    |
-| `tweetId`        | string  | Yes      | ID of the tweet to read                 |
-| `includeReplies` | boolean | No       | Whether to include replies to the tweet |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | X OAuth access token |
+| `tweetId` | string | Yes | ID of the tweet to read |
+| `includeReplies` | boolean | No | Whether to include replies to the tweet |
 
 #### Output
 
-| Parameter | Type   |
-| --------- | ------ |
-| `tweet`   | string |
+| Parameter | Type |
+| --------- | ---- |
+| `tweet` | string |
 | `context` | string |
 
 ### `x_search`
@@ -91,23 +94,23 @@ Search for tweets using keywords, hashtags, or advanced queries
 
 #### Input
 
-| Parameter     | Type   | Required | Description                                                   |
-| ------------- | ------ | -------- | ------------------------------------------------------------- |
-| `accessToken` | string | Yes      | X OAuth access token                                          |
-| `query`       | string | Yes      | Search query \(supports X search operators\)                  |
-| `maxResults`  | number | No       | Maximum number of results to return \(default: 10, max: 100\) |
-| `startTime`   | string | No       | Start time for search \(ISO 8601 format\)                     |
-| `endTime`     | string | No       | End time for search \(ISO 8601 format\)                       |
-| `sortOrder`   | string | No       | Sort order for results \(recency or relevancy\)               |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | X OAuth access token |
+| `query` | string | Yes | Search query \(supports X search operators\) |
+| `maxResults` | number | No | Maximum number of results to return \(default: 10, max: 100\) |
+| `startTime` | string | No | Start time for search \(ISO 8601 format\) |
+| `endTime` | string | No | End time for search \(ISO 8601 format\) |
+| `sortOrder` | string | No | Sort order for results \(recency or relevancy\) |
 
 #### Output
 
-| Parameter  | Type   |
-| ---------- | ------ |
-| `tweets`   | string |
+| Parameter | Type |
+| --------- | ---- |
+| `tweets` | string |
 | `includes` | string |
-| `media`    | string |
-| `polls`    | string |
+| `media` | string |
+| `polls` | string |
 
 ### `x_user`
 
@@ -115,38 +118,43 @@ Get user profile information
 
 #### Input
 
-| Parameter     | Type   | Required | Description                              |
-| ------------- | ------ | -------- | ---------------------------------------- |
-| `accessToken` | string | Yes      | X OAuth access token                     |
-| `username`    | string | Yes      | Username to look up \(without @ symbol\) |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | X OAuth access token |
+| `username` | string | Yes | Username to look up \(without @ symbol\) |
 
 #### Output
 
-| Parameter | Type   |
-| --------- | ------ |
-| `user`    | string |
+| Parameter | Type |
+| --------- | ---- |
+| `user` | string |
+
+
 
 ## Block Configuration
 
 ### Input
 
-| Parameter   | Type   | Required | Description |
-| ----------- | ------ | -------- | ----------- |
-| `operation` | string | Yes      | Operation   |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `operation` | string | Yes | Operation |
+
+
 
 ### Outputs
 
-| Output           | Type   | Description                  |
-| ---------------- | ------ | ---------------------------- |
-| `response`       | object | Output from response         |
-| ↳ `tweet`        | json   | tweet of the response        |
-| ↳ `replies`      | any    | replies of the response      |
-| ↳ `context`      | any    | context of the response      |
-| ↳ `tweets`       | json   | tweets of the response       |
-| ↳ `includes`     | any    | includes of the response     |
-| ↳ `meta`         | json   | meta of the response         |
-| ↳ `user`         | json   | user of the response         |
-| ↳ `recentTweets` | any    | recentTweets of the response |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `tweet` | json | tweet of the response |
+| ↳ `replies` | any | replies of the response |
+| ↳ `context` | any | context of the response |
+| ↳ `tweets` | json | tweets of the response |
+| ↳ `includes` | any | includes of the response |
+| ↳ `meta` | json | meta of the response |
+| ↳ `user` | json | user of the response |
+| ↳ `recentTweets` | any | recentTweets of the response |
+
 
 ## Notes
 

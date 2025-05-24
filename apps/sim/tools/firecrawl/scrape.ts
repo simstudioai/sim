@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { ScrapeParams, ScrapeResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { ScrapeParams, ScrapeResponse } from './types'
 
 export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
   id: 'firecrawl_scrape',

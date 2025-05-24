@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
 import { ExternalLink } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   AirtableIcon,
   DiscordIcon,
@@ -51,9 +51,7 @@ export interface DiscordConfig {
   avatarUrl?: string
 }
 
-export interface StripeConfig {
-  // Any Stripe-specific fields would go here
-}
+export type StripeConfig = Record<string, never>
 
 export interface GeneralWebhookConfig {
   token?: string
@@ -67,7 +65,11 @@ export interface SlackConfig {
 }
 
 export interface GmailConfig {
-  credentialId: string
+  credentialId?: string
+  labelIds?: string[]
+  labelFilterBehavior?: 'INCLUDE' | 'EXCLUDE'
+  markAsRead?: boolean
+  maxEmailsPerPoll?: number
 }
 
 // Define Airtable-specific configuration type
@@ -76,11 +78,12 @@ export interface AirtableWebhookConfig {
   tableId: string
   externalId?: string // To store the ID returned by Airtable
   includeCellValuesInFieldIds?: 'all' | undefined
+  webhookSecret?: string
 }
 
 export interface TelegramConfig {
-  botToken: string
-  triggerPhrase: string
+  botToken?: string
+  triggerPhrase?: string
 }
 
 // Union type for all provider configurations
@@ -194,7 +197,7 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
           padding: '0 4px',
         }}
       >
-        <span className="font-medium text-white text-xs">Sim</span>
+        <span className='font-medium text-white text-xs'>Sim</span>
       </div>
     ),
     configFields: {
@@ -307,7 +310,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   const [webhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
 
   // Store provider-specific configuration
-  const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
+  const [_providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
 
   // Reset provider config when provider changes
   useEffect(() => {
@@ -470,8 +473,8 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       const blockValues = { ...workflowValues[blockId] }
 
       // Remove webhook-related fields
-      delete blockValues.webhookProvider
-      delete blockValues.providerConfig
+      blockValues.webhookProvider = undefined
+      blockValues.providerConfig = undefined
       blockValues.webhookPath = ''
 
       // Update the store with the cleaned block values
@@ -527,35 +530,35 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   // For Gmail, we need to show the credential selector
   if (webhookProvider === 'gmail' && !isWebhookConnected) {
     return (
-      <div className="w-full">
-        {error && <div className="text-sm text-red-500 dark:text-red-400 mb-2">{error}</div>}
+      <div className='w-full'>
+        {error && <div className='mb-2 text-red-500 text-sm dark:text-red-400'>{error}</div>}
 
-        <div className="mb-3">
+        <div className='mb-3'>
           <CredentialSelector
             value={gmailCredentialId}
             onChange={handleCredentialChange}
-            provider="google-email"
+            provider='google-email'
             requiredScopes={[
               'https://www.googleapis.com/auth/gmail.modify',
               'https://www.googleapis.com/auth/gmail.labels',
             ]}
-            label="Select Gmail account"
+            label='Select Gmail account'
             disabled={isConnecting || isSaving || isDeleting}
           />
         </div>
 
         {gmailCredentialId && (
           <Button
-            variant="outline"
-            size="sm"
-            className="w-full h-10 text-sm font-normal bg-background flex items-center"
+            variant='outline'
+            size='sm'
+            className='flex h-10 w-full items-center bg-background font-normal text-sm'
             onClick={handleOpenModal}
             disabled={isConnecting || isSaving || isDeleting || !gmailCredentialId}
           >
             {isLoading ? (
-              <div className="h-4 w-4 mr-2 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+              <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
             ) : (
-              <ExternalLink className="h-4 w-4 mr-2" />
+              <ExternalLink className='mr-2 h-4 w-4' />
             )}
             Configure Webhook
           </Button>
@@ -577,19 +580,19 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   }
 
   return (
-    <div className="w-full">
-      {error && <div className="text-sm text-red-500 dark:text-red-400 mb-2">{error}</div>}
+    <div className='w-full'>
+      {error && <div className='mb-2 text-red-500 text-sm dark:text-red-400'>{error}</div>}
 
       {isWebhookConnected ? (
-        <div className="flex flex-col space-y-2">
+        <div className='flex flex-col space-y-2'>
           <div
-            className="flex items-center justify-center px-3 py-2 rounded border border-border bg-background hover:bg-accent hover:text-accent-foreground transition-colors duration-200 cursor-pointer h-10"
+            className='flex h-10 cursor-pointer items-center justify-center rounded border border-border bg-background px-3 py-2 transition-colors duration-200 hover:bg-accent hover:text-accent-foreground'
             onClick={handleOpenModal}
           >
-            <div className="flex items-center gap-2">
-              <div className="flex items-center">
+            <div className='flex items-center gap-2'>
+              <div className='flex items-center'>
                 {getProviderIcon()}
-                <span className="font-normal text-sm">
+                <span className='font-normal text-sm'>
                   {WEBHOOK_PROVIDERS[webhookProvider || 'generic'].name} Webhook
                 </span>
               </div>
@@ -598,16 +601,16 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
         </div>
       ) : (
         <Button
-          variant="outline"
-          size="sm"
-          className="w-full h-10 text-sm font-normal bg-background flex items-center"
+          variant='outline'
+          size='sm'
+          className='flex h-10 w-full items-center bg-background font-normal text-sm'
           onClick={handleOpenModal}
           disabled={isConnecting || isSaving || isDeleting}
         >
           {isLoading ? (
-            <div className="h-4 w-4 mr-2 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+            <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <ExternalLink className="h-4 w-4 mr-2" />
+            <ExternalLink className='mr-2 h-4 w-4' />
           )}
           Configure Webhook
         </Button>

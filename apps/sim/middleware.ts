@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { getSessionCookie } from 'better-auth/cookies'
+import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
 import { env } from './lib/env'
-import { verifyToken } from './lib/waitlist/token'
 
 const logger = createLogger('Middleware')
 
@@ -26,7 +25,7 @@ export async function middleware(request: NextRequest) {
   const hasActiveSession = !!sessionCookie
 
   // Check if user has previously logged in by checking localStorage value in cookies
-  const hasPreviouslyLoggedIn = request.cookies.get('has_logged_in_before')?.value === 'true'
+  const _hasPreviouslyLoggedIn = request.cookies.get('has_logged_in_before')?.value === 'true'
 
   const url = request.nextUrl
   const hostname = request.headers.get('host') || ''

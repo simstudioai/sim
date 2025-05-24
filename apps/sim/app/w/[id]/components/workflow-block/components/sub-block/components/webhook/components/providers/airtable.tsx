@@ -1,4 +1,3 @@
-import React from 'react'
 import { Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,89 +43,89 @@ export function AirtableConfig({
   webhookUrl,
 }: AirtableConfigProps) {
   return (
-    <div className="space-y-4">
-      <ConfigSection title="Airtable Configuration">
+    <div className='space-y-4'>
+      <ConfigSection title='Airtable Configuration'>
         <WebhookConfigField
-          id="webhook-url"
-          label="Webhook URL"
+          id='webhook-url'
+          label='Webhook URL'
           value={webhookUrl}
-          description="This is the URL that will receive webhook requests"
+          description='This is the URL that will receive webhook requests'
           isLoading={isLoadingToken}
           copied={copied}
-          copyType="url"
+          copyType='url'
           copyToClipboard={copyToClipboard}
           readOnly={true}
         />
 
         <ConfigField
-          id="airtable-base-id"
-          label="Base ID *"
-          description="The ID of the Airtable Base this webhook will monitor."
+          id='airtable-base-id'
+          label='Base ID *'
+          description='The ID of the Airtable Base this webhook will monitor.'
         >
           {isLoadingToken ? (
-            <Skeleton className="h-10 w-full" />
+            <Skeleton className='h-10 w-full' />
           ) : (
             <Input
-              id="airtable-base-id"
+              id='airtable-base-id'
               value={baseId}
               onChange={(e) => setBaseId(e.target.value)}
-              placeholder="appXXXXXXXXXXXXXX"
+              placeholder='appXXXXXXXXXXXXXX'
               required
             />
           )}
         </ConfigField>
 
         <ConfigField
-          id="airtable-table-id"
-          label="Table ID *"
-          description="The ID of the table within the Base that the webhook will monitor."
+          id='airtable-table-id'
+          label='Table ID *'
+          description='The ID of the table within the Base that the webhook will monitor.'
         >
           {isLoadingToken ? (
-            <Skeleton className="h-10 w-full" />
+            <Skeleton className='h-10 w-full' />
           ) : (
             <Input
-              id="airtable-table-id"
+              id='airtable-table-id'
               value={tableId}
               onChange={(e) => setTableId(e.target.value)}
-              placeholder="tblXXXXXXXXXXXXXX"
+              placeholder='tblXXXXXXXXXXXXXX'
               required
             />
           )}
         </ConfigField>
 
-        <div className="flex items-center justify-between rounded-lg border border-border p-3 shadow-sm bg-background">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="include-cell-values" className="font-normal">
+        <div className='flex items-center justify-between rounded-lg border border-border bg-background p-3 shadow-sm'>
+          <div className='flex items-center gap-2'>
+            <Label htmlFor='include-cell-values' className='font-normal'>
               Include Full Record Data
             </Label>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500 p-1 h-6 w-6"
-                  aria-label="Learn more about including full record data"
+                  variant='ghost'
+                  size='sm'
+                  className='h-6 w-6 p-1 text-gray-500'
+                  aria-label='Learn more about including full record data'
                 >
-                  <Info className="h-4 w-4" />
+                  <Info className='h-4 w-4' />
                 </Button>
               </TooltipTrigger>
               <TooltipContent
-                side="right"
-                align="center"
-                className="max-w-[300px] p-3 z-[100]"
-                role="tooltip"
+                side='right'
+                align='center'
+                className='z-[100] max-w-[300px] p-3'
+                role='tooltip'
               >
-                <p className="text-sm">
+                <p className='text-sm'>
                   Enable to receive the complete record data in the payload, not just changes.
                 </p>
               </TooltipContent>
             </Tooltip>
           </div>
           {isLoadingToken ? (
-            <Skeleton className="h-5 w-9" />
+            <Skeleton className='h-5 w-9' />
           ) : (
             <Switch
-              id="include-cell-values"
+              id='include-cell-values'
               checked={includeCellValues}
               onCheckedChange={setIncludeCellValues}
               disabled={isLoadingToken}
@@ -143,8 +142,8 @@ export function AirtableConfig({
         />
       )}
 
-      <InstructionsSection tip="Airtable webhooks monitor changes in your base/table and trigger your workflow.">
-        <ol className="list-decimal list-inside space-y-1">
+      <InstructionsSection tip='Airtable webhooks monitor changes in your base/table and trigger your workflow.'>
+        <ol className='list-inside list-decimal space-y-1'>
           <li>Ensure you have provided the correct Base ID and Table ID above.</li>
           <li>
             Sim Studio will automatically configure the webhook in your Airtable account when you

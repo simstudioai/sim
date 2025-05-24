@@ -213,61 +213,61 @@ export function DiscordChannelSelector({
   }
 
   return (
-    <div className="space-y-2">
+    <div className='space-y-2'>
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
-            variant="outline"
-            role="combobox"
+            variant='outline'
+            role='combobox'
             aria-expanded={open}
-            className="w-full justify-between"
+            className='w-full justify-between'
             disabled={disabled || !botToken || !serverId}
           >
             {selectedChannel ? (
-              <div className="flex items-center gap-2 overflow-hidden">
-                <span className="text-muted-foreground">#</span>
-                <span className="font-normal truncate">{selectedChannel.name}</span>
+              <div className='flex items-center gap-2 overflow-hidden'>
+                <span className='text-muted-foreground'>#</span>
+                <span className='truncate font-normal'>{selectedChannel.name}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <DiscordIcon className="h-4 w-4" />
-                <span className="text-muted-foreground">{label}</span>
+              <div className='flex items-center gap-2'>
+                <DiscordIcon className='h-4 w-4' />
+                <span className='text-muted-foreground'>{label}</span>
               </div>
             )}
-            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="p-0 w-[300px]" align="start">
+        <PopoverContent className='w-[300px] p-0' align='start'>
           <Command>
-            <CommandInput placeholder="Search channels..." />
+            <CommandInput placeholder='Search channels...' />
             <CommandList>
               <CommandEmpty>
                 {isLoading ? (
-                  <div className="flex items-center justify-center p-4">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span className="ml-2">Loading channels...</span>
+                  <div className='flex items-center justify-center p-4'>
+                    <RefreshCw className='h-4 w-4 animate-spin' />
+                    <span className='ml-2'>Loading channels...</span>
                   </div>
                 ) : error ? (
-                  <div className="p-4 text-center">
-                    <p className="text-sm text-destructive">{error}</p>
+                  <div className='p-4 text-center'>
+                    <p className='text-destructive text-sm'>{error}</p>
                   </div>
                 ) : channels.length === 0 ? (
-                  <div className="p-4 text-center">
-                    <p className="text-sm font-medium">No channels found</p>
-                    <p className="text-xs text-muted-foreground">
+                  <div className='p-4 text-center'>
+                    <p className='font-medium text-sm'>No channels found</p>
+                    <p className='text-muted-foreground text-xs'>
                       The bot needs access to view channels in this server
                     </p>
                   </div>
                 ) : (
-                  <div className="p-4 text-center">
-                    <p className="text-sm font-medium">No matching channels</p>
+                  <div className='p-4 text-center'>
+                    <p className='font-medium text-sm'>No matching channels</p>
                   </div>
                 )}
               </CommandEmpty>
 
               {channels.length > 0 && (
                 <CommandGroup>
-                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                  <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                     Channels
                   </div>
                   {channels.map((channel) => (
@@ -275,13 +275,13 @@ export function DiscordChannelSelector({
                       key={channel.id}
                       value={`channel-${channel.id}-${channel.name}`}
                       onSelect={() => handleSelectChannel(channel)}
-                      className="cursor-pointer"
+                      className='cursor-pointer'
                     >
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <span className="text-muted-foreground">#</span>
-                        <span className="font-normal truncate">{channel.name}</span>
+                      <div className='flex items-center gap-2 overflow-hidden'>
+                        <span className='text-muted-foreground'>#</span>
+                        <span className='truncate font-normal'>{channel.name}</span>
                       </div>
-                      {channel.id === selectedChannelId && <Check className="ml-auto h-4 w-4" />}
+                      {channel.id === selectedChannelId && <Check className='ml-auto h-4 w-4' />}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -293,24 +293,24 @@ export function DiscordChannelSelector({
 
       {/* Channel preview */}
       {showPreview && selectedChannel && (
-        <div className="mt-2 rounded-md border border-muted bg-muted/10 p-2 relative">
-          <div className="absolute top-2 right-2">
+        <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
+          <div className='absolute top-2 right-2'>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 hover:bg-muted"
+              variant='ghost'
+              size='icon'
+              className='h-5 w-5 hover:bg-muted'
               onClick={handleClearSelection}
             >
-              <X className="h-3 w-3" />
+              <X className='h-3 w-3' />
             </Button>
           </div>
-          <div className="flex items-center gap-3 pr-4">
-            <div className="flex-shrink-0 flex items-center justify-center h-6 w-6 bg-muted/20 rounded-full">
-              <span className="text-muted-foreground font-semibold">#</span>
+          <div className='flex items-center gap-3 pr-4'>
+            <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-muted/20'>
+              <span className='font-semibold text-muted-foreground'>#</span>
             </div>
-            <div className="overflow-hidden flex-1 min-w-0">
-              <h4 className="text-xs font-medium truncate">{selectedChannel.name}</h4>
-              <div className="text-xs text-muted-foreground">Channel ID: {selectedChannel.id}</div>
+            <div className='min-w-0 flex-1 overflow-hidden'>
+              <h4 className='truncate font-medium text-xs'>{selectedChannel.name}</h4>
+              <div className='text-muted-foreground text-xs'>Channel ID: {selectedChannel.id}</div>
             </div>
           </div>
         </div>

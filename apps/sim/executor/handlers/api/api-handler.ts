@@ -1,9 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { BlockOutput } from '@/blocks/types'
-import { SerializedBlock } from '@/serializer/types'
+import type { BlockOutput } from '@/blocks/types'
+import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool } from '@/tools/utils'
-import { BlockHandler, ExecutionContext } from '../../types'
+import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('ApiBlockHandler')
 
@@ -26,12 +26,12 @@ export class ApiBlockHandler implements BlockHandler {
     }
 
     // Early return with empty success response if URL is not provided or empty
-    if (tool.name && tool.name.includes('HTTP') && (!inputs.url || inputs.url.trim() === '')) {
+    if (tool.name?.includes('HTTP') && (!inputs.url || inputs.url.trim() === '')) {
       return { response: { content: '', success: true } }
     }
 
     // Pre-validate common HTTP request issues to provide better error messages
-    if (tool.name && tool.name.includes('HTTP') && inputs.url) {
+    if (tool.name?.includes('HTTP') && inputs.url) {
       // Strip any surrounding quotes that might have been added during resolution
       let urlToValidate = inputs.url
       if (typeof urlToValidate === 'string') {
@@ -61,7 +61,7 @@ export class ApiBlockHandler implements BlockHandler {
     }
 
     try {
-      let processedInputs = { ...inputs }
+      const processedInputs = { ...inputs }
 
       // Handle body specifically to ensure it's properly processed for API requests
       if (processedInputs.body !== undefined) {
@@ -120,10 +120,10 @@ export class ApiBlockHandler implements BlockHandler {
           suggestion = ' - Too many requests, you may need to implement rate limiting'
         } else if (result.output?.status >= 500) {
           suggestion = ' - Server error, the target server is experiencing issues'
-        } else if (result.error && result.error.includes('CORS')) {
+        } else if (result.error?.includes('CORS')) {
           suggestion =
             ' - CORS policy prevented the request, try using a proxy or server-side request'
-        } else if (result.error && result.error.includes('Failed to fetch')) {
+        } else if (result.error?.includes('Failed to fetch')) {
           suggestion =
             ' - Network error, check if the URL is accessible and if you have internet connectivity'
         }

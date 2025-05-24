@@ -1,18 +1,15 @@
-import React, { memo } from 'react'
+// Assuming custom icons exist for Sim specific things, otherwise use Lucide
+
+import type React from 'react'
+import { memo } from 'react'
 import {
   // For header icon
   ChevronDown,
-  Circle,
   CodeXml,
-  // For dropdowns
-  Plus,
   // For Add Tool button
   PlusIcon,
-  // For header icon
-  Square,
 } from 'lucide-react'
-import { Handle, NodeProps, Position } from 'reactflow'
-// Assuming custom icons exist for Sim specific things, otherwise use Lucide
+import { Handle, type NodeProps, Position } from 'reactflow'
 import { AgentIcon, ConnectIcon, SlackIcon, StartIcon } from '@/components/icons'
 import { CodeBlock } from '@/components/ui/code-block'
 import { cn } from '@/lib/utils'
@@ -54,7 +51,7 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
   const Icon = config.icon
   const nodeName = config.name
   const iconBgColor = config.color // Get color from config
-  const horizontalHandles = true // Default to horizontal handles like in workflow-block
+  const _horizontalHandles = true // Default to horizontal handles like in workflow-block
 
   // Determine if we should show the input handle
   // Don't show for start blocks, function1 in hero section, or id=function1
@@ -63,13 +60,13 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
 
   return (
     // Apply group relative here for handles
-    <div className="flex flex-col items-center group relative opacity-90">
+    <div className='group relative flex flex-col items-center opacity-90'>
       {/* Don't show input handle for starter blocks or function1 */}
       {showInputHandle && (
         <Handle
-          type="target"
+          type='target'
           position={Position.Left}
-          id="target"
+          id='target'
           className={cn(
             '!w-[7px] !h-5',
             '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
@@ -82,7 +79,7 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
             transform: 'translateY(-50%)',
           }}
           data-nodeid={id}
-          data-handleid="target"
+          data-handleid='target'
           isConnectable={true}
         />
       )}
@@ -90,11 +87,11 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
       {/* Use BlockCard, passing Icon, title, and iconBgColor */}
       <BlockCard Icon={Icon} iconBgColor={iconBgColor} title={nodeName}>
         {/* Render type-specific content as children */}
-        <div className="pt-3 text-sm space-y-3">
+        <div className='space-y-3 pt-3 text-sm'>
           {/* --- Start Block Content --- */}
           {type === 'start' && (
             <>
-              <div className="text-base font-medium text-[#7D7D7D]">Start workflow</div>
+              <div className='font-medium text-[#7D7D7D] text-base'>Start workflow</div>
               <Container>
                 <p>Run Manually</p>
                 <ChevronDown size={14} />
@@ -104,38 +101,36 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
 
           {/* --- Function Block Content --- */}
           {type === 'function' && (
-            <>
-              <div className="text-xs font-medium text-neutral-400 flex items-center gap-1">
-                <CodeBlock
-                  code="Write javascript.."
-                  className="text-[#7C7C7C] font-geist-mono w-full min-h-32 bg-[#212121] border-[#282828] p-0"
-                />
-              </div>
-            </>
+            <div className='flex items-center gap-1 font-medium text-neutral-400 text-xs'>
+              <CodeBlock
+                code='Write javascript..'
+                className='min-h-32 w-full border-[#282828] bg-[#212121] p-0 font-geist-mono text-[#7C7C7C]'
+              />
+            </div>
           )}
 
           {/* --- Agent Block Content --- */}
           {type === 'agent' && (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <p className="text-base font-medium text-[#7D7D7D]">Agent</p>
+            <div className='flex flex-col gap-4'>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[#7D7D7D] text-base'>Agent</p>
                 <Container>Enter System Prompt</Container>
               </div>
-              <div className="flex flex-col gap-2">
-                <p className="text-base font-medium text-[#7D7D7D]">User Prompts</p>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[#7D7D7D] text-base'>User Prompts</p>
                 <Container>Enter Context</Container>
               </div>
-              <div className="flex gap-3 w-full">
-                <div className="flex flex-col w-full gap-2">
-                  <p className="text-base font-medium text-[#7D7D7D]">Model</p>
+              <div className='flex w-full gap-3'>
+                <div className='flex w-full flex-col gap-2'>
+                  <p className='font-medium text-[#7D7D7D] text-base'>Model</p>
                   <Container>
                     <p>GPT-4o</p>
                     <ChevronDown size={14} />
                   </Container>
                 </div>
-                <div className="flex flex-col w-full gap-2">
-                  <p className="text-base font-medium text-[#7D7D7D]">Tools</p>
-                  <Container className="justify-center gap-1">
+                <div className='flex w-full flex-col gap-2'>
+                  <p className='font-medium text-[#7D7D7D] text-base'>Tools</p>
+                  <Container className='justify-center gap-1'>
                     <PlusIcon size={14} />
                     Add Tools
                   </Container>
@@ -146,13 +141,13 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
 
           {/* --- Router Block Content --- */}
           {type === 'router' && (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <p className="text-base font-medium text-[#7D7D7D]">Prompt</p>
-                <Container className="min-h-32 items-start">Enter Prompt</Container>
+            <div className='flex flex-col gap-4'>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[#7D7D7D] text-base'>Prompt</p>
+                <Container className='min-h-32 items-start'>Enter Prompt</Container>
               </div>
-              <div className="flex flex-col gap-2">
-                <p className="text-base font-medium text-[#7D7D7D]">Model</p>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[#7D7D7D] text-base'>Model</p>
                 <Container>
                   <p>GPT-4o</p>
                   <ChevronDown size={14} />
@@ -163,14 +158,14 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
 
           {/* --- Slack Block Content --- */}
           {type === 'slack' && (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <p className="text-base font-medium text-[#7D7D7D]">Channel</p>
+            <div className='flex flex-col gap-4'>
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[#7D7D7D] text-base'>Channel</p>
                 <Container>Enter Slack channel (#general)</Container>
               </div>
-              <div className="flex flex-col gap-2">
-                <p className="text-base font-medium text-[#7D7D7D]">Message</p>
-                <Container className="items-start min-h-32">
+              <div className='flex flex-col gap-2'>
+                <p className='font-medium text-[#7D7D7D] text-base'>Message</p>
+                <Container className='min-h-32 items-start'>
                   <p>Enter your alert message</p>
                 </Container>
               </div>
@@ -182,9 +177,9 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
       {/* Output Handle - Don't show for slack1 */}
       {id !== 'slack1' && (
         <Handle
-          type="source"
+          type='source'
           position={Position.Right}
-          id="source"
+          id='source'
           className={cn(
             '!w-[7px] !h-5',
             '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
@@ -197,7 +192,7 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
             transform: 'translateY(-50%)',
           }}
           data-nodeid={id}
-          data-handleid="source"
+          data-handleid='source'
           isConnectable={true}
         />
       )}
@@ -209,7 +204,7 @@ const Container = ({ children, className }: { children: React.ReactNode; classNa
   return (
     <div
       className={cn(
-        'flex px-3 py-2 items-center bg-[#212121] border border-[#282828] rounded-xl text-sm text-[#7C7C7C] font-normal justify-between',
+        'flex items-center justify-between rounded-xl border border-[#282828] bg-[#212121] px-3 py-2 font-normal text-[#7C7C7C] text-sm',
         className
       )}
     >
@@ -231,18 +226,18 @@ const BlockCard = ({
   children: React.ReactNode
 }) => {
   return (
-    <div className="rounded-xl flex flex-col bg-[#131313] border border-[#333333] w-[280px] min-h-[100px] shadow-[0px_0px_6px_3px_rgba(255,_255,_255,_0.05)]">
-      <div className="border-b border-[#262626] flex items-center gap-2 px-4 pt-4 pb-3">
+    <div className='flex min-h-[100px] w-[280px] flex-col rounded-xl border border-[#333333] bg-[#131313] shadow-[0px_0px_6px_3px_rgba(255,_255,_255,_0.05)]'>
+      <div className='flex items-center gap-2 border-[#262626] border-b px-4 pt-4 pb-3'>
         {/* Apply background color using inline style */}
         <div
-          className={`w-6 h-6 rounded flex items-center justify-center`}
+          className={'flex h-6 w-6 items-center justify-center rounded'}
           style={{ backgroundColor: iconBgColor }} // Use inline style
         >
-          <Icon className="w-4 h-4 text-white" />
+          <Icon className='h-4 w-4 text-white' />
         </div>
-        <p className="font-semibold text-base text-neutral-200">{title}</p>
+        <p className='font-semibold text-base text-neutral-200'>{title}</p>
       </div>
-      <div className="flex-grow p-4 pt-0">{children}</div>
+      <div className='flex-grow p-4 pt-0'>{children}</div>
     </div>
   )
 }

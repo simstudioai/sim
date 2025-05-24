@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   Check,
@@ -30,14 +30,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { env } from '@/lib/env'
 import { getNodeEnv } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
-import { useNotificationStore } from '@/stores/notifications/store'
-import { OutputConfig } from '@/stores/panel/chat/types'
 import { OutputSelect } from '@/app/w/[id]/components/panel/components/chat/components/output-select/output-select'
+import { useNotificationStore } from '@/stores/notifications/store'
+import type { OutputConfig } from '@/stores/panel/chat/types'
 
 const logger = createLogger('ChatDeploy')
 
@@ -119,7 +118,7 @@ export function ChatDeploy({
   const [existingChat, setExistingChat] = useState<any | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [dataFetched, setDataFetched] = useState(false)
+  const [_dataFetched, setDataFetched] = useState(false)
 
   // Track original values to detect changes
   const [originalValues, setOriginalValues] = useState<{
@@ -339,9 +338,8 @@ export function ChatDeploy({
       setIsDeploying(false)
       setChatSubmitting(false)
       return
-    } else {
-      setSubdomainError('')
     }
+    setSubdomainError('')
 
     // Skip check if empty or same as original (for updates)
     if (!lowercaseValue || (originalValues && lowercaseValue === originalValues.subdomain)) {
@@ -547,7 +545,7 @@ export function ChatDeploy({
     }
 
     // If editing an existing chat, check if we should show confirmation
-    if (existingChat && existingChat.isActive) {
+    if (existingChat?.isActive) {
       const majorChanges =
         subdomain !== existingChat.subdomain ||
         authType !== existingChat.authType ||
@@ -655,7 +653,7 @@ export function ChatDeploy({
       }
 
       // For existing chat updates, ensure API gets redeployed too
-      if (existingChat && existingChat.id) {
+      if (existingChat?.id) {
         // First ensure the API deployment is up-to-date
         try {
           // Make a direct call to redeploy the API
@@ -700,7 +698,7 @@ export function ChatDeploy({
       let method = 'POST'
 
       // If updating existing chat, use the edit/ID endpoint with PATCH method
-      if (existingChat && existingChat.id) {
+      if (existingChat?.id) {
         endpoint = `/api/chat/edit/${existingChat.id}`
         method = 'PATCH'
         // Ensure deployApiEnabled is included in updates too
@@ -760,12 +758,12 @@ export function ChatDeploy({
   }
 
   // Determine button label based on state
-  const getSubmitButtonLabel = () => {
+  const _getSubmitButtonLabel = () => {
     return existingChat ? 'Update Chat' : 'Deploy Chat'
   }
 
   // Check if form submission is possible
-  const isFormSubmitDisabled = () => {
+  const _isFormSubmitDisabled = () => {
     return (
       chatSubmitting ||
       isDeleting ||
@@ -781,44 +779,44 @@ export function ChatDeploy({
 
   if (isLoading) {
     return (
-      <div className="space-y-4 py-3">
+      <div className='space-y-4 py-3'>
         {/* Subdomain section */}
-        <div className="space-y-2">
-          <Skeleton className="h-5 w-24" />
-          <Skeleton className="h-10 w-full" />
+        <div className='space-y-2'>
+          <Skeleton className='h-5 w-24' />
+          <Skeleton className='h-10 w-full' />
         </div>
 
         {/* Title section */}
-        <div className="space-y-2">
-          <Skeleton className="h-5 w-20" />
-          <Skeleton className="h-10 w-full" />
+        <div className='space-y-2'>
+          <Skeleton className='h-5 w-20' />
+          <Skeleton className='h-10 w-full' />
         </div>
 
         {/* Description section */}
-        <div className="space-y-2">
-          <Skeleton className="h-5 w-32" />
-          <Skeleton className="h-24 w-full" />
+        <div className='space-y-2'>
+          <Skeleton className='h-5 w-32' />
+          <Skeleton className='h-24 w-full' />
         </div>
 
         {/* Output configuration section */}
-        <div className="space-y-2">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="h-32 w-full rounded-lg" />
+        <div className='space-y-2'>
+          <Skeleton className='h-5 w-40' />
+          <Skeleton className='h-32 w-full rounded-lg' />
         </div>
 
         {/* Access control section */}
-        <div className="space-y-2">
-          <Skeleton className="h-5 w-28" />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Skeleton className="h-24 w-full rounded-lg" />
-            <Skeleton className="h-24 w-full rounded-lg" />
-            <Skeleton className="h-24 w-full rounded-lg" />
+        <div className='space-y-2'>
+          <Skeleton className='h-5 w-28' />
+          <div className='grid grid-cols-1 gap-3 md:grid-cols-3'>
+            <Skeleton className='h-24 w-full rounded-lg' />
+            <Skeleton className='h-24 w-full rounded-lg' />
+            <Skeleton className='h-24 w-full rounded-lg' />
           </div>
-          <Skeleton className="h-40 w-full rounded-lg" />
+          <Skeleton className='h-40 w-full rounded-lg' />
         </div>
 
         {/* Submit button */}
-        <Skeleton className="h-10 w-32" />
+        <Skeleton className='h-10 w-32' />
       </div>
     )
   }
@@ -844,31 +842,31 @@ export function ChatDeploy({
 
     // Success view - simplified with no buttons
     return (
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">
+      <div className='space-y-4'>
+        <div className='space-y-2'>
+          <Label className='font-medium text-sm'>
             Chat {existingChat ? 'Update' : 'Deployment'} Successful
           </Label>
-          <div className="flex items-center relative ring-offset-background rounded-md">
+          <div className='relative flex items-center rounded-md ring-offset-background'>
             <a
               href={deployedChatUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 rounded-l-md border border-r-0 p-2 h-10 flex items-center text-sm font-medium text-primary break-all"
+              target='_blank'
+              rel='noopener noreferrer'
+              className='flex h-10 flex-1 items-center break-all rounded-l-md border border-r-0 p-2 font-medium text-primary text-sm'
             >
               {subdomainPart}
             </a>
-            <div className="h-10 px-3 flex items-center border border-l-0 rounded-r-md bg-muted text-muted-foreground text-sm font-medium whitespace-nowrap">
+            <div className='flex h-10 items-center whitespace-nowrap rounded-r-md border border-l-0 bg-muted px-3 font-medium text-muted-foreground text-sm'>
               {domainSuffix}
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className='text-muted-foreground text-xs'>
             Your chat is now live at{' '}
             <a
               href={deployedChatUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-primary hover:underline'
             >
               this URL
             </a>
@@ -880,16 +878,16 @@ export function ChatDeploy({
 
   if (errorMessage) {
     return (
-      <div className="space-y-4">
-        <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
-          <div className="font-semibold">Chat Deployment Error</div>
+      <div className='space-y-4'>
+        <div className='rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
+          <div className='font-semibold'>Chat Deployment Error</div>
           <div>{errorMessage}</div>
         </div>
 
         {/* Add button to try again */}
-        <div className="flex justify-end">
+        <div className='flex justify-end'>
           <Button
-            variant="outline"
+            variant='outline'
             onClick={() => {
               setErrorMessage(null)
               setChatSubmitting(false)
@@ -911,26 +909,26 @@ export function ChatDeploy({
           e.preventDefault() // Prevent default form submission
           handleSubmit(e) // Call our submit handler directly
         }}
-        className="space-y-4 chat-deploy-form overflow-y-auto px-1 -mx-1"
+        className='chat-deploy-form -mx-1 space-y-4 overflow-y-auto px-1'
       >
-        <div className="grid gap-4">
+        <div className='grid gap-4'>
           {errorMessage && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
+            <Alert variant='destructive'>
+              <AlertTriangle className='h-4 w-4' />
               <AlertDescription>{errorMessage}</AlertDescription>
             </Alert>
           )}
 
-          <div className="space-y-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="subdomain" className="text-sm font-medium">
+          <div className='space-y-4'>
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='subdomain' className='font-medium text-sm'>
                   Subdomain
                 </Label>
-                <div className="flex items-center relative ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 rounded-md">
+                <div className='relative flex items-center rounded-md ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2'>
                   <Input
-                    id="subdomain"
-                    placeholder="company-name"
+                    id='subdomain'
+                    placeholder='company-name'
                     value={subdomain}
                     onChange={(e) => handleSubdomainChange(e.target.value)}
                     required
@@ -943,30 +941,30 @@ export function ChatDeploy({
                     )}
                     disabled={isDeploying}
                   />
-                  <div className="h-10 px-3 flex items-center border border-l-0 rounded-r-md bg-muted text-muted-foreground text-sm font-medium whitespace-nowrap">
+                  <div className='flex h-10 items-center whitespace-nowrap rounded-r-md border border-l-0 bg-muted px-3 font-medium text-muted-foreground text-sm'>
                     {getDomainSuffix()}
                   </div>
                   {!isCheckingSubdomain && subdomainAvailable === true && subdomain && (
-                    <div className="absolute right-14 flex items-center">
-                      <Check className="h-4 w-4 text-green-500" />
+                    <div className='absolute right-14 flex items-center'>
+                      <Check className='h-4 w-4 text-green-500' />
                     </div>
                   )}
                 </div>
                 {subdomainError && (
-                  <p className="text-sm text-destructive mt-1">{subdomainError}</p>
+                  <p className='mt-1 text-destructive text-sm'>{subdomainError}</p>
                 )}
                 {!subdomainError && subdomainAvailable === true && subdomain && (
-                  <p className="text-sm text-green-500 mt-1">Subdomain is available</p>
+                  <p className='mt-1 text-green-500 text-sm'>Subdomain is available</p>
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="title" className="text-sm font-medium">
+              <div className='space-y-2'>
+                <Label htmlFor='title' className='font-medium text-sm'>
                   Chat Title
                 </Label>
                 <Input
-                  id="title"
-                  placeholder="Customer Support Assistant"
+                  id='title'
+                  placeholder='Customer Support Assistant'
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   required
@@ -975,13 +973,13 @@ export function ChatDeploy({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description" className="text-sm font-medium">
+            <div className='space-y-2'>
+              <Label htmlFor='description' className='font-medium text-sm'>
                 Description (Optional)
               </Label>
               <Textarea
-                id="description"
-                placeholder="A brief description of what this chat does"
+                id='description'
+                placeholder='A brief description of what this chat does'
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
@@ -991,13 +989,13 @@ export function ChatDeploy({
           </div>
 
           {/* Output Configuration */}
-          <div className="space-y-2">
+          <div className='space-y-2'>
             <div>
-              <Label className="text-sm font-medium">Chat Output</Label>
+              <Label className='font-medium text-sm'>Chat Output</Label>
             </div>
 
-            <Card className="border-input rounded-md shadow-none">
-              <CardContent className="p-1">
+            <Card className='rounded-md border-input shadow-none'>
+              <CardContent className='p-1'>
                 <OutputSelect
                   workflowId={workflowId}
                   selectedOutputs={selectedOutputBlocks}
@@ -1010,85 +1008,85 @@ export function ChatDeploy({
                       setHasChanges(true)
                     }
                   }}
-                  placeholder="Select which block outputs to use"
+                  placeholder='Select which block outputs to use'
                   disabled={isDeploying}
                 />
               </CardContent>
             </Card>
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className='mt-2 text-muted-foreground text-xs'>
               Select which block's output to return to the user in the chat interface
             </p>
           </div>
 
           {/* Authentication Options */}
-          <div className="space-y-2">
+          <div className='space-y-2'>
             <div>
-              <Label className="text-sm font-medium">Access Control</Label>
+              <Label className='font-medium text-sm'>Access Control</Label>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className='grid grid-cols-1 gap-3 md:grid-cols-3'>
               <Card
                 className={cn(
-                  'cursor-pointer overflow-hidden transition-colors shadow-none hover:bg-accent/30',
+                  'cursor-pointer overflow-hidden shadow-none transition-colors hover:bg-accent/30',
                   authType === 'public'
-                    ? 'hover:bg-accent/50 border border-muted-foreground'
+                    ? 'border border-muted-foreground hover:bg-accent/50'
                     : 'border border-input'
                 )}
               >
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center relative">
+                <CardContent className='relative flex flex-col items-center justify-center p-4 text-center'>
                   <button
-                    type="button"
-                    className="w-full h-full cursor-pointer z-10 absolute inset-0"
+                    type='button'
+                    className='absolute inset-0 z-10 h-full w-full cursor-pointer'
                     onClick={() => !isDeploying && setAuthType('public')}
-                    aria-label="Select public access"
+                    aria-label='Select public access'
                   />
-                  <div className="text-center align-middle justify-center">
-                    <h3 className="font-medium text-sm">Public Access</h3>
-                    <p className="text-xs text-muted-foreground">Anyone can access your chat</p>
+                  <div className='justify-center text-center align-middle'>
+                    <h3 className='font-medium text-sm'>Public Access</h3>
+                    <p className='text-muted-foreground text-xs'>Anyone can access your chat</p>
                   </div>
                 </CardContent>
               </Card>
 
               <Card
                 className={cn(
-                  'cursor-pointer overflow-hidden transition-colors shadow-none hover:bg-accent/30',
+                  'cursor-pointer overflow-hidden shadow-none transition-colors hover:bg-accent/30',
                   authType === 'password'
-                    ? 'hover:bg-accent/50 border border-muted-foreground'
+                    ? 'border border-muted-foreground hover:bg-accent/50'
                     : 'border border-input'
                 )}
               >
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center relative">
+                <CardContent className='relative flex flex-col items-center justify-center p-4 text-center'>
                   <button
-                    type="button"
-                    className="w-full h-full cursor-pointer z-10 absolute inset-0"
+                    type='button'
+                    className='absolute inset-0 z-10 h-full w-full cursor-pointer'
                     onClick={() => !isDeploying && setAuthType('password')}
-                    aria-label="Select password protected access"
+                    aria-label='Select password protected access'
                   />
-                  <div className="text-center align-middle justify-center">
-                    <h3 className="font-medium text-sm">Password Protected</h3>
-                    <p className="text-xs text-muted-foreground">Secure with a single password</p>
+                  <div className='justify-center text-center align-middle'>
+                    <h3 className='font-medium text-sm'>Password Protected</h3>
+                    <p className='text-muted-foreground text-xs'>Secure with a single password</p>
                   </div>
                 </CardContent>
               </Card>
 
               <Card
                 className={cn(
-                  'cursor-pointer overflow-hidden transition-colors shadow-none hover:bg-accent/30',
+                  'cursor-pointer overflow-hidden shadow-none transition-colors hover:bg-accent/30',
                   authType === 'email'
-                    ? 'hover:bg-accent/50 border border-muted-foreground'
+                    ? 'border border-muted-foreground hover:bg-accent/50'
                     : 'border border-input'
                 )}
               >
-                <CardContent className="p-4 flex flex-col items-center justify-center text-center relative">
+                <CardContent className='relative flex flex-col items-center justify-center p-4 text-center'>
                   <button
-                    type="button"
-                    className="w-full h-full cursor-pointer z-10 absolute inset-0"
+                    type='button'
+                    className='absolute inset-0 z-10 h-full w-full cursor-pointer'
                     onClick={() => !isDeploying && setAuthType('email')}
-                    aria-label="Select email access"
+                    aria-label='Select email access'
                   />
-                  <div className="text-center align-middle justify-center">
-                    <h3 className="font-medium text-sm">Email Access</h3>
-                    <p className="text-xs text-muted-foreground">Restrict to specific emails</p>
+                  <div className='justify-center text-center align-middle'>
+                    <h3 className='font-medium text-sm'>Email Access</h3>
+                    <p className='text-muted-foreground text-xs'>Restrict to specific emails</p>
                   </div>
                 </CardContent>
               </Card>
@@ -1097,22 +1095,22 @@ export function ChatDeploy({
             {/* Auth settings */}
             <div>
               {authType === 'password' && (
-                <Card className="shadow-none">
-                  <CardContent className="p-4">
+                <Card className='shadow-none'>
+                  <CardContent className='p-4'>
                     <div>
-                      <h3 className="text-sm font-medium mb-2">Password Settings</h3>
+                      <h3 className='mb-2 font-medium text-sm'>Password Settings</h3>
                     </div>
-                    <div className="relative">
+                    <div className='relative'>
                       {/* Add visual password indicator for existing passwords */}
                       {existingChat && existingChat.authType === 'password' && !password && (
-                        <div className="mb-2 text-xs flex items-center text-muted-foreground">
-                          <div className="mr-2 bg-primary/10 text-primary font-medium rounded-full px-2 py-0.5">
+                        <div className='mb-2 flex items-center text-muted-foreground text-xs'>
+                          <div className='mr-2 rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary'>
                             Password set
                           </div>
                           <span>Current password is securely stored</span>
                         </div>
                       )}
-                      <div className="relative">
+                      <div className='relative'>
                         <Input
                           type={showPassword ? 'text' : 'password'}
                           placeholder={
@@ -1123,50 +1121,50 @@ export function ChatDeploy({
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           disabled={isDeploying}
-                          className="pr-28"
+                          className='pr-28'
                           required={!existingChat && authType === 'password'}
                         />
-                        <div className="absolute right-0 top-0 h-full flex">
+                        <div className='absolute top-0 right-0 flex h-full'>
                           <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
+                            type='button'
+                            variant='ghost'
+                            size='icon'
                             onClick={generatePassword}
                             disabled={isDeploying}
-                            className="px-2"
+                            className='px-2'
                           >
-                            <RefreshCw className="h-4 w-4" />
-                            <span className="sr-only">Generate password</span>
+                            <RefreshCw className='h-4 w-4' />
+                            <span className='sr-only'>Generate password</span>
                           </Button>
                           <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
+                            type='button'
+                            variant='ghost'
+                            size='icon'
                             onClick={() => copyToClipboard(password)}
                             disabled={!password || isDeploying}
-                            className="px-2"
+                            className='px-2'
                           >
                             {copySuccess ? (
-                              <Check className="h-4 w-4" />
+                              <Check className='h-4 w-4' />
                             ) : (
-                              <Copy className="h-4 w-4" />
+                              <Copy className='h-4 w-4' />
                             )}
-                            <span className="sr-only">Copy password</span>
+                            <span className='sr-only'>Copy password</span>
                           </Button>
                           <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
+                            type='button'
+                            variant='ghost'
+                            size='icon'
                             onClick={() => setShowPassword(!showPassword)}
                             disabled={isDeploying}
-                            className="px-2"
+                            className='px-2'
                           >
                             {showPassword ? (
-                              <EyeOff className="h-4 w-4" />
+                              <EyeOff className='h-4 w-4' />
                             ) : (
-                              <Eye className="h-4 w-4" />
+                              <Eye className='h-4 w-4' />
                             )}
-                            <span className="sr-only">
+                            <span className='sr-only'>
                               {showPassword ? 'Hide password' : 'Show password'}
                             </span>
                           </Button>
@@ -1174,7 +1172,7 @@ export function ChatDeploy({
                       </div>
                     </div>
                     {/* Add helper text to explain password behavior */}
-                    <p className="text-xs text-muted-foreground mt-2">
+                    <p className='mt-2 text-muted-foreground text-xs'>
                       {existingChat && existingChat.authType === 'password'
                         ? 'Leaving this empty will keep the current password. Enter a new password to change it.'
                         : 'This password will be required to access your chat.'}
@@ -1184,49 +1182,49 @@ export function ChatDeploy({
               )}
 
               {authType === 'email' && (
-                <Card className="shadow-none">
-                  <CardContent className="p-4">
+                <Card className='shadow-none'>
+                  <CardContent className='p-4'>
                     <div>
-                      <h3 className="text-sm font-medium mb-2">Email Access Settings</h3>
+                      <h3 className='mb-2 font-medium text-sm'>Email Access Settings</h3>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className='flex gap-2'>
                       <Input
-                        placeholder="user@example.com or @domain.com"
+                        placeholder='user@example.com or @domain.com'
                         value={newEmail}
                         onChange={(e) => setNewEmail(e.target.value)}
                         disabled={isDeploying}
-                        className="flex-1"
+                        className='flex-1'
                       />
                       <Button
-                        type="button"
+                        type='button'
                         onClick={handleAddEmail}
                         disabled={!newEmail.trim() || isDeploying}
-                        className="shrink-0"
+                        className='shrink-0'
                       >
-                        <Plus className="h-4 w-4" />
+                        <Plus className='h-4 w-4' />
                         Add
                       </Button>
                     </div>
 
-                    {emailError && <p className="text-sm text-destructive">{emailError}</p>}
+                    {emailError && <p className='text-destructive text-sm'>{emailError}</p>}
 
                     {emails.length > 0 && (
-                      <div className="mt-3 bg-background rounded-md border shadow-none px-2 py-0 max-h-[150px] overflow-y-auto">
-                        <ul className="divide-y divide-border">
+                      <div className='mt-3 max-h-[150px] overflow-y-auto rounded-md border bg-background px-2 py-0 shadow-none'>
+                        <ul className='divide-y divide-border'>
                           {emails.map((email) => (
-                            <li key={email} className="relative">
-                              <div className="flex justify-between items-center py-2 px-2 my-1 text-sm group rounded-sm">
-                                <span className="font-medium text-foreground">{email}</span>
+                            <li key={email} className='relative'>
+                              <div className='group my-1 flex items-center justify-between rounded-sm px-2 py-2 text-sm'>
+                                <span className='font-medium text-foreground'>{email}</span>
                                 <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
+                                  type='button'
+                                  variant='ghost'
+                                  size='icon'
                                   onClick={() => handleRemoveEmail(email)}
                                   disabled={isDeploying}
-                                  className="h-7 w-7 opacity-70"
+                                  className='h-7 w-7 opacity-70'
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className='h-4 w-4' />
                                 </Button>
                               </div>
                             </li>
@@ -1234,7 +1232,7 @@ export function ChatDeploy({
                         </ul>
                       </div>
                     )}
-                    <p className="text-xs text-muted-foreground mt-2">
+                    <p className='mt-2 text-muted-foreground text-xs'>
                       Add specific emails or entire domains (@example.com)
                     </p>
                   </CardContent>
@@ -1242,11 +1240,11 @@ export function ChatDeploy({
               )}
 
               {authType === 'public' && (
-                <Card className="shadow-none">
-                  <CardContent className="p-4">
+                <Card className='shadow-none'>
+                  <CardContent className='p-4'>
                     <div>
-                      <h3 className="text-sm font-medium mb-2">Public Access Settings</h3>
-                      <p className="text-xs text-muted-foreground">
+                      <h3 className='mb-2 font-medium text-sm'>Public Access Settings</h3>
+                      <p className='text-muted-foreground text-xs'>
                         This chat will be publicly accessible to anyone with the link.
                       </p>
                     </div>
@@ -1257,19 +1255,19 @@ export function ChatDeploy({
           </div>
 
           {/* Welcome Message Section - Add this before the form closing div */}
-          <div className="space-y-2">
-            <Label htmlFor="welcomeMessage" className="text-sm font-medium">
+          <div className='space-y-2'>
+            <Label htmlFor='welcomeMessage' className='font-medium text-sm'>
               Welcome Message
             </Label>
             <Textarea
-              id="welcomeMessage"
-              placeholder="Enter a welcome message for your chat"
+              id='welcomeMessage'
+              placeholder='Enter a welcome message for your chat'
               value={welcomeMessage}
               onChange={(e) => setWelcomeMessage(e.target.value)}
               rows={3}
               disabled={isDeploying}
             />
-            <p className="text-xs text-muted-foreground">
+            <p className='text-muted-foreground text-xs'>
               This message will be displayed when users first open the chat
             </p>
           </div>
@@ -1285,7 +1283,7 @@ export function ChatDeploy({
               You are about to change an active chat deployment. These changes will immediately
               affect all users of your chat.
               {subdomain !== existingChat?.subdomain && (
-                <p className="mt-2 font-medium">
+                <p className='mt-2 font-medium'>
                   The URL of your chat will change, and any links to the old URL will stop working.
                 </p>
               )}
@@ -1295,8 +1293,8 @@ export function ChatDeploy({
             <AlertDialogCancel disabled={isDeploying}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => deployOrUpdateChat()} disabled={isDeploying}>
               {isDeploying ? (
-                <span className="flex items-center">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <span className='flex items-center'>
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                   Updating...
                 </span>
               ) : (
@@ -1314,8 +1312,8 @@ export function ChatDeploy({
             <AlertDialogTitle>Delete Chat?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete your chat deployment at{' '}
-              <span className="font-mono text-destructive">{subdomain}.simstudio.ai</span>.
-              <p className="mt-2">
+              <span className='font-mono text-destructive'>{subdomain}.simstudio.ai</span>.
+              <p className='mt-2'>
                 All users will lose access immediately, and this action cannot be undone.
               </p>
             </AlertDialogDescription>
@@ -1325,11 +1323,11 @@ export function ChatDeploy({
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isDeleting}
-              className="bg-destructive hover:bg-destructive/90"
+              className='bg-destructive hover:bg-destructive/90'
             >
               {isDeleting ? (
-                <span className="flex items-center">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <span className='flex items-center'>
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                   Deleting...
                 </span>
               ) : (

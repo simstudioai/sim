@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { acquireLock, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
@@ -20,7 +20,7 @@ const logger = createLogger('WebhookTriggerAPI')
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const activeProcessingTasks = new Map<string, Promise<any>>()
+const _activeProcessingTasks = new Map<string, Promise<any>>()
 
 /**
  * Webhook Verification Handler (GET)
@@ -338,10 +338,9 @@ export async function POST(
           executionId,
           requestId
         )
-      } else {
-        logger.warn(`[${requestId}] Invalid Gmail webhook payload format`)
-        return new NextResponse('Invalid payload format', { status: 400 })
       }
+      logger.warn(`[${requestId}] Invalid Gmail webhook payload format`)
+      return new NextResponse('Invalid payload format', { status: 400 })
     } catch (error: any) {
       logger.error(`[${requestId}] Error processing Gmail webhook`, error)
       return new NextResponse(`Internal server error: ${error.message}`, { status: 500 })

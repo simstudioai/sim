@@ -1,6 +1,6 @@
 import { TavilyIcon } from '@/components/icons'
-import { TavilyExtractResponse, TavilySearchResponse } from '@/tools/tavily/types'
-import { BlockConfig } from '../types'
+import type { TavilyExtractResponse, TavilySearchResponse } from '@/tools/tavily/types'
+import type { BlockConfig } from '../types'
 
 type TavilyResponse = TavilySearchResponse | TavilyExtractResponse
 

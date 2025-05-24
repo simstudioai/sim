@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -8,12 +8,12 @@ import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
 import { environment, userStats } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -332,7 +332,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     logger.info(`[${requestId}] Raw request body:`, bodyText)
 
     let body = {}
-    if (bodyText && bodyText.trim()) {
+    if (bodyText?.trim()) {
       try {
         body = JSON.parse(bodyText)
         logger.info(`[${requestId}] Parsed request body:`, JSON.stringify(body, null, 2))

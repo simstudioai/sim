@@ -1,5 +1,5 @@
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { Loop } from '@/stores/workflows/workflow/types'
+import type { Loop } from '@/stores/workflows/workflow/types'
 
 interface WorkflowLoopProps {
   loopId: string
@@ -71,7 +71,12 @@ function calculateLoopBounds(loop: Loop, blocks: Record<string, any>) {
       acc.maxY = Math.max(acc.maxY, block.position.y + blockHeight)
       return acc
     },
-    { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+    {
+      minX: Number.POSITIVE_INFINITY,
+      minY: Number.POSITIVE_INFINITY,
+      maxX: Number.NEGATIVE_INFINITY,
+      maxY: Number.NEGATIVE_INFINITY,
+    }
   )
 
   // Add padding around the group with extra bottom padding

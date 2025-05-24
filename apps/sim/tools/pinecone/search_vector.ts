@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { PineconeResponse, PineconeSearchVectorParams } from './types'
+import type { ToolConfig } from '../types'
+import type { PineconeResponse, PineconeSearchVectorParams } from './types'
 
 export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeResponse> = {
   id: 'pinecone_search_vector',
@@ -63,7 +63,7 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
     body: (params) => ({
       namespace: params.namespace,
       vector: typeof params.vector === 'string' ? JSON.parse(params.vector) : params.vector,
-      topK: params.topK ? parseInt(params.topK.toString()) : 10,
+      topK: params.topK ? Number.parseInt(params.topK.toString()) : 10,
       filter: params.filter
         ? typeof params.filter === 'string'
           ? JSON.parse(params.filter)

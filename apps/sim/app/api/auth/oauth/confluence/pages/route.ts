@@ -68,7 +68,7 @@ export async function POST(request: Request) {
           const text = await response.text()
           console.error('Response text:', text)
           errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
-        } catch (textError) {
+        } catch (_textError) {
           errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
         }
       }
@@ -77,14 +77,14 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    console.log('Confluence API response:', JSON.stringify(data, null, 2).substring(0, 300) + '...')
+    console.log('Confluence API response:', `${JSON.stringify(data, null, 2).substring(0, 300)}...`)
     console.log(`Found ${data.results?.length || 0} pages`)
 
     if (data.results && data.results.length > 0) {
       console.log('First few pages:')
-      data.results.slice(0, 3).forEach((page: any) => {
+      for (const page of data.results.slice(0, 3)) {
         console.log(`- ${page.id}: ${page.title}`)
-      })
+      }
     }
 
     return NextResponse.json({

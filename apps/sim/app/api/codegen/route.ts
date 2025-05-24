@@ -1,5 +1,5 @@
 import { unstable_noStore as noStore } from 'next/cache'
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -345,7 +345,7 @@ export async function POST(req: NextRequest) {
     // For streaming responses
     if (stream) {
       try {
-        const streamCompletion = await openai!.chat.completions.create({
+        const streamCompletion = await openai?.chat.completions.create({
           model: 'gpt-4o',
           messages: messages,
           temperature: 0.2,
@@ -372,10 +372,10 @@ export async function POST(req: NextRequest) {
                   // Send the chunk to the client
                   controller.enqueue(
                     encoder.encode(
-                      JSON.stringify({
+                      `${JSON.stringify({
                         chunk: content,
                         done: false,
-                      }) + '\n'
+                      })}\n`
                     )
                   )
                 }
@@ -394,10 +394,10 @@ export async function POST(req: NextRequest) {
                   // Send error to client
                   controller.enqueue(
                     encoder.encode(
-                      JSON.stringify({
+                      `${JSON.stringify({
                         error: 'Generated JSON schema was invalid.',
                         done: true,
-                      }) + '\n'
+                      })}\n`
                     )
                   )
                   controller.close()
@@ -408,10 +408,10 @@ export async function POST(req: NextRequest) {
               // Send the final done message
               controller.enqueue(
                 encoder.encode(
-                  JSON.stringify({
+                  `${JSON.stringify({
                     done: true,
                     ...(fullContent !== undefined && { fullContent: fullContent }),
-                  }) + '\n'
+                  })}\n`
                 )
               )
               controller.close()
@@ -440,7 +440,7 @@ export async function POST(req: NextRequest) {
     }
 
     // For non-streaming responses (original implementation)
-    const completion = await openai!.chat.completions.create({
+    const completion = await openai?.chat.completions.create({
       // Use non-null assertion
       model: 'gpt-4o',
       // Pass the constructed messages array

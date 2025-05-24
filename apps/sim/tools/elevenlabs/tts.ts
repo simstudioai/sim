@@ -1,7 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import { ToolConfig } from '../types'
-import { ElevenLabsTtsParams } from './types'
-import { ElevenLabsTtsResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { ElevenLabsTtsParams, ElevenLabsTtsResponse } from './types'
 
 const logger = createLogger('ElevenLabsTool')
 

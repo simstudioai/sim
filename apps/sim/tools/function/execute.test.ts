@@ -21,7 +21,7 @@ describe('Function Execute Tool', () => {
   afterEach(() => {
     tester.cleanup()
     vi.resetAllMocks()
-    delete process.env.NEXT_PUBLIC_APP_URL
+    process.env.NEXT_PUBLIC_APP_URL = undefined
   })
 
   describe('Request Construction', () => {

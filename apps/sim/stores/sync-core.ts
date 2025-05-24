@@ -126,7 +126,7 @@ async function sendWithRetry(endpoint: string, payload: any, config: SyncConfig)
 
       // Calculate exponential backoff with jitter
       const jitter = Math.random() * 0.3 + 0.85 // Random between 0.85 and 1.15
-      const backoff = baseBackoff * Math.pow(2, attempt) * jitter
+      const backoff = baseBackoff * 2 ** attempt * jitter
 
       logger.warn(
         `Sync attempt ${attempt + 1}/${maxRetries} failed for ${endpoint}. Retrying in ${Math.round(backoff)}ms: ${lastError.message}`
@@ -180,7 +180,7 @@ async function sendRequest(endpoint: string, payload: any, config: SyncConfig): 
   } catch (error) {
     // Handle abort (timeout) explicitly
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(`Sync request timed out after 30 seconds`)
+      throw new Error('Sync request timed out after 30 seconds')
     }
     throw error
   } finally {

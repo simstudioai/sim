@@ -1,6 +1,6 @@
 import { GmailIcon } from '@/components/icons'
-import { GmailToolResponse } from '@/tools/gmail/types'
-import { BlockConfig } from '../types'
+import type { GmailToolResponse } from '@/tools/gmail/types'
+import type { BlockConfig } from '../types'
 
 export const GmailBlock: BlockConfig<GmailToolResponse> = {
   type: 'gmail',

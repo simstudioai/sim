@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { FilterState } from './types'
+import type { FilterState } from './types'
 
 export const useFilterStore = create<FilterState>((set, get) => ({
   logs: [],
@@ -119,7 +119,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       filtered = filtered.filter(
         (log) =>
           log.message.toLowerCase().includes(query) ||
-          (log.executionId && log.executionId.toLowerCase().includes(query))
+          log.executionId?.toLowerCase().includes(query)
       )
     }
 

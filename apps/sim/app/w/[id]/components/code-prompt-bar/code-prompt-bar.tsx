@@ -81,23 +81,23 @@ export function CodePromptBar({
     <div
       ref={promptBarRef}
       className={cn(
-        'absolute -top-20 left-0 right-0',
-        'bg-background rounded-xl shadow-lg border',
-        'transition-all duration-150 z-9999999',
+        '-top-20 absolute right-0 left-0',
+        'rounded-xl border bg-background shadow-lg',
+        'z-9999999 transition-all duration-150',
         isExiting ? 'opacity-0' : 'opacity-100',
         className
       )}
     >
-      <div className="flex items-center gap-2 p-2">
+      <div className='flex items-center gap-2 p-2'>
         <div className={cn('status-indicator ml-1', isStreaming && 'streaming')} />
 
-        <div className="flex-1 relative">
+        <div className='relative flex-1'>
           <Input
             value={isStreaming ? 'Generating...' : promptValue}
             onChange={(e) => !isStreaming && onChange(e.target.value)}
             placeholder={placeholder}
             className={cn(
-              'rounded-xl border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm text-foreground placeholder:text-muted-foreground/50',
+              'rounded-xl border-0 text-foreground text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0',
               isStreaming && 'text-primary',
               (isLoading || isStreaming) && 'loading-placeholder'
             )}
@@ -112,30 +112,30 @@ export function CodePromptBar({
             autoFocus={!isStreaming}
           />
           {isStreaming && (
-            <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
-              <div className="shimmer-effect" />
+            <div className='pointer-events-none absolute inset-0 h-full w-full overflow-hidden'>
+              <div className='shimmer-effect' />
             </div>
           )}
         </div>
 
         <Button
-          variant="ghost"
-          size="icon"
+          variant='ghost'
+          size='icon'
           onClick={handleCancel}
-          className="h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent/50"
+          className='h-8 w-8 rounded-full text-muted-foreground hover:bg-accent/50 hover:text-foreground'
         >
-          <XIcon className="h-4 w-4" />
+          <XIcon className='h-4 w-4' />
         </Button>
 
         {!isStreaming && (
           <Button
-            variant="ghost"
-            size="icon"
+            variant='ghost'
+            size='icon'
             onClick={() => onSubmit(promptValue)}
-            className="h-8 w-8 rounded-full text-primary hover:text-primary hover:bg-primary/10"
+            className='h-8 w-8 rounded-full text-primary hover:bg-primary/10 hover:text-primary'
             disabled={isLoading || isStreaming || !promptValue.trim()}
           >
-            <SendIcon className="h-4 w-4" />
+            <SendIcon className='h-4 w-4' />
           </Button>
         )}
       </div>

@@ -1,8 +1,8 @@
-import csvParser from 'csv-parser'
 import { createReadStream, existsSync } from 'fs'
 import { Readable } from 'stream'
+import csvParser from 'csv-parser'
 import { createLogger } from '@/lib/logs/console-logger'
-import { FileParser, FileParseResult } from './types'
+import type { FileParseResult, FileParser } from './types'
 
 const logger = createLogger('CsvParser')
 
@@ -41,13 +41,13 @@ export class CsvParser implements FileParser {
 
             // Add headers
             if (headers.length > 0) {
-              content += headers.join(', ') + '\n'
+              content += `${headers.join(', ')}\n`
             }
 
             // Add rows
             results.forEach((row) => {
               const rowValues = Object.values(row).join(', ')
-              content += rowValues + '\n'
+              content += `${rowValues}\n`
             })
 
             resolve({
@@ -101,13 +101,13 @@ export class CsvParser implements FileParser {
 
             // Add headers
             if (headers.length > 0) {
-              content += headers.join(', ') + '\n'
+              content += `${headers.join(', ')}\n`
             }
 
             // Add rows
             results.forEach((row) => {
               const rowValues = Object.values(row).join(', ')
-              content += rowValues + '\n'
+              content += `${rowValues}\n`
             })
 
             resolve({

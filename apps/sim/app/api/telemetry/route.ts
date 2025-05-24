@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -47,7 +47,7 @@ function safeStringValue(value: any): string {
 
   try {
     return String(value)
-  } catch (e) {
+  } catch (_e) {
     return ''
   }
 }
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
     let eventData
     try {
       eventData = await req.json()
-    } catch (parseError) {
+    } catch (_parseError) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 })
     }
 

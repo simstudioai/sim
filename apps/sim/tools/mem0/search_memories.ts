@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { Mem0Response } from './types'
+import type { ToolConfig } from '../types'
+import type { Mem0Response } from './types'
 
 // Search Memories Tool
 export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
@@ -40,20 +40,16 @@ export const mem0SearchMemoriesTool: ToolConfig<any, Mem0Response> = {
       Authorization: `Token ${params.apiKey}`,
     }),
     body: (params) => {
-      try {
-        // Create the request body with the format that the curl test confirms works
-        const body: Record<string, any> = {
-          query: params.query || 'test',
-          filters: {
-            user_id: params.userId,
-          },
-          top_k: params.limit || 10,
-        }
-
-        return body
-      } catch (error) {
-        throw error
+      // Create the request body with the format that the curl test confirms works
+      const body: Record<string, any> = {
+        query: params.query || 'test',
+        filters: {
+          user_id: params.userId,
+        },
+        top_k: params.limit || 10,
       }
+
+      return body
     },
   },
   transformResponse: async (response) => {

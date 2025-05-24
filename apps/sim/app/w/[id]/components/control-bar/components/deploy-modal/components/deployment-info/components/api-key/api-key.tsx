@@ -20,15 +20,15 @@ export function ApiKey({ apiKey, showLabel = true }: ApiKeyProps) {
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className='space-y-1.5'>
       {showLabel && (
-        <div className="flex items-center gap-1.5">
-          <Label className="font-medium text-sm">API Key</Label>
+        <div className='flex items-center gap-1.5'>
+          <Label className='font-medium text-sm'>API Key</Label>
         </div>
       )}
-      <div className="relative group rounded-md border bg-background hover:bg-muted/50 transition-colors">
+      <div className='group relative rounded-md border bg-background transition-colors hover:bg-muted/50'>
         <pre
-          className="p-3 text-xs font-mono whitespace-pre-wrap overflow-x-auto cursor-pointer"
+          className='cursor-pointer overflow-x-auto whitespace-pre-wrap p-3 font-mono text-xs'
           onClick={() => setShowKey(!showKey)}
           title={showKey ? 'Click to hide API Key' : 'Click to reveal API Key'}
         >

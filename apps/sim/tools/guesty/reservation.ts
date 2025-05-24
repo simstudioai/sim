@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { GuestyReservationParams, GuestyReservationResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { GuestyReservationParams, GuestyReservationResponse } from './types'
 
 export const guestyReservationTool: ToolConfig<GuestyReservationParams, GuestyReservationResponse> =
   {

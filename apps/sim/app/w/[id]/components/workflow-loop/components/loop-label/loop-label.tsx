@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { NodeProps } from 'reactflow'
+import type { NodeProps } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
@@ -41,22 +41,22 @@ export function LoopLabel({ id, data }: NodeProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
         <Badge
-          variant="outline"
+          variant='outline'
           className={cn(
-            'bg-background border-border text-foreground font-medium pr-1.5 pl-2.5 py-0.5 text-sm',
-            'hover:bg-accent/50 transition-colors duration-150 cursor-pointer',
+            'border-border bg-background py-0.5 pr-1.5 pl-2.5 font-medium text-foreground text-sm',
+            'cursor-pointer transition-colors duration-150 hover:bg-accent/50',
             'flex items-center gap-1'
           )}
         >
           {getLoopLabel()}
-          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          <ChevronDown className='h-3 w-3 text-muted-foreground' />
         </Badge>
       </PopoverTrigger>
-      <PopoverContent className="w-36 p-1" align="start" onClick={(e) => e.stopPropagation()}>
-        <div className="text-sm">
+      <PopoverContent className='w-36 p-1' align='start' onClick={(e) => e.stopPropagation()}>
+        <div className='text-sm'>
           <div
             className={cn(
-              'px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent/50 transition-colors duration-150 flex items-center',
+              'flex cursor-pointer items-center rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-accent/50',
               loopType === 'for' && 'bg-accent'
             )}
             onClick={() => handleLoopTypeChange('for')}
@@ -65,7 +65,7 @@ export function LoopLabel({ id, data }: NodeProps) {
           </div>
           <div
             className={cn(
-              'px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent/50 transition-colors duration-150 flex items-center',
+              'flex cursor-pointer items-center rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-accent/50',
               loopType === 'forEach' && 'bg-accent'
             )}
             onClick={() => handleLoopTypeChange('forEach')}

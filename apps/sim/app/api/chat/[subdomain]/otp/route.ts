@@ -1,6 +1,6 @@
-import { NextRequest } from 'next/server'
 import { render } from '@react-email/render'
 import { eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import OTPVerificationEmail from '@/components/emails/otp-verification-email'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -58,32 +58,31 @@ async function getOTP(email: string, chatId: string): Promise<string | null> {
   if (redis) {
     // Use Redis if available
     return await redis.get(key)
-  } else {
-    // Use the existing function as fallback - check if it exists
-    const exists = await new Promise((resolve) => {
-      try {
-        // Check the in-memory cache directly - hacky but works for fallback
-        const inMemoryCache = (global as any).inMemoryCache
-        const fullKey = `processed:${key}`
-        const cacheEntry = inMemoryCache?.get(fullKey)
-        resolve(!!cacheEntry)
-      } catch {
-        resolve(false)
-      }
-    })
-
-    if (!exists) return null
-
-    // Try to get the value key
-    const valueKey = `${key}:value`
+  }
+  // Use the existing function as fallback - check if it exists
+  const exists = await new Promise((resolve) => {
     try {
+      // Check the in-memory cache directly - hacky but works for fallback
       const inMemoryCache = (global as any).inMemoryCache
-      const fullKey = `processed:${valueKey}`
+      const fullKey = `processed:${key}`
       const cacheEntry = inMemoryCache?.get(fullKey)
-      return cacheEntry?.value || null
+      resolve(!!cacheEntry)
     } catch {
-      return null
+      resolve(false)
     }
+  })
+
+  if (!exists) return null
+
+  // Try to get the value key
+  const valueKey = `${key}:value`
+  try {
+    const inMemoryCache = (global as any).inMemoryCache
+    const fullKey = `processed:${valueKey}`
+    const cacheEntry = inMemoryCache?.get(fullKey)
+    return cacheEntry?.value || null
+  } catch {
+    return null
   }
 }
 

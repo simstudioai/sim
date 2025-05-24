@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import type React from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Send, Square } from 'lucide-react'
 
@@ -97,13 +98,13 @@ export const ChatInput: React.FC<{
   }
 
   return (
-    <div className="w-full flex justify-center items-center text-black fixed bottom-0 left-0 right-0 pb-4 bg-gradient-to-t from-white to-transparent">
+    <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-white to-transparent pb-4 text-black'>
       <motion.div
         ref={wrapperRef}
-        className="w-full max-w-3xl px-4"
+        className='w-full max-w-3xl px-4'
         variants={containerVariants}
         animate={'expanded'}
-        initial="collapsed"
+        initial='collapsed'
         style={{
           overflow: 'hidden',
           borderRadius: 32,
@@ -114,9 +115,9 @@ export const ChatInput: React.FC<{
         }}
         onClick={handleActivate}
       >
-        <div className="flex items-center w-full h-full p-2 rounded-full">
+        <div className='flex h-full w-full items-center rounded-full p-2'>
           {/* Text Input & Placeholder */}
-          <div className="relative flex-1 mx-2">
+          <div className='relative mx-2 flex-1'>
             <textarea
               ref={textareaRef}
               rows={1}
@@ -135,7 +136,7 @@ export const ChatInput: React.FC<{
                 }
                 // Allow Enter with Shift for newline by not preventing default
               }}
-              className="flex-1 border-0 outline-0 rounded-md py-3 text-base bg-transparent w-full font-normal resize-none transition-height duration-100 ease-out"
+              className='w-full flex-1 resize-none rounded-md border-0 bg-transparent py-3 font-normal text-base outline-0 transition-height duration-100 ease-out'
               style={{
                 position: 'relative',
                 zIndex: 1,
@@ -154,12 +155,12 @@ export const ChatInput: React.FC<{
                   }
                 }
               }}
-              placeholder=" " /* keep native placeholder empty – we draw ours */
+              placeholder=' ' /* keep native placeholder empty – we draw ours */
             />
-            <div className="absolute left-0 top-0 w-full h-full pointer-events-none flex items-center">
+            <div className='pointer-events-none absolute top-0 left-0 flex h-full w-full items-center'>
               {!isActive && !inputValue && (
                 <div
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 select-none"
+                  className='-translate-y-1/2 absolute top-1/2 left-3 select-none text-gray-400'
                   style={{
                     whiteSpace: 'nowrap',
                     zIndex: 0,
@@ -188,9 +189,9 @@ export const ChatInput: React.FC<{
           </div>
 
           <button
-            className="flex items-center justify-center bg-black hover:bg-zinc-700 text-white p-3 rounded-full"
+            className='flex items-center justify-center rounded-full bg-black p-3 text-white hover:bg-zinc-700'
             title={isStreaming ? 'Stop' : 'Send'}
-            type="button"
+            type='button'
             onClick={(e) => {
               e.stopPropagation()
               if (isStreaming) {

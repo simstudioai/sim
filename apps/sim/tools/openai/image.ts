@@ -1,7 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { ToolConfig } from '../types'
-import { BaseImageRequestBody } from './types'
+import type { ToolConfig } from '../types'
+import type { BaseImageRequestBody } from './types'
 
 const logger = createLogger('ImageTool')
 
@@ -113,7 +113,7 @@ export const imageTool: ToolConfig = {
         try {
           logger.info('Fetching image from URL via proxy...')
           const baseUrl = getBaseUrl()
-          const proxyUrl = new URL(`/api/proxy/image`, baseUrl)
+          const proxyUrl = new URL('/api/proxy/image', baseUrl)
           proxyUrl.searchParams.append('url', imageUrl)
 
           const imageResponse = await fetch(proxyUrl.toString(), {

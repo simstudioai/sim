@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card'
+import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
 
 interface ConnectionBlocksProps {
   blockId: string
@@ -130,11 +130,11 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
         draggable
         onDragStart={(e) => handleDragStart(e, connection, field)}
         onDragEnd={handleDragEnd}
-        className="group flex items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 cursor-grab active:cursor-grabbing w-max"
+        className='group flex w-max cursor-grab items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 active:cursor-grabbing'
       >
-        <div className="text-sm">
-          <span className="font-medium leading-none">{displayName}</span>
-          <span className="text-muted-foreground">
+        <div className='text-sm'>
+          <span className='font-medium leading-none'>{displayName}</span>
+          <span className='text-muted-foreground'>
             {field
               ? `.${field.name}`
               : typeof connection.outputType === 'string'
@@ -147,7 +147,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
   }
 
   return (
-    <div className="absolute right-full pr-5 top-0 space-y-2 flex flex-col items-end max-h-[400px] overflow-y-auto">
+    <div className='absolute top-0 right-full flex max-h-[400px] flex-col items-end space-y-2 overflow-y-auto pr-5'>
       {sortedConnections.map((connection, index) => {
         // Special handling for starter blocks with input format
         if (connection.type === 'starter') {
@@ -155,7 +155,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
 
           if (starterFields.length > 0) {
             return (
-              <div key={connection.id} className="space-y-2">
+              <div key={connection.id} className='space-y-2'>
                 {starterFields.map((field) => renderConnectionCard(connection, field))}
               </div>
             )
@@ -164,7 +164,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
 
         // Regular connection handling
         return (
-          <div key={`${connection.id}-${index}`} className="space-y-2">
+          <div key={`${connection.id}-${index}`} className='space-y-2'>
             {Array.isArray(connection.outputType)
               ? // Handle array of field names
                 connection.outputType.map((fieldName) => {

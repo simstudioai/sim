@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
-import { SubBlockType } from '@/blocks/types'
+import type { SubBlockType } from '@/blocks/types'
 import { useCopilotStore } from './copilot/store'
 import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
@@ -25,9 +25,9 @@ import {
 } from './workflows/persistence'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
-import { isRegistryInitialized, markWorkflowsDirty, workflowSync } from './workflows/sync'
+import { isRegistryInitialized } from './workflows/sync'
 import { useWorkflowStore } from './workflows/workflow/store'
-import { BlockState } from './workflows/workflow/types'
+import type { BlockState } from './workflows/workflow/types'
 
 const logger = createLogger('Stores')
 

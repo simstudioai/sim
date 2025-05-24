@@ -48,14 +48,14 @@ export default async function GitHubStars() {
 
   return (
     <a
-      href="https://github.com/simstudioai/sim"
-      className="flex items-center gap-2 text-white/80 hover:text-white/100 p-1.5 rounded-md transition-colors duration-200"
-      aria-label="GitHub"
-      target="_blank"
-      rel="noopener noreferrer"
+      href='https://github.com/simstudioai/sim'
+      className='flex items-center gap-2 rounded-md p-1.5 text-white/80 transition-colors duration-200 hover:text-white/100'
+      aria-label='GitHub'
+      target='_blank'
+      rel='noopener noreferrer'
     >
-      <GithubIcon className="w-[20px] h-[20px]" />
-      <span className="text-base font-medium">{formattedStars}</span>
+      <GithubIcon className='h-[20px] w-[20px]' />
+      <span className='font-medium text-base'>{formattedStars}</span>
     </a>
   )
 }

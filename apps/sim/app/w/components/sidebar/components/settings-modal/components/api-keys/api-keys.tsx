@@ -154,77 +154,77 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">API Keys</h2>
+    <div className='space-y-6 p-6'>
+      <div className='flex items-center justify-between'>
+        <h2 className='font-semibold text-xl'>API Keys</h2>
         <Button
           onClick={() => setIsCreating(true)}
           disabled={isLoading}
-          size="sm"
-          className="gap-1.5"
+          size='sm'
+          className='gap-1.5'
         >
-          <Plus className="h-4 w-4" />
+          <Plus className='h-4 w-4' />
           Create Key
         </Button>
       </div>
 
-      <p className="text-sm text-muted-foreground leading-relaxed">
+      <p className='text-muted-foreground text-sm leading-relaxed'>
         API keys allow you to authenticate and trigger workflows. Keep your API keys secure. They
         have access to your account and workflows.
       </p>
 
       {isLoading ? (
-        <div className="space-y-3 mt-6">
+        <div className='mt-6 space-y-3'>
           <KeySkeleton />
           <KeySkeleton />
         </div>
       ) : apiKeys.length === 0 ? (
-        <div className="rounded-md border border-dashed p-8 mt-6">
-          <div className="flex flex-col items-center justify-center text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-              <KeySquare className="h-6 w-6 text-primary" />
+        <div className='mt-6 rounded-md border border-dashed p-8'>
+          <div className='flex flex-col items-center justify-center text-center'>
+            <div className='flex h-12 w-12 items-center justify-center rounded-full bg-muted'>
+              <KeySquare className='h-6 w-6 text-primary' />
             </div>
-            <h3 className="mt-4 text-lg font-medium">No API keys yet</h3>
-            <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+            <h3 className='mt-4 font-medium text-lg'>No API keys yet</h3>
+            <p className='mt-2 max-w-sm text-muted-foreground text-sm'>
               You don&apos;t have any API keys yet. Create one to get started with the Sim SDK.
             </p>
             <Button
-              variant="default"
-              className="mt-4"
+              variant='default'
+              className='mt-4'
               onClick={() => setIsCreating(true)}
-              size="sm"
+              size='sm'
             >
-              <Plus className="h-4 w-4 mr-1.5" /> Create API Key
+              <Plus className='mr-1.5 h-4 w-4' /> Create API Key
             </Button>
           </div>
         </div>
       ) : (
-        <div className="space-y-4 mt-6">
+        <div className='mt-6 space-y-4'>
           {apiKeys.map((key) => (
-            <Card key={key.id} className="p-4 hover:shadow-sm transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <h3 className="font-medium text-base">{key.name}</h3>
-                  <div className="flex items-center space-x-1">
-                    <p className="text-xs text-muted-foreground">
+            <Card key={key.id} className='p-4 transition-shadow hover:shadow-sm'>
+              <div className='flex items-center justify-between'>
+                <div className='space-y-1'>
+                  <h3 className='font-medium text-base'>{key.name}</h3>
+                  <div className='flex items-center space-x-1'>
+                    <p className='text-muted-foreground text-xs'>
                       Created: {formatDate(key.createdAt)} • Last used: {formatDate(key.lastUsed)}
                     </p>
-                    <div className="text-xs px-1.5 py-0.5 bg-muted/50 rounded font-mono">
+                    <div className='rounded bg-muted/50 px-1.5 py-0.5 font-mono text-xs'>
                       •••••{key.key.slice(-6)}
                     </div>
                   </div>
                 </div>
                 <Button
-                  variant="ghost"
-                  size="icon"
+                  variant='ghost'
+                  size='icon'
                   onClick={() => {
                     setDeleteKey(key)
                     setShowDeleteDialog(true)
                   }}
-                  className="text-destructive hover:bg-destructive/10 h-8 w-8"
+                  className='h-8 w-8 text-destructive hover:bg-destructive/10'
                 >
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Delete key</span>
+                  <Trash2 className='h-4 w-4' />
+                  <span className='sr-only'>Delete key</span>
                 </Button>
               </div>
             </Card>
@@ -234,7 +234,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
 
       {/* Create API Key Dialog */}
       <Dialog open={isCreating} onOpenChange={setIsCreating}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className='sm:max-w-md'>
           <DialogHeader>
             <DialogTitle>Create new API key</DialogTitle>
             <DialogDescription>
@@ -242,20 +242,20 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
               account and workflows.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-3">
-            <div className="space-y-2">
-              <Label htmlFor="keyName">API Key Name</Label>
+          <div className='space-y-4 py-3'>
+            <div className='space-y-2'>
+              <Label htmlFor='keyName'>API Key Name</Label>
               <Input
-                id="keyName"
-                placeholder="e.g., Development, Production, etc."
+                id='keyName'
+                placeholder='e.g., Development, Production, etc.'
                 value={newKeyName}
                 onChange={(e) => setNewKeyName(e.target.value)}
-                className="focus-visible:ring-primary"
+                className='focus-visible:ring-primary'
               />
             </div>
           </div>
-          <DialogFooter className="sm:justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsCreating(false)}>
+          <DialogFooter className='gap-2 sm:justify-end'>
+            <Button variant='outline' onClick={() => setIsCreating(false)}>
               Cancel
             </Button>
             <Button onClick={handleCreateKey} disabled={!newKeyName.trim()}>
@@ -273,7 +273,7 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
           if (!open) setNewKey(null)
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className='sm:max-w-md'>
           <DialogHeader>
             <DialogTitle>Your API key has been created</DialogTitle>
             <DialogDescription>
@@ -281,37 +281,37 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
             </DialogDescription>
           </DialogHeader>
           {newKey && (
-            <div className="space-y-4 py-3">
-              <div className="space-y-2">
+            <div className='space-y-4 py-3'>
+              <div className='space-y-2'>
                 <Label>API Key</Label>
-                <div className="relative">
+                <div className='relative'>
                   <Input
                     readOnly
                     value={newKey.key}
-                    className="font-mono text-sm pr-10 bg-muted/50 border-slate-300"
+                    className='border-slate-300 bg-muted/50 pr-10 font-mono text-sm'
                   />
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                    variant='ghost'
+                    size='sm'
+                    className='-translate-y-1/2 absolute top-1/2 right-1 h-7 w-7'
                     onClick={() => copyToClipboard(newKey.key)}
                   >
                     {copySuccess ? (
-                      <Check className="h-4 w-4 text-green-500" />
+                      <Check className='h-4 w-4 text-green-500' />
                     ) : (
-                      <Copy className="h-4 w-4" />
+                      <Copy className='h-4 w-4' />
                     )}
-                    <span className="sr-only">Copy to clipboard</span>
+                    <span className='sr-only'>Copy to clipboard</span>
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className='mt-1 text-muted-foreground text-xs'>
                   For security, we don&apos;t store the complete key. You won&apos;t be able to view
                   it again.
                 </p>
               </div>
             </div>
           )}
-          <DialogFooter className="sm:justify-end">
+          <DialogFooter className='sm:justify-end'>
             <Button
               onClick={() => {
                 setShowNewKeyDialog(false)
@@ -326,24 +326,24 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="sm:max-w-md">
+        <AlertDialogContent className='sm:max-w-md'>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete API Key</AlertDialogTitle>
             <AlertDialogDescription>
               {deleteKey && (
                 <>
                   Are you sure you want to delete the API key{' '}
-                  <span className="font-semibold">{deleteKey.name}</span>? This action cannot be
+                  <span className='font-semibold'>{deleteKey.name}</span>? This action cannot be
                   undone and any integrations using this key will no longer work.
                 </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="sm:justify-end gap-2">
+          <AlertDialogFooter className='gap-2 sm:justify-end'>
             <AlertDialogCancel onClick={() => setDeleteKey(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteKey}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
             >
               Delete
             </AlertDialogAction>
@@ -356,13 +356,13 @@ export function ApiKeys({ onOpenChange }: ApiKeysProps) {
 
 function KeySkeleton() {
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between">
+    <Card className='p-4'>
+      <div className='flex items-center justify-between'>
         <div>
-          <Skeleton className="h-5 w-32 mb-2" />
-          <Skeleton className="h-4 w-48" />
+          <Skeleton className='mb-2 h-5 w-32' />
+          <Skeleton className='h-4 w-48' />
         </div>
-        <Skeleton className="h-8 w-8 rounded-md" />
+        <Skeleton className='h-8 w-8 rounded-md' />
       </div>
     </Card>
   )

@@ -1,4 +1,4 @@
-import { ModelPricingMap } from './types'
+import type { ModelPricingMap } from './types'
 
 /**
  * Model pricing information per million tokens

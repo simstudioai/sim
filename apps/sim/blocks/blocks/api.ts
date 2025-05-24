@@ -1,6 +1,6 @@
 import { ApiIcon } from '@/components/icons'
-import { RequestResponse } from '@/tools/http/types'
-import { BlockConfig } from '../types'
+import type { RequestResponse } from '@/tools/http/types'
+import type { BlockConfig } from '../types'
 
 export const ApiBlock: BlockConfig<RequestResponse> = {
   type: 'api',

@@ -1,4 +1,4 @@
-import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, Play, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -24,10 +24,10 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
   return (
     <div
       className={cn(
-        'absolute top-0 -right-20',
+        '-right-20 absolute top-0',
         'flex flex-col items-center gap-2 p-2',
-        'bg-background rounded-md shadow-sm border border-gray-200 dark:border-gray-800',
-        'opacity-0 group-hover:opacity-100 transition-opacity duration-200'
+        'rounded-md border border-gray-200 bg-background shadow-sm dark:border-gray-800',
+        'opacity-0 transition-opacity duration-200 group-hover:opacity-100'
       )}
     >
       {/* <Tooltip>
@@ -50,49 +50,49 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant="ghost"
-            size="sm"
+            variant='ghost'
+            size='sm'
             onClick={() => toggleBlockEnabled(blockId)}
-            className="text-gray-500"
+            className='text-gray-500'
           >
-            {isEnabled ? <Circle className="h-4 w-4" /> : <CircleOff className="h-4 w-4" />}
+            {isEnabled ? <Circle className='h-4 w-4' /> : <CircleOff className='h-4 w-4' />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="right">{isEnabled ? 'Disable Block' : 'Enable Block'}</TooltipContent>
+        <TooltipContent side='right'>{isEnabled ? 'Disable Block' : 'Enable Block'}</TooltipContent>
       </Tooltip>
 
       {!isStarterBlock && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="ghost"
-              size="sm"
+              variant='ghost'
+              size='sm'
               onClick={() => duplicateBlock(blockId)}
-              className="text-gray-500"
+              className='text-gray-500'
             >
-              <Copy className="h-4 w-4" />
+              <Copy className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">Duplicate Block</TooltipContent>
+          <TooltipContent side='right'>Duplicate Block</TooltipContent>
         </Tooltip>
       )}
 
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant="ghost"
-            size="sm"
+            variant='ghost'
+            size='sm'
             onClick={() => toggleBlockHandles(blockId)}
-            className="text-gray-500"
+            className='text-gray-500'
           >
             {horizontalHandles ? (
-              <ArrowLeftRight className="h-4 w-4" />
+              <ArrowLeftRight className='h-4 w-4' />
             ) : (
-              <ArrowUpDown className="h-4 w-4" />
+              <ArrowUpDown className='h-4 w-4' />
             )}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="right">
+        <TooltipContent side='right'>
           {horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports'}
         </TooltipContent>
       </Tooltip>
@@ -101,15 +101,15 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="ghost"
-              size="sm"
+              variant='ghost'
+              size='sm'
               onClick={() => removeBlock(blockId)}
-              className="text-gray-500 hover:text-red-600"
+              className='text-gray-500 hover:text-red-600'
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">Delete Block</TooltipContent>
+          <TooltipContent side='right'>Delete Block</TooltipContent>
         </Tooltip>
       )}
     </div>

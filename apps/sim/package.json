@@ -13,9 +13,6 @@
     "dev:classic": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
     "prepare": "cd ../.. && bun husky",
     "db:push": "bunx drizzle-kit push",
     "db:studio": "bunx drizzle-kit studio",
@@ -24,7 +21,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",
-    "check-types": "tsc --noEmit"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
@@ -112,7 +109,6 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",
-    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@types/lodash": "^4.17.16",
     "@types/node": "^20",
     "@types/prismjs": "^1.26.5",
@@ -123,22 +119,13 @@
     "critters": "^0.0.23",
     "dotenv": "^16.4.7",
     "drizzle-kit": "^0.31.1",
-    "husky": "^9.1.7",
     "jsdom": "^26.0.0",
-    "lint-staged": "^15.4.3",
     "postcss": "^8",
-    "prettier": "^3.4.2",
-    "prettier-plugin-tailwindcss": "^0.6.11",
     "react-email": "^4.0.13",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.7.3",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.0.8"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,css,scss,md}": [
-      "prettier --write"
-    ]
   },
   "trustedDependencies": [
     "canvas",

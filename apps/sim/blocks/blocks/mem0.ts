@@ -1,6 +1,6 @@
 import { Mem0Icon } from '@/components/icons'
-import { Mem0Response } from '@/tools/mem0/types'
-import { BlockConfig } from '../types'
+import type { Mem0Response } from '@/tools/mem0/types'
+import type { BlockConfig } from '../types'
 
 export const Mem0Block: BlockConfig<Mem0Response> = {
   type: 'mem0',
@@ -167,7 +167,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
                   }
                 }
               }
-            } catch (e: any) {
+            } catch (_e: any) {
               errors.push('Messages must be valid JSON')
             }
           }
@@ -222,13 +222,13 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
                     // Consistent with other error handling - collect in errors array
                     errors.push('Invalid message format - each message must have role and content')
                     throw new Error(
-                      `Mem0 Block Error: Invalid message format - each message must have role and content`
+                      'Mem0 Block Error: Invalid message format - each message must have role and content'
                     )
                   }
                 } else {
                   // Consistent with other error handling
                   errors.push('Messages must be a non-empty array')
-                  throw new Error(`Mem0 Block Error: Messages must be a non-empty array`)
+                  throw new Error('Mem0 Block Error: Messages must be a non-empty array')
                 }
               } catch (e: any) {
                 if (!errors.includes('Messages must be valid JSON')) {
@@ -245,11 +245,11 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
               // Check if we have at least one identifier for search
               if (!params.userId) {
                 errors.push('Search requires a User ID')
-                throw new Error(`Mem0 Block Error: Search requires a User ID`)
+                throw new Error('Mem0 Block Error: Search requires a User ID')
               }
             } else {
               errors.push('Search requires a query parameter')
-              throw new Error(`Mem0 Block Error: Search requires a query parameter`)
+              throw new Error('Mem0 Block Error: Search requires a query parameter')
             }
 
             // Include limit if specified

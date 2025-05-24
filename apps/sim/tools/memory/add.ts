@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { MemoryResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { MemoryResponse } from './types'
 
 export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
   id: 'memory_add',
@@ -104,7 +104,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
         if (typeof params.rawData === 'string') {
           try {
             parsedRawData = JSON.parse(params.rawData)
-          } catch (e) {
+          } catch (_e) {
             return {
               _errorResponse: {
                 status: 400,
@@ -131,7 +131,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
   transformResponse: async (response): Promise<MemoryResponse> => {
     try {
       const result = await response.json()
-      let errorMessage = result.error?.message || 'Failed to add memory'
+      const errorMessage = result.error?.message || 'Failed to add memory'
 
       const data = result.data || result
 

@@ -40,13 +40,13 @@ export function CopyableField({
   }
 
   return (
-    <div className="flex items-center space-x-2">
+    <div className='flex items-center space-x-2'>
       {isLoading ? (
-        <div className="flex-1 h-10 px-3 py-2 rounded-md border border-input bg-background flex items-center">
-          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        <div className='flex h-10 flex-1 items-center rounded-md border border-input bg-background px-3 py-2'>
+          <Loader2 className='h-4 w-4 animate-spin text-muted-foreground' />
         </div>
       ) : (
-        <div className="flex-1 relative">
+        <div className='relative flex-1'>
           <Input
             id={id}
             type={isSecret && !showSecret ? 'password' : 'text'}
@@ -62,32 +62,32 @@ export function CopyableField({
           />
           {isSecret && (
             <Button
-              type="button"
-              variant="ghost"
-              size="icon"
+              type='button'
+              variant='ghost'
+              size='icon'
               className={cn(
-                'absolute right-1 top-1/2 h-6 w-6 -translate-y-1/2 text-muted-foreground',
-                'hover:text-foreground hover:bg-transparent transition-colors'
+                '-translate-y-1/2 absolute top-1/2 right-1 h-6 w-6 text-muted-foreground',
+                'transition-colors hover:bg-transparent hover:text-foreground'
               )}
               onClick={toggleShowSecret}
               aria-label={showSecret ? 'Hide secret' : 'Show secret'}
             >
-              {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              <span className="sr-only">{showSecret ? 'Hide secret' : 'Show secret'}</span>
+              {showSecret ? <EyeOff className='h-4 w-4' /> : <Eye className='h-4 w-4' />}
+              <span className='sr-only'>{showSecret ? 'Hide secret' : 'Show secret'}</span>
             </Button>
           )}
         </div>
       )}
       <Button
-        type="button"
-        variant="outline"
-        size="icon"
+        type='button'
+        variant='outline'
+        size='icon'
         onClick={() => copyToClipboard(value, copyType)}
         disabled={isLoading || !value}
-        className={cn('shrink-0', 'hover:bg-primary/5 transition-colors')}
-        aria-label="Copy value"
+        className={cn('shrink-0', 'transition-colors hover:bg-primary/5')}
+        aria-label='Copy value'
       >
-        {copied === copyType ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        {copied === copyType ? <Check className='h-4 w-4' /> : <Copy className='h-4 w-4' />}
       </Button>
     </div>
   )

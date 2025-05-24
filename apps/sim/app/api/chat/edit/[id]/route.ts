@@ -1,5 +1,5 @@
-import { NextRequest } from 'next/server'
 import { and, eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
@@ -147,7 +147,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
 
       // Handle password update
-      let encryptedPassword = undefined
+      let encryptedPassword
 
       // Only encrypt and update password if one is provided
       if (password) {

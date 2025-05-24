@@ -110,20 +110,20 @@ export function SettingsNavigation({
   })
 
   return (
-    <div className="py-4">
+    <div className='py-4'>
       {navigationItems.map((item) => (
         <button
           key={item.id}
           onClick={() => onSectionChange(item.id)}
           className={cn(
-            'w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors',
+            'flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors',
             'hover:bg-muted/50',
             activeSection === item.id
-              ? 'bg-muted/50 text-foreground font-medium'
+              ? 'bg-muted/50 font-medium text-foreground'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          <item.icon className="h-4 w-4" />
+          <item.icon className='h-4 w-4' />
           <span>{item.label}</span>
         </button>
       ))}

@@ -1,6 +1,6 @@
 import { BrainIcon } from '@/components/icons'
-import { ToolResponse } from '@/tools/types'
-import { BlockConfig } from '../types'
+import type { ToolResponse } from '@/tools/types'
+import type { BlockConfig } from '../types'
 
 interface ThinkingToolResponse extends ToolResponse {
   output: {

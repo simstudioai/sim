@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { GoogleDocsReadResponse, GoogleDocsToolParams } from './types'
+import type { ToolConfig } from '../types'
+import type { GoogleDocsReadResponse, GoogleDocsToolParams } from './types'
 
 export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> = {
   id: 'google_docs_read',
@@ -51,7 +51,7 @@ export const readTool: ToolConfig<GoogleDocsToolParams, GoogleDocsReadResponse> 
 
     // Extract document content from the response
     let content = ''
-    if (data.body && data.body.content) {
+    if (data.body?.content) {
       content = extractTextFromDocument(data)
     }
 
@@ -104,7 +104,7 @@ function extractTextFromDocument(document: any): string {
   for (const element of document.body.content) {
     if (element.paragraph) {
       for (const paragraphElement of element.paragraph.elements) {
-        if (paragraphElement.textRun && paragraphElement.textRun.content) {
+        if (paragraphElement.textRun?.content) {
           text += paragraphElement.textRun.content
         }
       }
@@ -116,7 +116,7 @@ function extractTextFromDocument(document: any): string {
             for (const cellContent of tableCell.content) {
               if (cellContent.paragraph) {
                 for (const paragraphElement of cellContent.paragraph.elements) {
-                  if (paragraphElement.textRun && paragraphElement.textRun.content) {
+                  if (paragraphElement.textRun?.content) {
                     text += paragraphElement.textRun.content
                   }
                 }

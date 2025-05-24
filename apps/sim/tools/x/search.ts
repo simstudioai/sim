@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { XSearchParams, XSearchResponse, XTweet, XUser } from './types'
+import type { ToolConfig } from '../types'
+import type { XSearchParams, XSearchResponse, XTweet, XUser } from './types'
 
 export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
   id: 'x_search',
@@ -172,6 +172,6 @@ export const xSearchTool: ToolConfig<XSearchParams, XSearchResponse> = {
     if (error.detail && typeof error.detail === 'string') {
       return `X API error: ${error.detail}`
     }
-    return error.detail || error.message || `An error occurred while searching X`
+    return error.detail || error.message || 'An error occurred while searching X'
   },
 }

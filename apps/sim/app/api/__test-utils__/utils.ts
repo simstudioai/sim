@@ -1,5 +1,5 @@
-import { vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { vi } from 'vitest'
 
 export const sampleWorkflowState = {
   blocks: {
@@ -165,7 +165,7 @@ export const mockDecryptedEnvVars = {
 }
 
 export function createMockRequest(
-  method: string = 'GET',
+  method = 'GET',
   body?: any,
   headers: Record<string, string> = {}
 ): NextRequest {

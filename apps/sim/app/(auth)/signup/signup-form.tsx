@@ -1,9 +1,9 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -186,7 +186,7 @@ function SignupFormContent({
         {
           onError: (ctx) => {
             console.error('Signup error:', ctx.error)
-            let errorMessage: string[] = ['Failed to create account']
+            const errorMessage: string[] = ['Failed to create account']
 
             if (ctx.error.code?.includes('USER_ALREADY_EXISTS')) {
               errorMessage.push(
@@ -280,14 +280,14 @@ function SignupFormContent({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2 text-center">
-        <h1 className="text-[32px] font-semibold tracking-tight text-white">Create Account</h1>
-        <p className="text-sm text-neutral-400">Enter your details to create a new account</p>
+    <div className='space-y-6'>
+      <div className='space-y-2 text-center'>
+        <h1 className='font-semibold text-[32px] text-white tracking-tight'>Create Account</h1>
+        <p className='text-neutral-400 text-sm'>Enter your details to create a new account</p>
       </div>
 
-      <div className="flex flex-col gap-6">
-        <div className="bg-neutral-800/50 backdrop-blur-sm border border-neutral-700/40 rounded-xl p-6">
+      <div className='flex flex-col gap-6'>
+        <div className='rounded-xl border border-neutral-700/40 bg-neutral-800/50 p-6 backdrop-blur-sm'>
           <SocialLoginButtons
             githubAvailable={githubAvailable}
             googleAvailable={googleAvailable}
@@ -295,84 +295,84 @@ function SignupFormContent({
             isProduction={isProduction}
           />
 
-          <div className="relative py-4 mt-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-neutral-700/50"></div>
+          <div className='relative mt-2 py-4'>
+            <div className='absolute inset-0 flex items-center'>
+              <div className='w-full border-neutral-700/50 border-t' />
             </div>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-5">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-neutral-300">
+          <form onSubmit={onSubmit} className='space-y-5'>
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='name' className='text-neutral-300'>
                   Full Name
                 </Label>
                 <Input
-                  id="name"
-                  name="name"
-                  placeholder="Enter your name"
+                  id='name'
+                  name='name'
+                  placeholder='Enter your name'
                   required
-                  type="text"
-                  autoCapitalize="words"
-                  autoComplete="name"
-                  className="bg-neutral-900 border-neutral-700 text-white placeholder:text-white/60"
+                  type='text'
+                  autoCapitalize='words'
+                  autoComplete='name'
+                  className='border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60'
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-neutral-300">
+              <div className='space-y-2'>
+                <Label htmlFor='email' className='text-neutral-300'>
                   Email
                 </Label>
                 <Input
-                  id="email"
-                  name="email"
-                  placeholder="Enter your email"
+                  id='email'
+                  name='email'
+                  placeholder='Enter your email'
                   required
-                  type="email"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  autoCorrect="off"
+                  type='email'
+                  autoCapitalize='none'
+                  autoComplete='email'
+                  autoCorrect='off'
                   value={email}
                   onChange={handleEmailChange}
                   className={cn(
-                    'bg-neutral-900 border-neutral-700 text-white placeholder:text-white/60',
+                    'border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60',
                     emailError && 'border-red-500 focus-visible:ring-red-500'
                   )}
                 />
                 {emailError && (
-                  <div className="text-xs text-red-400 mt-1">
+                  <div className='mt-1 text-red-400 text-xs'>
                     <p>{emailError}</p>
                   </div>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-neutral-300">
+              <div className='space-y-2'>
+                <Label htmlFor='password' className='text-neutral-300'>
                   Password
                 </Label>
-                <div className="relative">
+                <div className='relative'>
                   <Input
-                    id="password"
-                    name="password"
+                    id='password'
+                    name='password'
                     required
                     type={showPassword ? 'text' : 'password'}
-                    autoCapitalize="none"
-                    autoComplete="new-password"
-                    placeholder="Enter your password"
-                    autoCorrect="off"
+                    autoCapitalize='none'
+                    autoComplete='new-password'
+                    placeholder='Enter your password'
+                    autoCorrect='off'
                     value={password}
                     onChange={handlePasswordChange}
-                    className="bg-neutral-900 border-neutral-700 text-white pr-10 placeholder:text-white/60"
+                    className='border-neutral-700 bg-neutral-900 pr-10 text-white placeholder:text-white/60'
                   />
                   <button
-                    type="button"
+                    type='button'
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white transition"
+                    className='-translate-y-1/2 absolute top-1/2 right-3 text-neutral-400 transition hover:text-white'
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
                 {showValidationError && passwordErrors.length > 0 && (
-                  <div className="text-xs text-red-400 mt-1 space-y-1">
+                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
                     {passwordErrors.map((error, index) => (
                       <p key={index}>{error}</p>
                     ))}
@@ -382,8 +382,8 @@ function SignupFormContent({
             </div>
 
             <Button
-              type="submit"
-              className="w-full bg-[#701ffc] hover:bg-[#802FFF] h-11 font-medium text-base text-white shadow-lg shadow-[#701ffc]/20 transition-colors duration-200 flex items-center justify-center gap-2"
+              type='submit'
+              className='flex h-11 w-full items-center justify-center gap-2 bg-[#701ffc] font-medium text-base text-white shadow-[#701ffc]/20 shadow-lg transition-colors duration-200 hover:bg-[#802FFF]'
               disabled={isLoading}
             >
               {isLoading ? 'Creating account...' : 'Create Account'}
@@ -391,11 +391,11 @@ function SignupFormContent({
           </form>
         </div>
 
-        <div className="text-center text-sm">
-          <span className="text-neutral-400">Already have an account? </span>
+        <div className='text-center text-sm'>
+          <span className='text-neutral-400'>Already have an account? </span>
           <Link
             href={isInviteFlow ? `/login?invite_flow=true&callbackUrl=${redirectUrl}` : '/login'}
-            className="text-[#9D54FF] hover:text-[#a66fff] font-medium transition underline-offset-4 hover:underline"
+            className='font-medium text-[#9D54FF] underline-offset-4 transition hover:text-[#a66fff] hover:underline'
           >
             Sign in
           </Link>
@@ -416,7 +416,7 @@ export default function SignupPage({
 }) {
   return (
     <Suspense
-      fallback={<div className="h-screen flex items-center justify-center">Loading...</div>}
+      fallback={<div className='flex h-screen items-center justify-center'>Loading...</div>}
     >
       <SignupFormContent
         githubAvailable={githubAvailable}

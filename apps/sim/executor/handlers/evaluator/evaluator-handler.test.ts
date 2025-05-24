@@ -1,9 +1,10 @@
 import '../../__test-utils__/mock-dependencies'
-import { beforeEach, describe, expect, it, Mock, vi } from 'vitest'
-import { BlockOutput } from '@/blocks/types'
+
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import type { BlockOutput } from '@/blocks/types'
 import { getProviderFromModel } from '@/providers/utils'
-import { SerializedBlock } from '@/serializer/types'
-import { ExecutionContext } from '../../types'
+import type { SerializedBlock } from '@/serializer/types'
+import type { ExecutionContext } from '../../types'
 import { EvaluatorBlockHandler } from './evaluator-handler'
 
 const mockGetProviderFromModel = getProviderFromModel as Mock
