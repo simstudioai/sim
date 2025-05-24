@@ -1,6 +1,6 @@
-import { createLogger } from '@/lib/logs/console-logger';
+import { createLogger } from '@/lib/logs/console-logger'
 
-const logger = createLogger('WorkflowUtils');
+const logger = createLogger('WorkflowUtils')
 
 /**
  * Utility functions for handling node hierarchies and loop operations in the workflow
@@ -12,14 +12,11 @@ const logger = createLogger('WorkflowUtils');
  * @param getNodes Function to retrieve all nodes from ReactFlow
  * @returns Depth level (0 for root nodes, increasing for nested nodes)
  */
-export const getNodeDepth = (
-  nodeId: string, 
-  getNodes: () => any[]
-): number => {
-  const node = getNodes().find(n => n.id === nodeId);
-  if (!node || !node.parentId) return 0;
-  return 1 + getNodeDepth(node.parentId, getNodes);
-};
+export const getNodeDepth = (nodeId: string, getNodes: () => any[]): number => {
+  const node = getNodes().find((n) => n.id === nodeId)
+  if (!node || !node.parentId) return 0
+  return 1 + getNodeDepth(node.parentId, getNodes)
+}
 
 /**
  * Gets the full hierarchy path of a node (its parent chain)
@@ -27,14 +24,11 @@ export const getNodeDepth = (
  * @param getNodes Function to retrieve all nodes from ReactFlow
  * @returns Array of node IDs representing the hierarchy path
  */
-export const getNodeHierarchy = (
-  nodeId: string, 
-  getNodes: () => any[]
-): string[] => {
-  const node = getNodes().find(n => n.id === nodeId);
-  if (!node || !node.parentId) return [nodeId];
-  return [...getNodeHierarchy(node.parentId, getNodes), nodeId];
-};
+export const getNodeHierarchy = (nodeId: string, getNodes: () => any[]): string[] => {
+  const node = getNodes().find((n) => n.id === nodeId)
+  if (!node || !node.parentId) return [nodeId]
+  return [...getNodeHierarchy(node.parentId, getNodes), nodeId]
+}
 
 /**
  * Gets the absolute position of a node (accounting for nested parents)
@@ -43,57 +37,57 @@ export const getNodeHierarchy = (
  * @returns Absolute position coordinates {x, y}
  */
 export const getNodeAbsolutePosition = (
-  nodeId: string, 
+  nodeId: string,
   getNodes: () => any[]
-): { x: number, y: number } => {
-  const node = getNodes().find(n => n.id === nodeId);
+): { x: number; y: number } => {
+  const node = getNodes().find((n) => n.id === nodeId)
   if (!node) {
     // Handle case where node doesn't exist anymore by returning origin position
     // This helps prevent errors during cleanup operations
-    logger.warn('Attempted to get position of non-existent node', { nodeId });
-    return { x: 0, y: 0 };
+    logger.warn('Attempted to get position of non-existent node', { nodeId })
+    return { x: 0, y: 0 }
   }
-  
+
   if (!node.parentId) {
-    return node.position;
+    return node.position
   }
-  
+
   // Check if parent exists
-  const parentNode = getNodes().find(n => n.id === node.parentId);
+  const parentNode = getNodes().find((n) => n.id === node.parentId)
   if (!parentNode) {
     // Parent reference is invalid, return node's current position
-    logger.warn('Node references non-existent parent', { 
-      nodeId, 
-      invalidParentId: node.parentId 
-    });
-    return node.position;
+    logger.warn('Node references non-existent parent', {
+      nodeId,
+      invalidParentId: node.parentId,
+    })
+    return node.position
   }
-  
+
   // Check for circular reference to prevent infinite recursion
-  const visited = new Set<string>();
-  let current: any = node;
-  while (current && current.parentId) {
+  const visited = new Set<string>()
+  let current: any = node
+  while (current?.parentId) {
     if (visited.has(current.parentId)) {
       // Circular reference detected
       logger.error('Circular parent reference detected', {
         nodeId,
-        parentChain: Array.from(visited)
-      });
-      return node.position;
+        parentChain: Array.from(visited),
+      })
+      return node.position
     }
-    visited.add(current.id);
-    current = getNodes().find(n => n.id === current.parentId);
+    visited.add(current.id)
+    current = getNodes().find((n) => n.id === current.parentId)
   }
-  
+
   // Get parent's absolute position
-  const parentPos = getNodeAbsolutePosition(node.parentId, getNodes);
-  
+  const parentPos = getNodeAbsolutePosition(node.parentId, getNodes)
+
   // Calculate this node's absolute position
   return {
     x: parentPos.x + node.position.x,
-    y: parentPos.y + node.position.y
-  };
-};
+    y: parentPos.y + node.position.y,
+  }
+}
 
 /**
  * Calculates the relative position of a node to a new parent
@@ -103,22 +97,22 @@ export const getNodeAbsolutePosition = (
  * @returns Relative position coordinates {x, y}
  */
 export const calculateRelativePosition = (
-  nodeId: string, 
-  newParentId: string, 
+  nodeId: string,
+  newParentId: string,
   getNodes: () => any[]
-): { x: number, y: number } => {
+): { x: number; y: number } => {
   // Get absolute position of the node
-  const nodeAbsPos = getNodeAbsolutePosition(nodeId, getNodes);
-  
+  const nodeAbsPos = getNodeAbsolutePosition(nodeId, getNodes)
+
   // Get absolute position of the new parent
-  const parentAbsPos = getNodeAbsolutePosition(newParentId, getNodes);
-  
+  const parentAbsPos = getNodeAbsolutePosition(newParentId, getNodes)
+
   // Calculate relative position
   return {
     x: nodeAbsPos.x - parentAbsPos.x,
-    y: nodeAbsPos.y - parentAbsPos.y
-  };
-};
+    y: nodeAbsPos.y - parentAbsPos.y,
+  }
+}
 
 /**
  * Updates a node's parent with proper position calculation
@@ -130,38 +124,38 @@ export const calculateRelativePosition = (
  * @param resizeLoopNodes Function to resize loop nodes after parent update
  */
 export const updateNodeParent = (
-  nodeId: string, 
+  nodeId: string,
   newParentId: string | null,
   getNodes: () => any[],
-  updateBlockPosition: (id: string, position: { x: number, y: number }) => void,
-  updateParentId: (id: string, parentId: string, extent: "parent") => void,
+  updateBlockPosition: (id: string, position: { x: number; y: number }) => void,
+  updateParentId: (id: string, parentId: string, extent: 'parent') => void,
   resizeLoopNodes: () => void
 ) => {
   // Skip if no change
-  const node = getNodes().find(n => n.id === nodeId);
-  if (!node) return;
-  
-  const currentParentId = node.parentId || null;
-  if (newParentId === currentParentId) return;
-  
+  const node = getNodes().find((n) => n.id === nodeId)
+  if (!node) return
+
+  const currentParentId = node.parentId || null
+  if (newParentId === currentParentId) return
+
   if (newParentId) {
     // Moving to a new parent - calculate relative position
-    const relativePosition = calculateRelativePosition(nodeId, newParentId, getNodes);
-    
+    const relativePosition = calculateRelativePosition(nodeId, newParentId, getNodes)
+
     // Update both position and parent
-    updateBlockPosition(nodeId, relativePosition);
-    updateParentId(nodeId, newParentId, 'parent');
-    
+    updateBlockPosition(nodeId, relativePosition)
+    updateParentId(nodeId, newParentId, 'parent')
+
     logger.info('Updated node parent', {
       nodeId,
       newParentId,
-      relativePosition
-    });
+      relativePosition,
+    })
   }
-  
+
   // Resize affected loops
-  resizeLoopNodes();
-};
+  resizeLoopNodes()
+}
 
 /**
  * Checks if a point is inside a loop or parallel node
@@ -170,51 +164,51 @@ export const updateNodeParent = (
  * @returns The smallest container node containing the point, or null if none
  */
 export const isPointInLoopNode = (
-  position: { x: number, y: number },
+  position: { x: number; y: number },
   getNodes: () => any[]
-): { 
-  loopId: string, 
-  loopPosition: { x: number, y: number },
-  dimensions: { width: number, height: number } 
+): {
+  loopId: string
+  loopPosition: { x: number; y: number }
+  dimensions: { width: number; height: number }
 } | null => {
   // Find loops and parallel nodes that contain this position point
   const containingNodes = getNodes()
-    .filter(n => n.type === 'loopNode' || n.type === 'parallelNode')
-    .filter(n => {
+    .filter((n) => n.type === 'loopNode' || n.type === 'parallelNode')
+    .filter((n) => {
       const rect = {
         left: n.position.x,
-        right: n.position.x + (n.data?.width || 500), 
+        right: n.position.x + (n.data?.width || 500),
         top: n.position.y,
-        bottom: n.position.y + (n.data?.height || 300)
-      };
+        bottom: n.position.y + (n.data?.height || 300),
+      }
 
       return (
         position.x >= rect.left &&
         position.x <= rect.right &&
         position.y >= rect.top &&
         position.y <= rect.bottom
-      );
+      )
     })
-    .map(n => ({
+    .map((n) => ({
       loopId: n.id,
       loopPosition: n.position,
       dimensions: {
-        width: n.data?.width || 500,  
-        height: n.data?.height || 300
-      }
-    }));
+        width: n.data?.width || 500,
+        height: n.data?.height || 300,
+      },
+    }))
 
   // Sort by area (smallest first) in case of nested containers
   if (containingNodes.length > 0) {
     return containingNodes.sort((a, b) => {
-      const aArea = a.dimensions.width * a.dimensions.height;
-      const bArea = b.dimensions.width * b.dimensions.height;
-      return aArea - bArea;
-    })[0];
+      const aArea = a.dimensions.width * a.dimensions.height
+      const bArea = b.dimensions.width * b.dimensions.height
+      return aArea - bArea
+    })[0]
   }
 
-  return null;
-};
+  return null
+}
 
 /**
  * Calculates appropriate dimensions for a loop or parallel node based on its children
@@ -225,88 +219,88 @@ export const isPointInLoopNode = (
 export const calculateLoopDimensions = (
   nodeId: string,
   getNodes: () => any[]
-): { width: number, height: number } => {
+): { width: number; height: number } => {
   // Default minimum dimensions
-  const minWidth = 500;
-  const minHeight = 300;
+  const minWidth = 500
+  const minHeight = 300
 
   // Get all child nodes of this container
-  const childNodes = getNodes().filter(node => node.parentId === nodeId);
+  const childNodes = getNodes().filter((node) => node.parentId === nodeId)
 
   if (childNodes.length === 0) {
-    return { width: minWidth, height: minHeight };
+    return { width: minWidth, height: minHeight }
   }
 
   // Calculate the bounding box that contains all children
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
+  let minX = Number.POSITIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
 
-  childNodes.forEach(node => {
+  childNodes.forEach((node) => {
     // Get accurate node dimensions based on node type
-    let nodeWidth;
-    let nodeHeight;
-    
+    let nodeWidth
+    let nodeHeight
+
     if (node.type === 'loopNode' || node.type === 'parallelNode') {
       // For nested containers, don't add excessive padding to the parent
       // Use actual dimensions without additional padding to prevent cascading expansion
-      nodeWidth = node.data?.width || 500;
-      nodeHeight = node.data?.height || 300;
+      nodeWidth = node.data?.width || 500
+      nodeHeight = node.data?.height || 300
     } else if (node.type === 'workflowBlock') {
       // Handle all workflowBlock types appropriately
-      const blockType = node.data?.type;
-      
+      const blockType = node.data?.type
+
       switch (blockType) {
         case 'agent':
         case 'api':
           // Tall blocks
-          nodeWidth = 350;
-          nodeHeight = 650;
-          break;
+          nodeWidth = 350
+          nodeHeight = 650
+          break
         case 'condition':
-        case 'function':            
-          nodeWidth = 250;
-          nodeHeight = 200;
-          break;
+        case 'function':
+          nodeWidth = 250
+          nodeHeight = 200
+          break
         case 'router':
-          nodeWidth = 250;
-          nodeHeight = 350;
-          break;
+          nodeWidth = 250
+          nodeHeight = 350
+          break
         default:
           // Default dimensions for other block types
-          nodeWidth = 200;
-          nodeHeight = 200;
+          nodeWidth = 200
+          nodeHeight = 200
       }
     } else {
       // Default dimensions for any other node types
-      nodeWidth = 200;
-      nodeHeight = 200;
+      nodeWidth = 200
+      nodeHeight = 200
     }
 
-    minX = Math.min(minX, node.position.x);
-    minY = Math.min(minY, node.position.y);
-    maxX = Math.max(maxX, node.position.x + nodeWidth);
-    maxY = Math.max(maxY, node.position.y + nodeHeight);
-  });
+    minX = Math.min(minX, node.position.x)
+    minY = Math.min(minY, node.position.y)
+    maxX = Math.max(maxX, node.position.x + nodeWidth)
+    maxY = Math.max(maxY, node.position.y + nodeHeight)
+  })
 
   // Add buffer padding to all sides (20px buffer before edges)
   // Add extra padding for nested containers to prevent tight boundaries
-  const hasNestedContainers = childNodes.some(node => 
-    node.type === 'loopNode' || node.type === 'parallelNode'
-  );
-  
+  const hasNestedContainers = childNodes.some(
+    (node) => node.type === 'loopNode' || node.type === 'parallelNode'
+  )
+
   // More reasonable padding values, especially for nested containers
   // Reduce the excessive padding that was causing parent containers to be too large
-  const sidePadding = hasNestedContainers ? 150 : 120; // Reduced padding for containers containing other containers
-  
+  const sidePadding = hasNestedContainers ? 150 : 120 // Reduced padding for containers containing other containers
+
   // Ensure the width and height are never less than the minimums
   // Apply padding to all sides (left/right and top/bottom)
-  const width = Math.max(minWidth, maxX + sidePadding);
-  const height = Math.max(minHeight, maxY + sidePadding);
+  const width = Math.max(minWidth, maxX + sidePadding)
+  const height = Math.max(minHeight, maxY + sidePadding)
 
-  return { width, height };
-};
+  return { width, height }
+}
 
 /**
  * Resizes all loop and parallel nodes based on their children
@@ -315,25 +309,24 @@ export const calculateLoopDimensions = (
  */
 export const resizeLoopNodes = (
   getNodes: () => any[],
-  updateNodeDimensions: (id: string, dimensions: { width: number, height: number }) => void
+  updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
 ) => {
   // Find all container nodes and sort by hierarchy depth (parents first)
   const containerNodes = getNodes()
-    .filter(node => node.type === 'loopNode' || node.type === 'parallelNode')
-    .map(node => ({
+    .filter((node) => node.type === 'loopNode' || node.type === 'parallelNode')
+    .map((node) => ({
       ...node,
-      depth: getNodeDepth(node.id, getNodes)
+      depth: getNodeDepth(node.id, getNodes),
     }))
-    .sort((a, b) => a.depth - b.depth);
+    .sort((a, b) => a.depth - b.depth)
 
   // Resize each container node based on its children
-  containerNodes.forEach(node => {
-    const dimensions = calculateLoopDimensions(node.id, getNodes);
+  containerNodes.forEach((node) => {
+    const dimensions = calculateLoopDimensions(node.id, getNodes)
 
     // Only update if dimensions have changed (to avoid unnecessary updates)
-    if (dimensions.width !== node.data?.width || 
-        dimensions.height !== node.data?.height) {
-      updateNodeDimensions(node.id, dimensions);
+    if (dimensions.width !== node.data?.width || dimensions.height !== node.data?.height) {
+      updateNodeDimensions(node.id, dimensions)
     }
-  });
-}; 
+  })
+}

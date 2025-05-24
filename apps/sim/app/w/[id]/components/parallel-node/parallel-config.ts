@@ -18,7 +18,7 @@ export const ParallelTool = {
       isExecuting: false,
       startTime: null,
       endTime: null,
-    }
+    },
   },
   style: {
     width: 500,

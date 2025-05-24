@@ -157,9 +157,11 @@ export function setupUnloadPersistence(): void {
     if (currentId) {
       // Save workflow state
       const currentState = useWorkflowStore.getState()
-      
+
       // Generate loops from the current blocks for consistency
-      const generatedLoops = currentState.generateLoopBlocks ? currentState.generateLoopBlocks() : {}
+      const generatedLoops = currentState.generateLoopBlocks
+        ? currentState.generateLoopBlocks()
+        : {}
 
       // Save the complete state including history which is added by middleware
       saveWorkflowState(currentId, {

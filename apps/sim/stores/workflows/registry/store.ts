@@ -1102,7 +1102,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             newActiveWorkflowId = remainingIds[0]
             const savedState = loadWorkflowState(newActiveWorkflowId)
             if (savedState) {
-              const { blocks, edges, history, loops, parallels, isDeployed, deployedAt } = savedState
+              const { blocks, edges, history, loops, parallels, isDeployed, deployedAt } =
+                savedState
               useWorkflowStore.setState({
                 blocks,
                 edges,

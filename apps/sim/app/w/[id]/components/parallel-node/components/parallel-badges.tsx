@@ -1,29 +1,28 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { highlight, languages } from 'prismjs'
+import Editor from 'react-simple-code-editor'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import Editor from 'react-simple-code-editor'
-import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
 interface ParallelNodeData {
-  width?: number;
-  height?: number;
-  parentId?: string;
-  state?: string;
-  type?: string;
-  extent?: 'parent';
-  collection?: string | any[] | Record<string, any>;
+  width?: number
+  height?: number
+  parentId?: string
+  state?: string
+  type?: string
+  extent?: 'parent'
+  collection?: string | any[] | Record<string, any>
   executionState?: {
-    currentExecution: number;
-    isExecuting: boolean;
-    startTime: number | null;
-    endTime: number | null;
-  };
+    currentExecution: number
+    isExecuting: boolean
+    startTime: number | null
+    endTime: number | null
+  }
 }
 
 interface ParallelBadgesProps {
@@ -37,20 +36,23 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
 
   // Get store methods
-  const updateNodeData = useCallback((updates: Partial<ParallelNodeData>) => {
-    useWorkflowStore.setState(state => ({
-      blocks: {
-        ...state.blocks,
-        [nodeId]: {
-          ...state.blocks[nodeId],
-          data: {
-            ...state.blocks[nodeId].data,
-            ...updates
-          }
-        }
-      }
-    }))
-  }, [nodeId])
+  const updateNodeData = useCallback(
+    (updates: Partial<ParallelNodeData>) => {
+      useWorkflowStore.setState((state) => ({
+        blocks: {
+          ...state.blocks,
+          [nodeId]: {
+            ...state.blocks[nodeId],
+            data: {
+              ...state.blocks[nodeId].data,
+              ...updates,
+            },
+          },
+        },
+      }))
+    },
+    [nodeId]
+  )
 
   // Initialize editor value from data when it changes
   useEffect(() => {
@@ -64,42 +66,39 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   }, [data?.collection])
 
   // Handle editor change
-  const handleEditorChange = useCallback((value: string) => {
-    setEditorValue(value)
-    updateNodeData({ collection: value })
-  }, [updateNodeData])
+  const handleEditorChange = useCallback(
+    (value: string) => {
+      setEditorValue(value)
+      updateNodeData({ collection: value })
+    },
+    [updateNodeData]
+  )
 
   return (
-    <div className="absolute -top-9 left-0 right-0 flex justify-end z-10">
+    <div className='-top-9 absolute right-0 left-0 z-10 flex justify-end'>
       {/* Items Configuration Badge */}
       <Popover open={configPopoverOpen} onOpenChange={setConfigPopoverOpen}>
         <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
           <Badge
-            variant="outline"
+            variant='outline'
             className={cn(
-              'bg-background/80 backdrop-blur-sm border-border text-foreground font-medium pr-1.5 pl-2.5 py-0.5 text-sm',
-              'hover:bg-accent/50 transition-colors duration-150 cursor-pointer',
+              'border-border bg-background/80 py-0.5 pr-1.5 pl-2.5 font-medium text-foreground text-sm backdrop-blur-sm',
+              'cursor-pointer transition-colors duration-150 hover:bg-accent/50',
               'flex items-center gap-1'
             )}
           >
             Items
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            <ChevronDown className='h-3 w-3 text-muted-foreground' />
           </Badge>
         </PopoverTrigger>
-        <PopoverContent
-          className="p-3 w-72"
-          align="center"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="space-y-2">
-            <div className="text-xs font-medium text-muted-foreground">
-              Parallel Items
-            </div>
+        <PopoverContent className='w-72 p-3' align='center' onClick={(e) => e.stopPropagation()}>
+          <div className='space-y-2'>
+            <div className='font-medium text-muted-foreground text-xs'>Parallel Items</div>
 
             {/* Code editor for items */}
-            <div className="relative min-h-[80px] rounded-md bg-background font-mono text-sm px-3 pt-2 pb-3 border border-input">
+            <div className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'>
               {editorValue === '' && (
-                <div className="absolute top-[8.5px] left-3 text-muted-foreground/50 pointer-events-none select-none">
+                <div className='pointer-events-none absolute top-[8.5px] left-3 select-none text-muted-foreground/50'>
                   ['item1', 'item2', 'item3']
                 </div>
               )}
@@ -112,12 +111,12 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
                   fontFamily: 'monospace',
                   lineHeight: '21px',
                 }}
-                className="focus:outline-none w-full"
-                textareaClassName="focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap"
+                className='w-full focus:outline-none'
+                textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap'
               />
             </div>
 
-            <div className="text-[10px] text-muted-foreground">
+            <div className='text-[10px] text-muted-foreground'>
               Array or object to use for parallel execution
             </div>
           </div>

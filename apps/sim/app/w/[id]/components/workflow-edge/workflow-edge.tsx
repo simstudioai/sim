@@ -1,10 +1,5 @@
 import { X } from 'lucide-react'
-import {
-  BaseEdge,
-  EdgeLabelRenderer,
-  type EdgeProps,
-  getSmoothStepPath,
-} from 'reactflow'
+import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 
 export const WorkflowEdge = ({
   id,
@@ -47,7 +42,7 @@ export const WorkflowEdge = ({
     <>
       <BaseEdge
         path={edgePath}
-        data-testid="workflow-edge"
+        data-testid='workflow-edge'
         style={edgeStyle}
         interactionWidth={30}
         data-edge-id={id}
@@ -56,17 +51,17 @@ export const WorkflowEdge = ({
         data-is-inside-loop={isInsideLoop ? 'true' : 'false'}
       />
       <animate
-        attributeName="stroke-dashoffset"
-        from="10"
-        to="0"
-        dur="1s"
-        repeatCount="indefinite"
+        attributeName='stroke-dashoffset'
+        from='10'
+        to='0'
+        dur='1s'
+        repeatCount='indefinite'
       />
 
       {isSelected && (
         <EdgeLabelRenderer>
           <div
-            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#FAFBFC] nodrag nopan shadow-sm"
+            className='nodrag nopan flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#FAFBFC] shadow-sm'
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
@@ -82,7 +77,7 @@ export const WorkflowEdge = ({
               }
             }}
           >
-            <X className="h-5 w-5 text-red-500 hover:text-red-600" />
+            <X className='h-5 w-5 text-red-500 hover:text-red-600' />
           </div>
         </EdgeLabelRenderer>
       )}

@@ -28,30 +28,30 @@ export interface SubBlockState {
 }
 
 export interface LoopBlock {
-  id: string;
-  loopType: 'for' | 'forEach';
-  count: number;  // UI representation of iterations
-  collection: string;  // UI representation of forEachItems
-  width: number;
-  height: number;
+  id: string
+  loopType: 'for' | 'forEach'
+  count: number // UI representation of iterations
+  collection: string // UI representation of forEachItems
+  width: number
+  height: number
   executionState: {
-    currentIteration: number;
-    isExecuting: boolean;
-    startTime: null | number;
-    endTime: null | number;
+    currentIteration: number
+    isExecuting: boolean
+    startTime: null | number
+    endTime: null | number
   }
 }
 
 export interface ParallelBlock {
-  id: string;
-  collection: string;
-  width: number;
-  height: number;
+  id: string
+  collection: string
+  width: number
+  height: number
   executionState: {
-    currentExecution: number;
-    isExecuting: boolean;
-    startTime: null | number;
-    endTime: null | number;
+    currentExecution: number
+    isExecuting: boolean
+    startTime: null | number
+    endTime: null | number
   }
 }
 
@@ -104,7 +104,15 @@ export interface SyncControl {
 }
 
 export interface WorkflowActions {
-  addBlock: (id: string, type: string, name: string, position: Position, data?: Record<string, any>, parentId?: string, extent?: 'parent') => void
+  addBlock: (
+    id: string,
+    type: string,
+    name: string,
+    position: Position,
+    data?: Record<string, any>,
+    parentId?: string,
+    extent?: 'parent'
+  ) => void
   updateBlockPosition: (id: string, position: Position) => void
   updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
   updateParentId: (id: string, parentId: string, extent: 'parent') => void
