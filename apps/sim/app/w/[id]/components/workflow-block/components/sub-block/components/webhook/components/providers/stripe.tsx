@@ -1,5 +1,5 @@
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { ShieldCheck } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay } from '../ui/test-result'
 

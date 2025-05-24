@@ -166,7 +166,7 @@ export const MistralParseBlock: BlockConfig<MistralParserOutput> = {
         }
 
         // Convert pages input from string to array of numbers if provided
-        let pagesArray: number[] | undefined = undefined
+        let pagesArray: number[] | undefined
         if (params.pages && params.pages.trim() !== '') {
           try {
             pagesArray = params.pages

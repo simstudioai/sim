@@ -1,8 +1,8 @@
+import type React from 'react'
+import { Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Info } from 'lucide-react'
-import type React from 'react'
 
 interface ConfigFieldProps {
   id: string

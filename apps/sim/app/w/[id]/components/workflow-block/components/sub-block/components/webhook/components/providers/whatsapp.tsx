@@ -1,5 +1,5 @@
+import { Network } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { CheckCircle, Network } from 'lucide-react'
 import { ConfigField } from '../ui/config-field'
 import { ConfigSection } from '../ui/config-section'
 import { CopyableField } from '../ui/copyable'

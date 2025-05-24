@@ -1,4 +1,3 @@
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
@@ -6,7 +5,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ShieldCheck } from 'lucide-react'
 import { ConfigField } from '../ui/config-field'
 import { ConfigSection } from '../ui/config-section'
 import { CopyableField } from '../ui/copyable'

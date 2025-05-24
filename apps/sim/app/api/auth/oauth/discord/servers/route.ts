@@ -1,5 +1,5 @@
-import { createLogger } from '@/lib/logs/console-logger'
 import { NextResponse } from 'next/server'
+import { createLogger } from '@/lib/logs/console-logger'
 
 interface DiscordServer {
   id: string
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
           const errorData = await response.json()
           logger.error('Error details:', errorData)
           errorMessage = errorData.message || `Failed to fetch server (${response.status})`
-        } catch (e) {
+        } catch (_e) {
           errorMessage = `Failed to fetch server: ${response.status} ${response.statusText}`
         }
         return NextResponse.json({ error: errorMessage }, { status: response.status })
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
         const errorData = await response.json()
         logger.error('Error details:', errorData)
         errorMessage = errorData.message || `Failed to fetch servers (${response.status})`
-      } catch (e) {
+      } catch (_e) {
         errorMessage = `Failed to fetch servers: ${response.status} ${response.statusText}`
       }
       return NextResponse.json({ error: errorMessage }, { status: response.status })

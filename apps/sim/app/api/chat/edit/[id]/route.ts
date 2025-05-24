@@ -1,14 +1,14 @@
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { db } from '@/db'
-import { chat } from '@/db/schema'
+import { and, eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
 import { encryptSecret } from '@/lib/utils'
-import { and, eq } from 'drizzle-orm'
-import type { NextRequest } from 'next/server'
-import { z } from 'zod'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { db } from '@/db'
+import { chat } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -147,7 +147,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
 
       // Handle password update
-      let encryptedPassword = undefined
+      let encryptedPassword
 
       // Only encrypt and update password if one is provided
       if (password) {

@@ -1,5 +1,7 @@
 'use client'
 
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
 import { ConfluenceIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,13 +15,11 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   type Credential,
-  type OAuthProvider,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
+  type OAuthProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
-import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
 export interface ConfluenceFileInfo {

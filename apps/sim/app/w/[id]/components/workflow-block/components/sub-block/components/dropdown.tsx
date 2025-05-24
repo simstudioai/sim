@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react'
 import {
   Select,
   SelectContent,
@@ -5,7 +6,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useEffect, useMemo, useState } from 'react'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DropdownProps {

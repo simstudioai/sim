@@ -1,5 +1,5 @@
-import type { BlockOutput } from '@/blocks/types'
 import { createLogger } from '@/lib/logs/console-logger'
+import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock } from '@/serializer/types'
 import type { PathTracker } from '../../path'
 import type { InputResolver } from '../../resolver'

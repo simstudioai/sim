@@ -1,11 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import {
-  type Notification,
-  type NotificationOptions,
-  type NotificationStore,
-  NotificationType,
-} from './types'
+import type { Notification, NotificationOptions, NotificationStore } from './types'
 
 const STORAGE_KEY = 'workflow-notifications'
 // Maximum number of notifications to keep across all workflows
@@ -83,7 +78,7 @@ export const useNotificationStore = create<NotificationStore>()(
 
         // If not persistent, start the fade timer immediately
         if (!options.isPersistent) {
-          const timerId = setTimeout(() => {
+          const _timerId = setTimeout(() => {
             // Start fade out animation
             set((state) => {
               const newNotifications = state.notifications.map((n) =>

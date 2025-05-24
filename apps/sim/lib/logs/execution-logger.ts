@@ -1,12 +1,12 @@
-import { db } from '@/db'
-import { userStats, workflow, workflowLogs } from '@/db/schema'
-import type { ExecutionResult as ExecutorResult } from '@/executor/types'
+import { eq, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 import { getCostMultiplier } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { redactApiKeys } from '@/lib/utils'
+import { db } from '@/db'
+import { userStats, workflow, workflowLogs } from '@/db/schema'
+import type { ExecutionResult as ExecutorResult } from '@/executor/types'
 import { calculateCost } from '@/providers/utils'
-import { eq, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 import { stripCustomToolPrefix } from '../workflows/utils'
 
 const logger = createLogger('ExecutionLogger')
@@ -100,7 +100,7 @@ export async function persistExecutionLogs(
     // Log each execution step
     for (const log of result.logs || []) {
       // Check for agent block and tool calls
-      let metadata: ToolCallMetadata | undefined = undefined
+      let metadata: ToolCallMetadata | undefined
 
       // If this is an agent block
       if (log.blockType === 'agent' && log.output) {
@@ -877,7 +877,7 @@ function extractDuration(toolCall: any): number {
       if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
         return end - start
       }
-    } catch (e) {
+    } catch (_e) {
       // Silently fail if date parsing fails
     }
   }
@@ -890,7 +890,7 @@ function extractDuration(toolCall: any): number {
       if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
         return end - start
       }
-    } catch (e) {
+    } catch (_e) {
       // Silently fail if date parsing fails
     }
   }
@@ -904,7 +904,7 @@ function extractDuration(toolCall: any): number {
         if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
           return end - start
         }
-      } catch (e) {
+      } catch (_e) {
         // Silently fail if date parsing fails
       }
     }
@@ -926,8 +926,8 @@ function extractTimingInfo(
   blockStartTime?: Date,
   blockEndTime?: Date
 ): { startTime?: Date; endTime?: Date } {
-  let startTime: Date | undefined = undefined
-  let endTime: Date | undefined = undefined
+  let startTime: Date | undefined
+  let endTime: Date | undefined
 
   // Try to get direct timing properties
   if (toolCall.startTime && isValidDate(toolCall.startTime)) {
@@ -977,7 +977,7 @@ function isValidDate(dateString: string): boolean {
   try {
     const timestamp = Date.parse(dateString)
     return !Number.isNaN(timestamp)
-  } catch (e) {
+  } catch (_e) {
     return false
   }
 }

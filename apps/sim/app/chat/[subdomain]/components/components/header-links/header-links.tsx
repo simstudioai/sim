@@ -1,7 +1,7 @@
 'use client'
 
-import { GithubIcon } from '@/components/icons'
 import { motion } from 'framer-motion'
+import { GithubIcon } from '@/components/icons'
 
 interface HeaderLinksProps {
   stars: string

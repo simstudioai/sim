@@ -1,15 +1,15 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { Loader2, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { Loader2, Rocket } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { DeployModal } from '../deploy-modal/deploy-modal'
 
-const logger = createLogger('DeploymentControls')
+const _logger = createLogger('DeploymentControls')
 
 interface DeploymentControlsProps {
   activeWorkflowId: string | null
@@ -34,7 +34,7 @@ export function DeploymentControls({
       ? deploymentStatus.needsRedeployment
       : needsRedeployment
 
-  const [isDeploying, setIsDeploying] = useState(false)
+  const [isDeploying, _setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Update parent component when workflow-specific status changes

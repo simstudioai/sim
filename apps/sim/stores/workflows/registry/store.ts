@@ -1,7 +1,7 @@
-import { createLogger } from '@/lib/logs/console-logger'
-import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { createLogger } from '@/lib/logs/console-logger'
+import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
 import { API_ENDPOINTS, STORAGE_KEYS } from '../../constants'
 import {
   loadWorkflowState,
@@ -11,12 +11,7 @@ import {
   saveWorkflowState,
 } from '../persistence'
 import { useSubBlockStore } from '../subblock/store'
-import {
-  fetchWorkflowsFromDB,
-  markWorkflowsDirty,
-  resetRegistryInitialization,
-  workflowSync,
-} from '../sync'
+import { fetchWorkflowsFromDB, resetRegistryInitialization, workflowSync } from '../sync'
 import { useWorkflowStore } from '../workflow/store'
 import type { DeploymentStatus, WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
@@ -70,7 +65,7 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
               if (parsed.workspaceId === workspaceId) {
                 localStorage.removeItem(key)
               }
-            } catch (e) {}
+            } catch (_e) {}
           } else {
             // If we can't determine the workspace, remove it to be safe
             localStorage.removeItem(key)
@@ -95,12 +90,12 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
                       parsed.workspaceId = workspaceId
                       localStorage.setItem(`workflow-${workflowId}`, JSON.stringify(parsed))
                     }
-                  } catch (e) {
+                  } catch (_e) {
                     // Skip if we can't parse workspaces data
                   }
                 }
               }
-            } catch (e) {
+            } catch (_e) {
               // Skip if we can't parse the data
             }
           }

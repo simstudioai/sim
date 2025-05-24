@@ -1,9 +1,7 @@
 'use client'
 
-import { ApiEndpoint } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-endpoint/api-endpoint'
-import { ApiKey } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-key/api-key'
-import { DeployStatus } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/deploy-status/deploy-status'
-import { ExampleCommand } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/example-command/example-command'
+import { useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,9 +15,11 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ApiEndpoint } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-endpoint/api-endpoint'
+import { ApiKey } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/api-key/api-key'
+import { DeployStatus } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/deploy-status/deploy-status'
+import { ExampleCommand } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/example-command/example-command'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { Info, Loader2 } from 'lucide-react'
-import { useState } from 'react'
 import { DeployedWorkflowModal } from '../../../deployment-controls/components/deployed-workflow-modal'
 
 interface DeploymentInfoProps {

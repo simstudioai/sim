@@ -1,3 +1,6 @@
+// NOTE: API NOTIFICATIONS NO LONGER EXIST, BUT IF YOU DELETE THEM FROM THIS FILE THE APPLICATION WILL BREAK
+import { useEffect, useState } from 'react'
+import { Info, Rocket, Store, Terminal, X } from 'lucide-react'
 import { ErrorIcon } from '@/components/icons'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -18,9 +21,6 @@ import { MAX_VISIBLE_NOTIFICATIONS, useNotificationStore } from '@/stores/notifi
 import type { Notification } from '@/stores/notifications/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { Info, Rocket, Store, Terminal, X } from 'lucide-react'
-// NOTE: API NOTIFICATIONS NO LONGER EXIST, BUT IF YOU DELETE THEM FROM THIS FILE THE APPLICATION WILL BREAK
-import { useEffect, useState } from 'react'
 
 const logger = createLogger('Notifications')
 
@@ -177,7 +177,7 @@ export function NotificationList() {
 
   // Check if we're over the limit of visible notifications
   const visibleCount = activeWorkflowId ? getVisibleNotificationCount(activeWorkflowId) : 0
-  const isOverLimit = visibleCount > MAX_VISIBLE_NOTIFICATIONS
+  const _isOverLimit = visibleCount > MAX_VISIBLE_NOTIFICATIONS
 
   // Reset removedIds whenever a notification's visibility changes from false to true
   useEffect(() => {

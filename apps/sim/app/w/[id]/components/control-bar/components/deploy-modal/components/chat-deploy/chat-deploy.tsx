@@ -1,6 +1,18 @@
 'use client'
 
-import { OutputSelect } from '@/app/w/[id]/components/panel/components/chat/components/output-select/output-select'
+import { type FormEvent, useEffect, useRef, useState } from 'react'
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react'
+import { z } from 'zod'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -18,26 +30,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { env } from '@/lib/env'
 import { getNodeEnv } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseDomain } from '@/lib/urls/utils'
 import { cn } from '@/lib/utils'
+import { OutputSelect } from '@/app/w/[id]/components/panel/components/chat/components/output-select/output-select'
 import { useNotificationStore } from '@/stores/notifications/store'
 import type { OutputConfig } from '@/stores/panel/chat/types'
-import {
-  AlertTriangle,
-  Check,
-  Copy,
-  Eye,
-  EyeOff,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Trash2,
-} from 'lucide-react'
-import { type FormEvent, useEffect, useRef, useState } from 'react'
-import { z } from 'zod'
 
 const logger = createLogger('ChatDeploy')
 
@@ -119,7 +118,7 @@ export function ChatDeploy({
   const [existingChat, setExistingChat] = useState<any | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [dataFetched, setDataFetched] = useState(false)
+  const [_dataFetched, setDataFetched] = useState(false)
 
   // Track original values to detect changes
   const [originalValues, setOriginalValues] = useState<{
@@ -759,12 +758,12 @@ export function ChatDeploy({
   }
 
   // Determine button label based on state
-  const getSubmitButtonLabel = () => {
+  const _getSubmitButtonLabel = () => {
     return existingChat ? 'Update Chat' : 'Deploy Chat'
   }
 
   // Check if form submission is possible
-  const isFormSubmitDisabled = () => {
+  const _isFormSubmitDisabled = () => {
     return (
       chatSubmitting ||
       isDeleting ||

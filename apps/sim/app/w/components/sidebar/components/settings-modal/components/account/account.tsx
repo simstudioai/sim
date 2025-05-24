@@ -1,6 +1,8 @@
 'use client'
 
-import { RequestResetForm } from '@/app/(auth)/reset-password/reset-password-form'
+import { useEffect, useState } from 'react'
+import { ChevronDown, Lock, LogOut, User, UserPlus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { AgentIcon } from '@/components/icons'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -13,10 +15,8 @@ import {
 import { signOut, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { RequestResetForm } from '@/app/(auth)/reset-password/reset-password-form'
 import { clearUserData } from '@/stores'
-import { ChevronDown, Lock, LogOut, User, UserPlus } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
 
 const logger = createLogger('Account')
 
@@ -50,7 +50,7 @@ export function Account({ onOpenChange }: AccountProps) {
 
   // Get session data using the client hook
   const { data: session, isPending, error } = useSession()
-  const [isLoadingUserData, setIsLoadingUserData] = useState(false)
+  const [isLoadingUserData, _setIsLoadingUserData] = useState(false)
 
   // Reset password states
   const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false)

@@ -70,7 +70,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
     let data: DiscordUser
     try {
       data = await response.clone().json()
-    } catch (e) {
+    } catch (_e) {
       return {
         success: false,
         error: 'Failed to parse user data',

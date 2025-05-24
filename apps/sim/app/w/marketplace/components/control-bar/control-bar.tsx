@@ -1,9 +1,9 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { useDebounce } from '@/hooks/use-debounce'
-import { Search } from 'lucide-react'
-import { useEffect, useState } from 'react'
 
 interface ControlBarProps {
   setSearchQuery: (query: string) => void

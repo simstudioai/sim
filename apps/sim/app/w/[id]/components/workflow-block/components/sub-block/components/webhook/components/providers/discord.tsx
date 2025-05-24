@@ -1,7 +1,7 @@
+import { Terminal } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Input } from '@/components/ui/input'
-import { Terminal } from 'lucide-react'
 import { ConfigField } from '../ui/config-field'
 import { ConfigSection } from '../ui/config-section'
 import { InstructionsSection } from '../ui/instructions-section'

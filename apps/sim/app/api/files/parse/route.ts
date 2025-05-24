@@ -1,14 +1,14 @@
 import { Buffer } from 'buffer'
 import { createHash } from 'crypto'
+import fsPromises, { readFile, unlink, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
+import binaryExtensionsList from 'binary-extensions'
+import { type NextRequest, NextResponse } from 'next/server'
 import { isSupportedFileType, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console-logger'
 import { downloadFromS3 } from '@/lib/uploads/s3-client'
 import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
-import binaryExtensionsList from 'binary-extensions'
-import fsPromises, { readFile, unlink, writeFile } from 'fs/promises'
-import { type NextRequest, NextResponse } from 'next/server'
 import '@/lib/uploads/setup.server'
 
 export const dynamic = 'force-dynamic'
@@ -72,7 +72,7 @@ const fileTypeMap: Record<string, string> = {
 }
 
 // Binary file extensions
-const binaryExtensions = [
+const _binaryExtensions = [
   'doc',
   'docx',
   'xls',
@@ -256,7 +256,7 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
       // Clean up temporary file on error
       try {
         await unlink(tmpFilePath)
-      } catch (cleanupError) {
+      } catch (_cleanupError) {
         // Ignore cleanup errors on parse failure
       }
 

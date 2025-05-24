@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react'
+import { Calendar, ExternalLink } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -7,9 +10,6 @@ import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { Calendar, ExternalLink } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { ScheduleModal } from './components/schedule-modal'
 
@@ -47,7 +47,7 @@ export function ScheduleConfig({ blockId, subBlockId, isConnecting }: ScheduleCo
   // Get the startWorkflow value to determine if scheduling is enabled
   // and expose the setter so we can update it
   const [startWorkflow, setStartWorkflow] = useSubBlockValue(blockId, 'startWorkflow')
-  const isScheduleEnabled = startWorkflow === 'schedule'
+  const _isScheduleEnabled = startWorkflow === 'schedule'
 
   // Function to check if schedule exists in the database
   const checkSchedule = async () => {

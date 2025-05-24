@@ -1,7 +1,7 @@
+import { readFile } from 'fs/promises'
 import { promisify } from 'util'
 import zlib from 'zlib'
 import { createLogger } from '@/lib/logs/console-logger'
-import { readFile } from 'fs/promises'
 import type { FileParseResult, FileParser } from './types'
 
 const logger = createLogger('RawPdfParser')
@@ -328,7 +328,7 @@ export class RawPdfParser implements FileParser {
                   ) {
                     return readable
                   }
-                } catch (inflateErr) {
+                } catch (_inflateErr) {
                   // Try unzip as fallback
                   try {
                     const decompressed = await unzipAsync(compressedData)
@@ -344,12 +344,12 @@ export class RawPdfParser implements FileParser {
                     ) {
                       return readable
                     }
-                  } catch (unzipErr) {
+                  } catch (_unzipErr) {
                     // Both methods failed, continue to next stream
                     return ''
                   }
                 }
-              } catch (error) {
+              } catch (_error) {
                 // Error processing this stream, skip it
                 return ''
               }

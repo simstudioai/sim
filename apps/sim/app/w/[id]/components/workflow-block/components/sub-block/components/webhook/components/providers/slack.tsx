@@ -1,6 +1,6 @@
-import { JSONView } from '@/app/w/[id]/components/panel/components/console/components/json-view/json-view'
 import { SlackIcon } from '@/components/icons'
 import { Notice } from '@/components/ui/notice'
+import { JSONView } from '@/app/w/[id]/components/panel/components/console/components/json-view/json-view'
 import { ConfigSection } from '../ui/config-section'
 import { InstructionsSection } from '../ui/instructions-section'
 import { TestResultDisplay } from '../ui/test-result'

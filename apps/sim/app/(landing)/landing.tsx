@@ -1,8 +1,6 @@
 'use client'
 
 import NavWrapper from './components/nav-wrapper'
-import Blogs from './components/sections/blogs'
-import Features from './components/sections/features'
 import Footer from './components/sections/footer'
 import Hero from './components/sections/hero'
 import Integrations from './components/sections/integrations'

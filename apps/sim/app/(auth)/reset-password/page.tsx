@@ -1,5 +1,8 @@
 'use client'
 
+import { Suspense, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Card,
   CardContent,
@@ -9,9 +12,6 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense, useEffect, useState } from 'react'
 import { SetNewPasswordForm } from './reset-password-form'
 
 const logger = createLogger('ResetPasswordPage')

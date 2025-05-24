@@ -1,8 +1,8 @@
-import { createLogger } from '@/lib/logs/console-logger'
 import { NextResponse } from 'next/server'
 import { OpenAI } from 'openai'
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { z } from 'zod'
+import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('CopilotAPI')
 

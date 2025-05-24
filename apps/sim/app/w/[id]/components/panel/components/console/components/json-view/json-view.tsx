@@ -1,6 +1,6 @@
-import { Button } from '@/components/ui/button'
-import { Download } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { AudioPlayer } from '../audio-player/audio-player'
 
 interface JSONViewProps {

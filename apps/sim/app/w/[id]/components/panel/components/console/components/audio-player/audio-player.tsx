@@ -1,8 +1,8 @@
 'use client'
 
-import { createLogger } from '@/lib/logs/console-logger'
-import { Download, Pause, Play } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { Download, Pause, Play } from 'lucide-react'
+import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('AudioPlayer')
 

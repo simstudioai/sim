@@ -1,7 +1,7 @@
 'use client'
 
-import { VariableManager } from '@/lib/variables/variable-manager'
 import type { ReactNode } from 'react'
+import { VariableManager } from '@/lib/variables/variable-manager'
 
 /**
  * Formats text by highlighting block references (<...>) and environment variables ({{...}})

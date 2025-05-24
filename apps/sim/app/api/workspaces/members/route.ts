@@ -1,8 +1,8 @@
-import { db } from '@/db'
-import { user, workspaceMember } from '@/db/schema'
-import { getSession } from '@/lib/auth'
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
+import { db } from '@/db'
+import { user, workspaceMember } from '@/db/schema'
 
 // Add a member to a workspace
 export async function POST(req: Request) {

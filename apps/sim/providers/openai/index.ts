@@ -1,7 +1,7 @@
-import type { StreamingExecution } from '@/executor/types'
-import { createLogger } from '@/lib/logs/console-logger'
-import { executeTool } from '@/tools'
 import OpenAI from 'openai'
+import { createLogger } from '@/lib/logs/console-logger'
+import type { StreamingExecution } from '@/executor/types'
+import { executeTool } from '@/tools'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
@@ -186,13 +186,13 @@ export const openaiProvider: ProviderConfig = {
           total: 0,
         }
 
-        let streamContent = ''
+        let _streamContent = ''
 
         // Create a StreamingExecution response with a callback to update content and tokens
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
             // Update the execution data with the final content and token usage
-            streamContent = content
+            _streamContent = content
             streamingResult.execution.output.response.content = content
 
             // Update the timing information with the actual completion time
@@ -501,12 +501,12 @@ export const openaiProvider: ProviderConfig = {
         const streamResponse = await openai.chat.completions.create(streamingPayload)
 
         // Create the StreamingExecution object with all collected data
-        let streamContent = ''
+        let _streamContent = ''
 
         const streamingResult = {
           stream: createReadableStreamFromOpenAIStream(streamResponse, (content, usage) => {
             // Update the execution data with the final content and token usage
-            streamContent = content
+            _streamContent = content
             streamingResult.execution.output.response.content = content
 
             // Update token usage if available from the stream

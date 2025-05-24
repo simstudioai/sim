@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -11,7 +12,6 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useEffect, useState } from 'react'
 
 type Invitation = {
   id: string

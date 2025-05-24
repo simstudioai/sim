@@ -1,24 +1,16 @@
 'use client'
 
-import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
-import {
-  KeyboardEvent,
-  type RefObject,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import EmailAuth from './components/auth/email/email-auth'
 import PasswordAuth from './components/auth/password/password-auth'
 import { ChatErrorState } from './components/error-state/error-state'
 import { ChatHeader } from './components/header/header'
 import { ChatInput } from './components/input/input'
 import { ChatLoadingState } from './components/loading-state/loading-state'
-import { ChatMessageContainer } from './components/message-container/message-container'
 import type { ChatMessage } from './components/message/message'
+import { ChatMessageContainer } from './components/message-container/message-container'
 import { useChatStreaming } from './hooks/use-chat-streaming'
 
 interface ChatConfig {
@@ -314,7 +306,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             if (typeof formattedContent === 'object' && formattedContent !== null) {
               try {
                 formattedContent = JSON.stringify(formattedContent)
-              } catch (e) {
+              } catch (_e) {
                 formattedContent = 'Received structured data response'
               }
             }
@@ -340,7 +332,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               } else {
                 try {
                   messageContent = JSON.stringify(responseData.content)
-                } catch (e) {
+                } catch (_e) {
                   messageContent = 'Received structured data response'
                 }
               }

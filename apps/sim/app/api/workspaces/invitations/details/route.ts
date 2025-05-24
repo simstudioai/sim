@@ -1,8 +1,8 @@
-import { db } from '@/db'
-import { workspace, workspaceInvitation } from '@/db/schema'
-import { getSession } from '@/lib/auth'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
+import { db } from '@/db'
+import { workspace, workspaceInvitation } from '@/db/schema'
 
 // Get invitation details by token
 export async function GET(req: NextRequest) {

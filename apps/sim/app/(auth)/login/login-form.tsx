@@ -1,16 +1,16 @@
 'use client'
 
-import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
+import { useEffect, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
-import { Eye, EyeOff } from 'lucide-react'
-import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 
 const logger = createLogger('LoginForm')
 
@@ -47,7 +47,7 @@ export default function LoginPage({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isLoading, setIsLoading] = useState(false)
-  const [mounted, setMounted] = useState(false)
+  const [_mounted, setMounted] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [password, setPassword] = useState('')
   const [passwordErrors, setPasswordErrors] = useState<string[]>([])
@@ -192,7 +192,7 @@ export default function LoginPage({
 
           router.push('/verify')
           return
-        } catch (verifyErr) {
+        } catch (_verifyErr) {
           setPasswordErrors(['Failed to send verification code. Please try again later.'])
           setShowValidationError(true)
           setIsLoading(false)

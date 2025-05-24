@@ -3,30 +3,30 @@ title: Autoblocks
 description: Manage and use versioned prompts with Autoblocks
 ---
 
-import { BlockInfoCard } from '@/components/ui/block-info-card'
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="autoblocks"
   color="#0D2929"
   icon={true}
   iconSvg={`<svg className="block-icon"
       
-      version="1.1"
-      id="Layer_1"
-      xmlns="http://www.w3.org/2000/svg"
-      xmlnsXlink="http://www.w3.org/1999/xlink"
-      x="0px"
-      y="0px"
+      version='1.1'
+      id='Layer_1'
+      xmlns='http://www.w3.org/2000/svg'
+      xmlnsXlink='http://www.w3.org/1999/xlink'
+      x='0px'
+      y='0px'
       
-      viewBox="0 0 1250 1250"
-      enableBackground="new 0 0 1250 1250"
-      xmlSpace="preserve"
+      viewBox='0 0 1250 1250'
+      enableBackground='new 0 0 1250 1250'
+      xmlSpace='preserve'
     >
       <path
-        fill="#FFFFFF"
-        opacity="1.000000"
-        stroke="none"
-        d="
+        fill='#FFFFFF'
+        opacity='1.000000'
+        stroke='none'
+        d='
 M671.222290,1079.959839 
 	C671.176025,1077.962891 671.089233,1075.965820 671.089111,1073.968872 
 	C671.082825,918.318481 671.062683,762.668091 671.192322,607.017761 
@@ -52,13 +52,13 @@ M671.222290,1079.959839
 	C782.578491,1017.306641 746.954346,1037.809570 711.333679,1058.318848 
 	C698.839661,1065.512573 686.367554,1072.744629 673.219116,1079.994141 
 	C672.109314,1080.006104 671.665771,1079.982910 671.222290,1079.959839 
-z"
+z'
       />
       <path
-        fill="#FFFFFF"
-        opacity="1.000000"
-        stroke="none"
-        d="
+        fill='#FFFFFF'
+        opacity='1.000000'
+        stroke='none'
+        d='
 M684.421631,400.605865 
 	C600.749390,352.376038 517.388306,304.342010 433.717010,256.129181 
 	C455.858643,243.338989 477.724731,230.689346 499.608948,218.071136 
@@ -79,13 +79,13 @@ M684.421631,400.605865
 	C829.014954,484.959839 811.879517,474.190002 794.417969,464.012421 
 	C774.549316,452.431854 754.597900,440.993225 734.670959,429.512817 
 	C718.033508,419.927551 701.379517,410.370911 684.421631,400.605865 
-z"
+z'
       />
       <path
-        fill="#FFFFFF"
-        opacity="1.000000"
-        stroke="none"
-        d="
+        fill='#FFFFFF'
+        opacity='1.000000'
+        stroke='none'
+        d='
 M398.927063,451.754761 
 	C400.510162,450.940521 401.764893,450.328430 403.700867,449.383972 
 	C403.700867,452.154175 403.700897,454.096252 403.700897,456.038330 
@@ -104,7 +104,7 @@ M398.927063,451.754761
 	C251.315567,739.849976 251.312408,640.200073 251.234558,540.550232 
 	C251.232254,537.601685 252.346344,536.241150 254.806610,534.827820 
 	C302.775909,507.271362 350.680695,479.602600 398.927063,451.754761 
-z"
+z'
       />
     </svg>`}
 />
@@ -123,9 +123,12 @@ With Autoblocks, you can:
 Autoblocks integrates seamlessly with your existing AI workflows in Sim Studio, providing a structured approach to prompt engineering that improves consistency and reduces errors.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
 Collaborate on prompts with type safety, autocomplete, and backwards-incompatibility protection. Autoblocks prompt management allows product teams to collaborate while maintaining excellent developer experience.
+
+
 
 ## Tools
 
@@ -135,43 +138,48 @@ Manage and render prompts using Autoblocks prompt management system
 
 #### Input
 
-| Parameter         | Type    | Required | Description                                             |
-| ----------------- | ------- | -------- | ------------------------------------------------------- |
-| `promptId`        | string  | Yes      | The ID of the prompt to retrieve                        |
-| `version`         | string  | Yes      | Version strategy \(latest or specific\)                 |
-| `specificVersion` | string  | No       | Specific version to use \(e.g.,                         |
-| `templateParams`  | object  | No       | Parameters to render the template with                  |
-| `apiKey`          | string  | Yes      | Autoblocks API key                                      |
-| `enableABTesting` | boolean | No       | Whether to enable A/B testing between versions          |
-| `abTestConfig`    | object  | No       | Configuration for A/B testing between versions          |
-| `environment`     | string  | Yes      | Environment to use \(production, staging, development\) |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `promptId` | string | Yes | The ID of the prompt to retrieve |
+| `version` | string | Yes | Version strategy \(latest or specific\) |
+| `specificVersion` | string | No | Specific version to use \(e.g.,  |
+| `templateParams` | object | No | Parameters to render the template with |
+| `apiKey` | string | Yes | Autoblocks API key |
+| `enableABTesting` | boolean | No | Whether to enable A/B testing between versions |
+| `abTestConfig` | object | No | Configuration for A/B testing between versions |
+| `environment` | string | Yes | Environment to use \(production, staging, development\) |
 
 #### Output
 
-| Parameter        | Type   |
-| ---------------- | ------ |
-| `promptId`       | string |
-| `version`        | string |
+| Parameter | Type |
+| --------- | ---- |
+| `promptId` | string |
+| `version` | string |
 | `renderedPrompt` | string |
-| `templates`      | string |
+| `templates` | string |
+
+
 
 ## Block Configuration
 
 ### Input
 
-| Parameter  | Type   | Required | Description                                |
-| ---------- | ------ | -------- | ------------------------------------------ |
-| `promptId` | string | Yes      | Prompt ID - Enter the Autoblocks prompt ID |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `promptId` | string | Yes | Prompt ID - Enter the Autoblocks prompt ID |
+
+
 
 ### Outputs
 
-| Output             | Type   | Description                    |
-| ------------------ | ------ | ------------------------------ |
-| `response`         | object | Output from response           |
-| ↳ `promptId`       | string | promptId of the response       |
-| ↳ `version`        | string | version of the response        |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
+| ↳ `promptId` | string | promptId of the response |
+| ↳ `version` | string | version of the response |
 | ↳ `renderedPrompt` | string | renderedPrompt of the response |
-| ↳ `templates`      | json   | templates of the response      |
+| ↳ `templates` | json | templates of the response |
+
 
 ## Notes
 

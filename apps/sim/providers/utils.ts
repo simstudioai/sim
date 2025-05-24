@@ -1,5 +1,4 @@
-import { getCostMultiplier } from '@/lib/environment'
-import { isHosted } from '@/lib/environment'
+import { getCostMultiplier, isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { anthropicProvider } from './anthropic'
@@ -243,7 +242,7 @@ export function extractAndParseJSON(content: string): any {
 
   try {
     return JSON.parse(jsonStr)
-  } catch (error) {
+  } catch (_error) {
     // If parsing fails, try to clean up common issues
     const cleaned = jsonStr
       .replace(/\n/g, ' ') // Remove newlines
@@ -492,7 +491,7 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
       const { getRotatingApiKey } = require('@/lib/utils')
       const serverKey = getRotatingApiKey(provider)
       return serverKey
-    } catch (error) {
+    } catch (_error) {
       // If server key fails and we have a user key, fallback to that
       if (hasUserKey) {
         return userProvidedKey!
@@ -596,7 +595,7 @@ export function prepareToolsWithUsageControl(
         mode: 'AUTO' | 'ANY' | 'NONE'
         allowed_function_names?: string[]
       }
-    | undefined = undefined
+    | undefined
 
   if (forcedTools.length > 0) {
     // Force the first tool that has usageControl='force'
@@ -692,7 +691,7 @@ export function trackForcedToolUsage(
         mode: 'AUTO' | 'ANY' | 'NONE'
         allowed_function_names?: string[]
       }
-    | undefined = undefined
+    | undefined
 
   const updatedUsedForcedTools = [...usedForcedTools]
 

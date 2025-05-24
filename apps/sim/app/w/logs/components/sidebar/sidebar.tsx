@@ -1,15 +1,15 @@
 'use client'
 
-import type { WorkflowLog } from '@/app/w/logs/stores/types'
-import { formatDate } from '@/app/w/logs/utils/format-date'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CopyButton } from '@/components/ui/copy-button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { redactApiKeys } from '@/lib/utils'
+import type { WorkflowLog } from '@/app/w/logs/stores/types'
+import { formatDate } from '@/app/w/logs/utils/format-date'
 import { formatCost } from '@/providers/utils'
-import { ChevronDown, ChevronUp, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { ToolCallsDisplay } from '../tool-calls/tool-calls-display'
 import { TraceSpansDisplay } from '../trace-spans/trace-spans-display'
 import LogMarkdownRenderer from './components/markdown-renderer'
@@ -42,7 +42,7 @@ const tryPrettifyJson = (content: string): { isJson: boolean; formatted: string 
     const parsed = JSON.parse(trimmed)
     const prettified = JSON.stringify(parsed, null, 2)
     return { isJson: true, formatted: prettified }
-  } catch (e) {
+  } catch (_e) {
     // If parsing fails, it's not valid JSON
     return { isJson: false, formatted: content }
   }
@@ -112,7 +112,7 @@ const BlockContentDisplay = ({
       const parsedOutput = JSON.parse(formatted)
       const redactedJson = redactApiKeys(parsedOutput)
       return JSON.stringify(redactedJson, null, 2)
-    } catch (e) {
+    } catch (_e) {
       return formatted
     }
   }, [formatted, isJson])
@@ -191,7 +191,7 @@ export function Sidebar({
 
   const [width, setWidth] = useState(DEFAULT_WIDTH) // Start with default width
   const [isDragging, setIsDragging] = useState(false)
-  const [currentLogId, setCurrentLogId] = useState<string | null>(null)
+  const [_currentLogId, setCurrentLogId] = useState<string | null>(null)
   const [isTraceExpanded, setIsTraceExpanded] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
 
@@ -207,7 +207,7 @@ export function Sidebar({
   const formattedContent = useMemo(() => {
     if (!log) return null
 
-    let blockInput: Record<string, any> | undefined = undefined
+    let blockInput: Record<string, any> | undefined
 
     if (log.metadata?.blockInput) {
       blockInput = log.metadata.blockInput
@@ -247,7 +247,7 @@ export function Sidebar({
   }, [log])
 
   // Helper to determine if we have trace spans to display
-  const hasTraceSpans = useMemo(() => {
+  const _hasTraceSpans = useMemo(() => {
     return !!(log?.metadata?.traceSpans && log.metadata.traceSpans.length > 0)
   }, [log])
 

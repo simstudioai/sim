@@ -1,12 +1,11 @@
 import path from 'path'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
-
 /**
  * Tests for file parse API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 // Create actual mocks for path functions that we can use instead of using vi.doMock for path
 const mockJoin = vi.fn((...args: string[]): string => {

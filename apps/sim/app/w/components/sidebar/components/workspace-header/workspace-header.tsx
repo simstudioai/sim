@@ -1,5 +1,9 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { ChevronDown, Pencil, Plus, Trash2, X } from 'lucide-react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { AgentIcon } from '@/components/icons'
 import {
   AlertDialog,
@@ -28,19 +32,6 @@ import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import {
-  ChevronDown,
-  GitPullRequestCreate,
-  GitPullRequestCreateArrow,
-  PenLine,
-  Pencil,
-  Plus,
-  Trash2,
-  X,
-} from 'lucide-react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
 
 interface Workspace {
   id: string

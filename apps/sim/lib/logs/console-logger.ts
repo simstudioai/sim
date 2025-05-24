@@ -5,7 +5,6 @@
  * It is separate from the user-facing logging system in logging.ts.
  */
 import chalk from 'chalk'
-import { env } from '../env'
 
 /**
  * LogLevel enum defines the severity levels for logging
@@ -74,7 +73,7 @@ const formatObject = (obj: any): string => {
       )
     }
     return JSON.stringify(obj, null, ENV === 'development' ? 2 : 0)
-  } catch (error) {
+  } catch (_error) {
     return '[Circular or Non-Serializable Object]'
   }
 }

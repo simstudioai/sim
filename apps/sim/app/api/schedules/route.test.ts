@@ -1,15 +1,14 @@
-import {
-  createMockRequest,
-  getMockedDependencies,
-  mockExecutionDependencies,
-  sampleWorkflowState,
-} from '@/app/api/__test-utils__/utils'
 /**
  * Integration tests for schedule configuration API route
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createMockRequest,
+  mockExecutionDependencies,
+  sampleWorkflowState,
+} from '@/app/api/__test-utils__/utils'
 
 describe('Schedule Configuration API Route', () => {
   beforeEach(() => {
@@ -29,7 +28,7 @@ describe('Schedule Configuration API Route', () => {
     }))
 
     // Extend sampleWorkflowState for scheduling
-    const workflowStateWithSchedule = {
+    const _workflowStateWithSchedule = {
       ...sampleWorkflowState,
       blocks: {
         ...sampleWorkflowState.blocks,

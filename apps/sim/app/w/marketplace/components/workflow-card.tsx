@@ -1,11 +1,11 @@
 'use client'
 
-import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
-import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useEffect, useState } from 'react'
 import { Eye } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
+import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { Workflow } from '../marketplace'
 
 /**

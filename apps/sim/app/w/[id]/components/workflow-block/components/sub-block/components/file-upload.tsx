@@ -1,13 +1,13 @@
 'use client'
 
+import { useRef, useState } from 'react'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { X } from 'lucide-react'
-import { useRef, useState } from 'react'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface FileUploadProps {
@@ -386,7 +386,7 @@ export function FileUpload({
     if (!value) return
 
     const filesToDelete = Array.isArray(value) ? value : [value]
-    const fileCount = filesToDelete.length
+    const _fileCount = filesToDelete.length
 
     // Mark all files as deleting
     const deletingStatus: Record<string, boolean> = {}

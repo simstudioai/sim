@@ -1,5 +1,5 @@
-import { getConfluenceCloudId } from '@/tools/confluence/utils'
 import { NextResponse } from 'next/server'
+import { getConfluenceCloudId } from '@/tools/confluence/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
           const text = await response.text()
           console.error('Response text:', text)
           errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
-        } catch (textError) {
+        } catch (_textError) {
           errorMessage = `Failed to fetch Confluence pages: ${response.status} ${response.statusText}`
         }
       }

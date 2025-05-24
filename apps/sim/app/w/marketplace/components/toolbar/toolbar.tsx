@@ -1,8 +1,8 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { Clock, Star } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Clock, Star } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { CATEGORIES, getCategoryIcon, getCategoryLabel } from '../../constants/categories'
 
 export type MarketplaceCategory = 'popular' | 'programming' | 'marketing' | 'all'

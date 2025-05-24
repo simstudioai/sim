@@ -1,3 +1,9 @@
+/**
+ * Tests for Subscription Seats Update API
+ *
+ * @vitest-environment node
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createMockRequest,
   mockDb,
@@ -8,12 +14,6 @@ import {
   mockTeamSubscription,
   mockUser,
 } from '@/app/api/__test-utils__/utils'
-/**
- * Tests for Subscription Seats Update API
- *
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('Subscription Seats Update API Routes', () => {
   beforeEach(() => {

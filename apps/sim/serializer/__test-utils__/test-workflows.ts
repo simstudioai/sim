@@ -1,4 +1,3 @@
-import type { BlockState, Loop } from '@/stores/workflows/workflow/types'
 /**
  * Test Workflows
  *
@@ -6,6 +5,7 @@ import type { BlockState, Loop } from '@/stores/workflows/workflow/types'
  * sample workflow states with different configurations.
  */
 import type { Edge } from 'reactflow'
+import type { BlockState, Loop } from '@/stores/workflows/workflow/types'
 
 /**
  * Workflow State Interface

@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react'
+import { ExternalLink } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   AirtableIcon,
   DiscordIcon,
@@ -12,9 +15,6 @@ import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { ExternalLink } from 'lucide-react'
-import { useParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { CredentialSelector } from '../credential-selector/credential-selector'
 import { WebhookModal } from './components/webhook-modal'
@@ -310,7 +310,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   const [webhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
 
   // Store provider-specific configuration
-  const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
+  const [_providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
 
   // Reset provider config when provider changes
   useEffect(() => {

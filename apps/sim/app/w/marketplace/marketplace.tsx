@@ -1,7 +1,7 @@
 'use client'
 
-import { AlertCircle } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { AlertCircle } from 'lucide-react'
 import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorMessage } from './components/error-message'
 import { Section } from './components/section'
@@ -77,7 +77,7 @@ export default function Marketplace() {
   })
   const [activeSection, setActiveSection] = useState<string | null>(null)
   const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(['popular', 'recent']))
-  const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set(['popular']))
+  const [_visibleSections, setVisibleSections] = useState<Set<string>>(new Set(['popular']))
 
   // Create refs for each section
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})

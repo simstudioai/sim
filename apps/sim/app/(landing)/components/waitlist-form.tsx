@@ -1,9 +1,9 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { useState } from 'react'
 import { z } from 'zod'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 const emailSchema = z.string().email('Please enter a valid email')
 
@@ -13,8 +13,8 @@ export default function WaitlistForm() {
   const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'exists' | 'ratelimited'>(
     'idle'
   )
-  const [errorMessage, setErrorMessage] = useState('')
-  const [retryAfter, setRetryAfter] = useState<number | null>(null)
+  const [_errorMessage, setErrorMessage] = useState('')
+  const [_retryAfter, setRetryAfter] = useState<number | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -57,7 +57,7 @@ export default function WaitlistForm() {
 
       setStatus('success')
       setEmail('')
-    } catch (error) {
+    } catch (_error) {
       setStatus('error')
       setErrorMessage('Please try again')
     } finally {

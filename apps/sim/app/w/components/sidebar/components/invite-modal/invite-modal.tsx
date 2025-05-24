@@ -1,12 +1,12 @@
 'use client'
 
+import { type KeyboardEvent, useState } from 'react'
+import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { Loader2, X } from 'lucide-react'
-import { type KeyboardEvent, useState } from 'react'
 
 interface InviteModalProps {
   open: boolean
@@ -180,7 +180,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
             }
 
             return true
-          } catch (err) {
+          } catch (_err) {
             // Don't add to invalid emails if it's already in the valid emails array
             if (!invalidEmails.includes(email)) {
               failedInvites.push(email)

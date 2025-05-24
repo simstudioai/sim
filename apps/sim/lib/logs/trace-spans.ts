@@ -85,7 +85,7 @@ export function buildTraceSpans(result: ExecutionResult): {
             if (typeof segment.startTime === 'string') {
               try {
                 segmentStart = new Date(segment.startTime).getTime()
-              } catch (e) {
+              } catch (_e) {
                 segmentStart = segmentStartTime + index * 1000 // Fallback offset
               }
             } else {
@@ -95,7 +95,7 @@ export function buildTraceSpans(result: ExecutionResult): {
             if (typeof segment.endTime === 'string') {
               try {
                 segmentEnd = new Date(segment.endTime).getTime()
-              } catch (e) {
+              } catch (_e) {
                 segmentEnd = segmentStart + (segment.duration || 1000) // Fallback duration
               }
             } else {

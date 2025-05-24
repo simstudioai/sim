@@ -1,5 +1,6 @@
-import { db } from '@/db'
-import { webhook, workflow } from '@/db/schema'
+import { and, eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { acquireLock, hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
@@ -11,16 +12,15 @@ import {
   processWebhook,
   processWhatsAppDeduplication,
 } from '@/lib/webhooks/utils'
-import { and, eq, sql } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
+import { db } from '@/db'
+import { webhook, workflow } from '@/db/schema'
 
 const logger = createLogger('WebhookTriggerAPI')
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const activeProcessingTasks = new Map<string, Promise<any>>()
+const _activeProcessingTasks = new Map<string, Promise<any>>()
 
 /**
  * Webhook Verification Handler (GET)

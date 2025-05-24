@@ -202,7 +202,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
           url: `https://${params?.domain}/browse/${data.key}`,
         },
       }
-    } catch (e) {
+    } catch (_e) {
       return {
         success: true,
         output: {

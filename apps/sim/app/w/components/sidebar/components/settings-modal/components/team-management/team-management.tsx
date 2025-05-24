@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { CheckCircle, Copy, PlusCircle, RefreshCw, UserX, XCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,8 +17,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { client, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { checkEnterprisePlan } from '@/lib/subscription/utils'
-import { CheckCircle, Copy, PlusCircle, RefreshCw, UserX, XCircle } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
 
 const logger = createLogger('TeamManagement')
 
@@ -403,7 +403,7 @@ export function TeamManagement() {
                   const errorData = JSON.parse(errorText)
                   errorMessage = errorData.error || errorMessage
                 }
-              } catch (e) {
+              } catch (_e) {
                 // Parsing failed, use the raw text
                 errorMessage = errorText || errorMessage
               }

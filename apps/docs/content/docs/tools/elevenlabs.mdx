@@ -3,22 +3,22 @@ title: ElevenLabs
 description: Convert TTS using ElevenLabs
 ---
 
-import { BlockInfoCard } from '@/components/ui/block-info-card'
+import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard
+<BlockInfoCard 
   type="elevenlabs"
   color="#181C1E"
   icon={true}
   iconSvg={`<svg className="block-icon"
       
-      xmlns="http://www.w3.org/2000/svg"
+      xmlns='http://www.w3.org/2000/svg'
       
       
-      viewBox="0 0 876 876"
-      fill="none"
+      viewBox='0 0 876 876'
+      fill='none'
     >
-      <path d="M498 138H618V738H498V138Z" fill="currentColor" />
-      <path d="M258 138H378V738H258V138Z" fill="currentColor" />
+      <path d='M498 138H618V738H498V138Z' fill='currentColor' />
+      <path d='M258 138H378V738H258V138Z' fill='currentColor' />
     </svg>`}
 />
 
@@ -36,9 +36,12 @@ With ElevenLabs, you can:
 In Sim Studio, the ElevenLabs integration enables your agents to convert text to lifelike speech, enhancing the interactivity and engagement of your applications. This is particularly valuable for creating voice assistants, generating audio content, developing accessible applications, or building conversational interfaces that feel more human. The integration allows you to seamlessly incorporate ElevenLabs' advanced speech synthesis capabilities into your agent workflows, bridging the gap between text-based AI and natural human communication.
 {/* MANUAL-CONTENT-END */}
 
+
 ## Usage Instructions
 
 Generate realistic speech from text using ElevenLabs voices.
+
+
 
 ## Tools
 
@@ -48,33 +51,38 @@ Convert TTS using ElevenLabs voices
 
 #### Input
 
-| Parameter | Type   | Required | Description                                                      |
-| --------- | ------ | -------- | ---------------------------------------------------------------- |
-| `apiKey`  | string | Yes      | Your ElevenLabs API key                                          |
-| `text`    | string | Yes      | The text to convert to speech                                    |
-| `voiceId` | string | Yes      | The ID of the voice to use                                       |
-| `modelId` | string | No       | The ID of the model to use \(defaults to eleven_monolingual_v1\) |
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Your ElevenLabs API key |
+| `text` | string | Yes | The text to convert to speech |
+| `voiceId` | string | Yes | The ID of the voice to use |
+| `modelId` | string | No | The ID of the model to use \(defaults to eleven_monolingual_v1\) |
 
 #### Output
 
-| Parameter  | Type   |
-| ---------- | ------ |
+| Parameter | Type |
+| --------- | ---- |
 | `audioUrl` | string |
+
+
 
 ## Block Configuration
 
 ### Input
 
-| Parameter | Type   | Required | Description                                |
-| --------- | ------ | -------- | ------------------------------------------ |
-| `text`    | string | Yes      | Text - Enter the text to convert to speech |
+| Parameter | Type | Required | Description | 
+| --------- | ---- | -------- | ----------- | 
+| `text` | string | Yes | Text - Enter the text to convert to speech |
+
+
 
 ### Outputs
 
-| Output       | Type   | Description              |
-| ------------ | ------ | ------------------------ |
-| `response`   | object | Output from response     |
+| Output | Type | Description |
+| ------ | ---- | ----------- |
+| `response` | object | Output from response |
 | ↳ `audioUrl` | string | audioUrl of the response |
+
 
 ## Notes
 

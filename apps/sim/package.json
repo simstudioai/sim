@@ -127,5 +127,9 @@
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.0.8"
   },
-  "trustedDependencies": ["canvas", "better-sqlite3", "sharp"]
+  "trustedDependencies": [
+    "canvas",
+    "better-sqlite3",
+    "sharp"
+  ]
 }

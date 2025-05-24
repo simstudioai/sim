@@ -80,7 +80,7 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
         const responseClone = response.clone()
         const responseText = await responseClone.text()
         errorText = responseText
-      } catch (e) {
+      } catch (_e) {
         errorText = 'Unable to read error response'
       }
 
@@ -89,9 +89,9 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
     const responseText = await response.text()
 
     // Parse the response if it's not empty
-    let data = {}
+    let _data = {}
     if (responseText.trim()) {
-      data = JSON.parse(responseText)
+      _data = JSON.parse(responseText)
     }
 
     // Get the document ID from the URL

@@ -1,6 +1,6 @@
-import { redactApiKeys } from '@/lib/utils'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { redactApiKeys } from '@/lib/utils'
 import { useChatStore } from '../chat/store'
 import type { ConsoleEntry, ConsoleStore } from './types'
 
@@ -183,7 +183,7 @@ export const useConsoleStore = create<ConsoleStore>()(
                   // If this block matches the selected output for this workflow
                   if (selectedBlockId && entry.blockId === selectedBlockId) {
                     // Extract the specific value from the output using the path
-                    let specificValue: any = undefined
+                    let specificValue: any
 
                     if (selectedPath) {
                       specificValue = getValueByPath(entry.output, selectedPath)

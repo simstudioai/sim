@@ -1,7 +1,7 @@
-import { createLogger } from '@/lib/logs/console-logger'
 import { readFile } from 'fs/promises'
 // @ts-ignore
 import * as pdfParseLib from 'pdf-parse/lib/pdf-parse.js'
+import { createLogger } from '@/lib/logs/console-logger'
 import type { FileParseResult, FileParser } from './types'
 
 const logger = createLogger('PdfParser')

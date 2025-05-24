@@ -1,16 +1,17 @@
+import type { ReactElement } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Wand2 } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
-import { useEffect, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
-import { useCodeGeneration } from '@/app/w/[id]/hooks/use-code-generation'
+
+import Editor from 'react-simple-code-editor'
 import { Button } from '@/components/ui/button'
-import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
-import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
+import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
+import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import Editor from 'react-simple-code-editor'
+import { useCodeGeneration } from '@/app/w/[id]/hooks/use-code-generation'
 import { CodePromptBar } from '../../../../code-prompt-bar/code-prompt-bar'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
@@ -60,7 +61,7 @@ export function Code({
   // State management
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [code, setCode] = useState<string>('')
-  const [lineCount, setLineCount] = useState(1)
+  const [_lineCount, setLineCount] = useState(1)
   const [showTags, setShowTags] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')

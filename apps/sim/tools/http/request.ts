@@ -14,7 +14,7 @@ const getReferer = (): string => {
 
   try {
     return getBaseUrl()
-  } catch (error) {
+  } catch (_error) {
     return 'http://localhost:3000'
   }
 }
@@ -50,7 +50,7 @@ const getDefaultHeaders = (
       if (hostname && !customHeaders.Host && !customHeaders.host) {
         headers.Host = hostname
       }
-    } catch (e) {
+    } catch (_e) {
       // Invalid URL, will be caught later
     }
   }
@@ -119,7 +119,7 @@ const shouldUseProxy = (url: string): boolean => {
   }
 
   try {
-    const urlObj = new URL(url)
+    const _urlObj = new URL(url)
     const currentOrigin = window.location.origin
 
     // Don't proxy same-origin or localhost requests
@@ -135,7 +135,7 @@ const shouldUseProxy = (url: string): boolean => {
 }
 
 // Default headers that will be applied if not explicitly overridden by user
-const DEFAULT_HEADERS: Record<string, string> = {
+const _DEFAULT_HEADERS: Record<string, string> = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
   Accept: '*/*',
@@ -335,7 +335,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           } else {
             data = await response.text()
           }
-        } catch (error) {
+        } catch (_error) {
           data = await response.text()
         }
 

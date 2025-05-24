@@ -1,5 +1,11 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Menu } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -10,14 +16,8 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { createLogger } from '@/lib/logs/console-logger'
-import { AnimatePresence, motion } from 'framer-motion'
-import { Menu, X } from 'lucide-react'
-import Image from 'next/image'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
 
-const logger = createLogger('NavClient')
+const _logger = createLogger('NavClient')
 
 // --- Framer Motion Variants ---
 const desktopNavContainerVariants = {
@@ -170,7 +170,7 @@ export default function NavClient({
   const [mounted, setMounted] = useState(false)
   const [isMobile, setIsMobile] = useState(initialIsMobile ?? false)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
-  const router = useRouter()
+  const _router = useRouter()
 
   useEffect(() => {
     setMounted(true)

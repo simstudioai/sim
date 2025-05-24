@@ -1,10 +1,10 @@
+import { useState } from 'react'
+import { Check, Copy, Eye, EyeOff, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { Check, Copy, Eye, EyeOff, Info } from 'lucide-react'
-import { useState } from 'react'
 
 interface WebhookConfigFieldProps {
   id: string

@@ -1,7 +1,9 @@
-import { Executor } from '@/executor'
-import type { ExecutionResult } from '@/executor/types'
+import { useCallback, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { Executor } from '@/executor'
+import type { ExecutionResult } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -13,8 +15,6 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useCallback, useState } from 'react'
-import { v4 as uuidv4 } from 'uuid'
 
 const logger = createLogger('useWorkflowExecution')
 
@@ -136,7 +136,7 @@ export function useWorkflowExecution() {
         'input' in workflowInput
 
       // If this is a chat execution, get the selected outputs
-      let selectedOutputIds: string[] | undefined = undefined
+      let selectedOutputIds: string[] | undefined
       if (isChatExecution && activeWorkflowId) {
         // Get selected outputs from chat store
         const chatStore = await import('@/stores/panel/chat/store').then((mod) => mod.useChatStore)

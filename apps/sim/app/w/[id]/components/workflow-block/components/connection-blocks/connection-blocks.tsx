@@ -1,5 +1,5 @@
-import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
 import { Card } from '@/components/ui/card'
+import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 interface ConnectionBlocksProps {

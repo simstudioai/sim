@@ -1,14 +1,6 @@
 'use client'
 
-import {
-  AgentIcon,
-  ApiIcon,
-  ChartBarIcon,
-  CodeIcon,
-  ConditionalIcon,
-  ConnectIcon,
-} from '@/components/icons'
-import { cn } from '@/lib/utils'
+import { useMemo, useState } from 'react'
 import {
   ChevronDown,
   ChevronDownSquare,
@@ -18,7 +10,15 @@ import {
   Cpu,
   ExternalLink,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import {
+  AgentIcon,
+  ApiIcon,
+  ChartBarIcon,
+  CodeIcon,
+  ConditionalIcon,
+  ConnectIcon,
+} from '@/components/icons'
+import { cn } from '@/lib/utils'
 import type { TraceSpan } from '../../stores/types'
 
 interface TraceSpansDisplayProps {
@@ -40,7 +40,7 @@ export function TraceSpansDisplay({
   }
 
   // Format total duration for better readability
-  const formatTotalDuration = (ms: number) => {
+  const _formatTotalDuration = (ms: number) => {
     if (ms < 1000) return `${ms}ms`
     return `${(ms / 1000).toFixed(2)}s (${ms}ms)`
   }
@@ -215,7 +215,7 @@ function TraceSpanItem({
   const safeWidthPercent = Math.max(2, Math.min(100 - safeStartPercent, actualDurationPercent))
 
   // For parent-relative timing display
-  const startOffsetPercentage = totalDuration > 0 ? (startOffset / totalDuration) * 100 : 0
+  const _startOffsetPercentage = totalDuration > 0 ? (startOffset / totalDuration) * 100 : 0
 
   // Handle click to expand/collapse this span
   const handleSpanClick = () => {
@@ -312,7 +312,7 @@ function TraceSpanItem({
   // Extract model name from span name using a more general pattern
   const extractModelName = (spanName: string) => {
     // Try to match model name in parentheses
-    const modelMatch = spanName.match(/\(([\w\.-]+)\)/i)
+    const modelMatch = spanName.match(/\(([\w.-]+)\)/i)
     return modelMatch ? modelMatch[1] : ''
   }
 

@@ -1,15 +1,16 @@
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
-import { useEffect, useRef, useState } from 'react'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
+
+import Editor from 'react-simple-code-editor'
+import type { NodeProps } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import Editor from 'react-simple-code-editor'
-import type { NodeProps } from 'reactflow'
 
 export function LoopInput({ id }: NodeProps) {
   // Extract the loop ID from the node ID

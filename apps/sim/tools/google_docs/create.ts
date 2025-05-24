@@ -104,7 +104,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
         const responseClone = response.clone()
         const responseText = await responseClone.text()
         errorText = responseText
-      } catch (e) {
+      } catch (_e) {
         errorText = 'Unable to read error response'
       }
 

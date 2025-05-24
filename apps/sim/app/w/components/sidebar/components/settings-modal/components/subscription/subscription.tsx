@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+import { AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,8 +22,6 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization, useSession, useSubscription } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
-import { AlertCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
 
 const logger = createLogger('Subscription')
 

@@ -1,9 +1,9 @@
 'use client'
 
+import { memo, useMemo, useState } from 'react'
+import { Check, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Check, Copy } from 'lucide-react'
-import { memo, useMemo, useState } from 'react'
 import MarkdownRenderer from './components/markdown-renderer'
 
 export interface ChatMessage {

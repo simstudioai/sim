@@ -1,3 +1,4 @@
+import { ChevronDown, Plus, Trash } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,7 +10,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { ChevronDown, Plus, Trash } from 'lucide-react'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface InputField {

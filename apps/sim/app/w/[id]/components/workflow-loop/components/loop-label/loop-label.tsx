@@ -1,10 +1,10 @@
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import type { NodeProps } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { ChevronDown } from 'lucide-react'
-import { useState } from 'react'
-import type { NodeProps } from 'reactflow'
 
 export function LoopLabel({ id, data }: NodeProps) {
   // Extract the loop ID from the node ID

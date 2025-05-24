@@ -1,9 +1,9 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { Send, Square } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
+import { Send, Square } from 'lucide-react'
 
 const PLACEHOLDER = 'Enter a message'
 const MAX_TEXTAREA_HEIGHT = 160 // Max height in pixels (e.g., for about 4-5 lines)

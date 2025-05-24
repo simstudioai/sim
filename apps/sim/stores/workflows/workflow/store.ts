@@ -1,10 +1,10 @@
-import { getBlock } from '@/blocks'
-import { resolveOutputType } from '@/blocks/utils'
-import { createLogger } from '@/lib/logs/console-logger'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { type WorkflowStoreWithHistory, pushHistory, withHistory } from '../middleware'
+import { createLogger } from '@/lib/logs/console-logger'
+import { getBlock } from '@/blocks'
+import { resolveOutputType } from '@/blocks/utils'
+import { pushHistory, type WorkflowStoreWithHistory, withHistory } from '../middleware'
 import { saveWorkflowState } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
@@ -13,7 +13,7 @@ import { mergeSubblockState } from '../utils'
 import type { Loop, Position, SubBlockState, SyncControl, WorkflowState } from './types'
 import { detectCycle } from './utils'
 
-const logger = createLogger('WorkflowStore')
+const _logger = createLogger('WorkflowStore')
 
 const initialState = {
   blocks: {},

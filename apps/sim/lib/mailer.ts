@@ -1,5 +1,5 @@
-import { createLogger } from '@/lib/logs/console-logger'
 import { Resend } from 'resend'
+import { createLogger } from '@/lib/logs/console-logger'
 import { env } from './env'
 
 interface EmailOptions {

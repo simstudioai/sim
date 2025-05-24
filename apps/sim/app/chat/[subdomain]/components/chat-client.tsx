@@ -1,22 +1,12 @@
 'use client'
 
-import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowUp, Loader2, Lock, Mail } from 'lucide-react'
+import { v4 as uuidv4 } from 'uuid'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { OTPInputForm } from '@/components/ui/input-otp-form'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { cn } from '@/lib/utils'
-import { ArrowUp, Loader2, Lock, Mail } from 'lucide-react'
-import {
-  Children,
-  type KeyboardEvent,
-  isValidElement,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import { v4 as uuidv4 } from 'uuid'
+import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import HeaderLinks from './components/header-links/header-links'
 import MarkdownRenderer from './components/markdown-renderer/markdown-renderer'
 
@@ -191,7 +181,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   }
 
   // Handle keyboard input for auth forms
-  const handleAuthKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  const _handleAuthKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       handleAuthenticate()
@@ -350,7 +340,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   }
 
   // Add a function to handle OTP input key down
-  const handleOtpKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  const _handleOtpKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault()
       handleAuthenticate()
@@ -467,7 +457,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             if (typeof formattedContent === 'object' && formattedContent !== null) {
               try {
                 formattedContent = JSON.stringify(formattedContent)
-              } catch (e) {
+              } catch (_e) {
                 formattedContent = 'Received structured data response'
               }
             }
@@ -493,7 +483,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               } else {
                 try {
                   messageContent = JSON.stringify(responseData.content)
-                } catch (e) {
+                } catch (_e) {
                   messageContent = 'Received structured data response'
                 }
               }
@@ -591,7 +581,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   if (authRequired) {
     // Get title and description from the URL params or use defaults
     const title = new URLSearchParams(window.location.search).get('title') || 'chat'
-    const primaryColor = new URLSearchParams(window.location.search).get('color') || '#802FFF'
+    const _primaryColor = new URLSearchParams(window.location.search).get('color') || '#802FFF'
 
     return (
       <div className='flex min-h-screen items-center justify-center bg-gray-50'>

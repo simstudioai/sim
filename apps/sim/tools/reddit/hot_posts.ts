@@ -1,4 +1,4 @@
-import { type ToolConfig, ToolResponse } from '../types'
+import type { ToolConfig } from '../types'
 import type { RedditHotPostsResponse, RedditPost } from './types'
 
 interface HotPostsParams {
@@ -55,7 +55,7 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
       let data
       try {
         data = await response.json()
-      } catch (error) {
+      } catch (_error) {
         throw new Error('Failed to parse Reddit API response: Response was not valid JSON')
       }
 

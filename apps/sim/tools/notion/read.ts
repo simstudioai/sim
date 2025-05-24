@@ -1,4 +1,4 @@
-import { type ToolConfig, ToolResponse } from '../types'
+import type { ToolConfig } from '../types'
 import type { NotionReadParams, NotionResponse } from './types'
 
 export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {

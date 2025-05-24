@@ -195,7 +195,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
           success: true,
         },
       }
-    } catch (e) {
+    } catch (_e) {
       // If we can't parse the response but it was successful, still return success
       return {
         success: true,

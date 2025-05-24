@@ -1,5 +1,8 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -8,9 +11,6 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { OAUTH_PROVIDERS, type OAuthServiceConfig } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { loadFromStorage, removeFromStorage, saveToStorage } from '@/stores/workflows/persistence'
-import { Check, ChevronDown, ExternalLink, Plus, RefreshCw } from 'lucide-react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
 
 const logger = createLogger('Credentials')
 
@@ -35,7 +35,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [isConnecting, setIsConnecting] = useState<string | null>(null)
   const [pendingService, setPendingService] = useState<string | null>(null)
-  const [pendingScopes, setPendingScopes] = useState<string[]>([])
+  const [_pendingScopes, setPendingScopes] = useState<string[]>([])
   const [authSuccess, setAuthSuccess] = useState(false)
   const [showActionRequired, setShowActionRequired] = useState(false)
 

@@ -1,10 +1,10 @@
-import { db } from '@/db'
-import { account, user } from '@/db/schema'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
 import { eq } from 'drizzle-orm'
 import { jwtDecode } from 'jwt-decode'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { db } from '@/db'
+import { account, user } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
             } else if (decoded.name) {
               displayName = decoded.name
             }
-          } catch (error) {
+          } catch (_error) {
             logger.warn(`[${requestId}] Error decoding ID token`, {
               accountId: acc.id,
             })

@@ -1,10 +1,10 @@
 'use client'
 
-import type { SubBlockConfig } from '@/blocks/types'
+import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { env } from '@/lib/env'
+import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useEffect, useState } from 'react'
 import {
   type ConfluenceFileInfo,
   ConfluenceFileSelector,
@@ -25,11 +25,11 @@ interface FileSelectorInputProps {
 export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedFileId, setSelectedFileId] = useState<string>('')
-  const [fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
+  const [_fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string>('')
-  const [issueInfo, setIssueInfo] = useState<JiraIssueInfo | null>(null)
+  const [_issueInfo, setIssueInfo] = useState<JiraIssueInfo | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
-  const [channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
+  const [_channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
@@ -39,7 +39,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
 
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
-  const credentials =
+  const _credentials =
     isConfluence || isJira ? (getValue(blockId, 'credential') as string) || '' : ''
   // For Discord, we need the bot token and server ID
   const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''

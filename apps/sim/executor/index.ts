@@ -1,5 +1,5 @@
-import type { BlockOutput } from '@/blocks/types'
 import { createLogger } from '@/lib/logs/console-logger'
+import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -283,6 +283,7 @@ export class Executor {
                   let fullContent = ''
 
                   // Process the stream in the background to collect the full content
+
                   ;(async () => {
                     try {
                       while (true) {
@@ -465,7 +466,7 @@ export class Executor {
       // Track workflow execution failure
       trackWorkflowTelemetry('workflow_execution_failed', {
         workflowId,
-        duration: new Date().getTime() - startTime.getTime(),
+        duration: Date.now() - startTime.getTime(),
         error: this.extractErrorMessage(error),
         executedBlockCount: context.executedBlocks.size,
         blockLogs: context.blockLogs.length,
@@ -663,7 +664,7 @@ export class Executor {
     if (starterBlock) {
       // Initialize the starter block with the workflow input
       try {
-        const blockParams = starterBlock.config.params
+        const _blockParams = starterBlock.config.params
         /* Commenting out input format handling
         const inputFormat = blockParams?.inputFormat
 

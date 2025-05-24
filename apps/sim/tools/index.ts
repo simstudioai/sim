@@ -1,8 +1,7 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
-import { getTool, getToolAsync } from './utils'
-import { formatRequestParams, validateToolRequest } from './utils'
+import { formatRequestParams, getTool, getToolAsync, validateToolRequest } from './utils'
 
 const logger = createLogger('Tools')
 

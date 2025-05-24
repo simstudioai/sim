@@ -1,8 +1,8 @@
+import OpenAI from 'openai'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useOllamaStore } from '@/stores/ollama/store'
 import { executeTool } from '@/tools'
-import OpenAI from 'openai'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import type { ModelsObject } from './types'
 
@@ -48,7 +48,7 @@ export const ollamaProvider: ProviderConfig = {
     })
 
     const startTime = Date.now()
-    const timeSegments: TimeSegment[] = []
+    const _timeSegments: TimeSegment[] = []
 
     try {
       // Prepare messages array
@@ -122,7 +122,7 @@ export const ollamaProvider: ProviderConfig = {
       }
 
       // Track the original tool_choice for forced tool tracking
-      const originalToolChoice = payload.tool_choice
+      const _originalToolChoice = payload.tool_choice
 
       let currentResponse = await ollama.chat.completions.create(payload)
       const firstResponseTime = Date.now() - startTime

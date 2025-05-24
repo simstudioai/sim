@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react'
+import { format } from 'date-fns'
+import { Trash2, X } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -24,9 +27,6 @@ import {
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { format } from 'date-fns'
-import { Trash2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { useSubBlockValue } from '../../../hooks/use-sub-block-value'
 import { TimeInput } from '../../time-input'
 import { UnsavedChangesDialog } from '../../webhook/components/ui/confirmation'
@@ -333,7 +333,7 @@ export function ScheduleModal({
   const formatDate = (date: string) => {
     try {
       return date ? format(new Date(date), 'PPP') : 'Select date'
-    } catch (e) {
+    } catch (_e) {
       return 'Select date'
     }
   }

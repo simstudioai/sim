@@ -1,7 +1,7 @@
-import { getAllBlocks } from '@/blocks'
-import type { BlockOutput } from '@/blocks/types'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getAllBlocks } from '@/blocks'
+import type { BlockOutput } from '@/blocks/types'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
@@ -26,7 +26,7 @@ export class AgentBlockHandler implements BlockHandler {
     logger.info(`Executing agent block: ${block.id}`)
 
     // Parse response format if provided
-    let responseFormat: any = undefined
+    let responseFormat: any
     if (inputs.responseFormat) {
       // Handle empty string case - treat it as no response format
       if (inputs.responseFormat === '') {
@@ -196,7 +196,7 @@ export class AgentBlockHandler implements BlockHandler {
         try {
           parsedMessages = JSON.parse(inputs.messages)
           logger.info('Successfully parsed messages from JSON format')
-        } catch (jsonError) {
+        } catch (_jsonError) {
           // Fast direct approach for single-quoted JSON
           // Replace single quotes with double quotes, but keep single quotes inside double quotes
           // This optimized approach handles the most common cases in one pass
@@ -211,7 +211,7 @@ export class AgentBlockHandler implements BlockHandler {
           try {
             parsedMessages = JSON.parse(preprocessed)
             logger.info('Successfully parsed messages after single-quote preprocessing')
-          } catch (preprocessError) {
+          } catch (_preprocessError) {
             // Ultimate fallback: simply replace all single quotes
             try {
               parsedMessages = JSON.parse(inputs.messages.replace(/'/g, '"'))
@@ -317,7 +317,7 @@ export class AgentBlockHandler implements BlockHandler {
           if (errorData.error) {
             errorMessage = errorData.error
           }
-        } catch (e) {
+        } catch (_e) {
           // If JSON parsing fails, use the original error message
         }
         throw new Error(errorMessage)

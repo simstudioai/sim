@@ -1,7 +1,7 @@
 'use client'
 
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useEffect } from 'react'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
  * Custom hook to manage workflow registry loading state

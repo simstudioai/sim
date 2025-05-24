@@ -1,11 +1,15 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Check, Copy, Loader2, Plus, X } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -27,11 +31,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createLogger } from '@/lib/logs/console-logger'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Check, Copy, KeySquare, Loader2, Plus, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 
 const logger = createLogger('DeployForm')
 

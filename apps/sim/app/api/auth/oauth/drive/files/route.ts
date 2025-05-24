@@ -1,9 +1,9 @@
-import { db } from '@/db'
-import { account } from '@/db/schema'
-import { getSession } from '@/lib/auth'
-import { createLogger } from '@/lib/logs/console-logger'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { db } from '@/db'
+import { account } from '@/db/schema'
 import { refreshAccessTokenIfNeeded } from '../../utils'
 
 export const dynamic = 'force-dynamic'

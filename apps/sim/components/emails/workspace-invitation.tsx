@@ -11,7 +11,6 @@ import {
   Section,
   Text,
 } from '@react-email/components'
-import * as React from 'react'
 import { baseStyles } from './base-styles'
 import EmailFooter from './footer'
 

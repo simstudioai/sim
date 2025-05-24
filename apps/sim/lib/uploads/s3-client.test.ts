@@ -11,14 +11,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  FileInfo,
-  deleteFromS3,
-  downloadFromS3,
-  getPresignedUrl,
-  getS3Client,
-  uploadToS3,
-} from './s3-client'
+import { deleteFromS3, downloadFromS3, getPresignedUrl, getS3Client, uploadToS3 } from './s3-client'
 
 // Mock AWS SDK
 vi.mock('@aws-sdk/client-s3', () => {

@@ -14,15 +14,16 @@ import ReactFlow, {
   ReactFlowProvider,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+
+import { Card } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 import { WorkflowEdge } from '@/app/w/[id]/components/workflow-edge/workflow-edge'
 import { LoopInput } from '@/app/w/[id]/components/workflow-loop/components/loop-input/loop-input'
 import { LoopLabel } from '@/app/w/[id]/components/workflow-loop/components/loop-label/loop-label'
 import { createLoopNode } from '@/app/w/[id]/components/workflow-loop/workflow-loop'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
-import { Card } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
 
 interface WorkflowPreviewProps {
   // The workflow state to render

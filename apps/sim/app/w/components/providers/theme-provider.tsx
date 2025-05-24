@@ -1,7 +1,7 @@
 'use client'
 
-import { useGeneralStore } from '@/stores/settings/general/store'
 import { useEffect } from 'react'
+import { useGeneralStore } from '@/stores/settings/general/store'
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const theme = useGeneralStore((state) => state.theme)

@@ -68,7 +68,7 @@ async function stopAndRemoveContainer(name: string): Promise<void> {
   try {
     execSync(`docker stop ${name} 2>/dev/null || true`)
     execSync(`docker rm ${name} 2>/dev/null || true`)
-  } catch (error) {
+  } catch (_error) {
     // Ignore errors, container might not exist
   }
 }
@@ -118,7 +118,7 @@ async function main() {
   if (!existsSync(dataDir)) {
     try {
       mkdirSync(dataDir, { recursive: true })
-    } catch (error) {
+    } catch (_error) {
       console.error(chalk.red(`❌ Failed to create data directory: ${dataDir}`))
       process.exit(1)
     }
@@ -160,7 +160,7 @@ async function main() {
       execSync(`docker exec ${DB_CONTAINER} pg_isready -U postgres`)
       pgReady = true
       break
-    } catch (error) {
+    } catch (_error) {
       await new Promise((resolve) => setTimeout(resolve, 1000))
     }
   }

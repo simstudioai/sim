@@ -1,12 +1,11 @@
 'use client'
 
+import { useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import React, { useEffect, useMemo } from 'react'
 import ReactFlow, {
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
-  MarkerType,
   type Node,
   type NodeTypes,
   Position,
@@ -17,6 +16,7 @@ import ReactFlow, {
   type Viewport,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
+
 import { HeroBlock } from './hero-block'
 import { HeroEdge } from './hero-edge'
 import { useWindowSize } from './use-window-size'

@@ -1,5 +1,3 @@
-import { isDev } from '@/lib/environment'
-import { cn } from '@/lib/utils'
 import {
   CreditCard,
   Key,
@@ -10,6 +8,8 @@ import {
   UserCircle,
   Users,
 } from 'lucide-react'
+import { isDev } from '@/lib/environment'
+import { cn } from '@/lib/utils'
 
 interface SettingsNavigationProps {
   activeSection: string

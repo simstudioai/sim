@@ -1,9 +1,9 @@
 'use client'
 
+import { useState } from 'react'
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Clock } from 'lucide-react'
 import { CopyButton } from '@/components/ui/copy-button'
 import { cn } from '@/lib/utils'
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Clock } from 'lucide-react'
-import { useState } from 'react'
 import type { ToolCall, ToolCallMetadata } from '../../stores/types'
 
 interface ToolCallsDisplayProps {
@@ -154,7 +154,7 @@ function isValidDate(dateString: string): boolean {
   try {
     const timestamp = Date.parse(dateString)
     return !Number.isNaN(timestamp)
-  } catch (e) {
+  } catch (_e) {
     return false
   }
 }

@@ -1,5 +1,12 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import imageCompression from 'browser-image-compression'
+import { AlertCircle, CheckCircle2, Upload, X } from 'lucide-react'
+import Image from 'next/image'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,13 +20,6 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
-import { zodResolver } from '@hookform/resolvers/zod'
-import imageCompression from 'browser-image-compression'
-import { AlertCircle, CheckCircle2, Upload, X } from 'lucide-react'
-import Image from 'next/image'
-import { useEffect, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 
 const logger = createLogger('HelpForm')
 
@@ -119,7 +119,7 @@ export function HelpForm({ onClose }: HelpFormProps) {
       // Create a new File object with the original name and type to ensure compatibility
       return new File([compressedFile], file.name, {
         type: file.type,
-        lastModified: new Date().getTime(),
+        lastModified: Date.now(),
       })
     } catch (error) {
       logger.warn('Image compression failed, using original file:', { error })

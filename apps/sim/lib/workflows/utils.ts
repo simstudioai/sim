@@ -1,8 +1,8 @@
+import { eq } from 'drizzle-orm'
+import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { userStats, workflow as workflowTable } from '@/db/schema'
-import { createLogger } from '@/lib/logs/console-logger'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { eq } from 'drizzle-orm'
 import { env } from '../env'
 
 const logger = createLogger('WorkflowUtils')
@@ -220,8 +220,8 @@ export function hasWorkflowChanged(
     }
 
     // Handle subBlocks separately
-    const normalizedCurrentSubBlocks: Record<string, any> = {}
-    const normalizedDeployedSubBlocks: Record<string, any> = {}
+    const _normalizedCurrentSubBlocks: Record<string, any> = {}
+    const _normalizedDeployedSubBlocks: Record<string, any> = {}
 
     // Get all subBlock IDs from both states
     const allSubBlockIds = [

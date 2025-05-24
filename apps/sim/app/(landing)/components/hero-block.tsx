@@ -1,22 +1,18 @@
 // Assuming custom icons exist for Sim specific things, otherwise use Lucide
-import { AgentIcon, ConnectIcon, SlackIcon, StartIcon } from '@/components/icons'
-import { CodeBlock } from '@/components/ui/code-block'
-import { cn } from '@/lib/utils'
+
+import type React from 'react'
+import { memo } from 'react'
 import {
   // For header icon
   ChevronDown,
-  Circle,
   CodeXml,
-  // For dropdowns
-  Plus,
   // For Add Tool button
   PlusIcon,
-  // For header icon
-  Square,
 } from 'lucide-react'
-import type React from 'react'
-import { memo } from 'react'
 import { Handle, type NodeProps, Position } from 'reactflow'
+import { AgentIcon, ConnectIcon, SlackIcon, StartIcon } from '@/components/icons'
+import { CodeBlock } from '@/components/ui/code-block'
+import { cn } from '@/lib/utils'
 
 // Removed DotPattern import
 
@@ -55,7 +51,7 @@ export const HeroBlock = memo(({ id, data }: NodeProps) => {
   const Icon = config.icon
   const nodeName = config.name
   const iconBgColor = config.color // Get color from config
-  const horizontalHandles = true // Default to horizontal handles like in workflow-block
+  const _horizontalHandles = true // Default to horizontal handles like in workflow-block
 
   // Determine if we should show the input handle
   // Don't show for start blocks, function1 in hero section, or id=function1

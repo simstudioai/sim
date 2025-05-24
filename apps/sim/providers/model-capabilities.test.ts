@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PROVIDERS_WITH_TOOL_USAGE_CONTROL,
   getMaxTemperature,
+  PROVIDERS_WITH_TOOL_USAGE_CONTROL,
   supportsTemperature,
   supportsToolUsageControl,
 } from './model-capabilities'

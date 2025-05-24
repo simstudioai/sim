@@ -82,7 +82,7 @@ export const S3Block: BlockConfig<S3Response> = {
             bucketName,
             objectKey,
           }
-        } catch (error) {
+        } catch (_error) {
           throw new Error(
             'Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file'
           )

@@ -1,5 +1,5 @@
-import type { StreamingExecution } from '@/executor/types'
 import { createLogger } from '@/lib/logs/console-logger'
+import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
@@ -271,7 +271,7 @@ export const googleProvider: ProviderConfig = {
             // Validate JSON structure
             JSON.parse(text)
             logger.info('Successfully received structured JSON output')
-          } catch (e) {
+          } catch (_e) {
             logger.warn('Failed to parse structured output as JSON')
           }
         }
@@ -749,7 +749,7 @@ function extractTextContent(candidate: any): string {
       try {
         JSON.parse(text) // Validate JSON
         return text // Return valid JSON as-is
-      } catch (e) {
+      } catch (_e) {
         /* Not valid JSON, continue with normal extraction */
       }
     }
@@ -779,7 +779,7 @@ function extractFunctionCall(candidate: any): { name: string; args: any } | null
       ) {
         try {
           return { name: part.functionCall.name, args: JSON.parse(part.functionCall.args) }
-        } catch (e) {
+        } catch (_e) {
           return { name: part.functionCall.name, args: part.functionCall.args }
         }
       }
@@ -808,7 +808,7 @@ function convertToGeminiFormat(request: ProviderRequest): {
   systemInstruction: any | undefined
 } {
   const contents = []
-  let systemInstruction = undefined
+  let systemInstruction
 
   // Handle system prompt
   if (request.systemPrompt) {

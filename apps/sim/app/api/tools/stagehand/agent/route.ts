@@ -1,8 +1,8 @@
-import { env } from '@/lib/env'
-import { createLogger } from '@/lib/logs/console-logger'
 import { Stagehand } from '@browserbasehq/stagehand'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
 import { ensureZodObject, normalizeUrl } from '../utils'
 
 const logger = createLogger('StagehandAgentAPI')
@@ -46,7 +46,7 @@ function extractActionDirectives(task: string): {
 
   // Find all action directives in the task
   while ((match = actionRegex.exec(task)) !== null) {
-    const fullMatch = match[0]
+    const _fullMatch = match[0]
     const actionText = match[1].trim()
     const index = match.index
 
@@ -455,7 +455,7 @@ export async function POST(request: NextRequest) {
 
     const params = validationResult.data
     // Simplify variable handling - safely convert any format to the object we need
-    let variablesObject: Record<string, string> | undefined = undefined
+    let variablesObject: Record<string, string> | undefined
 
     // Handle different formats of variables that might come from the UI
     if (params.variables) {
@@ -476,7 +476,7 @@ export async function POST(request: NextRequest) {
         // Handle string format (sometimes comes as JSON string)
         try {
           variablesObject = JSON.parse(params.variables)
-        } catch (e) {
+        } catch (_e) {
           logger.warn('Failed to parse variables string as JSON', { variables: params.variables })
         }
       }

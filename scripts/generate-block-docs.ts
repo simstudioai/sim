@@ -21,15 +21,9 @@ if (!fs.existsSync(DOCS_OUTPUT_PATH)) {
   fs.mkdirSync(DOCS_OUTPUT_PATH, { recursive: true })
 }
 
-// Type for block input config
 interface InputConfig {
   type: string
   required: boolean
-}
-
-// Type for block output config
-interface OutputConfig {
-  type: string | Record<string, any>
 }
 
 // Basic interface for BlockConfig to avoid import issues
@@ -122,7 +116,7 @@ function extractIcons(): Record<string, string> {
 function extractBlockConfig(fileContent: string): BlockConfig | null {
   try {
     // Match the block name and type from imports and export statement
-    const typeMatch = fileContent.match(/type\s+(\w+)Response\s*=/)
+    const _typeMatch = fileContent.match(/type\s+(\w+)Response\s*=/)
     const exportMatch = fileContent.match(/export\s+const\s+(\w+)Block\s*:/)
 
     if (!exportMatch) {
@@ -289,7 +283,7 @@ function extractInputs(content: string): Record<string, any> {
     const propName = propMatch[1]
     const typeMatch = propText.match(/type\s*:\s*['"]?([^'"}, ]+)['"]?/s)
     const requiredMatch = propText.match(/required\s*:\s*(true|false)/s)
-    const descriptionMatch = propText.match(/description\s*:\s*['"]([^'"]+)['"]/s)
+    const _descriptionMatch = propText.match(/description\s*:\s*['"]([^'"]+)['"]/s)
 
     inputs[propName] = {
       type: typeMatch ? typeMatch[1] : 'any',
@@ -637,7 +631,7 @@ function parseOutputStructure(
 
   while ((fieldMatch = fieldRegex.exec(outputContent)) !== null) {
     const fieldName = fieldMatch[1].trim()
-    const fieldType = fieldMatch[2].trim().replace(/["'\[\]]/g, '')
+    const _fieldType = fieldMatch[2].trim().replace(/["'[\]]/g, '')
 
     // Determine a good description based on field name
     let description = 'Dynamic output field'

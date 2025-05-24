@@ -1,15 +1,14 @@
-import { useFilterStore } from '@/app/w/logs/stores/store'
+import { useMemo } from 'react'
+import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Check, ChevronDown } from 'lucide-react'
-import { useMemo } from 'react'
+import { useFilterStore } from '@/app/w/logs/stores/store'
 
 export default function Workflow() {
   const { logs, workflowIds, toggleWorkflowId, setWorkflowIds } = useFilterStore()

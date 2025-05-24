@@ -1,13 +1,14 @@
+import { writeFile } from 'fs/promises'
 import { join } from 'path'
+import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { uploadToS3 } from '@/lib/uploads/s3-client'
 import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
-import { writeFile } from 'fs/promises'
-import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 // Import to ensure the uploads directory is created
 import '@/lib/uploads/setup.server'
-import { InvalidRequestError, createErrorResponse, createOptionsResponse } from '../utils'
+
+import { createErrorResponse, createOptionsResponse, InvalidRequestError } from '../utils'
 
 export const dynamic = 'force-dynamic'
 

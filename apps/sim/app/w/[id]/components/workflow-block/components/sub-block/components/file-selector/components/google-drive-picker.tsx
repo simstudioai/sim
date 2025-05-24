@@ -1,5 +1,8 @@
 'use client'
 
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, ExternalLink, FileIcon, RefreshCw, X } from 'lucide-react'
+import useDrivePicker from 'react-google-drive-picker'
 import { GoogleDocsIcon, GoogleSheetsIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,17 +17,14 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   type Credential,
-  OAUTH_PROVIDERS,
-  type OAuthProvider,
   getProviderIdFromServiceId,
   getServiceByProviderAndId,
   getServiceIdFromScopes,
+  OAUTH_PROVIDERS,
+  type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
-import { Check, ChevronDown, ExternalLink, FileIcon, RefreshCw, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import useDrivePicker from 'react-google-drive-picker'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('GoogleDrivePicker')
@@ -80,7 +80,7 @@ export function GoogleDrivePicker({
   const [isLoadingSelectedFile, setIsLoadingSelectedFile] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
-  const [openPicker, authResponse] = useDrivePicker()
+  const [openPicker, _authResponse] = useDrivePicker()
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -337,7 +337,7 @@ export function GoogleDrivePicker({
       // First try to get the service by provider and service ID
       const service = getServiceByProviderAndId(providerName, effectiveServiceId)
       return service.name
-    } catch (error) {
+    } catch (_error) {
       // If that fails, try to get the service by parsing the provider
       try {
         const { baseProvider } = parseProvider(providerName)
@@ -357,7 +357,7 @@ export function GoogleDrivePicker({
         if (baseProviderConfig) {
           return baseProviderConfig.name
         }
-      } catch (parseError) {
+      } catch (_parseError) {
         // Ignore parse error and continue to final fallback
       }
 

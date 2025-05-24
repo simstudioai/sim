@@ -1,4 +1,3 @@
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
 import { NextRequest } from 'next/server'
 /**
  * Integration tests for workflow execution API route
@@ -6,6 +5,7 @@ import { NextRequest } from 'next/server'
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('Workflow Execution API Route', () => {
   let executeMock = vi.fn().mockResolvedValue({

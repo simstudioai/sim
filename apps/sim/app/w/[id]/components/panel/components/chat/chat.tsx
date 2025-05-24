@@ -1,17 +1,17 @@
 'use client'
 
+import { type KeyboardEvent, useEffect, useMemo, useRef } from 'react'
+import { ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import type { BlockLog } from '@/executor/types'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import type { BlockLog } from '@/executor/types'
 import { calculateCost } from '@/providers/utils'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { ArrowUp } from 'lucide-react'
-import { type KeyboardEvent, useEffect, useMemo, useRef } from 'react'
 import { useWorkflowExecution } from '../../../../hooks/use-workflow-execution'
 import { ChatMessage } from './components/chat-message/chat-message'
 import { OutputSelect } from './components/output-select/output-select'
@@ -178,7 +178,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
             const formattedContent = fullContent
 
             // Calculate cost based on token usage if available
-            let costData = undefined
+            let costData: any
 
             if (executionResult.output?.response?.tokens) {
               const tokens = executionResult.output.response.tokens

@@ -1,6 +1,5 @@
 'use client'
 
-import React from 'react'
 import { ChatHeader } from '../header/header'
 
 interface ChatErrorStateProps {

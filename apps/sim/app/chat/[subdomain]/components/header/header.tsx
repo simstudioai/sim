@@ -1,8 +1,7 @@
 'use client'
 
-import { GithubIcon } from '@/components/icons'
 import { motion } from 'framer-motion'
-import React from 'react'
+import { GithubIcon } from '@/components/icons'
 
 interface ChatHeaderProps {
   chatConfig: {

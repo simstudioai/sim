@@ -1,4 +1,3 @@
-import { env } from '@/lib/env'
 import type { NextResponse } from 'next/server'
 /**
  * Tests for chat API utils
@@ -6,6 +5,7 @@ import type { NextResponse } from 'next/server'
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { env } from '@/lib/env'
 
 describe('Chat API Utils', () => {
   beforeEach(() => {

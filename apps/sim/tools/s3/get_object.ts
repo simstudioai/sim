@@ -37,7 +37,7 @@ function parseS3Uri(s3Uri: string): { bucketName: string; region: string; object
     }
 
     return { bucketName, region, objectKey }
-  } catch (error) {
+  } catch (_error) {
     throw new Error(
       'Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file'
     )
@@ -52,7 +52,7 @@ function generatePresignedUrl(params: any, expiresIn = 3600): string {
   const encodedPath = encodeS3PathComponent(params.objectKey)
 
   // Set expiration time
-  const expires = Math.floor(Date.now() / 1000) + expiresIn
+  const _expires = Math.floor(Date.now() / 1000) + expiresIn
 
   // Create the canonical request
   const method = 'GET'
@@ -110,7 +110,7 @@ export const s3GetObjectTool: ToolConfig = {
         params.objectKey = objectKey
 
         return `https://${bucketName}.s3.${region}.amazonaws.com/${encodeS3PathComponent(objectKey)}`
-      } catch (error) {
+      } catch (_error) {
         throw new Error(
           'Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file'
         )

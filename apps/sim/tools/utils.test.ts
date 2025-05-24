@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { type ToolConfig, ToolResponse } from './types'
+import type { ToolConfig } from './types'
 import {
   createCustomToolRequestBody,
   createParamSchema,

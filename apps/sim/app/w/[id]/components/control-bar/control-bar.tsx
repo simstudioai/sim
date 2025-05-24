@@ -1,5 +1,21 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
+import { formatDistanceToNow } from 'date-fns'
+import {
+  Bell,
+  Bug,
+  ChevronDown,
+  Copy,
+  History,
+  Loader2,
+  Play,
+  SkipForward,
+  StepForward,
+  Trash2,
+  X,
+} from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,22 +45,6 @@ import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { formatDistanceToNow } from 'date-fns'
-import {
-  Bell,
-  Bug,
-  ChevronDown,
-  Copy,
-  History,
-  Loader2,
-  Play,
-  SkipForward,
-  StepForward,
-  Trash2,
-  X,
-} from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
 import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
@@ -161,7 +161,7 @@ export function ControlBar() {
   }
 
   // Check if the current workflow is published to marketplace
-  const isPublishedToMarketplace = () => {
+  const _isPublishedToMarketplace = () => {
     const marketplaceData = getMarketplaceData()
     return !!marketplaceData
   }

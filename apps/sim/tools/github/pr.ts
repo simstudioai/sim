@@ -46,7 +46,7 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
 
     // Fetch the PR diff
     const diffResponse = await fetch(pr.diff_url)
-    const diff = await diffResponse.text()
+    const _diff = await diffResponse.text()
 
     // Fetch files changed
     const filesResponse = await fetch(

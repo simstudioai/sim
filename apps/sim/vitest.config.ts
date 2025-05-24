@@ -1,5 +1,4 @@
-import path from 'path'
-import { resolve } from 'path'
+import path, { resolve } from 'path'
 /// <reference types="vitest" />
 import nextEnv from '@next/env'
 import react from '@vitejs/plugin-react'

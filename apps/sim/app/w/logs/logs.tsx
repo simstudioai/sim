@@ -1,9 +1,9 @@
 'use client'
 
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertCircle, Info, Loader2 } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { AlertCircle, Info, Loader2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ControlBar } from './components/control-bar/control-bar'
 import { Filters } from './components/filters/filters'
 import { Sidebar } from './components/sidebar/sidebar'
@@ -383,7 +383,7 @@ export default function Logs() {
                     {filteredLogs.map((log) => {
                       const formattedDate = formatDate(log.createdAt)
                       const isSelected = selectedLog?.id === log.id
-                      const isWorkflowExecutionLog =
+                      const _isWorkflowExecutionLog =
                         log.executionId && executionGroups[log.executionId].length === 1
 
                       return (

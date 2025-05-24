@@ -1,6 +1,6 @@
+import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useNotificationStore } from '@/stores/notifications/store'
-import { useCallback, useRef, useState } from 'react'
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'

@@ -1,8 +1,8 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { getFormattedGitHubStars } from '../actions/github'
 import GitHubStarsClient from './github-stars-client'
 import NavClient from './nav-client'

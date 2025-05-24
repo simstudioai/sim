@@ -1,9 +1,9 @@
-import { getAllBlocks } from '@/blocks'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { isHosted } from '@/lib/environment'
+import { getAllBlocks } from '@/blocks'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
-import { type Mock, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, StreamingExecution } from '../../types'
 import { AgentBlockHandler } from './agent-handler'
 
@@ -169,7 +169,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      const expectedProviderRequest = {
+      const _expectedProviderRequest = {
         model: 'gpt-4o',
         systemPrompt: 'You are a helpful assistant.',
         context: 'User query: Hello!',
@@ -331,7 +331,7 @@ describe('AgentBlockHandler', () => {
       expect(typeof autoTool.executeFunction).toBe('function')
       expect(typeof forceTool.executeFunction).toBe('function')
 
-      const autoResult = await autoTool.executeFunction({ input: 'test input' })
+      const _autoResult = await autoTool.executeFunction({ input: 'test input' })
       expect(mockExecuteTool).toHaveBeenCalledWith(
         'function_execute',
         expect.objectContaining({
@@ -340,7 +340,7 @@ describe('AgentBlockHandler', () => {
         })
       )
 
-      const forceResult = await forceTool.executeFunction({ input: 'another test' })
+      const _forceResult = await forceTool.executeFunction({ input: 'another test' })
       expect(mockExecuteTool).toHaveBeenCalledWith(
         'function_execute',
         expect.objectContaining({
@@ -529,7 +529,7 @@ describe('AgentBlockHandler', () => {
 
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      const expectedProviderRequest = {
+      const _expectedProviderRequest = {
         model: 'gpt-4o',
         systemPrompt: 'You are a helpful assistant.',
         context: 'User query: Hello!',
@@ -569,7 +569,7 @@ describe('AgentBlockHandler', () => {
       mockTransformBlockTool.mockReturnValue(mockToolDetails)
       mockGetProviderFromModel.mockReturnValue('openai')
 
-      const expectedProviderRequest = {
+      const _expectedProviderRequest = {
         model: 'gpt-4o',
         systemPrompt: undefined,
         context: 'Analyze this data.',
@@ -1012,7 +1012,7 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should handle combined stream+execution responses', async () => {
-      const mockStreamObj = new ReadableStream({
+      const _mockStreamObj = new ReadableStream({
         start(controller) {
           controller.close()
         },

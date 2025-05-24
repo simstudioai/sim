@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import {
   AirtableIcon,
   ConfluenceIcon,
@@ -15,7 +16,6 @@ import {
   xIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ReactNode } from 'react'
 import { env } from './env'
 
 const logger = createLogger('OAuth')
@@ -541,7 +541,7 @@ export async function refreshOAuthToken(
       // Try to parse the error as JSON for better diagnostics
       try {
         errorData = JSON.parse(errorText)
-      } catch (e) {
+      } catch (_e) {
         // Not JSON, keep as text
       }
 

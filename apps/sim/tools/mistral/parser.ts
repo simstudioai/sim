@@ -311,7 +311,7 @@ export const mistralParserTool: ToolConfig<MistralParserInput, MistralParserOutp
       if (resultType === 'text') {
         // Strip markdown formatting
         content = content
-          .replace(/\#\#*\s/g, '') // Remove markdown headers
+          .replace(/##*\s/g, '') // Remove markdown headers
           .replace(/\*\*/g, '') // Remove bold markers
           .replace(/\*/g, '') // Remove italic markers
           .replace(/\n{3,}/g, '\n\n') // Normalize newlines

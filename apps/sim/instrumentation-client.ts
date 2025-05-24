@@ -62,7 +62,7 @@ if (typeof window !== 'undefined') {
         telemetryEnabled = status.enabled
       }
     }
-  } catch (e) {
+  } catch (_e) {
     telemetryEnabled = false
   }
 
@@ -80,7 +80,7 @@ if (typeof window !== 'undefined') {
     const result: Record<string, any> = {}
 
     for (const key in obj) {
-      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      if (key in obj) {
         const value = obj[key]
         if (
           value === undefined ||
@@ -93,10 +93,10 @@ if (typeof window !== 'undefined') {
 
         try {
           result[key] = safeSerialize(value)
-        } catch (e) {
+        } catch (_e) {
           try {
             result[key] = String(value)
-          } catch (e2) {}
+          } catch (_e2) {}
         }
       }
     }
@@ -133,7 +133,7 @@ if (typeof window !== 'undefined') {
       telemetryConfig = (window as any).__SIM_STUDIO_TELEMETRY_CONFIG || {
         clientSide: { enabled: true },
       }
-    } catch (e) {
+    } catch (_e) {
       telemetryConfig = { clientSide: { enabled: true } }
     }
 

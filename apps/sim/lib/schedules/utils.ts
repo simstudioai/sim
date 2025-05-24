@@ -593,7 +593,7 @@ export const parseCronToHumanReadable = (cronExpression: string): string => {
     }
 
     return description.trim()
-  } catch (e) {
+  } catch (_e) {
     return `Schedule: ${cronExpression}`
   }
 }

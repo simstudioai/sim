@@ -1,6 +1,4 @@
-import { getBlock } from '@/blocks'
-import { Button } from '@/components/ui/button'
-import type { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
+import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import {
   AlertCircle,
@@ -12,7 +10,9 @@ import {
   Clock,
   Terminal,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { getBlock } from '@/blocks'
+import type { ConsoleEntry as ConsoleEntryType } from '@/stores/panel/console/types'
 import { JSONView } from '../json-view/json-view'
 
 interface ConsoleEntryProps {
@@ -66,7 +66,7 @@ export function ConsoleEntry({ entry, consoleWidth }: ConsoleEntryProps) {
 
   const BlockIcon = blockConfig?.icon
 
-  const statusIcon = entry.error ? (
+  const _statusIcon = entry.error ? (
     <AlertCircle className='h-4 w-4 text-destructive' />
   ) : entry.warning ? (
     <AlertTriangle className='h-4 w-4 text-warning' />

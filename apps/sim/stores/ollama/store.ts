@@ -1,6 +1,6 @@
+import { create } from 'zustand'
 import { createLogger } from '@/lib/logs/console-logger'
 import { updateOllamaProviderModels } from '@/providers/utils'
-import { create } from 'zustand'
 import type { OllamaStore } from './types'
 
 const logger = createLogger('OllamaStore')

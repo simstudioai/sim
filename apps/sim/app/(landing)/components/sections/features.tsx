@@ -1,9 +1,9 @@
 'use client'
 
-import { AnimatePresence, motion } from 'framer-motion'
-import { CodeXml, WorkflowIcon } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { CodeXml, WorkflowIcon } from 'lucide-react'
 import ReactFlow, {
   ConnectionLineType,
   type Edge,
@@ -15,7 +15,8 @@ import ReactFlow, {
   useNodesState,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { AgentIcon, ConnectIcon, SlackIcon, StartIcon } from '@/components/icons'
+
+import { AgentIcon, ConnectIcon, StartIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { DotPattern } from '../dot-pattern'
 import { HeroBlock } from '../hero-block'

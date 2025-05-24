@@ -58,6 +58,7 @@ export function createMockFetch(
   })
 
   // Add preconnect property to satisfy TypeScript
+
   ;(mockFn as any).preconnect = vi.fn()
 
   return mockFn as MockFetch
@@ -423,7 +424,7 @@ export class ToolTester<P = any, R = any> {
         if (hostname && !customHeaders.Host && !customHeaders.host) {
           customHeaders.Host = hostname
         }
-      } catch (e) {
+      } catch (_e) {
         // Invalid URL, will be handled elsewhere
       }
 
@@ -493,6 +494,7 @@ export function mockOAuthTokenRequest(accessToken = 'mock-access-token') {
   })
 
   // Add preconnect property
+
   ;(mockFn as any).preconnect = vi.fn()
 
   const mockTokenFetch = mockFn as MockFetch

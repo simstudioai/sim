@@ -1,9 +1,9 @@
 'use client'
 
+import { Suspense, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { cn } from '@/lib/utils'
-import { Suspense, useEffect, useState } from 'react'
 import { useVerification } from './use-verification'
 
 interface VerifyContentProps {

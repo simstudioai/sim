@@ -1,4 +1,5 @@
-import { getAllBlocks } from '@/blocks'
+import { useCallback, useState } from 'react'
+import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -13,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { createLogger } from '@/lib/logs/console-logger'
 import type { OAuthProvider } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
+import { getAllBlocks } from '@/blocks'
 import { supportsToolUsageControl } from '@/providers/model-capabilities'
 import { getProviderFromModel } from '@/providers/utils'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
@@ -20,15 +22,13 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getTool } from '@/tools/utils'
-import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
-import { useCallback, useState } from 'react'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 import { CredentialSelector } from '../credential-selector/credential-selector'
 import { ShortInput } from '../short-input'
 import { type CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
 import { ToolCommand } from './components/tool-command/tool-command'
 
-const logger = createLogger('ToolInput')
+const _logger = createLogger('ToolInput')
 
 interface ToolInputProps {
   blockId: string
@@ -387,7 +387,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
 
     // Find the tool ID from the custom tools store based on the function name
     const customToolsList = useCustomToolsStore.getState().getAllTools()
-    const existingTool = customToolsList.find(
+    const _existingTool = customToolsList.find(
       (customTool) => customTool.schema.function.name === tool.schema.function.name
     )
 

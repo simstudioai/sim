@@ -1,4 +1,3 @@
-import { env } from '@/lib/env'
 import { NextRequest } from 'next/server'
 /**
  * Tests for chat API route
@@ -6,6 +5,7 @@ import { NextRequest } from 'next/server'
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { env } from '@/lib/env'
 
 describe('Chat API Route', () => {
   const mockSelect = vi.fn()

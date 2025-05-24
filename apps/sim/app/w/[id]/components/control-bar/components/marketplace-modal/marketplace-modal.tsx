@@ -1,11 +1,10 @@
 'use client'
 
-import {
-  CATEGORIES,
-  getCategoryColor,
-  getCategoryIcon,
-  getCategoryLabel,
-} from '@/app/w/marketplace/constants/categories'
+import { useEffect, useState } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Eye, HelpCircle, Info, Trash, X } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -31,14 +30,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import {
+  CATEGORIES,
+  getCategoryColor,
+  getCategoryIcon,
+  getCategoryLabel,
+} from '@/app/w/marketplace/constants/categories'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, HelpCircle, Info, Trash, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 
 const logger = createLogger('MarketplaceModal')
 

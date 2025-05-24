@@ -1,5 +1,7 @@
 'use client'
 
+import { useCallback, useEffect, useState } from 'react'
+import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
 import { DiscordIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,8 +14,6 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console-logger'
-import { Check, ChevronDown, RefreshCw, X } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
 
 const logger = createLogger('DiscordChannelSelector')
 

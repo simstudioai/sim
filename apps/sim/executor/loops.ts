@@ -361,11 +361,11 @@ export class LoopManager {
     }
 
     // As a fallback, try to find the first non-empty array or object in the context
-    for (const [blockId, blockState] of context.blockStates.entries()) {
+    for (const [_blockId, blockState] of context.blockStates.entries()) {
       const output = blockState.output?.response
       if (output) {
         // Look for arrays or objects in the response that could be iterated over
-        for (const [key, value] of Object.entries(output)) {
+        for (const [_key, value] of Object.entries(output)) {
           if (Array.isArray(value) && value.length > 0) {
             return value
           }
@@ -506,7 +506,7 @@ export class LoopManager {
       return true
     }
 
-    for (const [loopId, loop] of Object.entries(this.loops)) {
+    for (const [_loopId, loop] of Object.entries(this.loops)) {
       if (loop.nodes.includes(connection.source) && loop.nodes.includes(connection.target)) {
         // For single-node loops, any connection to itself is a feedback path
         if (

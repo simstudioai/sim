@@ -1,4 +1,5 @@
-import { useCodeGeneration } from '@/app/w/[id]/hooks/use-code-generation'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Code, FileJson, Trash2, Wand2, X } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,14 +19,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
+import { checkEnvVarTrigger, EnvVarDropdown } from '@/components/ui/env-var-dropdown'
 import { Label } from '@/components/ui/label'
-import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
+import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { useCodeGeneration } from '@/app/w/[id]/hooks/use-code-generation'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
-import { Code, FileJson, Trash2, Wand2, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { CodePromptBar } from '../../../../../../../code-prompt-bar/code-prompt-bar'
 import { CodeEditor } from '../code-editor/code-editor'
 
@@ -183,7 +183,7 @@ export function CustomToolModal({
       }
 
       return true
-    } catch (error) {
+    } catch (_error) {
       return false
     }
   }
@@ -266,7 +266,7 @@ export function CustomToolModal({
       const name = schema.function.name
       const description = schema.function.description || ''
 
-      let finalToolId: string | undefined = originalToolId
+      let _finalToolId: string | undefined = originalToolId
 
       // Only save to the store if we're not reusing an existing tool
       if (isEditing && originalToolId) {
@@ -278,7 +278,7 @@ export function CustomToolModal({
         })
       } else {
         // Add new tool to store
-        finalToolId = addTool({
+        _finalToolId = addTool({
           title: name,
           schema,
           code: functionCode || '',

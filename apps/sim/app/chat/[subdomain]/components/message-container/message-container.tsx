@@ -1,8 +1,8 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+import { memo, type RefObject } from 'react'
 import { ArrowDown } from 'lucide-react'
-import React, { memo, type RefObject } from 'react'
+import { Button } from '@/components/ui/button'
 import { type ChatMessage, ClientChatMessage } from '../message/message'
 
 interface ChatMessageContainerProps {

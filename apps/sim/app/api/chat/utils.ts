@@ -1,18 +1,18 @@
-import { db } from '@/db'
-import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
-import { Executor } from '@/executor'
-import type { BlockLog } from '@/executor/types'
+import { eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { decryptSecret } from '@/lib/utils'
+import { db } from '@/db'
+import { chat, environment as envTable, userStats, workflow } from '@/db/schema'
+import { Executor } from '@/executor'
+import type { BlockLog } from '@/executor/types'
 import { Serializer } from '@/serializer'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { eq, sql } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
 
 declare global {
   var __chatStreamProcessingTasks: Promise<{ success: boolean; error?: any }>[] | undefined
@@ -30,7 +30,7 @@ export const encryptAuthToken = (subdomainId: string, type: string): string => {
 export const validateAuthToken = (token: string, subdomainId: string): boolean => {
   try {
     const decoded = Buffer.from(token, 'base64').toString()
-    const [storedId, type, timestamp] = decoded.split(':')
+    const [storedId, _type, timestamp] = decoded.split(':')
 
     // Check if token is for this subdomain
     if (storedId !== subdomainId) {
@@ -47,7 +47,7 @@ export const validateAuthToken = (token: string, subdomainId: string): boolean =
     }
 
     return true
-  } catch (e) {
+  } catch (_e) {
     return false
   }
 }
@@ -214,7 +214,7 @@ export async function validateChatAuth(
  * Extract a specific output from a block using the blockId and path
  * This mimics how the chat panel extracts outputs from blocks
  */
-function extractBlockOutput(logs: any[], blockId: string, path?: string) {
+function _extractBlockOutput(logs: any[], blockId: string, path?: string) {
   // Find the block in logs
   const blockLog = logs.find((log) => log.blockId === blockId)
   if (!blockLog || !blockLog.output) return null
@@ -561,7 +561,7 @@ export async function executeWorkflowForChat(
         // Ensure the stream is properly closed even if an error occurs
         try {
           const controller = new AbortController()
-          const signal = controller.signal
+          const _signal = controller.signal
           controller.abort()
         } catch (cleanupError) {
           logger.debug(`[${requestId}] Error during stream cleanup: ${cleanupError}`)

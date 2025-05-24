@@ -1,12 +1,3 @@
-import {
-  getEmailSubject,
-  renderInvitationEmail,
-  renderOTPEmail,
-  renderPasswordResetEmail,
-} from '@/components/emails/render-email'
-import { db } from '@/db'
-import * as schema from '@/db/schema'
-import { createLogger } from '@/lib/logs/console-logger'
 import { stripe } from '@better-auth/stripe'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
@@ -16,6 +7,15 @@ import { and, eq } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { Resend } from 'resend'
 import Stripe from 'stripe'
+import {
+  getEmailSubject,
+  renderInvitationEmail,
+  renderOTPEmail,
+  renderPasswordResetEmail,
+} from '@/components/emails/render-email'
+import { createLogger } from '@/lib/logs/console-logger'
+import { db } from '@/db'
+import * as schema from '@/db/schema'
 import { env } from './env'
 
 const logger = createLogger('Auth')

@@ -6,7 +6,7 @@ import type { VariableType } from '@/stores/panel/variables/types'
  * to minimize type conversion issues and ensure predictable behavior.
  */
 
-// biome-ignore lint/complexity/noStaticOnlyClass: <explanation>
+// biome-ignore lint: false positive
 export class VariableManager {
   /**
    * Core method to convert any value to its appropriate native JavaScript type
@@ -75,7 +75,7 @@ export class VariableManager {
           }
           // Otherwise create a simple wrapper object
           return typeof unquoted === 'object' ? unquoted : { value: unquoted }
-        } catch (e) {
+        } catch (_e) {
           // Handle special case for 'invalid json' in editor formatting
           if (unquoted === 'invalid json' && !forExecution) {
             return { value: 'invalid json' }
@@ -96,7 +96,7 @@ export class VariableManager {
           }
           // Otherwise create a single-item array
           return [unquoted]
-        } catch (e) {
+        } catch (_e) {
           // Handle special case for 'invalid json' in editor formatting
           if (unquoted === 'invalid json' && !forExecution) {
             return ['invalid json']

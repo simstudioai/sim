@@ -1,8 +1,7 @@
+import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
-import { getTool } from '@/tools/utils'
-import { validateToolRequest } from '@/tools/utils'
-import { NextResponse } from 'next/server'
+import { getTool, validateToolRequest } from '@/tools/utils'
 
 const logger = createLogger('ProxyAPI')
 
@@ -74,7 +73,7 @@ export async function GET(request: Request) {
   const method = url.searchParams.get('method') || 'GET'
 
   const bodyParam = url.searchParams.get('body')
-  let body: string | undefined = undefined
+  let body: string | undefined
 
   if (bodyParam && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
     try {

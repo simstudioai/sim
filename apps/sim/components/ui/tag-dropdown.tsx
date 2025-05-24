@@ -1,14 +1,14 @@
-import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
-import { getBlock } from '@/blocks'
+import type React from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
+import { getBlock } from '@/blocks'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import type React from 'react'
-import { useEffect, useMemo, useState } from 'react'
 
 const logger = createLogger('TagDropdown')
 
@@ -81,7 +81,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   // Get available tags from workflow state
   const blocks = useWorkflowStore((state) => state.blocks)
-  const edges = useWorkflowStore((state) => state.edges)
+  const _edges = useWorkflowStore((state) => state.edges)
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const loops = useWorkflowStore((state) => state.loops)
 
@@ -179,7 +179,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     const containingLoop = Object.entries(loops).find(([_, loop]) => loop.nodes.includes(blockId))
 
     if (containingLoop) {
-      const [loopId, loop] = containingLoop
+      const [_loopId, loop] = containingLoop
       const loopType = loop.loopType || 'for'
 
       // Add loop.index for all loop types

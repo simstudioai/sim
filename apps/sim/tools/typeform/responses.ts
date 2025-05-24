@@ -81,7 +81,7 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
         } else if (typeof errorData === 'string') {
           errorMessage = errorData
         }
-      } catch (e) {
+      } catch (_e) {
         // If we can't parse the error as JSON, just use the status text
       }
 

@@ -1,4 +1,3 @@
-import fetch from 'node-fetch'
 import type { ToolConfig } from '../types'
 import type { RedditPostsParams, RedditPostsResponse } from './types'
 
@@ -71,7 +70,7 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       let data
       try {
         data = await response.json()
-      } catch (error) {
+      } catch (_error) {
         throw new Error('Failed to parse Reddit API response: Response was not valid JSON')
       }
 

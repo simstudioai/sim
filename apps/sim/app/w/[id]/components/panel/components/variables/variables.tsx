@@ -1,19 +1,12 @@
 'use client'
 
-import {
-  AlertCircle,
-  AlertTriangle,
-  Check,
-  ChevronDown,
-  Copy,
-  MoreVertical,
-  Plus,
-  Trash,
-} from 'lucide-react'
-import { highlight, languages } from 'prismjs'
 import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, ChevronDown, Copy, MoreVertical, Plus, Trash } from 'lucide-react'
+import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
+
+import Editor from 'react-simple-code-editor'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -25,11 +18,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { VariableManager } from '@/lib/variables/variable-manager'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable, VariableType } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import Editor from 'react-simple-code-editor'
 
 interface VariablesProps {
   panelWidth: number
@@ -61,7 +52,7 @@ export function Variables({ panelWidth }: VariablesProps) {
   const editorRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   // Track which variables are currently being edited
-  const [activeEditors, setActiveEditors] = useState<Record<string, boolean>>({})
+  const [_activeEditors, setActiveEditors] = useState<Record<string, boolean>>({})
 
   // Auto-save when variables are added/edited
   const handleAddVariable = () => {

@@ -1,7 +1,7 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import React, { type HTMLAttributes, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
   return (

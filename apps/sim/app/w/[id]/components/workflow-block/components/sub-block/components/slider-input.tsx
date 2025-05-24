@@ -1,5 +1,5 @@
-import { Slider } from '@/components/ui/slider'
 import { useEffect, useMemo } from 'react'
+import { Slider } from '@/components/ui/slider'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface SliderInputProps {

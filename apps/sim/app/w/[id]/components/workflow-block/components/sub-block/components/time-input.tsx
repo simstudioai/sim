@@ -1,11 +1,11 @@
 'use client'
 
+import * as React from 'react'
+import { Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { Clock } from 'lucide-react'
-import * as React from 'react'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface TimeInputProps {
@@ -52,7 +52,7 @@ export function TimeInput({ blockId, subBlockId, placeholder, className }: TimeI
     if (value) {
       const [hours, minutes] = value.split(':')
       const hour24 = Number.parseInt(hours, 10)
-      const minute = Number.parseInt(minutes, 10)
+      const _minute = Number.parseInt(minutes, 10)
       const isAM = hour24 < 12
       setHour((hour24 % 12 || 12).toString())
       setMinute(minutes)

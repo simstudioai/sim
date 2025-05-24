@@ -1,4 +1,3 @@
-import { createLogger } from '@/lib/logs/console-logger'
 /**
  * Sim Studio Telemetry
  *
@@ -10,6 +9,7 @@ import { createLogger } from '@/lib/logs/console-logger'
  * Please maintain ethical telemetry practices if modified.
  */
 import { DiagConsoleLogger, DiagLogLevel, diag } from '@opentelemetry/api'
+import { createLogger } from '@/lib/logs/console-logger'
 import { env } from './env'
 
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.ERROR)

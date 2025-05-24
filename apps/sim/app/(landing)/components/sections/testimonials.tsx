@@ -1,8 +1,7 @@
 'use client'
 
-import { Marquee } from '@/app/(landing)/components/magicui/marquee'
 import { motion } from 'framer-motion'
-import React from 'react'
+import { Marquee } from '@/app/(landing)/components/magicui/marquee'
 import useIsMobile from '../hooks/use-is-mobile'
 
 const X_TESTIMONIALS = [

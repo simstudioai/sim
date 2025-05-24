@@ -1,7 +1,7 @@
 'use client'
 
-import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   Background,
   ConnectionLineType,
@@ -11,10 +11,11 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
-import { getBlock } from '@/blocks'
+
 import { LoadingAgent } from '@/components/ui/loading-agent'
 import { createLogger } from '@/lib/logs/console-logger'
+import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
+import { getBlock } from '@/blocks'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'

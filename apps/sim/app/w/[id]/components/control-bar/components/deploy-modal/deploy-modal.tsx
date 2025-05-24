@@ -1,8 +1,7 @@
 'use client'
 
-import { ChatDeploy } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
-import { DeployForm } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deploy-form/deploy-form'
-import { DeploymentInfo } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/deployment-info'
+import { useEffect, useState } from 'react'
+import { Info, Loader2, X } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,12 +20,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { ChatDeploy } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
+import { DeployForm } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deploy-form/deploy-form'
+import { DeploymentInfo } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/deployment-info'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { Info, Loader2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
 
 const logger = createLogger('DeployModal')
 
@@ -527,7 +527,7 @@ export function DeployModal({
   }
 
   // Render deployed chat view
-  const renderDeployedChatView = () => {
+  const _renderDeployedChatView = () => {
     if (!deployedChatUrl) {
       return (
         <div className='flex items-center justify-center py-12 text-muted-foreground'>

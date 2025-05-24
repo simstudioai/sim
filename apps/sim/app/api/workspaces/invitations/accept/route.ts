@@ -1,10 +1,10 @@
 import { randomUUID } from 'crypto'
-import { db } from '@/db'
-import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
-import { getSession } from '@/lib/auth'
-import { env } from '@/lib/env'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
+import { db } from '@/db'
+import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
 
 // Accept an invitation via token
 export async function GET(req: NextRequest) {

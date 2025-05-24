@@ -849,7 +849,7 @@ export class InputResolver {
     if (typeof value === 'object') {
       const result: Record<string, any> = {}
       for (const [k, v] of Object.entries(value)) {
-        const isApiKey = k.toLowerCase() === 'apikey'
+        const _isApiKey = k.toLowerCase() === 'apikey'
         result[k] = this.resolveNestedStructure(v, context, currentBlock)
       }
       return result
@@ -997,10 +997,10 @@ export class InputResolver {
 
     // As a fallback, look for the most recent array or object in any block's output
     // This is less reliable but might help in some cases
-    for (const [blockId, blockState] of context.blockStates.entries()) {
+    for (const [_blockId, blockState] of context.blockStates.entries()) {
       const output = blockState.output?.response
       if (output) {
-        for (const [key, value] of Object.entries(output)) {
+        for (const [_key, value] of Object.entries(output)) {
           if (Array.isArray(value) && value.length > 0) {
             return value
           }
@@ -1103,7 +1103,7 @@ export class InputResolver {
         /\.\w+\s*\(/, // Method call
 
         // JavaScript/Python operators
-        /[=<>!+\-*\/%](?:==?)?/, // Common operators
+        /[=<>!+\-*/%](?:==?)?/, // Common operators
         /\+=|-=|\*=|\/=|%=|\*\*=?/, // Assignment operators
 
         // JavaScript keywords
@@ -1113,9 +1113,9 @@ export class InputResolver {
         /\b(if|else|elif|for|while|def|return|import|from|as|class|with|try|except)\b/,
 
         // Common code patterns
-        /^['\"]use strict['\"]?$/, // JS strict mode
+        /^['"]use strict['"]?$/, // JS strict mode
         /\$\{.+?\}/, // JS template literals
-        /f['\"].*?['\"]/, // Python f-strings
+        /f['"].*?['"]/, // Python f-strings
         /\bprint\s*\(/, // Python print
         /\bconsole\.\w+\(/, // JS console methods
       ]

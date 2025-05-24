@@ -3,8 +3,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { tools } from './registry'
-import type { TableRow } from './types'
-import type { ToolConfig, ToolResponse } from './types'
+import type { TableRow, ToolConfig, ToolResponse } from './types'
 
 const logger = createLogger('ToolsUtils')
 
@@ -86,7 +85,7 @@ export async function executeRequest(
       let errorContent
       try {
         errorContent = await externalResponse.json()
-      } catch (e) {
+      } catch (_e) {
         errorContent = { message: externalResponse.statusText }
       }
 
@@ -230,7 +229,7 @@ export function getClientEnvVars(getStore?: () => any): Record<string, string> {
       },
       {} as Record<string, string>
     )
-  } catch (error) {
+  } catch (_error) {
     // In case of any errors (like in testing), return empty object
     return {}
   }

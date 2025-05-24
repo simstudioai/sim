@@ -1,11 +1,10 @@
 'use client'
 
-import { DiscordIcon, GithubIcon, xIcon as XIcon } from '@/components/icons'
-import { Button } from '@/components/ui/button'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import React from 'react'
+import { DiscordIcon, GithubIcon, xIcon as XIcon } from '@/components/icons'
+import { Button } from '@/components/ui/button'
 import useIsMobile from '../hooks/use-is-mobile'
 
 interface FooterProps {
@@ -13,7 +12,7 @@ interface FooterProps {
 }
 
 function Footer({ onOpenTypeformLink }: FooterProps) {
-  const router = useRouter()
+  const _router = useRouter()
   const { isMobile, mounted } = useIsMobile()
 
   if (!mounted) {

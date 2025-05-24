@@ -1,7 +1,7 @@
 import { createReadStream, existsSync } from 'fs'
 import { Readable } from 'stream'
-import { createLogger } from '@/lib/logs/console-logger'
 import csvParser from 'csv-parser'
+import { createLogger } from '@/lib/logs/console-logger'
 import type { FileParseResult, FileParser } from './types'
 
 const logger = createLogger('CsvParser')

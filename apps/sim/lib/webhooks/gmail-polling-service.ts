@@ -1,11 +1,11 @@
-import { getOAuthToken } from '@/app/api/auth/oauth/utils'
-import { db } from '@/db'
-import { webhook } from '@/db/schema'
+import { and, eq } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 import { Logger } from '@/lib/logs/console-logger'
 import { hasProcessedMessage, markMessageAsProcessed } from '@/lib/redis'
 import { getBaseUrl } from '@/lib/urls/utils'
-import { and, eq } from 'drizzle-orm'
-import { nanoid } from 'nanoid'
+import { getOAuthToken } from '@/app/api/auth/oauth/utils'
+import { db } from '@/db'
+import { webhook } from '@/db/schema'
 
 const logger = new Logger('GmailPollingService')
 
@@ -540,7 +540,7 @@ async function processEmails(
       if (headers.date) {
         try {
           date = new Date(headers.date).toISOString()
-        } catch (e) {
+        } catch (_e) {
           // Keep date as null if parsing fails
         }
       } else if (email.internalDate) {

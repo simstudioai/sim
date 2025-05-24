@@ -1,8 +1,8 @@
-import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { eq } from 'drizzle-orm'
 import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
-import { eq } from 'drizzle-orm'
+import { db } from '@/db'
+import * as schema from '@/db/schema'
 import { client } from './auth-client'
 import { env } from './env'
 

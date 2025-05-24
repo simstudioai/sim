@@ -81,7 +81,7 @@ export const discordGetMessagesTool: ToolConfig<
     let messages: DiscordMessage[]
     try {
       messages = await response.json()
-    } catch (e) {
+    } catch (_e) {
       return {
         success: false,
         error: 'Failed to parse messages',

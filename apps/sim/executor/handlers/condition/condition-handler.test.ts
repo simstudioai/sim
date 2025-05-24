@@ -1,6 +1,7 @@
 import '../../__test-utils__/mock-dependencies'
+
+import { beforeEach, describe, expect, it, type Mocked, type MockedClass, vi } from 'vitest'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import { type Mocked, type MockedClass, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PathTracker } from '../../path'
 import { InputResolver } from '../../resolver'
 import type { BlockState, ExecutionContext } from '../../types'
@@ -213,7 +214,7 @@ describe('ConditionBlockHandler', () => {
     // Mock directly in the test
     mockResolver.resolveBlockReferences.mockReturnValue('10 > 5')
 
-    const result = (await handler.execute(mockBlock, inputs, mockContext)) as { response: any }
+    const _result = (await handler.execute(mockBlock, inputs, mockContext)) as { response: any }
 
     expect(mockResolver.resolveBlockReferences).toHaveBeenCalledWith(
       '{{source-block-1.response.value}} > 5',

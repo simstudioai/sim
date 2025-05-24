@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -7,8 +9,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
-import { X } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { type ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook'
 import { AirtableConfig } from './providers/airtable'
 import { DiscordConfig } from './providers/discord'
@@ -19,8 +19,7 @@ import { SlackConfig } from './providers/slack'
 import { StripeConfig } from './providers/stripe'
 import { TelegramConfig } from './providers/telegram'
 import { WhatsAppConfig } from './providers/whatsapp'
-import { DeleteConfirmDialog } from './ui/confirmation'
-import { UnsavedChangesDialog } from './ui/confirmation'
+import { DeleteConfirmDialog, UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
 import { WebhookUrlField } from './ui/webhook-url'
 
@@ -82,7 +81,7 @@ export function WebhookModal({
   const [telegramBotToken, setTelegramBotToken] = useState('')
   const [telegramTriggerPhrase, setTelegramTriggerPhrase] = useState('')
   // Airtable-specific state
-  const [airtableWebhookSecret, setAirtableWebhookSecret] = useState('')
+  const [airtableWebhookSecret, _setAirtableWebhookSecret] = useState('')
   const [airtableBaseId, setAirtableBaseId] = useState('')
   const [airtableTableId, setAirtableTableId] = useState('')
   const [airtableIncludeCellValues, setAirtableIncludeCellValues] = useState(false)
@@ -116,7 +115,7 @@ export function WebhookModal({
   const [markAsRead, setMarkAsRead] = useState<boolean>(false)
 
   // Get the current provider configuration
-  const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
+  const _provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
 
   // Generate a random verification token if none exists
   useEffect(() => {
@@ -562,7 +561,7 @@ export function WebhookModal({
           // Try to parse as JSON, but handle case where it's not valid JSON
           const errorData = JSON.parse(errorText)
           errorMessage = errorData.message || errorData.error || errorMessage
-        } catch (parseError) {
+        } catch (_parseError) {
           // If JSON parsing fails, use the raw text if it exists
           errorMessage = errorText || errorMessage
         }

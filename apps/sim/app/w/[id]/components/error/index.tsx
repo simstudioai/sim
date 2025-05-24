@@ -1,9 +1,9 @@
 'use client'
 
+import { Component, type ReactNode, useEffect } from 'react'
+import { BotIcon } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
-import { BotIcon } from 'lucide-react'
-import { Component, type ReactNode, useEffect } from 'react'
 
 const logger = createLogger('ErrorBoundary')
 

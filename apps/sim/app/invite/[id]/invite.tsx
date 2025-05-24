@@ -1,19 +1,12 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { LoadingAgent } from '@/components/ui/loading-agent'
-import { client, useSession } from '@/lib/auth-client'
+import { useEffect, useState } from 'react'
 import { BotIcon, CheckCircle } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { LoadingAgent } from '@/components/ui/loading-agent'
+import { client, useSession } from '@/lib/auth-client'
 
 export default function Invite() {
   const router = useRouter()
@@ -102,7 +95,7 @@ export default function Invite() {
           } else {
             throw new Error('Invitation not found or has expired')
           }
-        } catch (err) {
+        } catch (_err) {
           // If neither workspace nor organization invitation is found
           throw new Error('Invitation not found or has expired')
         }

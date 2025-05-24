@@ -1,6 +1,6 @@
+import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { hasWorkflowChanged } from '@/lib/workflows/utils'
-import type { NextRequest } from 'next/server'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 

@@ -104,7 +104,7 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
         if (typeof params.rawData === 'string') {
           try {
             parsedRawData = JSON.parse(params.rawData)
-          } catch (e) {
+          } catch (_e) {
             return {
               _errorResponse: {
                 status: 400,

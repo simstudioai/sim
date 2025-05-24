@@ -1,5 +1,4 @@
-import { useFilterStore } from '@/app/w/logs/stores/store'
-import type { TimeRange } from '@/app/w/logs/stores/types'
+import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -7,7 +6,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Check, ChevronDown } from 'lucide-react'
+import { useFilterStore } from '@/app/w/logs/stores/store'
+import type { TimeRange } from '@/app/w/logs/stores/types'
 
 export default function Timeline() {
   const { timeRange, setTimeRange } = useFilterStore()

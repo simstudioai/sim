@@ -1,8 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Label } from '@/components/ui/label'
-import { useState } from 'react'
 
 interface ApiKeyProps {
   apiKey: string

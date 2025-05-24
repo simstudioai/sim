@@ -100,7 +100,7 @@ describe('File Serve API Route', () => {
     const { GET } = await import('./route')
 
     // Call the handler
-    const response = await GET(req, { params: Promise.resolve(params) })
+    const _response = await GET(req, { params: Promise.resolve(params) })
 
     // Verify file was read with correct path
     expect(mockReadFile).toHaveBeenCalledWith('/test/uploads/nested/path/file.txt')

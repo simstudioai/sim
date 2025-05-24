@@ -1,8 +1,8 @@
 'use client'
 
-import { useTheme } from 'next-themes'
-import Image from 'next/image'
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
+import { useTheme } from 'next-themes'
 
 interface ThemeImageProps {
   lightSrc: string

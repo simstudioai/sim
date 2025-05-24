@@ -167,7 +167,7 @@ export const Mem0Block: BlockConfig<Mem0Response> = {
                   }
                 }
               }
-            } catch (e: any) {
+            } catch (_e: any) {
               errors.push('Messages must be valid JSON')
             }
           }
