@@ -1,5 +1,5 @@
 // Common types for Exa AI tools
-import type { ToolResponse } from '../types'
+import { ToolResponse } from '../types'
 
 // Common parameters for all Exa AI tools
 export interface ExaBaseParams {

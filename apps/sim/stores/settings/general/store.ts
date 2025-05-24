@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { GeneralStore } from './types'
+import { GeneralStore } from './types'
 
 const logger = createLogger('GeneralStore')
 
@@ -61,19 +61,6 @@ export const useGeneralStore = create<GeneralStore>()(
 
           // API Actions
           loadSettings: async (force = false) => {
-            // Skip loading if on a subdomain or chat path
-            if (
-              typeof window !== 'undefined' &&
-              (window.location.pathname.startsWith('/chat/') ||
-                (window.location.hostname !== 'simstudio.ai' &&
-                  window.location.hostname !== 'localhost' &&
-                  window.location.hostname !== '127.0.0.1' &&
-                  !window.location.hostname.startsWith('www.')))
-            ) {
-              logger.debug('Skipping settings load - on chat or subdomain page')
-              return
-            }
-
             // Skip loading if settings were recently loaded (within 5 seconds)
             const now = Date.now()
             if (!force && now - lastLoadTime < CACHE_TIMEOUT) {
@@ -114,18 +101,6 @@ export const useGeneralStore = create<GeneralStore>()(
           },
 
           updateSetting: async (key, value) => {
-            if (
-              typeof window !== 'undefined' &&
-              (window.location.pathname.startsWith('/chat/') ||
-                (window.location.hostname !== 'simstudio.ai' &&
-                  window.location.hostname !== 'localhost' &&
-                  window.location.hostname !== '127.0.0.1' &&
-                  !window.location.hostname.startsWith('www.')))
-            ) {
-              logger.debug(`Skipping setting update for ${key} on chat or subdomain page`)
-              return
-            }
-
             try {
               const response = await fetch('/api/user/settings', {
                 method: 'PATCH',

@@ -3,7 +3,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  type BlockState,
+  BlockState,
   calculateNextRunTime,
   createDateWithTimezone,
   generateCronExpression,

@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import type * as LabelPrimitive from '@radix-ui/react-label'
+import * as LabelPrimitive from '@radix-ui/react-label'
 import { Slot } from '@radix-ui/react-slot'
 import {
   Controller,
@@ -125,7 +125,7 @@ const FormDescription = React.forwardRef<
     <p
       ref={ref}
       id={formDescriptionId}
-      className={cn('text-muted-foreground text-sm', className)}
+      className={cn('text-sm text-muted-foreground', className)}
       {...props}
     />
   )
@@ -147,7 +147,7 @@ const FormMessage = React.forwardRef<
     <p
       ref={ref}
       id={formMessageId}
-      className={cn('font-medium text-destructive text-sm', className)}
+      className={cn('text-sm font-medium text-destructive', className)}
       {...props}
     >
       {body}

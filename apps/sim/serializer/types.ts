@@ -1,5 +1,5 @@
-import type { BlockOutput, ParamType } from '@/blocks/types'
-import type { Position } from '@/stores/workflows/workflow/types'
+import { Position } from '@/stores/workflows/workflow/types'
+import { BlockOutput, ParamType } from '@/blocks/types'
 
 export interface SerializedWorkflow {
   version: string

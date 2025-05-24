@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { executeTool } from '@/tools'
-import { getTool, validateToolRequest } from '@/tools/utils'
+import { getTool } from '@/tools/utils'
+import { validateToolRequest } from '@/tools/utils'
 
 const logger = createLogger('ProxyAPI')
 
@@ -70,43 +71,28 @@ export async function GET(request: Request) {
     return createErrorResponse("Missing 'url' parameter", 400)
   }
 
-  const method = url.searchParams.get('method') || 'GET'
-
-  const bodyParam = url.searchParams.get('body')
-  let body: string | undefined
-
-  if (bodyParam && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-    try {
-      body = decodeURIComponent(bodyParam)
-    } catch (error) {
-      logger.warn(`[${requestId}] Failed to decode body parameter`, error)
-    }
-  }
-
+  // Extract custom headers from the request
   const customHeaders: Record<string, string> = {}
 
+  // Process all header.* parameters in the URL
   for (const [key, value] of url.searchParams.entries()) {
     if (key.startsWith('header.')) {
-      const headerName = key.substring(7)
+      const headerName = key.substring(7) // Remove 'header.' prefix
       customHeaders[headerName] = value
     }
   }
 
-  if (body && !customHeaders['Content-Type']) {
-    customHeaders['Content-Type'] = 'application/json'
-  }
-
-  logger.info(`[${requestId}] Proxying ${method} request to: ${targetUrl}`)
+  logger.info(`[${requestId}] Proxying GET request to: ${targetUrl}`)
+  logger.debug(`[${requestId}] Custom headers:`, customHeaders)
 
   try {
     // Forward the request to the target URL with all specified headers
     const response = await fetch(targetUrl, {
-      method: method,
+      method: 'GET',
       headers: {
         ...getProxyHeaders(),
         ...customHeaders,
       },
-      body: body || undefined,
     })
 
     // Get response data
@@ -180,81 +166,86 @@ export async function POST(request: Request) {
         duration,
       })
     }
-    if (!tool) {
-      logger.error(`[${requestId}] Tool not found`, { toolId })
-      throw new Error(`Tool not found: ${toolId}`)
-    }
 
-    // Use executeTool with skipProxy=true to prevent recursive proxy calls, and skipPostProcess=true to prevent duplicate post-processing
-    const result = await executeTool(toolId, params, true, true)
+    try {
+      if (!tool) {
+        logger.error(`[${requestId}] Tool not found`, { toolId })
+        throw new Error(`Tool not found: ${toolId}`)
+      }
 
-    if (!result.success) {
-      logger.warn(`[${requestId}] Tool execution failed`, {
-        toolId,
-        error: result.error || 'Unknown error',
-      })
+      // Use executeTool with skipProxy=true to prevent recursive proxy calls, and skipPostProcess=true to prevent duplicate post-processing
+      const result = await executeTool(toolId, params, true, true)
 
-      if (tool.transformError) {
-        try {
-          const errorResult = tool.transformError(result)
+      if (!result.success) {
+        logger.warn(`[${requestId}] Tool execution failed`, {
+          toolId,
+          error: result.error || 'Unknown error',
+        })
 
-          // Handle both string and Promise return types
-          if (typeof errorResult === 'string') {
-            throw new Error(errorResult)
+        if (tool.transformError) {
+          try {
+            const errorResult = tool.transformError(result)
+
+            // Handle both string and Promise return types
+            if (typeof errorResult === 'string') {
+              throw new Error(errorResult)
+            } else {
+              // It's a Promise, await it
+              const transformedError = await errorResult
+              // If it's a string or has an error property, use it
+              if (typeof transformedError === 'string') {
+                throw new Error(transformedError)
+              } else if (
+                transformedError &&
+                typeof transformedError === 'object' &&
+                'error' in transformedError
+              ) {
+                throw new Error(transformedError.error || 'Tool returned an error')
+              }
+              // Fallback
+              throw new Error('Tool returned an error')
+            }
+          } catch (e) {
+            if (e instanceof Error) {
+              throw e
+            }
+            throw new Error('Tool returned an error')
           }
-          // It's a Promise, await it
-          const transformedError = await errorResult
-          // If it's a string or has an error property, use it
-          if (typeof transformedError === 'string') {
-            throw new Error(transformedError)
-          }
-          if (
-            transformedError &&
-            typeof transformedError === 'object' &&
-            'error' in transformedError
-          ) {
-            throw new Error(transformedError.error || 'Tool returned an error')
-          }
-          // Fallback
-          throw new Error('Tool returned an error')
-        } catch (e) {
-          if (e instanceof Error) {
-            throw e
-          }
+        } else {
           throw new Error('Tool returned an error')
         }
-      } else {
-        throw new Error('Tool returned an error')
       }
-    }
 
-    const endTime = new Date()
-    const endTimeISO = endTime.toISOString()
-    const duration = endTime.getTime() - startTime.getTime()
+      const endTime = new Date()
+      const endTimeISO = endTime.toISOString()
+      const duration = endTime.getTime() - startTime.getTime()
 
-    // Add explicit timing information directly to the response
-    const responseWithTimingData = {
-      ...result,
-      // Add timing data both at root level and in nested timing object
-      startTime: startTimeISO,
-      endTime: endTimeISO,
-      duration,
-      timing: {
+      // Add explicit timing information directly to the response
+      const responseWithTimingData = {
+        ...result,
+        // Add timing data both at root level and in nested timing object
         startTime: startTimeISO,
         endTime: endTimeISO,
         duration,
-      },
+        timing: {
+          startTime: startTimeISO,
+          endTime: endTimeISO,
+          duration,
+        },
+      }
+
+      logger.info(`[${requestId}] Tool executed successfully`, {
+        toolId,
+        duration,
+        startTime: startTimeISO,
+        endTime: endTimeISO,
+      })
+
+      // Return the response with CORS headers
+      return formatResponse(responseWithTimingData)
+    } catch (error: any) {
+      throw error
     }
-
-    logger.info(`[${requestId}] Tool executed successfully`, {
-      toolId,
-      duration,
-      startTime: startTimeISO,
-      endTime: endTimeISO,
-    })
-
-    // Return the response with CORS headers
-    return formatResponse(responseWithTimingData)
   } catch (error: any) {
     logger.error(`[${requestId}] Proxy request failed`, {
       error: error instanceof Error ? error.message : String(error),
@@ -274,6 +265,7 @@ export async function POST(request: Request) {
   }
 }
 
+// Add OPTIONS handler for CORS preflight requests
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,

@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import { ToolResponse } from '../types'
 
 export interface GoogleDriveFile {
   id: string
@@ -25,7 +25,7 @@ export interface GoogleDriveUploadResponse extends ToolResponse {
   }
 }
 
-export interface GoogleDriveGetContentResponse extends ToolResponse {
+export interface GoogleDriveDownloadResponse extends ToolResponse {
   output: {
     content: string
     metadata: GoogleDriveFile
@@ -35,7 +35,6 @@ export interface GoogleDriveGetContentResponse extends ToolResponse {
 export interface GoogleDriveToolParams {
   accessToken: string
   folderId?: string
-  folderSelector?: string
   fileId?: string
   fileName?: string
   content?: string
@@ -43,5 +42,4 @@ export interface GoogleDriveToolParams {
   query?: string
   pageSize?: number
   pageToken?: string
-  exportMimeType?: string
 }

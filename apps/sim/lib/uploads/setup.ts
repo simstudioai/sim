@@ -1,6 +1,7 @@
 import { existsSync } from 'fs'
 import { mkdir } from 'fs/promises'
-import path, { join } from 'path'
+import { join } from 'path'
+import path from 'path'
 import { createLogger } from '@/lib/logs/console-logger'
 import { env } from '../env'
 

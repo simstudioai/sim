@@ -1,11 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type {
-  DiscordAPIError,
-  DiscordGetUserParams,
-  DiscordGetUserResponse,
-  DiscordUser,
-} from './types'
+import { ToolConfig } from '../types'
+import { DiscordAPIError, DiscordGetUserParams, DiscordGetUserResponse, DiscordUser } from './types'
 
 const logger = createLogger('DiscordGetUser')
 
@@ -39,7 +34,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
       }
 
       if (params.botToken) {
-        headers.Authorization = `Bot ${params.botToken}`
+        headers['Authorization'] = `Bot ${params.botToken}`
       }
 
       return headers
@@ -70,7 +65,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
     let data: DiscordUser
     try {
       data = await response.clone().json()
-    } catch (_e) {
+    } catch (e) {
       return {
         success: false,
         error: 'Failed to parse user data',

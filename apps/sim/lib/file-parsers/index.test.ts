@@ -1,11 +1,11 @@
-import path from 'path'
 /**
  * Unit tests for file parsers
  *
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { FileParseResult, FileParser } from './types'
+import path from 'path'
+import type { FileParser, FileParseResult } from './types'
 
 // Mock file system modules
 const mockExistsSync = vi.fn().mockReturnValue(true)

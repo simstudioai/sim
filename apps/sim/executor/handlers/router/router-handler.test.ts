@@ -1,21 +1,11 @@
 import '../../__test-utils__/mock-dependencies'
-
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-  type Mock,
-  type Mocked,
-  type MockedClass,
-  vi,
-} from 'vitest'
+import { beforeEach, describe, expect, it, Mock, Mocked, MockedClass, vi } from 'vitest'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
-import type { BlockOutput } from '@/blocks/types'
+import { BlockOutput } from '@/blocks/types'
 import { getProviderFromModel } from '@/providers/utils'
-import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { PathTracker } from '../../path'
-import type { ExecutionContext } from '../../types'
+import { ExecutionContext } from '../../types'
 import { RouterBlockHandler } from './router-handler'
 
 const mockGenerateRouterPrompt = generateRouterPrompt as Mock

@@ -109,7 +109,7 @@ export async function getWaitlistEntries(
     } else if (shouldFilterByStatus) {
       // Only status
       whereCondition = eq(waitlist.status, status as string)
-    } else if (search?.trim()) {
+    } else if (search && search.trim()) {
       // Only search
       whereCondition = like(waitlist.email, `%${search.trim()}%`)
     } else {
@@ -572,12 +572,13 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
           message: 'User approved and email sent successfully',
           data: emailResult.data,
         }
-      }
-      return {
-        email: user.email,
-        success: false,
-        message: emailResult?.message || 'Failed to send approval email',
-        error: emailResult,
+      } else {
+        return {
+          email: user.email,
+          success: false,
+          message: emailResult?.message || 'Failed to send approval email',
+          error: emailResult,
+        }
       }
     })
 

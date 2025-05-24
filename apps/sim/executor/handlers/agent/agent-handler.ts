@@ -1,12 +1,12 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks'
-import type { BlockOutput } from '@/blocks/types'
+import { BlockOutput } from '@/blocks/types'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
-import type { SerializedBlock } from '@/serializer/types'
+import { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool, getToolAsync } from '@/tools/utils'
-import type { BlockHandler, ExecutionContext, StreamingExecution } from '../../types'
+import { BlockHandler, ExecutionContext, StreamingExecution } from '../../types'
 
 const logger = createLogger('AgentBlockHandler')
 
@@ -26,7 +26,7 @@ export class AgentBlockHandler implements BlockHandler {
     logger.info(`Executing agent block: ${block.id}`)
 
     // Parse response format if provided
-    let responseFormat: any
+    let responseFormat: any = undefined
     if (inputs.responseFormat) {
       // Handle empty string case - treat it as no response format
       if (inputs.responseFormat === '') {
@@ -51,7 +51,7 @@ export class AgentBlockHandler implements BlockHandler {
             }
           }
         } catch (error: any) {
-          logger.error('Failed to parse response format:', { error })
+          logger.error(`Failed to parse response format:`, { error })
           throw new Error(`Invalid response format: ${error.message}`)
         }
       }
@@ -180,7 +180,7 @@ export class AgentBlockHandler implements BlockHandler {
     const hasOutgoingConnections = context.edges?.some((edge) => edge.source === block.id) ?? false
 
     // Determine if we should use streaming for this block
-    const shouldUseStreaming = context.stream && isBlockSelectedForOutput
+    const shouldUseStreaming = context.stream && isBlockSelectedForOutput && !hasOutgoingConnections
 
     if (shouldUseStreaming) {
       logger.info(
@@ -189,68 +189,68 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     // Parse messages if they're in string format
-    let parsedMessages = inputs.messages
+    let parsedMessages = inputs.messages;
     if (typeof inputs.messages === 'string' && inputs.messages.trim()) {
       try {
         // Fast path: try standard JSON.parse first
         try {
-          parsedMessages = JSON.parse(inputs.messages)
-          logger.info('Successfully parsed messages from JSON format')
-        } catch (_jsonError) {
+          parsedMessages = JSON.parse(inputs.messages);
+          logger.info('Successfully parsed messages from JSON format');
+        } catch (jsonError) {
           // Fast direct approach for single-quoted JSON
           // Replace single quotes with double quotes, but keep single quotes inside double quotes
           // This optimized approach handles the most common cases in one pass
           const preprocessed = inputs.messages
-            // Ensure we have valid JSON by replacing all single quotes with double quotes,
+            // Ensure we have valid JSON by replacing all single quotes with double quotes, 
             // except those inside existing double quotes
             .replace(/(['"])(.*?)\1/g, (match, quote, content) => {
-              if (quote === '"') return match // Keep existing double quotes intact
-              return `"${content}"` // Replace single quotes with double quotes
-            })
-
+              if (quote === '"') return match; // Keep existing double quotes intact
+              return `"${content}"`; // Replace single quotes with double quotes
+            });
+          
           try {
-            parsedMessages = JSON.parse(preprocessed)
-            logger.info('Successfully parsed messages after single-quote preprocessing')
-          } catch (_preprocessError) {
+            parsedMessages = JSON.parse(preprocessed);
+            logger.info('Successfully parsed messages after single-quote preprocessing');
+          } catch (preprocessError) {
             // Ultimate fallback: simply replace all single quotes
             try {
-              parsedMessages = JSON.parse(inputs.messages.replace(/'/g, '"'))
-              logger.info('Successfully parsed messages using direct quote replacement')
+              parsedMessages = JSON.parse(inputs.messages.replace(/'/g, '"'));
+              logger.info('Successfully parsed messages using direct quote replacement');
             } catch (finalError) {
-              logger.error('All parsing attempts failed', {
+              logger.error('All parsing attempts failed', { 
                 original: inputs.messages,
-                error: finalError,
-              })
+                error: finalError
+              });
               // Keep original value
             }
           }
         }
       } catch (error) {
-        logger.error('Failed to parse messages from string:', { error })
+        logger.error('Failed to parse messages from string:', { error });
         // Keep original value if all parsing fails
       }
     }
 
     // Fast validation of parsed messages
-    const validMessages =
-      Array.isArray(parsedMessages) &&
-      parsedMessages.length > 0 &&
-      parsedMessages.every(
-        (msg) =>
-          typeof msg === 'object' &&
-          msg !== null &&
-          'role' in msg &&
-          typeof msg.role === 'string' &&
-          ('content' in msg ||
-            (msg.role === 'assistant' && ('function_call' in msg || 'tool_calls' in msg)))
-      )
-
+    const validMessages = Array.isArray(parsedMessages) && 
+                         parsedMessages.length > 0 && 
+                         parsedMessages.every(msg => 
+                           typeof msg === 'object' && 
+                           msg !== null && 
+                           'role' in msg && 
+                           typeof msg.role === 'string' && 
+                           (
+                             'content' in msg || 
+                             (msg.role === 'assistant' && ('function_call' in msg || 'tool_calls' in msg))
+                           )
+                         );
+                         
     if (Array.isArray(parsedMessages) && parsedMessages.length > 0 && !validMessages) {
-      logger.warn('Messages array has invalid format:', {
-        messageCount: parsedMessages.length,
-      })
+      logger.warn('Messages array has invalid format:', { 
+        messageCount: parsedMessages.length 
+      });
     } else if (validMessages) {
-      logger.info('Messages validated successfully')
+      logger.info('Messages validated successfully');
     }
 
     // Debug request before sending to provider
@@ -277,11 +277,10 @@ export class AgentBlockHandler implements BlockHandler {
       stream: shouldUseStreaming,
     }
 
-    logger.info('Provider request prepared', {
+    logger.info(`Provider request prepared`, {
       model: providerRequest.model,
       hasMessages: Array.isArray(parsedMessages) && parsedMessages.length > 0,
-      hasSystemPrompt:
-        !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.systemPrompt,
+      hasSystemPrompt: !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.systemPrompt,
       hasContext: !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.context,
       hasTools: !!providerRequest.tools,
       hasApiKey: !!providerRequest.apiKey,
@@ -291,10 +290,7 @@ export class AgentBlockHandler implements BlockHandler {
       hasOutgoingConnections,
       // Debug info about messages to help diagnose issues
       messagesProvided: 'messages' in providerRequest,
-      messagesCount:
-        'messages' in providerRequest && Array.isArray(providerRequest.messages)
-          ? providerRequest.messages.length
-          : 0,
+      messagesCount: 'messages' in providerRequest && Array.isArray(providerRequest.messages) ? providerRequest.messages.length : 0
     })
 
     const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
@@ -317,7 +313,7 @@ export class AgentBlockHandler implements BlockHandler {
           if (errorData.error) {
             errorMessage = errorData.error
           }
-        } catch (_e) {
+        } catch (e) {
           // If JSON parsing fails, use the original error message
         }
         throw new Error(errorMessage)
@@ -341,7 +337,7 @@ export class AgentBlockHandler implements BlockHandler {
             const executionData = JSON.parse(executionDataHeader)
 
             // Add block-specific data to the execution logs if needed
-            if (executionData?.logs) {
+            if (executionData && executionData.logs) {
               for (const log of executionData.logs) {
                 if (!log.blockId) log.blockId = block.id
                 if (!log.blockName && block.metadata?.name) log.blockName = block.metadata.name
@@ -424,7 +420,7 @@ export class AgentBlockHandler implements BlockHandler {
         return streamingExecution
       }
 
-      logger.info('Provider response received', {
+      logger.info(`Provider response received`, {
         contentLength: result.content ? result.content.length : 0,
         model: result.model,
         hasTokens: !!result.tokens,
@@ -468,8 +464,8 @@ export class AgentBlockHandler implements BlockHandler {
 
           return responseResult
         } catch (error) {
-          logger.error('Failed to parse response content:', { error })
-          logger.info('Falling back to standard response format')
+          logger.error(`Failed to parse response content:`, { error })
+          logger.info(`Falling back to standard response format`)
 
           // Fall back to standard response if parsing fails
           return {
@@ -535,7 +531,7 @@ export class AgentBlockHandler implements BlockHandler {
         },
       }
     } catch (error) {
-      logger.error('Error executing provider request:', { error })
+      logger.error(`Error executing provider request:`, { error })
       throw error
     }
   }

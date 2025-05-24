@@ -1,12 +1,4 @@
-import type { ToolResponse } from '../types'
-
-export interface BaseImageRequestBody {
-  model: string
-  prompt: string
-  size: string
-  n: number
-  [key: string]: any // Allow for additional properties
-}
+import { ToolResponse } from '../types'
 
 export interface DalleResponse extends ToolResponse {
   output: {

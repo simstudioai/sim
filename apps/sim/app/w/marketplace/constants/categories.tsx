@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { ReactNode } from 'react'
 import {
   Atom,
   BotMessageSquare,
@@ -21,49 +21,49 @@ export const CATEGORIES: Category[] = [
   {
     value: 'data',
     label: 'Data Analysis',
-    icon: <Database className='mr-2 h-4 w-4' />,
+    icon: <Database className="h-4 w-4 mr-2" />,
     color: '#0ea5e9', // sky-500
   },
   {
     value: 'marketing',
     label: 'Marketing',
-    icon: <MailIcon className='mr-2 h-4 w-4' />,
+    icon: <MailIcon className="h-4 w-4 mr-2" />,
     color: '#f43f5e', // rose-500
   },
   {
     value: 'sales',
     label: 'Sales',
-    icon: <Store className='mr-2 h-4 w-4' />,
+    icon: <Store className="h-4 w-4 mr-2" />,
     color: '#10b981', // emerald-500
   },
   {
     value: 'customer_service',
     label: 'Customer Service',
-    icon: <BotMessageSquare className='mr-2 h-4 w-4' />,
+    icon: <BotMessageSquare className="h-4 w-4 mr-2" />,
     color: '#8b5cf6', // violet-500
   },
   {
     value: 'research',
     label: 'Research',
-    icon: <Atom className='mr-2 h-4 w-4' />,
+    icon: <Atom className="h-4 w-4 mr-2" />,
     color: '#f59e0b', // amber-500
   },
   {
     value: 'finance',
     label: 'Finance',
-    icon: <LineChart className='mr-2 h-4 w-4' />,
+    icon: <LineChart className="h-4 w-4 mr-2" />,
     color: '#14b8a6', // teal-500
   },
   {
     value: 'programming',
     label: 'Programming',
-    icon: <Code className='mr-2 h-4 w-4' />,
+    icon: <Code className="h-4 w-4 mr-2" />,
     color: '#6366f1', // indigo-500
   },
   {
     value: 'other',
     label: 'Other',
-    icon: <Brain className='mr-2 h-4 w-4' />,
+    icon: <Brain className="h-4 w-4 mr-2" />,
     color: '#802FFF', // Brand purple
   },
 ]

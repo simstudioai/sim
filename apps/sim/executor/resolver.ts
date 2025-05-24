@@ -1,8 +1,8 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { VariableManager } from '@/lib/variables/variable-manager'
-import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
-import type { LoopManager } from './loops'
-import type { ExecutionContext } from './types'
+import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { LoopManager } from './loops'
+import { ExecutionContext } from './types'
 
 const logger = createLogger('InputResolver')
 
@@ -88,12 +88,13 @@ export class InputResolver {
             // Return the typed value directly
             result[key] = this.getTypedVariableValue(variable)
             continue // Skip further processing for this direct reference
+          } else {
+            logger.warn(
+              `Direct variable reference <variable.${variableName}> not found. Treating as literal.`
+            )
+            result[key] = value // Return original string
+            continue
           }
-          logger.warn(
-            `Direct variable reference <variable.${variableName}> not found. Treating as literal.`
-          )
-          result[key] = value // Return original string
-          continue
         }
 
         // If not direct reference, proceed with interpolation + other resolutions
@@ -283,8 +284,9 @@ export class InputResolver {
       // Always use code formatting for function blocks
       if (isFunctionBlock || needsCodeStringLiteral) {
         return VariableManager.formatForCodeContext(value, normalizedType as any)
+      } else {
+        return VariableManager.formatForTemplateInterpolation(value, normalizedType as any)
       }
-      return VariableManager.formatForTemplateInterpolation(value, normalizedType as any)
     } catch (error) {
       logger.error(`Error formatting value for interpolation (type: ${type}):`, error)
       // Fallback to simple string conversion
@@ -621,7 +623,8 @@ export class InputResolver {
         // Provide a more helpful error message with available block names
         const availableBlocks = Array.from(this.blockByNormalizedName.keys()).join(', ')
         throw new Error(
-          `Block reference "${blockRef}" was not found. Available blocks: ${availableBlocks}. For the starter block, try using "start" or the exact block name.`
+          `Block reference "${blockRef}" was not found. Available blocks: ${availableBlocks}. ` +
+            `For the starter block, try using "start" or the exact block name.`
         )
       }
 
@@ -760,7 +763,7 @@ export class InputResolver {
    * @returns Value with environment variables resolved
    * @throws Error if referenced environment variable is not found
    */
-  resolveEnvVariables(value: any, isApiKey = false): any {
+  resolveEnvVariables(value: any, isApiKey: boolean = false): any {
     if (typeof value === 'string') {
       // Only process environment variables if:
       // 1. This is an API key field
@@ -849,7 +852,7 @@ export class InputResolver {
     if (typeof value === 'object') {
       const result: Record<string, any> = {}
       for (const [k, v] of Object.entries(value)) {
-        const _isApiKey = k.toLowerCase() === 'apikey'
+        const isApiKey = k.toLowerCase() === 'apikey'
         result[k] = this.resolveNestedStructure(v, context, currentBlock)
       }
       return result
@@ -901,14 +904,11 @@ export class InputResolver {
   private stringifyForCondition(value: any): string {
     if (typeof value === 'string') {
       return `"${value.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`
-    }
-    if (value === null) {
+    } else if (value === null) {
       return 'null'
-    }
-    if (typeof value === 'undefined') {
+    } else if (typeof value === 'undefined') {
       return 'undefined'
-    }
-    if (typeof value === 'object') {
+    } else if (typeof value === 'object') {
       return JSON.stringify(value)
     }
     return String(value)
@@ -977,7 +977,7 @@ export class InputResolver {
 
               return JSON.parse(normalizedExpression)
             } catch (jsonError) {
-              console.error('Error parsing JSON for loop:', jsonError)
+              console.error(`Error parsing JSON for loop:`, jsonError)
               // If JSON parsing fails, continue with expression evaluation
             }
           }
@@ -990,21 +990,20 @@ export class InputResolver {
             }
           }
         } catch (e) {
-          console.error('Error evaluating forEach items:', e)
+          console.error(`Error evaluating forEach items:`, e)
         }
       }
     }
 
     // As a fallback, look for the most recent array or object in any block's output
     // This is less reliable but might help in some cases
-    for (const [_blockId, blockState] of context.blockStates.entries()) {
+    for (const [blockId, blockState] of context.blockStates.entries()) {
       const output = blockState.output?.response
       if (output) {
-        for (const [_key, value] of Object.entries(output)) {
+        for (const [key, value] of Object.entries(output)) {
           if (Array.isArray(value) && value.length > 0) {
             return value
-          }
-          if (typeof value === 'object' && value !== null && Object.keys(value).length > 0) {
+          } else if (typeof value === 'object' && value !== null && Object.keys(value).length > 0) {
             return value
           }
         }
@@ -1027,7 +1026,7 @@ export class InputResolver {
   private formatValueForCodeContext(
     value: any,
     block: SerializedBlock,
-    isInTemplateLiteral = false
+    isInTemplateLiteral: boolean = false
   ): string {
     // For function blocks, properly format values to avoid syntax errors
     if (block.metadata?.id === 'function') {
@@ -1035,30 +1034,28 @@ export class InputResolver {
       if (isInTemplateLiteral) {
         if (typeof value === 'string') {
           return value // Don't quote strings in template literals
-        }
-        if (typeof value === 'object' && value !== null) {
+        } else if (typeof value === 'object' && value !== null) {
           return JSON.stringify(value) // But do stringify objects
+        } else {
+          return String(value)
         }
-        return String(value)
       }
 
       // Regular (non-template) contexts
       if (typeof value === 'string') {
         // Quote strings for JavaScript
         return JSON.stringify(value)
-      }
-      if (typeof value === 'object' && value !== null) {
+      } else if (typeof value === 'object' && value !== null) {
         // Stringify objects and arrays
         return JSON.stringify(value)
-      }
-      if (value === undefined) {
+      } else if (value === undefined) {
         return 'undefined'
-      }
-      if (value === null) {
+      } else if (value === null) {
         return 'null'
+      } else {
+        // Numbers, booleans can be inserted as is
+        return String(value)
       }
-      // Numbers, booleans can be inserted as is
-      return String(value)
     }
 
     // For non-code blocks, use normal string conversion
@@ -1103,7 +1100,7 @@ export class InputResolver {
         /\.\w+\s*\(/, // Method call
 
         // JavaScript/Python operators
-        /[=<>!+\-*/%](?:==?)?/, // Common operators
+        /[=<>!+\-*\/%](?:==?)?/, // Common operators
         /\+=|-=|\*=|\/=|%=|\*\*=?/, // Assignment operators
 
         // JavaScript keywords
@@ -1113,9 +1110,9 @@ export class InputResolver {
         /\b(if|else|elif|for|while|def|return|import|from|as|class|with|try|except)\b/,
 
         // Common code patterns
-        /^['"]use strict['"]?$/, // JS strict mode
+        /^['\"]use strict['\"]?$/, // JS strict mode
         /\$\{.+?\}/, // JS template literals
-        /f['"].*?['"]/, // Python f-strings
+        /f['\"].*?['\"]/, // Python f-strings
         /\bprint\s*\(/, // Python print
         /\bconsole\.\w+\(/, // JS console methods
       ]

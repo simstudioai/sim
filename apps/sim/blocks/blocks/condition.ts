@@ -1,5 +1,5 @@
 import { ConditionalIcon } from '@/components/icons'
-import type { BlockConfig } from '../types'
+import { BlockConfig } from '../types'
 
 interface ConditionBlockOutput {
   success: boolean

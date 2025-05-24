@@ -1,10 +1,10 @@
 import { RedditIcon } from '@/components/icons'
-import type {
+import {
   RedditCommentsResponse,
   RedditHotPostsResponse,
   RedditPostsResponse,
 } from '@/tools/reddit/types'
-import type { BlockConfig } from '../types'
+import { BlockConfig } from '../types'
 
 export const RedditBlock: BlockConfig<
   RedditHotPostsResponse | RedditPostsResponse | RedditCommentsResponse
@@ -84,7 +84,7 @@ export const RedditBlock: BlockConfig<
     },
     {
       id: 'limit',
-      title: 'Max Posts',
+      title: 'Number of Posts',
       type: 'short-input',
       layout: 'full',
       placeholder: '10',
@@ -157,14 +157,14 @@ export const RedditBlock: BlockConfig<
             postId: inputs.postId,
             subreddit: inputs.subreddit,
             sort: inputs.commentSort,
-            limit: inputs.commentLimit ? Number.parseInt(inputs.commentLimit) : undefined,
+            limit: inputs.commentLimit ? parseInt(inputs.commentLimit) : undefined,
           }
         }
 
         return {
           subreddit: inputs.subreddit,
           sort: inputs.sort,
-          limit: inputs.limit ? Number.parseInt(inputs.limit) : undefined,
+          limit: inputs.limit ? parseInt(inputs.limit) : undefined,
           time: inputs.sort === 'top' ? inputs.time : undefined,
         }
       },

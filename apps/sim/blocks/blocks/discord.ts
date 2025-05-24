@@ -1,6 +1,6 @@
 import { DiscordIcon } from '@/components/icons'
-import type { DiscordResponse } from '@/tools/discord/types'
-import type { BlockConfig } from '../types'
+import { DiscordResponse } from '@/tools/discord/types'
+import { BlockConfig } from '../types'
 
 export const DiscordBlock: BlockConfig<DiscordResponse> = {
   type: 'discord',

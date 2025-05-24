@@ -1,6 +1,6 @@
-import { createContext, Script } from 'vm'
+import { NextRequest, NextResponse } from 'next/server'
 import { FreestyleSandboxes } from 'freestyle-sandboxes'
-import { type NextRequest, NextResponse } from 'next/server'
+import { createContext, Script } from 'vm'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     // Extract internal parameters that shouldn't be passed to the execution context
     const executionParams = { ...params }
-    executionParams._context = undefined
+    delete executionParams._context
 
     // Resolve variables in the code with workflow environment variables
     const resolvedCode = resolveCodeVariables(code, executionParams, envVars)
@@ -172,17 +172,19 @@ export async function POST(req: NextRequest) {
           environmentVariables: envVars,
           console: {
             log: (...args: any[]) => {
-              const logMessage = `${args
-                .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-                .join(' ')}\n`
+              const logMessage =
+                args
+                  .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+                  .join(' ') + '\n'
               stdout += logMessage
             },
             error: (...args: any[]) => {
-              const errorMessage = `${args
-                .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-                .join(' ')}\n`
+              const errorMessage =
+                args
+                  .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+                  .join(' ') + '\n'
               logger.error(`[${requestId}] Code Console Error:`, errorMessage)
-              stdout += `ERROR: ${errorMessage}`
+              stdout += 'ERROR: ' + errorMessage
             },
           },
         })
@@ -225,17 +227,19 @@ export async function POST(req: NextRequest) {
         environmentVariables: envVars,
         console: {
           log: (...args: any[]) => {
-            const logMessage = `${args
-              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-              .join(' ')}\n`
+            const logMessage =
+              args
+                .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+                .join(' ') + '\n'
             stdout += logMessage
           },
           error: (...args: any[]) => {
-            const errorMessage = `${args
-              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
-              .join(' ')}\n`
+            const errorMessage =
+              args
+                .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+                .join(' ') + '\n'
             logger.error(`[${requestId}] Code Console Error:`, errorMessage)
-            stdout += `ERROR: ${errorMessage}`
+            stdout += 'ERROR: ' + errorMessage
           },
         },
       })

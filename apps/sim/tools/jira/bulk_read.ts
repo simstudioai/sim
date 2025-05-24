@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { JiraRetrieveBulkParams, JiraRetrieveResponseBulk } from './types'
+import { ToolConfig } from '../types'
+import { JiraRetrieveBulkParams, JiraRetrieveResponseBulk } from './types'
 
 export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrieveResponseBulk> = {
   id: 'jira_bulk_read',

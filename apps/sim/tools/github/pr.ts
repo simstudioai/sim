@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { PROperationParams, PullRequestResponse } from './types'
+import { ToolConfig } from '../types'
+import { PROperationParams, PullRequestResponse } from './types'
 
 export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
   id: 'github_pr',
@@ -46,7 +46,7 @@ export const prTool: ToolConfig<PROperationParams, PullRequestResponse> = {
 
     // Fetch the PR diff
     const diffResponse = await fetch(pr.diff_url)
-    const _diff = await diffResponse.text()
+    const diff = await diffResponse.text()
 
     // Fetch files changed
     const filesResponse = await fetch(

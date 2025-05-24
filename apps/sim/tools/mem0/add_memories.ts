@@ -1,4 +1,4 @@
-import type { ToolConfig } from '../types'
+import { ToolConfig } from '../types'
 
 // Add Memories Tool
 export const mem0AddMemoriesTool: ToolConfig = {
@@ -11,13 +11,11 @@ export const mem0AddMemoriesTool: ToolConfig = {
       type: 'string',
       required: true,
       description: 'Your Mem0 API key',
-      requiredForToolCall: true,
     },
     userId: {
       type: 'string',
       required: true,
       description: 'User ID associated with the memory',
-      optionalToolInput: true,
     },
     messages: {
       type: 'json',
@@ -38,7 +36,7 @@ export const mem0AddMemoriesTool: ToolConfig = {
       if (typeof messagesArray === 'string') {
         try {
           messagesArray = JSON.parse(messagesArray)
-        } catch (_e) {
+        } catch (e) {
           throw new Error('Messages must be a valid JSON array of objects with role and content')
         }
       }

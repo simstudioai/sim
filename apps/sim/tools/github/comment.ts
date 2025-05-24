@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { CreateCommentParams, CreateCommentResponse } from './types'
+import { ToolConfig } from '../types'
+import { CreateCommentParams, CreateCommentResponse } from './types'
 
 export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse> = {
   id: 'github_comment',
@@ -71,8 +71,9 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
     url: (params) => {
       if (params.path) {
         return `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/comments`
+      } else {
+        return `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/reviews`
       }
-      return `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/reviews`
     },
     method: 'POST',
     headers: (params) => ({

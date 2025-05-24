@@ -1,11 +1,11 @@
 import { GithubIcon } from '@/components/icons'
-import type {
+import {
   CreateCommentResponse,
   LatestCommitResponse,
   PullRequestResponse,
   RepoInfoResponse,
 } from '@/tools/github/types'
-import type { BlockConfig } from '../types'
+import { BlockConfig } from '../types'
 
 type GitHubResponse =
   | PullRequestResponse

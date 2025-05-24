@@ -1,6 +1,6 @@
 import { S3Icon } from '@/components/icons'
-import type { S3Response } from '@/tools/s3/types'
-import type { BlockConfig } from '../types'
+import { S3Response } from '@/tools/s3/types'
+import { BlockConfig } from '../types'
 
 export const S3Block: BlockConfig<S3Response> = {
   type: 's3',
@@ -82,7 +82,7 @@ export const S3Block: BlockConfig<S3Response> = {
             bucketName,
             objectKey,
           }
-        } catch (_error) {
+        } catch (error) {
           throw new Error(
             'Invalid S3 Object URL format. Expected format: https://bucket-name.s3.region.amazonaws.com/path/to/file'
           )

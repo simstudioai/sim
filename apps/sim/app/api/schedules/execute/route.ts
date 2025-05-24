@@ -1,13 +1,14 @@
+import { NextRequest, NextResponse } from 'next/server'
 import { Cron } from 'croner'
-import { and, eq, lte, not, sql } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
+import { and, eq, lte, not } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
 import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import {
-  type BlockState,
+  BlockState,
   calculateNextRunTime as calculateNextTime,
   getScheduleTimeValues,
   getSubBlockValue,
@@ -15,12 +16,12 @@ import {
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
 import { environment, userStats, workflow, workflowSchedule } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 // Add dynamic export to prevent caching
 export const dynamic = 'force-dynamic'
@@ -154,7 +155,6 @@ export async function GET(req: NextRequest) {
 
         const mergedStates = mergeSubblockState(blocks)
 
-        // Retrieve environment variables for this user (if any).
         const [userEnv] = await db
           .select()
           .from(environment)
@@ -162,12 +162,13 @@ export async function GET(req: NextRequest) {
           .limit(1)
 
         if (!userEnv) {
-          logger.debug(
-            `[${requestId}] No environment record found for user ${workflowRecord.userId}. Proceeding with empty variables.`
+          logger.error(
+            `[${requestId}] No environment variables found for user ${workflowRecord.userId}`
           )
+          throw new Error('No environment variables found for this user')
         }
 
-        const variables = EnvVarsSchema.parse(userEnv?.variables ?? {})
+        const variables = EnvVarsSchema.parse(userEnv.variables)
 
         const currentBlockStates = await Object.entries(mergedStates).reduce(
           async (accPromise, [id, block]) => {

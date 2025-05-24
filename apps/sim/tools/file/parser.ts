@@ -1,11 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { ToolConfig } from '../types'
-import type {
-  FileParseResult,
-  FileParserInput,
-  FileParserOutput,
-  FileParserOutputData,
-} from './types'
+import { ToolConfig } from '../types'
+import { FileParseResult, FileParserInput, FileParserOutput, FileParserOutputData } from './types'
 
 const logger = createLogger('FileParserTool')
 
@@ -43,7 +38,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
       }
 
       let determinedFilePath: string | string[] | null = null
-      const determinedFileType: string | undefined = params.fileType
+      let determinedFileType: string | undefined = params.fileType
 
       // Determine the file path(s) based on input parameters.
       // Precedence: direct filePath > file array > single file object > legacy files array
@@ -59,7 +54,7 @@ export const fileParserTool: ToolConfig<FileParserInput, FileParserOutput> = {
         determinedFilePath = filePaths // Always send as array
       }
       // 3. Check for file upload (single object)
-      else if (params.file?.path) {
+      else if (params.file && params.file.path) {
         logger.info('Tool body processing single file object upload')
         determinedFilePath = params.file.path
       }

@@ -1,11 +1,11 @@
 import { JiraIcon } from '@/components/icons'
-import type {
+import {
   JiraRetrieveResponse,
   JiraRetrieveResponseBulk,
   JiraUpdateResponse,
   JiraWriteResponse,
 } from '@/tools/jira/types'
-import type { BlockConfig } from '../types'
+import { BlockConfig } from '../types'
 
 type JiraResponse =
   | JiraRetrieveResponse

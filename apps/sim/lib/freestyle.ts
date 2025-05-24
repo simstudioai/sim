@@ -33,7 +33,7 @@ export async function getFreestyleClient(): Promise<FreestyleSandboxes> {
 export async function executeCode(
   code: string,
   params: Record<string, any> = {},
-  timeout = 5000
+  timeout: number = 5000
 ): Promise<{
   success: boolean
   output: {
@@ -117,17 +117,18 @@ export async function executeCode(
             executionTime,
           },
         }
-      }
-      // Handle error case
-      const errorResult = result as unknown as { success: false; error: string }
-      return {
-        success: false,
-        error: errorResult.error || 'Execution failed',
-        output: {
-          result: null,
-          stdout: '',
-          executionTime,
-        },
+      } else {
+        // Handle error case
+        const errorResult = result as unknown as { success: false; error: string }
+        return {
+          success: false,
+          error: errorResult.error || 'Execution failed',
+          output: {
+            result: null,
+            stdout: '',
+            executionTime,
+          },
+        }
       }
     }
 

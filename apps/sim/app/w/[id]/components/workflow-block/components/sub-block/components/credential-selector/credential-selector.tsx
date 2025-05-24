@@ -14,11 +14,11 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
-  type Credential,
+  Credential,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
   OAUTH_PROVIDERS,
-  type OAuthProvider,
+  OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
@@ -166,7 +166,7 @@ export function CredentialSelector({
     const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
     if (!baseProviderConfig) {
-      return <ExternalLink className='h-4 w-4' />
+      return <ExternalLink className="h-4 w-4" />
     }
 
     // Always use the base provider icon for a more consistent UI
@@ -194,37 +194,37 @@ export function CredentialSelector({
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
-            variant='outline'
-            role='combobox'
+            variant="outline"
+            role="combobox"
             aria-expanded={open}
-            className='relative w-full justify-between'
+            className="w-full justify-between relative"
             disabled={disabled}
           >
-            <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
+            <div className="flex items-center gap-2 max-w-[calc(100%-20px)] overflow-hidden">
               {getProviderIcon(provider)}
               {selectedCredential ? (
-                <span className='truncate font-normal'>{selectedCredential.name}</span>
+                <span className="font-normal truncate">{selectedCredential.name}</span>
               ) : (
-                <span className='truncate text-muted-foreground'>{label}</span>
+                <span className="text-muted-foreground truncate">{label}</span>
               )}
             </div>
-            <ChevronDown className='absolute right-3 h-4 w-4 shrink-0 opacity-50' />
+            <ChevronDown className="h-4 w-4 shrink-0 opacity-50 absolute right-3" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className='w-[250px] p-0' align='start'>
+        <PopoverContent className="p-0 w-[250px]" align="start">
           <Command>
-            <CommandInput placeholder='Search credentials...' />
+            <CommandInput placeholder="Search credentials..." />
             <CommandList>
               <CommandEmpty>
                 {isLoading ? (
-                  <div className='flex items-center justify-center p-4'>
-                    <RefreshCw className='h-4 w-4 animate-spin' />
-                    <span className='ml-2'>Loading credentials...</span>
+                  <div className="flex items-center justify-center p-4">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span className="ml-2">Loading credentials...</span>
                   </div>
                 ) : (
-                  <div className='p-4 text-center'>
-                    <p className='font-medium text-sm'>No credentials found.</p>
-                    <p className='text-muted-foreground text-xs'>
+                  <div className="p-4 text-center">
+                    <p className="text-sm font-medium">No credentials found.</p>
+                    <p className="text-xs text-muted-foreground">
                       Connect a new account to continue.
                     </p>
                   </div>
@@ -238,11 +238,11 @@ export function CredentialSelector({
                       value={cred.id}
                       onSelect={() => handleSelect(cred.id)}
                     >
-                      <div className='flex items-center gap-2'>
+                      <div className="flex items-center gap-2">
                         {getProviderIcon(cred.provider)}
-                        <span className='font-normal'>{cred.name}</span>
+                        <span className="font-normal">{cred.name}</span>
                       </div>
-                      {cred.id === selectedId && <Check className='ml-auto h-4 w-4' />}
+                      {cred.id === selectedId && <Check className="ml-auto h-4 w-4" />}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -250,7 +250,7 @@ export function CredentialSelector({
               {credentials.length === 0 && (
                 <CommandGroup>
                   <CommandItem onSelect={handleAddCredential}>
-                    <div className='flex items-center gap-2 text-primary'>
+                    <div className="flex items-center gap-2 text-primary">
                       {getProviderIcon(provider)}
                       <span>Connect {getProviderName(provider)} account</span>
                     </div>

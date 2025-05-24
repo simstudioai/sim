@@ -4,7 +4,7 @@ import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
 import { mergeSubblockState } from './utils'
 import { useWorkflowStore } from './workflow/store'
-import type { BlockState, WorkflowState } from './workflow/types'
+import { BlockState, WorkflowState } from './workflow/types'
 
 const logger = createLogger('Workflows')
 
@@ -25,9 +25,6 @@ export function getWorkflowWithValues(workflowId: string) {
 
   const metadata = workflows[workflowId]
 
-  // Get deployment status from registry
-  const deploymentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(workflowId)
-
   // Load the specific state for this workflow
   let workflowState: WorkflowState
 
@@ -37,8 +34,9 @@ export function getWorkflowWithValues(workflowId: string) {
       blocks: currentState.blocks,
       edges: currentState.edges,
       loops: currentState.loops,
-      isDeployed: deploymentStatus?.isDeployed || false,
-      deployedAt: deploymentStatus?.deployedAt,
+      parallels: currentState.parallels,
+      isDeployed: currentState.isDeployed,
+      deployedAt: currentState.deployedAt,
       lastSaved: currentState.lastSaved,
     }
   } else {
@@ -48,13 +46,7 @@ export function getWorkflowWithValues(workflowId: string) {
       logger.warn(`No saved state found for workflow ${workflowId}`)
       return null
     }
-
-    // Use registry deployment status instead of relying on saved state
-    workflowState = {
-      ...savedState,
-      isDeployed: deploymentStatus?.isDeployed || savedState.isDeployed || false,
-      deployedAt: deploymentStatus?.deployedAt || savedState.deployedAt,
-    }
+    workflowState = savedState
   }
 
   // Merge the subblock values for this specific workflow
@@ -69,7 +61,8 @@ export function getWorkflowWithValues(workflowId: string) {
     state: {
       blocks: mergedBlocks,
       edges: workflowState.edges,
-      loops: workflowState.loops,
+      loops: workflowState.loops || {},
+      parallels: workflowState.parallels || {},
       lastSaved: workflowState.lastSaved,
       isDeployed: workflowState.isDeployed,
       deployedAt: workflowState.deployedAt,
@@ -112,9 +105,6 @@ export function getAllWorkflowsWithValues() {
       continue
     }
 
-    // Get deployment status from registry
-    const deploymentStatus = useWorkflowRegistry.getState().getWorkflowDeploymentStatus(id)
-
     // Load the specific state for this workflow
     let workflowState: WorkflowState
 
@@ -124,8 +114,9 @@ export function getAllWorkflowsWithValues() {
         blocks: currentState.blocks,
         edges: currentState.edges,
         loops: currentState.loops,
-        isDeployed: deploymentStatus?.isDeployed || false,
-        deployedAt: deploymentStatus?.deployedAt,
+        parallels: currentState.parallels,
+        isDeployed: currentState.isDeployed,
+        deployedAt: currentState.deployedAt,
         lastSaved: currentState.lastSaved,
       }
     } else {
@@ -136,20 +127,11 @@ export function getAllWorkflowsWithValues() {
         logger.warn(`No saved state found for workflow ${id}`)
         continue
       }
-
-      // Use registry deployment status instead of relying on saved state
-      workflowState = {
-        ...savedState,
-        isDeployed: deploymentStatus?.isDeployed || savedState.isDeployed || false,
-        deployedAt: deploymentStatus?.deployedAt || savedState.deployedAt,
-      }
+      workflowState = savedState
     }
 
     // Merge the subblock values for this specific workflow
     const mergedBlocks = mergeSubblockState(workflowState.blocks, id)
-
-    // Include the API key in the state if it exists in the deployment status
-    const apiKey = deploymentStatus?.apiKey
 
     result[id] = {
       id,
@@ -161,13 +143,12 @@ export function getAllWorkflowsWithValues() {
       state: {
         blocks: mergedBlocks,
         edges: workflowState.edges,
-        loops: workflowState.loops,
+        loops: workflowState.loops || {},
+        parallels: workflowState.parallels || {},
         lastSaved: workflowState.lastSaved,
         isDeployed: workflowState.isDeployed,
         deployedAt: workflowState.deployedAt,
       },
-      // Include API key if available
-      apiKey,
     }
   }
 

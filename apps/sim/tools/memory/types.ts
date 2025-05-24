@@ -1,9 +1,10 @@
-import type { ToolResponse } from '../types'
+import { ToolResponse } from '../types'
 
 export interface MemoryResponse extends ToolResponse {
   output: {
+    memory?: any
     memories?: any[]
-    message?: string
+    message: string
   }
 }
 
@@ -31,4 +32,4 @@ export interface MemoryError {
   code: string
   message: string
   details?: Record<string, any>
-}
+} 

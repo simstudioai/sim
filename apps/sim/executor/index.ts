@@ -1,9 +1,9 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { BlockOutput } from '@/blocks/types'
-import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { BlockOutput } from '@/blocks/types'
+import { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import {
   AgentBlockHandler,
   ApiBlockHandler,
@@ -16,7 +16,7 @@ import {
 import { LoopManager } from './loops'
 import { PathTracker } from './path'
 import { InputResolver } from './resolver'
-import type {
+import {
   BlockHandler,
   BlockLog,
   ExecutionContext,
@@ -58,7 +58,7 @@ export class Executor {
   private pathTracker: PathTracker
   private blockHandlers: BlockHandler[]
   private workflowInput: any
-  private isDebugging = false
+  private isDebugging: boolean = false
   private contextExtensions: any = {}
   private actualWorkflow: SerializedWorkflow
 
@@ -283,7 +283,6 @@ export class Executor {
                   let fullContent = ''
 
                   // Process the stream in the background to collect the full content
-
                   ;(async () => {
                     try {
                       while (true) {
@@ -318,30 +317,6 @@ export class Executor {
                             blockLog.output.response.content = fullContent
                           }
                         }
-                      }
-
-                      // After the stream has fully completed and we've updated the
-                      // final content, resume workflow execution for any
-                      // downstream blocks (e.g. memory blocks) that depend on
-                      // the agent response.
-                      try {
-                        // Determine the next blocks that are now unblocked.
-                        let nextLayer = this.getNextExecutionLayer(context)
-
-                        while (nextLayer.length > 0) {
-                          await this.executeLayer(nextLayer, context)
-
-                          // Handle any loop activations, etc.
-                          await this.loopManager.processLoopIterations(context)
-
-                          // Fetch the subsequent layer (if any)
-                          nextLayer = this.getNextExecutionLayer(context)
-                        }
-                      } catch (resumeError) {
-                        logger.error(
-                          'Error continuing workflow after stream completion:',
-                          resumeError
-                        )
                       }
                     } catch (e) {
                       logger.error('Error processing stream for console update:', e)
@@ -466,7 +441,7 @@ export class Executor {
       // Track workflow execution failure
       trackWorkflowTelemetry('workflow_execution_failed', {
         workflowId,
-        duration: Date.now() - startTime.getTime(),
+        duration: new Date().getTime() - startTime.getTime(),
         error: this.extractErrorMessage(error),
         executedBlockCount: context.executedBlocks.size,
         blockLogs: context.blockLogs.length,
@@ -664,7 +639,7 @@ export class Executor {
     if (starterBlock) {
       // Initialize the starter block with the workflow input
       try {
-        const _blockParams = starterBlock.config.params
+        const blockParams = starterBlock.config.params
         /* Commenting out input format handling
         const inputFormat = blockParams?.inputFormat
 
@@ -748,7 +723,7 @@ export class Executor {
               input: this.workflowInput,
               // Add top-level fields for backward compatibility
               message: this.workflowInput.input,
-              conversationId: this.workflowInput.conversationId,
+              conversationId: this.workflowInput.conversationId
             },
           }
 
@@ -780,11 +755,11 @@ export class Executor {
           response: {
             input: this.workflowInput,
             message: this.workflowInput?.input,
-            conversationId: this.workflowInput?.conversationId,
+            conversationId: this.workflowInput?.conversationId
           },
         }
 
-        logger.info('[Executor] Fallback starter output:', JSON.stringify(starterOutput, null, 2))
+        logger.info(`[Executor] Fallback starter output:`, JSON.stringify(starterOutput, null, 2))
 
         context.blockStates.set(starterBlock.id, {
           output: starterOutput,
@@ -1239,7 +1214,7 @@ export class Executor {
 
     if (output && typeof output === 'object' && 'response' in output) {
       // If response already contains an error, maintain it
-      if (output.response?.error) {
+      if (output.response && output.response.error) {
         return {
           ...output,
           error: output.response.error,

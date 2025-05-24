@@ -1,11 +1,11 @@
 import { AgentIcon } from '@/components/icons'
 import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useOllamaStore } from '@/stores/ollama/store'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
 import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
-import { useOllamaStore } from '@/stores/ollama/store'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
+import { ToolResponse } from '@/tools/types'
+import { BlockConfig } from '../types'
 
 const logger = createLogger('AgentBlock')
 
@@ -140,10 +140,8 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
               'o4-mini',
               'gpt-4.1',
               // Claude models
-              'claude-sonnet-4-20250514',
-              'claude-opus-4-20250514',
-              'claude-3-7-sonnet-20250219',
               'claude-3-5-sonnet-20240620',
+              'claude-3-7-sonnet-20250219',
             ],
             not: true, // Show for all models EXCEPT those listed
           }
@@ -160,7 +158,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       title: 'Response Format',
       type: 'code',
       layout: 'full',
-      placeholder: 'Enter JSON schema...',
+      placeholder: `Enter JSON schema...`,
       language: 'json',
       generationType: 'json-schema',
     },
@@ -239,11 +237,10 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     context: { type: 'string', required: false },
     model: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },
-    messages: {
-      type: 'json',
+    messages: { 
+      type: 'json', 
       required: false,
-      description:
-        'Array of message objects with role and content fields for advanced chat history control.',
+      description: 'Array of message objects with role and content fields for advanced chat history control.'
     },
     responseFormat: {
       type: 'json',

@@ -2,7 +2,7 @@ import { readFile } from 'fs/promises'
 import { promisify } from 'util'
 import zlib from 'zlib'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { FileParseResult, FileParser } from './types'
+import { FileParser, FileParseResult } from './types'
 
 const logger = createLogger('RawPdfParser')
 
@@ -58,7 +58,7 @@ export class RawPdfParser implements FileParser {
 
       // Try to extract PDF version
       const versionMatch = rawContent.match(/%PDF-(\d+\.\d+)/)
-      if (versionMatch?.[1]) {
+      if (versionMatch && versionMatch[1]) {
         version = versionMatch[1]
       }
 
@@ -85,7 +85,7 @@ export class RawPdfParser implements FileParser {
         if (pagesObjMatches && pagesObjMatches.length > 0) {
           // Extract the object reference
           const pagesObjRef = pagesObjMatches[0].match(/\/Pages\s+(\d+)\s+\d+\s+R/i)
-          if (pagesObjRef?.[1]) {
+          if (pagesObjRef && pagesObjRef[1]) {
             const objNum = pagesObjRef[1]
             // Find the referenced object
             const objRegex = new RegExp(`${objNum}\\s+0\\s+obj[\\s\\S]*?endobj`, 'i')
@@ -93,8 +93,8 @@ export class RawPdfParser implements FileParser {
             if (objMatch) {
               // Look for /Count within the Pages object
               const countMatch = objMatch[0].match(/\/Count\s+(\d+)/i)
-              if (countMatch?.[1]) {
-                pageCount = Number.parseInt(countMatch[1], 10)
+              if (countMatch && countMatch[1]) {
+                pageCount = parseInt(countMatch[1], 10)
                 logger.info('Found page count using /Count in Pages object:', pageCount)
               }
             }
@@ -138,13 +138,13 @@ export class RawPdfParser implements FileParser {
                   if (obj.includes('Tj')) {
                     // Handle Tj operator (simple string)
                     const match = obj.match(/\(([^)]*)\)\s*Tj/)
-                    if (match?.[1]) {
+                    if (match && match[1]) {
                       text = match[1]
                     }
                   } else if (obj.includes('TJ')) {
                     // Handle TJ operator (array of strings and positioning)
                     const match = obj.match(/\[(.*)\]\s*TJ/)
-                    if (match?.[1]) {
+                    if (match && match[1]) {
                       // Extract only the string parts from the array
                       const parts = match[1].match(/\([^)]*\)/g)
                       if (parts) {
@@ -155,9 +155,7 @@ export class RawPdfParser implements FileParser {
 
                   // Clean up PDF escape sequences
                   return text
-                    .replace(/\\(\d{3})/g, (_, octal) =>
-                      String.fromCharCode(Number.parseInt(octal, 8))
-                    )
+                    .replace(/\\(\d{3})/g, (_, octal) => String.fromCharCode(parseInt(octal, 8)))
                     .replace(/\\\\/g, '\\')
                     .replace(/\\\(/g, '(')
                     .replace(/\\\)/g, ')')
@@ -179,27 +177,27 @@ export class RawPdfParser implements FileParser {
 
         // Extract document title
         const titleMatch = xmlContent.match(/<dc:title>[\s\S]*?<rdf:li[^>]*>(.*?)<\/rdf:li>/i)
-        if (titleMatch?.[1]) {
+        if (titleMatch && titleMatch[1]) {
           const title = titleMatch[1].replace(/<[^>]+>/g, '').trim()
           metadataText += `Document Title: ${title}\n\n`
         }
 
         // Extract creator/author
         const creatorMatch = xmlContent.match(/<dc:creator>[\s\S]*?<rdf:li[^>]*>(.*?)<\/rdf:li>/i)
-        if (creatorMatch?.[1]) {
+        if (creatorMatch && creatorMatch[1]) {
           const creator = creatorMatch[1].replace(/<[^>]+>/g, '').trim()
           metadataText += `Author: ${creator}\n`
         }
 
         // Extract creation date
         const dateMatch = xmlContent.match(/<xmp:CreateDate>(.*?)<\/xmp:CreateDate>/i)
-        if (dateMatch?.[1]) {
+        if (dateMatch && dateMatch[1]) {
           metadataText += `Created: ${dateMatch[1].trim()}\n`
         }
 
         // Extract producer
         const producerMatch = xmlContent.match(/<pdf:Producer>(.*?)<\/pdf:Producer>/i)
-        if (producerMatch?.[1]) {
+        if (producerMatch && producerMatch[1]) {
           metadataText += `Producer: ${producerMatch[1].trim()}\n`
         }
       }
@@ -234,7 +232,7 @@ export class RawPdfParser implements FileParser {
               if (objMatch) {
                 // Look for stream content within the object
                 const streamMatch = objMatch[0].match(/stream\r?\n([\s\S]*?)\r?\nendstream/)
-                if (streamMatch?.[1]) {
+                if (streamMatch && streamMatch[1]) {
                   const streamContent = streamMatch[1]
 
                   // Look for text operations in the stream (Tj, TJ, etc.)
@@ -246,13 +244,12 @@ export class RawPdfParser implements FileParser {
                           return fragment
                             .replace(/\(([^)]*)\)\s*Tj/, '$1')
                             .replace(/\\(\d{3})/g, (_, octal) =>
-                              String.fromCharCode(Number.parseInt(octal, 8))
+                              String.fromCharCode(parseInt(octal, 8))
                             )
                             .replace(/\\\\/g, '\\')
                             .replace(/\\\(/g, '(')
                             .replace(/\\\)/g, ')')
-                        }
-                        if (fragment.includes('TJ')) {
+                        } else if (fragment.includes('TJ')) {
                           const parts = fragment.match(/\([^)]*\)/g)
                           if (parts) {
                             return parts
@@ -260,7 +257,7 @@ export class RawPdfParser implements FileParser {
                                 p
                                   .slice(1, -1)
                                   .replace(/\\(\d{3})/g, (_, octal) =>
-                                    String.fromCharCode(Number.parseInt(octal, 8))
+                                    String.fromCharCode(parseInt(octal, 8))
                                   )
                                   .replace(/\\\\/g, '\\')
                                   .replace(/\\\(/g, '(')
@@ -275,7 +272,7 @@ export class RawPdfParser implements FileParser {
                       .join(' ')
 
                     if (extractedFragments.trim().length > 0) {
-                      textFromStreams += `${extractedFragments.trim()}\n`
+                      textFromStreams += extractedFragments.trim() + '\n'
                     }
                   }
                 }
@@ -328,7 +325,7 @@ export class RawPdfParser implements FileParser {
                   ) {
                     return readable
                   }
-                } catch (_inflateErr) {
+                } catch (inflateErr) {
                   // Try unzip as fallback
                   try {
                     const decompressed = await unzipAsync(compressedData)
@@ -344,12 +341,12 @@ export class RawPdfParser implements FileParser {
                     ) {
                       return readable
                     }
-                  } catch (_unzipErr) {
+                  } catch (unzipErr) {
                     // Both methods failed, continue to next stream
                     return ''
                   }
                 }
-              } catch (_error) {
+              } catch (error) {
                 // Error processing this stream, skip it
                 return ''
               }
@@ -383,7 +380,7 @@ export class RawPdfParser implements FileParser {
           const textContent = streamMatches
             .map((stream) => {
               // Remove 'stream' and 'endstream' markers
-              const content = stream.replace(/^stream\r?\n|\r?\nendstream$/g, '')
+              let content = stream.replace(/^stream\r?\n|\r?\nendstream$/g, '')
 
               // Look for readable ASCII text (more strict heuristic)
               // Only keep ASCII printable characters
@@ -460,7 +457,7 @@ export class RawPdfParser implements FileParser {
         extractedText = metadataText
       } else if (metadataText && !extractedText.includes('Document Title:')) {
         // Prepend metadata to extracted text if available
-        extractedText = metadataText + (extractedText ? `\n\n${extractedText}` : '')
+        extractedText = metadataText + (extractedText ? '\n\n' + extractedText : '')
       }
 
       // Validate that the extracted text looks meaningful
@@ -497,7 +494,7 @@ export class RawPdfParser implements FileParser {
 
         // Start with metadata if available
         if (metadataText) {
-          extractedText = `${metadataText}\n`
+          extractedText = metadataText + '\n'
         } else {
           extractedText = ''
         }
@@ -510,9 +507,9 @@ export class RawPdfParser implements FileParser {
           rawContent.match(/title\s*:\s*([^\n]+)/i) ||
           rawContent.match(/Microsoft Word -\s*([^\n]+)/i)
 
-        if (titleInStructure?.[1] && !extractedText.includes('Document Title:')) {
+        if (titleInStructure && titleInStructure[1] && !extractedText.includes('Document Title:')) {
           const title = titleInStructure[1].trim()
-          extractedText = `Document Title: ${title}\n\n${extractedText}`
+          extractedText = `Document Title: ${title}\n\n` + extractedText
         }
 
         extractedText += `The text content could not be properly extracted due to encoding or compression issues.\nFile size: ${dataBuffer.length} bytes.\n\nTo view this PDF properly, please download the file and open it with a PDF reader.`

@@ -1,14 +1,13 @@
-import type React from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
-import { getBlock } from '@/blocks'
 import { useVariablesStore } from '@/stores/panel/variables/store'
-import type { Variable } from '@/stores/panel/variables/types'
+import { Variable } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
+import { getBlock } from '@/blocks'
 
 const logger = createLogger('TagDropdown')
 
@@ -81,7 +80,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   // Get available tags from workflow state
   const blocks = useWorkflowStore((state) => state.blocks)
-  const _edges = useWorkflowStore((state) => state.edges)
+  const edges = useWorkflowStore((state) => state.edges)
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const loops = useWorkflowStore((state) => state.loops)
 
@@ -179,7 +178,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     const containingLoop = Object.entries(loops).find(([_, loop]) => loop.nodes.includes(blockId))
 
     if (containingLoop) {
-      const [_loopId, loop] = containingLoop
+      const [loopId, loop] = containingLoop
       const loopType = loop.loopType || 'for'
 
       // Add loop.index for all loop types
@@ -353,7 +352,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
     }
 
-    const newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${processedTag}>${textAfterCursor}`
+    const newValue =
+      textBeforeCursor.slice(0, lastOpenBracket) + '<' + processedTag + '>' + textAfterCursor
 
     onSelect(newValue)
     onClose?.()
@@ -400,22 +400,22 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   return (
     <div
       className={cn(
-        'absolute z-[9999] mt-1 w-full overflow-hidden rounded-md border bg-popover shadow-md',
+        'absolute z-[9999] w-full mt-1 overflow-hidden bg-popover rounded-md border shadow-md',
         className
       )}
       style={style}
     >
-      <div className='py-1'>
+      <div className="py-1">
         {filteredTags.length === 0 ? (
-          <div className='px-3 py-2 text-muted-foreground text-sm'>No matching tags found</div>
+          <div className="px-3 py-2 text-sm text-muted-foreground">No matching tags found</div>
         ) : (
           <>
             {variableTags.length > 0 && (
               <>
-                <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
+                <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
                   Variables
                 </div>
-                <div className='-mx-1 -px-1'>
+                <div className="-mx-1 -px-1">
                   {variableTags.map((tag: string, index: number) => {
                     const variableInfo = variableInfoMap?.[tag] || null
                     const tagIndex = filteredTags.indexOf(tag)
@@ -424,7 +424,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                       <button
                         key={tag}
                         className={cn(
-                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                          'w-full px-3 py-1.5 text-sm text-left flex items-center gap-2',
                           'hover:bg-accent hover:text-accent-foreground',
                           'focus:bg-accent focus:text-accent-foreground focus:outline-none',
                           tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
@@ -436,16 +436,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         }}
                       >
                         <div
-                          className='flex h-5 w-5 items-center justify-center rounded'
+                          className="flex items-center justify-center w-5 h-5 rounded"
                           style={{ backgroundColor: '#2F8BFF' }}
                         >
-                          <span className='h-3 w-3 font-bold text-white text-xs'>V</span>
+                          <span className="w-3 h-3 text-white font-bold text-xs">V</span>
                         </div>
-                        <span className='flex-1 truncate'>
+                        <span className="flex-1 truncate">
                           {tag.startsWith('variable.') ? tag.substring('variable.'.length) : tag}
                         </span>
                         {variableInfo && (
-                          <span className='ml-auto text-muted-foreground text-xs'>
+                          <span className="ml-auto text-xs text-muted-foreground">
                             {variableInfo.type}
                           </span>
                         )}
@@ -458,11 +458,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
             {loopTags.length > 0 && (
               <>
-                {variableTags.length > 0 && <div className='my-0' />}
-                <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
+                {variableTags.length > 0 && <div className="my-0" />}
+                <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
                   Loop
                 </div>
-                <div className='-mx-1 -px-1'>
+                <div className="-mx-1 -px-1">
                   {loopTags.map((tag: string, index: number) => {
                     const tagIndex = filteredTags.indexOf(tag)
                     const loopProperty = tag.split('.')[1]
@@ -470,7 +470,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                     // Choose appropriate icon/label based on type
                     let tagIcon = 'L'
                     let tagDescription = ''
-                    const bgColor = '#8857E6' // Purple for loop variables
+                    let bgColor = '#8857E6' // Purple for loop variables
 
                     if (loopProperty === 'currentItem') {
                       tagIcon = 'i'
@@ -487,7 +487,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                       <button
                         key={tag}
                         className={cn(
-                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                          'w-full px-3 py-1.5 text-sm text-left flex items-center gap-2',
                           'hover:bg-accent hover:text-accent-foreground',
                           'focus:bg-accent focus:text-accent-foreground focus:outline-none',
                           tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
@@ -499,13 +499,13 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         }}
                       >
                         <div
-                          className='flex h-5 w-5 items-center justify-center rounded'
+                          className="flex items-center justify-center w-5 h-5 rounded"
                           style={{ backgroundColor: bgColor }}
                         >
-                          <span className='h-3 w-3 font-bold text-white text-xs'>{tagIcon}</span>
+                          <span className="w-3 h-3 text-white font-bold text-xs">{tagIcon}</span>
                         </div>
-                        <span className='flex-1 truncate'>{tag}</span>
-                        <span className='ml-auto text-muted-foreground text-xs'>
+                        <span className="flex-1 truncate">{tag}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">
                           {tagDescription}
                         </span>
                       </button>
@@ -517,11 +517,11 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
             {blockTags.length > 0 && (
               <>
-                {(variableTags.length > 0 || loopTags.length > 0) && <div className='my-0' />}
-                <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
+                {(variableTags.length > 0 || loopTags.length > 0) && <div className="my-0" />}
+                <div className="px-2 pt-2.5 pb-0.5 text-xs font-medium text-muted-foreground">
                   Blocks
                 </div>
-                <div className='-mx-1 -px-1'>
+                <div className="-mx-1 -px-1">
                   {blockTags.map((tag: string, index: number) => {
                     const tagIndex = filteredTags.indexOf(tag)
 
@@ -543,7 +543,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                       <button
                         key={tag}
                         className={cn(
-                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                          'w-full px-3 py-1.5 text-sm text-left flex items-center gap-2',
                           'hover:bg-accent hover:text-accent-foreground',
                           'focus:bg-accent focus:text-accent-foreground focus:outline-none',
                           tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
@@ -555,14 +555,14 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         }}
                       >
                         <div
-                          className='flex h-5 w-5 items-center justify-center rounded'
+                          className="flex items-center justify-center w-5 h-5 rounded"
                           style={{ backgroundColor: blockColor }}
                         >
-                          <span className='h-3 w-3 font-bold text-white text-xs'>
+                          <span className="w-3 h-3 text-white font-bold text-xs">
                             {blockName.charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <span className='flex-1 truncate'>{tag}</span>
+                        <span className="flex-1 truncate">{tag}</span>
                       </button>
                     )
                   })}

@@ -3,7 +3,8 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { useEnvironmentStore } from '@/stores/settings/environment/store'
 import { tools } from './registry'
-import type { TableRow, ToolConfig, ToolResponse } from './types'
+import { TableRow } from './types'
+import { ToolConfig, ToolResponse } from './types'
 
 const logger = createLogger('ToolsUtils')
 
@@ -85,7 +86,7 @@ export async function executeRequest(
       let errorContent
       try {
         errorContent = await externalResponse.json()
-      } catch (_e) {
+      } catch (e) {
         errorContent = { message: externalResponse.statusText }
       }
 
@@ -97,22 +98,22 @@ export async function executeRequest(
           // Handle both string and Promise return types
           if (typeof errorResult === 'string') {
             throw new Error(errorResult)
+          } else {
+            // It's a Promise, await it
+            const transformedError = await errorResult
+            // If it's a string or has an error property, use it
+            if (typeof transformedError === 'string') {
+              throw new Error(transformedError)
+            } else if (
+              transformedError &&
+              typeof transformedError === 'object' &&
+              'error' in transformedError
+            ) {
+              throw new Error(transformedError.error || 'Tool returned an error')
+            }
+            // Fallback
+            throw new Error('Tool returned an error')
           }
-          // It's a Promise, await it
-          const transformedError = await errorResult
-          // If it's a string or has an error property, use it
-          if (typeof transformedError === 'string') {
-            throw new Error(transformedError)
-          }
-          if (
-            transformedError &&
-            typeof transformedError === 'object' &&
-            'error' in transformedError
-          ) {
-            throw new Error(transformedError.error || 'Tool returned an error')
-          }
-          // Fallback
-          throw new Error('Tool returned an error')
         } catch (e) {
           if (e instanceof Error) {
             throw e
@@ -229,7 +230,7 @@ export function getClientEnvVars(getStore?: () => any): Record<string, string> {
       },
       {} as Record<string, string>
     )
-  } catch (_error) {
+  } catch (error) {
     // In case of any errors (like in testing), return empty object
     return {}
   }
@@ -244,7 +245,7 @@ export function getClientEnvVars(getStore?: () => any): Record<string, string> {
  */
 export function createCustomToolRequestBody(
   customTool: any,
-  isClient = true,
+  isClient: boolean = true,
   workflowId?: string,
   getStore?: () => any
 ) {

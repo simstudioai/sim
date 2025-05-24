@@ -1,6 +1,6 @@
 import { SupabaseIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
+import { ToolResponse } from '@/tools/types'
+import { BlockConfig } from '../types'
 
 interface SupabaseResponse extends ToolResponse {
   output: {
@@ -86,7 +86,7 @@ export const SupabaseBlock: BlockConfig<SupabaseResponse> = {
         if (data && typeof data === 'string') {
           try {
             parsedData = JSON.parse(data)
-          } catch (_e) {
+          } catch (e) {
             throw new Error('Invalid JSON data format')
           }
         } else {

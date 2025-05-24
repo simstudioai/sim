@@ -1,5 +1,6 @@
-import type { ToolConfig } from '../types'
-import type { ConfluenceRetrieveParams, ConfluenceRetrieveResponse } from './types'
+import { ToolConfig } from '../types'
+import { ConfluenceRetrieveResponse } from './types'
+import { ConfluenceRetrieveParams } from './types'
 
 export const confluenceRetrieveTool: ToolConfig<
   ConfluenceRetrieveParams,

@@ -13,7 +13,13 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -26,6 +32,7 @@ interface DeployedWorkflowModalProps {
     blocks: Record<string, any>
     edges: Array<any>
     loops: Record<string, any>
+    parallels: Record<string, any>
   }
 }
 
@@ -43,9 +50,11 @@ export function DeployedWorkflowModal({
     blocks: activeWorkflowId ? mergeSubblockState(state.blocks, activeWorkflowId) : state.blocks,
     edges: state.edges,
     loops: state.loops,
+    parallels: state.parallels,
   }))
 
   const handleRevert = () => {
+    // Revert to the deployed state
     revertToDeployedState(deployedWorkflowState)
     setShowRevertDialog(false)
     onClose()
@@ -54,11 +63,13 @@ export function DeployedWorkflowModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
-        className='max-h-[100vh] overflow-y-auto sm:max-w-[1100px]'
+        className="sm:max-w-[1100px] max-h-[100vh] overflow-y-auto"
         style={{ zIndex: 1000 }}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
         hideCloseButton={true}
       >
-        <div className='sr-only'>
+        <div className="sr-only">
           <DialogHeader>
             <DialogTitle>Deployed Workflow</DialogTitle>
           </DialogHeader>
@@ -69,12 +80,12 @@ export function DeployedWorkflowModal({
           deployedWorkflowState={deployedWorkflowState}
         />
 
-        <div className='mt-6 flex justify-between'>
+        <div className="flex justify-between mt-6">
           <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
             <AlertDialogTrigger asChild>
-              <Button variant='destructive'>Revert to Deployed</Button>
+              <Button variant="destructive">Revert to Deployed</Button>
             </AlertDialogTrigger>
-            <AlertDialogContent style={{ zIndex: 1001 }} className='sm:max-w-[425px]'>
+            <AlertDialogContent style={{ zIndex: 1001 }} className="sm:max-w-[425px]">
               <AlertDialogHeader>
                 <AlertDialogTitle>Revert to Deployed Version?</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -86,7 +97,7 @@ export function DeployedWorkflowModal({
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleRevert}
-                  className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   Revert
                 </AlertDialogAction>
@@ -94,7 +105,7 @@ export function DeployedWorkflowModal({
             </AlertDialogContent>
           </AlertDialog>
 
-          <Button variant='outline' onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Close
           </Button>
         </div>

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GoogleDriveListResponse, GoogleDriveToolParams } from './types'
+import { ToolConfig } from '../types'
+import { GoogleDriveListResponse, GoogleDriveToolParams } from './types'
 
 export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse> = {
   id: 'google_drive_list',
@@ -40,9 +40,8 @@ export const listTool: ToolConfig<GoogleDriveToolParams, GoogleDriveListResponse
 
       // Build the query conditions
       const conditions = ['trashed = false'] // Always exclude trashed files
-      const folderId = params.folderId || params.folderSelector
-      if (folderId) {
-        conditions.push(`'${folderId}' in parents`)
+      if (params.folderId) {
+        conditions.push(`'${params.folderId}' in parents`)
       }
 
       // Combine all conditions with AND

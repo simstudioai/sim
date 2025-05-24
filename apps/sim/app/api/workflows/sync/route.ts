@@ -1,5 +1,5 @@
+import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, isNull } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -21,7 +21,8 @@ const MarketplaceDataSchema = z
 const WorkflowStateSchema = z.object({
   blocks: z.record(z.any()),
   edges: z.array(z.any()),
-  loops: z.record(z.any()),
+  loops: z.record(z.any()).default({}),
+  parallels: z.record(z.any()).default({}),
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
   deployedAt: z

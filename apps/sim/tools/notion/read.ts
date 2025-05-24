@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { NotionReadParams, NotionResponse } from './types'
+import { ToolConfig, ToolResponse } from '../types'
+import { NotionReadParams, NotionResponse } from './types'
 
 export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
   id: 'notion_read',
@@ -57,7 +57,7 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
     let pageTitle = 'Untitled'
 
     // Extract title from properties
-    if (data.properties?.title) {
+    if (data.properties && data.properties.title) {
       const titleProperty = data.properties.title
       if (
         titleProperty.title &&
@@ -127,23 +127,17 @@ export const notionReadTool: ToolConfig<NotionReadParams, NotionResponse> = {
       .map((block: any) => {
         if (block.type === 'paragraph') {
           return block.paragraph.rich_text.map((text: any) => text.plain_text).join('')
-        }
-        if (block.type === 'heading_1') {
+        } else if (block.type === 'heading_1') {
           return `# ${block.heading_1.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'heading_2') {
+        } else if (block.type === 'heading_2') {
           return `## ${block.heading_2.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'heading_3') {
+        } else if (block.type === 'heading_3') {
           return `### ${block.heading_3.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'bulleted_list_item') {
+        } else if (block.type === 'bulleted_list_item') {
           return `• ${block.bulleted_list_item.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'numbered_list_item') {
+        } else if (block.type === 'numbered_list_item') {
           return `1. ${block.numbered_list_item.rich_text.map((text: any) => text.plain_text).join('')}`
-        }
-        if (block.type === 'to_do') {
+        } else if (block.type === 'to_do') {
           const checked = block.to_do.checked ? '[x]' : '[ ]'
           return `${checked} ${block.to_do.rich_text.map((text: any) => text.plain_text).join('')}`
         }

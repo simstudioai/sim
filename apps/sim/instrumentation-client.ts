@@ -9,8 +9,8 @@
 // The added config here will be used whenever a users loads a page in their browser.
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/
 import {
-  BrowserClient,
   breadcrumbsIntegration,
+  BrowserClient,
   captureRouterTransitionStart,
   dedupeIntegration,
   defaultStackParser,
@@ -62,7 +62,7 @@ if (typeof window !== 'undefined') {
         telemetryEnabled = status.enabled
       }
     }
-  } catch (_e) {
+  } catch (e) {
     telemetryEnabled = false
   }
 
@@ -80,7 +80,7 @@ if (typeof window !== 'undefined') {
     const result: Record<string, any> = {}
 
     for (const key in obj) {
-      if (key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         const value = obj[key]
         if (
           value === undefined ||
@@ -93,16 +93,17 @@ if (typeof window !== 'undefined') {
 
         try {
           result[key] = safeSerialize(value)
-        } catch (_e) {
+        } catch (e) {
           try {
             result[key] = String(value)
-          } catch (_e2) {}
+          } catch (e2) {}
         }
       }
     }
 
     return result
   }
+
   ;(window as any).__SIM_TELEMETRY_ENABLED = telemetryEnabled
   ;(window as any).__SIM_TRACK_EVENT = (eventName: string, properties?: any) => {
     if (!telemetryEnabled) return
@@ -133,7 +134,7 @@ if (typeof window !== 'undefined') {
       telemetryConfig = (window as any).__SIM_STUDIO_TELEMETRY_CONFIG || {
         clientSide: { enabled: true },
       }
-    } catch (_e) {
+    } catch (e) {
       telemetryConfig = { clientSide: { enabled: true } }
     }
 

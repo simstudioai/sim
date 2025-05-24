@@ -1,9 +1,9 @@
 import { ConnectIcon } from '@/components/icons'
-import type { ProviderId } from '@/providers/types'
-import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
 import { useOllamaStore } from '@/stores/ollama/store'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
+import { ProviderId } from '@/providers/types'
+import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
+import { ToolResponse } from '@/tools/types'
+import { BlockConfig } from '../types'
 
 interface RouterResponse extends ToolResponse {
   output: {

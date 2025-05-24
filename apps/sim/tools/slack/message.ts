@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { SlackMessageParams, SlackMessageResponse } from './types'
+import { ToolConfig } from '../types'
+import { SlackMessageParams, SlackMessageResponse } from './types'
 
 export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageResponse> = {
   id: 'slack_message',

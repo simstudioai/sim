@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { NotionResponse, NotionWriteParams } from './types'
+import { ToolConfig } from '../types'
+import { NotionResponse, NotionWriteParams } from './types'
 
 export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
   id: 'notion_write',
@@ -70,7 +70,7 @@ export const notionWriteTool: ToolConfig<NotionWriteParams, NotionResponse> = {
   },
 
   transformResponse: async (response: Response) => {
-    const _data = await response.json()
+    const data = await response.json()
     return {
       success: response.ok,
       output: {

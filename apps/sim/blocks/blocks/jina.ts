@@ -1,6 +1,6 @@
 import { JinaAIIcon } from '@/components/icons'
-import type { ReadUrlResponse } from '@/tools/jina/types'
-import type { BlockConfig } from '../types'
+import { ReadUrlResponse } from '@/tools/jina/types'
+import { BlockConfig } from '../types'
 
 export const JinaBlock: BlockConfig<ReadUrlResponse> = {
   type: 'jina',

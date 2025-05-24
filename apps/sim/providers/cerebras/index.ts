@@ -1,8 +1,8 @@
 import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { StreamingExecution } from '@/executor/types'
+import { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
-import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
 const logger = createLogger('CerebrasProvider')
 
@@ -123,7 +123,7 @@ export const cerebrasProvider: ProviderConfig = {
           // Always use 'auto' for Cerebras, explicitly converting any 'force' usageControl to 'auto'
           payload.tool_choice = 'auto'
 
-          logger.info('Cerebras request configuration:', {
+          logger.info(`Cerebras request configuration:`, {
             toolCount: filteredTools.length,
             toolChoice: 'auto', // Cerebras always uses auto, 'force' is treated as 'auto'
             model: request.model,
@@ -143,7 +143,7 @@ export const cerebrasProvider: ProviderConfig = {
         })
 
         // Start collecting token usage
-        const tokenUsage = {
+        let tokenUsage = {
           prompt: 0,
           completion: 0,
           total: 0,
@@ -203,14 +203,14 @@ export const cerebrasProvider: ProviderConfig = {
       const firstResponseTime = Date.now() - initialCallTime
 
       let content = currentResponse.choices[0]?.message?.content || ''
-      const tokens = {
+      let tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
-      const toolCalls = []
-      const toolResults = []
-      const currentMessages = [...allMessages]
+      let toolCalls = []
+      let toolResults = []
+      let currentMessages = [...allMessages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 
@@ -365,7 +365,7 @@ export const cerebrasProvider: ProviderConfig = {
             // Add to time segments
             timeSegments.push({
               type: 'model',
-              name: 'Final response',
+              name: `Final response`,
               startTime: nextModelStartTime,
               endTime: nextModelEndTime,
               duration: thisModelTime,

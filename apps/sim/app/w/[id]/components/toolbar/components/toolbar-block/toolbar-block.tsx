@@ -12,7 +12,7 @@ export function ToolbarBlock({ config }: ToolbarBlockProps) {
   }
 
   // Handle click to add block
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback((e: React.MouseEvent) => {
     if (config.type === 'connectionBlock') return
 
     // Dispatch a custom event to be caught by the workflow component
@@ -29,21 +29,21 @@ export function ToolbarBlock({ config }: ToolbarBlockProps) {
       draggable
       onDragStart={handleDragStart}
       onClick={handleClick}
-      className='group flex cursor-pointer items-center gap-3 rounded-lg border bg-card p-3.5 shadow-sm transition-colors hover:bg-accent/50 active:cursor-grabbing'
+      className="group flex items-center gap-3 rounded-lg border bg-card p-3.5 shadow-sm transition-colors hover:bg-accent/50 cursor-pointer active:cursor-grabbing"
     >
       <div
-        className='relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg'
+        className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg"
         style={{ backgroundColor: config.bgColor }}
       >
         <config.icon
           className={`text-white transition-transform duration-200 group-hover:scale-110 ${
-            config.type === 'agent' ? 'h-[24px] w-[24px]' : 'h-[22px] w-[22px]'
+            config.type === 'agent' ? 'w-[24px] h-[24px]' : 'w-[22px] h-[22px]'
           }`}
         />
       </div>
-      <div className='mb-[-2px] flex flex-col gap-1'>
-        <h3 className='font-medium leading-none'>{config.name}</h3>
-        <p className='text-muted-foreground text-sm leading-snug'>{config.description}</p>
+      <div className="flex flex-col gap-1 mb-[-2px]">
+        <h3 className="font-medium leading-none">{config.name}</h3>
+        <p className="text-sm text-muted-foreground leading-snug">{config.description}</p>
       </div>
     </div>
   )

@@ -7,8 +7,7 @@
     "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
-    "postinstall": "fumadocs-mdx",
-    "type-check": "tsc --noEmit"
+    "postinstall": "fumadocs-mdx"
   },
   "dependencies": {
     "@tabler/icons-react": "^3.31.0",

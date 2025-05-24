@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Logger } from '@/lib/logs/console-logger'
+import { Logger } from '@/lib/logs/console-logger'
 
 // Convert JSON schema to Zod schema (reused from extract route)
 function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.ZodTypeAny {
@@ -45,8 +45,7 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
     }
 
     return zodObject
-  }
-  if (jsonSchema.type === 'array' && jsonSchema.items) {
+  } else if (jsonSchema.type === 'array' && jsonSchema.items) {
     const itemSchema = jsonSchemaToZod(logger, jsonSchema.items as Record<string, any>)
     let arraySchema = z.array(itemSchema)
 
@@ -56,8 +55,7 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
     }
 
     return arraySchema
-  }
-  if (jsonSchema.type === 'string') {
+  } else if (jsonSchema.type === 'string') {
     let stringSchema = z.string()
 
     // Add description if available
@@ -66,8 +64,7 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
     }
 
     return stringSchema
-  }
-  if (jsonSchema.type === 'number') {
+  } else if (jsonSchema.type === 'number') {
     let numberSchema = z.number()
 
     // Add description if available
@@ -76,8 +73,7 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
     }
 
     return numberSchema
-  }
-  if (jsonSchema.type === 'boolean') {
+  } else if (jsonSchema.type === 'boolean') {
     let boolSchema = z.boolean()
 
     // Add description if available
@@ -86,11 +82,9 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
     }
 
     return boolSchema
-  }
-  if (jsonSchema.type === 'null') {
+  } else if (jsonSchema.type === 'null') {
     return z.null()
-  }
-  if (jsonSchema.type === 'integer') {
+  } else if (jsonSchema.type === 'integer') {
     let intSchema = z.number().int()
 
     // Add description if available
@@ -99,10 +93,11 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
     }
 
     return intSchema
+  } else {
+    // For unknown types, return any
+    logger.warn('Unknown schema type, defaulting to any', { type: jsonSchema.type })
+    return z.any()
   }
-  // For unknown types, return any
-  logger.warn('Unknown schema type, defaulting to any', { type: jsonSchema.type })
-  return z.any()
 }
 
 // Helper function to ensure we have a ZodObject

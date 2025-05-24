@@ -1,22 +1,22 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import ReactFlow, {
   ConnectionLineType,
-  type Edge,
-  type EdgeTypes,
-  type Node,
-  type NodeTypes,
+  Edge,
+  EdgeTypes,
+  MarkerType,
+  Node,
+  NodeTypes,
   Position,
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
   useReactFlow,
-  type Viewport,
+  Viewport,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-
 import { HeroBlock } from './hero-block'
 import { HeroEdge } from './hero-edge'
 import { useWindowSize } from './use-window-size'
@@ -196,7 +196,7 @@ export function HeroWorkflow() {
 
   return (
     <motion.div
-      className='pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden'
+      className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none"
       style={{
         height: '100%',
         width: '100%',
@@ -206,8 +206,8 @@ export function HeroWorkflow() {
         willChange: 'opacity, transform',
       }}
       variants={workflowVariants}
-      initial='hidden'
-      animate='visible'
+      initial="hidden"
+      animate="visible"
     >
       <style jsx global>{`
         .react-flow__edge-path {

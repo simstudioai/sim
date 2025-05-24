@@ -1,4 +1,4 @@
-import type { ModelPricingMap } from './types'
+import { ModelPricingMap } from './types'
 
 /**
  * Model pricing information per million tokens
@@ -51,18 +51,6 @@ const modelPricing: ModelPricingMap = {
     cachedInput: 1.5,
     output: 15.0,
     updatedAt: '2025-03-21',
-  },
-  'claude-sonnet-4-20250514': {
-    input: 3.0,
-    cachedInput: 1.5,
-    output: 15.0,
-    updatedAt: '2025-05-22',
-  },
-  'claude-opus-4-20250514': {
-    input: 15.0,
-    cachedInput: 7.5,
-    output: 75.0,
-    updatedAt: '2025-05-22',
   },
 
   // Google Models

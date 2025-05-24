@@ -28,12 +28,7 @@ import {
 import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { searchTool as googleSearchTool } from './google'
 import { docsCreateTool, docsReadTool, docsWriteTool } from './google_docs'
-import {
-  driveCreateFolderTool,
-  driveGetContentTool,
-  driveListTool,
-  driveUploadTool,
-} from './google_drive'
+import { driveDownloadTool, driveListTool, driveUploadTool } from './google_drive'
 import {
   sheetsAppendTool,
   sheetsReadTool,
@@ -47,10 +42,10 @@ import { readUrlTool } from './jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
 import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from './mem0'
-import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from './memory'
+import { memoryAddTool, memoryGetTool, memoryGetAllTool, memoryDeleteTool } from './memory'
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
-import { imageTool, embeddingsTool as openAIEmbeddings } from './openai'
+import { dalleTool, embeddingsTool as openAIEmbeddings } from './openai'
 import { perplexityChatTool } from './perplexity'
 import {
   pineconeFetchTool,
@@ -71,7 +66,7 @@ import { telegramMessageTool } from './telegram'
 import { thinkingTool } from './thinking'
 import { sendSMSTool } from './twilio'
 import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from './typeform'
-import type { ToolConfig } from './types'
+import { ToolConfig } from './types'
 import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
@@ -132,10 +127,9 @@ export const tools: Record<string, ToolConfig> = {
   reddit_hot_posts: redditHotPostsTool,
   reddit_get_posts: redditGetPostsTool,
   reddit_get_comments: redditGetCommentsTool,
-  google_drive_get_content: driveGetContentTool,
+  google_drive_download: driveDownloadTool,
   google_drive_list: driveListTool,
   google_drive_upload: driveUploadTool,
-  google_drive_create_folder: driveCreateFolderTool,
   google_docs_read: docsReadTool,
   google_docs_write: docsWriteTool,
   google_docs_create: docsCreateTool,
@@ -149,6 +143,7 @@ export const tools: Record<string, ToolConfig> = {
   confluence_retrieve: confluenceRetrieveTool,
   confluence_update: confluenceUpdateTool,
   twilio_send_sms: sendSMSTool,
+  openai_dalle: dalleTool,
   airtable_create_records: airtableCreateRecordsTool,
   airtable_get_record: airtableGetRecordTool,
   airtable_list_records: airtableListRecordsTool,
@@ -172,5 +167,4 @@ export const tools: Record<string, ToolConfig> = {
   discord_get_messages: discordGetMessagesTool,
   discord_get_server: discordGetServerTool,
   discord_get_user: discordGetUserTool,
-  openai_image: imageTool,
 }

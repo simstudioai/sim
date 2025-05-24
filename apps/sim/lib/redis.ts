@@ -80,18 +80,19 @@ export async function hasProcessedMessage(key: string): Promise<boolean> {
       // Use Redis if available
       const result = await redis.exists(fullKey)
       return result === 1
-    }
-    // Fallback to in-memory cache
-    const cacheEntry = inMemoryCache.get(fullKey)
-    if (!cacheEntry) return false
+    } else {
+      // Fallback to in-memory cache
+      const cacheEntry = inMemoryCache.get(fullKey)
+      if (!cacheEntry) return false
 
-    // Check if the entry has expired
-    if (cacheEntry.expiry && cacheEntry.expiry < Date.now()) {
-      inMemoryCache.delete(fullKey)
-      return false
-    }
+      // Check if the entry has expired
+      if (cacheEntry.expiry && cacheEntry.expiry < Date.now()) {
+        inMemoryCache.delete(fullKey)
+        return false
+      }
 
-    return true
+      return true
+    }
   } catch (error) {
     logger.error(`Error checking key ${key}:`, { error })
     // Fallback to in-memory cache on error

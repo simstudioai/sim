@@ -1,7 +1,8 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
-import { formatRequestParams, getTool, getToolAsync, validateToolRequest } from './utils'
+import { OAuthTokenPayload, ToolConfig, ToolResponse } from './types'
+import { getTool, getToolAsync } from './utils'
+import { formatRequestParams, validateToolRequest } from './utils'
 
 const logger = createLogger('Tools')
 
@@ -84,8 +85,8 @@ export async function executeTool(
         logger.info(`[executeTool] Successfully fetched access token for ${toolId}`)
 
         // Clean up params we don't need to pass to the actual tool
-        contextParams.credential = undefined
-        if (contextParams.workflowId) contextParams.workflowId = undefined
+        delete contextParams.credential
+        if (contextParams.workflowId) delete contextParams.workflowId
       } catch (error) {
         logger.error('[executeTool] Error fetching access token:', { error })
         // Re-throw the error to fail the tool execution if token fetching fails
@@ -428,36 +429,36 @@ async function handleInternalRequest(
             output: {},
             error: errorResult,
           }
-        }
-        // It's a Promise, await it
-        const transformedError = await errorResult
-        // If it's a string or has an error property, use it
-        if (typeof transformedError === 'string') {
-          return {
-            success: false,
-            output: {},
-            error: transformedError,
-          }
-        }
-        if (transformedError && typeof transformedError === 'object') {
-          // If it's already a ToolResponse, return it directly
-          if ('success' in transformedError) {
-            return transformedError
-          }
-          // If it has an error property, use it
-          if ('error' in transformedError) {
+        } else {
+          // It's a Promise, await it
+          const transformedError = await errorResult
+          // If it's a string or has an error property, use it
+          if (typeof transformedError === 'string') {
             return {
               success: false,
               output: {},
-              error: transformedError.error,
+              error: transformedError,
+            }
+          } else if (transformedError && typeof transformedError === 'object') {
+            // If it's already a ToolResponse, return it directly
+            if ('success' in transformedError) {
+              return transformedError
+            }
+            // If it has an error property, use it
+            if ('error' in transformedError) {
+              return {
+                success: false,
+                output: {},
+                error: transformedError.error,
+              }
             }
           }
-        }
-        // Fallback
-        return {
-          success: false,
-          output: {},
-          error: 'Unknown error',
+          // Fallback
+          return {
+            success: false,
+            output: {},
+            error: 'Unknown error',
+          }
         }
       } catch (transformError) {
         logger.error(`Error transforming error for tool ${toolId}:`, {
@@ -522,17 +523,13 @@ function validateClientSideParams(
     const type = paramSchema.type
     if (type === 'string' && typeof paramValue !== 'string') {
       throw new Error(`Parameter ${paramName} should be a string`)
-    }
-    if (type === 'number' && typeof paramValue !== 'number') {
+    } else if (type === 'number' && typeof paramValue !== 'number') {
       throw new Error(`Parameter ${paramName} should be a number`)
-    }
-    if (type === 'boolean' && typeof paramValue !== 'boolean') {
+    } else if (type === 'boolean' && typeof paramValue !== 'boolean') {
       throw new Error(`Parameter ${paramName} should be a boolean`)
-    }
-    if (type === 'array' && !Array.isArray(paramValue)) {
+    } else if (type === 'array' && !Array.isArray(paramValue)) {
       throw new Error(`Parameter ${paramName} should be an array`)
-    }
-    if (type === 'object' && (typeof paramValue !== 'object' || paramValue === null)) {
+    } else if (type === 'object' && (typeof paramValue !== 'object' || paramValue === null)) {
       throw new Error(`Parameter ${paramName} should be an object`)
     }
   }
@@ -603,7 +600,7 @@ async function handleProxyRequest(
     // Handle network or other fetch errors
     logger.error(`Error in proxy request for tool ${toolId}:`, { error })
 
-    const errorMessage =
+    let errorMessage =
       error instanceof Error
         ? error.message
         : typeof error === 'string'

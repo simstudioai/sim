@@ -17,10 +17,8 @@ export const MODELS_TEMP_RANGE_0_2 = [
 // Models that support temperature with range 0-1
 export const MODELS_TEMP_RANGE_0_1 = [
   // Anthropic models
-  'claude-sonnet-4-20250514',
-  'claude-opus-4-20250514',
-  'claude-3-7-sonnet-20250219',
   'claude-3-5-sonnet-20240620',
+  'claude-3-7-sonnet-20250219',
   // xAI models
   'grok-3-latest',
   'grok-3-fast-latest',

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GoogleSearchParams, GoogleSearchResponse } from './types'
+import { ToolConfig } from '../types'
+import { GoogleSearchParams, GoogleSearchResponse } from './types'
 
 export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = {
   id: 'google_search',

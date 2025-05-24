@@ -1,5 +1,5 @@
+import { NextRequest } from 'next/server'
 import { eq, sql } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -8,12 +8,12 @@ import { buildTraceSpans } from '@/lib/logs/trace-spans'
 import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
 import { decryptSecret } from '@/lib/utils'
 import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import { WorkflowState } from '@/stores/workflows/workflow/types'
 import { db } from '@/db'
 import { environment, userStats } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import { mergeSubblockState } from '@/stores/workflows/utils'
-import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { validateWorkflowAccess } from '../../middleware'
 import { createErrorResponse, createSuccessResponse } from '../../utils'
 
@@ -102,7 +102,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     // Use the same execution flow as in scheduled executions
     const mergedStates = mergeSubblockState(blocks)
 
-    // Fetch the user's environment variables (if any)
+    // Retrieve environment variables for this user
     const [userEnv] = await db
       .select()
       .from(environment)
@@ -110,13 +110,12 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       .limit(1)
 
     if (!userEnv) {
-      logger.debug(
-        `[${requestId}] No environment record found for user ${workflow.userId}. Proceeding with empty variables.`
-      )
+      logger.error(`[${requestId}] No environment variables found for user: ${workflow.userId}`)
+      throw new Error('No environment variables found for this user')
     }
 
-    // Parse and validate environment variables.
-    const variables = EnvVarsSchema.parse(userEnv?.variables ?? {})
+    // Parse and validate environment variables
+    const variables = EnvVarsSchema.parse(userEnv.variables)
 
     // Replace environment variables in the block states
     const currentBlockStates = await Object.entries(mergedStates).reduce(
@@ -332,7 +331,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     logger.info(`[${requestId}] Raw request body:`, bodyText)
 
     let body = {}
-    if (bodyText?.trim()) {
+    if (bodyText && bodyText.trim()) {
       try {
         body = JSON.parse(bodyText)
         logger.info(`[${requestId}] Parsed request body:`, JSON.stringify(body, null, 2))
@@ -367,17 +366,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       'EXECUTION_ERROR'
     )
   }
-}
-
-export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers':
-        'Content-Type, X-API-Key, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version',
-      'Access-Control-Max-Age': '86400',
-    },
-  })
 }

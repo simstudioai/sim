@@ -25,7 +25,7 @@ describe('HTTP Request Tool', () => {
   afterEach(() => {
     tester.cleanup()
     vi.resetAllMocks()
-    process.env.NEXT_PUBLIC_APP_URL = undefined
+    delete process.env.NEXT_PUBLIC_APP_URL
   })
 
   describe('URL Construction', () => {
@@ -191,13 +191,13 @@ describe('HTTP Request Tool', () => {
       const headers = fetchCall[1].headers
 
       // Check specific header values
-      expect(headers.Host).toBe('api.example.com')
-      expect(headers.Referer).toBe('https://app.simstudio.dev')
+      expect(headers['Host']).toBe('api.example.com')
+      expect(headers['Referer']).toBe('https://app.simstudio.dev')
       expect(headers['User-Agent']).toContain('Mozilla')
-      expect(headers.Accept).toBe('*/*')
+      expect(headers['Accept']).toBe('*/*')
       expect(headers['Accept-Encoding']).toContain('gzip')
       expect(headers['Cache-Control']).toBe('no-cache')
-      expect(headers.Connection).toBe('keep-alive')
+      expect(headers['Connection']).toBe('keep-alive')
       expect(headers['Sec-Ch-Ua']).toContain('Chromium')
 
       // Reset window
@@ -387,15 +387,15 @@ describe('HTTP Request Tool', () => {
 
       // Check all default headers exist with expected values
       expect(headers['User-Agent']).toMatch(/Mozilla\/5\.0.*Chrome.*Safari/)
-      expect(headers.Accept).toBe('*/*')
+      expect(headers['Accept']).toBe('*/*')
       expect(headers['Accept-Encoding']).toBe('gzip, deflate, br')
       expect(headers['Cache-Control']).toBe('no-cache')
-      expect(headers.Connection).toBe('keep-alive')
+      expect(headers['Connection']).toBe('keep-alive')
       expect(headers['Sec-Ch-Ua']).toMatch(/Chromium.*Not-A\.Brand/)
       expect(headers['Sec-Ch-Ua-Mobile']).toBe('?0')
       expect(headers['Sec-Ch-Ua-Platform']).toBe('"macOS"')
-      expect(headers.Referer).toBe('https://app.simstudio.dev')
-      expect(headers.Host).toBe('api.example.com')
+      expect(headers['Referer']).toBe('https://app.simstudio.dev')
+      expect(headers['Host']).toBe('api.example.com')
 
       // Reset window
       global.window = originalWindow
@@ -421,7 +421,7 @@ describe('HTTP Request Tool', () => {
 
       // Verify overridden headers
       expect(headers['User-Agent']).toBe('Custom Agent')
-      expect(headers.Accept).toBe('application/json')
+      expect(headers['Accept']).toBe('application/json')
 
       // Verify other default headers still exist
       expect(headers['Accept-Encoding']).toBe('gzip, deflate, br')
@@ -451,76 +451,6 @@ describe('HTTP Request Tool', () => {
 
       // Reset window
       global.window = originalWindow
-    })
-
-    test('should include method parameter in proxy URL', () => {
-      const originalWindow = global.window
-      Object.defineProperty(global, 'window', {
-        value: {
-          location: {
-            origin: 'https://simstudio.ai',
-          },
-        },
-        writable: true,
-      })
-
-      const originalVitest = process.env.VITEST
-
-      try {
-        process.env.VITEST = undefined
-
-        const buildProxyUrl = (params: any) => {
-          const baseUrl = 'https://external-api.com/endpoint'
-          let proxyUrl = `/api/proxy?url=${encodeURIComponent(baseUrl)}`
-
-          if (params.method) {
-            proxyUrl += `&method=${encodeURIComponent(params.method)}`
-          }
-
-          if (
-            params.body &&
-            ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')
-          ) {
-            const bodyStr =
-              typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
-            proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
-          }
-
-          return proxyUrl
-        }
-
-        const getParams = {
-          url: 'https://external-api.com/endpoint',
-          method: 'GET',
-        }
-        const getProxyUrl = buildProxyUrl(getParams)
-        expect(getProxyUrl).toContain('/api/proxy?url=')
-        expect(getProxyUrl).toContain('&method=GET')
-
-        const postParams = {
-          url: 'https://external-api.com/endpoint',
-          method: 'POST',
-          body: { key: 'value' },
-        }
-        const postProxyUrl = buildProxyUrl(postParams)
-        expect(postProxyUrl).toContain('/api/proxy?url=')
-        expect(postProxyUrl).toContain('&method=POST')
-        expect(postProxyUrl).toContain('&body=')
-        expect(postProxyUrl).toContain(encodeURIComponent('{"key":"value"}'))
-
-        const putParams = {
-          url: 'https://external-api.com/endpoint',
-          method: 'PUT',
-          body: 'string body',
-        }
-        const putProxyUrl = buildProxyUrl(putParams)
-        expect(putProxyUrl).toContain('/api/proxy?url=')
-        expect(putProxyUrl).toContain('&method=PUT')
-        expect(putProxyUrl).toContain(`&body=${encodeURIComponent('string body')}`)
-      } finally {
-        global.window = originalWindow
-        process.env.VITEST = originalVitest
-      }
     })
   })
 })

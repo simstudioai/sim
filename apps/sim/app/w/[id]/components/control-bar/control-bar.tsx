@@ -1,21 +1,23 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
 import {
   Bell,
   Bug,
   ChevronDown,
   Copy,
+  CreditCard,
   History,
   Loader2,
   Play,
   SkipForward,
   StepForward,
+  Store,
   Trash2,
   X,
 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,13 +45,14 @@ import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
 } from '../../../hooks/use-keyboard-shortcuts'
-import { useDeploymentChangeDetection } from '../../hooks/use-deployment-change-detection'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
@@ -85,15 +88,10 @@ export function ControlBar() {
     showNotification,
     removeNotification,
   } = useNotificationStore()
-  const { history, revertToHistoryState, lastSaved } = useWorkflowStore()
-  const {
-    workflows,
-    updateWorkflow,
-    activeWorkflowId,
-    removeWorkflow,
-    duplicateWorkflow,
-    setDeploymentStatus,
-  } = useWorkflowRegistry()
+  const { history, revertToHistoryState, lastSaved, isDeployed, setDeploymentStatus } =
+    useWorkflowStore()
+  const { workflows, updateWorkflow, activeWorkflowId, removeWorkflow, duplicateWorkflow } =
+    useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
   const { setActiveTab } = usePanelStore()
 
@@ -113,6 +111,11 @@ export function ControlBar() {
   // Dropdown states
   const [historyOpen, setHistoryOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+
+  // Status states
+  const [isDeploying, setIsDeploying] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [needsRedeployment, setNeedsRedeployment] = useState(false)
 
   // Marketplace modal state
   const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
@@ -150,9 +153,9 @@ export function ControlBar() {
   )
 
   // Get notifications for current workflow
-  // const workflowNotifications = activeWorkflowId
-  //   ? getWorkflowNotifications(activeWorkflowId)
-  //   : notifications // Show all if no workflow is active
+  const workflowNotifications = activeWorkflowId
+    ? getWorkflowNotifications(activeWorkflowId)
+    : notifications // Show all if no workflow is active
 
   // Get the marketplace data from the workflow registry if available
   const getMarketplaceData = () => {
@@ -161,26 +164,16 @@ export function ControlBar() {
   }
 
   // Check if the current workflow is published to marketplace
-  const _isPublishedToMarketplace = () => {
+  const isPublishedToMarketplace = () => {
     const marketplaceData = getMarketplaceData()
     return !!marketplaceData
   }
 
-  // // Check if the current user is the owner of the published workflow
-  // const isWorkflowOwner = () => {
-  //   const marketplaceData = getMarketplaceData()
-  //   return marketplaceData?.status === 'owner'
-  // }
-
-  // Get deployment status from registry
-  const deploymentStatus = useWorkflowRegistry((state) =>
-    state.getWorkflowDeploymentStatus(activeWorkflowId)
-  )
-  const isDeployed = deploymentStatus?.isDeployed || false
-
-  // Custom hook for deployment change detection
-  const { needsRedeployment, setNeedsRedeployment, clearNeedsRedeployment } =
-    useDeploymentChangeDetection(activeWorkflowId, isDeployed)
+  // Check if the current user is the owner of the published workflow
+  const isWorkflowOwner = () => {
+    const marketplaceData = getMarketplaceData()
+    return marketplaceData?.status === 'owner'
+  }
 
   // Client-side only rendering for the timestamp
   useEffect(() => {
@@ -192,6 +185,154 @@ export function ControlBar() {
     const interval = setInterval(() => forceUpdate({}), 60000)
     return () => clearInterval(interval)
   }, [])
+
+  // Listen for workflow changes and check if redeployment is needed
+  useEffect(() => {
+    if (!activeWorkflowId || !isDeployed) return
+
+    // Create a debounced function to check for changes
+    let debounceTimer: NodeJS.Timeout | null = null
+    let lastCheckTime = 0
+    let pendingChanges = 0
+    const DEBOUNCE_DELAY = 1000
+    const THROTTLE_INTERVAL = 3000
+
+    // Function to check if redeployment is needed
+    const checkForChanges = async () => {
+      // Skip if we're already showing needsRedeployment
+      if (needsRedeployment) return
+
+      // Reset the pending changes counter
+      pendingChanges = 0
+      lastCheckTime = Date.now()
+
+      try {
+        // Get the deployed state from the API
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
+        if (response.ok) {
+          const data = await response.json()
+
+          // If the API says we need redeployment, update our state and the store
+          if (data.needsRedeployment) {
+            setNeedsRedeployment(true)
+            // Also update the store state so other components can access this flag
+            useWorkflowStore.getState().setNeedsRedeploymentFlag(true)
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to check workflow change status:', { error })
+      }
+    }
+
+    // Debounced check function
+    const debouncedCheck = () => {
+      // Increment the pending changes counter
+      pendingChanges++
+
+      // Clear any existing timer
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+
+      // If we recently checked, and it's within throttle interval, wait longer
+      const timeElapsed = Date.now() - lastCheckTime
+      if (timeElapsed < THROTTLE_INTERVAL && lastCheckTime > 0) {
+        // Wait until the throttle interval has passed
+        const adjustedDelay = Math.max(THROTTLE_INTERVAL - timeElapsed, DEBOUNCE_DELAY)
+
+        debounceTimer = setTimeout(() => {
+          // Only check if we have pending changes
+          if (pendingChanges > 0) {
+            checkForChanges()
+          }
+        }, adjustedDelay)
+      } else {
+        // Standard debounce delay if we haven't checked recently
+        debounceTimer = setTimeout(() => {
+          // Only check if we have pending changes
+          if (pendingChanges > 0) {
+            checkForChanges()
+          }
+        }, DEBOUNCE_DELAY)
+      }
+    }
+
+    // Subscribe to workflow store changes
+    const workflowUnsubscribe = useWorkflowStore.subscribe(debouncedCheck)
+
+    // Also subscribe to subblock store changes
+    const subBlockUnsubscribe = useSubBlockStore.subscribe((state) => {
+      // Only check for the active workflow
+      if (!activeWorkflowId || !isDeployed || needsRedeployment) return
+
+      // Only trigger when there is an update to the current workflow's subblocks
+      const workflowSubBlocks = state.workflowValues[activeWorkflowId]
+      if (workflowSubBlocks && Object.keys(workflowSubBlocks).length > 0) {
+        debouncedCheck()
+      }
+    })
+
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer)
+      }
+      workflowUnsubscribe()
+      subBlockUnsubscribe()
+    }
+  }, [activeWorkflowId, isDeployed, needsRedeployment])
+
+  // Check deployment and publication status on mount or when activeWorkflowId changes
+  useEffect(() => {
+    async function checkStatus() {
+      if (!activeWorkflowId) return
+
+      try {
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
+        if (response.ok) {
+          const data = await response.json()
+          // Update the store with the status from the API
+          setDeploymentStatus(
+            data.isDeployed,
+            data.deployedAt ? new Date(data.deployedAt) : undefined
+          )
+          setNeedsRedeployment(data.needsRedeployment)
+          useWorkflowStore.getState().setNeedsRedeploymentFlag(data.needsRedeployment)
+        }
+      } catch (error) {
+        logger.error('Failed to check workflow status:', { error })
+      }
+    }
+    checkStatus()
+  }, [activeWorkflowId, setDeploymentStatus])
+
+  // Listen for deployment status changes
+  useEffect(() => {
+    // When deployment status changes and isDeployed becomes true,
+    // that means a deployment just occurred, so reset the needsRedeployment flag
+    if (isDeployed) {
+      setNeedsRedeployment(false)
+      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+    }
+  }, [isDeployed])
+
+  // Add a listener for the needsRedeployment flag in the workflow store
+  useEffect(() => {
+    const unsubscribe = useWorkflowStore.subscribe((state) => {
+      // Update local state when the store flag changes
+      if (state.needsRedeployment !== undefined) {
+        setNeedsRedeployment(state.needsRedeployment)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  // Add a manual method to update the deployment status and clear the needsRedeployment flag
+  const updateDeploymentStatusAndClearFlag = (isDeployed: boolean, deployedAt?: Date) => {
+    setDeploymentStatus(isDeployed, deployedAt)
+    setNeedsRedeployment(false)
+    useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
+  }
 
   // Update existing API notifications when needsRedeployment changes
   useEffect(() => {
@@ -309,22 +450,22 @@ export function ControlBar() {
     removeWorkflow(activeWorkflowId)
   }
 
-  // /**
-  //  * Handle opening marketplace modal or showing published status
-  //  */
-  // const handlePublishWorkflow = async () => {
-  //   if (!activeWorkflowId) return
+  /**
+   * Handle opening marketplace modal or showing published status
+   */
+  const handlePublishWorkflow = async () => {
+    if (!activeWorkflowId) return
 
-  //   // If already published, show marketplace modal with info instead of notifications
-  //   const isPublished = isPublishedToMarketplace()
-  //   if (isPublished) {
-  //     setIsMarketplaceModalOpen(true)
-  //     return
-  //   }
+    // If already published, show marketplace modal with info instead of notifications
+    const isPublished = isPublishedToMarketplace()
+    if (isPublished) {
+      setIsMarketplaceModalOpen(true)
+      return
+    }
 
-  //   // If not published, open the modal to start the publishing process
-  //   setIsMarketplaceModalOpen(true)
-  // }
+    // If not published, open the modal to start the publishing process
+    setIsMarketplaceModalOpen(true)
+  }
 
   /**
    * Handle multiple workflow runs
@@ -452,26 +593,27 @@ export function ControlBar() {
    * Render workflow name section (editable/non-editable)
    */
   const renderWorkflowName = () => (
-    <div className='flex flex-col gap-[2px]'>
+    <div className="flex flex-col gap-[2px]">
       {isEditing ? (
         <input
-          type='text'
+          type="text"
           value={editedName}
           onChange={(e) => setEditedName(e.target.value)}
           onBlur={handleNameSubmit}
           onKeyDown={handleNameKeyDown}
-          className='w-[200px] border-none bg-transparent p-0 font-medium text-sm outline-none'
+          autoFocus
+          className="text-sm font-medium bg-transparent border-none outline-none p-0 w-[200px]"
         />
       ) : (
         <h2
-          className='w-fit cursor-pointer font-medium text-sm hover:text-muted-foreground'
+          className="text-sm font-medium hover:text-muted-foreground w-fit cursor-pointer"
           onClick={handleNameClick}
         >
           {activeWorkflowId ? workflows[activeWorkflowId]?.name : 'Workflow'}
         </h2>
       )}
       {mounted && (
-        <p className='text-muted-foreground text-xs'>
+        <p className="text-xs text-muted-foreground">
           Saved{' '}
           {formatDistanceToNow(lastSaved || Date.now(), {
             addSuffix: true,
@@ -490,13 +632,13 @@ export function ControlBar() {
         <TooltipTrigger asChild>
           <AlertDialogTrigger asChild>
             <Button
-              variant='ghost'
-              size='icon'
+              variant="ghost"
+              size="icon"
               disabled={Object.keys(workflows).length <= 1}
-              className='hover:text-red-600'
+              className="hover:text-red-600"
             >
-              <Trash2 className='h-5 w-5' />
-              <span className='sr-only'>Delete Workflow</span>
+              <Trash2 className="h-5 w-5" />
+              <span className="sr-only">Delete Workflow</span>
             </Button>
           </AlertDialogTrigger>
         </TooltipTrigger>
@@ -514,7 +656,7 @@ export function ControlBar() {
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDeleteWorkflow}
-            className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             Delete
           </AlertDialogAction>
@@ -542,9 +684,9 @@ export function ControlBar() {
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <Button variant='ghost' size='icon'>
+            <Button variant="ghost" size="icon">
               <History />
-              <span className='sr-only'>Version History</span>
+              <span className="sr-only">Version History</span>
             </Button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
@@ -552,13 +694,13 @@ export function ControlBar() {
       </Tooltip>
 
       {history.past.length === 0 && history.future.length === 0 ? (
-        <DropdownMenuContent align='end' className='w-40'>
-          <DropdownMenuItem className='text-muted-foreground text-sm'>
+        <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem className="text-sm text-muted-foreground">
             No history available
           </DropdownMenuItem>
         </DropdownMenuContent>
       ) : (
-        <DropdownMenuContent align='end' className='max-h-[300px] w-60 overflow-y-auto'>
+        <DropdownMenuContent align="end" className="w-60 max-h-[300px] overflow-y-auto">
           <>
             {[...history.future].reverse().map((entry, index) => (
               <HistoryDropdownItem
@@ -598,6 +740,7 @@ export function ControlBar() {
    * Render notifications dropdown
    */
   const renderNotificationsDropdown = () => {
+    // Ensure we're only showing notifications for the current workflow
     const currentWorkflowNotifications = activeWorkflowId
       ? notifications.filter((n) => n.workflowId === activeWorkflowId)
       : []
@@ -607,9 +750,9 @@ export function ControlBar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
-              <Button variant='ghost' size='icon'>
+              <Button variant="ghost" size="icon">
                 <Bell />
-                <span className='sr-only'>Notifications</span>
+                <span className="sr-only">Notifications</span>
               </Button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
@@ -617,13 +760,13 @@ export function ControlBar() {
         </Tooltip>
 
         {currentWorkflowNotifications.length === 0 ? (
-          <DropdownMenuContent align='end' className='w-40'>
-            <DropdownMenuItem className='text-muted-foreground text-sm'>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem className="text-sm text-muted-foreground">
               No new notifications
             </DropdownMenuItem>
           </DropdownMenuContent>
         ) : (
-          <DropdownMenuContent align='end' className='max-h-[300px] w-60 overflow-y-auto'>
+          <DropdownMenuContent align="end" className="w-60 max-h-[300px] overflow-y-auto">
             {[...currentWorkflowNotifications]
               .sort((a, b) => b.timestamp - a.timestamp)
               .map((notification) => (
@@ -685,13 +828,13 @@ export function ControlBar() {
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant='ghost'
-          size='icon'
+          variant="ghost"
+          size="icon"
           onClick={handleDuplicateWorkflow}
-          className='hover:text-primary'
+          className="hover:text-primary"
         >
-          <Copy className='h-5 w-5' />
-          <span className='sr-only'>Duplicate Workflow</span>
+          <Copy className="h-5 w-5" />
+          <span className="sr-only">Duplicate Workflow</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent>Duplicate Workflow</TooltipContent>
@@ -702,28 +845,29 @@ export function ControlBar() {
    * Render debug mode controls
    */
   const renderDebugControls = () => {
+    // Display debug controls only when in debug mode and actively debugging
     if (!isDebugModeEnabled || !isDebugging) return null
 
     const pendingCount = pendingBlocks.length
 
     return (
-      <div className='ml-2 flex items-center gap-2 rounded-md bg-muted px-2 py-1'>
-        <div className='flex flex-col'>
-          <span className='text-muted-foreground text-xs'>Debug Mode</span>
-          <span className='font-medium text-xs'>
+      <div className="flex items-center gap-2 ml-2 bg-muted rounded-md px-2 py-1">
+        <div className="flex flex-col">
+          <span className="text-xs text-muted-foreground">Debug Mode</span>
+          <span className="text-xs font-medium">
             {pendingCount} block{pendingCount !== 1 ? 's' : ''} pending
           </span>
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant='outline'
-              size='icon'
+              variant="outline"
+              size="icon"
               onClick={handleStepDebug}
-              className='h-8 w-8 bg-background'
+              className="h-8 w-8 bg-background"
               disabled={pendingCount === 0}
             >
-              <StepForward className='h-4 w-4' />
+              <StepForward className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Step Forward</TooltipContent>
@@ -731,13 +875,13 @@ export function ControlBar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant='outline'
-              size='icon'
+              variant="outline"
+              size="icon"
               onClick={handleResumeDebug}
-              className='h-8 w-8 bg-background'
+              className="h-8 w-8 bg-background"
               disabled={pendingCount === 0}
             >
-              <SkipForward className='h-4 w-4' />
+              <SkipForward className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Resume Until End</TooltipContent>
@@ -745,12 +889,12 @@ export function ControlBar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant='outline'
-              size='icon'
+              variant="outline"
+              size="icon"
               onClick={handleCancelDebug}
-              className='h-8 w-8 bg-background'
+              className="h-8 w-8 bg-background"
             >
-              <X className='h-4 w-4' />
+              <X className="h-4 w-4" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Cancel Debugging</TooltipContent>
@@ -764,7 +908,9 @@ export function ControlBar() {
    */
   const renderDebugModeToggle = () => {
     const handleToggleDebugMode = () => {
+      // If turning off debug mode, make sure to clean up any debug state
       if (isDebugModeEnabled) {
+        // Only clean up if we're not actively executing
         if (!isExecuting) {
           useExecutionStore.getState().setIsDebugging(false)
           useExecutionStore.getState().setPendingBlocks([])
@@ -777,14 +923,14 @@ export function ControlBar() {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant='ghost'
-            size='icon'
+            variant="ghost"
+            size="icon"
             onClick={handleToggleDebugMode}
             disabled={isExecuting || isMultiRunning}
             className={cn(isDebugModeEnabled && 'text-amber-500')}
           >
-            <Bug className='h-5 w-5' />
-            <span className='sr-only'>Toggle Debug Mode</span>
+            <Bug className="h-5 w-5" />
+            <span className="sr-only">Toggle Debug Mode</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -796,6 +942,7 @@ export function ControlBar() {
 
   // Helper function to open subscription settings
   const openSubscriptionSettings = () => {
+    // Dispatch custom event to open settings modal with subscription tab
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('open-settings', {
@@ -809,11 +956,11 @@ export function ControlBar() {
    * Render run workflow button with multi-run dropdown and cancel button
    */
   const renderRunButton = () => (
-    <div className='flex items-center'>
+    <div className="flex items-center">
       {showRunProgress && isMultiRunning && (
-        <div className='mr-3 w-28'>
-          <Progress value={(completedRuns / runCount) * 100} className='h-2 bg-muted' />
-          <p className='mt-1 text-center text-muted-foreground text-xs'>
+        <div className="mr-3 w-28">
+          <Progress value={(completedRuns / runCount) * 100} className="h-2 bg-muted" />
+          <p className="text-xs text-muted-foreground mt-1 text-center">
             {completedRuns}/{runCount} runs
           </p>
         </div>
@@ -821,16 +968,16 @@ export function ControlBar() {
 
       {/* Show how many blocks have been executed in debug mode if debugging */}
       {isDebugging && (
-        <div className='mr-3 min-w-28 rounded bg-muted px-1 py-0.5'>
-          <div className='text-center text-muted-foreground text-xs'>
-            <span className='font-medium'>Debugging Mode</span>
+        <div className="mr-3 min-w-28 px-1 py-0.5 bg-muted rounded">
+          <div className="text-xs text-muted-foreground text-center">
+            <span className="font-medium">Debugging Mode</span>
           </div>
         </div>
       )}
 
       {renderDebugControls()}
 
-      <div className='ml-1 flex'>
+      <div className="flex ml-1">
         {/* Main Run/Debug Button */}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -845,8 +992,8 @@ export function ControlBar() {
                   'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
                 'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
                 isDebugModeEnabled || isMultiRunning
-                  ? 'h-10 rounded px-4 py-2'
-                  : 'h-10 rounded-r-none border-r border-r-[#6420cc] px-4 py-2'
+                  ? 'rounded py-2 px-4 h-10'
+                  : 'rounded-r-none border-r border-r-[#6420cc] py-2 px-4 h-10'
               )}
               onClick={
                 usageExceeded
@@ -858,9 +1005,9 @@ export function ControlBar() {
               disabled={isExecuting || isMultiRunning || isCancelling}
             >
               {isCancelling ? (
-                <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
               ) : isDebugModeEnabled ? (
-                <Bug className={cn('mr-1.5 h-3.5 w-3.5', 'fill-current stroke-current')} />
+                <Bug className={cn('h-3.5 w-3.5 mr-1.5', 'fill-current stroke-current')} />
               ) : (
                 <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
               )}
@@ -881,9 +1028,9 @@ export function ControlBar() {
           </TooltipTrigger>
           <TooltipContent command={getKeyboardShortcutText('Enter', true)}>
             {usageExceeded ? (
-              <div className='text-center'>
-                <p className='font-medium text-destructive'>Usage Limit Exceeded</p>
-                <p className='text-xs'>
+              <div className="text-center">
+                <p className="font-medium text-destructive">Usage Limit Exceeded</p>
+                <p className="text-xs">
                   You've used {usageData?.currentUsage.toFixed(2)}$ of {usageData?.limit}$. Upgrade
                   your plan to continue.
                 </p>
@@ -914,14 +1061,14 @@ export function ControlBar() {
                     !isCancelling &&
                     'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
                   'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
-                  'h-10 rounded-l-none'
+                  'rounded-l-none h-10'
                 )}
                 disabled={isExecuting || isMultiRunning || isCancelling}
               >
-                <ChevronDown className='h-4 w-4' />
+                <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align='end' className='w-20'>
+            <DropdownMenuContent align="end" className="w-20">
               {RUN_COUNT_OPTIONS.map((count) => (
                 <DropdownMenuItem
                   key={count}
@@ -940,18 +1087,18 @@ export function ControlBar() {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant='outline'
-                size='icon'
+                variant="outline"
+                size="icon"
                 onClick={() => {
                   logger.info('Cancel button clicked - setting ref and state')
                   cancelFlagRef.current = true
                   setIsCancelling(true)
                 }}
                 disabled={isCancelling}
-                className='ml-2 h-10 w-10'
+                className="ml-2 h-10 w-10"
               >
-                <X className='h-4 w-4' />
-                <span className='sr-only'>Cancel Runs</span>
+                <X className="h-4 w-4" />
+                <span className="sr-only">Cancel Runs</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent>{runCount > 1 ? 'Cancel Runs' : 'Cancel Run'}</TooltipContent>
@@ -962,15 +1109,15 @@ export function ControlBar() {
   )
 
   return (
-    <div className='flex h-16 w-full items-center justify-between border-b bg-background'>
+    <div className="flex h-16 w-full items-center justify-between bg-background border-b">
       {/* Left Section - Workflow Info */}
-      <div className='pl-4'>{renderWorkflowName()}</div>
+      <div className="pl-4">{renderWorkflowName()}</div>
 
       {/* Middle Section - Reserved for future use */}
-      <div className='flex-1' />
+      <div className="flex-1" />
 
       {/* Right Section - Actions */}
-      <div className='flex items-center gap-1 pr-4'>
+      <div className="flex items-center gap-1 pr-4">
         {renderDeleteButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}

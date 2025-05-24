@@ -1,8 +1,8 @@
 #!/usr/bin/env ts-node
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
 import { glob } from 'glob'
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 console.log('Starting documentation generator...')
 
@@ -21,9 +21,15 @@ if (!fs.existsSync(DOCS_OUTPUT_PATH)) {
   fs.mkdirSync(DOCS_OUTPUT_PATH, { recursive: true })
 }
 
+// Type for block input config
 interface InputConfig {
   type: string
   required: boolean
+}
+
+// Type for block output config
+interface OutputConfig {
+  type: string | Record<string, any>
 }
 
 // Basic interface for BlockConfig to avoid import issues
@@ -116,7 +122,7 @@ function extractIcons(): Record<string, string> {
 function extractBlockConfig(fileContent: string): BlockConfig | null {
   try {
     // Match the block name and type from imports and export statement
-    const _typeMatch = fileContent.match(/type\s+(\w+)Response\s*=/)
+    const typeMatch = fileContent.match(/type\s+(\w+)Response\s*=/)
     const exportMatch = fileContent.match(/export\s+const\s+(\w+)Block\s*:/)
 
     if (!exportMatch) {
@@ -283,7 +289,7 @@ function extractInputs(content: string): Record<string, any> {
     const propName = propMatch[1]
     const typeMatch = propText.match(/type\s*:\s*['"]?([^'"}, ]+)['"]?/s)
     const requiredMatch = propText.match(/required\s*:\s*(true|false)/s)
-    const _descriptionMatch = propText.match(/description\s*:\s*['"]([^'"]+)['"]/s)
+    const descriptionMatch = propText.match(/description\s*:\s*['"]([^'"]+)['"]/s)
 
     inputs[propName] = {
       type: typeMatch ? typeMatch[1] : 'any',
@@ -438,7 +444,7 @@ function extractToolsAccess(content: string): string[] {
 function extractToolInfo(
   toolName: string,
   fileContent: string,
-  filePath = ''
+  filePath: string = ''
 ): {
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
@@ -446,7 +452,10 @@ function extractToolInfo(
 } | null {
   try {
     // Extract tool config section - Simplified regex to match any *Tool export pattern
-    const toolConfigRegex = /export const \w+Tool\s*[=<][^{]*{[\s\S]*?params\s*:\s*{([\s\S]*?)}/im
+    const toolConfigRegex = new RegExp(
+      `export const \\w+Tool\\s*[=<][^{]*{[\\s\\S]*?params\\s*:\\s*{([\\s\\S]*?)}`,
+      'im'
+    )
     const toolConfigMatch = fileContent.match(toolConfigRegex)
 
     // Extract description
@@ -631,34 +640,9 @@ function parseOutputStructure(
 
   while ((fieldMatch = fieldRegex.exec(outputContent)) !== null) {
     const fieldName = fieldMatch[1].trim()
-    const _fieldType = fieldMatch[2].trim().replace(/["'[\]]/g, '')
+    const fieldType = fieldMatch[2].trim().replace(/['"\[\]]/g, '')
 
     // Determine a good description based on field name
-    let description = 'Dynamic output field'
-
-    if (fieldName === 'results' || fieldName === 'memories' || fieldName === 'searchResults') {
-      description = `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} from the operation`
-    } else if (fieldName === 'ids') {
-      description = 'IDs of created or retrieved resources'
-    } else if (fieldName === 'answer') {
-      description = 'Generated answer text'
-    } else if (fieldName === 'citations') {
-      description = 'References used to generate the answer'
-    }
-
-    outputs[fieldName] = description
-  }
-
-  const shorthandRegex = /(?:^\s*|[,{]\s*)([A-Za-z_][\w]*)\s*(?=,|})/g
-  let shorthandMatch
-
-  while ((shorthandMatch = shorthandRegex.exec(outputContent)) !== null) {
-    const fieldName = shorthandMatch[1].trim()
-
-    // Ignore fields already captured or those that are part of key/value pairs
-    if (outputs[fieldName]) continue
-
-    // Provide the same heuristic descriptions as above
     let description = 'Dynamic output field'
 
     if (fieldName === 'results' || fieldName === 'memories' || fieldName === 'searchResults') {
@@ -863,7 +847,10 @@ function mergeWithManualContent(
         // Insert after the matched content
         const insertPosition = match.index + match[0].length
         console.log(`Inserting ${sectionName} content after position ${insertPosition}`)
-        mergedContent = `${mergedContent.slice(0, insertPosition)}\n\n{/* MANUAL-CONTENT-START:${sectionName} */}\n${content}\n{/* MANUAL-CONTENT-END */}\n${mergedContent.slice(insertPosition)}`
+        mergedContent =
+          mergedContent.slice(0, insertPosition) +
+          `\n\n{/* MANUAL-CONTENT-START:${sectionName} */}\n${content}\n{/* MANUAL-CONTENT-END */}\n` +
+          mergedContent.slice(insertPosition)
       } else {
         console.log(
           `Could not find insertion point for ${sectionName}, regex pattern: ${insertionPoint.regex}`
@@ -897,9 +884,9 @@ async function generateBlockDoc(blockPath: string, icons: Record<string, string>
       return
     }
 
-    // Skip blocks with category 'blocks' (except memory type), and skip specific blocks
+    // Skip blocks with category 'blocks', only process blocks with category 'tools', and skip specific blocks
     if (
-      (blockConfig.category === 'blocks' && blockConfig.type !== 'memory') ||
+      blockConfig.category === 'blocks' ||
       blockConfig.type === 'evaluator' ||
       blockConfig.type === 'number'
     ) {
@@ -1020,7 +1007,7 @@ async function generateMarkdownForBlock(
         const id = subBlock.id || ''
         const title = subBlock.title || ''
         const type = subBlock.type || 'string'
-        const required = subBlock.condition ? 'No' : 'Yes'
+        const required = !!subBlock.condition ? 'No' : 'Yes'
 
         let description = title
         if (subBlock.placeholder) {
@@ -1075,7 +1062,7 @@ async function generateMarkdownForBlock(
 
   let optionsSection = ''
   if (dropdownBlocks.length > 0) {
-    optionsSection = '## Available Options\n\n'
+    optionsSection = `## Available Options\n\n`
 
     dropdownBlocks.forEach((sb) => {
       optionsSection += `### ${sb.title || sb.id} (${sb.id ? `\`${sb.id}\`` : ''})\n\n`
@@ -1110,11 +1097,11 @@ async function generateMarkdownForBlock(
   let outputsSection = ''
 
   if (outputs && Object.keys(outputs).length > 0) {
-    outputsSection = '## Outputs\n\n'
+    outputsSection = `## Outputs\n\n`
 
     // Create the base outputs table
-    outputsSection += '| Output | Type | Description |\n'
-    outputsSection += '| ------ | ---- | ----------- |\n'
+    outputsSection += `| Output | Type | Description |\n`
+    outputsSection += `| ------ | ---- | ----------- |\n`
 
     // Process each output field
     for (const outputKey in outputs) {
@@ -1184,7 +1171,7 @@ async function generateMarkdownForBlock(
   // Create tools section with more details
   let toolsSection = ''
   if (tools.access?.length) {
-    toolsSection = '## Tools\n\n'
+    toolsSection = `## Tools\n\n`
 
     // For each tool, try to find its definition and extract parameter information
     for (const tool of tools.access) {
@@ -1199,9 +1186,9 @@ async function generateMarkdownForBlock(
         }
 
         // Add Input Parameters section for the tool
-        toolsSection += '#### Input\n\n'
-        toolsSection += '| Parameter | Type | Required | Description |\n'
-        toolsSection += '| --------- | ---- | -------- | ----------- |\n'
+        toolsSection += `#### Input\n\n`
+        toolsSection += `| Parameter | Type | Required | Description |\n`
+        toolsSection += `| --------- | ---- | -------- | ----------- |\n`
 
         if (toolInfo.params.length > 0) {
           // Use dynamically extracted parameters
@@ -1225,7 +1212,7 @@ async function generateMarkdownForBlock(
         }
 
         // Add Output Parameters section for the tool
-        toolsSection += '\n#### Output\n\n'
+        toolsSection += `\n#### Output\n\n`
 
         if (Object.keys(toolInfo.outputs).length > 0) {
           // Use dynamically extracted outputs in table format
@@ -1235,7 +1222,7 @@ async function generateMarkdownForBlock(
         }
       }
 
-      toolsSection += '\n'
+      toolsSection += `\n`
     }
   }
 
@@ -1268,7 +1255,10 @@ ${toolsSection}
 
 ${
   subBlocks.length > 0
-    ? `### Input\n\n| Parameter | Type | Required | Description | \n| --------- | ---- | -------- | ----------- | \n${inputsTable}`
+    ? '### Input\n\n' +
+      '| Parameter | Type | Required | Description | \n' +
+      '| --------- | ---- | -------- | ----------- | \n' +
+      inputsTable
     : 'No configuration parameters required.'
 }
 
@@ -1352,8 +1342,8 @@ generateAllBlockDocs()
 
 function generateMarkdownTable(outputs: Record<string, string>): string {
   let table = ''
-  table += '| Parameter | Type |\n'
-  table += '| --------- | ---- |\n'
+  table += `| Parameter | Type |\n`
+  table += `| --------- | ---- |\n`
 
   for (const [key, value] of Object.entries(outputs)) {
     // Try to determine a reasonable type from the value description

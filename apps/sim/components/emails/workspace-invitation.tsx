@@ -1,3 +1,4 @@
+import * as React from 'react'
 import {
   Body,
   Column,
@@ -56,8 +57,8 @@ export const WorkspaceInvitationEmail = ({
               <Column style={{ textAlign: 'center' }}>
                 <Img
                   src={`${baseUrl}/static/sim.png`}
-                  width='114'
-                  alt='Sim Studio'
+                  width="114"
+                  alt="Sim Studio"
                   style={{
                     margin: '0 auto',
                   }}

@@ -1,13 +1,12 @@
 import OpenAI from 'openai'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useOllamaStore } from '@/stores/ollama/store'
 import { executeTool } from '@/tools'
-import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
-import type { ModelsObject } from './types'
+import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { ModelsObject } from './types'
 
 const logger = createLogger('OllamaProvider')
-const OLLAMA_HOST = env.OLLAMA_URL || 'http://localhost:11434'
+const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434'
 
 export const ollamaProvider: ProviderConfig = {
   id: 'ollama',
@@ -48,7 +47,7 @@ export const ollamaProvider: ProviderConfig = {
     })
 
     const startTime = Date.now()
-    const _timeSegments: TimeSegment[] = []
+    const timeSegments: TimeSegment[] = []
 
     try {
       // Prepare messages array
@@ -113,7 +112,7 @@ export const ollamaProvider: ProviderConfig = {
           // Always use 'auto' for Ollama, regardless of the tool_choice setting
           payload.tool_choice = 'auto'
 
-          logger.info('Ollama request configuration:', {
+          logger.info(`Ollama request configuration:`, {
             toolCount: filteredTools.length,
             toolChoice: 'auto', // Ollama always uses auto
             model: request.model,
@@ -122,7 +121,7 @@ export const ollamaProvider: ProviderConfig = {
       }
 
       // Track the original tool_choice for forced tool tracking
-      const _originalToolChoice = payload.tool_choice
+      const originalToolChoice = payload.tool_choice
 
       let currentResponse = await ollama.chat.completions.create(payload)
       const firstResponseTime = Date.now() - startTime
@@ -135,14 +134,14 @@ export const ollamaProvider: ProviderConfig = {
         content = content.trim()
       }
 
-      const tokens = {
+      let tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
-      const toolCalls = []
-      const toolResults = []
-      const currentMessages = [...allMessages]
+      let toolCalls = []
+      let toolResults = []
+      let currentMessages = [...allMessages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 

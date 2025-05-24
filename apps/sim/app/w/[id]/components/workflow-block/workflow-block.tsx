@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Code, Info, RectangleHorizontal, RectangleVertical } from 'lucide-react'
-import { Handle, type NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
+import { Handle, NodeProps, Position, useUpdateNodeInternals } from 'reactflow'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, formatDateTime } from '@/lib/utils'
-import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { ActionBar } from './components/action-bar/action-bar'
 import { ConnectionBlocks } from './components/connection-blocks/connection-blocks'
 import { SubBlock } from './components/sub-block/sub-block'
@@ -206,7 +206,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     updateNodeInternals(id)
   }, [id, horizontalHandles, updateNodeInternals])
 
-  const debounce = (func: (...args: any[]) => void, wait: number) => {
+  const debounce = (func: Function, wait: number) => {
     let timeout: NodeJS.Timeout
     return (...args: any[]) => {
       clearTimeout(timeout)
@@ -371,22 +371,22 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const shouldShowScheduleBadge = isStarterBlock && !isLoadingScheduleInfo && scheduleInfo !== null
 
   return (
-    <div className='group relative'>
+    <div className="relative group">
       <Card
         ref={blockRef}
         className={cn(
-          'relative cursor-default select-none shadow-md',
-          'transition-block-bg transition-ring',
+          'shadow-md select-none relative cursor-default',
+          'transition-ring transition-block-bg',
           isWide ? 'w-[480px]' : 'w-[320px]',
           !isEnabled && 'shadow-sm',
-          isActive && 'animate-pulse-ring ring-2 ring-blue-500',
+          isActive && 'ring-2 animate-pulse-ring ring-blue-500',
           isPending && 'ring-2 ring-amber-500',
           'z-[20]'
         )}
       >
         {/* Show debug indicator for pending blocks */}
         {isPending && (
-          <div className='-top-6 -translate-x-1/2 absolute left-1/2 z-10 transform rounded-t-md bg-amber-500 px-2 py-0.5 text-white text-xs'>
+          <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-amber-500 text-white text-xs px-2 py-0.5 rounded-t-md z-10">
             Next Step
           </div>
         )}
@@ -397,9 +397,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         {/* Input Handle - Don't show for starter blocks */}
         {type !== 'starter' && (
           <Handle
-            type='target'
+            type="target"
             position={horizontalHandles ? Position.Left : Position.Top}
-            id='target'
+            id="target"
             className={cn(
               horizontalHandles ? '!w-[7px] !h-5' : '!w-5 !h-[7px]',
               '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
@@ -418,7 +418,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 : { left: '50%', transform: 'translateX(-50%)' }),
             }}
             data-nodeid={id}
-            data-handleid='target'
+            data-handleid="target"
             isConnectableStart={false}
             isConnectableEnd={true}
             isValidConnection={(connection) => true}
@@ -426,28 +426,29 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         {/* Block Header */}
-        <div className='workflow-drag-handle flex cursor-grab items-center justify-between border-b p-3 [&:active]:cursor-grabbing'>
-          <div className='flex items-center gap-3'>
+        <div className="flex items-center justify-between p-3 border-b workflow-drag-handle cursor-grab [&:active]:cursor-grabbing">
+          <div className="flex items-center gap-3">
             <div
-              className='flex h-7 w-7 items-center justify-center rounded'
+              className="flex items-center justify-center w-7 h-7 rounded"
               style={{ backgroundColor: isEnabled ? config.bgColor : 'gray' }}
             >
-              <config.icon className='h-5 w-5 text-white' />
+              <config.icon className="w-5 h-5 text-white" />
             </div>
             {isEditing ? (
               <input
-                type='text'
+                type="text"
                 value={editedName}
                 onChange={(e) => setEditedName(e.target.value.slice(0, 18))}
                 onBlur={handleNameSubmit}
                 onKeyDown={handleNameKeyDown}
-                className='w-[180px] border-none bg-transparent p-0 font-medium text-md outline-none'
+                autoFocus
+                className="font-medium text-md bg-transparent border-none outline-none p-0 w-[180px]"
                 maxLength={18}
               />
             ) : (
               <span
                 className={cn(
-                  'cursor-text truncate font-medium text-md hover:text-muted-foreground',
+                  'font-medium text-md hover:text-muted-foreground cursor-text truncate',
                   !isEnabled ? (isWide ? 'max-w-[200px]' : 'max-w-[100px]') : 'max-w-[180px]'
                 )}
                 onClick={handleNameClick}
@@ -457,9 +458,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               </span>
             )}
           </div>
-          <div className='flex items-center gap-2'>
+          <div className="flex items-center gap-2">
             {!isEnabled && (
-              <Badge variant='secondary' className='bg-gray-100 text-gray-500 hover:bg-gray-100'>
+              <Badge variant="secondary" className="bg-gray-100 text-gray-500 hover:bg-gray-100">
                 Disabled
               </Badge>
             )}
@@ -468,12 +469,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
-                    variant='outline'
+                    variant="outline"
                     className={cn(
                       'flex items-center gap-1 font-normal text-xs',
                       scheduleInfo?.isDisabled
-                        ? 'cursor-pointer border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400'
-                        : 'border-green-200 bg-green-50 text-green-600 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
+                        ? 'text-amber-600 bg-amber-50 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 cursor-pointer'
+                        : 'text-green-600 bg-green-50 border-green-200 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
                     )}
                     onClick={
                       scheduleInfo?.isDisabled && scheduleInfo?.id
@@ -481,48 +482,48 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         : undefined
                     }
                   >
-                    <div className='relative mr-0.5 flex items-center justify-center'>
+                    <div className="relative flex items-center justify-center mr-0.5">
                       <div
                         className={cn(
                           'absolute h-3 w-3 rounded-full',
                           scheduleInfo?.isDisabled ? 'bg-amber-500/20' : 'bg-green-500/20'
                         )}
-                      />
+                      ></div>
                       <div
                         className={cn(
                           'relative h-2 w-2 rounded-full',
                           scheduleInfo?.isDisabled ? 'bg-amber-500' : 'bg-green-500'
                         )}
-                      />
+                      ></div>
                     </div>
                     {scheduleInfo?.isDisabled ? 'Disabled' : 'Scheduled'}
                   </Badge>
                 </TooltipTrigger>
-                <TooltipContent side='top' className='max-w-[300px] p-4'>
+                <TooltipContent side="top" className="max-w-[300px] p-4">
                   {scheduleInfo ? (
                     <>
-                      <p className='text-sm'>{scheduleInfo.scheduleTiming}</p>
+                      <p className="text-sm">{scheduleInfo.scheduleTiming}</p>
                       {scheduleInfo.isDisabled && (
-                        <p className='mt-1 font-medium text-amber-600 text-sm'>
+                        <p className="text-sm text-amber-600 font-medium mt-1">
                           This schedule is currently disabled due to consecutive failures. Click the
                           badge to reactivate it.
                         </p>
                       )}
                       {scheduleInfo.nextRunAt && !scheduleInfo.isDisabled && (
-                        <p className='mt-1 text-muted-foreground text-xs'>
+                        <p className="text-xs text-muted-foreground mt-1">
                           Next run:{' '}
                           {formatDateTime(new Date(scheduleInfo.nextRunAt), scheduleInfo.timezone)}
                         </p>
                       )}
                       {scheduleInfo.lastRanAt && (
-                        <p className='text-muted-foreground text-xs'>
+                        <p className="text-xs text-muted-foreground">
                           Last run:{' '}
                           {formatDateTime(new Date(scheduleInfo.lastRanAt), scheduleInfo.timezone)}
                         </p>
                       )}
                     </>
                   ) : (
-                    <p className='text-muted-foreground text-sm'>
+                    <p className="text-sm text-muted-foreground">
                       This workflow is running on a schedule.
                     </p>
                   )}
@@ -534,26 +535,26 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
-                    variant='outline'
-                    className='flex items-center gap-1 border-green-200 bg-green-50 font-normal text-green-600 text-xs hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400'
+                    variant="outline"
+                    className="flex items-center gap-1 text-green-600 bg-green-50 border-green-200 hover:bg-green-50 dark:bg-green-900/20 dark:text-green-400 font-normal text-xs"
                   >
-                    <div className='relative mr-0.5 flex items-center justify-center'>
-                      <div className='absolute h-3 w-3 rounded-full bg-green-500/20' />
-                      <div className='relative h-2 w-2 rounded-full bg-green-500' />
+                    <div className="relative flex items-center justify-center mr-0.5">
+                      <div className="absolute h-3 w-3 rounded-full bg-green-500/20"></div>
+                      <div className="relative h-2 w-2 rounded-full bg-green-500"></div>
                     </div>
                     Webhook
                   </Badge>
                 </TooltipTrigger>
-                <TooltipContent side='top' className='max-w-[300px] p-4'>
+                <TooltipContent side="top" className="max-w-[300px] p-4">
                   {webhookInfo ? (
                     <>
-                      <p className='text-sm'>{getProviderName(webhookInfo.provider)} Webhook</p>
-                      <p className='mt-1 text-muted-foreground text-xs'>
+                      <p className="text-sm">{getProviderName(webhookInfo.provider)} Webhook</p>
+                      <p className="text-xs text-muted-foreground mt-1">
                         Path: {webhookInfo.webhookPath}
                       </p>
                     </>
                   ) : (
-                    <p className='text-muted-foreground text-sm'>
+                    <p className="text-sm text-muted-foreground">
                       This workflow is triggered by a webhook.
                     </p>
                   )}
@@ -564,15 +565,15 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant='ghost'
-                    size='sm'
+                    variant="ghost"
+                    size="sm"
                     onClick={() => toggleBlockAdvancedMode(id)}
-                    className={cn('h-7 p-1 text-gray-500', blockAdvancedMode && 'text-[#701FFC]')}
+                    className={cn('text-gray-500 p-1 h-7', blockAdvancedMode && 'text-[#701FFC]')}
                   >
-                    <Code className='h-5 w-5' />
+                    <Code className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side='top'>
+                <TooltipContent side="top">
                   {blockAdvancedMode ? 'Switch to Basic Mode' : 'Switch to Advanced Mode'}
                 </TooltipContent>
               </Tooltip>
@@ -581,55 +582,55 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    variant='ghost'
-                    size='sm'
-                    className='h-7 p-1 text-gray-500'
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 p-1 h-7"
                     onClick={(e) => {
                       e.stopPropagation()
                       window.open(config.docsLink, '_target', 'noopener,noreferrer')
                     }}
                   >
-                    <BookOpen className='h-5 w-5' />
+                    <BookOpen className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side='top'>See Docs</TooltipContent>
+                <TooltipContent side="top">See Docs</TooltipContent>
               </Tooltip>
             ) : (
               config.longDescription && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button variant='ghost' size='sm' className='h-7 p-1 text-gray-500'>
-                      <Info className='h-5 w-5' />
+                    <Button variant="ghost" size="sm" className="text-gray-500 p-1 h-7">
+                      <Info className="h-5 w-5" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side='top' className='max-w-[300px] p-4'>
-                    <div className='space-y-3'>
+                  <TooltipContent side="top" className="max-w-[300px] p-4">
+                    <div className="space-y-3">
                       <div>
-                        <p className='mb-1 font-medium text-sm'>Description</p>
-                        <p className='text-muted-foreground text-sm'>{config.longDescription}</p>
+                        <p className="text-sm font-medium mb-1">Description</p>
+                        <p className="text-sm text-muted-foreground">{config.longDescription}</p>
                       </div>
                       {config.outputs && (
                         <div>
-                          <p className='mb-1 font-medium text-sm'>Output</p>
-                          <div className='text-sm'>
+                          <p className="text-sm font-medium mb-1">Output</p>
+                          <div className="text-sm">
                             {Object.entries(config.outputs).map(([key, value]) => (
-                              <div key={key} className='mb-1'>
-                                <span className='text-muted-foreground'>{key}</span>{' '}
+                              <div key={key} className="mb-1">
+                                <span className="text-muted-foreground">{key}</span>{' '}
                                 {typeof value.type === 'object' ? (
-                                  <div className='mt-1 pl-3'>
+                                  <div className="pl-3 mt-1">
                                     {Object.entries(value.type).map(([typeKey, typeValue]) => (
-                                      <div key={typeKey} className='flex items-start'>
-                                        <span className='font-medium text-blue-500'>
+                                      <div key={typeKey} className="flex items-start">
+                                        <span className="text-blue-500 font-medium">
                                           {typeKey}:
                                         </span>
-                                        <span className='ml-1 text-green-500'>
+                                        <span className="text-green-500 ml-1">
                                           {typeValue as string}
                                         </span>
                                       </div>
                                     ))}
                                   </div>
                                 ) : (
-                                  <span className='text-green-500'>{value.type as string}</span>
+                                  <span className="text-green-500">{value.type as string}</span>
                                 )}
                               </div>
                             ))}
@@ -644,28 +645,28 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant='ghost'
-                  size='sm'
+                  variant="ghost"
+                  size="sm"
                   onClick={() => toggleBlockWide(id)}
-                  className='h-7 p-1 text-gray-500'
+                  className="text-gray-500 p-1 h-7"
                 >
                   {isWide ? (
-                    <RectangleHorizontal className='h-5 w-5' />
+                    <RectangleHorizontal className="h-5 w-5" />
                   ) : (
-                    <RectangleVertical className='h-5 w-5' />
+                    <RectangleVertical className="h-5 w-5" />
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side='top'>{isWide ? 'Narrow Block' : 'Expand Block'}</TooltipContent>
+              <TooltipContent side="top">{isWide ? 'Narrow Block' : 'Expand Block'}</TooltipContent>
             </Tooltip>
           </div>
         </div>
 
         {/* Block Content */}
-        <div ref={contentRef} className='cursor-pointer space-y-4 px-4 pt-3 pb-4'>
+        <div ref={contentRef} className="px-4 pt-3 pb-4 space-y-4 cursor-pointer">
           {subBlockRows.length > 0
             ? subBlockRows.map((row, rowIndex) => (
-                <div key={`row-${rowIndex}`} className='flex gap-4'>
+                <div key={`row-${rowIndex}`} className="flex gap-4">
                   {row.map((subBlock, blockIndex) => (
                     <div
                       key={`${id}-${rowIndex}-${blockIndex}`}
@@ -683,9 +684,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         {type !== 'condition' && (
           <>
             <Handle
-              type='source'
+              type="source"
               position={horizontalHandles ? Position.Right : Position.Bottom}
-              id='source'
+              id="source"
               className={cn(
                 horizontalHandles ? '!w-[7px] !h-5' : '!w-5 !h-[7px]',
                 '!bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none',
@@ -704,7 +705,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   : { left: '50%', transform: 'translateX(-50%)' }),
               }}
               data-nodeid={id}
-              data-handleid='source'
+              data-handleid="source"
               isConnectableStart={true}
               isConnectableEnd={false}
               isValidConnection={(connection) => true}
@@ -713,9 +714,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             {/* Error Handle - Don't show for starter blocks */}
             {type !== 'starter' && (
               <Handle
-                type='source'
+                type="source"
                 position={horizontalHandles ? Position.Right : Position.Bottom}
-                id='error'
+                id="error"
                 className={cn(
                   horizontalHandles ? '!w-[7px] !h-5' : '!w-5 !h-[7px]',
                   '!bg-red-400 dark:!bg-red-500 !rounded-[2px] !border-none',
@@ -744,7 +745,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                       }),
                 }}
                 data-nodeid={id}
-                data-handleid='error'
+                data-handleid="error"
                 isConnectableStart={true}
                 isConnectableEnd={false}
                 isValidConnection={(connection) => true}

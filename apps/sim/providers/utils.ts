@@ -1,4 +1,5 @@
-import { getCostMultiplier, isHosted } from '@/lib/environment'
+import { getCostMultiplier } from '@/lib/environment'
+import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { anthropicProvider } from './anthropic'
@@ -9,7 +10,7 @@ import { groqProvider } from './groq'
 import { ollamaProvider } from './ollama'
 import { openaiProvider } from './openai'
 import { getModelPricing } from './pricing'
-import type { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
+import { ProviderConfig, ProviderId, ProviderToolConfig } from './types'
 import { xAIProvider } from './xai'
 
 const logger = createLogger('ProviderUtils')
@@ -33,12 +34,7 @@ export const providers: Record<
   },
   anthropic: {
     ...anthropicProvider,
-    models: [
-      'claude-sonnet-4-20250514',
-      'claude-opus-4-20250514',
-      'claude-3-7-sonnet-20250219',
-      'claude-3-5-sonnet-20240620',
-    ],
+    models: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
     computerUseModels: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
     modelPatterns: [/^claude/],
   },
@@ -242,7 +238,7 @@ export function extractAndParseJSON(content: string): any {
 
   try {
     return JSON.parse(jsonStr)
-  } catch (_error) {
+  } catch (error) {
     // If parsing fails, try to clean up common issues
     const cleaned = jsonStr
       .replace(/\n/g, ' ') // Remove newlines
@@ -416,9 +412,9 @@ export async function transformBlockTool(
  */
 export function calculateCost(
   model: string,
-  promptTokens = 0,
-  completionTokens = 0,
-  useCachedInput = false
+  promptTokens: number = 0,
+  completionTokens: number = 0,
+  useCachedInput: boolean = false
 ) {
   const pricing = getModelPricing(model)
 
@@ -436,9 +432,9 @@ export function calculateCost(
   const costMultiplier = getCostMultiplier()
 
   return {
-    input: Number.parseFloat((inputCost * costMultiplier).toFixed(6)),
-    output: Number.parseFloat((outputCost * costMultiplier).toFixed(6)),
-    total: Number.parseFloat((totalCost * costMultiplier).toFixed(6)),
+    input: parseFloat((inputCost * costMultiplier).toFixed(6)),
+    output: parseFloat((outputCost * costMultiplier).toFixed(6)),
+    total: parseFloat((totalCost * costMultiplier).toFixed(6)),
     pricing,
   }
 }
@@ -455,22 +451,20 @@ export function formatCost(cost: number): string {
   if (cost >= 1) {
     // For costs >= $1, show two decimal places
     return `$${cost.toFixed(2)}`
-  }
-  if (cost >= 0.01) {
+  } else if (cost >= 0.01) {
     // For costs between 1¢ and $1, show three decimal places
     return `$${cost.toFixed(3)}`
-  }
-  if (cost >= 0.001) {
+  } else if (cost >= 0.001) {
     // For costs between 0.1¢ and 1¢, show four decimal places
     return `$${cost.toFixed(4)}`
-  }
-  if (cost > 0) {
+  } else if (cost > 0) {
     // For very small costs, still show as fixed decimal instead of scientific notation
     // Find the first non-zero digit and show a few more places
     const places = Math.max(4, Math.abs(Math.floor(Math.log10(cost))) + 3)
     return `$${cost.toFixed(places)}`
+  } else {
+    return '$0'
   }
-  return '$0'
 }
 
 /**
@@ -491,7 +485,7 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
       const { getRotatingApiKey } = require('@/lib/utils')
       const serverKey = getRotatingApiKey(provider)
       return serverKey
-    } catch (_error) {
+    } catch (error) {
       // If server key fails and we have a user key, fallback to that
       if (hasUserKey) {
         return userProvidedKey!
@@ -595,7 +589,7 @@ export function prepareToolsWithUsageControl(
         mode: 'AUTO' | 'ANY' | 'NONE'
         allowed_function_names?: string[]
       }
-    | undefined
+    | undefined = undefined
 
   if (forcedTools.length > 0) {
     // Force the first tool that has usageControl='force'
@@ -691,7 +685,7 @@ export function trackForcedToolUsage(
         mode: 'AUTO' | 'ANY' | 'NONE'
         allowed_function_names?: string[]
       }
-    | undefined
+    | undefined = undefined
 
   const updatedUsedForcedTools = [...usedForcedTools]
 
@@ -772,7 +766,7 @@ export function trackForcedToolUsage(
           nextToolChoice = 'auto'
         }
 
-        logger.info('All forced tools have been used, switching to auto mode for future iterations')
+        logger.info(`All forced tools have been used, switching to auto mode for future iterations`)
       }
     }
   }

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { TypeformInsightsParams, TypeformInsightsResponse } from './types'
+import { ToolConfig } from '../types'
+import { TypeformInsightsParams, TypeformInsightsResponse } from './types'
 
 export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsResponse> = {
   id: 'typeform_insights',
@@ -38,16 +38,16 @@ export const insightsTool: ToolConfig<TypeformInsightsParams, TypeformInsightsRe
         const errorData = await response.json()
         console.log('Typeform API error response:', JSON.stringify(errorData, null, 2))
 
-        if (errorData?.message) {
+        if (errorData && errorData.message) {
           errorMessage = errorData.message
-        } else if (errorData?.description) {
+        } else if (errorData && errorData.description) {
           errorMessage = errorData.description
         } else if (typeof errorData === 'string') {
           errorMessage = errorData
         }
 
         // Extract more details if available
-        if (errorData?.details) {
+        if (errorData && errorData.details) {
           errorDetails = ` Details: ${JSON.stringify(errorData.details)}`
         }
 
@@ -88,6 +88,6 @@ Details from API: ${errorMessage}${errorDetails}`,
       return `Failed to retrieve Typeform insights: ${JSON.stringify(error)}`
     }
 
-    return 'Failed to retrieve Typeform insights: An unknown error occurred'
+    return `Failed to retrieve Typeform insights: An unknown error occurred`
   },
 }

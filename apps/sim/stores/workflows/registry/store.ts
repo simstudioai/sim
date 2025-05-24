@@ -11,9 +11,14 @@ import {
   saveWorkflowState,
 } from '../persistence'
 import { useSubBlockStore } from '../subblock/store'
-import { fetchWorkflowsFromDB, resetRegistryInitialization, workflowSync } from '../sync'
+import {
+  fetchWorkflowsFromDB,
+  markWorkflowsDirty,
+  resetRegistryInitialization,
+  workflowSync,
+} from '../sync'
 import { useWorkflowStore } from '../workflow/store'
-import type { DeploymentStatus, WorkflowMetadata, WorkflowRegistry } from './types'
+import { WorkflowMetadata, WorkflowRegistry } from './types'
 import { generateUniqueName, getNextWorkflowColor } from './utils'
 
 const logger = createLogger('WorkflowRegistry')
@@ -64,11 +69,16 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
               // Only remove if it belongs to the current workspace
               if (parsed.workspaceId === workspaceId) {
                 localStorage.removeItem(key)
+                logger.debug(`Removed stale localStorage data for workflow ${workflowId}`)
               }
-            } catch (_e) {}
+            } catch (e) {
+              // Skip if we can't parse the data
+              continue
+            }
           } else {
             // If we can't determine the workspace, remove it to be safe
             localStorage.removeItem(key)
+            logger.debug(`Removed stale localStorage data for workflow ${workflowId}`)
           }
         }
         // Case 2: Clean up workflows that reference deleted workspaces
@@ -77,7 +87,7 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
           if (exists) {
             try {
               const parsed = JSON.parse(exists)
-              if (parsed?.workspaceId && parsed.workspaceId !== workspaceId) {
+              if (parsed && parsed.workspaceId && parsed.workspaceId !== workspaceId) {
                 // Check if this workspace still exists in our list
                 const workspacesData = localStorage.getItem('workspaces')
                 if (workspacesData) {
@@ -89,13 +99,16 @@ function cleanupLocalStorageForWorkspace(workspaceId: string): void {
                       // Workspace doesn't exist, update the workflow to use current workspace
                       parsed.workspaceId = workspaceId
                       localStorage.setItem(`workflow-${workflowId}`, JSON.stringify(parsed))
+                      logger.debug(
+                        `Updated workflow ${workflowId} to use current workspace ${workspaceId}`
+                      )
                     }
-                  } catch (_e) {
+                  } catch (e) {
                     // Skip if we can't parse workspaces data
                   }
                 }
               }
-            } catch (_e) {
+            } catch (e) {
               // Skip if we can't parse the data
             }
           }
@@ -119,7 +132,6 @@ function resetWorkflowStores() {
     loops: {},
     isDeployed: false,
     deployedAt: undefined,
-    deploymentStatuses: {}, // Reset deployment statuses map
     hasActiveSchedule: false,
     history: {
       past: [],
@@ -128,6 +140,7 @@ function resetWorkflowStores() {
           blocks: {},
           edges: [],
           loops: {},
+          parallels: {},
           isDeployed: false,
           deployedAt: undefined,
         },
@@ -183,8 +196,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_WORKSPACE_KEY) : null,
       isLoading: false,
       error: null,
-      // Initialize deployment statuses
-      deploymentStatuses: {},
 
       // Set loading state
       setLoading: (loading: boolean) => {
@@ -312,173 +323,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           })
       },
 
-      // Method to get deployment status for a specific workflow
-      getWorkflowDeploymentStatus: (workflowId: string | null): DeploymentStatus | null => {
-        if (!workflowId) {
-          // If no workflow ID provided, check the active workflow
-          workflowId = get().activeWorkflowId
-          if (!workflowId) return null
-        }
-
-        const { deploymentStatuses = {} } = get()
-
-        // First try to get from the workflow-specific deployment statuses
-        if (deploymentStatuses[workflowId]) {
-          return deploymentStatuses[workflowId]
-        }
-
-        // For backward compatibility, check the workflow state in workflow store
-        // This will only be relevant during the transition period
-        const workflowState = loadWorkflowState(workflowId)
-        if (workflowState) {
-          // Check workflow-specific status in the workflow state
-          if (workflowState.deploymentStatuses?.[workflowId]) {
-            return workflowState.deploymentStatuses[workflowId]
-          }
-
-          // Fallback to legacy fields if needed
-          if (workflowState.isDeployed) {
-            return {
-              isDeployed: workflowState.isDeployed || false,
-              deployedAt: workflowState.deployedAt,
-            }
-          }
-        }
-
-        // No deployment status found
-        return null
-      },
-
-      // Method to set deployment status for a specific workflow
-      setDeploymentStatus: (
-        workflowId: string | null,
-        isDeployed: boolean,
-        deployedAt?: Date,
-        apiKey?: string
-      ) => {
-        if (!workflowId) {
-          workflowId = get().activeWorkflowId
-          if (!workflowId) return
-        }
-
-        // Update the deployment statuses in the registry
-        set((state) => ({
-          deploymentStatuses: {
-            ...state.deploymentStatuses,
-            [workflowId as string]: {
-              isDeployed,
-              deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
-              apiKey,
-              // Preserve existing needsRedeployment flag if available, but reset if newly deployed
-              needsRedeployment: isDeployed
-                ? false
-                : ((state.deploymentStatuses?.[workflowId as string] as any)?.needsRedeployment ??
-                  false),
-            },
-          },
-        }))
-
-        // Also update the workflow store if this is the active workflow
-        const { activeWorkflowId } = get()
-        if (workflowId === activeWorkflowId) {
-          // Update the workflow store for backward compatibility
-          useWorkflowStore.setState((state) => ({
-            isDeployed,
-            deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
-            needsRedeployment: isDeployed ? false : state.needsRedeployment,
-            deploymentStatuses: {
-              ...state.deploymentStatuses,
-              [workflowId as string]: {
-                isDeployed,
-                deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
-                apiKey,
-                needsRedeployment: isDeployed
-                  ? false
-                  : ((state.deploymentStatuses?.[workflowId as string] as any)?.needsRedeployment ??
-                    false),
-              },
-            },
-          }))
-        }
-
-        // Save the deployment status in the workflow state
-        const workflowState = loadWorkflowState(workflowId)
-        if (workflowState) {
-          saveWorkflowState(workflowId, {
-            ...workflowState,
-            // Update both legacy and new fields for compatibility
-            isDeployed: workflowId === activeWorkflowId ? isDeployed : workflowState.isDeployed,
-            deployedAt:
-              workflowId === activeWorkflowId
-                ? deployedAt || (isDeployed ? new Date() : undefined)
-                : workflowState.deployedAt,
-            deploymentStatuses: {
-              ...(workflowState.deploymentStatuses || {}),
-              [workflowId]: {
-                isDeployed,
-                deployedAt: deployedAt || (isDeployed ? new Date() : undefined),
-                apiKey,
-                needsRedeployment: isDeployed
-                  ? false
-                  : ((workflowState.deploymentStatuses?.[workflowId] as any)?.needsRedeployment ??
-                    false),
-              },
-            },
-          })
-        }
-
-        // Trigger workflow sync to update server state
-        workflowSync.sync()
-      },
-
-      // Method to set the needsRedeployment flag for a specific workflow
-      setWorkflowNeedsRedeployment: (workflowId: string | null, needsRedeployment: boolean) => {
-        if (!workflowId) {
-          workflowId = get().activeWorkflowId
-          if (!workflowId) return
-        }
-
-        // Update the registry's deployment status for this specific workflow
-        set((state) => {
-          const deploymentStatuses = state.deploymentStatuses || {}
-          const currentStatus = deploymentStatuses[workflowId as string] || { isDeployed: false }
-
-          return {
-            deploymentStatuses: {
-              ...deploymentStatuses,
-              [workflowId as string]: {
-                ...currentStatus,
-                needsRedeployment,
-              },
-            },
-          }
-        })
-
-        // Only update the global flag if this is the active workflow
-        const { activeWorkflowId } = get()
-        if (workflowId === activeWorkflowId) {
-          useWorkflowStore.getState().setNeedsRedeploymentFlag(needsRedeployment)
-        }
-        // Save to persistent storage
-        const workflowState = loadWorkflowState(workflowId)
-        if (workflowState) {
-          const deploymentStatuses = workflowState.deploymentStatuses || {}
-          const currentStatus = deploymentStatuses[workflowId] || { isDeployed: false }
-
-          saveWorkflowState(workflowId, {
-            ...workflowState,
-            deploymentStatuses: {
-              ...deploymentStatuses,
-              [workflowId]: {
-                ...currentStatus,
-                needsRedeployment,
-              },
-            },
-          })
-        }
-      },
-
-      // Modified setActiveWorkflow to load deployment statuses
+      // Switch to a different workflow and manage state persistence
       setActiveWorkflow: async (id: string) => {
         const { workflows } = get()
         if (!workflows[id]) {
@@ -486,9 +331,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return
         }
 
-        // Get current workflow ID
-        const currentId = get().activeWorkflowId
         // Save current workflow state before switching
+        const currentId = get().activeWorkflowId
         if (currentId) {
           const currentState = useWorkflowStore.getState()
 
@@ -497,10 +341,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             blocks: currentState.blocks,
             edges: currentState.edges,
             loops: currentState.loops,
+            parallels: currentState.parallels,
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
-            deploymentStatuses: currentState.deploymentStatuses,
             lastSaved: Date.now(),
           })
 
@@ -514,28 +358,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Load workflow state for the new active workflow
         const parsedState = loadWorkflowState(id)
         if (parsedState) {
-          const {
-            blocks,
-            edges,
-            history,
-            loops,
-            isDeployed,
-            deployedAt,
-            deploymentStatuses,
-            needsRedeployment,
-          } = parsedState
-
-          // Get workflow-specific deployment status
-          let workflowIsDeployed = isDeployed
-          let workflowDeployedAt = deployedAt
-          let workflowNeedsRedeployment = needsRedeployment
-
-          // Check if we have a workflow-specific deployment status
-          if (deploymentStatuses?.[id]) {
-            workflowIsDeployed = deploymentStatuses[id].isDeployed
-            workflowDeployedAt = deploymentStatuses[id].deployedAt
-            workflowNeedsRedeployment = deploymentStatuses[id].needsRedeployment
-          }
+          const { blocks, edges, history, loops, parallels, isDeployed, deployedAt } = parsedState
 
           // Initialize subblock store with workflow values
           useSubBlockStore.getState().initializeFromWorkflow(id, blocks)
@@ -545,11 +368,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             blocks,
             edges,
             loops,
-            isDeployed: workflowIsDeployed !== undefined ? workflowIsDeployed : false,
-            deployedAt: workflowDeployedAt ? new Date(workflowDeployedAt) : undefined,
-            needsRedeployment:
-              workflowNeedsRedeployment !== undefined ? workflowNeedsRedeployment : false,
-            deploymentStatuses: deploymentStatuses || {},
+            parallels,
+            isDeployed: isDeployed !== undefined ? isDeployed : false,
+            deployedAt: deployedAt ? new Date(deployedAt) : undefined,
             hasActiveSchedule: false,
             history: history || {
               past: [],
@@ -557,9 +378,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 state: {
                   blocks,
                   edges,
-                  loops: {},
-                  isDeployed: workflowIsDeployed !== undefined ? workflowIsDeployed : false,
-                  deployedAt: workflowDeployedAt,
+                  loops,
+                  parallels,
+                  isDeployed: isDeployed !== undefined ? isDeployed : false,
+                  deployedAt: deployedAt,
                 },
                 timestamp: Date.now(),
                 action: 'Initial state',
@@ -569,39 +391,15 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
             lastSaved: parsedState.lastSaved || Date.now(),
           })
-
-          // Update the deployment statuses in the registry
-          if (deploymentStatuses) {
-            set((state) => ({
-              deploymentStatuses: {
-                ...state.deploymentStatuses,
-                ...deploymentStatuses,
-              },
-            }))
-          } else if (workflowIsDeployed !== undefined) {
-            // If there's no deployment statuses object but we have legacy deployment status,
-            // create an entry in the deploymentStatuses map
-            set((state) => ({
-              deploymentStatuses: {
-                ...state.deploymentStatuses,
-                [id]: {
-                  isDeployed: workflowIsDeployed as boolean,
-                  deployedAt: workflowDeployedAt ? new Date(workflowDeployedAt) : undefined,
-                },
-              },
-            }))
-          }
-
-          logger.info(`Switched to workflow ${id}`)
         } else {
           // If no saved state, initialize with empty state
           useWorkflowStore.setState({
             blocks: {},
             edges: [],
             loops: {},
+            parallels: {},
             isDeployed: false,
             deployedAt: undefined,
-            deploymentStatuses: {},
             hasActiveSchedule: false,
             history: {
               past: [],
@@ -610,6 +408,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   blocks: {},
                   edges: [],
                   loops: {},
+                  parallels: {},
                   isDeployed: false,
                   deployedAt: undefined,
                 },
@@ -664,9 +463,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             blocks: options.marketplaceState.blocks || {},
             edges: options.marketplaceState.edges || [],
             loops: options.marketplaceState.loops || {},
+            parallels: options.marketplaceState.parallels || {},
             isDeployed: false,
             deployedAt: undefined,
-            deploymentStatuses: {}, // Initialize empty deployment statuses map
             workspaceId, // Include workspace ID in the state object
             history: {
               past: [],
@@ -675,6 +474,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   blocks: options.marketplaceState.blocks || {},
                   edges: options.marketplaceState.edges || [],
                   loops: options.marketplaceState.loops || {},
+                  parallels: options.marketplaceState.parallels || {},
                   isDeployed: false,
                   deployedAt: undefined,
                   workspaceId, // Include workspace ID in history
@@ -788,9 +588,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
             edges: [],
             loops: {},
+            parallels: {},
             isDeployed: false,
             deployedAt: undefined,
-            deploymentStatuses: {}, // Initialize empty deployment statuses map
             workspaceId, // Include workspace ID in the state object
             history: {
               past: [],
@@ -801,6 +601,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   },
                   edges: [],
                   loops: {},
+                  parallels: {},
                   isDeployed: false,
                   deployedAt: undefined,
                   workspaceId, // Include workspace ID in history
@@ -875,7 +676,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Generate workflow metadata with marketplace properties
         const newWorkflow: WorkflowMetadata = {
           id,
-          name: metadata.name || 'Marketplace workflow',
+          name: metadata.name || `Marketplace workflow`,
           lastModified: new Date(),
           description: metadata.description || 'Imported from marketplace',
           color: metadata.color || getNextWorkflowColor(workflows),
@@ -887,6 +688,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           blocks: state.blocks || {},
           edges: state.edges || [],
           loops: state.loops || {},
+          parallels: state.parallels || {},
           isDeployed: false,
           deployedAt: undefined,
           history: {
@@ -896,6 +698,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 blocks: state.blocks || {},
                 edges: state.edges || [],
                 loops: state.loops || {},
+                parallels: state.parallels || {},
                 isDeployed: false,
                 deployedAt: undefined,
               },
@@ -982,10 +785,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           blocks: sourceState.blocks || {},
           edges: sourceState.edges || [],
           loops: sourceState.loops || {},
+          parallels: sourceState.parallels || {},
           isDeployed: false, // Reset deployment status
           deployedAt: undefined, // Reset deployment timestamp
           workspaceId, // Include workspaceId in state
-          deploymentStatuses: {}, // Start with empty deployment statuses map
           history: {
             past: [],
             present: {
@@ -993,6 +796,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 blocks: sourceState.blocks || {},
                 edges: sourceState.edges || [],
                 loops: sourceState.loops || {},
+                parallels: sourceState.parallels || {},
                 isDeployed: false,
                 deployedAt: undefined,
                 workspaceId, // Include workspaceId in history state
@@ -1087,11 +891,12 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             newActiveWorkflowId = remainingIds[0]
             const savedState = loadWorkflowState(newActiveWorkflowId)
             if (savedState) {
-              const { blocks, edges, history, loops, isDeployed, deployedAt } = savedState
+              const { blocks, edges, history, loops, parallels, isDeployed, deployedAt } = savedState
               useWorkflowStore.setState({
                 blocks,
                 edges,
                 loops,
+                parallels,
                 isDeployed: isDeployed || false,
                 deployedAt: deployedAt ? new Date(deployedAt) : undefined,
                 hasActiveSchedule: false,
@@ -1102,6 +907,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                       blocks,
                       edges,
                       loops,
+                      parallels,
                       isDeployed: isDeployed || false,
                       deployedAt,
                     },
@@ -1117,6 +923,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 blocks: {},
                 edges: [],
                 loops: {},
+                parallels: {},
                 isDeployed: false,
                 deployedAt: undefined,
                 hasActiveSchedule: false,
@@ -1127,6 +934,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                       blocks: {},
                       edges: [],
                       loops: {},
+                      parallels: {},
                       isDeployed: false,
                       deployedAt: undefined,
                     },

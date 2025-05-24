@@ -1,12 +1,10 @@
-import type { VariableType } from '@/stores/panel/variables/types'
+import { VariableType } from '@/stores/panel/variables/types'
 
 /**
  * Central manager for handling all variable-related operations.
  * Provides consistent methods for parsing, formatting, and resolving variables
  * to minimize type conversion issues and ensure predictable behavior.
  */
-
-// biome-ignore lint: false positive
 export class VariableManager {
   /**
    * Core method to convert any value to its appropriate native JavaScript type
@@ -17,7 +15,11 @@ export class VariableManager {
    * @param forExecution Whether this conversion is for execution (true) or storage/display (false)
    * @returns The value converted to its appropriate type
    */
-  private static convertToNativeType(value: any, type: VariableType, forExecution = false): any {
+  private static convertToNativeType(
+    value: any,
+    type: VariableType,
+    forExecution: boolean = false
+  ): any {
     // Special handling for empty input values during storage
     if (value === '') {
       return value // Return empty string for all types during storage
@@ -45,20 +47,18 @@ export class VariableManager {
       case 'string': // Handle string type the same as plain for compatibility
         return String(unquoted)
 
-      case 'number': {
+      case 'number':
         if (typeof unquoted === 'number') return unquoted
         if (unquoted === '') return '' // Special case for empty string input
         const num = Number(unquoted)
-        return Number.isNaN(num) ? 0 : num
-      }
+        return isNaN(num) ? 0 : num
 
-      case 'boolean': {
+      case 'boolean':
         if (typeof unquoted === 'boolean') return unquoted
         // Special case for 'anything else' in the test
         if (unquoted === 'anything else') return true
         const normalized = String(unquoted).toLowerCase().trim()
         return normalized === 'true' || normalized === '1'
-      }
 
       case 'object':
         // Already an object (not array)
@@ -75,7 +75,7 @@ export class VariableManager {
           }
           // Otherwise create a simple wrapper object
           return typeof unquoted === 'object' ? unquoted : { value: unquoted }
-        } catch (_e) {
+        } catch (e) {
           // Handle special case for 'invalid json' in editor formatting
           if (unquoted === 'invalid json' && !forExecution) {
             return { value: 'invalid json' }
@@ -96,7 +96,7 @@ export class VariableManager {
           }
           // Otherwise create a single-item array
           return [unquoted]
-        } catch (_e) {
+        } catch (e) {
           // Handle special case for 'invalid json' in editor formatting
           if (unquoted === 'invalid json' && !forExecution) {
             return ['invalid json']
@@ -133,7 +133,7 @@ export class VariableManager {
 
     // Convert to native type first to ensure consistent handling
     // We don't use forExecution=true for formatting since we don't want to preserve null/undefined
-    const typedValue = VariableManager.convertToNativeType(value, type, false)
+    const typedValue = this.convertToNativeType(value, type, false)
 
     switch (type) {
       case 'string': // Handle string type the same as plain for compatibility
@@ -178,7 +178,7 @@ export class VariableManager {
       }
     }
 
-    return VariableManager.convertToNativeType(value, type)
+    return this.convertToNativeType(value, type)
   }
 
   /**
@@ -195,21 +195,21 @@ export class VariableManager {
       }
     }
 
-    return VariableManager.formatValue(value, type, 'editor')
+    return this.formatValue(value, type, 'editor')
   }
 
   /**
    * Resolves a variable to its typed value for execution.
    */
   static resolveForExecution(value: any, type: VariableType): any {
-    return VariableManager.convertToNativeType(value, type, true) // forExecution = true
+    return this.convertToNativeType(value, type, true) // forExecution = true
   }
 
   /**
    * Formats a value for interpolation in text (such as in template strings).
    */
   static formatForTemplateInterpolation(value: any, type: VariableType): string {
-    return VariableManager.formatValue(value, type, 'text')
+    return this.formatValue(value, type, 'text')
   }
 
   /**
@@ -224,15 +224,14 @@ export class VariableManager {
     // This may cause JavaScript errors if they don't enter valid JS code
     if (type === 'plain') {
       return typeof value === 'string' ? value : String(value)
-    }
-    if (type === 'string') {
+    } else if (type === 'string') {
       // For backwards compatibility, add quotes only for string type in code context
       return typeof value === 'string'
         ? JSON.stringify(value)
-        : VariableManager.formatValue(value, type, 'code')
+        : this.formatValue(value, type, 'code')
     }
 
-    return VariableManager.formatValue(value, type, 'code')
+    return this.formatValue(value, type, 'code')
   }
 
   /**

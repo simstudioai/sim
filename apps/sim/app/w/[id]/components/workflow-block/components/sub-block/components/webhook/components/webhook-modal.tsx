@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
-import { type ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook'
+import { ProviderConfig, WEBHOOK_PROVIDERS } from '../webhook'
 import { AirtableConfig } from './providers/airtable'
 import { DiscordConfig } from './providers/discord'
 import { GenericConfig } from './providers/generic'
@@ -19,7 +19,8 @@ import { SlackConfig } from './providers/slack'
 import { StripeConfig } from './providers/stripe'
 import { TelegramConfig } from './providers/telegram'
 import { WhatsAppConfig } from './providers/whatsapp'
-import { DeleteConfirmDialog, UnsavedChangesDialog } from './ui/confirmation'
+import { DeleteConfirmDialog } from './ui/confirmation'
+import { UnsavedChangesDialog } from './ui/confirmation'
 import { WebhookDialogFooter } from './ui/webhook-footer'
 import { WebhookUrlField } from './ui/webhook-url'
 
@@ -81,7 +82,7 @@ export function WebhookModal({
   const [telegramBotToken, setTelegramBotToken] = useState('')
   const [telegramTriggerPhrase, setTelegramTriggerPhrase] = useState('')
   // Airtable-specific state
-  const [airtableWebhookSecret, _setAirtableWebhookSecret] = useState('')
+  const [airtableWebhookSecret, setAirtableWebhookSecret] = useState('')
   const [airtableBaseId, setAirtableBaseId] = useState('')
   const [airtableTableId, setAirtableTableId] = useState('')
   const [airtableIncludeCellValues, setAirtableIncludeCellValues] = useState(false)
@@ -115,7 +116,7 @@ export function WebhookModal({
   const [markAsRead, setMarkAsRead] = useState<boolean>(false)
 
   // Get the current provider configuration
-  const _provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
+  const provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
 
   // Generate a random verification token if none exists
   useEffect(() => {
@@ -400,7 +401,7 @@ export function WebhookModal({
           markAsRead,
           maxEmailsPerPoll: 25,
         }
-      case 'generic': {
+      case 'generic':
         // Parse the allowed IPs into an array
         const parsedIps = allowedIps
           ? allowedIps
@@ -415,7 +416,6 @@ export function WebhookModal({
           requireAuth,
           allowedIps: parsedIps.length > 0 ? parsedIps : undefined,
         }
-      }
       case 'slack':
         return { signingSecret: slackSigningSecret }
       case 'airtable':
@@ -561,7 +561,7 @@ export function WebhookModal({
           // Try to parse as JSON, but handle case where it's not valid JSON
           const errorData = JSON.parse(errorText)
           errorMessage = errorData.message || errorData.error || errorMessage
-        } catch (_parseError) {
+        } catch (parseError) {
           // If JSON parsing fails, use the raw text if it exists
           errorMessage = errorText || errorMessage
         }
@@ -724,6 +724,7 @@ export function WebhookModal({
             webhookUrl={webhookUrl}
           />
         )
+      case 'generic':
       default:
         return (
           <GenericConfig
@@ -755,22 +756,22 @@ export function WebhookModal({
     <>
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent
-          className='flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
+          className="sm:max-w-[600px] flex flex-col p-0 gap-0 max-h-[90vh] overflow-hidden"
           hideCloseButton
         >
-          <DialogHeader className='border-b px-6 py-4'>
-            <div className='flex items-center justify-between'>
-              <DialogTitle className='font-medium text-lg'>
+          <DialogHeader className="px-6 py-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-lg font-medium">
                 {webhookId ? 'Edit' : 'Configure'} {getProviderTitle()} Webhook
               </DialogTitle>
-              <Button variant='ghost' size='icon' className='h-8 w-8 p-0' onClick={handleClose}>
-                <X className='h-4 w-4' />
-                <span className='sr-only'>Close</span>
+              <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleClose}>
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
               </Button>
             </div>
           </DialogHeader>
 
-          <div className='flex-grow overflow-y-auto px-6 pt-4 pb-6'>
+          <div className="pt-4 px-6 pb-6 overflow-y-auto flex-grow">
             {webhookProvider !== 'slack' && webhookProvider !== 'airtable' && (
               <WebhookUrlField
                 webhookUrl={webhookUrl}
@@ -783,7 +784,7 @@ export function WebhookModal({
             {renderProviderContent()}
           </div>
 
-          <DialogFooter className='w-full border-t px-6 pt-0 pt-4 pb-6'>
+          <DialogFooter className="px-6 pt-0 pb-6 w-full border-t pt-4">
             <WebhookDialogFooter
               webhookId={webhookId}
               webhookProvider={webhookProvider}

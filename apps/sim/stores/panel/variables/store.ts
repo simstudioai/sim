@@ -4,7 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { API_ENDPOINTS } from '@/stores/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import type { Variable, VariablesStore } from './types'
+import { Variable, VariablesStore } from './types'
 
 const logger = createLogger('VariablesStore')
 const SAVE_DEBOUNCE_DELAY = 500 // 500ms debounce delay
@@ -40,7 +40,7 @@ function validateVariable(variable: Variable): string | undefined {
     switch (variable.type) {
       case 'number':
         // Check if it's a valid number
-        if (Number.isNaN(Number(variable.value))) {
+        if (isNaN(Number(variable.value))) {
           return 'Not a valid number'
         }
         break
@@ -54,7 +54,7 @@ function validateVariable(variable: Variable): string | undefined {
         // Check if it's a valid JSON object
         try {
           // Handle both JavaScript and JSON syntax
-          const valueToEvaluate = String(variable.value).trim()
+          let valueToEvaluate = String(variable.value).trim()
 
           // Basic security check to prevent arbitrary code execution
           if (!valueToEvaluate.startsWith('{') || !valueToEvaluate.endsWith('}')) {
@@ -75,6 +75,7 @@ function validateVariable(variable: Variable): string | undefined {
           console.log('Object parsing error:', e)
           return 'Invalid object syntax'
         }
+        break
       case 'array':
         // Check if it's a valid JSON array
         try {
@@ -134,9 +135,9 @@ export const useVariablesStore = create<VariablesStore>()(
             const existingNumbers = workflowVariables
               .map((v) => {
                 const match = v.name.match(/^variable(\d+)$/)
-                return match ? Number.parseInt(match[1]) : 0
+                return match ? parseInt(match[1]) : 0
               })
-              .filter((n) => !Number.isNaN(n))
+              .filter((n) => !isNaN(n))
 
             // Set new number to max + 1, or 1 if none exist
             const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1
@@ -377,7 +378,7 @@ export const useVariablesStore = create<VariablesStore>()(
 
           // Ensure the duplicated name is unique
           const workflowVariables = get().getVariablesByWorkflowId(variable.workflowId)
-          const baseName = `${variable.name} (copy)`
+          let baseName = `${variable.name} (copy)`
           let uniqueName = baseName
           let nameIndex = 1
 
@@ -615,10 +616,7 @@ export const useVariablesStore = create<VariablesStore>()(
               })
             }
           } catch (error) {
-            logger.error('Error loading workflow variables:', {
-              error,
-              workflowId,
-            })
+            logger.error('Error loading workflow variables:', { error, workflowId })
             set({
               error: error instanceof Error ? error.message : 'Unknown error',
               isLoading: false,
@@ -675,10 +673,7 @@ export const useVariablesStore = create<VariablesStore>()(
 
             set({ isLoading: false })
           } catch (error) {
-            logger.error('Error saving workflow variables:', {
-              error,
-              workflowId,
-            })
+            logger.error('Error saving workflow variables:', { error, workflowId })
             set({
               error: error instanceof Error ? error.message : 'Unknown error',
               isLoading: false,

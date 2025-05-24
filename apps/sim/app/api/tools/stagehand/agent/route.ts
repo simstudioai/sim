@@ -1,5 +1,5 @@
+import { NextRequest, NextResponse } from 'next/server'
 import { Stagehand } from '@browserbasehq/stagehand'
-import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -46,7 +46,7 @@ function extractActionDirectives(task: string): {
 
   // Find all action directives in the task
   while ((match = actionRegex.exec(task)) !== null) {
-    const _fullMatch = match[0]
+    const fullMatch = match[0]
     const actionText = match[1].trim()
     const index = match.index
 
@@ -109,7 +109,7 @@ async function processSecureActions(
   // Process each secure action request
   for (const match of secureActionMatches) {
     const fullMatch = match[0]
-    const actionIndex = Number.parseInt(match[1], 10) - 1 // Convert to 0-based index
+    const actionIndex = parseInt(match[1], 10) - 1 // Convert to 0-based index
 
     if (actionDirectives[actionIndex]) {
       // Found a secure action directive to execute
@@ -395,8 +395,7 @@ async function attemptDirectLogin(
         success: true,
         message: 'Login successful. User is now authenticated.',
       }
-    }
-    if (hasLoginError) {
+    } else if (hasLoginError) {
       logger.warn('Login verification failed: Detected login error message.')
       return {
         attempted: true,
@@ -404,20 +403,20 @@ async function attemptDirectLogin(
         message:
           'Login attempted but failed: Detected error message on page. Likely invalid credentials.',
       }
-    }
-    if (isStillOnLoginPage) {
+    } else if (isStillOnLoginPage) {
       logger.warn('Login verification inconclusive: Still on login page.')
       return {
         attempted: true,
         success: false,
         message: 'Login attempted but failed: Still on login/authentication page.',
       }
-    }
-    logger.info('Login verification inconclusive. Proceeding as if login was successful.')
-    return {
-      attempted: true,
-      success: true,
-      message: 'Login likely successful, but could not verify with certainty.',
+    } else {
+      logger.info('Login verification inconclusive. Proceeding as if login was successful.')
+      return {
+        attempted: true,
+        success: true,
+        message: 'Login likely successful, but could not verify with certainty.',
+      }
     }
   } catch (error) {
     logger.error('Error during direct login attempt', {
@@ -455,7 +454,7 @@ export async function POST(request: NextRequest) {
 
     const params = validationResult.data
     // Simplify variable handling - safely convert any format to the object we need
-    let variablesObject: Record<string, string> | undefined
+    let variablesObject: Record<string, string> | undefined = undefined
 
     // Handle different formats of variables that might come from the UI
     if (params.variables) {
@@ -464,7 +463,7 @@ export async function POST(request: NextRequest) {
         variablesObject = {}
         params.variables.forEach((item: any) => {
           // Check if item and item.cells exist, and Key is a string
-          if (item?.cells?.Key && typeof item.cells.Key === 'string') {
+          if (item && item.cells && item.cells.Key && typeof item.cells.Key === 'string') {
             // Access Key and Value within the 'cells' object
             variablesObject![item.cells.Key] = item.cells.Value || ''
           }
@@ -476,7 +475,7 @@ export async function POST(request: NextRequest) {
         // Handle string format (sometimes comes as JSON string)
         try {
           variablesObject = JSON.parse(params.variables)
-        } catch (_e) {
+        } catch (e) {
           logger.warn('Failed to parse variables string as JSON', { variables: params.variables })
         }
       }
@@ -507,7 +506,7 @@ export async function POST(request: NextRequest) {
         const safeVarKeys = Object.keys(variablesObject).map((key) => {
           return key.toLowerCase().includes('password')
             ? `${key}: [REDACTED]`
-            : `${key}: ${variablesObject?.[key]}`
+            : `${key}: ${variablesObject![key]}`
         })
 
         logger.info('Collected variables for substitution', {
@@ -571,7 +570,7 @@ export async function POST(request: NextRequest) {
       if (variablesObject && Object.keys(variablesObject).length > 0) {
         logger.info('Setting up automatic variable substitution for all actions')
         const originalAct = stagehand.page.act.bind(stagehand.page)
-        stagehand.page.act = async (options: any) => {
+        stagehand.page.act = async function (options: any) {
           // If options is a string, convert it to object
           if (typeof options === 'string') {
             options = { action: options }
@@ -935,7 +934,7 @@ The system will substitute actual values when these placeholders are used, keepi
 
           // Look for JSON block markers in case the model wrapped it in ```json blocks
           const jsonBlockMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
-          if (jsonBlockMatch?.[1]) {
+          if (jsonBlockMatch && jsonBlockMatch[1]) {
             jsonContent = jsonBlockMatch[1]
           }
 

@@ -1,12 +1,12 @@
 import { AirtableIcon } from '@/components/icons'
-import type {
+import {
   AirtableCreateResponse,
   AirtableGetResponse,
   AirtableListResponse,
   AirtableUpdateMultipleResponse,
   AirtableUpdateResponse,
 } from '@/tools/airtable/types'
-import type { BlockConfig } from '../types'
+import { BlockConfig } from '../types'
 
 type AirtableResponse =
   | AirtableListResponse
@@ -159,6 +159,8 @@ export const AirtableBlock: BlockConfig<AirtableResponse> = {
             return { ...baseParams, records: parsedRecords }
           case 'update':
             return { ...baseParams, fields: parsedFields }
+          case 'list':
+          case 'get':
           default:
             return baseParams // No JSON parsing needed for list/get
         }

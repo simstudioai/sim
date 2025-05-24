@@ -1,14 +1,14 @@
 'use client'
 
 import { createLogger } from '@/lib/logs/console-logger'
+import { getAllWorkflowsWithValues } from '.'
 import { API_ENDPOINTS } from '../constants'
 import { createSingletonSyncManager } from '../sync'
-import { getAllWorkflowsWithValues } from '.'
 import { useWorkflowRegistry } from './registry/store'
-import type { WorkflowMetadata } from './registry/types'
+import { WorkflowMetadata } from './registry/types'
 import { useSubBlockStore } from './subblock/store'
 import { useWorkflowStore } from './workflow/store'
-import type { BlockState } from './workflow/types'
+import { BlockState } from './workflow/types'
 
 const logger = createLogger('WorkflowsSync')
 
@@ -17,14 +17,14 @@ let syncDebounceTimer: NodeJS.Timeout | null = null
 const DEBOUNCE_DELAY = 500 // 500ms delay
 
 // Flag to prevent immediate sync back to DB after loading from DB
-let _isLoadingFromDB = false
+let isLoadingFromDB = false
 let loadingFromDBToken: string | null = null
 let loadingFromDBStartTime = 0
 const LOADING_TIMEOUT = 3000 // 3 seconds maximum loading time
 
 // Add registry initialization tracking
 let registryFullyInitialized = false
-const _REGISTRY_INIT_TIMEOUT = 10000 // 10 seconds maximum for registry initialization
+const REGISTRY_INIT_TIMEOUT = 10000 // 10 seconds maximum for registry initialization
 
 /**
  * Checks if the system is currently in the process of loading data from the database
@@ -153,7 +153,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     useWorkflowRegistry.getState().setLoading(true)
 
     // Set flag to prevent sync back to DB during loading
-    _isLoadingFromDB = true
+    isLoadingFromDB = true
     loadingFromDBToken = 'loading'
     loadingFromDBStartTime = Date.now()
 
@@ -264,6 +264,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         blocks: state.blocks || {},
         edges: state.edges || [],
         loops: state.loops || {},
+        parallels: state.parallels || {},
         isDeployed: isDeployed || false,
         deployedAt: deployedAt ? new Date(deployedAt) : undefined,
         apiKey,
@@ -351,7 +352,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
   } finally {
     // Reset the flag after a short delay to allow state to settle
     setTimeout(() => {
-      _isLoadingFromDB = false
+      isLoadingFromDB = false
       loadingFromDBToken = null
 
       // Set loading state to false

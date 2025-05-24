@@ -1,6 +1,6 @@
 import { GuestyIcon } from '@/components/icons'
-import type { GuestyGuestResponse, GuestyReservationResponse } from '@/tools/guesty/types'
-import type { BlockConfig } from '../types'
+import { GuestyGuestResponse, GuestyReservationResponse } from '@/tools/guesty/types'
+import { BlockConfig } from '../types'
 
 export const GuestyBlock: BlockConfig<GuestyReservationResponse | GuestyGuestResponse> = {
   type: 'guesty',
@@ -67,10 +67,11 @@ export const GuestyBlock: BlockConfig<GuestyReservationResponse | GuestyGuestRes
             apiKey: params.apiKey,
             reservationId: params.reservationId,
           }
-        }
-        return {
-          apiKey: params.apiKey,
-          phoneNumber: params.phoneNumber,
+        } else {
+          return {
+            apiKey: params.apiKey,
+            phoneNumber: params.phoneNumber,
+          }
         }
       },
     },

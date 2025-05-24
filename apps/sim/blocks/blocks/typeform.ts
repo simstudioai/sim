@@ -1,6 +1,6 @@
 import { TypeformIcon } from '@/components/icons'
-import type { ToolResponse } from '@/tools/types'
-import type { BlockConfig } from '../types'
+import { ToolResponse } from '@/tools/types'
+import { BlockConfig } from '../types'
 
 interface TypeformResponse extends ToolResponse {
   output:

@@ -1,6 +1,6 @@
 import { SerperIcon } from '@/components/icons'
-import type { SearchResponse } from '@/tools/serper/types'
-import type { BlockConfig } from '../types'
+import { SearchResponse } from '@/tools/serper/types'
+import { BlockConfig } from '../types'
 
 export const SerperBlock: BlockConfig<SearchResponse> = {
   type: 'serper',

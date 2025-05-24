@@ -1,5 +1,5 @@
 import { BrainIcon } from '@/components/icons'
-import type { BlockConfig } from '../types'
+import { BlockConfig } from '../types'
 
 export const MemoryBlock: BlockConfig = {
   type: 'memory',
@@ -37,11 +37,7 @@ export const MemoryBlock: BlockConfig = {
           errors.push('Operation is required')
         }
 
-        if (
-          params.operation === 'add' ||
-          params.operation === 'get' ||
-          params.operation === 'delete'
-        ) {
+        if (params.operation === 'add' || params.operation === 'get' || params.operation === 'delete') {
           if (!params.id) {
             errors.push(`Memory ID is required for ${params.operation} operation`)
           }
@@ -122,6 +118,7 @@ export const MemoryBlock: BlockConfig = {
   outputs: {
     response: {
       type: {
+        memory: 'any',
         memories: 'any',
         id: 'string',
       },
@@ -239,6 +236,6 @@ export const MemoryBlock: BlockConfig = {
           value: 'add',
         },
       },
-    },
+    }
   ],
 }

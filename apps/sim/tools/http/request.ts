@@ -1,8 +1,8 @@
 import { getNodeEnv } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBaseUrl } from '@/lib/urls/utils'
-import type { HttpMethod, TableRow, ToolConfig } from '../types'
-import type { RequestParams, RequestResponse } from './types'
+import { HttpMethod, TableRow, ToolConfig } from '../types'
+import { RequestParams, RequestResponse } from './types'
 
 const logger = createLogger('HTTPRequestTool')
 
@@ -14,7 +14,7 @@ const getReferer = (): string => {
 
   try {
     return getBaseUrl()
-  } catch (_error) {
+  } catch (error) {
     return 'http://localhost:3000'
   }
 }
@@ -47,10 +47,10 @@ const getDefaultHeaders = (
   if (url) {
     try {
       const hostname = new URL(url).host
-      if (hostname && !customHeaders.Host && !customHeaders.host) {
-        headers.Host = hostname
+      if (hostname && !customHeaders['Host'] && !customHeaders['host']) {
+        headers['Host'] = hostname
       }
-    } catch (_e) {
+    } catch (e) {
       // Invalid URL, will be caught later
     }
   }
@@ -119,7 +119,7 @@ const shouldUseProxy = (url: string): boolean => {
   }
 
   try {
-    const _urlObj = new URL(url)
+    const urlObj = new URL(url)
     const currentOrigin = window.location.origin
 
     // Don't proxy same-origin or localhost requests
@@ -135,7 +135,7 @@ const shouldUseProxy = (url: string): boolean => {
 }
 
 // Default headers that will be applied if not explicitly overridden by user
-const _DEFAULT_HEADERS: Record<string, string> = {
+const DEFAULT_HEADERS: Record<string, string> = {
   'User-Agent':
     'Mozilla/5.0 (Macintosh Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
   Accept: '*/*',
@@ -225,24 +225,15 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
   directExecution: async (params: RequestParams): Promise<RequestResponse | undefined> => {
     try {
       // Process the URL with parameters
-      const url = processUrl(params.url, params.pathParams, params.params)
+      let url = processUrl(params.url, params.pathParams, params.params)
 
       // Update the URL in params for any subsequent operations
       params.url = url
 
       // Determine if we should use the proxy
       if (shouldUseProxy(url)) {
+        // Route request through our proxy
         let proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`
-
-        if (params.method) {
-          proxyUrl += `&method=${encodeURIComponent(params.method)}`
-        }
-
-        if (params.body && ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')) {
-          const bodyStr =
-            typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
-          proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
-        }
 
         // Forward all headers as URL parameters
         const userHeaders = transformTable(params.headers || null)
@@ -335,7 +326,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
           } else {
             data = await response.text()
           }
-        } catch (_error) {
+        } catch (error) {
           data = await response.text()
         }
 
@@ -396,16 +387,6 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       if (shouldUseProxy(processedUrl)) {
         let proxyUrl = `/api/proxy?url=${encodeURIComponent(processedUrl)}`
 
-        if (params.method) {
-          proxyUrl += `&method=${encodeURIComponent(params.method)}`
-        }
-
-        if (params.body && ['POST', 'PUT', 'PATCH'].includes(params.method?.toUpperCase() || '')) {
-          const bodyStr =
-            typeof params.body === 'string' ? params.body : JSON.stringify(params.body)
-          proxyUrl += `&body=${encodeURIComponent(bodyStr)}`
-        }
-
         // Forward all headers as URL parameters
         const userHeaders = transformTable(params.headers || null)
         for (const [key, value] of Object.entries(userHeaders)) {
@@ -439,8 +420,7 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
       if (params.formData) {
         // Don't set Content-Type for FormData, browser will set it with boundary
         return allHeaders
-      }
-      if (params.body) {
+      } else if (params.body) {
         allHeaders['Content-Type'] = 'application/json'
       }
 
@@ -531,6 +511,6 @@ export const requestTool: ToolConfig<RequestParams, RequestResponse> = {
     const statusText = error.statusText || ''
 
     // Format the error message
-    return code ? `HTTP error ${code}${statusText ? `: ${statusText}` : ''} - ${message}` : message
+    return code ? `HTTP error ${code}${statusText ? ': ' + statusText : ''} - ${message}` : message
   },
 }

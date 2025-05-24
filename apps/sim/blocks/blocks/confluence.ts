@@ -1,6 +1,6 @@
 import { ConfluenceIcon } from '@/components/icons'
-import type { ConfluenceRetrieveResponse, ConfluenceUpdateResponse } from '@/tools/confluence/types'
-import type { BlockConfig } from '../types'
+import { ConfluenceRetrieveResponse, ConfluenceUpdateResponse } from '@/tools/confluence/types'
+import { BlockConfig } from '../types'
 
 type ConfluenceResponse = ConfluenceRetrieveResponse | ConfluenceUpdateResponse
 

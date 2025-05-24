@@ -1,4 +1,4 @@
-import type { ToolConfig, ToolResponse } from '../types'
+import { ToolConfig, ToolResponse } from '../types'
 
 export interface ContactsParams {
   apiKey: string

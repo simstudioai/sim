@@ -1,6 +1,6 @@
+import { NextResponse } from 'next/server'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { NextResponse } from 'next/server'
 import { UPLOAD_DIR } from '@/lib/uploads/setup'
 
 /**
@@ -55,13 +55,11 @@ export const contentTypeMap: Record<string, string> = {
   ts: 'application/typescript',
   // Document formats
   pdf: 'application/pdf',
-  googleDoc: 'application/vnd.google-apps.document',
   doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   // Spreadsheet formats
   xls: 'application/vnd.ms-excel',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  googleSheet: 'application/vnd.google-apps.spreadsheet',
   // Presentation formats
   ppt: 'application/vnd.ms-powerpoint',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -73,8 +71,6 @@ export const contentTypeMap: Record<string, string> = {
   svg: 'image/svg+xml',
   // Archive formats
   zip: 'application/zip',
-  // Folder format
-  googleFolder: 'application/vnd.google-apps.folder',
 }
 
 /**
@@ -162,7 +158,7 @@ export function createFileResponse(file: FileResponse): NextResponse {
 /**
  * Create a standardized error response
  */
-export function createErrorResponse(error: Error, status = 500): NextResponse {
+export function createErrorResponse(error: Error, status: number = 500): NextResponse {
   // Map error types to appropriate status codes
   const statusCode =
     error instanceof FileNotFoundError ? 404 : error instanceof InvalidRequestError ? 400 : status

@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GmailSearchParams, GmailToolResponse } from './types'
+import { ToolConfig } from '../types'
+import { GmailSearchParams, GmailToolResponse } from './types'
 
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 

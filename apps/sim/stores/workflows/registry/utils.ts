@@ -1,4 +1,4 @@
-import type { WorkflowMetadata } from './types'
+import { WorkflowMetadata } from './types'
 
 // Available workflow colors
 export const WORKFLOW_COLORS = [
@@ -17,7 +17,7 @@ export function generateUniqueName(existingWorkflows: Record<string, WorkflowMet
   const numbers = Object.values(existingWorkflows)
     .map((w) => {
       const match = w.name.match(/Workflow (\d+)/)
-      return match ? Number.parseInt(match[1]) : 0
+      return match ? parseInt(match[1]) : 0
     })
     .filter((n) => n > 0)
 

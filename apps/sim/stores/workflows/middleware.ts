@@ -1,9 +1,10 @@
-import type { StateCreator } from 'zustand'
+import { StateCreator } from 'zustand'
 import { saveSubblockValues, saveWorkflowState } from './persistence'
 import { useWorkflowRegistry } from './registry/store'
 import { useSubBlockStore } from './subblock/store'
-import type { WorkflowState, WorkflowStore } from './workflow/types'
+import { WorkflowState, WorkflowStore } from './workflow/types'
 
+// Types
 interface HistoryEntry {
   state: WorkflowState
   timestamp: number
@@ -46,6 +47,7 @@ export const withHistory = (
         blocks: initialState.blocks,
         edges: initialState.edges,
         loops: initialState.loops,
+        parallels: initialState.parallels,
       },
       timestamp: Date.now(),
       action: 'Initial state',
@@ -110,6 +112,7 @@ export const withHistory = (
           blocks: currentState.blocks,
           edges: currentState.edges,
           loops: currentState.loops,
+          parallels: currentState.parallels,
           history: currentState.history,
           isDeployed: currentState.isDeployed,
           deployedAt: currentState.deployedAt,
@@ -161,6 +164,7 @@ export const withHistory = (
           blocks: currentState.blocks,
           edges: currentState.edges,
           loops: currentState.loops,
+          parallels: currentState.parallels,
           history: currentState.history,
           isDeployed: currentState.isDeployed,
           deployedAt: currentState.deployedAt,
@@ -174,10 +178,11 @@ export const withHistory = (
           blocks: {},
           edges: [],
           loops: {},
+          parallels: {},
           history: {
             past: [],
             present: {
-              state: { blocks: {}, edges: [], loops: {} },
+              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
               timestamp: Date.now(),
               action: 'Clear workflow',
               subblockValues: {},
@@ -236,6 +241,7 @@ export const withHistory = (
           blocks: currentState.blocks,
           edges: currentState.edges,
           loops: currentState.loops,
+          parallels: currentState.parallels,
           history: currentState.history,
           isDeployed: currentState.isDeployed,
           deployedAt: currentState.deployedAt,
@@ -256,6 +262,7 @@ export const createHistoryEntry = (state: WorkflowState, action: string): Histor
     blocks: { ...state.blocks },
     edges: [...state.edges],
     loops: { ...state.loops },
+    parallels: { ...state.parallels },
   }
 
   // Capture the current subblock values for this workflow

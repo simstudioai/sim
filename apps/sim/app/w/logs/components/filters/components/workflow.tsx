@@ -3,6 +3,7 @@ import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -53,22 +54,22 @@ export default function Workflow() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant='outline' size='sm' className='w-full justify-between font-normal text-sm'>
+        <Button variant="outline" size="sm" className="w-full justify-between text-sm font-normal">
           {getSelectedWorkflowsText()}
-          <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
+          <ChevronDown className="h-4 w-4 ml-2 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='start' className='max-h-[300px] w-[180px] overflow-y-auto'>
+      <DropdownMenuContent align="start" className="w-[180px] max-h-[300px] overflow-y-auto">
         <DropdownMenuItem
-          key='all'
+          key="all"
           onSelect={(e) => {
             e.preventDefault()
             clearSelections()
           }}
-          className='flex cursor-pointer items-center justify-between p-2 text-sm'
+          className="flex items-center justify-between p-2 cursor-pointer text-sm"
         >
           <span>All workflows</span>
-          {workflowIds.length === 0 && <Check className='h-4 w-4 text-primary' />}
+          {workflowIds.length === 0 && <Check className="h-4 w-4 text-primary" />}
         </DropdownMenuItem>
 
         {workflows.length > 0 && <DropdownMenuSeparator />}
@@ -80,16 +81,16 @@ export default function Workflow() {
               e.preventDefault()
               toggleWorkflowId(workflow.id)
             }}
-            className='flex cursor-pointer items-center justify-between p-2 text-sm'
+            className="flex items-center justify-between p-2 cursor-pointer text-sm"
           >
-            <div className='flex items-center'>
+            <div className="flex items-center">
               <div
-                className='mr-2 h-2 w-2 rounded-full'
+                className="w-2 h-2 rounded-full mr-2"
                 style={{ backgroundColor: workflow.color }}
               />
               {workflow.name}
             </div>
-            {isWorkflowSelected(workflow.id) && <Check className='h-4 w-4 text-primary' />}
+            {isWorkflowSelected(workflow.id) && <Check className="h-4 w-4 text-primary" />}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import { ToolResponse } from '../types'
 
 /**
  * Input parameters for the Mistral OCR parser tool

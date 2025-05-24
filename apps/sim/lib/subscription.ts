@@ -172,7 +172,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
 
     // If no subscription found, use default free tier limit
     if (highestCostLimit === 0) {
-      highestCostLimit = env.FREE_TIER_COST_LIMIT ? Number.parseFloat(env.FREE_TIER_COST_LIMIT) : 5
+      highestCostLimit = env.FREE_TIER_COST_LIMIT ? parseFloat(env.FREE_TIER_COST_LIMIT) : 5
     }
 
     logger.info('User cost limit from subscription', { userId, costLimit: highestCostLimit })
@@ -189,7 +189,7 @@ export async function hasExceededCostLimit(userId: string): Promise<boolean> {
     }
 
     // Get the current cost and compare with the limit
-    const currentCost = Number.parseFloat(statsRecords[0].totalCost.toString())
+    const currentCost = parseFloat(statsRecords[0].totalCost.toString())
 
     return currentCost >= highestCostLimit
   } catch (error) {
@@ -216,7 +216,7 @@ export async function isSharingEnabled(userId: string): Promise<boolean> {
     const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
 
     // If user has direct pro/team subscription with sharing enabled
-    if (activeDirectSubscription?.limits?.sharingEnabled) {
+    if (activeDirectSubscription && activeDirectSubscription.limits?.sharingEnabled) {
       return true
     }
 
@@ -234,7 +234,7 @@ export async function isSharingEnabled(userId: string): Promise<boolean> {
 
       const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === 'active')
 
-      if (activeOrgSubscription?.limits?.sharingEnabled) {
+      if (activeOrgSubscription && activeOrgSubscription.limits?.sharingEnabled) {
         return true
       }
     }
@@ -264,7 +264,7 @@ export async function isMultiplayerEnabled(userId: string): Promise<boolean> {
     const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
 
     // If user has direct team subscription with multiplayer enabled
-    if (activeDirectSubscription?.limits?.multiplayerEnabled) {
+    if (activeDirectSubscription && activeDirectSubscription.limits?.multiplayerEnabled) {
       return true
     }
 
@@ -282,7 +282,7 @@ export async function isMultiplayerEnabled(userId: string): Promise<boolean> {
 
       const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === 'active')
 
-      if (activeOrgSubscription?.limits?.multiplayerEnabled) {
+      if (activeOrgSubscription && activeOrgSubscription.limits?.multiplayerEnabled) {
         return true
       }
     }
@@ -312,7 +312,10 @@ export async function isWorkspaceCollaborationEnabled(userId: string): Promise<b
     const activeDirectSubscription = directSubscriptions?.find((sub) => sub.status === 'active')
 
     // If user has direct team subscription with workspace collaboration enabled
-    if (activeDirectSubscription?.limits?.workspaceCollaborationEnabled) {
+    if (
+      activeDirectSubscription &&
+      activeDirectSubscription.limits?.workspaceCollaborationEnabled
+    ) {
       return true
     }
 
@@ -330,7 +333,7 @@ export async function isWorkspaceCollaborationEnabled(userId: string): Promise<b
 
       const activeOrgSubscription = orgSubscriptions?.find((sub) => sub.status === 'active')
 
-      if (activeOrgSubscription?.limits?.workspaceCollaborationEnabled) {
+      if (activeOrgSubscription && activeOrgSubscription.limits?.workspaceCollaborationEnabled) {
         return true
       }
     }

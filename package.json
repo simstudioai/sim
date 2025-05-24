@@ -12,14 +12,10 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
-    "format": "bunx biome format --write .",
-    "format:check": "bunx biome format .",
-    "lint": "bunx biome check --write --unsafe .",
-    "lint:check": "bunx biome check --unsafe .",
-    "check": "bunx biome check --files-ignore-unknown=true",
-    "prepare": "bun husky",
-    "prebuild": "bun run lint:check",
-    "type-check": "turbo run type-check"
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "turbo run lint",
+    "prepare": "bun husky"
   },
   "overrides": {
     "react": "19.1.0",
@@ -28,23 +24,14 @@
   },
   "dependencies": {
     "@t3-oss/env-nextjs": "0.13.4",
-    "@vercel/analytics": "1.5.0",
-    "remark-gfm": "4.0.1"
+    "@vercel/analytics": "1.5.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.0.0-beta.5",
     "@next/env": "^15.3.2",
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "dotenv-cli": "^8.0.0",
-    "husky": "9.1.7",
-    "lint-staged": "16.0.0",
     "prettier": "^3.5.3",
     "prettier-plugin-tailwindcss": "^0.6.11",
     "turbo": "2.5.3"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,css,scss,md}": [
-      "biome check --files-ignore-unknown=true"
-    ]
   }
 }

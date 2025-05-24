@@ -1,4 +1,4 @@
-import type { ToolResponse } from '../types'
+import { ToolResponse } from '../types'
 
 // Common Types
 export interface XTweet {

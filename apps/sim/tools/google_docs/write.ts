@@ -1,5 +1,5 @@
-import type { ToolConfig } from '../types'
-import type { GoogleDocsToolParams, GoogleDocsWriteResponse } from './types'
+import { ToolConfig } from '../types'
+import { GoogleDocsToolParams, GoogleDocsWriteResponse } from './types'
 
 export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse> = {
   id: 'google_docs_write',
@@ -31,7 +31,7 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
   request: {
     url: (params) => {
       // Ensure documentId is valid
-      const documentId = params.documentId?.trim() || params.manualDocumentId?.trim()
+      const documentId = params.documentId?.trim()
       if (!documentId) {
         throw new Error('Document ID is required')
       }
@@ -80,44 +80,49 @@ export const writeTool: ToolConfig<GoogleDocsToolParams, GoogleDocsWriteResponse
         const responseClone = response.clone()
         const responseText = await responseClone.text()
         errorText = responseText
-      } catch (_e) {
+      } catch (e) {
         errorText = 'Unable to read error response'
       }
 
       throw new Error(`Failed to write to Google Docs document (${response.status}): ${errorText}`)
     }
-    const responseText = await response.text()
 
-    // Parse the response if it's not empty
-    let _data = {}
-    if (responseText.trim()) {
-      _data = JSON.parse(responseText)
-    }
+    try {
+      const responseText = await response.text()
 
-    // Get the document ID from the URL
-    const urlParts = response.url.split('/')
-    let documentId = ''
-    for (let i = 0; i < urlParts.length; i++) {
-      if (urlParts[i] === 'documents' && i + 1 < urlParts.length) {
-        documentId = urlParts[i + 1].split(':')[0]
-        break
+      // Parse the response if it's not empty
+      let data = {}
+      if (responseText.trim()) {
+        data = JSON.parse(responseText)
       }
-    }
 
-    // Create document metadata
-    const metadata = {
-      documentId,
-      title: 'Updated Document',
-      mimeType: 'application/vnd.google-apps.document',
-      url: `https://docs.google.com/document/d/${documentId}/edit`,
-    }
+      // Get the document ID from the URL
+      const urlParts = response.url.split('/')
+      let documentId = ''
+      for (let i = 0; i < urlParts.length; i++) {
+        if (urlParts[i] === 'documents' && i + 1 < urlParts.length) {
+          documentId = urlParts[i + 1].split(':')[0]
+          break
+        }
+      }
 
-    return {
-      success: true,
-      output: {
-        updatedContent: true,
-        metadata,
-      },
+      // Create document metadata
+      const metadata = {
+        documentId,
+        title: 'Updated Document',
+        mimeType: 'application/vnd.google-apps.document',
+        url: `https://docs.google.com/document/d/${documentId}/edit`,
+      }
+
+      return {
+        success: true,
+        output: {
+          updatedContent: true,
+          metadata,
+        },
+      }
+    } catch (error) {
+      throw error
     }
   },
   transformError: (error) => {

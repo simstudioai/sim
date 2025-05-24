@@ -1,11 +1,11 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
-import type { BlockOutput } from '@/blocks/types'
+import { BlockOutput } from '@/blocks/types'
 import { getProviderFromModel } from '@/providers/utils'
-import type { SerializedBlock } from '@/serializer/types'
-import type { PathTracker } from '../../path'
-import type { BlockHandler, ExecutionContext } from '../../types'
+import { SerializedBlock } from '@/serializer/types'
+import { PathTracker } from '../../path'
+import { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('RouterBlockHandler')
 
@@ -71,7 +71,7 @@ export class RouterBlockHandler implements BlockHandler {
           if (errorData.error) {
             errorMessage = errorData.error
           }
-        } catch (_e) {
+        } catch (e) {
           // If JSON parsing fails, use the original error message
         }
         throw new Error(errorMessage)

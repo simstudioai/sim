@@ -1,8 +1,8 @@
 import OpenAI from 'openai'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { StreamingExecution } from '@/executor/types'
+import { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
-import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('DeepseekProvider')
@@ -111,7 +111,7 @@ export const deepseekProvider: ProviderConfig = {
           payload.tools = filteredTools
           payload.tool_choice = toolChoice
 
-          logger.info('Deepseek request configuration:', {
+          logger.info(`Deepseek request configuration:`, {
             toolCount: filteredTools.length,
             toolChoice:
               typeof toolChoice === 'string'
@@ -138,7 +138,7 @@ export const deepseekProvider: ProviderConfig = {
         })
 
         // Start collecting token usage
-        const tokenUsage = {
+        let tokenUsage = {
           prompt: 0,
           completion: 0,
           total: 0,
@@ -214,14 +214,14 @@ export const deepseekProvider: ProviderConfig = {
         content = content.trim()
       }
 
-      const tokens = {
+      let tokens = {
         prompt: currentResponse.usage?.prompt_tokens || 0,
         completion: currentResponse.usage?.completion_tokens || 0,
         total: currentResponse.usage?.total_tokens || 0,
       }
-      const toolCalls = []
-      const toolResults = []
-      const currentMessages = [...allMessages]
+      let toolCalls = []
+      let toolResults = []
+      let currentMessages = [...allMessages]
       let iterationCount = 0
       const MAX_ITERATIONS = 10 // Prevent infinite loops
 

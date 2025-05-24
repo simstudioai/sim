@@ -3,18 +3,12 @@
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { env } from '@/lib/env'
-import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import {
-  type ConfluenceFileInfo,
-  ConfluenceFileSelector,
-} from './components/confluence-file-selector'
-import {
-  type DiscordChannelInfo,
-  DiscordChannelSelector,
-} from './components/discord-channel-selector'
-import { type FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
-import { type JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
+import { SubBlockConfig } from '@/blocks/types'
+import { ConfluenceFileInfo, ConfluenceFileSelector } from './components/confluence-file-selector'
+import { DiscordChannelInfo, DiscordChannelSelector } from './components/discord-channel-selector'
+import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
+import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
 
 interface FileSelectorInputProps {
   blockId: string
@@ -25,11 +19,11 @@ interface FileSelectorInputProps {
 export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedFileId, setSelectedFileId] = useState<string>('')
-  const [_fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
+  const [fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string>('')
-  const [_issueInfo, setIssueInfo] = useState<JiraIssueInfo | null>(null)
+  const [issueInfo, setIssueInfo] = useState<JiraIssueInfo | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
-  const [_channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
+  const [channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
@@ -39,7 +33,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
 
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
-  const _credentials =
+  const credentials =
     isConfluence || isJira ? (getValue(blockId, 'credential') as string) || '' : ''
   // For Discord, we need the bot token and server ID
   const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
@@ -96,7 +90,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className='w-full'>
+            <div className="w-full">
               <DiscordChannelSelector
                 value={selectedChannelId}
                 onChange={handleChannelChange}
@@ -109,7 +103,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
             </div>
           </TooltipTrigger>
           {(!botToken || !serverId) && (
-            <TooltipContent side='top'>
+            <TooltipContent side="top">
               <p>{!botToken ? 'Please enter a Bot Token first' : 'Please select a Server first'}</p>
             </TooltipContent>
           )}
@@ -124,12 +118,12 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className='w-full'>
+            <div className="w-full">
               <ConfluenceFileSelector
                 value={selectedFileId}
                 onChange={handleFileChange}
                 domain={domain}
-                provider='confluence'
+                provider="confluence"
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Confluence page'}
@@ -140,7 +134,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
             </div>
           </TooltipTrigger>
           {!domain && (
-            <TooltipContent side='top'>
+            <TooltipContent side="top">
               <p>Please enter a Confluence domain first</p>
             </TooltipContent>
           )}
@@ -154,12 +148,12 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className='w-full'>
+            <div className="w-full">
               <JiraIssueSelector
                 value={selectedIssueId}
                 onChange={handleIssueChange}
                 domain={domain}
-                provider='jira'
+                provider="jira"
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Jira issue'}
@@ -170,7 +164,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
             </div>
           </TooltipTrigger>
           {!domain && (
-            <TooltipContent side='top'>
+            <TooltipContent side="top">
               <p>Please enter a Jira domain first</p>
             </TooltipContent>
           )}

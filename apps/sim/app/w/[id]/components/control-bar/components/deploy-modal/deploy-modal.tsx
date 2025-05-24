@@ -17,16 +17,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { CopyButton } from '@/components/ui/copy-button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { TabsContent } from '@/components/ui/tabs'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
+import { useNotificationStore } from '@/stores/notifications/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ChatDeploy } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/chat-deploy/chat-deploy'
 import { DeployForm } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deploy-form/deploy-form'
 import { DeploymentInfo } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/deployment-info'
-import { useNotificationStore } from '@/stores/notifications/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('DeployModal')
 
@@ -47,7 +47,7 @@ interface ApiKey {
   expiresAt?: string
 }
 
-interface WorkflowDeploymentInfo {
+interface DeploymentInfo {
   isDeployed: boolean
   deployedAt?: string
   apiKey: string
@@ -72,20 +72,15 @@ export function DeployModal({
 }: DeployModalProps) {
   // Store hooks
   const { addNotification } = useNotificationStore()
-
-  // Use registry store for deployment-related functions
-  const deploymentStatus = useWorkflowRegistry((state) =>
-    state.getWorkflowDeploymentStatus(workflowId)
-  )
-  const isDeployed = deploymentStatus?.isDeployed || false
-  const setDeploymentStatus = useWorkflowRegistry((state) => state.setDeploymentStatus)
+  const { isDeployed, setDeploymentStatus } = useWorkflowStore()
 
   // Local state
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUndeploying, setIsUndeploying] = useState(false)
-  const [deploymentInfo, setDeploymentInfo] = useState<WorkflowDeploymentInfo | null>(null)
+  const [deploymentInfo, setDeploymentInfo] = useState<DeploymentInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [isCreatingKey, setIsCreatingKey] = useState(false)
   const [keysLoaded, setKeysLoaded] = useState(false)
   const [activeTab, setActiveTab] = useState<TabView>('api')
   const [isChatDeploying, setIsChatDeploying] = useState(false)
@@ -278,18 +273,10 @@ export function DeployModal({
       const { isDeployed: newDeployStatus, deployedAt } = await response.json()
 
       // Update the store with the deployment status
-      setDeploymentStatus(
-        workflowId,
-        newDeployStatus,
-        deployedAt ? new Date(deployedAt) : undefined,
-        data.apiKey
-      )
+      setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
 
       // Reset the needs redeployment flag
       setNeedsRedeployment(false)
-      if (workflowId) {
-        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
-      }
 
       // Update the local deployment info
       const endpoint = `${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`
@@ -335,7 +322,7 @@ export function DeployModal({
       }
 
       // Update deployment status in the store
-      setDeploymentStatus(workflowId, false)
+      setDeploymentStatus(false)
 
       // Reset chat deployment info
       setDeployedChatUrl(null)
@@ -379,21 +366,13 @@ export function DeployModal({
         throw new Error(errorData.error || 'Failed to redeploy workflow')
       }
 
-      const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
+      const { isDeployed: newDeployStatus, deployedAt } = await response.json()
 
       // Update deployment status in the store
-      setDeploymentStatus(
-        workflowId,
-        newDeployStatus,
-        deployedAt ? new Date(deployedAt) : undefined,
-        apiKey
-      )
+      setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
 
       // Reset the needs redeployment flag
       setNeedsRedeployment(false)
-      if (workflowId) {
-        useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
-      }
 
       // Add a success notification
       addNotification('info', 'Workflow successfully redeployed', workflowId)
@@ -496,15 +475,10 @@ export function DeployModal({
           throw new Error(errorData.error || 'Failed to deploy workflow')
         }
 
-        const { isDeployed: newDeployStatus, deployedAt, apiKey } = await response.json()
+        const { isDeployed: newDeployStatus, deployedAt } = await response.json()
 
         // Update the store with the deployment status
-        setDeploymentStatus(
-          workflowId,
-          newDeployStatus,
-          deployedAt ? new Date(deployedAt) : undefined,
-          apiKey
-        )
+        setDeploymentStatus(newDeployStatus, deployedAt ? new Date(deployedAt) : undefined)
 
         logger.info('Workflow automatically deployed for chat deployment')
       } catch (error: any) {
@@ -527,30 +501,30 @@ export function DeployModal({
   }
 
   // Render deployed chat view
-  const _renderDeployedChatView = () => {
+  const renderDeployedChatView = () => {
     if (!deployedChatUrl) {
       return (
-        <div className='flex items-center justify-center py-12 text-muted-foreground'>
-          <div className='flex flex-col items-center gap-2'>
-            <Info className='h-5 w-5' />
-            <p className='text-sm'>No chat deployment information available</p>
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          <div className="flex flex-col items-center gap-2">
+            <Info className="h-5 w-5" />
+            <p className="text-sm">No chat deployment information available</p>
           </div>
         </div>
       )
     }
 
     return (
-      <div className='space-y-4'>
-        <Card className='border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20'>
-          <CardContent className='p-6 text-green-800 dark:text-green-400'>
-            <h3 className='mb-2 font-medium text-base'>Chat Deployment Active</h3>
-            <p className='mb-3'>Your chat is available at:</p>
-            <div className='group relative rounded-md border border-green-200 bg-white/50 p-3 dark:border-green-900/50 dark:bg-gray-900/50'>
+      <div className="space-y-4">
+        <Card className="border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-900/20">
+          <CardContent className="p-6 text-green-800 dark:text-green-400">
+            <h3 className="text-base font-medium mb-2">Chat Deployment Active</h3>
+            <p className="mb-3">Your chat is available at:</p>
+            <div className="bg-white/50 dark:bg-gray-900/50 p-3 rounded-md border border-green-200 dark:border-green-900/50 relative group">
               <a
                 href={deployedChatUrl}
-                target='_blank'
-                rel='noopener noreferrer'
-                className='block break-all pr-8 font-medium text-primary text-sm underline'
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-primary underline break-all block pr-8"
               >
                 {deployedChatUrl}
               </a>
@@ -565,38 +539,38 @@ export function DeployModal({
   return (
     <Dialog open={open} onOpenChange={handleCloseModal}>
       <DialogContent
-        className='flex max-h-[78vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
+        className="sm:max-w-[600px] max-h-[78vh] flex flex-col p-0 gap-0 overflow-hidden"
         hideCloseButton
       >
-        <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
-          <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>Deploy Workflow</DialogTitle>
-            <Button variant='ghost' size='icon' className='h-8 w-8 p-0' onClick={handleCloseModal}>
-              <X className='h-4 w-4' />
-              <span className='sr-only'>Close</span>
+        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-lg font-medium">Deploy Workflow</DialogTitle>
+            <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={handleCloseModal}>
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
             </Button>
           </div>
         </DialogHeader>
 
-        <div className='flex flex-1 flex-col overflow-hidden'>
-          <div className='flex h-14 flex-none items-center border-b px-6'>
-            <div className='flex gap-2'>
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-none flex items-center h-14 px-6 border-b">
+            <div className="flex gap-2">
               <button
                 onClick={() => setActiveTab('api')}
-                className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
                   activeTab === 'api'
                     ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                 }`}
               >
                 API
               </button>
               <button
                 onClick={() => setActiveTab('chat')}
-                className={`rounded-md px-3 py-1 text-sm transition-colors ${
+                className={`px-3 py-1 text-sm rounded-md transition-colors ${
                   activeTab === 'chat'
                     ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                 }`}
               >
                 Chat
@@ -604,40 +578,43 @@ export function DeployModal({
             </div>
           </div>
 
-          <div className='flex-1 overflow-y-auto'>
-            <div className='p-6'>
-              {activeTab === 'api' &&
-                (isDeployed ? (
-                  <DeploymentInfo
-                    isLoading={isLoading}
-                    deploymentInfo={deploymentInfo}
-                    onRedeploy={handleRedeploy}
-                    onUndeploy={handleUndeploy}
-                    isSubmitting={isSubmitting}
-                    isUndeploying={isUndeploying}
-                    workflowId={workflowId || undefined}
-                  />
-                ) : (
-                  <>
-                    {apiDeployError && (
-                      <div className='mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
-                        <div className='font-semibold'>API Deployment Error</div>
-                        <div>{apiDeployError}</div>
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              {activeTab === 'api' && (
+                <>
+                  {isDeployed ? (
+                    <DeploymentInfo
+                      isLoading={isLoading}
+                      deploymentInfo={deploymentInfo}
+                      onRedeploy={handleRedeploy}
+                      onUndeploy={handleUndeploy}
+                      isSubmitting={isSubmitting}
+                      isUndeploying={isUndeploying}
+                      workflowId={workflowId || undefined}
+                    />
+                  ) : (
+                    <>
+                      {apiDeployError && (
+                        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+                          <div className="font-semibold">API Deployment Error</div>
+                          <div>{apiDeployError}</div>
+                        </div>
+                      )}
+                      <div className="px-1 -mx-1">
+                        <DeployForm
+                          apiKeys={apiKeys}
+                          keysLoaded={keysLoaded}
+                          endpointUrl={`${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
+                          workflowId={workflowId || ''}
+                          onSubmit={onDeploy}
+                          getInputFormatExample={getInputFormatExample}
+                          onApiKeyCreated={fetchApiKeys}
+                        />
                       </div>
-                    )}
-                    <div className='-mx-1 px-1'>
-                      <DeployForm
-                        apiKeys={apiKeys}
-                        keysLoaded={keysLoaded}
-                        endpointUrl={`${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
-                        workflowId={workflowId || ''}
-                        onSubmit={onDeploy}
-                        getInputFormatExample={getInputFormatExample}
-                        onApiKeyCreated={fetchApiKeys}
-                      />
-                    </div>
-                  </>
-                ))}
+                    </>
+                  )}
+                </>
+              )}
 
               {activeTab === 'chat' && (
                 <ChatDeploy
@@ -656,13 +633,13 @@ export function DeployModal({
 
         {/* Footer buttons */}
         {activeTab === 'api' && !isDeployed && (
-          <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
-            <Button variant='outline' onClick={handleCloseModal}>
+          <div className="border-t px-6 py-4 flex justify-between flex-shrink-0">
+            <Button variant="outline" onClick={handleCloseModal}>
               Cancel
             </Button>
 
             <Button
-              type='button'
+              type="button"
               onClick={() => onDeploy({ apiKey: apiKeys.length > 0 ? apiKeys[0].key : '' })}
               disabled={isSubmitting || (!keysLoaded && !apiKeys.length) || isChatDeploying}
               className={cn(
@@ -675,7 +652,7 @@ export function DeployModal({
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                   Deploying...
                 </>
               ) : (
@@ -686,19 +663,19 @@ export function DeployModal({
         )}
 
         {activeTab === 'chat' && (
-          <div className='flex flex-shrink-0 justify-between border-t px-6 py-4'>
-            <Button variant='outline' onClick={handleCloseModal}>
+          <div className="border-t px-6 py-4 flex justify-between flex-shrink-0">
+            <Button variant="outline" onClick={handleCloseModal}>
               Cancel
             </Button>
 
-            <div className='flex gap-2'>
+            <div className="flex gap-2">
               {chatExists && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant='destructive' disabled={chatSubmitting || isUndeploying}>
+                    <Button variant="destructive" disabled={chatSubmitting || isUndeploying}>
                       {isUndeploying ? (
                         <>
-                          <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                           Undeploying...
                         </>
                       ) : (
@@ -718,7 +695,7 @@ export function DeployModal({
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={handleChatUndeploy}
-                        className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       >
                         Delete
                       </AlertDialogAction>
@@ -727,7 +704,7 @@ export function DeployModal({
                 </AlertDialog>
               )}
               <Button
-                type='button'
+                type="button"
                 onClick={handleChatSubmit}
                 disabled={chatSubmitting}
                 className={cn(
@@ -740,7 +717,7 @@ export function DeployModal({
               >
                 {chatSubmitting ? (
                   <>
-                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                     {isDeployed
                       ? chatExists
                         ? 'Updating...'

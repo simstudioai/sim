@@ -11,9 +11,7 @@
     "build:tsc": "tsc",
     "prepublishOnly": "bun run build"
   },
-  "files": [
-    "dist"
-  ],
+  "files": [ "dist" ],
   "keywords": [
     "simstudio",
     "ai",
@@ -47,9 +45,7 @@
   "turbo": {
     "tasks": {
       "build": {
-        "outputs": [
-          "dist/**"
-        ]
+        "outputs": ["dist/**"]
       }
     }
   }

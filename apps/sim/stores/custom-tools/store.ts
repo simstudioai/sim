@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { CustomToolsStore } from './types'
+import { CustomToolsStore } from './types'
 
 const logger = createLogger('CustomToolsStore')
 const API_ENDPOINT = '/api/tools/custom'
@@ -114,7 +114,7 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
                 throw new Error(
                   `Failed to sync custom tools: ${response.statusText}. ${errorData.error || ''}`
                 )
-              } catch (_parseError) {
+              } catch (parseError) {
                 throw new Error(`Failed to sync custom tools: ${response.statusText}`)
               }
             }
