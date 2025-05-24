@@ -18,6 +18,7 @@ export interface OutlookReadParams {
   accessToken: string
   folder: string
   maxResults: number
+  messageId?: string
 }
 
 export interface OutlookReadResponse extends ToolResponse {

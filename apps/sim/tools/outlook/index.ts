@@ -1,7 +1,5 @@
-import { sendTool } from './send'
-import { readTool } from './read'
-import { draftTool } from './draft'
+import { outlookDraftTool } from './draft'
+import { outlookReadTool } from './read'
+import { outlookSendTool } from './send'
 
-export const outlookSendTool = sendTool
-export const outlookReadTool = readTool
-export const outlookDraftTool = draftTool
+export { outlookDraftTool, outlookReadTool, outlookSendTool }

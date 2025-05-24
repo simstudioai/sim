@@ -5,7 +5,7 @@ import { BlockConfig } from '../types'
 export const OutlookBlock: BlockConfig<OutlookReadResponse | OutlookSendResponse | OutlookDraftResponse> = {
   type: 'outlook',
   name: 'Outlook',
-  description: 'Send Outlook',
+  description: 'Access Outlook',
   longDescription:
     'Integrate Outlook functionality to read, draft, andsend email messages within your workflow. Automate email communications and process email content using OAuth authentication.',
   docsLink: 'https://docs.simstudio.ai/tools/outlook',

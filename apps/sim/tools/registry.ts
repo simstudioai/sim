@@ -68,6 +68,7 @@ import {
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from './reddit'
 import { s3GetObjectTool } from './s3'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
+import { outlookReadTool, outlookSendTool, outlookDraftTool } from './outlook'
 import { searchTool as serperSearch } from './serper'
 import { slackMessageTool } from './slack'
 import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
@@ -183,4 +184,7 @@ export const tools: Record<string, ToolConfig> = {
   microsoft_teams_write_chat: microsoftTeamsWriteChatTool,
   microsoft_teams_read_channel: microsoftTeamsReadChannelTool,
   microsoft_teams_write_channel: microsoftTeamsWriteChannelTool,
+  outlook_read: outlookReadTool,
+  outlook_send: outlookSendTool,
+  outlook_draft: outlookDraftTool,
 }
