@@ -8,7 +8,12 @@
 }
 
 .workflow-container .react-flow__node {
-  z-index: 20 !important;
+  z-index: 21 !important;
+}
+
+.workflow-container .react-flow__node-loopNode,
+.workflow-container .react-flow__node-parallelNode {
+  z-index: -1 !important;
 }
 
 .workflow-container .react-flow__handle {

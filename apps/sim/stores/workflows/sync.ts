@@ -264,6 +264,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         blocks: state.blocks || {},
         edges: state.edges || [],
         loops: state.loops || {},
+        parallels: state.parallels || {},
         isDeployed: isDeployed || false,
         deployedAt: deployedAt ? new Date(deployedAt) : undefined,
         apiKey,
