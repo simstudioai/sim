@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { ChatMessage } from '../components/message/message'
+import type { ChatMessage } from '../components/message/message'
 
 export function useChatStreaming() {
   const [isStreamingResponse, setIsStreamingResponse] = useState(false)

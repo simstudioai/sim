@@ -1,9 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk"
-import { createLogger } from "@/lib/logs/console-logger"
-import type { StreamingExecution } from "@/executor/types"
-import { executeTool } from "@/tools"
-import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
-import { prepareToolsWithUsageControl, trackForcedToolUsage } from "../utils"
+import type { StreamingExecution } from '@/executor/types'
+import { createLogger } from '@/lib/logs/console-logger'
+import { executeTool } from '@/tools'
+import Anthropic from '@anthropic-ai/sdk'
+import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
+import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
 const logger = createLogger('AnthropicProvider')
 
