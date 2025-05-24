@@ -114,7 +114,7 @@ export const auth = betterAuth({
         'supabase',
         'x',
         'notion',
-        'microsoft'
+        'microsoft',
       ],
     },
   },

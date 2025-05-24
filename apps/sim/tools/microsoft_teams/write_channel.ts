@@ -50,7 +50,7 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
 
       // Send a message to a channel
       const url = `https://graph.microsoft.com/v1.0/teams/${encodedTeamId}/channels/${encodedChannelId}/messages`
-      
+
       return url
     },
     method: 'POST',

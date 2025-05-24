@@ -15,10 +15,10 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Logger } from '@/lib/logs/console-logger'
 import {
-  Credential,
+  type Credential,
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
-  OAuthProvider,
+  type OAuthProvider,
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
@@ -94,7 +94,6 @@ export function TeamsMessageSelector({
     return getProviderIdFromServiceId(effectiveServiceId)
   }
 
-
   const fetchCredentials = useCallback(async () => {
     setIsLoading(true)
     try {
@@ -151,14 +150,14 @@ export function TeamsMessageSelector({
 
       if (!response.ok) {
         const errorData = await response.json()
-        
+
         // If server indicates auth is required, show the auth modal
         if (response.status === 401 && errorData.authRequired) {
           logger.warn('Authentication required for Microsoft Teams')
           setShowOAuthModal(true)
           throw new Error('Microsoft Teams authentication required')
         }
-        
+
         throw new Error(errorData.error || 'Failed to fetch teams')
       }
 
@@ -212,14 +211,14 @@ export function TeamsMessageSelector({
 
         if (!response.ok) {
           const errorData = await response.json()
-          
+
           // If server indicates auth is required, show the auth modal
           if (response.status === 401 && errorData.authRequired) {
             logger.warn('Authentication required for Microsoft Teams')
             setShowOAuthModal(true)
             throw new Error('Microsoft Teams authentication required')
           }
-          
+
           throw new Error(errorData.error || 'Failed to fetch channels')
         }
 
@@ -237,7 +236,9 @@ export function TeamsMessageSelector({
 
         // If we have a selected channel ID, find it in the list
         if (selectedChannelId) {
-          const channel = channelsData.find((c: TeamsMessageInfo) => c.channelId === selectedChannelId)
+          const channel = channelsData.find(
+            (c: TeamsMessageInfo) => c.channelId === selectedChannelId
+          )
           if (channel) {
             setSelectedMessage(channel)
             onMessageInfoChange?.(channel)
@@ -275,14 +276,14 @@ export function TeamsMessageSelector({
 
       if (!response.ok) {
         const errorData = await response.json()
-        
+
         // If server indicates auth is required, show the auth modal
         if (response.status === 401 && errorData.authRequired) {
           logger.warn('Authentication required for Microsoft Teams')
           setShowOAuthModal(true)
           throw new Error('Microsoft Teams authentication required')
         }
-        
+
         throw new Error(errorData.error || 'Failed to fetch chats')
       }
 
@@ -430,20 +431,18 @@ export function TeamsMessageSelector({
     if (selectionStage === 'team' && teams.length > 0) {
       return (
         <CommandGroup>
-          <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-            Teams
-          </div>
+          <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>Teams</div>
           {teams.map((team) => (
             <CommandItem
               key={team.id}
               value={`team-${team.id}-${team.displayName}`}
               onSelect={() => handleSelectTeam(team)}
             >
-              <div className="flex items-center gap-2 overflow-hidden">
-                <MicrosoftTeamsIcon className="h-4 w-4" />
-                <span className="font-normal truncate">{team.displayName}</span>
+              <div className='flex items-center gap-2 overflow-hidden'>
+                <MicrosoftTeamsIcon className='h-4 w-4' />
+                <span className='truncate font-normal'>{team.displayName}</span>
               </div>
-              {team.teamId === selectedTeamId && <Check className="ml-auto h-4 w-4" />}
+              {team.teamId === selectedTeamId && <Check className='ml-auto h-4 w-4' />}
             </CommandItem>
           ))}
         </CommandGroup>
@@ -453,20 +452,18 @@ export function TeamsMessageSelector({
     if (selectionStage === 'channel' && channels.length > 0) {
       return (
         <CommandGroup>
-          <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-            Channels
-          </div>
+          <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>Channels</div>
           {channels.map((channel) => (
             <CommandItem
               key={channel.id}
               value={`channel-${channel.id}-${channel.displayName}`}
               onSelect={() => handleSelectChannel(channel)}
             >
-              <div className="flex items-center gap-2 overflow-hidden">
-                <MicrosoftTeamsIcon className="h-4 w-4" />
-                <span className="font-normal truncate">{channel.displayName}</span>
+              <div className='flex items-center gap-2 overflow-hidden'>
+                <MicrosoftTeamsIcon className='h-4 w-4' />
+                <span className='truncate font-normal'>{channel.displayName}</span>
               </div>
-              {channel.channelId === selectedChannelId && <Check className="ml-auto h-4 w-4" />}
+              {channel.channelId === selectedChannelId && <Check className='ml-auto h-4 w-4' />}
             </CommandItem>
           ))}
         </CommandGroup>
@@ -476,20 +473,18 @@ export function TeamsMessageSelector({
     if (selectionStage === 'chat' && chats.length > 0) {
       return (
         <CommandGroup>
-          <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-            Chats
-          </div>
+          <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>Chats</div>
           {chats.map((chat) => (
             <CommandItem
               key={chat.id}
               value={`chat-${chat.id}-${chat.displayName}`}
               onSelect={() => handleSelectChat(chat)}
             >
-              <div className="flex items-center gap-2 overflow-hidden">
-                <MicrosoftTeamsIcon className="h-4 w-4" />
-                <span className="font-normal truncate">{chat.displayName}</span>
+              <div className='flex items-center gap-2 overflow-hidden'>
+                <MicrosoftTeamsIcon className='h-4 w-4' />
+                <span className='truncate font-normal'>{chat.displayName}</span>
               </div>
-              {chat.chatId === selectedChatId && <Check className="ml-auto h-4 w-4" />}
+              {chat.chatId === selectedChatId && <Check className='ml-auto h-4 w-4' />}
             </CommandItem>
           ))}
         </CommandGroup>
@@ -500,148 +495,168 @@ export function TeamsMessageSelector({
   }
 
   // Restore team selection on page refresh
-  const restoreTeamSelection = useCallback(async (teamId: string) => {
-    if (!selectedCredentialId || !teamId || selectionType !== 'team') return
+  const restoreTeamSelection = useCallback(
+    async (teamId: string) => {
+      if (!selectedCredentialId || !teamId || selectionType !== 'team') return
 
-    setIsLoading(true)
-    try {
-      const response = await fetch('/api/auth/oauth/microsoft-teams/teams', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const team = data.teams.find((t: { id: string; displayName: string }) => t.id === teamId)
-        if (team) {
-          const teamInfo: TeamsMessageInfo = {
-            id: team.id,
-            displayName: team.displayName,
-            type: 'team',
-            teamId: team.id,
-            webViewLink: `https://teams.microsoft.com/l/team/${team.id}`,
-          }
-          setSelectedTeamId(team.id)
-          setSelectedMessage(teamInfo)
-          onMessageInfoChange?.(teamInfo)
-        }
-      }
-    } catch (error) {
-      logger.error('Error restoring team selection:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [selectedCredentialId, selectionType, onMessageInfoChange, workflowId])
-
-  // Restore chat selection on page refresh
-  const restoreChatSelection = useCallback(async (chatId: string) => {
-    if (!selectedCredentialId || !chatId || selectionType !== 'chat') return
-
-    setIsLoading(true)
-    try {
-      const response = await fetch('/api/auth/oauth/microsoft-teams/chats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const chat = data.chats.find((c: { id: string; displayName: string }) => c.id === chatId)
-        if (chat) {
-          const chatInfo: TeamsMessageInfo = {
-            id: chat.id,
-            displayName: chat.displayName,
-            type: 'chat',
-            chatId: chat.id,
-            webViewLink: `https://teams.microsoft.com/l/chat/${chat.id}`,
-          }
-          setSelectedChatId(chat.id)
-          setSelectedMessage(chatInfo)
-          onMessageInfoChange?.(chatInfo)
-        }
-      }
-    } catch (error) {
-      logger.error('Error restoring chat selection:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [selectedCredentialId, selectionType, onMessageInfoChange, workflowId])
-
-  // Restore channel selection on page refresh
-  const restoreChannelSelection = useCallback(async (channelId: string) => {
-    if (!selectedCredentialId || !channelId || selectionType !== 'channel') return
-
-    setIsLoading(true)
-    try {
-      // First fetch teams to search through them
-      const teamsResponse = await fetch('/api/auth/oauth/microsoft-teams/teams', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
-      })
-
-      if (teamsResponse.ok) {
-        const teamsData = await teamsResponse.json()
-        
-        // Create parallel promises for all teams to search for the channel
-        const channelSearchPromises = teamsData.teams.map(async (team: { id: string; displayName: string }) => {
-          try {
-            const channelsResponse = await fetch('/api/auth/oauth/microsoft-teams/channels', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ credential: selectedCredentialId, teamId: team.id, workflowId }),
-            })
-
-            if (channelsResponse.ok) {
-              const channelsData = await channelsResponse.json()
-              const channel = channelsData.channels.find((c: { id: string; displayName: string }) => c.id === channelId)
-              if (channel) {
-                return {
-                  team,
-                  channel,
-                  channelInfo: {
-                    id: `${team.id}-${channel.id}`,
-                    displayName: channel.displayName,
-                    type: 'channel' as const,
-                    teamId: team.id,
-                    channelId: channel.id,
-                    webViewLink: `https://teams.microsoft.com/l/channel/${team.id}/${encodeURIComponent(channel.displayName)}/${channel.id}`,
-                  }
-                }
-              }
-            }
-          } catch (error) {
-            logger.warn(`Error searching for channel in team ${team.id}:`, error instanceof Error ? error.message : String(error))
-          }
-          return null
+      setIsLoading(true)
+      try {
+        const response = await fetch('/api/auth/oauth/microsoft-teams/teams', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
         })
 
-        // Wait for all parallel requests to complete (or fail)
-        const results = await Promise.allSettled(channelSearchPromises)
-        
-        // Find the first successful result that contains our channel
-        for (const result of results) {
-          if (result.status === 'fulfilled' && result.value) {
-            const { channelInfo } = result.value
-            setSelectedTeamId(channelInfo.teamId!)
-            setSelectedChannelId(channelInfo.channelId!)
-            setSelectedMessage(channelInfo)
-            onMessageInfoChange?.(channelInfo)
-            return // Found the channel, exit successfully
+        if (response.ok) {
+          const data = await response.json()
+          const team = data.teams.find((t: { id: string; displayName: string }) => t.id === teamId)
+          if (team) {
+            const teamInfo: TeamsMessageInfo = {
+              id: team.id,
+              displayName: team.displayName,
+              type: 'team',
+              teamId: team.id,
+              webViewLink: `https://teams.microsoft.com/l/team/${team.id}`,
+            }
+            setSelectedTeamId(team.id)
+            setSelectedMessage(teamInfo)
+            onMessageInfoChange?.(teamInfo)
           }
         }
-
-        // If we get here, the channel wasn't found in any team
-        logger.warn(`Channel ${channelId} not found in any accessible team`)
+      } catch (error) {
+        logger.error('Error restoring team selection:', error)
+      } finally {
+        setIsLoading(false)
       }
-    } catch (error) {
-      logger.error('Error restoring channel selection:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [selectedCredentialId, selectionType, onMessageInfoChange, workflowId])
+    },
+    [selectedCredentialId, selectionType, onMessageInfoChange, workflowId]
+  )
+
+  // Restore chat selection on page refresh
+  const restoreChatSelection = useCallback(
+    async (chatId: string) => {
+      if (!selectedCredentialId || !chatId || selectionType !== 'chat') return
+
+      setIsLoading(true)
+      try {
+        const response = await fetch('/api/auth/oauth/microsoft-teams/chats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const chat = data.chats.find((c: { id: string; displayName: string }) => c.id === chatId)
+          if (chat) {
+            const chatInfo: TeamsMessageInfo = {
+              id: chat.id,
+              displayName: chat.displayName,
+              type: 'chat',
+              chatId: chat.id,
+              webViewLink: `https://teams.microsoft.com/l/chat/${chat.id}`,
+            }
+            setSelectedChatId(chat.id)
+            setSelectedMessage(chatInfo)
+            onMessageInfoChange?.(chatInfo)
+          }
+        }
+      } catch (error) {
+        logger.error('Error restoring chat selection:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [selectedCredentialId, selectionType, onMessageInfoChange, workflowId]
+  )
+
+  // Restore channel selection on page refresh
+  const restoreChannelSelection = useCallback(
+    async (channelId: string) => {
+      if (!selectedCredentialId || !channelId || selectionType !== 'channel') return
+
+      setIsLoading(true)
+      try {
+        // First fetch teams to search through them
+        const teamsResponse = await fetch('/api/auth/oauth/microsoft-teams/teams', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
+        })
+
+        if (teamsResponse.ok) {
+          const teamsData = await teamsResponse.json()
+
+          // Create parallel promises for all teams to search for the channel
+          const channelSearchPromises = teamsData.teams.map(
+            async (team: { id: string; displayName: string }) => {
+              try {
+                const channelsResponse = await fetch('/api/auth/oauth/microsoft-teams/channels', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    credential: selectedCredentialId,
+                    teamId: team.id,
+                    workflowId,
+                  }),
+                })
+
+                if (channelsResponse.ok) {
+                  const channelsData = await channelsResponse.json()
+                  const channel = channelsData.channels.find(
+                    (c: { id: string; displayName: string }) => c.id === channelId
+                  )
+                  if (channel) {
+                    return {
+                      team,
+                      channel,
+                      channelInfo: {
+                        id: `${team.id}-${channel.id}`,
+                        displayName: channel.displayName,
+                        type: 'channel' as const,
+                        teamId: team.id,
+                        channelId: channel.id,
+                        webViewLink: `https://teams.microsoft.com/l/channel/${team.id}/${encodeURIComponent(channel.displayName)}/${channel.id}`,
+                      },
+                    }
+                  }
+                }
+              } catch (error) {
+                logger.warn(
+                  `Error searching for channel in team ${team.id}:`,
+                  error instanceof Error ? error.message : String(error)
+                )
+              }
+              return null
+            }
+          )
+
+          // Wait for all parallel requests to complete (or fail)
+          const results = await Promise.allSettled(channelSearchPromises)
+
+          // Find the first successful result that contains our channel
+          for (const result of results) {
+            if (result.status === 'fulfilled' && result.value) {
+              const { channelInfo } = result.value
+              setSelectedTeamId(channelInfo.teamId!)
+              setSelectedChannelId(channelInfo.channelId!)
+              setSelectedMessage(channelInfo)
+              onMessageInfoChange?.(channelInfo)
+              return // Found the channel, exit successfully
+            }
+          }
+
+          // If we get here, the channel wasn't found in any team
+          logger.warn(`Channel ${channelId} not found in any accessible team`)
+        }
+      } catch (error) {
+        logger.error('Error restoring channel selection:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [selectedCredentialId, selectionType, onMessageInfoChange, workflowId]
+  )
 
   // Set initial team ID if provided
   useEffect(() => {
@@ -677,54 +692,62 @@ export function TeamsMessageSelector({
         restoreChannelSelection(value)
       }
     }
-  }, [value, selectedCredentialId, selectedMessage, selectionType, restoreTeamSelection, restoreChatSelection, restoreChannelSelection])
+  }, [
+    value,
+    selectedCredentialId,
+    selectedMessage,
+    selectionType,
+    restoreTeamSelection,
+    restoreChatSelection,
+    restoreChannelSelection,
+  ])
 
   return (
     <>
-      <div className="space-y-2">
+      <div className='space-y-2'>
         <Popover open={open} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
             <Button
-              variant="outline"
-              role="combobox"
+              variant='outline'
+              role='combobox'
               aria-expanded={open}
-              className="w-full justify-between"
+              className='w-full justify-between'
               disabled={disabled}
             >
               {selectedMessage ? (
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <MicrosoftTeamsIcon className="h-4 w-4" />
-                  <span className="font-normal truncate">{selectedMessage.displayName}</span>
+                <div className='flex items-center gap-2 overflow-hidden'>
+                  <MicrosoftTeamsIcon className='h-4 w-4' />
+                  <span className='truncate font-normal'>{selectedMessage.displayName}</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <MicrosoftTeamsIcon className="h-4 w-4" />
-                  <span className="text-muted-foreground">
-                    {selectionType === 'channel' && selectionStage === 'team' 
+                <div className='flex items-center gap-2'>
+                  <MicrosoftTeamsIcon className='h-4 w-4' />
+                  <span className='text-muted-foreground'>
+                    {selectionType === 'channel' && selectionStage === 'team'
                       ? 'Select a team first'
                       : label}
                   </span>
                 </div>
               )}
-              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[300px]" align="start">
+          <PopoverContent className='w-[300px] p-0' align='start'>
             {/* Current account indicator */}
             {selectedCredentialId && credentials.length > 0 && (
-              <div className="px-3 py-2 border-b flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <MicrosoftTeamsIcon className="h-4 w-4" />
-                  <span className="text-xs text-muted-foreground">
+              <div className='flex items-center justify-between border-b px-3 py-2'>
+                <div className='flex items-center gap-2'>
+                  <MicrosoftTeamsIcon className='h-4 w-4' />
+                  <span className='text-muted-foreground text-xs'>
                     {credentials.find((cred) => cred.id === selectedCredentialId)?.name ||
                       'Unknown'}
                   </span>
                 </div>
                 {credentials.length > 1 && (
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
+                    variant='ghost'
+                    size='sm'
+                    className='h-6 px-2 text-xs'
                     onClick={() => setOpen(true)}
                   >
                     Switch
@@ -738,37 +761,44 @@ export function TeamsMessageSelector({
               <CommandList>
                 <CommandEmpty>
                   {isLoading ? (
-                    <div className="flex items-center justify-center p-4">
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span className="ml-2">Loading {selectionStage}s...</span>
+                    <div className='flex items-center justify-center p-4'>
+                      <RefreshCw className='h-4 w-4 animate-spin' />
+                      <span className='ml-2'>Loading {selectionStage}s...</span>
                     </div>
                   ) : error ? (
-                    <div className="p-4 text-center">
-                      <p className="text-sm text-destructive">{error}</p>
+                    <div className='p-4 text-center'>
+                      <p className='text-destructive text-sm'>{error}</p>
                       {selectionStage === 'chat' && error.includes('teams') && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          There was an issue fetching chats. Please try again or connect a different account.
+                        <p className='mt-1 text-muted-foreground text-xs'>
+                          There was an issue fetching chats. Please try again or connect a different
+                          account.
                         </p>
                       )}
                     </div>
                   ) : credentials.length === 0 ? (
-                    <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No accounts connected.</p>
-                      <p className="text-xs text-muted-foreground">
-                        Connect a Microsoft Teams account to {selectionStage === 'chat' ? 'access your chats' : selectionStage === 'channel' ? 'see your channels' : 'continue'}.
+                    <div className='p-4 text-center'>
+                      <p className='font-medium text-sm'>No accounts connected.</p>
+                      <p className='text-muted-foreground text-xs'>
+                        Connect a Microsoft Teams account to{' '}
+                        {selectionStage === 'chat'
+                          ? 'access your chats'
+                          : selectionStage === 'channel'
+                            ? 'see your channels'
+                            : 'continue'}
+                        .
                       </p>
                     </div>
                   ) : (
-                    <div className="p-4 text-center">
-                      <p className="text-sm font-medium">No {selectionStage}s found.</p>
-                      <p className="text-xs text-muted-foreground">
+                    <div className='p-4 text-center'>
+                      <p className='font-medium text-sm'>No {selectionStage}s found.</p>
+                      <p className='text-muted-foreground text-xs'>
                         {selectionStage === 'team'
                           ? 'Try a different account.'
                           : selectionStage === 'channel'
-                          ? selectedTeamId 
-                            ? 'This team has no channels or you may not have access.'
-                            : 'Please select a team first to see its channels.'
-                          : 'Try a different account or check if you have any active chats.'}
+                            ? selectedTeamId
+                              ? 'This team has no channels or you may not have access.'
+                              : 'Please select a team first to see its channels.'
+                            : 'Try a different account or check if you have any active chats.'}
                       </p>
                     </div>
                   )}
@@ -777,7 +807,7 @@ export function TeamsMessageSelector({
                 {/* Account selection - only show if we have multiple accounts */}
                 {credentials.length > 1 && (
                   <CommandGroup>
-                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                       Switch Account
                     </div>
                     {credentials.map((cred) => (
@@ -789,11 +819,11 @@ export function TeamsMessageSelector({
                           setOpen(false)
                         }}
                       >
-                        <div className="flex items-center gap-2">
-                          <MicrosoftTeamsIcon className="h-4 w-4" />
-                          <span className="font-normal">{cred.name}</span>
+                        <div className='flex items-center gap-2'>
+                          <MicrosoftTeamsIcon className='h-4 w-4' />
+                          <span className='font-normal'>{cred.name}</span>
                         </div>
-                        {cred.id === selectedCredentialId && <Check className="ml-auto h-4 w-4" />}
+                        {cred.id === selectedCredentialId && <Check className='ml-auto h-4 w-4' />}
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -806,8 +836,8 @@ export function TeamsMessageSelector({
                 {credentials.length === 0 && (
                   <CommandGroup>
                     <CommandItem onSelect={handleAddCredential}>
-                      <div className="flex items-center gap-2 text-primary">
-                        <MicrosoftTeamsIcon className="h-4 w-4" />
+                      <div className='flex items-center gap-2 text-primary'>
+                        <MicrosoftTeamsIcon className='h-4 w-4' />
                         <span>Connect Microsoft Teams account</span>
                       </div>
                     </CommandItem>
@@ -820,38 +850,38 @@ export function TeamsMessageSelector({
 
         {/* Selection preview */}
         {showPreview && selectedMessage && (
-          <div className="mt-2 rounded-md border border-muted bg-muted/10 p-2 relative">
-            <div className="absolute top-2 right-2">
+          <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
+            <div className='absolute top-2 right-2'>
               <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 hover:bg-muted"
+                variant='ghost'
+                size='icon'
+                className='h-5 w-5 hover:bg-muted'
                 onClick={handleClearSelection}
               >
-                <X className="h-3 w-3" />
+                <X className='h-3 w-3' />
               </Button>
             </div>
-            <div className="flex items-center gap-3 pr-4">
-              <div className="flex-shrink-0 flex items-center justify-center h-6 w-6 bg-muted/20 rounded">
-                <MicrosoftTeamsIcon className="h-4 w-4" />
+            <div className='flex items-center gap-3 pr-4'>
+              <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-muted/20'>
+                <MicrosoftTeamsIcon className='h-4 w-4' />
               </div>
-              <div className="overflow-hidden flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-xs font-medium truncate">{selectedMessage.displayName}</h4>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+              <div className='min-w-0 flex-1 overflow-hidden'>
+                <div className='flex items-center gap-2'>
+                  <h4 className='truncate font-medium text-xs'>{selectedMessage.displayName}</h4>
+                  <span className='whitespace-nowrap text-muted-foreground text-xs'>
                     {selectedMessage.type}
                   </span>
                 </div>
                 {selectedMessage.webViewLink ? (
                   <a
                     href={selectedMessage.webViewLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='flex items-center gap-1 text-primary text-xs hover:underline'
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span>Open in Microsoft Teams</span>
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className='h-3 w-3' />
                   </a>
                 ) : (
                   <></>
@@ -867,7 +897,7 @@ export function TeamsMessageSelector({
           isOpen={showOAuthModal}
           onClose={() => setShowOAuthModal(false)}
           provider={provider}
-          toolName="Microsoft Teams"
+          toolName='Microsoft Teams'
           requiredScopes={requiredScopes}
           serviceId={getServiceId()}
         />

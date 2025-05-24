@@ -54,7 +54,7 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
 
     // Microsoft Graph API returns messages in a 'value' array
     const messages = data.value || []
-    
+
     if (messages.length === 0) {
       return {
         success: true,
@@ -70,13 +70,17 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     }
 
     // Format the messages into a readable text
-    const formattedMessages = messages.map((message: any) => {
-      const content = message.body?.content || 'No content'
-      const sender = message.from?.user?.displayName || 'Unknown sender'
-      const timestamp = message.createdDateTime ? new Date(message.createdDateTime).toLocaleString() : 'Unknown time'
-      
-      return `[${timestamp}] ${sender}: ${content}`
-    }).join('\n\n')
+    const formattedMessages = messages
+      .map((message: any) => {
+        const content = message.body?.content || 'No content'
+        const sender = message.from?.user?.displayName || 'Unknown sender'
+        const timestamp = message.createdDateTime
+          ? new Date(message.createdDateTime).toLocaleString()
+          : 'Unknown time'
+
+        return `[${timestamp}] ${sender}: ${content}`
+      })
+      .join('\n\n')
 
     // Create document metadata
     const metadata = {
@@ -87,7 +91,7 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
         content: msg.body?.content || '',
         sender: msg.from?.user?.displayName || 'Unknown',
         timestamp: msg.createdDateTime,
-        messageType: msg.messageType || 'message'
+        messageType: msg.messageType || 'message',
       })),
     }
 
@@ -119,5 +123,3 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
     return 'An error occurred while reading Microsoft Teams chat'
   },
 }
-
-

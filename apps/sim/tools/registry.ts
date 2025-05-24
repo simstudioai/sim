@@ -49,10 +49,10 @@ import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from './mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from './memory'
 import {
-  microsoftTeamsReadChatTool,
-  microsoftTeamsWriteChatTool,
   microsoftTeamsReadChannelTool,
+  microsoftTeamsReadChatTool,
   microsoftTeamsWriteChannelTool,
+  microsoftTeamsWriteChatTool,
 } from './microsoft_teams'
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'

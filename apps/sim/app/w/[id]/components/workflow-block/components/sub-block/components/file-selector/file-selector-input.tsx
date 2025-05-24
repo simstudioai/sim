@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { env } from '@/lib/env'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ConfluenceFileInfo } from './components/confluence-file-selector'
 import { ConfluenceFileSelector } from './components/confluence-file-selector'
 import type { DiscordChannelInfo } from './components/discord-channel-selector'
@@ -189,35 +189,35 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   // Handle Microsoft Teams selector
   if (isMicrosoftTeams) {
     // Get credential using the same pattern as other tools
-    const credential = getValue(blockId, 'credential') as string || ''
-    
+    const credential = (getValue(blockId, 'credential') as string) || ''
+
     // Determine the selector type based on the subBlock ID
-    let selectionType: 'team' | 'channel' | 'chat' = 'team';
-    
+    let selectionType: 'team' | 'channel' | 'chat' = 'team'
+
     if (subBlock.id === 'teamId') {
-      selectionType = 'team';
+      selectionType = 'team'
     } else if (subBlock.id === 'channelId') {
-      selectionType = 'channel';
+      selectionType = 'channel'
     } else if (subBlock.id === 'chatId') {
-      selectionType = 'chat';
+      selectionType = 'chat'
     } else {
       // Fallback: look at the operation to determine the selection type
-      const operation = getValue(blockId, 'operation') as string || '';
+      const operation = (getValue(blockId, 'operation') as string) || ''
       if (operation.includes('chat')) {
-        selectionType = 'chat';
+        selectionType = 'chat'
       } else if (operation.includes('channel')) {
-        selectionType = 'channel';
+        selectionType = 'channel'
       }
     }
 
     // Get the teamId from workflow parameters for channel selector
-    const selectedTeamId = getValue(blockId, 'teamId') as string || ''
+    const selectedTeamId = (getValue(blockId, 'teamId') as string) || ''
 
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="w-full">
+            <div className='w-full'>
               <TeamsMessageSelector
                 value={selectedMessageId}
                 onChange={(value, info) => {
@@ -225,7 +225,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
                   setMessageInfo(info || null)
                   setValue(blockId, subBlock.id, value)
                 }}
-                provider="microsoft-teams"
+                provider='microsoft-teams'
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Teams message location'}
@@ -240,7 +240,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
             </div>
           </TooltipTrigger>
           {!credential && (
-            <TooltipContent side="top">
+            <TooltipContent side='top'>
               <p>Please select Microsoft Teams credentials first</p>
             </TooltipContent>
           )}

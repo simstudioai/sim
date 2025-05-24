@@ -160,7 +160,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Group.Read.All',
           'Group.ReadWrite.All',
           'Team.ReadBasic.All',
-          'offline_access'
+          'offline_access',
         ],
       },
     },

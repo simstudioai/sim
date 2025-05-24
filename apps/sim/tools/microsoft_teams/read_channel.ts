@@ -33,7 +33,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       if (!teamId) {
         throw new Error('Team ID is required')
       }
-      
+
       const channelId = params.channelId?.trim()
       if (!channelId) {
         throw new Error('Channel ID is required')
@@ -45,7 +45,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
 
       // Fetch the most recent messages from the channel
       const url = `https://graph.microsoft.com/v1.0/teams/${encodedTeamId}/channels/${encodedChannelId}/messages`
-      
+
       return url
     },
     method: 'GET',
@@ -70,7 +70,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
 
     // Microsoft Graph API returns messages in a 'value' array
     const messages = data.value || []
-    
+
     if (messages.length === 0) {
       return {
         success: true,
@@ -87,13 +87,17 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
     }
 
     // Format the messages into a readable text
-    const formattedMessages = messages.map((message: any) => {
-      const content = message.body?.content || 'No content'
-      const sender = message.from?.user?.displayName || 'Unknown sender'
-      const timestamp = message.createdDateTime ? new Date(message.createdDateTime).toLocaleString() : 'Unknown time'
-      
-      return `[${timestamp}] ${sender}: ${content}`
-    }).join('\n\n')
+    const formattedMessages = messages
+      .map((message: any) => {
+        const content = message.body?.content || 'No content'
+        const sender = message.from?.user?.displayName || 'Unknown sender'
+        const timestamp = message.createdDateTime
+          ? new Date(message.createdDateTime).toLocaleString()
+          : 'Unknown time'
+
+        return `[${timestamp}] ${sender}: ${content}`
+      })
+      .join('\n\n')
 
     // Create document metadata
     const metadata = {
@@ -105,7 +109,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
         content: msg.body?.content || '',
         sender: msg.from?.user?.displayName || 'Unknown',
         timestamp: msg.createdDateTime,
-        messageType: msg.messageType || 'message'
+        messageType: msg.messageType || 'message',
       })),
     }
 
@@ -137,5 +141,3 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
     return 'An error occurred while reading Microsoft Teams channel'
   },
 }
-
-

@@ -1,13 +1,11 @@
 import { MicrosoftTeamsIcon } from '@/components/icons'
-import {
+import type {
   MicrosoftTeamsReadResponse,
   MicrosoftTeamsWriteResponse,
 } from '@/tools/microsoft_teams/types'
-import { BlockConfig } from '../types'
+import type { BlockConfig } from '../types'
 
-type MicrosoftTeamsResponse =
-  | MicrosoftTeamsReadResponse
-  | MicrosoftTeamsWriteResponse
+type MicrosoftTeamsResponse = MicrosoftTeamsReadResponse | MicrosoftTeamsWriteResponse
 
 export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
   type: 'microsoft_teams',
@@ -58,37 +56,37 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
       placeholder: 'Select Microsoft account',
     },
     {
-        id: 'teamId',
-        title: 'Select Team',
-        type: 'file-selector',
-        layout: 'full',
-        provider: 'microsoft-teams',
-        serviceId: 'microsoft-teams',
-        requiredScopes: [],
-        placeholder: 'Select a team',
-        condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
+      id: 'teamId',
+      title: 'Select Team',
+      type: 'file-selector',
+      layout: 'full',
+      provider: 'microsoft-teams',
+      serviceId: 'microsoft-teams',
+      requiredScopes: [],
+      placeholder: 'Select a team',
+      condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
     },
     {
-        id: 'chatId',
-        title: 'Select Chat',   
-        type: 'file-selector',
-        layout: 'full',
-        provider: 'microsoft-teams',
-        serviceId: 'microsoft-teams',
-        requiredScopes: [],
-        placeholder: 'Select a chat',
-        condition: { field: 'operation', value: ['read_chat', 'write_chat'] },
+      id: 'chatId',
+      title: 'Select Chat',
+      type: 'file-selector',
+      layout: 'full',
+      provider: 'microsoft-teams',
+      serviceId: 'microsoft-teams',
+      requiredScopes: [],
+      placeholder: 'Select a chat',
+      condition: { field: 'operation', value: ['read_chat', 'write_chat'] },
     },
     {
-        id: 'channelId',
-        title: 'Select Channel',
-        type: 'file-selector',
-        layout: 'full',
-        provider: 'microsoft-teams',
-        serviceId: 'microsoft-teams',
-        requiredScopes: [],
-        placeholder: 'Select a channel',
-        condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
+      id: 'channelId',
+      title: 'Select Channel',
+      type: 'file-selector',
+      layout: 'full',
+      provider: 'microsoft-teams',
+      serviceId: 'microsoft-teams',
+      requiredScopes: [],
+      placeholder: 'Select a channel',
+      condition: { field: 'operation', value: ['read_channel', 'write_channel'] },
     },
     // Create-specific Fields
     {
@@ -101,7 +99,12 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
     },
   ],
   tools: {
-    access: ['microsoft_teams_read_chat', 'microsoft_teams_write_chat', 'microsoft_teams_read_channel', 'microsoft_teams_write_channel'],
+    access: [
+      'microsoft_teams_read_chat',
+      'microsoft_teams_write_chat',
+      'microsoft_teams_read_channel',
+      'microsoft_teams_write_channel',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
