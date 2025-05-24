@@ -59,7 +59,10 @@
       "**/apps/docs/.source/**"
     ]
   },
-  "organizeImports": { "enabled": true },
+  "organizeImports": {
+    "enabled": true,
+    "ignore": ["**/*.d.ts"]
+  },
   "linter": {
     "enabled": true,
     "rules": {
@@ -99,7 +102,8 @@
         "noForEach": "off"
       },
       "performance": {
-        "noAccumulatingSpread": "off"
+        "noAccumulatingSpread": "off",
+        "noDelete": "error"
       }
     }
   },
@@ -114,6 +118,18 @@
       "quoteStyle": "single",
       "attributePosition": "auto",
       "bracketSpacing": true
+    }
+  },
+  "css": {
+    "formatter": {
+      "enabled": true,
+      "indentWidth": 2
+    }
+  },
+  "json": {
+    "formatter": {
+      "enabled": true,
+      "indentWidth": 2
     }
   }
 }
