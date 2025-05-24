@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import React from 'react'
-import useIsMobile from '../hooks/useIsMobile'
+import useIsMobile from '../hooks/use-is-mobile'
 
 interface FooterProps {
   onOpenTypeformLink: () => void
