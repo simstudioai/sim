@@ -3,7 +3,13 @@ import React, { type HTMLAttributes, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
-export function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
+export function LinkWithPreview({
+  href,
+  children,
+}: {
+  href: string
+  children: React.ReactNode
+}) {
   return (
     <Tooltip delayDuration={300}>
       <TooltipTrigger asChild>
@@ -42,17 +48,17 @@ export default function MarkdownRenderer({
 
     // Headings
     h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h1 className='mt-8 mb-4 font-geist-sans font-semibold text-2xl text-gray-900 dark:text-gray-100'>
+      <h1 className='mt-10 mb-5 font-geist-sans font-semibold text-2xl text-gray-900 dark:text-gray-100'>
         {children}
       </h1>
     ),
     h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h2 className='mt-7 mb-3 font-geist-sans font-semibold text-gray-900 text-xl dark:text-gray-100'>
+      <h2 className='mt-8 mb-4 font-geist-sans font-semibold text-gray-900 text-xl dark:text-gray-100'>
         {children}
       </h2>
     ),
     h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h3 className='mt-6 mb-2.5 font-geist-sans font-semibold text-gray-900 text-lg dark:text-gray-100'>
+      <h3 className='mt-7 mb-3 font-geist-sans font-semibold text-gray-900 text-lg dark:text-gray-100'>
         {children}
       </h3>
     ),
@@ -129,7 +135,10 @@ export default function MarkdownRenderer({
       className,
       children,
       ...props
-    }: React.HTMLAttributes<HTMLElement> & { className?: string; inline?: boolean }) => {
+    }: React.HTMLAttributes<HTMLElement> & {
+      className?: string
+      inline?: boolean
+    }) => {
       if (inline) {
         return (
           <code
