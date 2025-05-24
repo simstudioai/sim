@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse } from './types'
 
 export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse> = {
   id: 'microsoft_teams_write_channel',

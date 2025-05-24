@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse } from './types'
+import type { ToolConfig } from '../types'
+import type { MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse } from './types'
 
 export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsWriteResponse> = {
   id: 'microsoft_teams_write_chat',
@@ -16,11 +16,11 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
       required: true,
       description: 'The access token for the Microsoft Teams API',
     },
-   chatId: {
-    type: 'string',
-    required: true,
-    description: 'The ID of the chat to write to',
-   },
+    chatId: {
+      type: 'string',
+      required: true,
+      description: 'The ID of the chat to write to',
+    },
     content: {
       type: 'string',
       required: true,
@@ -54,7 +54,7 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
       if (!params.content) {
         throw new Error('Content is required')
       }
-    
+
       // Microsoft Teams API expects this specific format
       const requestBody = {
         body: {

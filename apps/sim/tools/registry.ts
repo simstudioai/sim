@@ -48,6 +48,12 @@ import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool }
 import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from './mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from './memory'
+import {
+  microsoftTeamsReadChatTool,
+  microsoftTeamsWriteChatTool,
+  microsoftTeamsReadChannelTool,
+  microsoftTeamsWriteChannelTool,
+} from './microsoft_teams'
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
 import { imageTool, embeddingsTool as openAIEmbeddings } from './openai'
@@ -76,11 +82,6 @@ import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube'
-import { microsoftTeamsReadChatTool,
-  microsoftTeamsWriteChatTool,
-  microsoftTeamsReadChannelTool,
-  microsoftTeamsWriteChannelTool
-} from './microsoft_teams'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
