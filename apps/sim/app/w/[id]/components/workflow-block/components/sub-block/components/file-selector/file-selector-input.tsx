@@ -4,17 +4,18 @@ import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { env } from '@/lib/env'
 import type { SubBlockConfig } from '@/blocks/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import {
-  type ConfluenceFileInfo,
-  ConfluenceFileSelector,
-} from './components/confluence-file-selector'
-import {
-  type DiscordChannelInfo,
-  DiscordChannelSelector,
-} from './components/discord-channel-selector'
-import { type FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
-import { type JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
+import type { ConfluenceFileInfo } from './components/confluence-file-selector'
+import { ConfluenceFileSelector } from './components/confluence-file-selector'
+import type { DiscordChannelInfo } from './components/discord-channel-selector'
+import { DiscordChannelSelector } from './components/discord-channel-selector'
+import type { FileInfo } from './components/google-drive-picker'
+import { GoogleDrivePicker } from './components/google-drive-picker'
+import type { JiraIssueInfo } from './components/jira-issue-selector'
+import { JiraIssueSelector } from './components/jira-issue-selector'
+import type { TeamsMessageInfo } from './components/teams-message-selector'
+import { TeamsMessageSelector } from './components/teams-message-selector'
 
 interface FileSelectorInputProps {
   blockId: string
@@ -24,18 +25,22 @@ interface FileSelectorInputProps {
 
 export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
+  const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFileId, setSelectedFileId] = useState<string>('')
   const [_fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string>('')
   const [_issueInfo, setIssueInfo] = useState<JiraIssueInfo | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
-  const [_channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
+  const [channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
+  const [selectedMessageId, setSelectedMessageId] = useState<string>('')
+  const [messageInfo, setMessageInfo] = useState<TeamsMessageInfo | null>(null)
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
   const isConfluence = provider === 'confluence'
   const isJira = provider === 'jira'
   const isDiscord = provider === 'discord'
+  const isMicrosoftTeams = provider === 'microsoft-teams'
 
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
@@ -53,11 +58,13 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
         setSelectedIssueId(value)
       } else if (isDiscord) {
         setSelectedChannelId(value)
+      } else if (isMicrosoftTeams) {
+        setSelectedMessageId(value)
       } else {
         setSelectedFileId(value)
       }
     }
-  }, [blockId, subBlock.id, getValue, isJira, isDiscord])
+  }, [blockId, subBlock.id, getValue, isJira, isDiscord, isMicrosoftTeams])
 
   // Handle file selection
   const handleFileChange = (fileId: string, info?: any) => {
@@ -172,6 +179,69 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
           {!domain && (
             <TooltipContent side='top'>
               <p>Please enter a Jira domain first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  // Handle Microsoft Teams selector
+  if (isMicrosoftTeams) {
+    // Get credential using the same pattern as other tools
+    const credential = (getValue(blockId, 'credential') as string) || ''
+
+    // Determine the selector type based on the subBlock ID
+    let selectionType: 'team' | 'channel' | 'chat' = 'team'
+
+    if (subBlock.id === 'teamId') {
+      selectionType = 'team'
+    } else if (subBlock.id === 'channelId') {
+      selectionType = 'channel'
+    } else if (subBlock.id === 'chatId') {
+      selectionType = 'chat'
+    } else {
+      // Fallback: look at the operation to determine the selection type
+      const operation = (getValue(blockId, 'operation') as string) || ''
+      if (operation.includes('chat')) {
+        selectionType = 'chat'
+      } else if (operation.includes('channel')) {
+        selectionType = 'channel'
+      }
+    }
+
+    // Get the teamId from workflow parameters for channel selector
+    const selectedTeamId = (getValue(blockId, 'teamId') as string) || ''
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <TeamsMessageSelector
+                value={selectedMessageId}
+                onChange={(value, info) => {
+                  setSelectedMessageId(value)
+                  setMessageInfo(info || null)
+                  setValue(blockId, subBlock.id, value)
+                }}
+                provider='microsoft-teams'
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId={subBlock.serviceId}
+                label={subBlock.placeholder || 'Select Teams message location'}
+                disabled={disabled || !credential}
+                showPreview={true}
+                onMessageInfoChange={setMessageInfo}
+                credential={credential}
+                selectionType={selectionType}
+                initialTeamId={selectedTeamId}
+                workflowId={activeWorkflowId || ''}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side='top'>
+              <p>Please select Microsoft Teams credentials first</p>
             </TooltipContent>
           )}
         </Tooltip>

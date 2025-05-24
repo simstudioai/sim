@@ -11,6 +11,8 @@ import {
   GoogleIcon,
   GoogleSheetsIcon,
   JiraIcon,
+  MicrosoftIcon,
+  MicrosoftTeamsIcon,
   NotionIcon,
   SupabaseIcon,
   xIcon,
@@ -31,6 +33,7 @@ export type OAuthProvider =
   | 'notion'
   | 'jira'
   | 'discord'
+  | 'microsoft'
   | string
 
 export type OAuthService =
@@ -47,7 +50,7 @@ export type OAuthService =
   | 'notion'
   | 'jira'
   | 'discord'
-
+  | 'microsoft-teams'
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -130,6 +133,38 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'gmail',
+  },
+  microsoft: {
+    id: 'microsoft',
+    name: 'Microsoft',
+    icon: (props) => MicrosoftIcon(props),
+    services: {
+      'microsoft-teams': {
+        id: 'microsoft-teams',
+        name: 'Microsoft Teams',
+        description: 'Connect to Microsoft Teams and manage messages.',
+        providerId: 'microsoft-teams',
+        icon: (props) => MicrosoftTeamsIcon(props),
+        baseProviderIcon: (props) => MicrosoftIcon(props),
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'User.Read',
+          'Chat.Read',
+          'Chat.ReadWrite',
+          'Chat.ReadBasic',
+          'Channel.ReadBasic.All',
+          'ChannelMessage.Send',
+          'ChannelMessage.Read.All',
+          'Group.Read.All',
+          'Group.ReadWrite.All',
+          'Team.ReadBasic.All',
+          'offline_access',
+        ],
+      },
+    },
+    defaultService: 'microsoft',
   },
   github: {
     id: 'github',
@@ -319,6 +354,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     if (scopes.some((scope) => scope.includes('calendar'))) {
       return 'google-calendar'
     }
+  } else if (provider === 'microsoft-teams') {
+    return 'microsoft-teams'
   } else if (provider === 'github') {
     return 'github'
   } else if (provider === 'supabase') {
@@ -463,6 +500,11 @@ export async function refreshOAuthToken(
         clientId = env.DISCORD_CLIENT_ID
         clientSecret = env.DISCORD_CLIENT_SECRET
         useBasicAuth = true
+        break
+      case 'microsoft':
+        tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
+        clientId = env.MICROSOFT_CLIENT_ID
+        clientSecret = env.MICROSOFT_CLIENT_SECRET
         break
       default:
         throw new Error(`Unsupported provider: ${provider}`)

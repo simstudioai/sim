@@ -24,6 +24,7 @@ import { GoogleSearchBlock } from './blocks/google'
 import { GoogleDocsBlock } from './blocks/google_docs'
 import { GoogleDriveBlock } from './blocks/google_drive'
 import { GoogleSheetsBlock } from './blocks/google_sheets'
+// import { GuestyBlock } from './blocks/guesty'
 import { ImageGeneratorBlock } from './blocks/image_generator'
 import { JinaBlock } from './blocks/jina'
 import { JiraBlock } from './blocks/jira'
@@ -31,6 +32,7 @@ import { LinkupBlock } from './blocks/linkup'
 import { Mem0Block } from './blocks/mem0'
 // import { GuestyBlock } from './blocks/guesty'
 import { MemoryBlock } from './blocks/memory'
+import { MicrosoftTeamsBlock } from './blocks/microsoft_teams'
 import { MistralParseBlock } from './blocks/mistral_parse'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
@@ -80,6 +82,7 @@ export const registry: Record<string, BlockConfig> = {
   google_drive: GoogleDriveBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
+  microsoft_teams: MicrosoftTeamsBlock,
   // guesty: GuestyBlock,
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
