@@ -1,5 +1,5 @@
-import type { BlockOutput, SubBlockType } from "@/blocks/types"
-import type { Edge } from "reactflow"
+import type { BlockOutput, SubBlockType } from '@/blocks/types'
+import type { Edge } from 'reactflow'
 
 export interface Position {
   x: number
@@ -30,7 +30,7 @@ export interface Loop {
   id: string
   nodes: string[]
   iterations: number
-  loopType: "for" | "forEach"
+  loopType: 'for' | 'forEach'
   forEachItems?: any[] | Record<string, any> | string // Items or expression
 }
 
@@ -83,7 +83,7 @@ export interface WorkflowActions {
   updateBlockHeight: (id: string, height: number) => void
   triggerUpdate: () => void
   updateLoopIterations: (loopId: string, iterations: number) => void
-  updateLoopType: (loopId: string, loopType: Loop["loopType"]) => void
+  updateLoopType: (loopId: string, loopType: Loop['loopType']) => void
   updateLoopForEachItems: (loopId: string, items: string) => void
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   setScheduleStatus: (hasActiveSchedule: boolean) => void

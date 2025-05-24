@@ -1,5 +1,5 @@
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -7,18 +7,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Progress } from "@/components/ui/progress"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { client, useSession } from "@/lib/auth-client"
-import { createLogger } from "@/lib/logs/console-logger"
-import { checkEnterprisePlan } from "@/lib/subscription/utils"
-import { CheckCircle, Copy, PlusCircle, RefreshCw, UserX, XCircle } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Progress } from '@/components/ui/progress'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { client, useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
+import { checkEnterprisePlan } from '@/lib/subscription/utils'
+import { CheckCircle, Copy, PlusCircle, RefreshCw, UserX, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
-const logger = createLogger("TeamManagement")
+const logger = createLogger('TeamManagement')
 
 type User = { name?: string; email?: string }
 
@@ -65,20 +65,20 @@ type Subscription = {
 
 function calculateSeatUsage(org?: Organization | null) {
   const members = org?.members?.length ?? 0
-  const pending = org?.invitations?.filter((inv) => inv.status === "pending").length ?? 0
+  const pending = org?.invitations?.filter((inv) => inv.status === 'pending').length ?? 0
   return { used: members + pending, members, pending }
 }
 
 function useOrganizationRole(userEmail: string | undefined, org: Organization | null | undefined) {
   return useMemo(() => {
     if (!userEmail || !org?.members) {
-      return { userRole: "member", isAdminOrOwner: false }
+      return { userRole: 'member', isAdminOrOwner: false }
     }
     const currentMember = org.members.find((m) => m.user?.email === userEmail)
-    const role = currentMember?.role ?? "member"
+    const role = currentMember?.role ?? 'member'
     return {
       userRole: role,
-      isAdminOrOwner: role === "owner" || role === "admin",
+      isAdminOrOwner: role === 'owner' || role === 'admin',
     }
   }, [userEmail, org])
 }
@@ -90,7 +90,7 @@ export function TeamManagement() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [organizations, setOrganizations] = useState<any[]>([])
-  const [inviteEmail, setInviteEmail] = useState("")
+  const [inviteEmail, setInviteEmail] = useState('')
   const [isInviting, setIsInviting] = useState(false)
   const [isCreatingOrg, setIsCreatingOrg] = useState(false)
   const [createOrgDialogOpen, setCreateOrgDialogOpen] = useState(false)
@@ -99,11 +99,11 @@ export function TeamManagement() {
     memberId: string
     memberName: string
     shouldReduceSeats: boolean
-  }>({ open: false, memberId: "", memberName: "", shouldReduceSeats: false })
-  const [orgName, setOrgName] = useState("")
-  const [orgSlug, setOrgSlug] = useState("")
+  }>({ open: false, memberId: '', memberName: '', shouldReduceSeats: false })
+  const [orgName, setOrgName] = useState('')
+  const [orgSlug, setOrgSlug] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState(false)
-  const [activeTab, setActiveTab] = useState("members")
+  const [activeTab, setActiveTab] = useState('members')
   const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null)
   const [subscriptionData, setSubscriptionData] = useState<Subscription | null>(null)
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(false)
@@ -127,7 +127,7 @@ export function TeamManagement() {
       setOrganizations(orgsResponse.data || [])
 
       // Check if user has a team or enterprise subscription
-      const response = await fetch("/api/user/subscription")
+      const response = await fetch('/api/user/subscription')
       const data = await response.json()
       setHasTeamPlan(data.isTeam)
       setHasEnterprisePlan(data.isEnterprise)
@@ -135,12 +135,12 @@ export function TeamManagement() {
       // Set default organization name and slug for organization creation
       // but no longer automatically showing the dialog
       if (data.isTeam || data.isEnterprise) {
-        setOrgName(`${session.user.name || "My"}'s Team`)
-        setOrgSlug(generateSlug(`${session.user.name || "My"}'s Team`))
+        setOrgName(`${session.user.name || 'My'}'s Team`)
+        setOrgSlug(generateSlug(`${session.user.name || 'My'}'s Team`))
       }
     } catch (err: any) {
-      setError(err.message || "Failed to load data")
-      logger.error("Failed to load data:", err)
+      setError(err.message || 'Failed to load data')
+      logger.error('Failed to load data:', err)
     } finally {
       setIsLoading(false)
     }
@@ -162,17 +162,17 @@ export function TeamManagement() {
   const loadOrganizationSubscription = async (orgId: string) => {
     try {
       setIsLoadingSubscription(true)
-      logger.info("Loading subscription for organization", { orgId })
+      logger.info('Loading subscription for organization', { orgId })
 
       const { data, error } = await client.subscription.list({
         query: { referenceId: orgId },
       })
 
       if (error) {
-        logger.error("Error fetching organization subscription", { error })
-        setError("Failed to load subscription data")
+        logger.error('Error fetching organization subscription', { error })
+        setError('Failed to load subscription data')
       } else {
-        logger.info("Organization subscription data loaded", {
+        logger.info('Organization subscription data loaded', {
           subscriptions: data?.map((s) => ({
             id: s.id,
             plan: s.plan,
@@ -183,14 +183,14 @@ export function TeamManagement() {
         })
 
         // Find active team or enterprise subscription
-        const teamSubscription = data?.find((sub) => sub.status === "active" && sub.plan === "team")
+        const teamSubscription = data?.find((sub) => sub.status === 'active' && sub.plan === 'team')
         const enterpriseSubscription = data?.find((sub) => checkEnterprisePlan(sub))
 
         // Use enterprise plan if available, otherwise team plan
         const activeSubscription = enterpriseSubscription || teamSubscription
 
         if (activeSubscription) {
-          logger.info("Found active subscription", {
+          logger.info('Found active subscription', {
             id: activeSubscription.id,
             plan: activeSubscription.plan,
             seats: activeSubscription.seats,
@@ -200,11 +200,11 @@ export function TeamManagement() {
           // If no subscription found through client API, check for enterprise subscriptions
           if (hasEnterprisePlan) {
             try {
-              const enterpriseResponse = await fetch("/api/user/subscription/enterprise")
+              const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
               if (enterpriseResponse.ok) {
                 const enterpriseData = await enterpriseResponse.json()
                 if (enterpriseData.subscription) {
-                  logger.info("Found enterprise subscription", {
+                  logger.info('Found enterprise subscription', {
                     id: enterpriseData.subscription.id,
                     seats: enterpriseData.subscription.seats,
                   })
@@ -213,21 +213,21 @@ export function TeamManagement() {
                 }
               }
             } catch (err) {
-              logger.error("Error fetching enterprise subscription", {
+              logger.error('Error fetching enterprise subscription', {
                 error: err,
               })
             }
           }
 
-          logger.warn("No active subscription found for organization", {
+          logger.warn('No active subscription found for organization', {
             orgId,
           })
           setSubscriptionData(null)
         }
       }
     } catch (err: any) {
-      logger.error("Error loading subscription data", { error: err })
-      setError(err.message || "Failed to load subscription data")
+      logger.error('Error loading subscription data', { error: err })
+      setError(err.message || 'Failed to load subscription data')
     } finally {
       setIsLoadingSubscription(false)
     }
@@ -251,7 +251,7 @@ export function TeamManagement() {
         await loadOrganizationSubscription(fullOrgResponse.data.id)
       }
     } catch (err: any) {
-      setError(err.message || "Failed to refresh organization data")
+      setError(err.message || 'Failed to refresh organization data')
     }
   }, [activeOrganization?.id])
 
@@ -261,13 +261,13 @@ export function TeamManagement() {
 
     // Don't allow enterprise users to modify seats
     if (checkEnterprisePlan(subscriptionData)) {
-      setError("Enterprise plan seats can only be modified by contacting support")
+      setError('Enterprise plan seats can only be modified by contacting support')
       return
     }
 
     const currentSeats = subscriptionData.seats || 0
     if (currentSeats <= 1) {
-      setError("Cannot reduce seats below 1")
+      setError('Cannot reduce seats below 1')
       return
     }
 
@@ -284,12 +284,12 @@ export function TeamManagement() {
       await updateSeats(currentSeats - 1)
       await refreshOrganization()
     } catch (err: any) {
-      setError(err.message || "Failed to reduce seats")
+      setError(err.message || 'Failed to reduce seats')
     }
   }
 
   const generateSlug = (name: string) => {
-    return name.toLowerCase().replace(/[^a-z0-9]/g, "-")
+    return name.toLowerCase().replace(/[^a-z0-9]/g, '-')
   }
 
   const handleOrgNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -305,7 +305,7 @@ export function TeamManagement() {
       setIsCreatingOrg(true)
       setError(null)
 
-      logger.info("Creating team organization", {
+      logger.info('Creating team organization', {
         name: orgName,
         slug: orgSlug,
       })
@@ -317,14 +317,14 @@ export function TeamManagement() {
       })
 
       if (!result.data?.id) {
-        throw new Error("Failed to create organization")
+        throw new Error('Failed to create organization')
       }
 
       const orgId = result.data.id
-      logger.info("Organization created", { orgId })
+      logger.info('Organization created', { orgId })
 
       // Set the new organization as active
-      logger.info("Setting organization as active", { orgId })
+      logger.info('Setting organization as active', { orgId })
       await client.organization.setActive({
         organizationId: orgId,
       })
@@ -335,20 +335,20 @@ export function TeamManagement() {
         const userSubResponse = await client.subscription.list()
 
         let teamSubscription = userSubResponse.data?.find(
-          (sub) => (sub.plan === "team" || sub.plan === "enterprise") && sub.status === "active"
+          (sub) => (sub.plan === 'team' || sub.plan === 'enterprise') && sub.status === 'active'
         )
 
         // If no subscription was found through the client API but user has enterprise plan,
         // fetch it directly through our enterprise subscription endpoint
         if (!teamSubscription && hasEnterprisePlan) {
-          logger.info("No subscription found via client API, checking enterprise endpoint")
+          logger.info('No subscription found via client API, checking enterprise endpoint')
           try {
-            const enterpriseResponse = await fetch("/api/user/subscription/enterprise")
+            const enterpriseResponse = await fetch('/api/user/subscription/enterprise')
             if (enterpriseResponse.ok) {
               const enterpriseData = await enterpriseResponse.json()
               if (enterpriseData.subscription) {
                 teamSubscription = enterpriseData.subscription
-                logger.info("Found enterprise subscription via direct API", {
+                logger.info('Found enterprise subscription via direct API', {
                   subscriptionId: teamSubscription?.id,
                   plan: teamSubscription?.plan,
                   seats: teamSubscription?.seats,
@@ -356,13 +356,13 @@ export function TeamManagement() {
               }
             }
           } catch (err) {
-            logger.error("Error fetching enterprise subscription details", {
+            logger.error('Error fetching enterprise subscription details', {
               error: err,
             })
           }
         }
 
-        logger.info("Team subscription to transfer", {
+        logger.info('Team subscription to transfer', {
           found: !!teamSubscription,
           details: teamSubscription
             ? {
@@ -374,7 +374,7 @@ export function TeamManagement() {
         })
 
         if (teamSubscription) {
-          logger.info("Found subscription to transfer", {
+          logger.info('Found subscription to transfer', {
             subscriptionId: teamSubscription.id,
             plan: teamSubscription.plan,
             seats: teamSubscription.seats,
@@ -386,8 +386,8 @@ export function TeamManagement() {
             const transferResponse = await fetch(
               `/api/user/subscription/${teamSubscription.id}/transfer`,
               {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   organizationId: orgId,
                 }),
@@ -396,10 +396,10 @@ export function TeamManagement() {
 
             if (!transferResponse.ok) {
               const errorText = await transferResponse.text()
-              let errorMessage = "Failed to transfer subscription"
+              let errorMessage = 'Failed to transfer subscription'
 
               try {
-                if (errorText?.trim().startsWith("{")) {
+                if (errorText?.trim().startsWith('{')) {
                   const errorData = JSON.parse(errorText)
                   errorMessage = errorData.error || errorMessage
                 }
@@ -411,7 +411,7 @@ export function TeamManagement() {
               throw new Error(errorMessage)
             }
           } catch (transferError) {
-            logger.error("Subscription transfer failed", {
+            logger.error('Subscription transfer failed', {
               error: transferError instanceof Error ? transferError.message : String(transferError),
             })
             throw transferError
@@ -424,11 +424,11 @@ export function TeamManagement() {
 
       // Close the dialog
       setCreateOrgDialogOpen(false)
-      setOrgName("")
-      setOrgSlug("")
+      setOrgName('')
+      setOrgSlug('')
     } catch (err: any) {
-      logger.error("Failed to create organization", { error: err })
-      setError(err.message || "Failed to create organization")
+      logger.error('Failed to create organization', { error: err })
+      setError(err.message || 'Failed to create organization')
     } finally {
       setIsCreatingOrg(false)
     }
@@ -444,7 +444,7 @@ export function TeamManagement() {
 
       // Use the organization's ID as the reference for the team subscription
       const { error } = await client.subscription.upgrade({
-        plan: "team",
+        plan: 'team',
         referenceId: activeOrganization.id,
         successUrl: window.location.href,
         cancelUrl: window.location.href,
@@ -452,12 +452,12 @@ export function TeamManagement() {
       })
 
       if (error) {
-        setError(error.message || "Failed to upgrade to team subscription")
+        setError(error.message || 'Failed to upgrade to team subscription')
       } else {
         await refreshOrganization()
       }
     } catch (err: any) {
-      setError(err.message || "Failed to upgrade to team subscription")
+      setError(err.message || 'Failed to upgrade to team subscription')
     } finally {
       setIsLoading(false)
     }
@@ -475,7 +475,7 @@ export function TeamManagement() {
         organizationId: orgId,
       })
     } catch (err: any) {
-      setError(err.message || "Failed to set active organization")
+      setError(err.message || 'Failed to set active organization')
     } finally {
       setIsLoading(false)
     }
@@ -498,7 +498,7 @@ export function TeamManagement() {
 
       const seatLimit = subscriptionData?.seats || 0
 
-      logger.info("Checking seat availability for invitation", {
+      logger.info('Checking seat availability for invitation', {
         currentMembers: currentMemberCount,
         pendingInvites: pendingInvitationCount,
         totalUsed: totalCount,
@@ -513,12 +513,12 @@ export function TeamManagement() {
         return
       }
 
-      if (!inviteEmail || !inviteEmail.includes("@")) {
-        setError("Please enter a valid email address")
+      if (!inviteEmail || !inviteEmail.includes('@')) {
+        setError('Please enter a valid email address')
         return
       }
 
-      logger.info("Sending invitation to member", {
+      logger.info('Sending invitation to member', {
         email: inviteEmail,
         organizationId: activeOrganization.id,
       })
@@ -526,25 +526,25 @@ export function TeamManagement() {
       // Invite the member
       const inviteResult = await client.organization.inviteMember({
         email: inviteEmail,
-        role: "member",
+        role: 'member',
         organizationId: activeOrganization.id,
       })
 
       if (inviteResult.error) {
-        throw new Error(inviteResult.error.message || "Failed to send invitation")
+        throw new Error(inviteResult.error.message || 'Failed to send invitation')
       }
 
-      logger.info("Invitation sent successfully")
+      logger.info('Invitation sent successfully')
 
       // Clear the input and show success message
-      setInviteEmail("")
+      setInviteEmail('')
       setInviteSuccess(true)
 
       // Refresh the organization
       await refreshOrganization()
     } catch (err: any) {
-      logger.error("Error inviting member", { error: err })
-      setError(err.message || "Failed to invite member")
+      logger.error('Error inviting member', { error: err })
+      setError(err.message || 'Failed to invite member')
     } finally {
       setIsInviting(false)
     }
@@ -558,7 +558,7 @@ export function TeamManagement() {
     setRemoveMemberDialog({
       open: true,
       memberId: member.id,
-      memberName: member.user?.name || member.user?.email || "this member",
+      memberName: member.user?.name || member.user?.email || 'this member',
       shouldReduceSeats: false,
     })
   }
@@ -591,12 +591,12 @@ export function TeamManagement() {
       // Close the dialog
       setRemoveMemberDialog({
         open: false,
-        memberId: "",
-        memberName: "",
+        memberId: '',
+        memberName: '',
         shouldReduceSeats: false,
       })
     } catch (err: any) {
-      setError(err.message || "Failed to remove member")
+      setError(err.message || 'Failed to remove member')
     } finally {
       setIsLoading(false)
     }
@@ -617,23 +617,23 @@ export function TeamManagement() {
       // Refresh the organization
       await refreshOrganization()
     } catch (err: any) {
-      setError(err.message || "Failed to cancel invitation")
+      setError(err.message || 'Failed to cancel invitation')
     } finally {
       setIsLoading(false)
     }
   }
 
   const getEffectivePlanName = () => {
-    if (!subscriptionData) return "No Plan"
+    if (!subscriptionData) return 'No Plan'
 
     if (checkEnterprisePlan(subscriptionData)) {
-      return "Enterprise"
+      return 'Enterprise'
     }
-    if (subscriptionData.plan === "team") {
-      return "Team"
+    if (subscriptionData.plan === 'team') {
+      return 'Team'
     }
     return (
-      subscriptionData.plan?.charAt(0).toUpperCase() + subscriptionData.plan?.slice(1) || "Unknown"
+      subscriptionData.plan?.charAt(0).toUpperCase() + subscriptionData.plan?.slice(1) || 'Unknown'
     )
   }
 
@@ -643,7 +643,7 @@ export function TeamManagement() {
 
       // Don't allow enterprise users to modify seats
       if (checkEnterprisePlan(subscriptionData)) {
-        setError("Enterprise plan seats can only be modified by contacting support")
+        setError('Enterprise plan seats can only be modified by contacting support')
         return
       }
 
@@ -652,13 +652,13 @@ export function TeamManagement() {
         setError(null)
 
         const { error } = await client.subscription.upgrade({
-          plan: "team",
+          plan: 'team',
           referenceId: activeOrganization.id,
           successUrl: window.location.href,
           cancelUrl: window.location.href,
           seats: newSeatCount,
         })
-        if (error) throw new Error(error.message || "Failed to update seats")
+        if (error) throw new Error(error.message || 'Failed to update seats')
       } finally {
         setIsLoading(false)
       }
@@ -672,24 +672,24 @@ export function TeamManagement() {
 
   const getInvitationStatus = (status: string) => {
     switch (status) {
-      case "pending":
+      case 'pending':
         return (
-          <div className="flex items-center text-amber-500">
-            <RefreshCw className="mr-1 h-4 w-4" />
+          <div className='flex items-center text-amber-500'>
+            <RefreshCw className='mr-1 h-4 w-4' />
             <span>Pending</span>
           </div>
         )
-      case "accepted":
+      case 'accepted':
         return (
-          <div className="flex items-center text-green-500">
-            <CheckCircle className="mr-1 h-4 w-4" />
+          <div className='flex items-center text-green-500'>
+            <CheckCircle className='mr-1 h-4 w-4' />
             <span>Accepted</span>
           </div>
         )
-      case "canceled":
+      case 'canceled':
         return (
-          <div className="flex items-center text-red-500">
-            <XCircle className="mr-1 h-4 w-4" />
+          <div className='flex items-center text-red-500'>
+            <XCircle className='mr-1 h-4 w-4' />
             <span>Canceled</span>
           </div>
         )
@@ -701,64 +701,64 @@ export function TeamManagement() {
   // No organization yet - show creation UI
   if (!activeOrganization) {
     return (
-      <div className="space-y-6 p-6">
-        <div className="space-y-6">
-          <h3 className="font-medium text-lg">
-            {hasTeamPlan || hasEnterprisePlan ? "Create Your Team Workspace" : "No Team Workspace"}
+      <div className='space-y-6 p-6'>
+        <div className='space-y-6'>
+          <h3 className='font-medium text-lg'>
+            {hasTeamPlan || hasEnterprisePlan ? 'Create Your Team Workspace' : 'No Team Workspace'}
           </h3>
 
           {hasTeamPlan || hasEnterprisePlan ? (
-            <div className="space-y-6 rounded-lg border p-6">
-              <p className="text-muted-foreground text-sm">
-                You're subscribed to a {hasEnterprisePlan ? "enterprise" : "team"} plan. Create your
+            <div className='space-y-6 rounded-lg border p-6'>
+              <p className='text-muted-foreground text-sm'>
+                You're subscribed to a {hasEnterprisePlan ? 'enterprise' : 'team'} plan. Create your
                 workspace to start collaborating with your team.
               </p>
 
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label htmlFor="orgName" className="font-medium text-sm">
+              <div className='space-y-4'>
+                <div className='space-y-2'>
+                  <label htmlFor='orgName' className='font-medium text-sm'>
                     Team Name
                   </label>
-                  <Input value={orgName} onChange={handleOrgNameChange} placeholder="My Team" />
+                  <Input value={orgName} onChange={handleOrgNameChange} placeholder='My Team' />
                 </div>
 
-                <div className="space-y-2">
-                  <label htmlFor="orgSlug" className="font-medium text-sm">
+                <div className='space-y-2'>
+                  <label htmlFor='orgSlug' className='font-medium text-sm'>
                     Team URL
                   </label>
-                  <div className="flex items-center space-x-2">
-                    <div className="rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm">
+                  <div className='flex items-center space-x-2'>
+                    <div className='rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm'>
                       simstudio.ai/team/
                     </div>
                     <Input
                       value={orgSlug}
                       onChange={(e) => setOrgSlug(e.target.value)}
-                      className="rounded-l-none"
+                      className='rounded-l-none'
                     />
                   </div>
                 </div>
               </div>
 
               {error && (
-                <Alert variant="destructive">
+                <Alert variant='destructive'>
                   <AlertTitle>Error</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
 
-              <div className="flex justify-end space-x-2">
+              <div className='flex justify-end space-x-2'>
                 <Button
                   onClick={handleCreateOrganization}
                   disabled={!orgName || !orgSlug || isCreatingOrg}
                 >
-                  {isCreatingOrg && <RefreshCw className="mr-2 h-4 w-4 animate-spin" />}
+                  {isCreatingOrg && <RefreshCw className='mr-2 h-4 w-4 animate-spin' />}
                   Create Team Workspace
                 </Button>
               </div>
             </div>
           ) : (
             <>
-              <p className="text-muted-foreground text-sm">
+              <p className='text-muted-foreground text-sm'>
                 You don't have a team workspace yet. To collaborate with others, first upgrade to a
                 team or enterprise plan.
               </p>
@@ -766,8 +766,8 @@ export function TeamManagement() {
               <Button
                 onClick={() => {
                   // Open the subscription tab
-                  const event = new CustomEvent("open-settings", {
-                    detail: { tab: "subscription" },
+                  const event = new CustomEvent('open-settings', {
+                    detail: { tab: 'subscription' },
                   })
                   window.dispatchEvent(event)
                 }}
@@ -787,33 +787,33 @@ export function TeamManagement() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <label htmlFor="orgName" className="font-medium text-sm">
+            <div className='space-y-4 py-4'>
+              <div className='space-y-2'>
+                <label htmlFor='orgName' className='font-medium text-sm'>
                   Team Name
                 </label>
-                <Input value={orgName} onChange={handleOrgNameChange} placeholder="My Team" />
+                <Input value={orgName} onChange={handleOrgNameChange} placeholder='My Team' />
               </div>
 
-              <div className="space-y-2">
-                <label htmlFor="orgSlug" className="font-medium text-sm">
+              <div className='space-y-2'>
+                <label htmlFor='orgSlug' className='font-medium text-sm'>
                   Team URL
                 </label>
-                <div className="flex items-center space-x-2">
-                  <div className="rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm">
+                <div className='flex items-center space-x-2'>
+                  <div className='rounded-l-md bg-muted px-3 py-2 text-muted-foreground text-sm'>
                     simstudio.ai/team/
                   </div>
                   <Input
                     value={orgSlug}
                     onChange={(e) => setOrgSlug(e.target.value)}
-                    className="rounded-l-none"
+                    className='rounded-l-none'
                   />
                 </div>
               </div>
             </div>
 
             {error && (
-              <Alert variant="destructive">
+              <Alert variant='destructive'>
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
@@ -821,7 +821,7 @@ export function TeamManagement() {
 
             <DialogFooter>
               <Button
-                variant="outline"
+                variant='outline'
                 onClick={() => setCreateOrgDialogOpen(false)}
                 disabled={isCreatingOrg}
               >
@@ -832,7 +832,7 @@ export function TeamManagement() {
                 disabled={!orgName || !orgSlug || isCreatingOrg}
               >
                 {isCreatingOrg && <ButtonSkeleton />}
-                <span className={isCreatingOrg ? "ml-2" : ""}>Create Team Workspace</span>
+                <span className={isCreatingOrg ? 'ml-2' : ''}>Create Team Workspace</span>
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -842,14 +842,14 @@ export function TeamManagement() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <h3 className="font-medium text-lg">Team Management</h3>
+    <div className='space-y-6 p-6'>
+      <div className='flex items-center justify-between'>
+        <h3 className='font-medium text-lg'>Team Management</h3>
 
         {organizations.length > 1 && (
-          <div className="flex items-center space-x-2">
+          <div className='flex items-center space-x-2'>
             <select
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className='rounded-md border border-input bg-background px-3 py-2 text-sm'
               value={activeOrganization.id}
               onChange={(e) => handleSetActiveOrg(e.target.value)}
             >
@@ -864,7 +864,7 @@ export function TeamManagement() {
       </div>
 
       {error && (
-        <Alert variant="destructive">
+        <Alert variant='destructive'>
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -872,44 +872,44 @@ export function TeamManagement() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="members">Members</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value='members'>Members</TabsTrigger>
+          <TabsTrigger value='settings'>Settings</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="members" className="mt-4 space-y-4">
+        <TabsContent value='members' className='mt-4 space-y-4'>
           {isAdminOrOwner && (
-            <div className="rounded-md border p-4">
-              <h4 className="mb-4 font-medium text-sm">Invite Team Members</h4>
+            <div className='rounded-md border p-4'>
+              <h4 className='mb-4 font-medium text-sm'>Invite Team Members</h4>
 
-              <div className="flex items-center space-x-2">
+              <div className='flex items-center space-x-2'>
                 <Input
-                  placeholder="Email address"
+                  placeholder='Email address'
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                   disabled={isInviting}
                 />
                 <Button onClick={handleInviteMember} disabled={!inviteEmail || isInviting}>
-                  {isInviting ? <ButtonSkeleton /> : <PlusCircle className="mr-2 h-4 w-4" />}
+                  {isInviting ? <ButtonSkeleton /> : <PlusCircle className='mr-2 h-4 w-4' />}
                   <span>Invite</span>
                 </Button>
               </div>
 
               {inviteSuccess && (
-                <p className="mt-2 text-green-500 text-sm">Invitation sent successfully</p>
+                <p className='mt-2 text-green-500 text-sm'>Invitation sent successfully</p>
               )}
             </div>
           )}
 
           {/* Team Seats Usage - only show to admins/owners */}
           {isAdminOrOwner && (
-            <div className="rounded-md border p-4">
-              <h4 className="mb-2 font-medium text-sm">Team Seats</h4>
+            <div className='rounded-md border p-4'>
+              <h4 className='mb-2 font-medium text-sm'>Team Seats</h4>
 
               {isLoadingSubscription ? (
                 <TeamSeatsSkeleton />
               ) : subscriptionData ? (
                 <>
-                  <div className="mb-2 flex justify-between text-sm">
+                  <div className='mb-2 flex justify-between text-sm'>
                     <span>Used</span>
                     <span>
                       {usedSeats}/{subscriptionData.seats || 0}
@@ -917,24 +917,24 @@ export function TeamManagement() {
                   </div>
                   <Progress
                     value={(usedSeats / (subscriptionData.seats || 1)) * 100}
-                    className="h-2"
+                    className='h-2'
                   />
 
                   {checkEnterprisePlan(subscriptionData) ? (
                     <div />
                   ) : (
-                    <div className="mt-4 flex justify-between">
+                    <div className='mt-4 flex justify-between'>
                       <Button
-                        variant="outline"
-                        size="sm"
+                        variant='outline'
+                        size='sm'
                         onClick={handleReduceSeats}
                         disabled={(subscriptionData.seats || 0) <= 1 || isLoading}
                       >
                         Remove Seat
                       </Button>
                       <Button
-                        variant="outline"
-                        size="sm"
+                        variant='outline'
+                        size='sm'
                         onClick={async () => {
                           const currentSeats = subscriptionData.seats || 1
                           try {
@@ -942,9 +942,9 @@ export function TeamManagement() {
                             await refreshOrganization()
                           } catch (error) {
                             const errorMessage =
-                              error instanceof Error ? error.message : "Failed to update seats"
+                              error instanceof Error ? error.message : 'Failed to update seats'
                             setError(errorMessage)
-                            logger.error("Error updating seats", { error })
+                            logger.error('Error updating seats', { error })
                           }
                         }}
                         disabled={isLoading}
@@ -955,15 +955,15 @@ export function TeamManagement() {
                   )}
                 </>
               ) : (
-                <div className="space-y-2 text-muted-foreground text-sm">
+                <div className='space-y-2 text-muted-foreground text-sm'>
                   <p>No active subscription found for this organization.</p>
                   <p>
                     This might happen if your subscription was created for your personal account but
                     hasn't been properly transferred to the organization.
                   </p>
                   <Button
-                    variant="outline"
-                    size="sm"
+                    variant='outline'
+                    size='sm'
                     onClick={() => {
                       setError(null)
                       confirmTeamUpgrade(2) // Start with 2 seats as default
@@ -978,35 +978,35 @@ export function TeamManagement() {
           )}
 
           {/* Team Members - show to all users */}
-          <div className="rounded-md border">
-            <h4 className="border-b p-4 font-medium text-sm">Team Members</h4>
+          <div className='rounded-md border'>
+            <h4 className='border-b p-4 font-medium text-sm'>Team Members</h4>
 
             {activeOrganization.members?.length === 0 ? (
-              <div className="p-4 text-muted-foreground text-sm">
+              <div className='p-4 text-muted-foreground text-sm'>
                 No members in this organization yet.
               </div>
             ) : (
-              <div className="divide-y">
+              <div className='divide-y'>
                 {activeOrganization.members?.map((member: any) => (
-                  <div key={member.id} className="flex items-center justify-between p-4">
+                  <div key={member.id} className='flex items-center justify-between p-4'>
                     <div>
-                      <div className="font-medium">{member.user?.name || "Unknown"}</div>
-                      <div className="text-muted-foreground text-sm">{member.user?.email}</div>
-                      <div className="mt-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-primary text-xs">
+                      <div className='font-medium'>{member.user?.name || 'Unknown'}</div>
+                      <div className='text-muted-foreground text-sm'>{member.user?.email}</div>
+                      <div className='mt-1 inline-block rounded-full bg-primary/10 px-2 py-0.5 text-primary text-xs'>
                         {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                       </div>
                     </div>
 
                     {/* Only show remove button for non-owners and if current user is admin/owner */}
                     {isAdminOrOwner &&
-                      member.role !== "owner" &&
+                      member.role !== 'owner' &&
                       member.user?.email !== session?.user?.email && (
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant='outline'
+                          size='sm'
                           onClick={() => handleRemoveMember(member)}
                         >
-                          <UserX className="h-4 w-4" />
+                          <UserX className='h-4 w-4' />
                         </Button>
                       )}
                   </div>
@@ -1017,24 +1017,24 @@ export function TeamManagement() {
 
           {/* Pending Invitations - only show to admins/owners */}
           {isAdminOrOwner && (activeOrganization.invitations?.length ?? 0) > 0 && (
-            <div className="rounded-md border">
-              <h4 className="border-b p-4 font-medium text-sm">Pending Invitations</h4>
+            <div className='rounded-md border'>
+              <h4 className='border-b p-4 font-medium text-sm'>Pending Invitations</h4>
 
-              <div className="divide-y">
+              <div className='divide-y'>
                 {activeOrganization.invitations?.map((invitation: any) => (
-                  <div key={invitation.id} className="flex items-center justify-between p-4">
+                  <div key={invitation.id} className='flex items-center justify-between p-4'>
                     <div>
-                      <div className="font-medium">{invitation.email}</div>
-                      <div className="mt-1 text-xs">{getInvitationStatus(invitation.status)}</div>
+                      <div className='font-medium'>{invitation.email}</div>
+                      <div className='mt-1 text-xs'>{getInvitationStatus(invitation.status)}</div>
                     </div>
 
-                    {invitation.status === "pending" && (
+                    {invitation.status === 'pending' && (
                       <Button
-                        variant="outline"
-                        size="sm"
+                        variant='outline'
+                        size='sm'
                         onClick={() => handleCancelInvitation(invitation.id)}
                       >
-                        <XCircle className="h-4 w-4" />
+                        <XCircle className='h-4 w-4' />
                       </Button>
                     )}
                   </div>
@@ -1044,28 +1044,28 @@ export function TeamManagement() {
           )}
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-4 space-y-4">
-          <div className="space-y-4 rounded-md border p-4">
+        <TabsContent value='settings' className='mt-4 space-y-4'>
+          <div className='space-y-4 rounded-md border p-4'>
             <div>
-              <h4 className="mb-2 font-medium text-sm">Team Workspace Name</h4>
-              <div className="font-medium">{activeOrganization.name}</div>
+              <h4 className='mb-2 font-medium text-sm'>Team Workspace Name</h4>
+              <div className='font-medium'>{activeOrganization.name}</div>
             </div>
 
             <div>
-              <h4 className="mb-2 font-medium text-sm">URL Slug</h4>
-              <div className="flex items-center space-x-2">
-                <code className="rounded bg-muted px-2 py-1 text-sm">
+              <h4 className='mb-2 font-medium text-sm'>URL Slug</h4>
+              <div className='flex items-center space-x-2'>
+                <code className='rounded bg-muted px-2 py-1 text-sm'>
                   {activeOrganization.slug}
                 </code>
-                <Button variant="ghost" size="sm">
-                  <Copy className="h-4 w-4" />
+                <Button variant='ghost' size='sm'>
+                  <Copy className='h-4 w-4' />
                 </Button>
               </div>
             </div>
 
             <div>
-              <h4 className="mb-2 font-medium text-sm">Created On</h4>
-              <div className="text-sm">
+              <h4 className='mb-2 font-medium text-sm'>Created On</h4>
+              <div className='text-sm'>
                 {new Date(activeOrganization.createdAt).toLocaleDateString()}
               </div>
             </div>
@@ -1073,27 +1073,27 @@ export function TeamManagement() {
             {/* Only show subscription details to admins/owners */}
             {isAdminOrOwner && (
               <div>
-                <h4 className="mb-2 font-medium text-sm">Subscription Status</h4>
+                <h4 className='mb-2 font-medium text-sm'>Subscription Status</h4>
                 {isLoadingSubscription ? (
                   <TeamSeatsSkeleton />
                 ) : subscriptionData ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
+                  <div className='space-y-2'>
+                    <div className='flex items-center space-x-2'>
                       <div
                         className={`h-2 w-2 rounded-full ${
-                          subscriptionData.status === "active"
-                            ? "bg-green-500"
-                            : subscriptionData.status === "trialing"
-                              ? "bg-amber-500"
-                              : "bg-red-500"
+                          subscriptionData.status === 'active'
+                            ? 'bg-green-500'
+                            : subscriptionData.status === 'trialing'
+                              ? 'bg-amber-500'
+                              : 'bg-red-500'
                         }`}
                       />
-                      <span className="font-medium capitalize">
+                      <span className='font-medium capitalize'>
                         {getEffectivePlanName()} {subscriptionData.status}
-                        {subscriptionData.cancelAtPeriodEnd ? " (Cancels at period end)" : ""}
+                        {subscriptionData.cancelAtPeriodEnd ? ' (Cancels at period end)' : ''}
                       </span>
                     </div>
-                    <div className="text-muted-foreground text-sm">
+                    <div className='text-muted-foreground text-sm'>
                       <div>Team seats: {subscriptionData.seats}</div>
                       {checkEnterprisePlan(subscriptionData) && subscriptionData.metadata && (
                         <div>
@@ -1109,7 +1109,7 @@ export function TeamManagement() {
                       )}
                       {subscriptionData.periodEnd && (
                         <div>
-                          Next billing date:{" "}
+                          Next billing date:{' '}
                           {new Date(subscriptionData.periodEnd).toLocaleDateString()}
                         </div>
                       )}
@@ -1118,25 +1118,25 @@ export function TeamManagement() {
                           Trial ends: {new Date(subscriptionData.trialEnd).toLocaleDateString()}
                         </div>
                       )}
-                      <div className="mt-2 text-xs">
+                      <div className='mt-2 text-xs'>
                         This subscription is associated with this team workspace.
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-muted-foreground text-sm">No active subscription found</div>
+                  <div className='text-muted-foreground text-sm'>No active subscription found</div>
                 )}
               </div>
             )}
 
             {!isAdminOrOwner && (
               <div>
-                <h4 className="mb-2 font-medium text-sm">Your Role</h4>
-                <div className="text-sm">
-                  You are a <span className="font-medium capitalize">{userRole}</span> of this
+                <h4 className='mb-2 font-medium text-sm'>Your Role</h4>
+                <div className='text-sm'>
+                  You are a <span className='font-medium capitalize'>{userRole}</span> of this
                   workspace.
-                  {userRole === "member" && (
-                    <p className="mt-2 text-muted-foreground text-xs">
+                  {userRole === 'member' && (
+                    <p className='mt-2 text-muted-foreground text-xs'>
                       Contact a workspace admin or owner for subscription changes or to invite new
                       members.
                     </p>
@@ -1163,12 +1163,12 @@ export function TeamManagement() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4">
-            <div className="flex items-center space-x-2">
+          <div className='py-4'>
+            <div className='flex items-center space-x-2'>
               <input
-                type="checkbox"
-                id="reduce-seats"
-                className="rounded"
+                type='checkbox'
+                id='reduce-seats'
+                className='rounded'
                 checked={removeMemberDialog.shouldReduceSeats}
                 onChange={(e) =>
                   setRemoveMemberDialog({
@@ -1177,23 +1177,23 @@ export function TeamManagement() {
                   })
                 }
               />
-              <label htmlFor="reduce-seats" className="text-sm">
+              <label htmlFor='reduce-seats' className='text-sm'>
                 Also reduce seat count in my subscription
               </label>
             </div>
-            <p className="mt-1 text-muted-foreground text-xs">
+            <p className='mt-1 text-muted-foreground text-xs'>
               If selected, your team seat count will be reduced by 1, lowering your monthly billing.
             </p>
           </div>
 
           <DialogFooter>
             <Button
-              variant="outline"
+              variant='outline'
               onClick={() =>
                 setRemoveMemberDialog({
                   open: false,
-                  memberId: "",
-                  memberName: "",
+                  memberId: '',
+                  memberName: '',
                   shouldReduceSeats: false,
                 })
               }
@@ -1201,7 +1201,7 @@ export function TeamManagement() {
               Cancel
             </Button>
             <Button
-              variant="destructive"
+              variant='destructive'
               onClick={() => confirmRemoveMember(removeMemberDialog.shouldReduceSeats)}
             >
               Remove
@@ -1215,47 +1215,47 @@ export function TeamManagement() {
 
 function TeamManagementSkeleton() {
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-6 w-40" />
-        <Skeleton className="h-9 w-32" />
+    <div className='space-y-6 p-6'>
+      <div className='flex items-center justify-between'>
+        <Skeleton className='h-6 w-40' />
+        <Skeleton className='h-9 w-32' />
       </div>
 
-      <div className="space-y-4">
-        <div className="rounded-md border p-4">
-          <Skeleton className="mb-4 h-5 w-32" />
-          <div className="flex items-center space-x-2">
-            <Skeleton className="h-9 flex-1" />
-            <Skeleton className="h-9 w-24" />
+      <div className='space-y-4'>
+        <div className='rounded-md border p-4'>
+          <Skeleton className='mb-4 h-5 w-32' />
+          <div className='flex items-center space-x-2'>
+            <Skeleton className='h-9 flex-1' />
+            <Skeleton className='h-9 w-24' />
           </div>
         </div>
 
-        <div className="rounded-md border p-4">
-          <Skeleton className="mb-4 h-5 w-32" />
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-4 w-24" />
+        <div className='rounded-md border p-4'>
+          <Skeleton className='mb-4 h-5 w-32' />
+          <div className='space-y-2'>
+            <div className='flex justify-between'>
+              <Skeleton className='h-4 w-16' />
+              <Skeleton className='h-4 w-24' />
             </div>
-            <Skeleton className="h-2 w-full" />
-            <div className="mt-4 flex justify-between">
-              <Skeleton className="h-9 w-24" />
-              <Skeleton className="h-9 w-24" />
+            <Skeleton className='h-2 w-full' />
+            <div className='mt-4 flex justify-between'>
+              <Skeleton className='h-9 w-24' />
+              <Skeleton className='h-9 w-24' />
             </div>
           </div>
         </div>
 
-        <div className="rounded-md border">
-          <Skeleton className="h-5 w-32 border-b p-4" />
-          <div className="space-y-4 p-4">
+        <div className='rounded-md border'>
+          <Skeleton className='h-5 w-32 border-b p-4' />
+          <div className='space-y-4 p-4'>
             {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="space-y-2">
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-4 w-48" />
-                  <Skeleton className="h-4 w-16" />
+              <div key={i} className='flex items-center justify-between'>
+                <div className='space-y-2'>
+                  <Skeleton className='h-5 w-32' />
+                  <Skeleton className='h-4 w-48' />
+                  <Skeleton className='h-4 w-16' />
                 </div>
-                <Skeleton className="h-9 w-9" />
+                <Skeleton className='h-9 w-9' />
               </div>
             ))}
           </div>
@@ -1266,14 +1266,14 @@ function TeamManagementSkeleton() {
 }
 
 function ButtonSkeleton() {
-  return <Skeleton className="h-9 w-24" />
+  return <Skeleton className='h-9 w-24' />
 }
 
 function TeamSeatsSkeleton() {
   return (
-    <div className="flex items-center space-x-2">
-      <Skeleton className="h-4 w-4" />
-      <Skeleton className="h-4 w-32" />
+    <div className='flex items-center space-x-2'>
+      <Skeleton className='h-4 w-4' />
+      <Skeleton className='h-4 w-32' />
     </div>
   )
 }

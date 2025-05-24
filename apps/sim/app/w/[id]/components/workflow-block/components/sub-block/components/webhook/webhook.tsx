@@ -7,19 +7,19 @@ import {
   StripeIcon,
   TelegramIcon,
   WhatsAppIcon,
-} from "@/components/icons"
-import { Button } from "@/components/ui/button"
-import { createLogger } from "@/lib/logs/console-logger"
-import { useSubBlockStore } from "@/stores/workflows/subblock/store"
-import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import { ExternalLink } from "lucide-react"
-import { useParams } from "next/navigation"
-import { useEffect, useState } from "react"
-import { useSubBlockValue } from "../../hooks/use-sub-block-value"
-import { CredentialSelector } from "../credential-selector/credential-selector"
-import { WebhookModal } from "./components/webhook-modal"
+} from '@/components/icons'
+import { Button } from '@/components/ui/button'
+import { createLogger } from '@/lib/logs/console-logger'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ExternalLink } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useSubBlockValue } from '../../hooks/use-sub-block-value'
+import { CredentialSelector } from '../credential-selector/credential-selector'
+import { WebhookModal } from './components/webhook-modal'
 
-const logger = createLogger("WebhookConfig")
+const logger = createLogger('WebhookConfig')
 
 export interface WebhookProvider {
   id: string
@@ -27,7 +27,7 @@ export interface WebhookProvider {
   icon: (props: { className?: string }) => React.ReactNode
   configFields: {
     [key: string]: {
-      type: "string" | "boolean" | "select"
+      type: 'string' | 'boolean' | 'select'
       label: string
       placeholder?: string
       options?: string[]
@@ -51,7 +51,7 @@ export interface DiscordConfig {
   avatarUrl?: string
 }
 
-export type StripeConfig = {}
+export type StripeConfig = Record<string, never>
 
 export interface GeneralWebhookConfig {
   token?: string
@@ -65,7 +65,11 @@ export interface SlackConfig {
 }
 
 export interface GmailConfig {
-  credentialId: string
+  credentialId?: string
+  labelIds?: string[]
+  labelFilterBehavior?: 'INCLUDE' | 'EXCLUDE'
+  markAsRead?: boolean
+  maxEmailsPerPoll?: number
 }
 
 // Define Airtable-specific configuration type
@@ -73,12 +77,13 @@ export interface AirtableWebhookConfig {
   baseId: string
   tableId: string
   externalId?: string // To store the ID returned by Airtable
-  includeCellValuesInFieldIds?: "all" | undefined
+  includeCellValuesInFieldIds?: 'all' | undefined
+  webhookSecret?: string
 }
 
 export interface TelegramConfig {
-  botToken: string
-  triggerPhrase: string
+  botToken?: string
+  triggerPhrase?: string
 }
 
 // Union type for all provider configurations
@@ -97,182 +102,182 @@ export type ProviderConfig =
 // Define available webhook providers
 export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
   whatsapp: {
-    id: "whatsapp",
-    name: "WhatsApp",
+    id: 'whatsapp',
+    name: 'WhatsApp',
     icon: (props) => <WhatsAppIcon {...props} />,
     configFields: {
       verificationToken: {
-        type: "string",
-        label: "Verification Token",
-        placeholder: "Enter a verification token for WhatsApp",
-        description: "This token will be used to verify your webhook with WhatsApp.",
+        type: 'string',
+        label: 'Verification Token',
+        placeholder: 'Enter a verification token for WhatsApp',
+        description: 'This token will be used to verify your webhook with WhatsApp.',
       },
     },
   },
   github: {
-    id: "github",
-    name: "GitHub",
+    id: 'github',
+    name: 'GitHub',
     icon: (props) => <GithubIcon {...props} />,
     configFields: {
       contentType: {
-        type: "string",
-        label: "Content Type",
-        placeholder: "application/json",
-        defaultValue: "application/json",
-        description: "The content type for GitHub webhook payloads.",
+        type: 'string',
+        label: 'Content Type',
+        placeholder: 'application/json',
+        defaultValue: 'application/json',
+        description: 'The content type for GitHub webhook payloads.',
       },
     },
   },
   gmail: {
-    id: "gmail",
-    name: "Gmail",
+    id: 'gmail',
+    name: 'Gmail',
     icon: (props) => <GmailIcon {...props} />,
     configFields: {
       labelFilterBehavior: {
-        type: "select",
-        label: "Label Filter Behavior",
-        options: ["INCLUDE", "EXCLUDE"],
-        defaultValue: "INCLUDE",
-        description: "Whether to include or exclude the selected labels.",
+        type: 'select',
+        label: 'Label Filter Behavior',
+        options: ['INCLUDE', 'EXCLUDE'],
+        defaultValue: 'INCLUDE',
+        description: 'Whether to include or exclude the selected labels.',
       },
       markAsRead: {
-        type: "boolean",
-        label: "Mark As Read",
+        type: 'boolean',
+        label: 'Mark As Read',
         defaultValue: false,
-        description: "Mark emails as read after processing.",
+        description: 'Mark emails as read after processing.',
       },
       maxEmailsPerPoll: {
-        type: "string",
-        label: "Max Emails Per Poll",
-        defaultValue: "10",
-        description: "Maximum number of emails to process in each check.",
+        type: 'string',
+        label: 'Max Emails Per Poll',
+        defaultValue: '10',
+        description: 'Maximum number of emails to process in each check.',
       },
       pollingInterval: {
-        type: "string",
-        label: "Polling Interval (minutes)",
-        defaultValue: "5",
-        description: "How often to check for new emails.",
+        type: 'string',
+        label: 'Polling Interval (minutes)',
+        defaultValue: '5',
+        description: 'How often to check for new emails.',
       },
     },
   },
   discord: {
-    id: "discord",
-    name: "Discord",
+    id: 'discord',
+    name: 'Discord',
     icon: (props) => <DiscordIcon {...props} />,
     configFields: {
       webhookName: {
-        type: "string",
-        label: "Webhook Name",
-        placeholder: "Enter a name for the webhook",
-        description: "Custom name that will appear as the message sender in Discord.",
+        type: 'string',
+        label: 'Webhook Name',
+        placeholder: 'Enter a name for the webhook',
+        description: 'Custom name that will appear as the message sender in Discord.',
       },
       avatarUrl: {
-        type: "string",
-        label: "Avatar URL",
-        placeholder: "https://example.com/avatar.png",
-        description: "URL to an image that will be used as the webhook avatar.",
+        type: 'string',
+        label: 'Avatar URL',
+        placeholder: 'https://example.com/avatar.png',
+        description: 'URL to an image that will be used as the webhook avatar.',
       },
     },
   },
   stripe: {
-    id: "stripe",
-    name: "Stripe",
+    id: 'stripe',
+    name: 'Stripe',
     icon: (props) => <StripeIcon {...props} />,
     configFields: {},
   },
   generic: {
-    id: "generic",
-    name: "General",
+    id: 'generic',
+    name: 'General',
     icon: (props) => (
       <div
-        className={`flex items-center justify-center rounded ${props.className || ""}`}
+        className={`flex items-center justify-center rounded ${props.className || ''}`}
         style={{
-          backgroundColor: "#802FFF",
-          minWidth: "28px",
-          padding: "0 4px",
+          backgroundColor: '#802FFF',
+          minWidth: '28px',
+          padding: '0 4px',
         }}
       >
-        <span className="font-medium text-white text-xs">Sim</span>
+        <span className='font-medium text-white text-xs'>Sim</span>
       </div>
     ),
     configFields: {
       token: {
-        type: "string",
-        label: "Authentication Token",
-        placeholder: "Enter an auth token (optional)",
+        type: 'string',
+        label: 'Authentication Token',
+        placeholder: 'Enter an auth token (optional)',
         description:
-          "This token will be used to authenticate webhook requests via Bearer token authentication.",
+          'This token will be used to authenticate webhook requests via Bearer token authentication.',
       },
       secretHeaderName: {
-        type: "string",
-        label: "Secret Header Name",
-        placeholder: "X-Secret-Key",
-        description: "Custom HTTP header name for authentication (optional).",
+        type: 'string',
+        label: 'Secret Header Name',
+        placeholder: 'X-Secret-Key',
+        description: 'Custom HTTP header name for authentication (optional).',
       },
       requireAuth: {
-        type: "boolean",
-        label: "Require Authentication",
+        type: 'boolean',
+        label: 'Require Authentication',
         defaultValue: false,
-        description: "Require authentication for all webhook requests.",
+        description: 'Require authentication for all webhook requests.',
       },
       allowedIps: {
-        type: "string",
-        label: "Allowed IP Addresses",
-        placeholder: "10.0.0.1, 192.168.1.1",
-        description: "Comma-separated list of allowed IP addresses (optional).",
+        type: 'string',
+        label: 'Allowed IP Addresses',
+        placeholder: '10.0.0.1, 192.168.1.1',
+        description: 'Comma-separated list of allowed IP addresses (optional).',
       },
     },
   },
   slack: {
-    id: "slack",
-    name: "Slack",
+    id: 'slack',
+    name: 'Slack',
     icon: (props) => <SlackIcon {...props} />,
     configFields: {
       signingSecret: {
-        type: "string",
-        label: "Signing Secret",
-        placeholder: "Enter your Slack app signing secret",
-        description: "The signing secret from your Slack app to validate request authenticity.",
+        type: 'string',
+        label: 'Signing Secret',
+        placeholder: 'Enter your Slack app signing secret',
+        description: 'The signing secret from your Slack app to validate request authenticity.',
       },
     },
   },
   airtable: {
-    id: "airtable",
-    name: "Airtable",
+    id: 'airtable',
+    name: 'Airtable',
     icon: (props) => <AirtableIcon {...props} />,
     configFields: {
       baseId: {
-        type: "string",
-        label: "Base ID",
-        placeholder: "appXXXXXXXXXXXXXX",
-        description: "The ID of the Airtable Base the webhook should monitor.",
-        defaultValue: "", // Default empty, user must provide
+        type: 'string',
+        label: 'Base ID',
+        placeholder: 'appXXXXXXXXXXXXXX',
+        description: 'The ID of the Airtable Base the webhook should monitor.',
+        defaultValue: '', // Default empty, user must provide
       },
       tableId: {
-        type: "string",
-        label: "Table ID",
-        placeholder: "tblXXXXXXXXXXXXXX",
-        description: "The ID of the Airtable Table within the Base to monitor.",
-        defaultValue: "", // Default empty, user must provide
+        type: 'string',
+        label: 'Table ID',
+        placeholder: 'tblXXXXXXXXXXXXXX',
+        description: 'The ID of the Airtable Table within the Base to monitor.',
+        defaultValue: '', // Default empty, user must provide
       },
     },
   },
   telegram: {
-    id: "telegram",
-    name: "Telegram",
+    id: 'telegram',
+    name: 'Telegram',
     icon: (props) => <TelegramIcon {...props} />,
     configFields: {
       botToken: {
-        type: "string",
-        label: "Bot Token",
-        placeholder: "Enter your Telegram Bot Token",
-        description: "The token for your Telegram bot.",
+        type: 'string',
+        label: 'Bot Token',
+        placeholder: 'Enter your Telegram Bot Token',
+        description: 'The token for your Telegram bot.',
       },
       triggerPhrase: {
-        type: "string",
-        label: "Trigger Phrase",
-        placeholder: "/start_workflow",
-        description: "The phrase that will trigger the workflow when sent to the bot.",
+        type: 'string',
+        label: 'Trigger Phrase',
+        placeholder: '/start_workflow',
+        description: 'The phrase that will trigger the workflow when sent to the bot.',
       },
     },
   },
@@ -293,19 +298,19 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   const params = useParams()
   const workflowId = params.id as string
   const [isLoading, setIsLoading] = useState(false)
-  const [gmailCredentialId, setGmailCredentialId] = useState<string>("")
+  const [gmailCredentialId, setGmailCredentialId] = useState<string>('')
 
   // Get workflow store function to update webhook status
   const setWebhookStatus = useWorkflowStore((state) => state.setWebhookStatus)
 
   // Get the webhook provider from the block state
-  const [webhookProvider, setWebhookProvider] = useSubBlockValue(blockId, "webhookProvider")
+  const [webhookProvider, setWebhookProvider] = useSubBlockValue(blockId, 'webhookProvider')
 
   // Store the webhook path
-  const [webhookPath, setWebhookPath] = useSubBlockValue(blockId, "webhookPath")
+  const [webhookPath, setWebhookPath] = useSubBlockValue(blockId, 'webhookPath')
 
   // Store provider-specific configuration
-  const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, "providerConfig")
+  const [providerConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
 
   // Reset provider config when provider changes
   useEffect(() => {
@@ -355,7 +360,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
           }
         }
       } catch (error) {
-        logger.error("Error checking webhook:", { error })
+        logger.error('Error checking webhook:', { error })
       } finally {
         setIsLoading(false)
       }
@@ -391,7 +396,7 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       }
 
       let finalConfig = config
-      if (webhookProvider === "gmail" && gmailCredentialId) {
+      if (webhookProvider === 'gmail' && gmailCredentialId) {
         finalConfig = {
           ...config,
           credentialId: gmailCredentialId,
@@ -402,15 +407,15 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       setProviderConfig(finalConfig)
 
       // Save the webhook to the database
-      const response = await fetch("/api/webhooks", {
-        method: "POST",
+      const response = await fetch('/api/webhooks', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           workflowId,
           path,
-          provider: webhookProvider || "generic",
+          provider: webhookProvider || 'generic',
           providerConfig: finalConfig,
         }),
       })
@@ -418,9 +423,9 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(
-          typeof errorData.error === "object"
+          typeof errorData.error === 'object'
             ? errorData.error.message || JSON.stringify(errorData.error)
-            : errorData.error || "Failed to save webhook"
+            : errorData.error || 'Failed to save webhook'
         )
       }
 
@@ -428,15 +433,15 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       setWebhookId(data.webhook.id)
 
       // Update the actual provider after saving
-      setActualProvider(webhookProvider || "generic")
+      setActualProvider(webhookProvider || 'generic')
 
       // Set active webhook flag to true after successfully saving
       setWebhookStatus(true)
 
       return true
     } catch (error: any) {
-      logger.error("Error saving webhook:", { error })
-      setError(error.message || "Failed to save webhook configuration")
+      logger.error('Error saving webhook:', { error })
+      setError(error.message || 'Failed to save webhook configuration')
       return false
     } finally {
       setIsSaving(false)
@@ -451,16 +456,16 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       setError(null)
 
       const response = await fetch(`/api/webhooks/${webhookId}`, {
-        method: "DELETE",
+        method: 'DELETE',
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to delete webhook")
+        throw new Error(errorData.error || 'Failed to delete webhook')
       }
 
       // Reset the startWorkflow field to manual
-      useSubBlockStore.getState().setValue(blockId, "startWorkflow", "manual")
+      useSubBlockStore.getState().setValue(blockId, 'startWorkflow', 'manual')
 
       // Remove webhook-specific fields from the block state
       const store = useSubBlockStore.getState()
@@ -470,10 +475,10 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       // Remove webhook-related fields
       blockValues.webhookProvider = undefined
       blockValues.providerConfig = undefined
-      blockValues.webhookPath = ""
+      blockValues.webhookPath = ''
 
       // Update the store with the cleaned block values
-      store.setValue(blockId, "startWorkflow", "manual")
+      store.setValue(blockId, 'startWorkflow', 'manual')
       useSubBlockStore.setState({
         workflowValues: {
           ...workflowValues,
@@ -494,8 +499,8 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
 
       return true
     } catch (error: any) {
-      logger.error("Error deleting webhook:", { error })
-      setError(error.message || "Failed to delete webhook")
+      logger.error('Error deleting webhook:', { error })
+      setError(error.message || 'Failed to delete webhook')
       return false
     } finally {
       setIsDeleting(false)
@@ -509,9 +514,9 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
       return null
     }
 
-    const provider = WEBHOOK_PROVIDERS[webhookProvider || "generic"]
+    const provider = WEBHOOK_PROVIDERS[webhookProvider || 'generic']
     return provider.icon({
-      className: "h-4 w-4 mr-2 text-green-500 dark:text-green-400",
+      className: 'h-4 w-4 mr-2 text-green-500 dark:text-green-400',
     })
   }
 
@@ -523,37 +528,37 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   }
 
   // For Gmail, we need to show the credential selector
-  if (webhookProvider === "gmail" && !isWebhookConnected) {
+  if (webhookProvider === 'gmail' && !isWebhookConnected) {
     return (
-      <div className="w-full">
-        {error && <div className="mb-2 text-red-500 text-sm dark:text-red-400">{error}</div>}
+      <div className='w-full'>
+        {error && <div className='mb-2 text-red-500 text-sm dark:text-red-400'>{error}</div>}
 
-        <div className="mb-3">
+        <div className='mb-3'>
           <CredentialSelector
             value={gmailCredentialId}
             onChange={handleCredentialChange}
-            provider="google-email"
+            provider='google-email'
             requiredScopes={[
-              "https://www.googleapis.com/auth/gmail.modify",
-              "https://www.googleapis.com/auth/gmail.labels",
+              'https://www.googleapis.com/auth/gmail.modify',
+              'https://www.googleapis.com/auth/gmail.labels',
             ]}
-            label="Select Gmail account"
+            label='Select Gmail account'
             disabled={isConnecting || isSaving || isDeleting}
           />
         </div>
 
         {gmailCredentialId && (
           <Button
-            variant="outline"
-            size="sm"
-            className="flex h-10 w-full items-center bg-background font-normal text-sm"
+            variant='outline'
+            size='sm'
+            className='flex h-10 w-full items-center bg-background font-normal text-sm'
             onClick={handleOpenModal}
             disabled={isConnecting || isSaving || isDeleting || !gmailCredentialId}
           >
             {isLoading ? (
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+              <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
             ) : (
-              <ExternalLink className="mr-2 h-4 w-4" />
+              <ExternalLink className='mr-2 h-4 w-4' />
             )}
             Configure Webhook
           </Button>
@@ -563,8 +568,8 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
           <WebhookModal
             isOpen={isModalOpen}
             onClose={handleCloseModal}
-            webhookPath={webhookPath || ""}
-            webhookProvider={webhookProvider || "generic"}
+            webhookPath={webhookPath || ''}
+            webhookProvider={webhookProvider || 'generic'}
             onSave={handleSaveWebhook}
             onDelete={handleDeleteWebhook}
             webhookId={webhookId || undefined}
@@ -575,20 +580,20 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
   }
 
   return (
-    <div className="w-full">
-      {error && <div className="mb-2 text-red-500 text-sm dark:text-red-400">{error}</div>}
+    <div className='w-full'>
+      {error && <div className='mb-2 text-red-500 text-sm dark:text-red-400'>{error}</div>}
 
       {isWebhookConnected ? (
-        <div className="flex flex-col space-y-2">
+        <div className='flex flex-col space-y-2'>
           <div
-            className="flex h-10 cursor-pointer items-center justify-center rounded border border-border bg-background px-3 py-2 transition-colors duration-200 hover:bg-accent hover:text-accent-foreground"
+            className='flex h-10 cursor-pointer items-center justify-center rounded border border-border bg-background px-3 py-2 transition-colors duration-200 hover:bg-accent hover:text-accent-foreground'
             onClick={handleOpenModal}
           >
-            <div className="flex items-center gap-2">
-              <div className="flex items-center">
+            <div className='flex items-center gap-2'>
+              <div className='flex items-center'>
                 {getProviderIcon()}
-                <span className="font-normal text-sm">
-                  {WEBHOOK_PROVIDERS[webhookProvider || "generic"].name} Webhook
+                <span className='font-normal text-sm'>
+                  {WEBHOOK_PROVIDERS[webhookProvider || 'generic'].name} Webhook
                 </span>
               </div>
             </div>
@@ -596,16 +601,16 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
         </div>
       ) : (
         <Button
-          variant="outline"
-          size="sm"
-          className="flex h-10 w-full items-center bg-background font-normal text-sm"
+          variant='outline'
+          size='sm'
+          className='flex h-10 w-full items-center bg-background font-normal text-sm'
           onClick={handleOpenModal}
           disabled={isConnecting || isSaving || isDeleting}
         >
           {isLoading ? (
-            <div className="mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+            <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <ExternalLink className="mr-2 h-4 w-4" />
+            <ExternalLink className='mr-2 h-4 w-4' />
           )}
           Configure Webhook
         </Button>
@@ -615,8 +620,8 @@ export function WebhookConfig({ blockId, subBlockId, isConnecting }: WebhookConf
         <WebhookModal
           isOpen={isModalOpen}
           onClose={handleCloseModal}
-          webhookPath={webhookPath || ""}
-          webhookProvider={webhookProvider || "generic"}
+          webhookPath={webhookPath || ''}
+          webhookProvider={webhookProvider || 'generic'}
           onSave={handleSaveWebhook}
           onDelete={handleDeleteWebhook}
           webhookId={webhookId || undefined}

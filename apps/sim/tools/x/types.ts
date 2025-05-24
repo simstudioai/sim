@@ -1,4 +1,4 @@
-import type { ToolResponse } from "../types"
+import type { ToolResponse } from '../types'
 
 // Common Types
 export interface XTweet {
@@ -73,7 +73,7 @@ export interface XSearchParams extends XBaseParams {
   maxResults?: number
   startTime?: string
   endTime?: string
-  sortOrder?: "recency" | "relevancy"
+  sortOrder?: 'recency' | 'relevancy'
 }
 
 export interface XSearchResponse extends ToolResponse {

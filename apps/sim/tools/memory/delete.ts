@@ -1,16 +1,16 @@
-import type { ToolConfig } from "../types"
-import type { MemoryResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { MemoryResponse } from './types'
 
 export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
-  id: "memory_delete",
-  name: "Delete Memory",
-  description: "Delete a specific memory by its ID",
-  version: "1.0.0",
+  id: 'memory_delete',
+  name: 'Delete Memory',
+  description: 'Delete a specific memory by its ID',
+  version: '1.0.0',
   params: {
     id: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Identifier for the memory to delete",
+      description: 'Identifier for the memory to delete',
     },
   },
   request: {
@@ -25,7 +25,7 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
             data: {
               success: false,
               error: {
-                message: "workflowId is required and must be provided in execution context",
+                message: 'workflowId is required and must be provided in execution context',
               },
             },
           },
@@ -35,9 +35,9 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       // Append workflowId as query parameter
       return `/api/memory/${encodeURIComponent(params.id)}?workflowId=${encodeURIComponent(workflowId)}`
     },
-    method: "DELETE",
+    method: 'DELETE',
     headers: () => ({
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
     isInternalRoute: true,
   },
@@ -46,28 +46,28 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
       const result = await response.json()
 
       if (!response.ok) {
-        const errorMessage = result.error?.message || "Failed to delete memory"
+        const errorMessage = result.error?.message || 'Failed to delete memory'
         throw new Error(errorMessage)
       }
 
       return {
         success: true,
         output: {
-          message: "Memory deleted successfully.",
+          message: 'Memory deleted successfully.',
         },
       }
     } catch (error: any) {
       return {
         success: false,
         output: {
-          message: `Failed to delete memory: ${error.message || "Unknown error"}`,
+          message: `Failed to delete memory: ${error.message || 'Unknown error'}`,
         },
-        error: `Failed to delete memory: ${error.message || "Unknown error"}`,
+        error: `Failed to delete memory: ${error.message || 'Unknown error'}`,
       }
     }
   },
   transformError: async (error): Promise<MemoryResponse> => {
-    const errorMessage = `Memory deletion failed: ${error.message || "Unknown error"}`
+    const errorMessage = `Memory deletion failed: ${error.message || 'Unknown error'}`
     return {
       success: false,
       output: {

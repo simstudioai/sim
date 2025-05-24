@@ -1,15 +1,15 @@
-import { db } from "@/db"
-import { workflow, workspace, workspaceMember } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { and, desc, eq, isNull } from "drizzle-orm"
-import { NextResponse } from "next/server"
+import { db } from '@/db'
+import { workflow, workspace, workspaceMember } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { and, desc, eq, isNull } from 'drizzle-orm'
+import { NextResponse } from 'next/server'
 
 // Get all workspaces for the current user
 export async function GET() {
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   // Get all workspaces where the user is a member with a single join query
@@ -50,28 +50,28 @@ export async function POST(req: Request) {
   const session = await getSession()
 
   if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   try {
     const { name } = await req.json()
 
     if (!name) {
-      return NextResponse.json({ error: "Name is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
     const newWorkspace = await createWorkspace(session.user.id, name)
 
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {
-    console.error("Error creating workspace:", error)
-    return NextResponse.json({ error: "Failed to create workspace" }, { status: 500 })
+    console.error('Error creating workspace:', error)
+    return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 })
   }
 }
 
 // Helper function to create a default workspace
 async function createDefaultWorkspace(userId: string, userName?: string | null) {
-  const workspaceName = userName ? `${userName}'s Workspace` : "My Workspace"
+  const workspaceName = userName ? `${userName}'s Workspace` : 'My Workspace'
   return createWorkspace(userId, workspaceName)
 }
 
@@ -93,7 +93,7 @@ async function createWorkspace(userId: string, name: string) {
     id: crypto.randomUUID(),
     workspaceId,
     userId,
-    role: "owner",
+    role: 'owner',
     joinedAt: new Date(),
     updatedAt: new Date(),
   })
@@ -105,7 +105,7 @@ async function createWorkspace(userId: string, name: string) {
     ownerId: userId,
     createdAt: new Date(),
     updatedAt: new Date(),
-    role: "owner",
+    role: 'owner',
   }
 }
 

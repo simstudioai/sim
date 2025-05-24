@@ -1,4 +1,4 @@
-import { BaseEdge, type EdgeProps, getSmoothStepPath } from "reactflow"
+import { BaseEdge, type EdgeProps, getSmoothStepPath } from 'reactflow'
 
 export const HeroEdge = ({
   id,
@@ -11,7 +11,7 @@ export const HeroEdge = ({
   style = {},
   markerEnd,
 }: EdgeProps) => {
-  const isHorizontal = sourcePosition === "right" || sourcePosition === "left"
+  const isHorizontal = sourcePosition === 'right' || sourcePosition === 'left'
 
   const [edgePath] = getSmoothStepPath({
     sourceX,
@@ -29,8 +29,8 @@ export const HeroEdge = ({
       path={edgePath}
       style={{
         strokeWidth: 2,
-        stroke: "#404040",
-        strokeDasharray: "5,5",
+        stroke: '#404040',
+        strokeDasharray: '5,5',
         zIndex: 5,
         ...style,
       }}

@@ -1,9 +1,9 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { useSubBlockStore } from "@/stores/workflows/subblock/store"
-import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import { shallow } from "zustand/shallow"
+import { createLogger } from '@/lib/logs/console-logger'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { shallow } from 'zustand/shallow'
 
-const logger = createLogger("useBlockConnections")
+const logger = createLogger('useBlockConnections')
 
 interface Field {
   name: string
@@ -30,7 +30,7 @@ export interface ConnectedBlock {
 
 // Helper function to extract fields from JSON Schema
 function extractFieldsFromSchema(schema: any): Field[] {
-  if (!schema || typeof schema !== "object") {
+  if (!schema || typeof schema !== 'object') {
     return []
   }
 
@@ -41,14 +41,14 @@ function extractFieldsFromSchema(schema: any): Field[] {
 
   // Handle new JSON Schema format
   const schemaObj = schema.schema || schema
-  if (!schemaObj || !schemaObj.properties || typeof schemaObj.properties !== "object") {
+  if (!schemaObj || !schemaObj.properties || typeof schemaObj.properties !== 'object') {
     return []
   }
 
   // Extract fields from schema properties
   return Object.entries(schemaObj.properties).map(([name, prop]: [string, any]) => ({
     name,
-    type: prop.type || "string",
+    type: prop.type || 'string',
     description: prop.description,
   }))
 }
@@ -129,24 +129,24 @@ export function useBlockConnections(blockId: string) {
       if (!sourceBlock) return null
 
       // Get the response format from the subblock store
-      const responseFormatValue = useSubBlockStore.getState().getValue(sourceId, "responseFormat")
+      const responseFormatValue = useSubBlockStore.getState().getValue(sourceId, 'responseFormat')
 
       let responseFormat
 
       try {
         responseFormat =
-          typeof responseFormatValue === "string" && responseFormatValue
+          typeof responseFormatValue === 'string' && responseFormatValue
             ? JSON.parse(responseFormatValue)
             : responseFormatValue // Handle case where it's already an object
       } catch (e) {
-        logger.error("Failed to parse response format:", { e })
+        logger.error('Failed to parse response format:', { e })
         responseFormat = undefined
       }
 
       // Get the default output type from the block's outputs
       const defaultOutputs: Field[] = Object.entries(sourceBlock.outputs || {}).map(([key]) => ({
         name: key,
-        type: "string",
+        type: 'string',
       }))
 
       // Extract fields from the response format using our helper function
@@ -171,24 +171,24 @@ export function useBlockConnections(blockId: string) {
       // Get the response format from the subblock store instead
       const responseFormatValue = useSubBlockStore
         .getState()
-        .getValue(edge.source, "responseFormat")
+        .getValue(edge.source, 'responseFormat')
 
       let responseFormat
 
       try {
         responseFormat =
-          typeof responseFormatValue === "string" && responseFormatValue
+          typeof responseFormatValue === 'string' && responseFormatValue
             ? JSON.parse(responseFormatValue)
             : responseFormatValue // Handle case where it's already an object
       } catch (e) {
-        logger.error("Failed to parse response format:", { e })
+        logger.error('Failed to parse response format:', { e })
         responseFormat = undefined
       }
 
       // Get the default output type from the block's outputs
       const defaultOutputs: Field[] = Object.entries(sourceBlock.outputs || {}).map(([key]) => ({
         name: key,
-        type: "string",
+        type: 'string',
       }))
 
       // Extract fields from the response format using our helper function

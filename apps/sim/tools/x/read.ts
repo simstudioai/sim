@@ -1,53 +1,53 @@
-import type { ToolConfig } from "../types"
-import type { XReadParams, XReadResponse, XTweet } from "./types"
+import type { ToolConfig } from '../types'
+import type { XReadParams, XReadResponse, XTweet } from './types'
 
 export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
-  id: "x_read",
-  name: "X Read",
-  description: "Read tweet details, including replies and conversation context",
-  version: "1.0.0",
+  id: 'x_read',
+  name: 'X Read',
+  description: 'Read tweet details, including replies and conversation context',
+  version: '1.0.0',
 
   oauth: {
     required: true,
-    provider: "x",
-    additionalScopes: ["tweet.read", "users.read"],
+    provider: 'x',
+    additionalScopes: ['tweet.read', 'users.read'],
   },
 
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "X OAuth access token",
+      description: 'X OAuth access token',
     },
     tweetId: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "ID of the tweet to read",
+      description: 'ID of the tweet to read',
     },
     includeReplies: {
-      type: "boolean",
+      type: 'boolean',
       required: false,
-      description: "Whether to include replies to the tweet",
+      description: 'Whether to include replies to the tweet',
     },
   },
 
   request: {
     url: (params) => {
       const expansions = [
-        "author_id",
-        "in_reply_to_user_id",
-        "referenced_tweets.id",
-        "attachments.media_keys",
-        "attachments.poll_ids",
-      ].join(",")
+        'author_id',
+        'in_reply_to_user_id',
+        'referenced_tweets.id',
+        'attachments.media_keys',
+        'attachments.poll_ids',
+      ].join(',')
 
       return `https://api.twitter.com/2/tweets/${params.tweetId}?expansions=${expansions}`
     },
-    method: "GET",
+    method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
   },
 
@@ -73,8 +73,8 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
     // Get parent and root tweets if available
     if (data.includes?.tweets) {
       const referencedTweets = data.data.referenced_tweets || []
-      const parentTweetRef = referencedTweets.find((ref: any) => ref.type === "replied_to")
-      const rootTweetRef = referencedTweets.find((ref: any) => ref.type === "replied_to_root")
+      const parentTweetRef = referencedTweets.find((ref: any) => ref.type === 'replied_to')
+      const rootTweetRef = referencedTweets.find((ref: any) => ref.type === 'replied_to_root')
 
       if (parentTweetRef) {
         const parentTweet = data.includes.tweets.find((t: any) => t.id === parentTweetRef.id)
@@ -97,12 +97,12 @@ export const xReadTool: ToolConfig<XReadParams, XReadResponse> = {
   },
 
   transformError: (error) => {
-    if (error.title === "Unauthorized") {
-      return "Invalid or expired access token. Please reconnect your X account."
+    if (error.title === 'Unauthorized') {
+      return 'Invalid or expired access token. Please reconnect your X account.'
     }
-    if (error.title === "Not Found") {
-      return "The specified tweet was not found."
+    if (error.title === 'Not Found') {
+      return 'The specified tweet was not found.'
     }
-    return error.detail || "An unexpected error occurred while reading from X"
+    return error.detail || 'An unexpected error occurred while reading from X'
   },
 }

@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import { type ReactNode, forwardRef } from "react"
+import { type ReactNode, forwardRef } from 'react'
 
 /**
  * SectionProps interface - defines the properties for the Section component
@@ -21,11 +21,11 @@ interface SectionProps {
  */
 export const Section = forwardRef<HTMLDivElement, SectionProps>(({ title, id, children }, ref) => {
   return (
-    <div ref={ref} id={id} className="mb-12 scroll-mt-14">
-      <h2 className="mb-6 font-medium text-lg capitalize">{title}</h2>
+    <div ref={ref} id={id} className='mb-12 scroll-mt-14'>
+      <h2 className='mb-6 font-medium text-lg capitalize'>{title}</h2>
       {children}
     </div>
   )
 })
 
-Section.displayName = "Section"
+Section.displayName = 'Section'

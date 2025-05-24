@@ -1,26 +1,26 @@
-import { db } from "@/db"
-import { environment, userStats } from "@/db/schema"
-import { Executor } from "@/executor"
-import { createLogger } from "@/lib/logs/console-logger"
-import { persistExecutionError, persistExecutionLogs } from "@/lib/logs/execution-logger"
-import { buildTraceSpans } from "@/lib/logs/trace-spans"
-import { checkServerSideUsageLimits } from "@/lib/usage-monitor"
-import { decryptSecret } from "@/lib/utils"
-import { updateWorkflowRunCounts } from "@/lib/workflows/utils"
-import { Serializer } from "@/serializer"
-import { mergeSubblockState } from "@/stores/workflows/utils"
-import type { WorkflowState } from "@/stores/workflows/workflow/types"
-import { eq, sql } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
-import { v4 as uuidv4 } from "uuid"
-import { z } from "zod"
-import { validateWorkflowAccess } from "../../middleware"
-import { createErrorResponse, createSuccessResponse } from "../../utils"
+import { db } from '@/db'
+import { environment, userStats } from '@/db/schema'
+import { Executor } from '@/executor'
+import { createLogger } from '@/lib/logs/console-logger'
+import { persistExecutionError, persistExecutionLogs } from '@/lib/logs/execution-logger'
+import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import { checkServerSideUsageLimits } from '@/lib/usage-monitor'
+import { decryptSecret } from '@/lib/utils'
+import { updateWorkflowRunCounts } from '@/lib/workflows/utils'
+import { Serializer } from '@/serializer'
+import { mergeSubblockState } from '@/stores/workflows/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import { eq, sql } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { v4 as uuidv4 } from 'uuid'
+import { z } from 'zod'
+import { validateWorkflowAccess } from '../../middleware'
+import { createErrorResponse, createSuccessResponse } from '../../utils'
 
-const logger = createLogger("WorkflowExecuteAPI")
+const logger = createLogger('WorkflowExecuteAPI')
 
-export const dynamic = "force-dynamic"
-export const runtime = "nodejs"
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 // Define the schema for environment variables
 const EnvVarsSchema = z.record(z.string())
@@ -34,7 +34,7 @@ class UsageLimitError extends Error {
 
   constructor(message: string) {
     super(message)
-    this.name = "UsageLimitError"
+    this.name = 'UsageLimitError'
     this.statusCode = 402 // Payment Required status code
   }
 }
@@ -46,7 +46,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
   // Skip if this workflow is already running
   if (runningExecutions.has(workflowId)) {
     logger.warn(`[${requestId}] Workflow is already running: ${workflowId}`)
-    throw new Error("Workflow is already running")
+    throw new Error('Workflow is already running')
   }
 
   // Check if the user has exceeded their usage limits
@@ -57,19 +57,19 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
       limit: usageCheck.limit,
     })
     throw new UsageLimitError(
-      usageCheck.message || "Usage limit exceeded. Please upgrade your plan to continue."
+      usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
     )
   }
 
   // Log input to help debug
   logger.info(
     `[${requestId}] Executing workflow with input:`,
-    input ? JSON.stringify(input, null, 2) : "No input provided"
+    input ? JSON.stringify(input, null, 2) : 'No input provided'
   )
 
   // Validate and structure input for maximum compatibility
   let processedInput = input
-  if (input && typeof input === "object") {
+  if (input && typeof input === 'object') {
     // Ensure input is properly structured for the starter block
     if (input.input === undefined) {
       // If input is not already nested, structure it properly
@@ -128,7 +128,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
             let value = subBlock.value
 
             // If the value is a string and contains environment variable syntax
-            if (typeof value === "string" && value.includes("{{") && value.includes("}}")) {
+            if (typeof value === 'string' && value.includes('{{') && value.includes('}}')) {
               const matches = value.match(/{{([^}]+)}}/g)
               if (matches) {
                 // Process all matches sequentially
@@ -181,7 +181,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     const processedBlockStates = Object.entries(currentBlockStates).reduce(
       (acc, [blockId, blockState]) => {
         // Check if this block has a responseFormat that needs to be parsed
-        if (blockState.responseFormat && typeof blockState.responseFormat === "string") {
+        if (blockState.responseFormat && typeof blockState.responseFormat === 'string') {
           try {
             logger.debug(`[${requestId}] Parsing responseFormat for block ${blockId}`)
             // Attempt to parse the responseFormat if it's a string
@@ -208,7 +208,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     if (workflow.variables) {
       try {
         // Parse workflow variables if they're stored as a string
-        if (typeof workflow.variables === "string") {
+        if (typeof workflow.variables === 'string') {
           workflowVariables = JSON.parse(workflow.variables)
         } else {
           // Otherwise use as is (already parsed JSON)
@@ -241,7 +241,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
 
     // Check if we got a StreamingExecution result (with stream + execution properties)
     // For API routes, we only care about the ExecutionResult part, not the stream
-    const executionResult = "stream" in result && "execution" in result ? result.execution : result
+    const executionResult = 'stream' in result && 'execution' in result ? result.execution : result
 
     logger.info(`[${requestId}] Workflow execution completed: ${workflowId}`, {
       success: executionResult.success,
@@ -273,13 +273,13 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     }
 
     // Log each execution step and the final result
-    await persistExecutionLogs(workflowId, executionId, enrichedResult, "api")
+    await persistExecutionLogs(workflowId, executionId, enrichedResult, 'api')
 
     return executionResult
   } catch (error: any) {
     logger.error(`[${requestId}] Workflow execution failed: ${workflowId}`, error)
     // Log the error
-    await persistExecutionError(workflowId, executionId, error, "api")
+    await persistExecutionError(workflowId, executionId, error, 'api')
     throw error
   } finally {
     runningExecutions.delete(workflowId)
@@ -305,13 +305,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Check if this is a usage limit error
     if (error instanceof UsageLimitError) {
-      return createErrorResponse(error.message, error.statusCode, "USAGE_LIMIT_EXCEEDED")
+      return createErrorResponse(error.message, error.statusCode, 'USAGE_LIMIT_EXCEEDED')
     }
 
     return createErrorResponse(
-      error.message || "Failed to execute workflow",
+      error.message || 'Failed to execute workflow',
       500,
-      "EXECUTION_ERROR"
+      'EXECUTION_ERROR'
     )
   }
 }
@@ -338,7 +338,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         logger.info(`[${requestId}] Parsed request body:`, JSON.stringify(body, null, 2))
       } catch (error) {
         logger.error(`[${requestId}] Failed to parse request body:`, error)
-        return createErrorResponse("Invalid JSON in request body", 400, "INVALID_JSON")
+        return createErrorResponse('Invalid JSON in request body', 400, 'INVALID_JSON')
       }
     } else {
       logger.info(`[${requestId}] No request body provided`)
@@ -358,13 +358,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Check if this is a usage limit error
     if (error instanceof UsageLimitError) {
-      return createErrorResponse(error.message, error.statusCode, "USAGE_LIMIT_EXCEEDED")
+      return createErrorResponse(error.message, error.statusCode, 'USAGE_LIMIT_EXCEEDED')
     }
 
     return createErrorResponse(
-      error.message || "Failed to execute workflow",
+      error.message || 'Failed to execute workflow',
       500,
-      "EXECUTION_ERROR"
+      'EXECUTION_ERROR'
     )
   }
 }
@@ -373,11 +373,11 @@ export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers":
-        "Content-Type, X-API-Key, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version",
-      "Access-Control-Max-Age": "86400",
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers':
+        'Content-Type, X-API-Key, X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Date, X-Api-Version',
+      'Access-Control-Max-Age': '86400',
     },
   })
 }

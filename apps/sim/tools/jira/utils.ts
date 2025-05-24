@@ -1,9 +1,9 @@
 export async function getJiraCloudId(domain: string, accessToken: string): Promise<string> {
-  const response = await fetch("https://api.atlassian.com/oauth/token/accessible-resources", {
-    method: "GET",
+  const response = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+    method: 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json",
+      Accept: 'application/json',
     },
   })
 
@@ -25,5 +25,5 @@ export async function getJiraCloudId(domain: string, accessToken: string): Promi
     return resources[0].id
   }
 
-  throw new Error("No Jira resources found")
+  throw new Error('No Jira resources found')
 }

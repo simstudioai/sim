@@ -1,47 +1,47 @@
-import type { ToolConfig } from "../types"
-import type { PerplexityChatParams, PerplexityChatResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { PerplexityChatParams, PerplexityChatResponse } from './types'
 
 export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> = {
-  id: "perplexity_chat",
-  name: "Perplexity Chat",
-  description: "Generate completions using Perplexity AI chat models",
-  version: "1.0",
+  id: 'perplexity_chat',
+  name: 'Perplexity Chat',
+  description: 'Generate completions using Perplexity AI chat models',
+  version: '1.0',
 
   params: {
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "Perplexity API key",
+      description: 'Perplexity API key',
     },
     model: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Model to use for chat completions (e.g., sonar, mistral)",
+      description: 'Model to use for chat completions (e.g., sonar, mistral)',
     },
     messages: {
-      type: "array",
+      type: 'array',
       required: true,
-      description: "Array of message objects with role and content",
+      description: 'Array of message objects with role and content',
     },
     max_tokens: {
-      type: "number",
+      type: 'number',
       required: false,
-      description: "Maximum number of tokens to generate",
+      description: 'Maximum number of tokens to generate',
     },
     temperature: {
-      type: "number",
+      type: 'number',
       required: false,
-      description: "Sampling temperature between 0 and 1",
+      description: 'Sampling temperature between 0 and 1',
     },
   },
 
   request: {
-    method: "POST",
-    url: () => "https://api.perplexity.ai/chat/completions",
+    method: 'POST',
+    url: () => 'https://api.perplexity.ai/chat/completions',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
     body: (params) => {
       let messages = params.messages
@@ -50,17 +50,17 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
         messages = []
 
         // Add system message if provided
-        if (params.system && typeof params.system === "string" && params.system.trim() !== "") {
+        if (params.system && typeof params.system === 'string' && params.system.trim() !== '') {
           messages.push({
-            role: "system",
+            role: 'system',
             content: params.system,
           })
         }
 
         // Add user message
-        if (params.prompt && typeof params.prompt === "string" && params.prompt.trim() !== "") {
+        if (params.prompt && typeof params.prompt === 'string' && params.prompt.trim() !== '') {
           messages.push({
-            role: "user",
+            role: 'user',
             content: params.prompt,
           })
         }
@@ -69,7 +69,7 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
       // Validate that each message has role and content
       for (const msg of messages!) {
         if (!msg.role || !msg.content) {
-          throw new Error("Each message must have role and content properties")
+          throw new Error('Each message must have role and content properties')
         }
       }
 
@@ -95,7 +95,7 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
       // Check if the response was successful
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error("Perplexity API error:", {
+        console.error('Perplexity API error:', {
           status: response.status,
           statusText: response.statusText,
           errorData,
@@ -112,8 +112,8 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
 
       // Validate response structure
       if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-        console.error("Invalid Perplexity response format:", data)
-        throw new Error("Invalid response format from Perplexity API")
+        console.error('Invalid Perplexity response format:', data)
+        throw new Error('Invalid response format from Perplexity API')
       }
 
       return {
@@ -129,7 +129,7 @@ export const chatTool: ToolConfig<PerplexityChatParams, PerplexityChatResponse> 
         },
       }
     } catch (error: any) {
-      console.error("Failed to process Perplexity response:", error)
+      console.error('Failed to process Perplexity response:', error)
       throw error
     }
   },

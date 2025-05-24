@@ -1,41 +1,41 @@
-import type { ToolConfig } from "../types"
-import type { TypeformResponsesParams, TypeformResponsesResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { TypeformResponsesParams, TypeformResponsesResponse } from './types'
 
 export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponsesResponse> = {
-  id: "typeform_responses",
-  name: "Typeform Responses",
-  description: "Retrieve form responses from Typeform",
-  version: "1.0.0",
+  id: 'typeform_responses',
+  name: 'Typeform Responses',
+  description: 'Retrieve form responses from Typeform',
+  version: '1.0.0',
   params: {
     formId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Typeform form ID",
+      description: 'Typeform form ID',
     },
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Typeform Personal Access Token",
+      description: 'Typeform Personal Access Token',
     },
     pageSize: {
-      type: "number",
+      type: 'number',
       required: false,
-      description: "Number of responses to retrieve (default: 25)",
+      description: 'Number of responses to retrieve (default: 25)',
     },
     since: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Retrieve responses submitted after this date (ISO 8601 format)",
+      description: 'Retrieve responses submitted after this date (ISO 8601 format)',
     },
     until: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Retrieve responses submitted before this date (ISO 8601 format)",
+      description: 'Retrieve responses submitted before this date (ISO 8601 format)',
     },
     completed: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Filter by completion status (true/false)",
+      description: 'Filter by completion status (true/false)',
     },
   },
   request: {
@@ -56,21 +56,21 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
         queryParams.push(`until=${encodeURIComponent(params.until)}`)
       }
 
-      if (params.completed && params.completed !== "all") {
+      if (params.completed && params.completed !== 'all') {
         queryParams.push(`completed=${params.completed}`)
       }
 
-      return queryParams.length > 0 ? `${url}?${queryParams.join("&")}` : url
+      return queryParams.length > 0 ? `${url}?${queryParams.join('&')}` : url
     },
-    method: "GET",
+    method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let errorMessage = response.statusText || "Unknown error"
+      let errorMessage = response.statusText || 'Unknown error'
 
       try {
         const errorData = await response.json()
@@ -78,7 +78,7 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
           errorMessage = errorData.message
         } else if (errorData?.description) {
           errorMessage = errorData.description
-        } else if (typeof errorData === "string") {
+        } else if (typeof errorData === 'string') {
           errorMessage = errorData
         }
       } catch (e) {
@@ -97,7 +97,7 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
       }
     } catch (error) {
       throw new Error(
-        `Failed to parse Typeform response: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to parse Typeform response: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
     }
   },
@@ -106,10 +106,10 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
       return `Failed to retrieve Typeform responses: ${error.message}`
     }
 
-    if (typeof error === "object" && error !== null) {
+    if (typeof error === 'object' && error !== null) {
       return `Failed to retrieve Typeform responses: ${JSON.stringify(error)}`
     }
 
-    return "Failed to retrieve Typeform responses: An unknown error occurred"
+    return 'Failed to retrieve Typeform responses: An unknown error occurred'
   },
 }

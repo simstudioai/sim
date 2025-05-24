@@ -1,5 +1,5 @@
-import { X } from "lucide-react"
-import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from "reactflow"
+import { X } from 'lucide-react'
+import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 
 export const WorkflowEdge = ({
   id,
@@ -11,7 +11,7 @@ export const WorkflowEdge = ({
   targetPosition,
   data,
 }: EdgeProps) => {
-  const isHorizontal = sourcePosition === "right" || sourcePosition === "left"
+  const isHorizontal = sourcePosition === 'right' || sourcePosition === 'left'
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -30,30 +30,30 @@ export const WorkflowEdge = ({
     <>
       <BaseEdge
         path={edgePath}
-        data-testid="workflow-edge"
+        data-testid='workflow-edge'
         style={{
           strokeWidth: 2,
-          stroke: isSelected ? "#475569" : "#94a3b8",
-          strokeDasharray: "5,5",
+          stroke: isSelected ? '#475569' : '#94a3b8',
+          strokeDasharray: '5,5',
           zIndex: -10,
         }}
         interactionWidth={20}
       />
       <animate
-        attributeName="stroke-dashoffset"
-        from="10"
-        to="0"
-        dur="1s"
-        repeatCount="indefinite"
+        attributeName='stroke-dashoffset'
+        from='10'
+        to='0'
+        dur='1s'
+        repeatCount='indefinite'
       />
 
       {isSelected && (
         <EdgeLabelRenderer>
           <div
-            className="nodrag nopan flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#FAFBFC]"
+            className='nodrag nopan flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#FAFBFC]'
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              pointerEvents: "all",
+              pointerEvents: 'all',
               zIndex: 1000,
             }}
             onClick={(e) => {
@@ -64,7 +64,7 @@ export const WorkflowEdge = ({
               }
             }}
           >
-            <X className="h-5 w-5 text-red-500 hover:text-red-600" />
+            <X className='h-5 w-5 text-red-500 hover:text-red-600' />
           </div>
         </EdgeLabelRenderer>
       )}

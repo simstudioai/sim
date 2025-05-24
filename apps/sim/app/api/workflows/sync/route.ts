@@ -1,18 +1,18 @@
-import { db } from "@/db"
-import { workflow, workspace, workspaceMember } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import { and, eq, isNull } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
-import { z } from "zod"
+import { db } from '@/db'
+import { workflow, workspace, workspaceMember } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { and, eq, isNull } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 
-const logger = createLogger("WorkflowAPI")
+const logger = createLogger('WorkflowAPI')
 
 // Define marketplace data schema
 const MarketplaceDataSchema = z
   .object({
     id: z.string(),
-    status: z.enum(["owner", "temp"]),
+    status: z.enum(['owner', 'temp']),
   })
   .nullable()
   .optional()
@@ -27,7 +27,7 @@ const WorkflowStateSchema = z.object({
   deployedAt: z
     .union([z.string(), z.date()])
     .optional()
-    .transform((val) => (typeof val === "string" ? new Date(val) : val)),
+    .transform((val) => (typeof val === 'string' ? new Date(val) : val)),
   isPublished: z.boolean().optional(),
   marketplaceData: MarketplaceDataSchema,
 })
@@ -138,14 +138,14 @@ export async function GET(request: Request) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const startTime = Date.now()
   const url = new URL(request.url)
-  const workspaceId = url.searchParams.get("workspaceId")
+  const workspaceId = url.searchParams.get('workspaceId')
 
   try {
     // Get the session directly in the API route
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized workflow access attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const userId = session.user.id
@@ -164,7 +164,7 @@ export async function GET(request: Request) {
           `[${requestId}] Attempt to fetch workflows for non-existent workspace: ${workspaceId}`
         )
         return NextResponse.json(
-          { error: "Workspace not found", code: "WORKSPACE_NOT_FOUND" },
+          { error: 'Workspace not found', code: 'WORKSPACE_NOT_FOUND' },
           { status: 404 }
         )
       }
@@ -177,7 +177,7 @@ export async function GET(request: Request) {
           `[${requestId}] User ${userId} attempted to access workspace ${workspaceId} without membership`
         )
         return NextResponse.json(
-          { error: "Access denied to this workspace", code: "WORKSPACE_ACCESS_DENIED" },
+          { error: 'Access denied to this workspace', code: 'WORKSPACE_ACCESS_DENIED' },
           { status: 403 }
         )
       }
@@ -246,7 +246,7 @@ async function migrateOrphanedWorkflows(userId: string, workspaceId: string) {
         `Successfully migrated ${orphanedWorkflows.length} workflows to workspace ${workspaceId}`
       )
     } catch (batchError) {
-      logger.warn("Batch migration failed, falling back to individual updates:", batchError)
+      logger.warn('Batch migration failed, falling back to individual updates:', batchError)
 
       // Fallback to individual updates if batch update fails
       for (const { id } of orphanedWorkflows) {
@@ -264,7 +264,7 @@ async function migrateOrphanedWorkflows(userId: string, workspaceId: string) {
       }
     }
   } catch (error) {
-    logger.error("Error migrating orphaned workflows:", error)
+    logger.error('Error migrating orphaned workflows:', error)
     // Continue execution even if migration fails
   }
 }
@@ -277,7 +277,7 @@ export async function POST(req: NextRequest) {
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized workflow sync attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await req.json()
@@ -307,12 +307,12 @@ export async function POST(req: NextRequest) {
         // If user has existing workflows, but client sends empty, reject the sync
         if (existingWorkflows.length > 0) {
           logger.warn(
-            `[${requestId}] Prevented data loss: Client attempted to sync empty workflows while DB has workflows in workspace ${workspaceId || "default"}`
+            `[${requestId}] Prevented data loss: Client attempted to sync empty workflows while DB has workflows in workspace ${workspaceId || 'default'}`
           )
           return NextResponse.json(
             {
-              error: "Sync rejected to prevent data loss",
-              message: "Client sent empty workflows, but user has existing workflows in database",
+              error: 'Sync rejected to prevent data loss',
+              message: 'Client sent empty workflows, but user has existing workflows in database',
             },
             { status: 409 }
           )
@@ -335,8 +335,8 @@ export async function POST(req: NextRequest) {
           )
           return NextResponse.json(
             {
-              error: "Workspace not found",
-              code: "WORKSPACE_NOT_FOUND",
+              error: 'Workspace not found',
+              code: 'WORKSPACE_NOT_FOUND',
             },
             { status: 404 }
           )
@@ -350,7 +350,7 @@ export async function POST(req: NextRequest) {
             `[${requestId}] User ${session.user.id} attempted to sync to workspace ${workspaceId} without membership`
           )
           return NextResponse.json(
-            { error: "Access denied to this workspace", code: "WORKSPACE_ACCESS_DENIED" },
+            { error: 'Access denied to this workspace', code: 'WORKSPACE_ACCESS_DENIED' },
             { status: 403 }
           )
         }
@@ -381,7 +381,7 @@ export async function POST(req: NextRequest) {
         // Handle legacy published workflows migration
         // If client workflow has isPublished but no marketplaceData, create marketplaceData with owner status
         if (clientWorkflow.state.isPublished && !clientWorkflow.marketplaceData) {
-          clientWorkflow.marketplaceData = { id: clientWorkflow.id, status: "owner" }
+          clientWorkflow.marketplaceData = { id: clientWorkflow.id, status: 'owner' }
         }
 
         // Ensure the workflow has the correct workspaceId
@@ -408,7 +408,7 @@ export async function POST(req: NextRequest) {
           // Check if user has permission to update this workflow
           const canUpdate =
             dbWorkflow.userId === session.user.id ||
-            (workspaceId && (userRole === "owner" || userRole === "admin" || userRole === "member"))
+            (workspaceId && (userRole === 'owner' || userRole === 'admin' || userRole === 'member'))
 
           if (!canUpdate) {
             logger.warn(
@@ -458,7 +458,7 @@ export async function POST(req: NextRequest) {
           // Users can delete their own workflows, or any workflow if they're a workspace owner/admin
           const canDelete =
             dbWorkflow.userId === session.user.id ||
-            (workspaceId && (userRole === "owner" || userRole === "admin" || userRole === "member"))
+            (workspaceId && (userRole === 'owner' || userRole === 'admin' || userRole === 'member'))
 
           if (canDelete) {
             operations.push(db.delete(workflow).where(eq(workflow.id, dbWorkflow.id)))
@@ -489,7 +489,7 @@ export async function POST(req: NextRequest) {
           errors: validationError.errors,
         })
         return NextResponse.json(
-          { error: "Invalid request data", details: validationError.errors },
+          { error: 'Invalid request data', details: validationError.errors },
           { status: 400 }
         )
       }
@@ -498,6 +498,6 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Workflow sync error after ${elapsed}ms`, error)
-    return NextResponse.json({ error: "Workflow sync failed" }, { status: 500 })
+    return NextResponse.json({ error: 'Workflow sync failed' }, { status: 500 })
   }
 }

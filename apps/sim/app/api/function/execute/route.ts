@@ -1,13 +1,13 @@
-import { Script, createContext } from "node:vm"
-import { env } from "@/lib/env"
-import { createLogger } from "@/lib/logs/console-logger"
-import { FreestyleSandboxes } from "freestyle-sandboxes"
-import { type NextRequest, NextResponse } from "next/server"
+import { Script, createContext } from 'vm'
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
+import { FreestyleSandboxes } from 'freestyle-sandboxes'
+import { type NextRequest, NextResponse } from 'next/server'
 
-export const dynamic = "force-dynamic"
-export const runtime = "nodejs"
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-const logger = createLogger("FunctionExecuteAPI")
+const logger = createLogger('FunctionExecuteAPI')
 
 /**
  * Resolves environment variables and tags in code
@@ -28,7 +28,7 @@ function resolveCodeVariables(
   for (const match of envVarMatches) {
     const varName = match.slice(2, -2).trim()
     // Priority: 1. Environment variables from workflow, 2. Params
-    const varValue = envVars[varName] || params[varName] || ""
+    const varValue = envVars[varName] || params[varName] || ''
     // Wrap the value in quotes to ensure it's treated as a string literal
     resolvedCode = resolvedCode.replace(match, JSON.stringify(varValue))
   }
@@ -37,7 +37,7 @@ function resolveCodeVariables(
   const tagMatches = resolvedCode.match(/<([^>]+)>/g) || []
   for (const match of tagMatches) {
     const tagName = match.slice(1, -1).trim()
-    const tagValue = params[tagName] || ""
+    const tagValue = params[tagName] || ''
     resolvedCode = resolvedCode.replace(match, tagValue)
   }
 
@@ -47,7 +47,7 @@ function resolveCodeVariables(
 export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const startTime = Date.now()
-  let stdout = ""
+  let stdout = ''
 
   try {
     const body = await req.json()
@@ -69,13 +69,13 @@ export async function POST(req: NextRequest) {
     const resolvedCode = resolveCodeVariables(code, executionParams, envVars)
 
     let result: any
-    let executionMethod = "vm" // Default execution method
+    let executionMethod = 'vm' // Default execution method
 
     // Try to use Freestyle if the API key is available
     if (env.FREESTYLE_API_KEY) {
       try {
         logger.info(`[${requestId}] Using Freestyle for code execution`)
-        executionMethod = "freestyle"
+        executionMethod = 'freestyle'
 
         // Extract npm packages from code if needed
         const importRegex =
@@ -91,10 +91,10 @@ export async function POST(req: NextRequest) {
         // Extract package names from import statements
         for (const match of matches) {
           const packageName = match[1] || match[2]
-          if (packageName && !packageName.startsWith(".") && !packageName.startsWith("/")) {
+          if (packageName && !packageName.startsWith('.') && !packageName.startsWith('/')) {
             // Extract just the package name without version or subpath
-            const basePackageName = packageName.split("/")[0]
-            packages[basePackageName] = "latest" // Use latest version
+            const basePackageName = packageName.split('/')[0]
+            packages[basePackageName] = 'latest' // Use latest version
           }
         }
 
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
               // For custom tools, directly declare parameters as variables
               ${Object.entries(executionParams)
                 .map(([key, value]) => `const ${key} = ${JSON.stringify(value)};`)
-                .join("\n              ")}
+                .join('\n              ')}
               ${resolvedCode} 
             }`
           : `export default async () => { ${resolvedCode} }`
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
         // Check for direct API error response
         // Type assertion since the library types don't include error response
         const response = res as { _type?: string; error?: string }
-        if (response._type === "error" && response.error) {
+        if (response._type === 'error' && response.error) {
           logger.error(`[${requestId}] Freestyle returned error response`, {
             error: response.error,
           })
@@ -133,13 +133,13 @@ export async function POST(req: NextRequest) {
         // Capture stdout/stderr from Freestyle logs
         stdout =
           res.logs
-            ?.map((log) => (log.type === "error" ? "ERROR: " : "") + log.message)
-            .join("\n") || ""
+            ?.map((log) => (log.type === 'error' ? 'ERROR: ' : '') + log.message)
+            .join('\n') || ''
 
         // Check for errors reported within Freestyle logs
-        const freestyleErrors = res.logs?.filter((log) => log.type === "error") || []
+        const freestyleErrors = res.logs?.filter((log) => log.type === 'error') || []
         if (freestyleErrors.length > 0) {
-          const errorMessage = freestyleErrors.map((log) => log.message).join("\n")
+          const errorMessage = freestyleErrors.map((log) => log.message).join('\n')
           logger.error(`[${requestId}] Freestyle execution completed with script errors`, {
             errorMessage,
             stdout,
@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
           error: error.message,
           stack: error.stack,
         })
-        executionMethod = "vm_fallback"
+        executionMethod = 'vm_fallback'
 
         // Continue to VM execution
         const context = createContext({
@@ -173,14 +173,14 @@ export async function POST(req: NextRequest) {
           console: {
             log: (...args: any[]) => {
               const logMessage = `${args
-                .map((arg) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg)))
-                .join(" ")}\n`
+                .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+                .join(' ')}\n`
               stdout += logMessage
             },
             error: (...args: any[]) => {
               const errorMessage = `${args
-                .map((arg) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg)))
-                .join(" ")}\n`
+                .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+                .join(' ')}\n`
               logger.error(`[${requestId}] Code Console Error:`, errorMessage)
               stdout += `ERROR: ${errorMessage}`
             },
@@ -195,8 +195,8 @@ export async function POST(req: NextRequest) {
                   ? `// For custom tools, make parameters directly accessible
                   ${Object.keys(executionParams)
                     .map((key) => `const ${key} = params.${key};`)
-                    .join("\n                  ")}`
-                  : ""
+                    .join('\n                  ')}`
+                  : ''
               }
               ${resolvedCode}
             } catch (error) {
@@ -226,14 +226,14 @@ export async function POST(req: NextRequest) {
         console: {
           log: (...args: any[]) => {
             const logMessage = `${args
-              .map((arg) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg)))
-              .join(" ")}\n`
+              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+              .join(' ')}\n`
             stdout += logMessage
           },
           error: (...args: any[]) => {
             const errorMessage = `${args
-              .map((arg) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg)))
-              .join(" ")}\n`
+              .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
+              .join(' ')}\n`
             logger.error(`[${requestId}] Code Console Error:`, errorMessage)
             stdout += `ERROR: ${errorMessage}`
           },
@@ -248,8 +248,8 @@ export async function POST(req: NextRequest) {
                 ? `// For custom tools, make parameters directly accessible
                 ${Object.keys(executionParams)
                   .map((key) => `const ${key} = params.${key};`)
-                  .join("\n                ")}`
-                : ""
+                  .join('\n                ')}`
+                : ''
             }
             ${resolvedCode}
           } catch (error) {
@@ -283,14 +283,14 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     const executionTime = Date.now() - startTime
     logger.error(`[${requestId}] Function execution failed`, {
-      error: error.message || "Unknown error",
+      error: error.message || 'Unknown error',
       stack: error.stack,
       executionTime,
     })
 
     const errorResponse = {
       success: false,
-      error: error.message || "Code execution failed",
+      error: error.message || 'Code execution failed',
       output: {
         result: null,
         stdout,

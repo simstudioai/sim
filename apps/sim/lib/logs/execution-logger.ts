@@ -1,15 +1,15 @@
-import { db } from "@/db"
-import { userStats, workflow, workflowLogs } from "@/db/schema"
-import type { ExecutionResult as ExecutorResult } from "@/executor/types"
-import { getCostMultiplier } from "@/lib/environment"
-import { createLogger } from "@/lib/logs/console-logger"
-import { redactApiKeys } from "@/lib/utils"
-import { calculateCost } from "@/providers/utils"
-import { eq, sql } from "drizzle-orm"
-import { v4 as uuidv4 } from "uuid"
-import { stripCustomToolPrefix } from "../workflows/utils"
+import { db } from '@/db'
+import { userStats, workflow, workflowLogs } from '@/db/schema'
+import type { ExecutionResult as ExecutorResult } from '@/executor/types'
+import { getCostMultiplier } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console-logger'
+import { redactApiKeys } from '@/lib/utils'
+import { calculateCost } from '@/providers/utils'
+import { eq, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
+import { stripCustomToolPrefix } from '../workflows/utils'
 
-const logger = createLogger("ExecutionLogger")
+const logger = createLogger('ExecutionLogger')
 
 export interface LogEntry {
   id: string
@@ -49,7 +49,7 @@ export interface ToolCall {
   duration: number // in milliseconds
   startTime: string // ISO timestamp
   endTime: string // ISO timestamp
-  status: "success" | "error" // Status of the tool call
+  status: 'success' | 'error' // Status of the tool call
   input?: Record<string, any> // Input parameters (optional)
   output?: Record<string, any> // Output data (optional)
   error?: string // Error message if status is 'error'
@@ -70,7 +70,7 @@ export async function persistExecutionLogs(
   workflowId: string,
   executionId: string,
   result: ExecutorResult,
-  triggerType: "api" | "webhook" | "schedule" | "manual" | "chat"
+  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 ) {
   try {
     // Get the workflow record to get the userId
@@ -95,7 +95,7 @@ export async function persistExecutionLogs(
     let totalCompletionTokens = 0
     let totalTokens = 0
     const modelCounts: Record<string, number> = {}
-    let primaryModel = ""
+    let primaryModel = ''
 
     // Log each execution step
     for (const log of result.logs || []) {
@@ -103,8 +103,8 @@ export async function persistExecutionLogs(
       let metadata: ToolCallMetadata | undefined = undefined
 
       // If this is an agent block
-      if (log.blockType === "agent" && log.output) {
-        logger.debug("Processing agent block output for tool calls", {
+      if (log.blockType === 'agent' && log.output) {
+        logger.debug('Processing agent block output for tool calls', {
           blockId: log.blockId,
           blockName: log.blockName,
           outputKeys: Object.keys(log.output),
@@ -125,7 +125,7 @@ export async function persistExecutionLogs(
         ) {
           // Check if output response has providerTiming - this indicates it's a streaming response
           if (log.output.response.providerTiming) {
-            logger.debug("Processing streaming response without tool calls for token extraction", {
+            logger.debug('Processing streaming response without tool calls for token extraction', {
               blockId: log.blockId,
               hasTokens: !!log.output.response.tokens,
               hasProviderTiming: !!log.output.response.providerTiming,
@@ -146,7 +146,7 @@ export async function persistExecutionLogs(
               }
 
               // Update cost information using the provider's cost model
-              const model = log.output.response.model || "gpt-4o"
+              const model = log.output.response.model || 'gpt-4o'
               const costInfo = calculateCost(model, promptTokens, estimatedCompletionTokens)
               log.output.response.cost = {
                 input: costInfo.input,
@@ -155,7 +155,7 @@ export async function persistExecutionLogs(
                 pricing: costInfo.pricing,
               }
 
-              logger.debug("Updated token information for streaming no-tool response", {
+              logger.debug('Updated token information for streaming no-tool response', {
                 blockId: log.blockId,
                 contentLength,
                 estimatedCompletionTokens,
@@ -168,7 +168,7 @@ export async function persistExecutionLogs(
         // Special case for streaming responses from agent blocks
         // This format has both stream and executionData properties
         if (log.output.stream && log.output.executionData) {
-          logger.debug("Found streaming response with executionData", {
+          logger.debug('Found streaming response with executionData', {
             blockId: log.blockId,
             hasExecutionData: !!log.output.executionData,
             executionDataKeys: log.output.executionData
@@ -184,7 +184,7 @@ export async function persistExecutionLogs(
           // is set in the executionData structure by the executor
           if (executionData.output?.response) {
             log.output.response = executionData.output.response
-            logger.debug("Using response from executionData", {
+            logger.debug('Using response from executionData', {
               responseKeys: Object.keys(log.output.response),
               hasContent: !!log.output.response.content,
               contentLength: log.output.response.content?.length || 0,
@@ -207,7 +207,7 @@ export async function persistExecutionLogs(
                 duration: tc.duration || 0,
                 startTime: tc.startTime || new Date().toISOString(),
                 endTime: tc.endTime || new Date().toISOString(),
-                status: tc.error ? "error" : "success",
+                status: tc.error ? 'error' : 'success',
                 input: tc.input || tc.arguments,
                 output: tc.output || tc.result,
                 error: tc.error,
@@ -286,7 +286,7 @@ export async function persistExecutionLogs(
               duration: duration,
               startTime: timing.startTime,
               endTime: timing.endTime,
-              status: toolCall.error ? "error" : "success",
+              status: toolCall.error ? 'error' : 'success',
               input: toolCall.input || toolCall.arguments,
               output: toolCall.output || toolCall.result,
               error: toolCall.error,
@@ -317,7 +317,7 @@ export async function persistExecutionLogs(
             )
 
             // Log what we extracted
-            logger.debug("Tool call list timing extracted:", {
+            logger.debug('Tool call list timing extracted:', {
               name: toolCall.name,
               extracted_duration: duration,
               extracted_startTime: timing.startTime,
@@ -329,7 +329,7 @@ export async function persistExecutionLogs(
               duration: duration,
               startTime: timing.startTime,
               endTime: timing.endTime,
-              status: toolCall.error ? "error" : "success",
+              status: toolCall.error ? 'error' : 'success',
               input: toolCall.arguments || toolCall.input,
               output: toolCall.result || toolCall.output,
               error: toolCall.error,
@@ -342,7 +342,7 @@ export async function persistExecutionLogs(
             ? log.output.response.toolCalls
             : log.output.response.toolCalls.list || []
 
-          logger.debug("Found toolCalls in response", {
+          logger.debug('Found toolCalls in response', {
             count: toolCalls.length,
           })
 
@@ -372,7 +372,7 @@ export async function persistExecutionLogs(
               duration: duration,
               startTime: timing.startTime,
               endTime: timing.endTime,
-              status: toolCall.error ? "error" : "success",
+              status: toolCall.error ? 'error' : 'success',
               input: toolCall.arguments || toolCall.input,
               output: toolCall.result || toolCall.output,
               error: toolCall.error,
@@ -382,12 +382,12 @@ export async function persistExecutionLogs(
         // Case 4: toolCalls is an object and has a list property
         else if (
           log.output.toolCalls &&
-          typeof log.output.toolCalls === "object" &&
+          typeof log.output.toolCalls === 'object' &&
           log.output.toolCalls.list
         ) {
           const toolCalls = log.output.toolCalls
 
-          logger.debug("Found toolCalls object with list property", {
+          logger.debug('Found toolCalls object with list property', {
             count: toolCalls.list.length,
           })
 
@@ -413,7 +413,7 @@ export async function persistExecutionLogs(
             )
 
             // Log what we extracted
-            logger.debug("toolCalls object list timing extracted:", {
+            logger.debug('toolCalls object list timing extracted:', {
               name: toolCall.name,
               extracted_duration: duration,
               extracted_startTime: timing.startTime,
@@ -425,7 +425,7 @@ export async function persistExecutionLogs(
               duration: duration,
               startTime: timing.startTime,
               endTime: timing.endTime,
-              status: toolCall.error ? "error" : "success",
+              status: toolCall.error ? 'error' : 'success',
               input: toolCall.arguments || toolCall.input,
               output: toolCall.result || toolCall.output,
               error: toolCall.error,
@@ -437,7 +437,7 @@ export async function persistExecutionLogs(
           const toolCallsObj = log.output.executionData.output.response.toolCalls
           const list = Array.isArray(toolCallsObj) ? toolCallsObj : toolCallsObj.list || []
 
-          logger.debug("Found toolCalls in executionData output response", {
+          logger.debug('Found toolCalls in executionData output response', {
             count: list.length,
           })
 
@@ -467,7 +467,7 @@ export async function persistExecutionLogs(
               duration: duration,
               startTime: timing.startTime,
               endTime: timing.endTime,
-              status: toolCall.error ? "error" : "success",
+              status: toolCall.error ? 'error' : 'success',
               input: toolCall.arguments || toolCall.input,
               output: toolCall.result || toolCall.output,
               error: toolCall.error,
@@ -475,7 +475,7 @@ export async function persistExecutionLogs(
           })
         }
         // Case 6: Parse the response string for toolCalls as a last resort
-        else if (typeof log.output.response === "string") {
+        else if (typeof log.output.response === 'string') {
           const match = log.output.response.match(/"toolCalls"\s*:\s*({[^}]*}|(\[.*?\]))/s)
           if (match) {
             try {
@@ -484,7 +484,7 @@ export async function persistExecutionLogs(
                 ? toolCallsJson.toolCalls
                 : toolCallsJson.toolCalls.list || []
 
-              logger.debug("Found toolCalls in parsed response string", {
+              logger.debug('Found toolCalls in parsed response string', {
                 count: list.length,
               })
 
@@ -510,7 +510,7 @@ export async function persistExecutionLogs(
                 )
 
                 // Log what we extracted
-                logger.debug("Parsed response timing extracted:", {
+                logger.debug('Parsed response timing extracted:', {
                   name: toolCall.name,
                   extracted_duration: duration,
                   extracted_startTime: timing.startTime,
@@ -522,14 +522,14 @@ export async function persistExecutionLogs(
                   duration: duration,
                   startTime: timing.startTime,
                   endTime: timing.endTime,
-                  status: toolCall.error ? "error" : "success",
+                  status: toolCall.error ? 'error' : 'success',
                   input: toolCall.arguments || toolCall.input,
                   output: toolCall.result || toolCall.output,
                   error: toolCall.error,
                 }
               })
             } catch (error) {
-              logger.error("Error parsing toolCalls from response string", {
+              logger.error('Error parsing toolCalls from response string', {
                 error,
                 response: log.output.response,
               })
@@ -538,7 +538,7 @@ export async function persistExecutionLogs(
         }
         // Verbose output debugging as a fallback
         else {
-          logger.debug("Could not find tool calls in standard formats, output data:", {
+          logger.debug('Could not find tool calls in standard formats, output data:', {
             outputSample: `${JSON.stringify(log.output).substring(0, 500)}...`,
           })
         }
@@ -561,7 +561,7 @@ export async function persistExecutionLogs(
             toolCalls: redactedToolCalls,
           }
 
-          logger.debug("Created metadata with tool calls", {
+          logger.debug('Created metadata with tool calls', {
             count: redactedToolCalls.length,
           })
         }
@@ -571,15 +571,15 @@ export async function persistExecutionLogs(
         id: uuidv4(),
         workflowId,
         executionId,
-        level: log.success ? "info" : "error",
+        level: log.success ? 'info' : 'error',
         message: log.success
-          ? `Block ${log.blockName || log.blockId} (${log.blockType || "unknown"}): ${
+          ? `Block ${log.blockName || log.blockId} (${log.blockType || 'unknown'}): ${
               log.output?.response?.content ||
               log.output?.executionData?.output?.response?.content ||
               JSON.stringify(log.output?.response || {})
             }`
-          : `Block ${log.blockName || log.blockId} (${log.blockType || "unknown"}): ${log.error || "Failed"}`,
-        duration: log.success ? `${log.durationMs}ms` : "NA",
+          : `Block ${log.blockName || log.blockId} (${log.blockType || 'unknown'}): ${log.error || 'Failed'}`,
+        duration: log.success ? `${log.durationMs}ms` : 'NA',
         trigger: triggerType,
         createdAt: new Date(log.endedAt || log.startedAt),
         metadata: {
@@ -589,7 +589,7 @@ export async function persistExecutionLogs(
       })
 
       if (metadata) {
-        logger.debug("Persisted log with metadata", {
+        logger.debug('Persisted log with metadata', {
           logId: uuidv4(),
           executionId,
           toolCallCount: metadata.toolCalls?.length || 0,
@@ -651,13 +651,13 @@ export async function persistExecutionLogs(
       // use that as a safety check to ensure we have cost data
       if (
         result.metadata &&
-        "cost" in result.metadata &&
+        'cost' in result.metadata &&
         (!workflowMetadata.cost || workflowMetadata.cost.total <= 0)
       ) {
         const resultCost = (result.metadata as any).cost
         workflowMetadata.cost = {
           model: primaryModel,
-          total: typeof resultCost === "number" ? resultCost : resultCost?.total || 0,
+          total: typeof resultCost === 'number' ? resultCost : resultCost?.total || 0,
           input: resultCost?.input || 0,
           output: resultCost?.output || 0,
           tokens: {
@@ -702,7 +702,7 @@ export async function persistExecutionLogs(
               .where(eq(userStats.userId, userId))
           }
         } catch (error) {
-          logger.error("Error upserting user stats:", error)
+          logger.error('Error upserting user stats:', error)
         }
       }
     }
@@ -712,9 +712,9 @@ export async function persistExecutionLogs(
       id: uuidv4(),
       workflowId,
       executionId,
-      level: result.success ? "info" : "error",
+      level: result.success ? 'info' : 'error',
       message: result.success ? successMessage : `${errorPrefix} execution failed: ${result.error}`,
-      duration: result.success ? `${actualDuration}ms` : "NA",
+      duration: result.success ? `${actualDuration}ms` : 'NA',
       trigger: triggerType,
       createdAt: new Date(),
       metadata: workflowMetadata,
@@ -737,7 +737,7 @@ export async function persistExecutionError(
   workflowId: string,
   executionId: string,
   error: Error,
-  triggerType: "api" | "webhook" | "schedule" | "manual" | "chat"
+  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 ) {
   try {
     const errorPrefix = getTriggerErrorPrefix(triggerType)
@@ -746,9 +746,9 @@ export async function persistExecutionError(
       id: uuidv4(),
       workflowId,
       executionId,
-      level: "error",
+      level: 'error',
       message: `${errorPrefix} execution failed: ${error.message}`,
-      duration: "NA",
+      duration: 'NA',
       trigger: triggerType,
       createdAt: new Date(),
     })
@@ -761,40 +761,40 @@ export async function persistExecutionError(
 
 // Helper functions for trigger-specific messages
 function getTriggerSuccessMessage(
-  triggerType: "api" | "webhook" | "schedule" | "manual" | "chat"
+  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 ): string {
   switch (triggerType) {
-    case "api":
-      return "API workflow executed successfully"
-    case "webhook":
-      return "Webhook workflow executed successfully"
-    case "schedule":
-      return "Scheduled workflow executed successfully"
-    case "manual":
-      return "Manual workflow executed successfully"
-    case "chat":
-      return "Chat workflow executed successfully"
+    case 'api':
+      return 'API workflow executed successfully'
+    case 'webhook':
+      return 'Webhook workflow executed successfully'
+    case 'schedule':
+      return 'Scheduled workflow executed successfully'
+    case 'manual':
+      return 'Manual workflow executed successfully'
+    case 'chat':
+      return 'Chat workflow executed successfully'
     default:
-      return "Workflow executed successfully"
+      return 'Workflow executed successfully'
   }
 }
 
 function getTriggerErrorPrefix(
-  triggerType: "api" | "webhook" | "schedule" | "manual" | "chat"
+  triggerType: 'api' | 'webhook' | 'schedule' | 'manual' | 'chat'
 ): string {
   switch (triggerType) {
-    case "api":
-      return "API workflow"
-    case "webhook":
-      return "Webhook workflow"
-    case "schedule":
-      return "Scheduled workflow"
-    case "manual":
-      return "Manual workflow"
-    case "chat":
-      return "Chat workflow"
+    case 'api':
+      return 'API workflow'
+    case 'webhook':
+      return 'Webhook workflow'
+    case 'schedule':
+      return 'Scheduled workflow'
+    case 'manual':
+      return 'Manual workflow'
+    case 'chat':
+      return 'Chat workflow'
     default:
-      return "Workflow"
+      return 'Workflow'
   }
 }
 
@@ -810,7 +810,7 @@ function getToolCallTimings(
 ): any[] {
   if (!toolCalls || toolCalls.length === 0) return []
 
-  logger.debug("Estimating tool call timings", {
+  logger.debug('Estimating tool call timings', {
     toolCallCount: toolCalls.length,
     blockStartTime: blockStart,
     blockEndTime: blockEnd,
@@ -858,15 +858,15 @@ function extractDuration(toolCall: any): number {
   if (!toolCall) return 0
 
   // Direct duration fields (various formats providers might use)
-  if (typeof toolCall.duration === "number" && toolCall.duration > 0) return toolCall.duration
-  if (typeof toolCall.durationMs === "number" && toolCall.durationMs > 0) return toolCall.durationMs
-  if (typeof toolCall.duration_ms === "number" && toolCall.duration_ms > 0)
+  if (typeof toolCall.duration === 'number' && toolCall.duration > 0) return toolCall.duration
+  if (typeof toolCall.durationMs === 'number' && toolCall.durationMs > 0) return toolCall.durationMs
+  if (typeof toolCall.duration_ms === 'number' && toolCall.duration_ms > 0)
     return toolCall.duration_ms
-  if (typeof toolCall.executionTime === "number" && toolCall.executionTime > 0)
+  if (typeof toolCall.executionTime === 'number' && toolCall.executionTime > 0)
     return toolCall.executionTime
-  if (typeof toolCall.execution_time === "number" && toolCall.execution_time > 0)
+  if (typeof toolCall.execution_time === 'number' && toolCall.execution_time > 0)
     return toolCall.execution_time
-  if (typeof toolCall.timing?.duration === "number" && toolCall.timing.duration > 0)
+  if (typeof toolCall.timing?.duration === 'number' && toolCall.timing.duration > 0)
     return toolCall.timing.duration
 
   // Try to calculate from timestamps if available
@@ -957,7 +957,7 @@ function extractTimingInfo(
     }
   }
 
-  logger.debug("Final extracted timing info", {
+  logger.debug('Final extracted timing info', {
     tool: toolCall.name,
     startTime: startTime?.toISOString(),
     endTime: endTime?.toISOString(),

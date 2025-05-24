@@ -1,14 +1,14 @@
-import { formatDistanceToNow } from "date-fns"
-import { Clock } from "lucide-react"
-import { useMemo } from "react"
-import { JSONView } from "../../../console/components/json-view/json-view"
+import { formatDistanceToNow } from 'date-fns'
+import { Clock } from 'lucide-react'
+import { useMemo } from 'react'
+import { JSONView } from '../../../console/components/json-view/json-view'
 
 interface ChatMessageProps {
   message: {
     id: string
     content: any
     timestamp: string | Date
-    type: "user" | "workflow"
+    type: 'user' | 'workflow'
     isStreaming?: boolean
   }
   containerWidth: number
@@ -38,7 +38,7 @@ const WordWrap = ({ text }: { text: string }) => {
         }
 
         return (
-          <span key={index} className="break-all">
+          <span key={index} className='break-all'>
             {chunks.map((chunk, chunkIndex) => (
               <span key={chunkIndex}>{chunk}</span>
             ))}
@@ -58,7 +58,7 @@ export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
 
   // Check if content is a JSON object
   const isJsonObject = useMemo(() => {
-    return typeof message.content === "object" && message.content !== null
+    return typeof message.content === 'object' && message.content !== null
   }, [message.content])
 
   // Format message content based on type
@@ -67,21 +67,21 @@ export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
       return JSON.stringify(message.content) // Return stringified version for type safety
     }
 
-    return String(message.content || "")
+    return String(message.content || '')
   }, [message.content, isJsonObject])
 
   return (
-    <div className="w-full space-y-4 border-border border-b p-4 transition-colors hover:bg-accent/50">
+    <div className='w-full space-y-4 border-border border-b p-4 transition-colors hover:bg-accent/50'>
       {/* Header with time on left and message type on right */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <span className="text-muted-foreground">{relativeTime}</span>
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center gap-2 text-sm'>
+          <Clock className='h-4 w-4 text-muted-foreground' />
+          <span className='text-muted-foreground'>{relativeTime}</span>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          {message.type !== "user" && <span className="text-muted-foreground">Workflow</span>}
+        <div className='flex items-center gap-2 text-sm'>
+          {message.type !== 'user' && <span className='text-muted-foreground'>Workflow</span>}
           {message.isStreaming && (
-            <span className="ml-2 animate-pulse text-primary" title="Streaming">
+            <span className='ml-2 animate-pulse text-primary' title='Streaming'>
               •••
             </span>
           )}
@@ -89,14 +89,14 @@ export function ChatMessage({ message, containerWidth }: ChatMessageProps) {
       </div>
 
       {/* Message content with proper word wrapping */}
-      <div className="overflow-wrap-anywhere relative flex-1 whitespace-normal break-normal font-mono text-sm">
+      <div className='overflow-wrap-anywhere relative flex-1 whitespace-normal break-normal font-mono text-sm'>
         {isJsonObject ? (
           <JSONView data={message.content} initiallyExpanded={false} />
         ) : (
-          <div className="whitespace-pre-wrap break-words text-foreground">
+          <div className='whitespace-pre-wrap break-words text-foreground'>
             <WordWrap text={formattedContent} />
             {message.isStreaming && (
-              <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-primary" />
+              <span className='ml-1 inline-block h-4 w-2 animate-pulse bg-primary' />
             )}
           </div>
         )}

@@ -1,13 +1,13 @@
-import { db } from "@/db"
-import { member, subscription } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import { checkEnterprisePlan } from "@/lib/subscription/utils"
-import { and, eq } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
-import { z } from "zod"
+import { db } from '@/db'
+import { member, subscription } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { checkEnterprisePlan } from '@/lib/subscription/utils'
+import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 
-const logger = createLogger("SubscriptionSeatsUpdateAPI")
+const logger = createLogger('SubscriptionSeatsUpdateAPI')
 
 const updateSeatsSchema = z.object({
   seats: z.number().int().min(1),
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const session = await getSession()
 
     if (!session?.user?.id) {
-      logger.warn("Unauthorized seats update attempt")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      logger.warn('Unauthorized seats update attempt')
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     let body
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     } catch (parseError) {
       return NextResponse.json(
         {
-          error: "Invalid JSON in request body",
+          error: 'Invalid JSON in request body',
         },
         { status: 400 }
       )
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!validationResult.success) {
       return NextResponse.json(
         {
-          error: "Invalid request parameters",
+          error: 'Invalid request parameters',
           details: validationResult.error.format(),
         },
         { status: 400 }
@@ -70,12 +70,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .then((rows) => rows[0])
 
     if (!sub) {
-      return NextResponse.json({ error: "Subscription not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Subscription not found' }, { status: 404 })
     }
 
     if (!checkEnterprisePlan(sub)) {
       return NextResponse.json(
-        { error: "Only enterprise subscriptions can be updated through this endpoint" },
+        { error: 'Only enterprise subscriptions can be updated through this endpoint' },
         { status: 400 }
       )
     }
@@ -91,12 +91,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         .where(and(eq(member.userId, session.user.id), eq(member.organizationId, sub.referenceId)))
         .then((rows) => rows[0])
 
-      hasAccess = mem && (mem.role === "owner" || mem.role === "admin")
+      hasAccess = mem && (mem.role === 'owner' || mem.role === 'admin')
     }
 
     if (!hasAccess) {
       return NextResponse.json(
-        { error: "Unauthorized - you do not have permission to modify this subscription" },
+        { error: 'Unauthorized - you do not have permission to modify this subscription' },
         { status: 403 }
       )
     }
@@ -105,13 +105,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     try {
       validatedMetadata = subscriptionMetadataSchema.parse(sub.metadata || {})
     } catch (error) {
-      logger.error("Invalid subscription metadata format", {
+      logger.error('Invalid subscription metadata format', {
         error,
         subscriptionId,
         metadata: sub.metadata,
       })
       return NextResponse.json(
-        { error: "Subscription metadata has invalid format" },
+        { error: 'Subscription metadata has invalid format' },
         { status: 400 }
       )
     }
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
       .where(eq(subscription.id, subscriptionId))
 
-    logger.info("Subscription seats updated", {
+    logger.info('Subscription seats updated', {
       subscriptionId,
       oldSeats: sub.seats,
       newSeats: seats,
@@ -138,14 +138,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({
       success: true,
-      message: "Subscription seats updated successfully",
+      message: 'Subscription seats updated successfully',
       seats,
       metadata: validatedMetadata,
     })
   } catch (error) {
-    logger.error("Error updating subscription seats", {
+    logger.error('Error updating subscription seats', {
       error: error instanceof Error ? error.message : String(error),
     })
-    return NextResponse.json({ error: "Failed to update subscription seats" }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to update subscription seats' }, { status: 500 })
   }
 }

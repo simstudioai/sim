@@ -1,9 +1,9 @@
-import type { BlockOutput } from "@/blocks/types"
-import { createLogger } from "@/lib/logs/console-logger"
-import type { SerializedBlock, SerializedWorkflow } from "@/serializer/types"
-import { useExecutionStore } from "@/stores/execution/store"
-import { useConsoleStore } from "@/stores/panel/console/store"
-import { useGeneralStore } from "@/stores/settings/general/store"
+import type { BlockOutput } from '@/blocks/types'
+import { createLogger } from '@/lib/logs/console-logger'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { useExecutionStore } from '@/stores/execution/store'
+import { useConsoleStore } from '@/stores/panel/console/store'
+import { useGeneralStore } from '@/stores/settings/general/store'
 import {
   AgentBlockHandler,
   ApiBlockHandler,
@@ -12,10 +12,10 @@ import {
   FunctionBlockHandler,
   GenericBlockHandler,
   RouterBlockHandler,
-} from "./handlers/index"
-import { LoopManager } from "./loops"
-import { PathTracker } from "./path"
-import { InputResolver } from "./resolver"
+} from './handlers/index'
+import { LoopManager } from './loops'
+import { PathTracker } from './path'
+import { InputResolver } from './resolver'
 import type {
   BlockHandler,
   BlockLog,
@@ -23,15 +23,15 @@ import type {
   ExecutionResult,
   NormalizedBlockOutput,
   StreamingExecution,
-} from "./types"
+} from './types'
 
-const logger = createLogger("Executor")
+const logger = createLogger('Executor')
 
 /**
  * Tracks telemetry events for workflow execution if telemetry is enabled
  */
 function trackWorkflowTelemetry(eventName: string, data: Record<string, any>) {
-  if (typeof window !== "undefined" && window.__SIM_TRACK_EVENT) {
+  if (typeof window !== 'undefined' && window.__SIM_TRACK_EVENT) {
     // Add timestamp and sanitize the data to avoid circular references
     const safeData = {
       ...data,
@@ -40,7 +40,7 @@ function trackWorkflowTelemetry(eventName: string, data: Record<string, any>) {
 
     // Track the event through the global telemetry function
     window.__SIM_TRACK_EVENT(eventName, {
-      category: "workflow",
+      category: 'workflow',
       ...safeData,
     })
   }
@@ -83,7 +83,7 @@ export class Executor {
     private workflowVariables: Record<string, any> = {}
   ) {
     // Handle new constructor format with options object
-    if (typeof workflowParam === "object" && "workflow" in workflowParam) {
+    if (typeof workflowParam === 'object' && 'workflow' in workflowParam) {
       const options = workflowParam
       this.actualWorkflow = options.workflow
       this.initialBlockStates = options.currentBlockStates || {}
@@ -96,7 +96,7 @@ export class Executor {
         this.contextExtensions = options.contextExtensions
 
         if (this.contextExtensions.stream) {
-          logger.info("Executor initialized with streaming enabled", {
+          logger.info('Executor initialized with streaming enabled', {
             hasSelectedOutputIds: Array.isArray(this.contextExtensions.selectedOutputIds),
             selectedOutputCount: Array.isArray(this.contextExtensions.selectedOutputIds)
               ? this.contextExtensions.selectedOutputIds.length
@@ -110,7 +110,7 @@ export class Executor {
 
       if (workflowInput) {
         this.workflowInput = workflowInput
-        logger.info("[Executor] Using workflow input:", JSON.stringify(this.workflowInput, null, 2))
+        logger.info('[Executor] Using workflow input:', JSON.stringify(this.workflowInput, null, 2))
       } else {
         this.workflowInput = {}
       }
@@ -152,7 +152,7 @@ export class Executor {
     let finalOutput: NormalizedBlockOutput = { response: {} }
 
     // Track workflow execution start
-    trackWorkflowTelemetry("workflow_execution_started", {
+    trackWorkflowTelemetry('workflow_execution_started', {
       workflowId,
       blockCount: this.actualWorkflow.blocks.length,
       connectionCount: this.actualWorkflow.connections.length,
@@ -214,15 +214,15 @@ export class Executor {
             // Check if we got a StreamingExecution response from any block
             const streamingOutput = outputs.find(
               (output) =>
-                typeof output === "object" &&
+                typeof output === 'object' &&
                 output !== null &&
-                "stream" in output &&
-                "execution" in output
+                'stream' in output &&
+                'execution' in output
             )
 
             if (streamingOutput) {
               // This is a combined response with both stream and execution data
-              logger.info("Found combined stream+execution response from block")
+              logger.info('Found combined stream+execution response from block')
 
               // Incorporate the execution data from the block into our context
               const executionData = streamingOutput.execution
@@ -258,8 +258,8 @@ export class Executor {
                     executionData.metadata?.startTime ||
                     new Date().toISOString(),
                   blockId: executionData.blockId,
-                  blockName: executionData.blockName || blockLog?.blockName || "Agent Block",
-                  blockType: executionData.blockType || blockLog?.blockType || "agent",
+                  blockName: executionData.blockName || blockLog?.blockName || 'Agent Block',
+                  blockType: executionData.blockType || blockLog?.blockType || 'agent',
                 }
 
                 // Add to console
@@ -269,7 +269,7 @@ export class Executor {
                 const consoleEntryId = newEntry?.id
 
                 // Set up a stream completion handler to update the console with final content
-                if (consoleEntryId && "stream" in streamingOutput) {
+                if (consoleEntryId && 'stream' in streamingOutput) {
                   // Clone the stream so we don't consume the original one
                   const originalStream = streamingOutput.stream
                   const [contentStream, returnStream] = originalStream.tee()
@@ -280,7 +280,7 @@ export class Executor {
                   // Create a reader to process the cloned stream for content collection
                   const reader = contentStream.getReader()
                   const decoder = new TextDecoder()
-                  let fullContent = ""
+                  let fullContent = ''
 
                   // Process the stream in the background to collect the full content
                   ;(async () => {
@@ -338,12 +338,12 @@ export class Executor {
                         }
                       } catch (resumeError) {
                         logger.error(
-                          "Error continuing workflow after stream completion:",
+                          'Error continuing workflow after stream completion:',
                           resumeError
                         )
                       }
                     } catch (e) {
-                      logger.error("Error processing stream for console update:", e)
+                      logger.error('Error processing stream for console update:', e)
                     }
                   })()
                 }
@@ -403,10 +403,10 @@ export class Executor {
               const normalizedOutputs = outputs.filter(
                 (output) =>
                   !(
-                    typeof output === "object" &&
+                    typeof output === 'object' &&
                     output !== null &&
-                    "stream" in output &&
-                    "execution" in output
+                    'stream' in output &&
+                    'execution' in output
                   )
               )
               if (normalizedOutputs.length > 0) {
@@ -435,7 +435,7 @@ export class Executor {
       context.metadata.endTime = endTime.toISOString()
       const duration = endTime.getTime() - startTime.getTime()
 
-      trackWorkflowTelemetry("workflow_execution_completed", {
+      trackWorkflowTelemetry('workflow_execution_completed', {
         workflowId,
         duration,
         blockCount: this.actualWorkflow.blocks.length,
@@ -460,10 +460,10 @@ export class Executor {
         logs: context.blockLogs,
       }
     } catch (error: any) {
-      logger.error("Workflow execution failed:", this.sanitizeError(error))
+      logger.error('Workflow execution failed:', this.sanitizeError(error))
 
       // Track workflow execution failure
-      trackWorkflowTelemetry("workflow_execution_failed", {
+      trackWorkflowTelemetry('workflow_execution_failed', {
         workflowId,
         duration: new Date().getTime() - startTime.getTime(),
         error: this.extractErrorMessage(error),
@@ -545,7 +545,7 @@ export class Executor {
         logs: context.blockLogs,
       }
     } catch (error: any) {
-      logger.error("Debug step execution failed:", this.sanitizeError(error))
+      logger.error('Debug step execution failed:', this.sanitizeError(error))
 
       return {
         success: false,
@@ -564,24 +564,24 @@ export class Executor {
    */
   private validateWorkflow(): void {
     const starterBlock = this.actualWorkflow.blocks.find(
-      (block) => block.metadata?.id === "starter"
+      (block) => block.metadata?.id === 'starter'
     )
     if (!starterBlock || !starterBlock.enabled) {
-      throw new Error("Workflow must have an enabled starter block")
+      throw new Error('Workflow must have an enabled starter block')
     }
 
     const incomingToStarter = this.actualWorkflow.connections.filter(
       (conn) => conn.target === starterBlock.id
     )
     if (incomingToStarter.length > 0) {
-      throw new Error("Starter block cannot have incoming connections")
+      throw new Error('Starter block cannot have incoming connections')
     }
 
     const outgoingFromStarter = this.actualWorkflow.connections.filter(
       (conn) => conn.source === starterBlock.id
     )
     if (outgoingFromStarter.length === 0) {
-      throw new Error("Starter block must have at least one outgoing connection")
+      throw new Error('Starter block must have at least one outgoing connection')
     }
 
     const blockIds = new Set(this.actualWorkflow.blocks.map((block) => block.id))
@@ -658,7 +658,7 @@ export class Executor {
     }
 
     const starterBlock = this.actualWorkflow.blocks.find(
-      (block) => block.metadata?.id === "starter"
+      (block) => block.metadata?.id === 'starter'
     )
     if (starterBlock) {
       // Initialize the starter block with the workflow input
@@ -739,7 +739,7 @@ export class Executor {
         } else {
         */
         // Handle structured input (like API calls or chat messages)
-        if (this.workflowInput && typeof this.workflowInput === "object") {
+        if (this.workflowInput && typeof this.workflowInput === 'object') {
           // Preserve complete workflowInput structure to maintain JSON format
           // when referenced through <start.response.input>
           const starterOutput = {
@@ -772,7 +772,7 @@ export class Executor {
         }
         //} // End of inputFormat conditional
       } catch (e) {
-        logger.warn("Error processing starter block input format:", e)
+        logger.warn('Error processing starter block input format:', e)
 
         // Error handler fallback - preserve structure for both direct access and backward compatibility
         const starterOutput = {
@@ -783,7 +783,7 @@ export class Executor {
           },
         }
 
-        logger.info("[Executor] Fallback starter output:", JSON.stringify(starterOutput, null, 2))
+        logger.info('[Executor] Fallback starter output:', JSON.stringify(starterOutput, null, 2))
 
         context.blockStates.set(starterBlock.id, {
           output: starterOutput,
@@ -878,10 +878,10 @@ export class Executor {
             sourceBlockState?.output?.response?.error !== undefined
 
           // For condition blocks, check if this is the selected path
-          if (conn.sourceHandle?.startsWith("condition-")) {
+          if (conn.sourceHandle?.startsWith('condition-')) {
             const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
-            if (sourceBlock?.metadata?.id === "condition") {
-              const conditionId = conn.sourceHandle.replace("condition-", "")
+            if (sourceBlock?.metadata?.id === 'condition') {
+              const conditionId = conn.sourceHandle.replace('condition-', '')
               const selectedCondition = context.decisions.condition.get(conn.source)
 
               // If source is executed and this is not the selected path, consider it met
@@ -895,7 +895,7 @@ export class Executor {
           }
 
           // For router blocks, check if this is the selected target
-          if (sourceBlock?.metadata?.id === "router") {
+          if (sourceBlock?.metadata?.id === 'router') {
             const selectedTarget = context.decisions.router.get(conn.source)
 
             // If source is executed and this is not the selected target, consider it met
@@ -908,12 +908,12 @@ export class Executor {
           }
 
           // For error connections, check if the source had an error
-          if (conn.sourceHandle === "error") {
+          if (conn.sourceHandle === 'error') {
             return sourceExecuted && hasSourceError
           }
 
           // For regular connections, check if the source was executed without error
-          if (conn.sourceHandle === "source" || !conn.sourceHandle) {
+          if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
             return sourceExecuted && !hasSourceError
           }
 
@@ -991,7 +991,7 @@ export class Executor {
 
     // Special case for starter block - it's already been initialized in createExecutionContext
     // This ensures we don't re-execute the starter block and just return its existing state
-    if (block.metadata?.id === "starter") {
+    if (block.metadata?.id === 'starter') {
       const starterState = context.blockStates.get(blockId)
       if (starterState) {
         return starterState.output as NormalizedBlockOutput
@@ -1009,7 +1009,7 @@ export class Executor {
 
       // Check if this block needs the starter block's output
       // This is especially relevant for API, function, and conditions that might reference <start.response.input>
-      const starterBlock = this.actualWorkflow.blocks.find((b) => b.metadata?.id === "starter")
+      const starterBlock = this.actualWorkflow.blocks.find((b) => b.metadata?.id === 'starter')
       if (starterBlock) {
         const starterState = context.blockStates.get(starterBlock.id)
         if (!starterState) {
@@ -1026,11 +1026,11 @@ export class Executor {
       blockLog.input = inputs
 
       // Track block execution start
-      trackWorkflowTelemetry("block_execution_start", {
+      trackWorkflowTelemetry('block_execution_start', {
         workflowId: context.workflowId,
         blockId: block.id,
-        blockType: block.metadata?.id || "unknown",
-        blockName: block.metadata?.name || "Unnamed Block",
+        blockType: block.metadata?.id || 'unknown',
+        blockName: block.metadata?.name || 'Unnamed Block',
         inputSize: Object.keys(inputs).length,
         startTime: new Date().toISOString(),
       })
@@ -1078,15 +1078,15 @@ export class Executor {
         endedAt: blockLog.endedAt,
         workflowId: context.workflowId,
         blockId: block.id,
-        blockName: block.metadata?.name || "Unnamed Block",
-        blockType: block.metadata?.id || "unknown",
+        blockName: block.metadata?.name || 'Unnamed Block',
+        blockType: block.metadata?.id || 'unknown',
       })
 
-      trackWorkflowTelemetry("block_execution", {
+      trackWorkflowTelemetry('block_execution', {
         workflowId: context.workflowId,
         blockId: block.id,
-        blockType: block.metadata?.id || "unknown",
-        blockName: block.metadata?.name || "Unnamed Block",
+        blockType: block.metadata?.id || 'unknown',
+        blockName: block.metadata?.name || 'Unnamed Block',
         durationMs: Math.round(executionTime),
         success: true,
       })
@@ -1103,7 +1103,7 @@ export class Executor {
       blockLog.success = false
       blockLog.error =
         error.message ||
-        `Error executing ${block.metadata?.id || "unknown"} block: ${String(error)}`
+        `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`
       blockLog.endedAt = new Date().toISOString()
       blockLog.durationMs =
         new Date(blockLog.endedAt).getTime() - new Date(blockLog.startedAt).getTime()
@@ -1114,13 +1114,13 @@ export class Executor {
         output: {},
         error:
           error.message ||
-          `Error executing ${block.metadata?.id || "unknown"} block: ${String(error)}`,
+          `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
         durationMs: blockLog.durationMs,
         startedAt: blockLog.startedAt,
         endedAt: blockLog.endedAt,
         workflowId: context.workflowId,
-        blockName: block.metadata?.name || "Unnamed Block",
-        blockType: block.metadata?.id || "unknown",
+        blockName: block.metadata?.name || 'Unnamed Block',
+        blockType: block.metadata?.id || 'unknown',
       })
 
       // Check for error connections and follow them if they exist
@@ -1158,24 +1158,24 @@ export class Executor {
       let errorMessage = error.message
 
       // Handle the specific "undefined (undefined)" case
-      if (!errorMessage || errorMessage === "undefined (undefined)") {
-        errorMessage = `Error executing ${block.metadata?.id || "unknown"} block: ${block.metadata?.name || "Unnamed Block"}`
+      if (!errorMessage || errorMessage === 'undefined (undefined)') {
+        errorMessage = `Error executing ${block.metadata?.id || 'unknown'} block: ${block.metadata?.name || 'Unnamed Block'}`
 
         // Try to get more details if possible
-        if (error && typeof error === "object") {
+        if (error && typeof error === 'object') {
           if (error.code) errorMessage += ` (code: ${error.code})`
           if (error.status) errorMessage += ` (status: ${error.status})`
           if (error.type) errorMessage += ` (type: ${error.type})`
         }
       }
 
-      trackWorkflowTelemetry("block_execution_error", {
+      trackWorkflowTelemetry('block_execution_error', {
         workflowId: context.workflowId,
         blockId: block.id,
-        blockType: block.metadata?.id || "unknown",
-        blockName: block.metadata?.name || "Unnamed Block",
+        blockType: block.metadata?.id || 'unknown',
+        blockName: block.metadata?.name || 'Unnamed Block',
         durationMs: blockLog.durationMs,
-        errorType: error.name || "Error",
+        errorType: error.name || 'Error',
         errorMessage: this.extractErrorMessage(error),
       })
 
@@ -1194,13 +1194,13 @@ export class Executor {
   private activateErrorPath(blockId: string, context: ExecutionContext): boolean {
     // Skip for starter blocks which don't have error handles
     const block = this.actualWorkflow.blocks.find((b) => b.id === blockId)
-    if (block?.metadata?.id === "starter" || block?.metadata?.id === "condition") {
+    if (block?.metadata?.id === 'starter' || block?.metadata?.id === 'condition') {
       return false
     }
 
     // Look for connections from this block's error handle
     const errorConnections = this.actualWorkflow.connections.filter(
-      (conn) => conn.source === blockId && conn.sourceHandle === "error"
+      (conn) => conn.source === blockId && conn.sourceHandle === 'error'
     )
 
     if (errorConnections.length === 0) {
@@ -1226,7 +1226,7 @@ export class Executor {
    */
   private normalizeBlockOutput(output: any, block: SerializedBlock): NormalizedBlockOutput {
     // Handle error outputs
-    if (output && typeof output === "object" && output.error) {
+    if (output && typeof output === 'object' && output.error) {
       return {
         response: {
           error: output.error,
@@ -1236,7 +1236,7 @@ export class Executor {
       }
     }
 
-    if (output && typeof output === "object" && "response" in output) {
+    if (output && typeof output === 'object' && 'response' in output) {
       // If response already contains an error, maintain it
       if (output.response?.error) {
         return {
@@ -1249,37 +1249,37 @@ export class Executor {
 
     const blockType = block.metadata?.id
 
-    if (blockType === "agent") {
+    if (blockType === 'agent') {
       return output
     }
 
-    if (blockType === "router") {
+    if (blockType === 'router') {
       return {
         response: {
-          content: "",
-          model: "",
+          content: '',
+          model: '',
           tokens: { prompt: 0, completion: 0, total: 0 },
           selectedPath: output?.selectedPath || {
-            blockId: "",
-            blockType: "",
-            blockTitle: "",
+            blockId: '',
+            blockType: '',
+            blockTitle: '',
           },
         },
       }
     }
 
-    if (blockType === "condition") {
-      if (output && typeof output === "object" && "response" in output) {
+    if (blockType === 'condition') {
+      if (output && typeof output === 'object' && 'response' in output) {
         return {
           response: {
             ...output.response,
             conditionResult: output.response.conditionResult || false,
             selectedPath: output.response.selectedPath || {
-              blockId: "",
-              blockType: "",
-              blockTitle: "",
+              blockId: '',
+              blockType: '',
+              blockTitle: '',
             },
-            selectedConditionId: output.response.selectedConditionId || "",
+            selectedConditionId: output.response.selectedConditionId || '',
           },
         }
       }
@@ -1288,25 +1288,25 @@ export class Executor {
         response: {
           conditionResult: output?.conditionResult || false,
           selectedPath: output?.selectedPath || {
-            blockId: "",
-            blockType: "",
-            blockTitle: "",
+            blockId: '',
+            blockType: '',
+            blockTitle: '',
           },
-          selectedConditionId: output?.selectedConditionId || "",
+          selectedConditionId: output?.selectedConditionId || '',
         },
       }
     }
 
-    if (blockType === "function") {
+    if (blockType === 'function') {
       return {
         response: {
           result: output?.result,
-          stdout: output?.stdout || "",
+          stdout: output?.stdout || '',
         },
       }
     }
 
-    if (blockType === "api") {
+    if (blockType === 'api') {
       return {
         response: {
           data: output?.data,
@@ -1316,19 +1316,19 @@ export class Executor {
       }
     }
 
-    if (blockType === "evaluator") {
+    if (blockType === 'evaluator') {
       const evaluatorResponse: {
         content: string
         model: string
         [key: string]: any
       } = {
-        content: output?.content || "",
-        model: output?.model || "",
+        content: output?.content || '',
+        model: output?.model || '',
       }
 
-      if (output && typeof output === "object") {
+      if (output && typeof output === 'object') {
         Object.keys(output).forEach((key) => {
-          if (key !== "content" && key !== "model") {
+          if (key !== 'content' && key !== 'model') {
             evaluatorResponse[key] = output[key]
           }
         })
@@ -1351,10 +1351,10 @@ export class Executor {
   private createBlockLog(block: SerializedBlock): BlockLog {
     return {
       blockId: block.id,
-      blockName: block.metadata?.name || "",
-      blockType: block.metadata?.id || "",
+      blockName: block.metadata?.name || '',
+      blockType: block.metadata?.id || '',
       startedAt: new Date().toISOString(),
-      endedAt: "",
+      endedAt: '',
       durationMs: 0,
       success: false,
     }
@@ -1369,7 +1369,7 @@ export class Executor {
    */
   private extractErrorMessage(error: any): string {
     // If it's already a string, return it
-    if (typeof error === "string") {
+    if (typeof error === 'string') {
       return error
     }
 
@@ -1381,7 +1381,7 @@ export class Executor {
     // If it's an object with response data, include that
     if (error.response?.data) {
       const data = error.response.data
-      if (typeof data === "string") {
+      if (typeof data === 'string') {
         return data
       }
       if (data.message) {
@@ -1391,7 +1391,7 @@ export class Executor {
     }
 
     // If it's an object, stringify it
-    if (typeof error === "object") {
+    if (typeof error === 'object') {
       return JSON.stringify(error)
     }
 
@@ -1408,7 +1408,7 @@ export class Executor {
    */
   private sanitizeError(error: any): any {
     // If it's already a string, return it
-    if (typeof error === "string") {
+    if (typeof error === 'string') {
       return error
     }
 
@@ -1420,7 +1420,7 @@ export class Executor {
     // If it's an object with response data, include that
     if (error.response?.data) {
       const data = error.response.data
-      if (typeof data === "string") {
+      if (typeof data === 'string') {
         return data
       }
       if (data.message) {
@@ -1430,7 +1430,7 @@ export class Executor {
     }
 
     // If it's an object, stringify it
-    if (typeof error === "object") {
+    if (typeof error === 'object') {
       return JSON.stringify(error)
     }
 

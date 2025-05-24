@@ -1,8 +1,8 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import type { SerializedBlock, SerializedConnection, SerializedLoop } from "@/serializer/types"
-import type { ExecutionContext } from "./types"
+import { createLogger } from '@/lib/logs/console-logger'
+import type { SerializedBlock, SerializedConnection, SerializedLoop } from '@/serializer/types'
+import type { ExecutionContext } from './types'
 
-const logger = createLogger("LoopManager")
+const logger = createLogger('LoopManager')
 
 /**
  * Manages loop detection, iteration limits, and state resets.
@@ -29,22 +29,22 @@ export class LoopManager {
     // Check each loop to see if it should iterate
     for (const [loopId, loop] of Object.entries(this.loops)) {
       // Get the loop type (default to 'for')
-      const loopType = loop.loopType || "for"
+      const loopType = loop.loopType || 'for'
       const currentIteration = context.loopIterations.get(loopId) || 0
 
       // Handle forEach loop
-      if (loopType === "forEach") {
+      if (loopType === 'forEach') {
         // Get the items to iterate over if we haven't already processed them into an array/object
         if (
           !loop.forEachItems ||
-          typeof loop.forEachItems === "string" ||
-          !(Array.isArray(loop.forEachItems) || typeof loop.forEachItems === "object")
+          typeof loop.forEachItems === 'string' ||
+          !(Array.isArray(loop.forEachItems) || typeof loop.forEachItems === 'object')
         ) {
           // Evaluate the forEach items expression
           const items = await this.evalForEachItems(loopId, loop, context)
 
           // Store the evaluated items for future iterations
-          if (Array.isArray(items) || (typeof items === "object" && items !== null)) {
+          if (Array.isArray(items) || (typeof items === 'object' && items !== null)) {
             loop.forEachItems = items
           } else {
             // Default to empty array if we couldn't get any valid items
@@ -229,19 +229,19 @@ export class LoopManager {
           blockState?.output?.response?.error !== undefined
 
         // Apply connection type rules, but only activate for the final iteration
-        if (conn.sourceHandle === "error") {
+        if (conn.sourceHandle === 'error') {
           // Only activate error paths if there was an error
           if (hasError) {
             context.activeExecutionPath.add(target)
           }
-        } else if (conn.sourceHandle === "source" || !conn.sourceHandle) {
+        } else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
           // Only activate regular paths if there was no error
           if (!hasError) {
             context.activeExecutionPath.add(target)
           }
-        } else if (conn.sourceHandle?.startsWith("condition-")) {
+        } else if (conn.sourceHandle?.startsWith('condition-')) {
           // For condition connections, check if this was the selected condition
-          const conditionId = conn.sourceHandle.replace("condition-", "")
+          const conditionId = conn.sourceHandle.replace('condition-', '')
           const selectedCondition = context.decisions.condition.get(sourceBlockId)
 
           if (conditionId === selectedCondition) {
@@ -250,7 +250,7 @@ export class LoopManager {
         } else if (sourceBlockId === conn.source) {
           // For router blocks, check if this was the selected target
           const sourceBlock = context.workflow.blocks.find((b) => b.id === sourceBlockId)
-          if (sourceBlock?.metadata?.id === "router") {
+          if (sourceBlock?.metadata?.id === 'router') {
             const selectedTarget = context.decisions.router.get(sourceBlockId)
 
             if (selectedTarget === target) {
@@ -308,30 +308,30 @@ export class LoopManager {
     // If we already have items as an array or object, return them directly
     if (
       Array.isArray(loop.forEachItems) ||
-      (typeof loop.forEachItems === "object" && loop.forEachItems !== null)
+      (typeof loop.forEachItems === 'object' && loop.forEachItems !== null)
     ) {
       return loop.forEachItems as any[] | Record<string, any>
     }
 
     // If we have forEachItems as a string, try to evaluate it as an expression
-    if (typeof loop.forEachItems === "string") {
+    if (typeof loop.forEachItems === 'string') {
       try {
         // Skip comments or empty expressions
         const trimmedExpression = loop.forEachItems.trim()
-        if (trimmedExpression.startsWith("//") || trimmedExpression === "") {
+        if (trimmedExpression.startsWith('//') || trimmedExpression === '') {
           return []
         }
 
         // First check if it's valid JSON (array or object)
-        if (trimmedExpression.startsWith("[") || trimmedExpression.startsWith("{")) {
+        if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
           try {
             // Try to parse as JSON first
             // Handle both JSON format (double quotes) and JS format (single quotes)
             const normalizedExpression = trimmedExpression
               .replace(/'/g, '"') // Replace all single quotes with double quotes
               .replace(/(\w+):/g, '"$1":') // Convert property names to double-quoted strings
-              .replace(/,\s*]/g, "]") // Remove trailing commas before closing brackets
-              .replace(/,\s*}/g, "}") // Remove trailing commas before closing braces
+              .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
+              .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
 
             return JSON.parse(normalizedExpression)
           } catch (jsonError) {
@@ -341,10 +341,10 @@ export class LoopManager {
         }
 
         // If not valid JSON or JSON parsing failed, try to evaluate as an expression
-        const result = new Function("context", `return ${loop.forEachItems}`)(context)
+        const result = new Function('context', `return ${loop.forEachItems}`)(context)
 
         // If the result is an array or object, return it
-        if (Array.isArray(result) || (typeof result === "object" && result !== null)) {
+        if (Array.isArray(result) || (typeof result === 'object' && result !== null)) {
           return result
         }
 
@@ -369,7 +369,7 @@ export class LoopManager {
           if (Array.isArray(value) && value.length > 0) {
             return value
           }
-          if (typeof value === "object" && value !== null && Object.keys(value).length > 0) {
+          if (typeof value === 'object' && value !== null && Object.keys(value).length > 0) {
             return value
           }
         }
@@ -420,9 +420,9 @@ export class LoopManager {
       ).length
 
       blocksWithExternalConnections.set(nodeId, {
-        incomingExternal: externalIncomingCount,
-        outgoingExternal: externalOutgoingCount,
-        incomingInternal: internalIncomingCount,
+        incomingExternal: externalIncomingCount || 0,
+        outgoingExternal: externalOutgoingCount || 0,
+        incomingInternal: internalIncomingCount || 0,
       })
     }
 
@@ -522,9 +522,9 @@ export class LoopManager {
 
         if (targetIndex < sourceIndex) {
           const sourceBlock = blocks.find((b) => b.id === connection.source)
-          const isCondition = sourceBlock?.metadata?.id === "condition"
+          const isCondition = sourceBlock?.metadata?.id === 'condition'
 
-          return isCondition && connection.sourceHandle?.startsWith("condition-") === true
+          return isCondition && connection.sourceHandle?.startsWith('condition-') === true
         }
       }
     }
@@ -595,7 +595,7 @@ export class LoopManager {
       // Activate each target that hasn't been executed yet
       for (const conn of outgoingConnections) {
         // Skip error connections unless there was an error
-        if (conn.sourceHandle === "error") {
+        if (conn.sourceHandle === 'error') {
           const blockState = context.blockStates.get(executedBlockId)
           const hasError =
             blockState?.output?.error !== undefined ||

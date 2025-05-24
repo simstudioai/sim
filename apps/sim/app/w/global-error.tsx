@@ -1,5 +1,5 @@
-"use client"
+'use client'
 
-import { NextGlobalError } from "./[id]/components/error"
+import { NextGlobalError } from './[id]/components/error'
 
 export default NextGlobalError

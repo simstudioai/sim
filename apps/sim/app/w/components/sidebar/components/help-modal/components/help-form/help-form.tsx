@@ -1,35 +1,35 @@
-"use client"
+'use client'
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { createLogger } from "@/lib/logs/console-logger"
-import { zodResolver } from "@hookform/resolvers/zod"
-import imageCompression from "browser-image-compression"
-import { AlertCircle, CheckCircle2, Upload, X } from "lucide-react"
-import Image from "next/image"
-import { useEffect, useRef, useState } from "react"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { createLogger } from '@/lib/logs/console-logger'
+import { zodResolver } from '@hookform/resolvers/zod'
+import imageCompression from 'browser-image-compression'
+import { AlertCircle, CheckCircle2, Upload, X } from 'lucide-react'
+import Image from 'next/image'
+import { useEffect, useRef, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
 
-const logger = createLogger("HelpForm")
+const logger = createLogger('HelpForm')
 
 // Define form schema
 const formSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  subject: z.string().min(1, "Subject is required"),
-  message: z.string().min(1, "Message is required"),
-  type: z.enum(["bug", "feedback", "feature_request", "other"], {
-    required_error: "Please select a request type",
+  email: z.string().email('Please enter a valid email address'),
+  subject: z.string().min(1, 'Subject is required'),
+  message: z.string().min(1, 'Message is required'),
+  type: z.enum(['bug', 'feedback', 'feature_request', 'other'], {
+    required_error: 'Please select a request type',
   }),
 })
 
@@ -39,7 +39,7 @@ type FormValues = z.infer<typeof formSchema>
 const MAX_FILE_SIZE = 20 * 1024 * 1024
 // Target size after compression (2MB)
 const TARGET_SIZE_MB = 2
-const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
 
 interface ImageWithPreview extends File {
   preview: string
@@ -52,8 +52,8 @@ interface HelpFormProps {
 export function HelpForm({ onClose }: HelpFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitStatus, setSubmitStatus] = useState<"success" | "error" | null>(null)
-  const [errorMessage, setErrorMessage] = useState("")
+  const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null)
+  const [errorMessage, setErrorMessage] = useState('')
   const [images, setImages] = useState<ImageWithPreview[]>([])
   const [imageError, setImageError] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -70,23 +70,23 @@ export function HelpForm({ onClose }: HelpFormProps) {
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: "",
-      subject: "",
-      message: "",
-      type: "bug", // Set default value to 'bug'
+      email: '',
+      subject: '',
+      message: '',
+      type: 'bug', // Set default value to 'bug'
     },
-    mode: "onChange",
+    mode: 'onChange',
   })
 
   // Set default value for type on component mount
   useEffect(() => {
-    setValue("type", "bug")
+    setValue('type', 'bug')
   }, [setValue])
 
   // Scroll to top when success message appears
   useEffect(() => {
-    if (submitStatus === "success" && scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" })
+    if (submitStatus === 'success' && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [submitStatus])
 
@@ -99,7 +99,7 @@ export function HelpForm({ onClose }: HelpFormProps) {
 
   const compressImage = async (file: File): Promise<File> => {
     // Skip compression for small files or GIFs (which don't compress well)
-    if (file.size < TARGET_SIZE_MB * 1024 * 1024 || file.type === "image/gif") {
+    if (file.size < TARGET_SIZE_MB * 1024 * 1024 || file.type === 'image/gif') {
       return file
     }
 
@@ -122,7 +122,7 @@ export function HelpForm({ onClose }: HelpFormProps) {
         lastModified: new Date().getTime(),
       })
     } catch (error) {
-      logger.warn("Image compression failed, using original file:", { error })
+      logger.warn('Image compression failed, using original file:', { error })
       return file
     }
   }
@@ -170,14 +170,14 @@ export function HelpForm({ onClose }: HelpFormProps) {
         setImages((prev) => [...prev, ...newImages])
       }
     } catch (error) {
-      logger.error("Error processing images:", { error })
-      setImageError("An error occurred while processing images. Please try again.")
+      logger.error('Error processing images:', { error })
+      setImageError('An error occurred while processing images. Please try again.')
     } finally {
       setIsProcessing(false)
 
       // Reset the input
       if (fileInputRef.current) {
-        fileInputRef.current.value = ""
+        fileInputRef.current.value = ''
       }
     }
   }
@@ -234,132 +234,132 @@ export function HelpForm({ onClose }: HelpFormProps) {
       const formData = new FormData()
 
       // Add form fields
-      formData.append("email", data.email)
-      formData.append("subject", data.subject)
-      formData.append("message", data.message)
-      formData.append("type", data.type)
+      formData.append('email', data.email)
+      formData.append('subject', data.subject)
+      formData.append('message', data.message)
+      formData.append('type', data.type)
 
       // Add images
       images.forEach((image, index) => {
         formData.append(`image_${index}`, image)
       })
 
-      const response = await fetch("/api/help", {
-        method: "POST",
+      const response = await fetch('/api/help', {
+        method: 'POST',
         body: formData,
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to submit help request")
+        throw new Error(errorData.error || 'Failed to submit help request')
       }
 
-      setSubmitStatus("success")
+      setSubmitStatus('success')
       reset()
 
       // Clean up image previews
       images.forEach((image) => URL.revokeObjectURL(image.preview))
       setImages([])
     } catch (error) {
-      logger.error("Error submitting help request:", { error })
-      setSubmitStatus("error")
-      setErrorMessage(error instanceof Error ? error.message : "An unknown error occurred")
+      logger.error('Error submitting help request:', { error })
+      setSubmitStatus('error')
+      setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex h-full flex-col">
+    <form onSubmit={handleSubmit(onSubmit)} className='flex h-full flex-col'>
       {/* Scrollable Content */}
       <div
         ref={scrollContainerRef}
-        className="scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6"
+        className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
       >
-        <div className="py-4">
-          {submitStatus === "success" ? (
-            <Alert className="mb-6 border-border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30">
-              <div className="flex items-start gap-4 py-1">
-                <div className="mt-[-1.5px] flex-shrink-0">
-                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+        <div className='py-4'>
+          {submitStatus === 'success' ? (
+            <Alert className='mb-6 border-border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'>
+              <div className='flex items-start gap-4 py-1'>
+                <div className='mt-[-1.5px] flex-shrink-0'>
+                  <CheckCircle2 className='h-4 w-4 text-green-600 dark:text-green-400' />
                 </div>
-                <div className="mr-4 flex-1 space-y-2">
-                  <AlertTitle className="-mt-0.5 flex items-center justify-between">
-                    <span className="font-medium text-green-600 dark:text-green-400">Success</span>
+                <div className='mr-4 flex-1 space-y-2'>
+                  <AlertTitle className='-mt-0.5 flex items-center justify-between'>
+                    <span className='font-medium text-green-600 dark:text-green-400'>Success</span>
                   </AlertTitle>
-                  <AlertDescription className="text-green-600 dark:text-green-400">
+                  <AlertDescription className='text-green-600 dark:text-green-400'>
                     Your request has been submitted successfully. We'll get back to you soon.
                   </AlertDescription>
                 </div>
               </div>
             </Alert>
-          ) : submitStatus === "error" ? (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
+          ) : submitStatus === 'error' ? (
+            <Alert variant='destructive' className='mb-6'>
+              <AlertCircle className='h-4 w-4' />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>
-                {errorMessage || "There was an error submitting your request. Please try again."}
+                {errorMessage || 'There was an error submitting your request. Please try again.'}
               </AlertDescription>
             </Alert>
           ) : null}
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="type">Request</Label>
-              <Select defaultValue="bug" onValueChange={(value) => setValue("type", value as any)}>
-                <SelectTrigger id="type" className={errors.type ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Select a request type" />
+          <div className='space-y-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='type'>Request</Label>
+              <Select defaultValue='bug' onValueChange={(value) => setValue('type', value as any)}>
+                <SelectTrigger id='type' className={errors.type ? 'border-red-500' : ''}>
+                  <SelectValue placeholder='Select a request type' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="bug">Bug Report</SelectItem>
-                  <SelectItem value="feedback">Feedback</SelectItem>
-                  <SelectItem value="feature_request">Feature Request</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value='bug'>Bug Report</SelectItem>
+                  <SelectItem value='feedback'>Feedback</SelectItem>
+                  <SelectItem value='feature_request'>Feature Request</SelectItem>
+                  <SelectItem value='other'>Other</SelectItem>
                 </SelectContent>
               </Select>
-              {errors.type && <p className="mt-1 text-red-500 text-sm">{errors.type.message}</p>}
+              {errors.type && <p className='mt-1 text-red-500 text-sm'>{errors.type.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <div className='space-y-2'>
+              <Label htmlFor='email'>Email</Label>
               <Input
-                id="email"
-                placeholder="your.email@example.com"
-                {...register("email")}
-                className={errors.email ? "border-red-500" : ""}
+                id='email'
+                placeholder='your.email@example.com'
+                {...register('email')}
+                className={errors.email ? 'border-red-500' : ''}
               />
-              {errors.email && <p className="mt-1 text-red-500 text-sm">{errors.email.message}</p>}
+              {errors.email && <p className='mt-1 text-red-500 text-sm'>{errors.email.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="subject">Subject</Label>
+            <div className='space-y-2'>
+              <Label htmlFor='subject'>Subject</Label>
               <Input
-                id="subject"
-                placeholder="Brief description of your request"
-                {...register("subject")}
-                className={errors.subject ? "border-red-500" : ""}
+                id='subject'
+                placeholder='Brief description of your request'
+                {...register('subject')}
+                className={errors.subject ? 'border-red-500' : ''}
               />
               {errors.subject && (
-                <p className="mt-1 text-red-500 text-sm">{errors.subject.message}</p>
+                <p className='mt-1 text-red-500 text-sm'>{errors.subject.message}</p>
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="message">Message</Label>
+            <div className='space-y-2'>
+              <Label htmlFor='message'>Message</Label>
               <Textarea
-                id="message"
-                placeholder="Please provide details about your request..."
+                id='message'
+                placeholder='Please provide details about your request...'
                 rows={5}
-                {...register("message")}
-                className={errors.message ? "border-red-500" : ""}
+                {...register('message')}
+                className={errors.message ? 'border-red-500' : ''}
               />
               {errors.message && (
-                <p className="mt-1 text-red-500 text-sm">{errors.message.message}</p>
+                <p className='mt-1 text-red-500 text-sm'>{errors.message.message}</p>
               )}
             </div>
 
             {/* Image Upload Section */}
-            <div className="mt-6 space-y-2">
+            <div className='mt-6 space-y-2'>
               <Label>Attach Images (Optional)</Label>
               <div
                 ref={dropZoneRef}
@@ -368,58 +368,58 @@ export function HelpForm({ onClose }: HelpFormProps) {
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 className={`flex items-center gap-4 ${
-                  isDragging ? "rounded-md bg-primary/5 p-2" : ""
+                  isDragging ? 'rounded-md bg-primary/5 p-2' : ''
                 }`}
               >
                 <input
                   ref={fileInputRef}
-                  type="file"
-                  accept={ACCEPTED_IMAGE_TYPES.join(",")}
+                  type='file'
+                  accept={ACCEPTED_IMAGE_TYPES.join(',')}
                   onChange={handleFileChange}
-                  className="hidden"
+                  className='hidden'
                   multiple
                 />
                 <Button
-                  type="button"
-                  variant="outline"
+                  type='button'
+                  variant='outline'
                   onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center justify-center gap-2"
+                  className='flex items-center justify-center gap-2'
                 >
-                  <Upload className="h-4 w-4" />
+                  <Upload className='h-4 w-4' />
                   Upload Images
                 </Button>
-                <p className="text-muted-foreground text-xs">
+                <p className='text-muted-foreground text-xs'>
                   Drop images here or click to upload. Max 20MB per image.
                 </p>
               </div>
-              {imageError && <p className="mt-1 text-red-500 text-sm">{imageError}</p>}
+              {imageError && <p className='mt-1 text-red-500 text-sm'>{imageError}</p>}
               {isProcessing && (
-                <p className="text-muted-foreground text-sm">Processing images...</p>
+                <p className='text-muted-foreground text-sm'>Processing images...</p>
               )}
             </div>
 
             {/* Image Preview Section */}
             {images.length > 0 && (
-              <div className="space-y-2">
+              <div className='space-y-2'>
                 <Label>Uploaded Images</Label>
-                <div className="grid grid-cols-2 gap-4">
+                <div className='grid grid-cols-2 gap-4'>
                   {images.map((image, index) => (
-                    <div key={index} className="group relative overflow-hidden rounded-md border">
-                      <div className="relative aspect-video">
+                    <div key={index} className='group relative overflow-hidden rounded-md border'>
+                      <div className='relative aspect-video'>
                         <Image
                           src={image.preview}
                           alt={`Preview ${index + 1}`}
                           fill
-                          className="object-cover"
+                          className='object-cover'
                         />
                         <div
-                          className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+                          className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
                           onClick={() => removeImage(index)}
                         >
-                          <X className="h-6 w-6 text-white" />
+                          <X className='h-6 w-6 text-white' />
                         </div>
                       </div>
-                      <div className="truncate bg-muted/50 p-2 text-xs">{image.name}</div>
+                      <div className='truncate bg-muted/50 p-2 text-xs'>{image.name}</div>
                     </div>
                   ))}
                 </div>
@@ -430,13 +430,13 @@ export function HelpForm({ onClose }: HelpFormProps) {
       </div>
 
       {/* Fixed Footer */}
-      <div className="mt-auto border-t px-6 pt-4 pb-6">
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={onClose} type="button">
+      <div className='mt-auto border-t px-6 pt-4 pb-6'>
+        <div className='flex justify-between'>
+          <Button variant='outline' onClick={onClose} type='button'>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting || isProcessing}>
-            {isSubmitting ? "Submitting..." : "Submit"}
+          <Button type='submit' disabled={isSubmitting || isProcessing}>
+            {isSubmitting ? 'Submitting...' : 'Submit'}
           </Button>
         </div>
       </div>

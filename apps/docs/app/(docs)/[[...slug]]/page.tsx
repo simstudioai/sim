@@ -1,9 +1,9 @@
-import mdxComponents from "@/components/mdx-components"
-import { source } from "@/lib/source"
-import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/page"
-import { notFound } from "next/navigation"
+import mdxComponents from '@/components/mdx-components'
+import { source } from '@/lib/source'
+import { DocsBody, DocsDescription, DocsPage, DocsTitle } from 'fumadocs-ui/page'
+import { notFound } from 'next/navigation'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
 export default async function Page(props: { params: Promise<{ slug?: string[] }> }) {
   const params = await props.params
@@ -17,16 +17,16 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
       toc={page.data.toc}
       full={page.data.full}
       tableOfContent={{
-        style: "clerk",
+        style: 'clerk',
         enabled: true,
-        header: <div className="mb-2 font-medium text-sm">On this page</div>,
+        header: <div className='mb-2 font-medium text-sm'>On this page</div>,
         single: false,
       }}
       article={{
-        className: "scroll-smooth max-sm:pb-16",
+        className: 'scroll-smooth max-sm:pb-16',
       }}
       tableOfContentPopover={{
-        style: "clerk",
+        style: 'clerk',
         enabled: true,
       }}
       footer={{

@@ -1,38 +1,38 @@
-import type { ToolConfig } from "../types"
-import type { ExaAnswerParams, ExaAnswerResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { ExaAnswerParams, ExaAnswerResponse } from './types'
 
 export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
-  id: "exa_answer",
-  name: "Exa Answer",
-  description: "Get an AI-generated answer to a question with citations from the web using Exa AI.",
-  version: "1.0.0",
+  id: 'exa_answer',
+  name: 'Exa Answer',
+  description: 'Get an AI-generated answer to a question with citations from the web using Exa AI.',
+  version: '1.0.0',
 
   params: {
     query: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The question to answer",
+      description: 'The question to answer',
     },
     text: {
-      type: "boolean",
+      type: 'boolean',
       required: false,
-      description: "Whether to include the full text of the answer",
+      description: 'Whether to include the full text of the answer',
     },
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "Exa AI API Key",
+      description: 'Exa AI API Key',
     },
   },
 
   request: {
-    url: "https://api.exa.ai/answer",
-    method: "POST",
+    url: 'https://api.exa.ai/answer',
+    method: 'POST',
     isInternalRoute: false,
     headers: (params) => ({
-      "Content-Type": "application/json",
-      "x-api-key": params.apiKey,
+      'Content-Type': 'application/json',
+      'x-api-key': params.apiKey,
     }),
     body: (params) => {
       const body: Record<string, any> = {
@@ -50,25 +50,25 @@ export const answerTool: ToolConfig<ExaAnswerParams, ExaAnswerResponse> = {
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.message || data.error || "Failed to generate answer")
+      throw new Error(data.message || data.error || 'Failed to generate answer')
     }
 
     return {
       success: true,
       output: {
-        query: data.query || "",
-        answer: data.answer || "",
+        query: data.query || '',
+        answer: data.answer || '',
         citations:
           data.citations?.map((citation: any) => ({
-            title: citation.title || "",
+            title: citation.title || '',
             url: citation.url,
-            text: citation.text || "",
+            text: citation.text || '',
           })) || [],
       },
     }
   },
 
   transformError: (error) => {
-    return error instanceof Error ? error.message : "An error occurred while generating an answer"
+    return error instanceof Error ? error.message : 'An error occurred while generating an answer'
   },
 }

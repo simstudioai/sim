@@ -1,45 +1,45 @@
-import { readFile } from "node:fs/promises"
-import { createLogger } from "@/lib/logs/console-logger"
+import { createLogger } from '@/lib/logs/console-logger'
+import { readFile } from 'fs/promises'
 // @ts-ignore
-import * as pdfParseLib from "pdf-parse/lib/pdf-parse.js"
-import type { FileParseResult, FileParser } from "./types"
+import * as pdfParseLib from 'pdf-parse/lib/pdf-parse.js'
+import type { FileParseResult, FileParser } from './types'
 
-const logger = createLogger("PdfParser")
+const logger = createLogger('PdfParser')
 
 export class PdfParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
     try {
-      logger.info("Starting to parse file:", filePath)
+      logger.info('Starting to parse file:', filePath)
 
       // Make sure we're only parsing the provided file path
       if (!filePath) {
-        throw new Error("No file path provided")
+        throw new Error('No file path provided')
       }
 
       // Read the file
-      logger.info("Reading file...")
+      logger.info('Reading file...')
       const dataBuffer = await readFile(filePath)
-      logger.info("File read successfully, size:", dataBuffer.length)
+      logger.info('File read successfully, size:', dataBuffer.length)
 
       return this.parseBuffer(dataBuffer)
     } catch (error) {
-      logger.error("Error reading file:", error)
+      logger.error('Error reading file:', error)
       throw error
     }
   }
 
   async parseBuffer(dataBuffer: Buffer): Promise<FileParseResult> {
     try {
-      logger.info("Starting to parse buffer, size:", dataBuffer.length)
+      logger.info('Starting to parse buffer, size:', dataBuffer.length)
 
       // Try to parse with pdf-parse library first
       try {
-        logger.info("Attempting to parse with pdf-parse library...")
+        logger.info('Attempting to parse with pdf-parse library...')
 
         // Parse PDF with direct function call to avoid test file access
-        logger.info("Starting PDF parsing...")
+        logger.info('Starting PDF parsing...')
         const data = await pdfParseLib.default(dataBuffer)
-        logger.info("PDF parsed successfully with pdf-parse, pages:", data.numpages)
+        logger.info('PDF parsed successfully with pdf-parse, pages:', data.numpages)
 
         return {
           content: data.text,
@@ -50,15 +50,15 @@ export class PdfParser implements FileParser {
           },
         }
       } catch (pdfParseError: unknown) {
-        logger.error("PDF-parse library failed:", pdfParseError)
+        logger.error('PDF-parse library failed:', pdfParseError)
 
         // Fallback to manual text extraction
-        logger.info("Falling back to manual text extraction...")
+        logger.info('Falling back to manual text extraction...')
 
         // Extract basic PDF info from raw content
-        const rawContent = dataBuffer.toString("utf-8", 0, Math.min(10000, dataBuffer.length))
+        const rawContent = dataBuffer.toString('utf-8', 0, Math.min(10000, dataBuffer.length))
 
-        let version = "Unknown"
+        let version = 'Unknown'
         let pageCount = 0
 
         // Try to extract PDF version
@@ -74,7 +74,7 @@ export class PdfParser implements FileParser {
         }
 
         // Try to extract text by looking for text-related operators in the PDF
-        let extractedText = ""
+        let extractedText = ''
 
         // Look for text in the PDF content using common patterns
         const textMatches = rawContent.match(/BT[\s\S]*?ET/g)
@@ -91,20 +91,20 @@ export class PdfParser implements FileParser {
                       obj
                         .replace(
                           /\(([^)]*)\)\s*Tj|\[([^\]]*)\]\s*TJ/g,
-                          (match, p1, p2) => p1 || p2 || ""
+                          (match, p1, p2) => p1 || p2 || ''
                         )
                         // Clean up PDF escape sequences
-                        .replace(/\\(\d{3}|[()\\])/g, "")
-                        .replace(/\\\\/g, "\\")
-                        .replace(/\\\(/g, "(")
-                        .replace(/\\\)/g, ")")
+                        .replace(/\\(\d{3}|[()\\])/g, '')
+                        .replace(/\\\\/g, '\\')
+                        .replace(/\\\(/g, '(')
+                        .replace(/\\\)/g, ')')
                     )
                   })
-                  .join(" ")
+                  .join(' ')
               }
-              return ""
+              return ''
             })
-            .join("\n")
+            .join('\n')
         }
 
         // If we couldn't extract text or the text is too short, return a fallback message
@@ -118,12 +118,12 @@ export class PdfParser implements FileParser {
             pageCount,
             version,
             fallback: true,
-            error: (pdfParseError as Error).message || "Unknown error",
+            error: (pdfParseError as Error).message || 'Unknown error',
           },
         }
       }
     } catch (error) {
-      logger.error("Error parsing buffer:", error)
+      logger.error('Error parsing buffer:', error)
       throw error
     }
   }

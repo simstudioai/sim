@@ -1,9 +1,9 @@
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Plus, Trash } from "lucide-react"
-import { useSubBlockValue } from "../hooks/use-sub-block-value"
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Plus, Trash } from 'lucide-react'
+import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface EvalMetric {
   id: string
@@ -23,8 +23,8 @@ interface EvalInputProps {
 // Default values
 const DEFAULT_METRIC: EvalMetric = {
   id: crypto.randomUUID(),
-  name: "",
-  description: "",
+  name: '',
+  description: '',
   range: { min: 0, max: 1 },
 }
 
@@ -52,7 +52,7 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
     setValue(metrics.map((metric) => (metric.id === id ? { ...metric, [field]: value } : metric)))
   }
 
-  const updateRange = (id: string, field: "min" | "max", value: string) => {
+  const updateRange = (id: string, field: 'min' | 'max', value: string) => {
     setValue(
       metrics.map((metric) =>
         metric.id === id
@@ -66,8 +66,8 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
   }
 
   // Validation handlers
-  const handleRangeBlur = (id: string, field: "min" | "max", value: string) => {
-    const sanitizedValue = value.replace(/[^\d.-]/g, "")
+  const handleRangeBlur = (id: string, field: 'min' | 'max', value: string) => {
+    const sanitizedValue = value.replace(/[^\d.-]/g, '')
     const numValue = Number.parseFloat(sanitizedValue)
 
     setValue(
@@ -87,14 +87,14 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
 
   // Metric header
   const renderMetricHeader = (metric: EvalMetric, index: number) => (
-    <div className="flex h-10 items-center justify-between rounded-t-lg border-b bg-card px-3">
-      <span className="font-medium text-sm">Metric {index + 1}</span>
-      <div className="flex items-center gap-1">
+    <div className='flex h-10 items-center justify-between rounded-t-lg border-b bg-card px-3'>
+      <span className='font-medium text-sm'>Metric {index + 1}</span>
+      <div className='flex items-center gap-1'>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" onClick={addMetric} className="h-8 w-8">
-              <Plus className="h-4 w-4" />
-              <span className="sr-only">Add Metric</span>
+            <Button variant='ghost' size='sm' onClick={addMetric} className='h-8 w-8'>
+              <Plus className='h-4 w-4' />
+              <span className='sr-only'>Add Metric</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>Add Metric</TooltipContent>
@@ -103,14 +103,14 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
-              variant="ghost"
-              size="sm"
+              variant='ghost'
+              size='sm'
               onClick={() => removeMetric(metric.id)}
               disabled={metrics.length === 1}
-              className="h-8 w-8 text-destructive hover:text-destructive"
+              className='h-8 w-8 text-destructive hover:text-destructive'
             >
-              <Trash className="h-4 w-4" />
-              <span className="sr-only">Delete Metric</span>
+              <Trash className='h-4 w-4' />
+              <span className='sr-only'>Delete Metric</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>Delete Metric</TooltipContent>
@@ -121,56 +121,56 @@ export function EvalInput({ blockId, subBlockId }: EvalInputProps) {
 
   // Main render
   return (
-    <div className="space-y-2">
+    <div className='space-y-2'>
       {metrics.map((metric, index) => (
         <div
           key={metric.id}
           data-metric-id={metric.id}
-          className="group relative overflow-visible rounded-lg border bg-background"
+          className='group relative overflow-visible rounded-lg border bg-background'
         >
           {renderMetricHeader(metric, index)}
 
-          <div className="space-y-2 px-3 pt-2 pb-3">
-            <div className="space-y-1">
+          <div className='space-y-2 px-3 pt-2 pb-3'>
+            <div className='space-y-1'>
               <Label>Name</Label>
               <Input
-                name="name"
+                name='name'
                 value={metric.name}
-                onChange={(e) => updateMetric(metric.id, "name", e.target.value)}
-                placeholder="Accuracy"
-                className="placeholder:text-muted-foreground/50"
+                onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
+                placeholder='Accuracy'
+                className='placeholder:text-muted-foreground/50'
               />
             </div>
 
-            <div className="space-y-1">
+            <div className='space-y-1'>
               <Label>Description</Label>
               <Input
                 value={metric.description}
-                onChange={(e) => updateMetric(metric.id, "description", e.target.value)}
-                placeholder="How accurate is the response?"
-                className="placeholder:text-muted-foreground/50"
+                onChange={(e) => updateMetric(metric.id, 'description', e.target.value)}
+                placeholder='How accurate is the response?'
+                className='placeholder:text-muted-foreground/50'
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='space-y-1'>
                 <Label>Min Value</Label>
                 <Input
-                  type="text"
+                  type='text'
                   value={metric.range.min}
-                  onChange={(e) => updateRange(metric.id, "min", e.target.value)}
-                  onBlur={(e) => handleRangeBlur(metric.id, "min", e.target.value)}
-                  className="placeholder:text-muted-foreground/50"
+                  onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
+                  onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
+                  className='placeholder:text-muted-foreground/50'
                 />
               </div>
-              <div className="space-y-1">
+              <div className='space-y-1'>
                 <Label>Max Value</Label>
                 <Input
-                  type="text"
+                  type='text'
                   value={metric.range.max}
-                  onChange={(e) => updateRange(metric.id, "max", e.target.value)}
-                  onBlur={(e) => handleRangeBlur(metric.id, "max", e.target.value)}
-                  className="placeholder:text-muted-foreground/50"
+                  onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
+                  onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
+                  className='placeholder:text-muted-foreground/50'
                 />
               </div>
             </div>

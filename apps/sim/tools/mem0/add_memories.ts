@@ -1,63 +1,63 @@
-import type { ToolConfig } from "../types"
+import type { ToolConfig } from '../types'
 
 // Add Memories Tool
 export const mem0AddMemoriesTool: ToolConfig = {
-  id: "mem0_add_memories",
-  name: "Add Memories",
-  description: "Add memories to Mem0 for persistent storage and retrieval",
-  version: "1.0.0",
+  id: 'mem0_add_memories',
+  name: 'Add Memories',
+  description: 'Add memories to Mem0 for persistent storage and retrieval',
+  version: '1.0.0',
   params: {
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Your Mem0 API key",
+      description: 'Your Mem0 API key',
       requiredForToolCall: true,
     },
     userId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "User ID associated with the memory",
+      description: 'User ID associated with the memory',
       optionalToolInput: true,
     },
     messages: {
-      type: "json",
+      type: 'json',
       required: true,
-      description: "Array of message objects with role and content",
+      description: 'Array of message objects with role and content',
     },
   },
   request: {
-    url: "https://api.mem0.ai/v1/memories/",
-    method: "POST",
+    url: 'https://api.mem0.ai/v1/memories/',
+    method: 'POST',
     headers: (params) => ({
       Authorization: `Token ${params.apiKey}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
     body: (params) => {
       // First, ensure messages is an array
       let messagesArray = params.messages
-      if (typeof messagesArray === "string") {
+      if (typeof messagesArray === 'string') {
         try {
           messagesArray = JSON.parse(messagesArray)
         } catch (e) {
-          throw new Error("Messages must be a valid JSON array of objects with role and content")
+          throw new Error('Messages must be a valid JSON array of objects with role and content')
         }
       }
 
       // Validate message format
       if (!Array.isArray(messagesArray) || messagesArray.length === 0) {
-        throw new Error("Messages must be a non-empty array")
+        throw new Error('Messages must be a non-empty array')
       }
 
       for (const msg of messagesArray) {
         if (!msg.role || !msg.content) {
-          throw new Error("Each message must have role and content properties")
+          throw new Error('Each message must have role and content properties')
         }
       }
 
       // Prepare request body
       const body: Record<string, any> = {
         messages: messagesArray,
-        version: "v2",
+        version: 'v2',
         user_id: params.userId,
       }
 

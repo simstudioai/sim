@@ -1,12 +1,12 @@
-import { createErrorResponse, createSuccessResponse } from "@/app/api/workflows/utils"
-import { db } from "@/db"
-import * as schema from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import { eq } from "drizzle-orm"
-import type { NextRequest } from "next/server"
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { db } from '@/db'
+import * as schema from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
 
-const logger = createLogger("MarketplaceUnpublishAPI")
+const logger = createLogger('MarketplaceUnpublishAPI')
 
 /**
  * API endpoint to unpublish a workflow from the marketplace by its marketplace ID
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized unpublish attempt for marketplace ID: ${id}`)
-      return createErrorResponse("Unauthorized", 401)
+      return createErrorResponse('Unauthorized', 401)
     }
 
     const userId = session.user.id
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (!marketplaceEntry) {
       logger.warn(`[${requestId}] No marketplace entry found with ID: ${id}`)
-      return createErrorResponse("Marketplace entry not found", 404)
+      return createErrorResponse('Marketplace entry not found', 404)
     }
 
     // Check if the user is the author of the marketplace entry
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       logger.warn(
         `[${requestId}] User ${userId} tried to unpublish marketplace entry they don't own: ${id}, author: ${marketplaceEntry.authorId}`
       )
-      return createErrorResponse("You do not have permission to unpublish this workflow", 403)
+      return createErrorResponse('You do not have permission to unpublish this workflow', 403)
     }
 
     const workflowId = marketplaceEntry.workflowId
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       logger.warn(
         `[${requestId}] Workflow ${workflowId} belongs to user ${workflow.userId}, not current user ${userId}`
       )
-      return createErrorResponse("You do not have permission to unpublish this workflow", 403)
+      return createErrorResponse('You do not have permission to unpublish this workflow', 403)
     }
 
     try {
@@ -98,14 +98,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
       return createSuccessResponse({
         success: true,
-        message: "Workflow successfully unpublished from marketplace",
+        message: 'Workflow successfully unpublished from marketplace',
       })
     } catch (dbError) {
       logger.error(`[${requestId}] Database error unpublishing marketplace entry:`, dbError)
-      return createErrorResponse("Failed to unpublish workflow due to a database error", 500)
+      return createErrorResponse('Failed to unpublish workflow due to a database error', 500)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error unpublishing marketplace entry: ${(await params).id}`, error)
-    return createErrorResponse("Failed to unpublish workflow", 500)
+    return createErrorResponse('Failed to unpublish workflow', 500)
   }
 }

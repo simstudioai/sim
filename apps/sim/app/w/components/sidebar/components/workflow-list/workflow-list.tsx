@@ -1,14 +1,14 @@
-"use client"
+'use client'
 
-import { Skeleton } from "@/components/ui/skeleton"
-import { useSession } from "@/lib/auth-client"
-import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
-import type { WorkflowMetadata } from "@/stores/workflows/registry/types"
-import clsx from "clsx"
-import { ScrollText } from "lucide-react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useMemo } from "react"
+import { Skeleton } from '@/components/ui/skeleton'
+import { useSession } from '@/lib/auth-client'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import clsx from 'clsx'
+import { ScrollText } from 'lucide-react'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useMemo } from 'react'
 
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
@@ -22,22 +22,22 @@ function WorkflowItem({ workflow, active, isMarketplace, isCollapsed }: Workflow
     <Link
       href={`/w/${workflow.id}`}
       className={clsx(
-        "flex items-center rounded-md px-2 py-1.5 font-medium text-sm",
-        active ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent/50",
-        isCollapsed && "mx-auto h-8 w-8 justify-center"
+        'flex items-center rounded-md px-2 py-1.5 font-medium text-sm',
+        active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50',
+        isCollapsed && 'mx-auto h-8 w-8 justify-center'
       )}
     >
       <div
         className={clsx(
-          "flex-shrink-0 rounded",
-          isCollapsed ? "h-[14px] w-[14px]" : "mr-2 h-[14px] w-[14px]"
+          'flex-shrink-0 rounded',
+          isCollapsed ? 'h-[14px] w-[14px]' : 'mr-2 h-[14px] w-[14px]'
         )}
         style={{ backgroundColor: workflow.color }}
       />
       {!isCollapsed && (
-        <span className="truncate">
+        <span className='truncate'>
           {workflow.name}
-          {isMarketplace && " (Preview)"}
+          {isMarketplace && ' (Preview)'}
         </span>
       )}
     </Link>
@@ -69,15 +69,15 @@ export function WorkflowList({
         <div
           key={`skeleton-${i}`}
           className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 ${
-            isCollapsed ? "justify-center" : ""
+            isCollapsed ? 'justify-center' : ''
           }`}
         >
           {isCollapsed ? (
-            <Skeleton className="h-[14px] w-[14px] rounded-md" />
+            <Skeleton className='h-[14px] w-[14px] rounded-md' />
           ) : (
             <>
-              <Skeleton className="h-[14px] w-[14px] rounded-md" />
-              <Skeleton className="h-4 w-20" />
+              <Skeleton className='h-[14px] w-[14px] rounded-md' />
+              <Skeleton className='h-4 w-20' />
             </>
           )}
         </div>
@@ -92,7 +92,7 @@ export function WorkflowList({
     marketplaceWorkflows.length === 0
 
   return (
-    <div className={`space-y-1 ${isLoading ? "opacity-60" : ""}`}>
+    <div className={`space-y-1 ${isLoading ? 'opacity-60' : ''}`}>
       {isLoading ? (
         // Show skeleton loading state
         skeletonItems
@@ -110,13 +110,13 @@ export function WorkflowList({
 
           {/* Marketplace Temp Workflows (if any) */}
           {marketplaceWorkflows.length > 0 && (
-            <div className="mt-2 border-border/30 border-t pt-2">
+            <div className='mt-2 border-border/30 border-t pt-2'>
               <h3
                 className={`mb-1 px-2 font-medium text-muted-foreground text-xs ${
-                  isCollapsed ? "text-center" : ""
+                  isCollapsed ? 'text-center' : ''
                 }`}
               >
-                {isCollapsed ? "" : "Marketplace"}
+                {isCollapsed ? '' : 'Marketplace'}
               </h3>
               {marketplaceWorkflows.map((workflow) => (
                 <WorkflowItem
@@ -132,8 +132,8 @@ export function WorkflowList({
 
           {/* Empty state */}
           {showEmptyState && !isCollapsed && (
-            <div className="px-2 py-1.5 text-muted-foreground text-xs">
-              No workflows in {activeWorkspaceId ? "this workspace" : "your account"}. Create one to
+            <div className='px-2 py-1.5 text-muted-foreground text-xs'>
+              No workflows in {activeWorkspaceId ? 'this workspace' : 'your account'}. Create one to
               get started.
             </div>
           )}

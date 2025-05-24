@@ -1,61 +1,61 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import type { ToolConfig } from "../types"
-import type { GoogleDocsCreateResponse, GoogleDocsToolParams } from "./types"
+import { createLogger } from '@/lib/logs/console-logger'
+import type { ToolConfig } from '../types'
+import type { GoogleDocsCreateResponse, GoogleDocsToolParams } from './types'
 
-const logger = createLogger("GoogleDocsCreateTool")
+const logger = createLogger('GoogleDocsCreateTool')
 
 export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateResponse> = {
-  id: "google_docs_create",
-  name: "Create Google Docs Document",
-  description: "Create a new Google Docs document",
-  version: "1.0",
+  id: 'google_docs_create',
+  name: 'Create Google Docs Document',
+  description: 'Create a new Google Docs document',
+  version: '1.0',
   oauth: {
     required: true,
-    provider: "google-docs",
-    additionalScopes: ["https://www.googleapis.com/auth/drive.file"],
+    provider: 'google-docs',
+    additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The access token for the Google Docs API",
+      description: 'The access token for the Google Docs API',
     },
-    title: { type: "string", required: true, description: "The title of the document to create" },
+    title: { type: 'string', required: true, description: 'The title of the document to create' },
     content: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "The content of the document to create",
+      description: 'The content of the document to create',
     },
     folderId: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "The ID of the folder to create the document in",
+      description: 'The ID of the folder to create the document in',
     },
   },
   request: {
     url: () => {
-      return "https://www.googleapis.com/drive/v3/files"
+      return 'https://www.googleapis.com/drive/v3/files'
     },
-    method: "POST",
+    method: 'POST',
     headers: (params) => {
       // Validate access token
       if (!params.accessToken) {
-        throw new Error("Access token is required")
+        throw new Error('Access token is required')
       }
 
       return {
         Authorization: `Bearer ${params.accessToken}`,
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       }
     },
     body: (params) => {
       if (!params.title) {
-        throw new Error("Title is required")
+        throw new Error('Title is required')
       }
 
       const requestBody: any = {
         name: params.title,
-        mimeType: "application/vnd.google-apps.document",
+        mimeType: 'application/vnd.google-apps.document',
       }
 
       // Add parent folder if specified
@@ -81,16 +81,16 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
           content: params.content,
         }
 
-        const writeResult = await executeTool("google_docs_write", writeParams)
+        const writeResult = await executeTool('google_docs_write', writeParams)
 
         if (!writeResult.success) {
           logger.warn(
-            "Failed to add content to document, but document was created:",
+            'Failed to add content to document, but document was created:',
             writeResult.error
           )
         }
       } catch (error) {
-        logger.warn("Error adding content to document:", { error })
+        logger.warn('Error adding content to document:', { error })
         // Don't fail the overall operation if adding content fails
       }
     }
@@ -99,13 +99,13 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
-      let errorText = ""
+      let errorText = ''
       try {
         const responseClone = response.clone()
         const responseText = await responseClone.text()
         errorText = responseText
       } catch (e) {
-        errorText = "Unable to read error response"
+        errorText = 'Unable to read error response'
       }
 
       throw new Error(`Failed to create Google Docs document (${response.status}): ${errorText}`)
@@ -121,8 +121,8 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
 
       const metadata = {
         documentId,
-        title: title || "Untitled Document",
-        mimeType: "application/vnd.google-apps.document",
+        title: title || 'Untitled Document',
+        mimeType: 'application/vnd.google-apps.document',
         url: `https://docs.google.com/document/d/${documentId}/edit`,
       }
 
@@ -133,7 +133,7 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
         },
       }
     } catch (error) {
-      logger.error("Google Docs create - Error processing response:", {
+      logger.error('Google Docs create - Error processing response:', {
         error,
       })
       throw error
@@ -146,9 +146,9 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     }
 
     // If it's an object with an error or message property
-    if (typeof error === "object" && error !== null) {
+    if (typeof error === 'object' && error !== null) {
       if (error.error) {
-        return typeof error.error === "string" ? error.error : JSON.stringify(error.error)
+        return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
       }
       if (error.message) {
         return error.message
@@ -156,6 +156,6 @@ export const createTool: ToolConfig<GoogleDocsToolParams, GoogleDocsCreateRespon
     }
 
     // Default fallback message
-    return "An error occurred while creating Google Docs document"
+    return 'An error occurred while creating Google Docs document'
   },
 }

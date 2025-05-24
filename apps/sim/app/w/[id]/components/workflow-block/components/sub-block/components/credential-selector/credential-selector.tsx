@@ -1,6 +1,6 @@
-"use client"
+'use client'
 
-import { Button } from "@/components/ui/button"
+import { Button } from '@/components/ui/button'
 import {
   Command,
   CommandEmpty,
@@ -8,9 +8,9 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { createLogger } from "@/lib/logs/console-logger"
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { createLogger } from '@/lib/logs/console-logger'
 import {
   type Credential,
   OAUTH_PROVIDERS,
@@ -18,13 +18,13 @@ import {
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
   parseProvider,
-} from "@/lib/oauth"
-import { saveToStorage } from "@/stores/workflows/persistence"
-import { Check, ChevronDown, ExternalLink, RefreshCw } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { OAuthRequiredModal } from "./components/oauth-required-modal"
+} from '@/lib/oauth'
+import { saveToStorage } from '@/stores/workflows/persistence'
+import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { OAuthRequiredModal } from './components/oauth-required-modal'
 
-const logger = createLogger("CredentialSelector")
+const logger = createLogger('CredentialSelector')
 
 interface CredentialSelectorProps {
   value: string
@@ -41,7 +41,7 @@ export function CredentialSelector({
   onChange,
   provider,
   requiredScopes = [],
-  label = "Select credential",
+  label = 'Select credential',
   disabled = false,
   serviceId,
 }: CredentialSelectorProps) {
@@ -71,8 +71,8 @@ export function CredentialSelector({
 
         // If we have a value but it's not in the credentials, reset it
         if (selectedId && !data.credentials.some((cred: Credential) => cred.id === selectedId)) {
-          setSelectedId("")
-          onChange("")
+          setSelectedId('')
+          onChange('')
         }
 
         // Auto-select logic:
@@ -95,7 +95,7 @@ export function CredentialSelector({
         }
       }
     } catch (error) {
-      logger.error("Error fetching credentials:", { error })
+      logger.error('Error fetching credentials:', { error })
     } finally {
       setIsLoading(false)
     }
@@ -116,15 +116,15 @@ export function CredentialSelector({
   // Listen for visibility changes to update credentials when user returns from settings
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === 'visible') {
         fetchCredentials()
       }
     }
 
-    document.addEventListener("visibilitychange", handleVisibilityChange)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [fetchCredentials])
 
@@ -150,10 +150,10 @@ export function CredentialSelector({
   // Handle adding a new credential
   const handleAddCredential = () => {
     // Store information about the required connection
-    saveToStorage<string>("pending_service_id", effectiveServiceId)
-    saveToStorage<string[]>("pending_oauth_scopes", requiredScopes)
-    saveToStorage<string>("pending_oauth_return_url", window.location.href)
-    saveToStorage<string>("pending_oauth_provider_id", effectiveProviderId)
+    saveToStorage<string>('pending_service_id', effectiveServiceId)
+    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
+    saveToStorage<string>('pending_oauth_return_url', window.location.href)
+    saveToStorage<string>('pending_oauth_provider_id', effectiveProviderId)
 
     // Show the OAuth modal
     setShowOAuthModal(true)
@@ -166,11 +166,11 @@ export function CredentialSelector({
     const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
     if (!baseProviderConfig) {
-      return <ExternalLink className="h-4 w-4" />
+      return <ExternalLink className='h-4 w-4' />
     }
 
     // Always use the base provider icon for a more consistent UI
-    return baseProviderConfig.icon({ className: "h-4 w-4" })
+    return baseProviderConfig.icon({ className: 'h-4 w-4' })
   }
 
   // Get provider name
@@ -184,9 +184,9 @@ export function CredentialSelector({
 
     // Fallback: capitalize the provider name
     return providerName
-      .split("-")
+      .split('-')
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ")
+      .join(' ')
   }
 
   return (
@@ -194,37 +194,37 @@ export function CredentialSelector({
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
-            variant="outline"
-            role="combobox"
+            variant='outline'
+            role='combobox'
             aria-expanded={open}
-            className="relative w-full justify-between"
+            className='relative w-full justify-between'
             disabled={disabled}
           >
-            <div className="flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden">
+            <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
               {getProviderIcon(provider)}
               {selectedCredential ? (
-                <span className="truncate font-normal">{selectedCredential.name}</span>
+                <span className='truncate font-normal'>{selectedCredential.name}</span>
               ) : (
-                <span className="truncate text-muted-foreground">{label}</span>
+                <span className='truncate text-muted-foreground'>{label}</span>
               )}
             </div>
-            <ChevronDown className="absolute right-3 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronDown className='absolute right-3 h-4 w-4 shrink-0 opacity-50' />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[250px] p-0" align="start">
+        <PopoverContent className='w-[250px] p-0' align='start'>
           <Command>
-            <CommandInput placeholder="Search credentials..." />
+            <CommandInput placeholder='Search credentials...' />
             <CommandList>
               <CommandEmpty>
                 {isLoading ? (
-                  <div className="flex items-center justify-center p-4">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span className="ml-2">Loading credentials...</span>
+                  <div className='flex items-center justify-center p-4'>
+                    <RefreshCw className='h-4 w-4 animate-spin' />
+                    <span className='ml-2'>Loading credentials...</span>
                   </div>
                 ) : (
-                  <div className="p-4 text-center">
-                    <p className="font-medium text-sm">No credentials found.</p>
-                    <p className="text-muted-foreground text-xs">
+                  <div className='p-4 text-center'>
+                    <p className='font-medium text-sm'>No credentials found.</p>
+                    <p className='text-muted-foreground text-xs'>
                       Connect a new account to continue.
                     </p>
                   </div>
@@ -238,11 +238,11 @@ export function CredentialSelector({
                       value={cred.id}
                       onSelect={() => handleSelect(cred.id)}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className='flex items-center gap-2'>
                         {getProviderIcon(cred.provider)}
-                        <span className="font-normal">{cred.name}</span>
+                        <span className='font-normal'>{cred.name}</span>
                       </div>
-                      {cred.id === selectedId && <Check className="ml-auto h-4 w-4" />}
+                      {cred.id === selectedId && <Check className='ml-auto h-4 w-4' />}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -250,7 +250,7 @@ export function CredentialSelector({
               {credentials.length === 0 && (
                 <CommandGroup>
                   <CommandItem onSelect={handleAddCredential}>
-                    <div className="flex items-center gap-2 text-primary">
+                    <div className='flex items-center gap-2 text-primary'>
                       {getProviderIcon(provider)}
                       <span>Connect {getProviderName(provider)} account</span>
                     </div>

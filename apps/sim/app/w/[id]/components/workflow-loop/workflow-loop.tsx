@@ -1,5 +1,5 @@
-import { useWorkflowStore } from "@/stores/workflows/workflow/store"
-import type { Loop } from "@/stores/workflows/workflow/types"
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { Loop } from '@/stores/workflows/workflow/types'
 
 interface WorkflowLoopProps {
   loopId: string
@@ -11,13 +11,13 @@ interface WorkflowLoopProps {
 function createLoopLabelNode(loopId: string, bounds: { x: number; y: number }) {
   return {
     id: `loop-label-${loopId}`,
-    type: "loopLabel",
+    type: 'loopLabel',
     position: { x: 0, y: -32 },
     parentNode: `loop-${loopId}`,
     draggable: false,
     data: {
       loopId,
-      label: "Loop",
+      label: 'Loop',
     },
   }
 }
@@ -25,18 +25,18 @@ function createLoopLabelNode(loopId: string, bounds: { x: number; y: number }) {
 // Helper function to create loop input node
 function createLoopInputNode(loopId: string, bounds: { x: number; width: number }) {
   const loop = useWorkflowStore.getState().loops[loopId]
-  const loopType = loop?.loopType || "for"
+  const loopType = loop?.loopType || 'for'
 
   // Dynamic width based on loop type
   let BADGE_WIDTH = 116 // Default for 'for' loop
 
-  if (loopType === "forEach") {
+  if (loopType === 'forEach') {
     BADGE_WIDTH = 72 // Adjusted for 'Items' text
   }
 
   return {
     id: `loop-input-${loopId}`,
-    type: "loopInput",
+    type: 'loopInput',
     position: { x: bounds.width - BADGE_WIDTH, y: -32 }, // Position from right edge
     parentNode: `loop-${loopId}`,
     draggable: false,
@@ -102,23 +102,23 @@ export function createLoopNode({ loopId, loop, blocks }: WorkflowLoopProps) {
 
   const loopNode = {
     id: `loop-${loopId}`,
-    type: "group",
+    type: 'group',
     position: { x: loopBounds.x, y: loopBounds.y },
-    className: "bg-[rgb(247,247,248)] dark:bg-[rgb(36,37,45)] dark:bg-opacity-50",
+    className: 'bg-[rgb(247,247,248)] dark:bg-[rgb(36,37,45)] dark:bg-opacity-50',
     style: {
-      border: "1px solid rgb(203, 213, 225)",
-      borderRadius: "12px",
+      border: '1px solid rgb(203, 213, 225)',
+      borderRadius: '12px',
       width: loopBounds.width,
       height: loopBounds.height,
-      pointerEvents: "none",
+      pointerEvents: 'none',
       zIndex: -1,
-      isolation: "isolate",
+      isolation: 'isolate',
     },
     darkModeStyle: {
-      borderColor: "rgb(63, 63, 70)",
+      borderColor: 'rgb(63, 63, 70)',
     },
     data: {
-      label: "Loop",
+      label: 'Loop',
     },
   }
 

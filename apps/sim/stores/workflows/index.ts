@@ -1,12 +1,12 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { loadWorkflowState } from "./persistence"
-import { useWorkflowRegistry } from "./registry/store"
-import { useSubBlockStore } from "./subblock/store"
-import { mergeSubblockState } from "./utils"
-import { useWorkflowStore } from "./workflow/store"
-import type { BlockState, WorkflowState } from "./workflow/types"
+import { createLogger } from '@/lib/logs/console-logger'
+import { loadWorkflowState } from './persistence'
+import { useWorkflowRegistry } from './registry/store'
+import { useSubBlockStore } from './subblock/store'
+import { mergeSubblockState } from './utils'
+import { useWorkflowStore } from './workflow/store'
+import type { BlockState, WorkflowState } from './workflow/types'
 
-const logger = createLogger("Workflows")
+const logger = createLogger('Workflows')
 
 /**
  * Get a workflow with its state merged in by ID
@@ -64,7 +64,7 @@ export function getWorkflowWithValues(workflowId: string) {
     id: workflowId,
     name: metadata.name,
     description: metadata.description,
-    color: metadata.color || "#3972F6",
+    color: metadata.color || '#3972F6',
     marketplaceData: metadata.marketplaceData || null,
     state: {
       blocks: mergedBlocks,
@@ -155,7 +155,7 @@ export function getAllWorkflowsWithValues() {
       id,
       name: metadata.name,
       description: metadata.description,
-      color: metadata.color || "#3972F6",
+      color: metadata.color || '#3972F6',
       marketplaceData: metadata.marketplaceData || null,
       workspaceId: metadata.workspaceId, // Include workspaceId in the result
       state: {

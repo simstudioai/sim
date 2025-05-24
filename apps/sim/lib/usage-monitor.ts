@@ -1,13 +1,13 @@
-import { db } from "@/db"
-import { userStats } from "@/db/schema"
-import { isProd } from "@/lib/environment"
-import { eq } from "drizzle-orm"
-import { env } from "./env"
-import { createLogger } from "./logs/console-logger"
-import { getHighestPrioritySubscription } from "./subscription/subscription"
-import { calculateUsageLimit } from "./subscription/utils"
+import { db } from '@/db'
+import { userStats } from '@/db/schema'
+import { isProd } from '@/lib/environment'
+import { eq } from 'drizzle-orm'
+import { env } from './env'
+import { createLogger } from './logs/console-logger'
+import { getHighestPrioritySubscription } from './subscription/subscription'
+import { calculateUsageLimit } from './subscription/utils'
 
-const logger = createLogger("UsageMonitor")
+const logger = createLogger('UsageMonitor')
 
 // Percentage threshold for showing warning
 const WARNING_THRESHOLD = 80
@@ -48,7 +48,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
 
     if (activeSubscription) {
       limit = calculateUsageLimit(activeSubscription)
-      logger.info("Using calculated subscription limit", {
+      logger.info('Using calculated subscription limit', {
         userId,
         plan: activeSubscription.plan,
         seats: activeSubscription.seats || 1,
@@ -57,7 +57,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
     } else {
       // Free tier limit
       limit = Number.parseFloat(env.FREE_TIER_COST_LIMIT!)
-      logger.info("Using free tier limit", { userId, limit })
+      logger.info('Using free tier limit', { userId, limit })
     }
 
     // Get actual usage from the database
@@ -65,7 +65,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
 
     // If no stats record exists, create a default one
     if (statsRecords.length === 0) {
-      logger.info("No usage stats found for user", { userId, limit })
+      logger.info('No usage stats found for user', { userId, limit })
 
       return {
         percentUsed: 0,
@@ -86,7 +86,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
     const isWarning = percentUsed >= WARNING_THRESHOLD && percentUsed < 100
     const isExceeded = currentUsage >= limit
 
-    logger.info("Final usage statistics", {
+    logger.info('Final usage statistics', {
       userId,
       currentUsage,
       limit,
@@ -103,7 +103,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       limit,
     }
   } catch (error) {
-    logger.error("Error checking usage status", {
+    logger.error('Error checking usage status', {
       error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
       userId,
     })
@@ -134,23 +134,23 @@ export async function checkAndNotifyUsage(userId: string): Promise<void> {
 
     if (usageData.isExceeded) {
       // User has exceeded their limit
-      logger.warn("User has exceeded usage limits", {
+      logger.warn('User has exceeded usage limits', {
         userId,
         usage: usageData.currentUsage,
         limit: usageData.limit,
       })
 
       // Dispatch event to show a UI notification
-      if (typeof window !== "undefined") {
+      if (typeof window !== 'undefined') {
         window.dispatchEvent(
-          new CustomEvent("usage-exceeded", {
+          new CustomEvent('usage-exceeded', {
             detail: { usageData },
           })
         )
       }
     } else if (usageData.isWarning) {
       // User is approaching their limit
-      logger.info("User approaching usage limits", {
+      logger.info('User approaching usage limits', {
         userId,
         usage: usageData.currentUsage,
         limit: usageData.limit,
@@ -158,23 +158,23 @@ export async function checkAndNotifyUsage(userId: string): Promise<void> {
       })
 
       // Dispatch event to show a UI notification
-      if (typeof window !== "undefined") {
+      if (typeof window !== 'undefined') {
         window.dispatchEvent(
-          new CustomEvent("usage-warning", {
+          new CustomEvent('usage-warning', {
             detail: { usageData },
           })
         )
 
         // Optionally open the subscription tab in settings
         window.dispatchEvent(
-          new CustomEvent("open-settings", {
-            detail: { tab: "subscription" },
+          new CustomEvent('open-settings', {
+            detail: { tab: 'subscription' },
           })
         )
       }
     }
   } catch (error) {
-    logger.error("Error in usage notification system", { error, userId })
+    logger.error('Error in usage notification system', { error, userId })
   }
 }
 
@@ -201,7 +201,7 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
       }
     }
 
-    logger.info("Server-side checking usage limits for user", { userId })
+    logger.info('Server-side checking usage limits for user', { userId })
 
     // Get usage data using the same function we use for client-side
     const usageData = await checkUsageStatus(userId)
@@ -215,7 +215,7 @@ export async function checkServerSideUsageLimits(userId: string): Promise<{
         : undefined,
     }
   } catch (error) {
-    logger.error("Error in server-side usage limit check", {
+    logger.error('Error in server-side usage limit check', {
       error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
       userId,
     })

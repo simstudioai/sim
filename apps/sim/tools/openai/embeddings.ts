@@ -1,49 +1,49 @@
-import type { ToolConfig } from "../types"
-import type { OpenAIEmbeddingsParams } from "./types"
+import type { ToolConfig } from '../types'
+import type { OpenAIEmbeddingsParams } from './types'
 
 export const embeddingsTool: ToolConfig<OpenAIEmbeddingsParams> = {
-  id: "openai_embeddings",
-  name: "OpenAI Embeddings",
+  id: 'openai_embeddings',
+  name: 'OpenAI Embeddings',
   description: "Generate embeddings from text using OpenAI's embedding models",
-  version: "1.0",
+  version: '1.0',
 
   params: {
-    apiKey: { type: "string", required: true, description: "OpenAI API key" },
+    apiKey: { type: 'string', required: true, description: 'OpenAI API key' },
     input: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Text to generate embeddings for",
+      description: 'Text to generate embeddings for',
     },
     model: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Model to use for embeddings",
-      default: "text-embedding-3-small",
+      description: 'Model to use for embeddings',
+      default: 'text-embedding-3-small',
     },
     encoding_format: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "The format to return the embeddings in",
-      default: "float",
+      description: 'The format to return the embeddings in',
+      default: 'float',
     },
     user: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "A unique identifier for the end-user",
+      description: 'A unique identifier for the end-user',
     },
   },
 
   request: {
-    method: "POST",
-    url: () => "https://api.openai.com/v1/embeddings",
+    method: 'POST',
+    url: () => 'https://api.openai.com/v1/embeddings',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
     body: (params) => ({
       input: params.input,
-      model: params.model || "text-embedding-3-small",
-      encoding_format: params.encoding_format || "float",
+      model: params.model || 'text-embedding-3-small',
+      encoding_format: params.encoding_format || 'float',
       user: params.user,
     }),
   },

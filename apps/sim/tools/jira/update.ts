@@ -1,72 +1,72 @@
-import type { ToolConfig } from "../types"
-import type { JiraUpdateParams, JiraUpdateResponse } from "./types"
-import { getJiraCloudId } from "./utils"
+import type { ToolConfig } from '../types'
+import type { JiraUpdateParams, JiraUpdateResponse } from './types'
+import { getJiraCloudId } from './utils'
 
 export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = {
-  id: "jira_update",
-  name: "Jira Update",
-  description: "Update a Jira issue",
-  version: "1.0.0",
+  id: 'jira_update',
+  name: 'Jira Update',
+  description: 'Update a Jira issue',
+  version: '1.0.0',
 
   oauth: {
     required: true,
-    provider: "jira",
-    additionalScopes: ["read:jira-user", "write:jira-work", "write:issue:jira", "read:jira-work"],
+    provider: 'jira',
+    additionalScopes: ['read:jira-user', 'write:jira-work', 'write:issue:jira', 'read:jira-work'],
   },
 
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "OAuth access token for Jira",
+      description: 'OAuth access token for Jira',
     },
     domain: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "Your Jira domain (e.g., yourcompany.atlassian.net)",
+      description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     projectId: {
-      type: "string",
+      type: 'string',
       required: false,
       description:
-        "Jira project ID to update issues in. If not provided, all issues will be retrieved.",
+        'Jira project ID to update issues in. If not provided, all issues will be retrieved.',
     },
     issueKey: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Jira issue key to update",
+      description: 'Jira issue key to update',
     },
     summary: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "New summary for the issue",
+      description: 'New summary for the issue',
     },
     description: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "New description for the issue",
+      description: 'New description for the issue',
     },
     status: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "New status for the issue",
+      description: 'New status for the issue',
     },
     priority: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "New priority for the issue",
+      description: 'New priority for the issue',
     },
     assignee: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "New assignee for the issue",
+      description: 'New assignee for the issue',
     },
     cloudId: {
-      type: "string",
+      type: 'string',
       required: false,
       description:
-        "Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.",
+        'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
@@ -82,17 +82,17 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
     url: (params) => {
       const { domain, issueKey, cloudId } = params
       if (!domain || !issueKey || !cloudId) {
-        throw new Error("Domain, issueKey, and cloudId are required")
+        throw new Error('Domain, issueKey, and cloudId are required')
       }
 
       const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue/${issueKey}`
       return url
     },
-    method: "PUT",
+    method: 'PUT',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
     }),
     body: (params) => {
       // Map the summary from either summary or title field
@@ -107,14 +107,14 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
 
       if (descriptionValue) {
         fields.description = {
-          type: "doc",
+          type: 'doc',
           version: 1,
           content: [
             {
-              type: "paragraph",
+              type: 'paragraph',
               content: [
                 {
-                  type: "text",
+                  type: 'text',
                   text: descriptionValue,
                 },
               ],
@@ -157,7 +157,7 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
             data.errorMessages?.[0] ||
               data.errors?.[Object.keys(data.errors)[0]] ||
               data.message ||
-              "Failed to update Jira issue"
+              'Failed to update Jira issue'
           )
         }
         throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
@@ -178,8 +178,8 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
           success: true,
           output: {
             ts: new Date().toISOString(),
-            issueKey: params?.issueKey || "unknown",
-            summary: "Issue updated successfully",
+            issueKey: params?.issueKey || 'unknown',
+            summary: 'Issue updated successfully',
             success: true,
           },
         }
@@ -190,8 +190,8 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         success: true,
         output: {
           ts: new Date().toISOString(),
-          issueKey: data.key || params?.issueKey || "unknown",
-          summary: data.fields?.summary || "Issue updated",
+          issueKey: data.key || params?.issueKey || 'unknown',
+          summary: data.fields?.summary || 'Issue updated',
           success: true,
         },
       }
@@ -201,8 +201,8 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
         success: true,
         output: {
           ts: new Date().toISOString(),
-          issueKey: params?.issueKey || "unknown",
-          summary: "Issue updated (response parsing failed)",
+          issueKey: params?.issueKey || 'unknown',
+          summary: 'Issue updated (response parsing failed)',
           success: true,
         },
       }
@@ -210,6 +210,6 @@ export const jiraUpdateTool: ToolConfig<JiraUpdateParams, JiraUpdateResponse> = 
   },
 
   transformError: (error: any) => {
-    return error.message || "Failed to update Jira issue"
+    return error.message || 'Failed to update Jira issue'
   },
 }

@@ -1,13 +1,13 @@
-import { db } from "@/db"
-import { account } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import { and, eq, like, or } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
+import { db } from '@/db'
+import { account } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { and, eq, like, or } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = createLogger("OAuthDisconnectAPI")
+const logger = createLogger('OAuthDisconnectAPI')
 
 /**
  * Disconnect an OAuth provider for the current user
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     // Check if the user is authenticated
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthenticated disconnect request rejected`)
-      return NextResponse.json({ error: "User not authenticated" }, { status: 401 })
+      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
     // Get the provider and providerId from the request body
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     if (!provider) {
       logger.warn(`[${requestId}] Missing provider in disconnect request`)
-      return NextResponse.json({ error: "Provider is required" }, { status: 400 })
+      return NextResponse.json({ error: 'Provider is required' }, { status: 400 })
     }
 
     logger.info(`[${requestId}] Processing OAuth disconnect request`, {
@@ -59,6 +59,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error disconnecting OAuth provider`, error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

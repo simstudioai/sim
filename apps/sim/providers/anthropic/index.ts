@@ -5,7 +5,7 @@ import { executeTool } from "@/tools"
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from "../types"
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from "../utils"
 
-const logger = createLogger("AnthropicProvider")
+const logger = createLogger('AnthropicProvider')
 
 /**
  * Helper to wrap Anthropic streaming (async iterable of SSE events) into a browser-friendly
@@ -19,7 +19,7 @@ function createReadableStreamFromAnthropicStream(
     async start(controller) {
       try {
         for await (const event of anthropicStream) {
-          if (event.type === "content_block_delta" && event.delta?.text) {
+          if (event.type === 'content_block_delta' && event.delta?.text) {
             controller.enqueue(new TextEncoder().encode(event.delta.text))
           }
         }
@@ -32,8 +32,8 @@ function createReadableStreamFromAnthropicStream(
 }
 
 export const anthropicProvider: ProviderConfig = {
-  id: "anthropic",
-  name: "Anthropic",
+  id: 'anthropic',
+  name: 'Anthropic',
   description: "Anthropic's Claude models",
   version: '1.0.0',
   models: [
@@ -48,7 +48,7 @@ export const anthropicProvider: ProviderConfig = {
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
     if (!request.apiKey) {
-      throw new Error("API key is required for Anthropic")
+      throw new Error('API key is required for Anthropic')
     }
 
     const anthropic = new Anthropic({ apiKey: request.apiKey })
@@ -62,12 +62,12 @@ export const anthropicProvider: ProviderConfig = {
     const messages = []
 
     // Add system prompt if present
-    let systemPrompt = request.systemPrompt || ""
+    let systemPrompt = request.systemPrompt || ''
 
     // Add context if present
     if (request.context) {
       messages.push({
-        role: "user",
+        role: 'user',
         content: request.context,
       })
     }
@@ -75,12 +75,12 @@ export const anthropicProvider: ProviderConfig = {
     // Add remaining messages
     if (request.messages) {
       request.messages.forEach((msg) => {
-        if (msg.role === "function") {
+        if (msg.role === 'function') {
           messages.push({
-            role: "user",
+            role: 'user',
             content: [
               {
-                type: "tool_result",
+                type: 'tool_result',
                 tool_use_id: msg.name,
                 content: msg.content,
               },
@@ -89,10 +89,10 @@ export const anthropicProvider: ProviderConfig = {
         } else if (msg.function_call) {
           const toolUseId = `${msg.function_call.name}-${Date.now()}`
           messages.push({
-            role: "assistant",
+            role: 'assistant',
             content: [
               {
-                type: "tool_use",
+                type: 'tool_use',
                 id: toolUseId,
                 name: msg.function_call.name,
                 input: JSON.parse(msg.function_call.arguments),
@@ -101,8 +101,8 @@ export const anthropicProvider: ProviderConfig = {
           })
         } else {
           messages.push({
-            role: msg.role === "assistant" ? "assistant" : "user",
-            content: msg.content ? [{ type: "text", text: msg.content }] : [],
+            role: msg.role === 'assistant' ? 'assistant' : 'user',
+            content: msg.content ? [{ type: 'text', text: msg.content }] : [],
           })
         }
       })
@@ -111,11 +111,11 @@ export const anthropicProvider: ProviderConfig = {
     // Ensure there's at least one message
     if (messages.length === 0) {
       messages.push({
-        role: "user",
-        content: [{ type: "text", text: systemPrompt || "Hello" }],
+        role: 'user',
+        content: [{ type: 'text', text: systemPrompt || 'Hello' }],
       })
       // Clear system prompt since we've used it as a user message
-      systemPrompt = ""
+      systemPrompt = ''
     }
 
     // Transform tools to Anthropic format if provided
@@ -124,7 +124,7 @@ export const anthropicProvider: ProviderConfig = {
           name: tool.id,
           description: tool.description,
           input_schema: {
-            type: "object",
+            type: 'object',
             properties: tool.parameters.properties,
             required: tool.parameters.required,
           },
@@ -132,7 +132,7 @@ export const anthropicProvider: ProviderConfig = {
       : undefined
 
     // Set tool_choice based on usage control settings
-    let toolChoice: "none" | "auto" | { type: "tool"; name: string } = "auto"
+    let toolChoice: 'none' | 'auto' | { type: 'tool'; name: string } = 'auto'
 
     // Handle tools and tool usage control
     let preparedTools: ReturnType<typeof prepareToolsWithUsageControl> | null = null
@@ -143,7 +143,7 @@ export const anthropicProvider: ProviderConfig = {
           anthropicTools,
           request.tools,
           logger,
-          "anthropic"
+          'anthropic'
         )
         const { tools: filteredTools, toolChoice: tc } = preparedTools
 
@@ -151,28 +151,28 @@ export const anthropicProvider: ProviderConfig = {
           anthropicTools = filteredTools
 
           // No longer need conversion since provider-specific formatting is in prepareToolsWithUsageControl
-          if (typeof tc === "object" && tc !== null) {
-            if (tc.type === "tool") {
+          if (typeof tc === 'object' && tc !== null) {
+            if (tc.type === 'tool') {
               toolChoice = tc
               logger.info(`Using Anthropic tool_choice format: force tool "${tc.name}"`)
             } else {
               // Default to auto if we got a non-Anthropic object format
-              toolChoice = "auto"
-              logger.warn("Received non-Anthropic tool_choice format, defaulting to auto")
+              toolChoice = 'auto'
+              logger.warn('Received non-Anthropic tool_choice format, defaulting to auto')
             }
-          } else if (tc === "auto" || tc === "none") {
+          } else if (tc === 'auto' || tc === 'none') {
             toolChoice = tc
             logger.info(`Using tool_choice mode: ${tc}`)
           } else {
             // Default to auto if we got something unexpected
-            toolChoice = "auto"
-            logger.warn("Unexpected tool_choice format, defaulting to auto")
+            toolChoice = 'auto'
+            logger.warn('Unexpected tool_choice format, defaulting to auto')
           }
         }
       } catch (error) {
-        logger.error("Error in prepareToolsWithUsageControl:", { error })
+        logger.error('Error in prepareToolsWithUsageControl:', { error })
         // Continue with default settings
-        toolChoice = "auto"
+        toolChoice = 'auto'
       }
     }
 
@@ -182,31 +182,31 @@ export const anthropicProvider: ProviderConfig = {
       const schema = request.responseFormat.schema || request.responseFormat
 
       // Build a system prompt for structured output based on the JSON schema
-      let schemaInstructions = ""
+      let schemaInstructions = ''
 
       if (schema?.properties) {
         // Create a template of the expected JSON structure
         const jsonTemplate = Object.entries(schema.properties).reduce(
           (acc: Record<string, any>, [key, prop]: [string, any]) => {
             let exampleValue
-            const propType = prop.type || "string"
+            const propType = prop.type || 'string'
 
             // Generate appropriate example values based on type
             switch (propType) {
-              case "string":
+              case 'string':
                 exampleValue = '"value"'
                 break
-              case "number":
-                exampleValue = "0"
+              case 'number':
+                exampleValue = '0'
                 break
-              case "boolean":
-                exampleValue = "true"
+              case 'boolean':
+                exampleValue = 'true'
                 break
-              case "array":
-                exampleValue = "[]"
+              case 'array':
+                exampleValue = '[]'
                 break
-              case "object":
-                exampleValue = "{}"
+              case 'object':
+                exampleValue = '{}'
                 break
               default:
                 exampleValue = '"value"'
@@ -221,11 +221,11 @@ export const anthropicProvider: ProviderConfig = {
         // Generate field descriptions
         const fieldDescriptions = Object.entries(schema.properties)
           .map(([key, prop]: [string, any]) => {
-            const type = prop.type || "string"
-            const description = prop.description ? `: ${prop.description}` : ""
+            const type = prop.type || 'string'
+            const description = prop.description ? `: ${prop.description}` : ''
             return `${key} (${type})${description}`
           })
-          .join("\n")
+          .join('\n')
 
         // Format the JSON template as a string
         const jsonTemplateStr = JSON.stringify(jsonTemplate, null, 2)
@@ -249,7 +249,7 @@ ${fieldDescriptions}
 
     // Build the request payload
     const payload: any = {
-      model: request.model || "claude-3-7-sonnet-20250219",
+      model: request.model || 'claude-3-7-sonnet-20250219',
       messages,
       system: systemPrompt,
       max_tokens: Number.parseInt(String(request.maxTokens)) || 1024,
@@ -260,7 +260,7 @@ ${fieldDescriptions}
     if (anthropicTools?.length) {
       payload.tools = anthropicTools
       // Only set tool_choice if it's not 'auto'
-      if (toolChoice !== "auto") {
+      if (toolChoice !== 'auto') {
         payload.tool_choice = toolChoice
       }
     }
@@ -268,7 +268,7 @@ ${fieldDescriptions}
     // EARLY STREAMING: if caller requested streaming and there are no tools to execute,
     // we can directly stream the completion.
     if (request.stream && (!anthropicTools || anthropicTools.length === 0)) {
-      logger.info("Using streaming response for Anthropic request (no tools)")
+      logger.info('Using streaming response for Anthropic request (no tools)')
 
       // Start execution timer for the entire provider execution
       const providerStartTime = Date.now()
@@ -294,7 +294,7 @@ ${fieldDescriptions}
           success: true,
           output: {
             response: {
-              content: "", // Will be filled by streaming content in chat component
+              content: '', // Will be filled by streaming content in chat component
               model: request.model,
               tokens: tokenUsage,
               toolCalls: undefined,
@@ -304,8 +304,8 @@ ${fieldDescriptions}
                 duration: Date.now() - providerStartTime,
                 timeSegments: [
                   {
-                    type: "model",
-                    name: "Streaming response",
+                    type: 'model',
+                    name: 'Streaming response',
                     startTime: providerStartTime,
                     endTime: Date.now(),
                     duration: Date.now() - providerStartTime,
@@ -352,14 +352,14 @@ ${fieldDescriptions}
       let currentResponse = await anthropic.messages.create(payload)
       const firstResponseTime = Date.now() - initialCallTime
 
-      let content = ""
+      let content = ''
 
       // Extract text content from the message
       if (Array.isArray(currentResponse.content)) {
         content = currentResponse.content
-          .filter((item) => item.type === "text")
+          .filter((item) => item.type === 'text')
           .map((item) => item.text)
-          .join("\n")
+          .join('\n')
       }
 
       const tokens = {
@@ -385,8 +385,8 @@ ${fieldDescriptions}
       // Track each model and tool call segment with timestamps
       const timeSegments: TimeSegment[] = [
         {
-          type: "model",
-          name: "Initial response",
+          type: 'model',
+          name: 'Initial response',
           startTime: initialCallTime,
           endTime: initialCallTime + firstResponseTime,
           duration: firstResponseTime,
@@ -396,11 +396,11 @@ ${fieldDescriptions}
       // Helper function to check for forced tool usage in Anthropic responses
       const checkForForcedToolUsage = (response: any, toolChoice: any) => {
         if (
-          typeof toolChoice === "object" &&
+          typeof toolChoice === 'object' &&
           toolChoice !== null &&
           Array.isArray(response.content)
         ) {
-          const toolUses = response.content.filter((item: any) => item.type === "tool_use")
+          const toolUses = response.content.filter((item: any) => item.type === 'tool_use')
 
           if (toolUses.length > 0) {
             // Convert Anthropic tool_use format to a format trackForcedToolUsage can understand
@@ -410,13 +410,13 @@ ${fieldDescriptions}
 
             // Convert Anthropic tool_choice format to match OpenAI format for tracking
             const adaptedToolChoice =
-              toolChoice.type === "tool" ? { function: { name: toolChoice.name } } : toolChoice
+              toolChoice.type === 'tool' ? { function: { name: toolChoice.name } } : toolChoice
 
             const result = trackForcedToolUsage(
               adaptedToolCalls,
               adaptedToolChoice,
               logger,
-              "anthropic",
+              'anthropic',
               forcedTools,
               usedForcedTools
             )
@@ -435,7 +435,7 @@ ${fieldDescriptions}
       try {
         while (iterationCount < MAX_ITERATIONS) {
           // Check for tool calls
-          const toolUses = currentResponse.content.filter((item) => item.type === "tool_use")
+          const toolUses = currentResponse.content.filter((item) => item.type === 'tool_use')
           if (!toolUses || toolUses.length === 0) {
             break
           }
@@ -468,7 +468,7 @@ ${fieldDescriptions}
 
               // Add to time segments
               timeSegments.push({
-                type: "tool",
+                type: 'tool',
                 name: toolName,
                 startTime: toolCallStartTime,
                 endTime: toolCallEndTime,
@@ -489,10 +489,10 @@ ${fieldDescriptions}
               const toolUseId = generateToolUseId(toolName)
 
               currentMessages.push({
-                role: "assistant",
+                role: 'assistant',
                 content: [
                   {
-                    type: "tool_use",
+                    type: 'tool_use',
                     id: toolUseId,
                     name: toolName,
                     input: toolArgs,
@@ -501,17 +501,17 @@ ${fieldDescriptions}
               })
 
               currentMessages.push({
-                role: "user",
+                role: 'user',
                 content: [
                   {
-                    type: "tool_result",
+                    type: 'tool_result',
                     tool_use_id: toolUseId,
                     content: JSON.stringify(result.output),
                   } as any,
                 ],
               })
             } catch (error) {
-              logger.error("Error processing tool call:", { error })
+              logger.error('Error processing tool call:', { error })
             }
           }
 
@@ -527,7 +527,7 @@ ${fieldDescriptions}
 
           // Update tool_choice based on which forced tools have been used
           if (
-            typeof originalToolChoice === "object" &&
+            typeof originalToolChoice === 'object' &&
             hasUsedForcedTool &&
             forcedTools.length > 0
           ) {
@@ -537,20 +537,20 @@ ${fieldDescriptions}
             if (remainingTools.length > 0) {
               // Force the next tool - use Anthropic format
               nextPayload.tool_choice = {
-                type: "tool",
+                type: 'tool',
                 name: remainingTools[0],
               }
               logger.info(`Forcing next tool: ${remainingTools[0]}`)
             } else {
               // All forced tools have been used, switch to auto by removing tool_choice
               nextPayload.tool_choice = undefined
-              logger.info("All forced tools have been used, removing tool_choice parameter")
+              logger.info('All forced tools have been used, removing tool_choice parameter')
             }
-          } else if (hasUsedForcedTool && typeof originalToolChoice === "object") {
+          } else if (hasUsedForcedTool && typeof originalToolChoice === 'object') {
             // Handle the case of a single forced tool that was used
             nextPayload.tool_choice = undefined
             logger.info(
-              "Removing tool_choice parameter for subsequent requests after forced tool was used"
+              'Removing tool_choice parameter for subsequent requests after forced tool was used'
             )
           }
 
@@ -568,7 +568,7 @@ ${fieldDescriptions}
 
           // Add to time segments
           timeSegments.push({
-            type: "model",
+            type: 'model',
             name: `Model response (iteration ${iterationCount + 1})`,
             startTime: nextModelStartTime,
             endTime: nextModelEndTime,
@@ -580,9 +580,9 @@ ${fieldDescriptions}
 
           // Update content if we have a text response
           const textContent = currentResponse.content
-            .filter((item) => item.type === "text")
+            .filter((item) => item.type === 'text')
             .map((item) => item.text)
-            .join("\n")
+            .join('\n')
 
           if (textContent) {
             content = textContent
@@ -599,19 +599,19 @@ ${fieldDescriptions}
           iterationCount++
         }
       } catch (error) {
-        logger.error("Error in Anthropic request:", { error })
+        logger.error('Error in Anthropic request:', { error })
         throw error
       }
 
       // If the content looks like it contains JSON, extract just the JSON part
-      if (content.includes("{") && content.includes("}")) {
+      if (content.includes('{') && content.includes('}')) {
         try {
           const jsonMatch = content.match(/\{[\s\S]*\}/m)
           if (jsonMatch) {
             content = jsonMatch[0]
           }
         } catch (e) {
-          logger.error("Error extracting JSON from response:", { error: e })
+          logger.error('Error extracting JSON from response:', { error: e })
         }
       }
 
@@ -622,7 +622,7 @@ ${fieldDescriptions}
 
       // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
       if (request.stream && iterationCount > 0) {
-        logger.info("Using streaming for final Anthropic response after tool calls")
+        logger.info('Using streaming for final Anthropic response after tool calls')
 
         // When streaming after tool calls with forced tools, make sure tool_choice is removed
         // This prevents the API from trying to force tool usage again in the final streaming response
@@ -645,8 +645,8 @@ ${fieldDescriptions}
             success: true,
             output: {
               response: {
-                content: "", // Will be filled by the callback
-                model: request.model || "claude-3-7-sonnet-20250219",
+                content: '', // Will be filled by the callback
+                model: request.model || 'claude-3-7-sonnet-20250219',
                 tokens: {
                   prompt: tokens.prompt,
                   completion: tokens.completion,
@@ -691,7 +691,7 @@ ${fieldDescriptions}
 
       return {
         content,
-        model: request.model || "claude-3-7-sonnet-20250219",
+        model: request.model || 'claude-3-7-sonnet-20250219',
         tokens,
         toolCalls:
           toolCalls.length > 0
@@ -722,7 +722,7 @@ ${fieldDescriptions}
       const providerEndTimeISO = new Date(providerEndTime).toISOString()
       const totalDuration = providerEndTime - providerStartTime
 
-      logger.error("Error in Anthropic request:", {
+      logger.error('Error in Anthropic request:', {
         error,
         duration: totalDuration,
       })

@@ -1,37 +1,37 @@
-import type { ToolConfig } from "../types"
-import type { JiraRetrieveBulkParams, JiraRetrieveResponseBulk } from "./types"
+import type { ToolConfig } from '../types'
+import type { JiraRetrieveBulkParams, JiraRetrieveResponseBulk } from './types'
 
 export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrieveResponseBulk> = {
-  id: "jira_bulk_read",
-  name: "Jira Bulk Read",
-  description: "Retrieve multiple Jira issues in bulk",
-  version: "1.0.0",
+  id: 'jira_bulk_read',
+  name: 'Jira Bulk Read',
+  description: 'Retrieve multiple Jira issues in bulk',
+  version: '1.0.0',
   oauth: {
     required: true,
-    provider: "jira",
-    additionalScopes: ["read:jira-work", "read:jira-user", "read:me", "offline_access"],
+    provider: 'jira',
+    additionalScopes: ['read:jira-work', 'read:jira-user', 'read:me', 'offline_access'],
   },
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "OAuth access token for Jira",
+      description: 'OAuth access token for Jira',
     },
     domain: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "Your Jira domain (e.g., yourcompany.atlassian.net)",
+      description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     projectId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Jira project ID",
+      description: 'Jira project ID',
     },
     cloudId: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Jira cloud ID",
+      description: 'Jira cloud ID',
     },
   },
   request: {
@@ -40,18 +40,18 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
         return `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/picker?currentJQL=project=${params.projectId}`
       }
       // If no cloudId, use the accessible resources endpoint
-      return "https://api.atlassian.com/oauth/token/accessible-resources"
+      return 'https://api.atlassian.com/oauth/token/accessible-resources'
     },
-    method: "GET",
+    method: 'GET',
     headers: (params: JiraRetrieveBulkParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      Accept: "application/json",
+      Accept: 'application/json',
     }),
     body: (params: JiraRetrieveBulkParams) => ({}),
   },
   transformResponse: async (response: Response, params?: JiraRetrieveBulkParams) => {
     if (!params) {
-      throw new Error("Parameters are required for Jira bulk issue retrieval")
+      throw new Error('Parameters are required for Jira bulk issue retrieval')
     }
 
     try {
@@ -67,7 +67,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
 
         const accessibleResources = await response.json()
         if (!Array.isArray(accessibleResources) || accessibleResources.length === 0) {
-          throw new Error("No accessible Jira resources found for this account")
+          throw new Error('No accessible Jira resources found for this account')
         }
 
         const normalizedInput = `https://${params.domain}`.toLowerCase()
@@ -82,10 +82,10 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
         // First get issue keys from picker
         const pickerUrl = `https://api.atlassian.com/ex/jira/${matchedResource.id}/rest/api/3/issue/picker?currentJQL=project=${params.projectId}`
         const pickerResponse = await fetch(pickerUrl, {
-          method: "GET",
+          method: 'GET',
           headers: {
             Authorization: `Bearer ${params.accessToken}`,
-            Accept: "application/json",
+            Accept: 'application/json',
           },
         })
 
@@ -112,15 +112,15 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
         // Now use bulkfetch to get the full issue details
         const bulkfetchUrl = `https://api.atlassian.com/ex/jira/${matchedResource.id}/rest/api/3/issue/bulkfetch`
         const bulkfetchResponse = await fetch(bulkfetchUrl, {
-          method: "POST",
+          method: 'POST',
           headers: {
             Authorization: `Bearer ${params.accessToken}`,
-            Accept: "application/json",
-            "Content-Type": "application/json",
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            expand: ["names"],
-            fields: ["summary", "description", "created", "updated"],
+            expand: ['names'],
+            fields: ['summary', 'description', 'created', 'updated'],
             fieldsByKeys: false,
             issueIdsOrKeys: issueKeys,
             properties: [],
@@ -141,7 +141,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
           output: data.issues.map((issue: any) => ({
             ts: new Date().toISOString(),
             summary: issue.fields.summary,
-            description: issue.fields.description?.content?.[0]?.content?.[0]?.text || "",
+            description: issue.fields.description?.content?.[0]?.content?.[0]?.text || '',
             created: issue.fields.created,
             updated: issue.fields.updated,
           })),
@@ -172,15 +172,15 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       // Use bulkfetch to get the full issue details
       const bulkfetchUrl = `https://api.atlassian.com/ex/jira/${params.cloudId}/rest/api/3/issue/bulkfetch`
       const bulkfetchResponse = await fetch(bulkfetchUrl, {
-        method: "POST",
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${params.accessToken}`,
-          Accept: "application/json",
-          "Content-Type": "application/json",
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          expand: ["names"],
-          fields: ["summary", "description", "created", "updated"],
+          expand: ['names'],
+          fields: ['summary', 'description', 'created', 'updated'],
           fieldsByKeys: false,
           issueIdsOrKeys: issueKeys,
           properties: [],
@@ -201,7 +201,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
         output: data.issues.map((issue: any) => ({
           ts: new Date().toISOString(),
           summary: issue.fields.summary,
-          description: issue.fields.description?.content?.[0]?.content?.[0]?.text || "",
+          description: issue.fields.description?.content?.[0]?.content?.[0]?.text || '',
           created: issue.fields.created,
           updated: issue.fields.updated,
         })),
@@ -211,6 +211,6 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
     }
   },
   transformError: (error: any) => {
-    return error.message || "Failed to retrieve Jira issues"
+    return error.message || 'Failed to retrieve Jira issues'
   },
 }

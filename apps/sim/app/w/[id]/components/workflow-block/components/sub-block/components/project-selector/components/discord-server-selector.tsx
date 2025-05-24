@@ -1,7 +1,7 @@
-"use client"
+'use client'
 
-import { DiscordIcon } from "@/components/icons"
-import { Button } from "@/components/ui/button"
+import { DiscordIcon } from '@/components/icons'
+import { Button } from '@/components/ui/button'
 import {
   Command,
   CommandEmpty,
@@ -9,13 +9,13 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { createLogger } from "@/lib/logs/console-logger"
-import { Check, ChevronDown, ExternalLink, RefreshCw, X } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { createLogger } from '@/lib/logs/console-logger'
+import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 
-const logger = createLogger("DiscordServerSelector")
+const logger = createLogger('DiscordServerSelector')
 
 export interface DiscordServerInfo {
   id: string
@@ -36,7 +36,7 @@ export function DiscordServerSelector({
   value,
   onChange,
   botToken,
-  label = "Select Discord server",
+  label = 'Select Discord server',
   disabled = false,
   showPreview = true,
 }: DiscordServerSelectorProps) {
@@ -51,7 +51,7 @@ export function DiscordServerSelector({
   // Fetch servers from Discord API
   const fetchServers = useCallback(async () => {
     if (!botToken) {
-      setError("Bot token is required")
+      setError('Bot token is required')
       return
     }
 
@@ -59,17 +59,17 @@ export function DiscordServerSelector({
     setError(null)
 
     try {
-      const response = await fetch("/api/auth/oauth/discord/servers", {
-        method: "POST",
+      const response = await fetch('/api/auth/oauth/discord/servers', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({ botToken }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to fetch Discord servers")
+        throw new Error(errorData.error || 'Failed to fetch Discord servers')
       }
 
       const data = await response.json()
@@ -85,7 +85,7 @@ export function DiscordServerSelector({
         }
       }
     } catch (error) {
-      logger.error("Error fetching servers:", error)
+      logger.error('Error fetching servers:', error)
       setError((error as Error).message)
       setServers([])
     } finally {
@@ -114,10 +114,10 @@ export function DiscordServerSelector({
 
     try {
       // Only fetch the specific server by ID instead of all servers
-      const response = await fetch("/api/auth/oauth/discord/servers", {
-        method: "POST",
+      const response = await fetch('/api/auth/oauth/discord/servers', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           botToken,
@@ -127,7 +127,7 @@ export function DiscordServerSelector({
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to fetch Discord server")
+        throw new Error(errorData.error || 'Failed to fetch Discord server')
       }
 
       const data = await response.json()
@@ -142,7 +142,7 @@ export function DiscordServerSelector({
         }
       }
     } catch (error) {
-      logger.error("Error fetching server info:", error)
+      logger.error('Error fetching server info:', error)
       setError((error as Error).message)
     } finally {
       setIsLoading(false)
@@ -186,76 +186,76 @@ export function DiscordServerSelector({
 
   // Clear selection
   const handleClearSelection = () => {
-    setSelectedServerId("")
+    setSelectedServerId('')
     setSelectedServer(null)
-    onChange("", undefined)
+    onChange('', undefined)
     setError(null)
   }
 
   return (
-    <div className="space-y-2">
+    <div className='space-y-2'>
       <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           <Button
-            variant="outline"
-            role="combobox"
+            variant='outline'
+            role='combobox'
             aria-expanded={open}
-            className="w-full justify-between"
+            className='w-full justify-between'
             disabled={disabled || !botToken}
           >
             {selectedServer ? (
-              <div className="flex items-center gap-2 overflow-hidden">
+              <div className='flex items-center gap-2 overflow-hidden'>
                 {selectedServer.icon ? (
                   <img
                     src={selectedServer.icon}
                     alt={selectedServer.name}
-                    className="h-4 w-4 rounded-full"
+                    className='h-4 w-4 rounded-full'
                   />
                 ) : (
-                  <DiscordIcon className="h-4 w-4" />
+                  <DiscordIcon className='h-4 w-4' />
                 )}
-                <span className="truncate font-normal">{selectedServer.name}</span>
+                <span className='truncate font-normal'>{selectedServer.name}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <DiscordIcon className="h-4 w-4" />
-                <span className="text-muted-foreground">{label}</span>
+              <div className='flex items-center gap-2'>
+                <DiscordIcon className='h-4 w-4' />
+                <span className='text-muted-foreground'>{label}</span>
               </div>
             )}
-            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            <ChevronDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[300px] p-0" align="start">
+        <PopoverContent className='w-[300px] p-0' align='start'>
           <Command>
-            <CommandInput placeholder="Search servers..." />
+            <CommandInput placeholder='Search servers...' />
             <CommandList>
               <CommandEmpty>
                 {isLoading ? (
-                  <div className="flex items-center justify-center p-4">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span className="ml-2">Loading servers...</span>
+                  <div className='flex items-center justify-center p-4'>
+                    <RefreshCw className='h-4 w-4 animate-spin' />
+                    <span className='ml-2'>Loading servers...</span>
                   </div>
                 ) : error ? (
-                  <div className="p-4 text-center">
-                    <p className="text-destructive text-sm">{error}</p>
+                  <div className='p-4 text-center'>
+                    <p className='text-destructive text-sm'>{error}</p>
                   </div>
                 ) : servers.length === 0 ? (
-                  <div className="p-4 text-center">
-                    <p className="font-medium text-sm">No servers found</p>
-                    <p className="text-muted-foreground text-xs">
+                  <div className='p-4 text-center'>
+                    <p className='font-medium text-sm'>No servers found</p>
+                    <p className='text-muted-foreground text-xs'>
                       Make sure your bot is added to at least one server
                     </p>
                   </div>
                 ) : (
-                  <div className="p-4 text-center">
-                    <p className="font-medium text-sm">No matching servers</p>
+                  <div className='p-4 text-center'>
+                    <p className='font-medium text-sm'>No matching servers</p>
                   </div>
                 )}
               </CommandEmpty>
 
               {servers.length > 0 && (
                 <CommandGroup>
-                  <div className="px-2 py-1.5 font-medium text-muted-foreground text-xs">
+                  <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
                     Servers
                   </div>
                   {servers.map((server) => (
@@ -263,21 +263,21 @@ export function DiscordServerSelector({
                       key={server.id}
                       value={`server-${server.id}-${server.name}`}
                       onSelect={() => handleSelectServer(server)}
-                      className="cursor-pointer"
+                      className='cursor-pointer'
                     >
-                      <div className="flex items-center gap-2 overflow-hidden">
+                      <div className='flex items-center gap-2 overflow-hidden'>
                         {server.icon ? (
                           <img
                             src={server.icon}
                             alt={server.name}
-                            className="h-4 w-4 rounded-full"
+                            className='h-4 w-4 rounded-full'
                           />
                         ) : (
-                          <DiscordIcon className="h-4 w-4" />
+                          <DiscordIcon className='h-4 w-4' />
                         )}
-                        <span className="truncate font-normal">{server.name}</span>
+                        <span className='truncate font-normal'>{server.name}</span>
                       </div>
-                      {server.id === selectedServerId && <Check className="ml-auto h-4 w-4" />}
+                      {server.id === selectedServerId && <Check className='ml-auto h-4 w-4' />}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -289,32 +289,32 @@ export function DiscordServerSelector({
 
       {/* Server preview */}
       {showPreview && selectedServer && (
-        <div className="relative mt-2 rounded-md border border-muted bg-muted/10 p-2">
-          <div className="absolute top-2 right-2">
+        <div className='relative mt-2 rounded-md border border-muted bg-muted/10 p-2'>
+          <div className='absolute top-2 right-2'>
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 hover:bg-muted"
+              variant='ghost'
+              size='icon'
+              className='h-5 w-5 hover:bg-muted'
               onClick={handleClearSelection}
             >
-              <X className="h-3 w-3" />
+              <X className='h-3 w-3' />
             </Button>
           </div>
-          <div className="flex items-center gap-3 pr-4">
-            <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-muted/20">
+          <div className='flex items-center gap-3 pr-4'>
+            <div className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-muted/20'>
               {selectedServer.icon ? (
                 <img
                   src={selectedServer.icon}
                   alt={selectedServer.name}
-                  className="h-4 w-4 rounded-full"
+                  className='h-4 w-4 rounded-full'
                 />
               ) : (
-                <DiscordIcon className="h-4 w-4" />
+                <DiscordIcon className='h-4 w-4' />
               )}
             </div>
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <h4 className="truncate font-medium text-xs">{selectedServer.name}</h4>
-              <div className="text-muted-foreground text-xs">Server ID: {selectedServer.id}</div>
+            <div className='min-w-0 flex-1 overflow-hidden'>
+              <h4 className='truncate font-medium text-xs'>{selectedServer.name}</h4>
+              <div className='text-muted-foreground text-xs'>Server ID: {selectedServer.id}</div>
             </div>
           </div>
         </div>

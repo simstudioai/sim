@@ -1,65 +1,65 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import type { ToolConfig } from "../types"
-import type { PromptManagerParams, PromptManagerResponse } from "./types"
+import { createLogger } from '@/lib/logs/console-logger'
+import type { ToolConfig } from '../types'
+import type { PromptManagerParams, PromptManagerResponse } from './types'
 
-const logger = createLogger("AutoblocksPromptManagerTool")
+const logger = createLogger('AutoblocksPromptManagerTool')
 
 export const promptManagerTool: ToolConfig<PromptManagerParams, PromptManagerResponse> = {
-  id: "autoblocks_prompt_manager",
-  name: "Autoblocks Prompt Manager",
-  description: "Manage and render prompts using Autoblocks prompt management system",
-  version: "1.0.0",
+  id: 'autoblocks_prompt_manager',
+  name: 'Autoblocks Prompt Manager',
+  description: 'Manage and render prompts using Autoblocks prompt management system',
+  version: '1.0.0',
 
   params: {
     promptId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The ID of the prompt to retrieve",
+      description: 'The ID of the prompt to retrieve',
     },
     version: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Version strategy (latest or specific)",
+      description: 'Version strategy (latest or specific)',
     },
     specificVersion: {
-      type: "string",
+      type: 'string',
       required: false,
       description: 'Specific version to use (e.g., "1.2" or "1.latest")',
     },
     templateParams: {
-      type: "object",
+      type: 'object',
       required: false,
-      description: "Parameters to render the template with",
+      description: 'Parameters to render the template with',
     },
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Autoblocks API key",
+      description: 'Autoblocks API key',
     },
     enableABTesting: {
-      type: "boolean",
+      type: 'boolean',
       required: false,
-      description: "Whether to enable A/B testing between versions",
+      description: 'Whether to enable A/B testing between versions',
     },
     abTestConfig: {
-      type: "object",
+      type: 'object',
       required: false,
-      description: "Configuration for A/B testing between versions",
+      description: 'Configuration for A/B testing between versions',
     },
     environment: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Environment to use (production, staging, development)",
+      description: 'Environment to use (production, staging, development)',
     },
   },
 
   request: {
-    url: "https://api.autoblocks.ai/v1/prompts",
-    method: "POST",
+    url: 'https://api.autoblocks.ai/v1/prompts',
+    method: 'POST',
     headers: (params) => ({
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
-      "X-Environment": params.environment,
+      'X-Environment': params.environment,
     }),
     body: (params) => {
       const requestBody: Record<string, any> = {
@@ -68,10 +68,10 @@ export const promptManagerTool: ToolConfig<PromptManagerParams, PromptManagerRes
       }
 
       // Handle version selection
-      if (params.version === "specific" && params.specificVersion) {
+      if (params.version === 'specific' && params.specificVersion) {
         requestBody.version = params.specificVersion
       } else {
-        requestBody.version = "latest"
+        requestBody.version = 'latest'
       }
 
       // Handle A/B testing
@@ -101,13 +101,13 @@ export const promptManagerTool: ToolConfig<PromptManagerParams, PromptManagerRes
         },
       }
     } catch (error) {
-      logger.error("Error transforming Autoblocks response", error)
+      logger.error('Error transforming Autoblocks response', error)
       throw error
     }
   },
 
   transformError: (error) => {
-    logger.error("Autoblocks prompt manager error", error)
+    logger.error('Autoblocks prompt manager error', error)
     return `Error processing Autoblocks prompt: ${error.message || String(error)}`
   },
 }

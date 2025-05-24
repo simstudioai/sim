@@ -11,6 +11,7 @@
       "**/node_modules",
       "**/.bun",
       "**/.cache",
+      "**/.turbo",
       "**/.DS_Store",
       "**/*.pem",
       "**/bun-debug.log*",
@@ -21,7 +22,8 @@
       "**/public/sw.js",
       "**/public/workbox-*.js",
       "**/public/worker-*.js",
-      "**/public/fallback-*.js"
+      "**/public/fallback-*.js",
+      "**/apps/docs/.source/**"
     ]
   },
   "formatter": {
@@ -42,6 +44,7 @@
       "**/node_modules",
       "**/.bun",
       "**/.cache",
+      "**/.turbo",
       "**/.DS_Store",
       "**/*.pem",
       "**/bun-debug.log*",
@@ -52,7 +55,8 @@
       "**/public/sw.js",
       "**/public/workbox-*.js",
       "**/public/worker-*.js",
-      "**/public/fallback-*.js"
+      "**/public/fallback-*.js",
+      "**/apps/docs/.source/**"
     ]
   },
   "organizeImports": { "enabled": true },
@@ -88,7 +92,8 @@
       },
       "style": {
         "noNonNullAssertion": "off",
-        "noParameterAssign": "off"
+        "noParameterAssign": "off",
+        "useNodejsImportProtocol": "off"
       },
       "complexity": {
         "noForEach": "off"
@@ -100,13 +105,13 @@
   },
   "javascript": {
     "formatter": {
-      "jsxQuoteStyle": "double",
+      "jsxQuoteStyle": "single",
       "quoteProperties": "asNeeded",
       "trailingCommas": "es5",
       "semicolons": "asNeeded",
       "arrowParentheses": "always",
       "bracketSameLine": false,
-      "quoteStyle": "double",
+      "quoteStyle": "single",
       "attributePosition": "auto",
       "bracketSpacing": true
     }

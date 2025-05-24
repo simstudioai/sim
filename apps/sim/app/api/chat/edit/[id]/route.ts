@@ -1,28 +1,28 @@
-import { createErrorResponse, createSuccessResponse } from "@/app/api/workflows/utils"
-import { db } from "@/db"
-import { chat } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { env } from "@/lib/env"
-import { createLogger } from "@/lib/logs/console-logger"
-import { getBaseDomain } from "@/lib/urls/utils"
-import { encryptSecret } from "@/lib/utils"
-import { and, eq } from "drizzle-orm"
-import type { NextRequest } from "next/server"
-import { z } from "zod"
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { db } from '@/db'
+import { chat } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
+import { getBaseDomain } from '@/lib/urls/utils'
+import { encryptSecret } from '@/lib/utils'
+import { and, eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
+import { z } from 'zod'
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = createLogger("ChatDetailAPI")
+const logger = createLogger('ChatDetailAPI')
 
 // Schema for updating an existing chat
 const chatUpdateSchema = z.object({
-  workflowId: z.string().min(1, "Workflow ID is required").optional(),
+  workflowId: z.string().min(1, 'Workflow ID is required').optional(),
   subdomain: z
     .string()
-    .min(1, "Subdomain is required")
-    .regex(/^[a-z0-9-]+$/, "Subdomain can only contain lowercase letters, numbers, and hyphens")
+    .min(1, 'Subdomain is required')
+    .regex(/^[a-z0-9-]+$/, 'Subdomain can only contain lowercase letters, numbers, and hyphens')
     .optional(),
-  title: z.string().min(1, "Title is required").optional(),
+  title: z.string().min(1, 'Title is required').optional(),
   description: z.string().optional(),
   customizations: z
     .object({
@@ -30,7 +30,7 @@ const chatUpdateSchema = z.object({
       welcomeMessage: z.string(),
     })
     .optional(),
-  authType: z.enum(["public", "password", "email"]).optional(),
+  authType: z.enum(['public', 'password', 'email']).optional(),
   password: z.string().optional(),
   allowedEmails: z.array(z.string()).optional(),
   outputConfigs: z
@@ -54,7 +54,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     const session = await getSession()
 
     if (!session) {
-      return createErrorResponse("Unauthorized", 401)
+      return createErrorResponse('Unauthorized', 401)
     }
 
     // Get the specific chat deployment
@@ -65,13 +65,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       .limit(1)
 
     if (chatInstance.length === 0) {
-      return createErrorResponse("Chat not found or access denied", 404)
+      return createErrorResponse('Chat not found or access denied', 404)
     }
 
     // Create a new result object without the password
     const { password, ...safeData } = chatInstance[0]
 
-    const isDevelopment = env.NODE_ENV === "development"
+    const isDevelopment = env.NODE_ENV === 'development'
 
     const chatUrl = isDevelopment
       ? `http://${chatInstance[0].subdomain}.${getBaseDomain()}`
@@ -85,8 +85,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     return createSuccessResponse(result)
   } catch (error: any) {
-    logger.error("Error fetching chat deployment:", error)
-    return createErrorResponse(error.message || "Failed to fetch chat deployment", 500)
+    logger.error('Error fetching chat deployment:', error)
+    return createErrorResponse(error.message || 'Failed to fetch chat deployment', 500)
   }
 }
 
@@ -101,7 +101,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const session = await getSession()
 
     if (!session) {
-      return createErrorResponse("Unauthorized", 401)
+      return createErrorResponse('Unauthorized', 401)
     }
 
     const body = await request.json()
@@ -117,7 +117,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         .limit(1)
 
       if (existingChat.length === 0) {
-        return createErrorResponse("Chat not found or access denied", 404)
+        return createErrorResponse('Chat not found or access denied', 404)
       }
 
       // Extract validated data
@@ -142,7 +142,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           .limit(1)
 
         if (existingSubdomain.length > 0 && existingSubdomain[0].id !== chatId) {
-          return createErrorResponse("Subdomain already in use", 400)
+          return createErrorResponse('Subdomain already in use', 400)
         }
       }
 
@@ -153,15 +153,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (password) {
         const { encrypted } = await encryptSecret(password)
         encryptedPassword = encrypted
-        logger.info("Password provided, will be updated")
-      } else if (authType === "password" && !password) {
+        logger.info('Password provided, will be updated')
+      } else if (authType === 'password' && !password) {
         // If switching to password auth but no password provided,
         // check if there's an existing password
-        if (existingChat[0].authType !== "password" || !existingChat[0].password) {
+        if (existingChat[0].authType !== 'password' || !existingChat[0].password) {
           // If there's no existing password to reuse, return an error
-          return createErrorResponse("Password is required when using password protection", 400)
+          return createErrorResponse('Password is required when using password protection', 400)
         }
-        logger.info("Keeping existing password")
+        logger.info('Keeping existing password')
       }
 
       // Prepare update data
@@ -181,13 +181,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         updateData.authType = authType
 
         // Reset auth-specific fields when changing auth types
-        if (authType === "public") {
+        if (authType === 'public') {
           updateData.password = null
           updateData.allowedEmails = []
-        } else if (authType === "password") {
+        } else if (authType === 'password') {
           updateData.allowedEmails = []
           // Password handled separately
-        } else if (authType === "email") {
+        } else if (authType === 'email') {
           updateData.password = null
           // Emails handled separately
         }
@@ -208,7 +208,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         updateData.outputConfigs = outputConfigs
       }
 
-      logger.info("Updating chat deployment with values:", {
+      logger.info('Updating chat deployment with values:', {
         chatId,
         authType: updateData.authType,
         hasPassword: updateData.password !== undefined,
@@ -221,7 +221,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
       const updatedSubdomain = subdomain || existingChat[0].subdomain
 
-      const isDevelopment = env.NODE_ENV === "development"
+      const isDevelopment = env.NODE_ENV === 'development'
 
       const chatUrl = isDevelopment
         ? `http://${updatedSubdomain}.${getBaseDomain()}`
@@ -232,18 +232,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return createSuccessResponse({
         id: chatId,
         chatUrl,
-        message: "Chat deployment updated successfully",
+        message: 'Chat deployment updated successfully',
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
-        const errorMessage = validationError.errors[0]?.message || "Invalid request data"
-        return createErrorResponse(errorMessage, 400, "VALIDATION_ERROR")
+        const errorMessage = validationError.errors[0]?.message || 'Invalid request data'
+        return createErrorResponse(errorMessage, 400, 'VALIDATION_ERROR')
       }
       throw validationError
     }
   } catch (error: any) {
-    logger.error("Error updating chat deployment:", error)
-    return createErrorResponse(error.message || "Failed to update chat deployment", 500)
+    logger.error('Error updating chat deployment:', error)
+    return createErrorResponse(error.message || 'Failed to update chat deployment', 500)
   }
 }
 
@@ -261,7 +261,7 @@ export async function DELETE(
     const session = await getSession()
 
     if (!session) {
-      return createErrorResponse("Unauthorized", 401)
+      return createErrorResponse('Unauthorized', 401)
     }
 
     // Verify the chat exists and belongs to the user
@@ -272,7 +272,7 @@ export async function DELETE(
       .limit(1)
 
     if (existingChat.length === 0) {
-      return createErrorResponse("Chat not found or access denied", 404)
+      return createErrorResponse('Chat not found or access denied', 404)
     }
 
     // Delete the chat deployment
@@ -281,10 +281,10 @@ export async function DELETE(
     logger.info(`Chat "${chatId}" deleted successfully`)
 
     return createSuccessResponse({
-      message: "Chat deployment deleted successfully",
+      message: 'Chat deployment deleted successfully',
     })
   } catch (error: any) {
-    logger.error("Error deleting chat deployment:", error)
-    return createErrorResponse(error.message || "Failed to delete chat deployment", 500)
+    logger.error('Error deleting chat deployment:', error)
+    return createErrorResponse(error.message || 'Failed to delete chat deployment', 500)
   }
 }

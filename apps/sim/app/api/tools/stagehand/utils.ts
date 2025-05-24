@@ -1,21 +1,21 @@
-import type { Logger } from "@/lib/logs/console-logger"
-import { z } from "zod"
+import type { Logger } from '@/lib/logs/console-logger'
+import { z } from 'zod'
 
 // Convert JSON schema to Zod schema (reused from extract route)
 function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.ZodTypeAny {
   if (!jsonSchema) {
-    logger.error("Invalid schema: Schema is null or undefined")
-    throw new Error("Invalid schema: Schema is required")
+    logger.error('Invalid schema: Schema is null or undefined')
+    throw new Error('Invalid schema: Schema is required')
   }
 
   // Handle non-object schemas (strings, numbers, etc.)
-  if (typeof jsonSchema !== "object" || jsonSchema === null) {
-    logger.warn("Schema is not an object, defaulting to any", { type: typeof jsonSchema })
+  if (typeof jsonSchema !== 'object' || jsonSchema === null) {
+    logger.warn('Schema is not an object, defaulting to any', { type: typeof jsonSchema })
     return z.any()
   }
 
   // Handle different schema types
-  if (jsonSchema.type === "object" && jsonSchema.properties) {
+  if (jsonSchema.type === 'object' && jsonSchema.properties) {
     const shape: Record<string, z.ZodTypeAny> = {}
 
     // Create a zod object for each property
@@ -46,7 +46,7 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
 
     return zodObject
   }
-  if (jsonSchema.type === "array" && jsonSchema.items) {
+  if (jsonSchema.type === 'array' && jsonSchema.items) {
     const itemSchema = jsonSchemaToZod(logger, jsonSchema.items as Record<string, any>)
     let arraySchema = z.array(itemSchema)
 
@@ -57,7 +57,7 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
 
     return arraySchema
   }
-  if (jsonSchema.type === "string") {
+  if (jsonSchema.type === 'string') {
     let stringSchema = z.string()
 
     // Add description if available
@@ -67,7 +67,7 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
 
     return stringSchema
   }
-  if (jsonSchema.type === "number") {
+  if (jsonSchema.type === 'number') {
     let numberSchema = z.number()
 
     // Add description if available
@@ -77,7 +77,7 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
 
     return numberSchema
   }
-  if (jsonSchema.type === "boolean") {
+  if (jsonSchema.type === 'boolean') {
     let boolSchema = z.boolean()
 
     // Add description if available
@@ -87,10 +87,10 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
 
     return boolSchema
   }
-  if (jsonSchema.type === "null") {
+  if (jsonSchema.type === 'null') {
     return z.null()
   }
-  if (jsonSchema.type === "integer") {
+  if (jsonSchema.type === 'integer') {
     let intSchema = z.number().int()
 
     // Add description if available
@@ -101,7 +101,7 @@ function jsonSchemaToZod(logger: Logger, jsonSchema: Record<string, any>): z.Zod
     return intSchema
   }
   // For unknown types, return any
-  logger.warn("Unknown schema type, defaulting to any", { type: jsonSchema.type })
+  logger.warn('Unknown schema type, defaulting to any', { type: jsonSchema.type })
   return z.any()
 }
 
@@ -110,8 +110,8 @@ export function ensureZodObject(logger: Logger, schema: Record<string, any>): z.
   const zodSchema = jsonSchemaToZod(logger, schema)
 
   // If not already an object type, wrap it in an object
-  if (schema.type !== "object") {
-    logger.warn("Schema is not an object type, wrapping in an object", {
+  if (schema.type !== 'object') {
+    logger.warn('Schema is not an object type, wrapping in an object', {
       type: schema.type,
     })
     return z.object({ value: zodSchema })
@@ -126,7 +126,7 @@ export function normalizeUrl(url: string): string {
   let normalizedUrl = url
 
   // Add https:// if no protocol is specified
-  if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
+  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
     normalizedUrl = `https://${normalizedUrl}`
   }
 

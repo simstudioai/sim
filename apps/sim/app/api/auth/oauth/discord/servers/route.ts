@@ -1,5 +1,5 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { NextResponse } from "next/server"
+import { createLogger } from '@/lib/logs/console-logger'
+import { NextResponse } from 'next/server'
 
 interface DiscordServer {
   id: string
@@ -7,17 +7,17 @@ interface DiscordServer {
   icon: string | null
 }
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
-const logger = createLogger("DiscordServersAPI")
+const logger = createLogger('DiscordServersAPI')
 
 export async function POST(request: Request) {
   try {
     const { botToken, serverId } = await request.json()
 
     if (!botToken) {
-      logger.error("Missing bot token in request")
-      return NextResponse.json({ error: "Bot token is required" }, { status: 400 })
+      logger.error('Missing bot token in request')
+      return NextResponse.json({ error: 'Bot token is required' }, { status: 400 })
     }
 
     // If serverId is provided, we'll fetch just that server
@@ -26,15 +26,15 @@ export async function POST(request: Request) {
 
       // Fetch a specific server by ID
       const response = await fetch(`https://discord.com/api/v10/guilds/${serverId}`, {
-        method: "GET",
+        method: 'GET',
         headers: {
           Authorization: `Bot ${botToken}`,
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
       })
 
       if (!response.ok) {
-        logger.error("Discord API error fetching server:", {
+        logger.error('Discord API error fetching server:', {
           status: response.status,
           statusText: response.statusText,
         })
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
         let errorMessage
         try {
           const errorData = await response.json()
-          logger.error("Error details:", errorData)
+          logger.error('Error details:', errorData)
           errorMessage = errorData.message || `Failed to fetch server (${response.status})`
         } catch (e) {
           errorMessage = `Failed to fetch server: ${response.status} ${response.statusText}`
@@ -65,18 +65,18 @@ export async function POST(request: Request) {
     }
 
     // Otherwise, fetch all servers the bot is in
-    logger.info("Fetching all Discord servers")
+    logger.info('Fetching all Discord servers')
 
-    const response = await fetch("https://discord.com/api/v10/users/@me/guilds", {
-      method: "GET",
+    const response = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+      method: 'GET',
       headers: {
         Authorization: `Bot ${botToken}`,
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
     })
 
     if (!response.ok) {
-      logger.error("Discord API error:", {
+      logger.error('Discord API error:', {
         status: response.status,
         statusText: response.statusText,
       })
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
       let errorMessage
       try {
         const errorData = await response.json()
-        logger.error("Error details:", errorData)
+        logger.error('Error details:', errorData)
         errorMessage = errorData.message || `Failed to fetch servers (${response.status})`
       } catch (e) {
         errorMessage = `Failed to fetch servers: ${response.status} ${response.statusText}`
@@ -105,10 +105,10 @@ export async function POST(request: Request) {
       })),
     })
   } catch (error) {
-    logger.error("Error processing request:", error)
+    logger.error('Error processing request:', error)
     return NextResponse.json(
       {
-        error: "Failed to retrieve Discord servers",
+        error: 'Failed to retrieve Discord servers',
         details: (error as Error).message,
       },
       { status: 500 }

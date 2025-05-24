@@ -1,69 +1,69 @@
-import type { ToolConfig } from "../types"
-import type { CreateCommentParams, CreateCommentResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { CreateCommentParams, CreateCommentResponse } from './types'
 
 export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse> = {
-  id: "github_comment",
-  name: "GitHub PR Commenter",
-  description: "Create comments on GitHub PRs",
-  version: "1.0.0",
+  id: 'github_comment',
+  name: 'GitHub PR Commenter',
+  description: 'Create comments on GitHub PRs',
+  version: '1.0.0',
 
   params: {
     owner: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Repository owner",
+      description: 'Repository owner',
     },
     repo: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Repository name",
+      description: 'Repository name',
     },
     pullNumber: {
-      type: "number",
+      type: 'number',
       required: true,
-      description: "Pull request number",
+      description: 'Pull request number',
     },
     body: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Comment content",
+      description: 'Comment content',
     },
     path: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "File path for review comment",
+      description: 'File path for review comment',
     },
     position: {
-      type: "number",
+      type: 'number',
       required: false,
-      description: "Line number for review comment",
+      description: 'Line number for review comment',
     },
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "GitHub API token",
+      description: 'GitHub API token',
     },
     commentType: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Type of comment (pr_comment or file_comment)",
+      description: 'Type of comment (pr_comment or file_comment)',
     },
     line: {
-      type: "number",
+      type: 'number',
       required: false,
-      description: "Line number for review comment",
+      description: 'Line number for review comment',
     },
     side: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Side of the diff (LEFT or RIGHT)",
-      default: "RIGHT",
+      description: 'Side of the diff (LEFT or RIGHT)',
+      default: 'RIGHT',
     },
     commitId: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "The SHA of the commit to comment on",
+      description: 'The SHA of the commit to comment on',
     },
   },
 
@@ -74,25 +74,25 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
       }
       return `https://api.github.com/repos/${params.owner}/${params.repo}/pulls/${params.pullNumber}/reviews`
     },
-    method: "POST",
+    method: 'POST',
     headers: (params) => ({
-      Accept: "application/vnd.github.v3+json",
+      Accept: 'application/vnd.github.v3+json',
       Authorization: `Bearer ${params.apiKey}`,
-      "X-GitHub-Api-Version": "2022-11-28",
+      'X-GitHub-Api-Version': '2022-11-28',
     }),
     body: (params) => {
-      if (params.commentType === "file_comment") {
+      if (params.commentType === 'file_comment') {
         return {
           body: params.body,
           commit_id: params.commitId,
           path: params.path,
           line: params.line || params.position,
-          side: params.side || "RIGHT",
+          side: params.side || 'RIGHT',
         }
       }
       return {
         body: params.body,
-        event: "COMMENT",
+        event: 'COMMENT',
       }
     },
   },
@@ -122,6 +122,6 @@ export const commentTool: ToolConfig<CreateCommentParams, CreateCommentResponse>
   },
 
   transformError: (error) => {
-    return error instanceof Error ? error.message : "Failed to create comment"
+    return error instanceof Error ? error.message : 'Failed to create comment'
   },
 }

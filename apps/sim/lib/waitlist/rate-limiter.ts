@@ -1,6 +1,6 @@
-import { isProd } from "@/lib/environment"
-import type { NextRequest } from "next/server"
-import { getRedisClient } from "../redis"
+import { isProd } from '@/lib/environment'
+import type { NextRequest } from 'next/server'
+import { getRedisClient } from '../redis'
 
 // Configuration
 const RATE_LIMIT_WINDOW = 60 // 1 minute window (in seconds)
@@ -14,7 +14,7 @@ const inMemoryStore = new Map<
 >()
 
 // Clean up in-memory store periodically (only used in development)
-if (!isProd && typeof setInterval !== "undefined") {
+if (!isProd && typeof setInterval !== 'undefined') {
   setInterval(
     () => {
       const now = Math.floor(Date.now() / 1000)
@@ -33,21 +33,21 @@ if (!isProd && typeof setInterval !== "undefined") {
 
 // Get client IP from request
 export function getClientIp(request: NextRequest): string {
-  const xff = request.headers.get("x-forwarded-for")
-  const realIp = request.headers.get("x-real-ip")
+  const xff = request.headers.get('x-forwarded-for')
+  const realIp = request.headers.get('x-real-ip')
 
   if (xff) {
-    const ips = xff.split(",")
+    const ips = xff.split(',')
     return ips[0].trim()
   }
 
-  return realIp || "0.0.0.0"
+  return realIp || '0.0.0.0'
 }
 
 // Check if a request is rate limited
 export async function isRateLimited(
   request: NextRequest,
-  type: "waitlist" = "waitlist"
+  type: 'waitlist' = 'waitlist'
 ): Promise<{
   limited: boolean
   message?: string
@@ -71,7 +71,7 @@ export async function isRateLimited(
         if (ttl > 0) {
           return {
             limited: true,
-            message: "Too many requests. Please try again later.",
+            message: 'Too many requests. Please try again later.',
             remainingTime: ttl,
           }
         }
@@ -89,18 +89,18 @@ export async function isRateLimited(
 
       // If limit exceeded, block the IP
       if (count > WAITLIST_MAX_REQUESTS) {
-        await redisClient.set(`${key}:blocked`, "1", "EX", WAITLIST_BLOCK_DURATION)
+        await redisClient.set(`${key}:blocked`, '1', 'EX', WAITLIST_BLOCK_DURATION)
 
         return {
           limited: true,
-          message: "Too many requests. Please try again later.",
+          message: 'Too many requests. Please try again later.',
           remainingTime: WAITLIST_BLOCK_DURATION,
         }
       }
 
       return { limited: false }
     } catch (error) {
-      console.error("Redis rate limit error:", error)
+      console.error('Redis rate limit error:', error)
       // Fall back to in-memory if Redis fails
     }
   }
@@ -119,7 +119,7 @@ export async function isRateLimited(
     const remainingTime = record.blockedUntil ? record.blockedUntil - now : WAITLIST_BLOCK_DURATION
     return {
       limited: true,
-      message: "Too many requests. Please try again later.",
+      message: 'Too many requests. Please try again later.',
       remainingTime,
     }
   }
@@ -142,7 +142,7 @@ export async function isRateLimited(
 
     return {
       limited: true,
-      message: "Too many requests. Please try again later.",
+      message: 'Too many requests. Please try again later.',
       remainingTime: WAITLIST_BLOCK_DURATION,
     }
   }

@@ -1,52 +1,52 @@
-import type { ToolConfig } from "../types"
-import type { XWriteParams, XWriteResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { XWriteParams, XWriteResponse } from './types'
 
 export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
-  id: "x_write",
-  name: "X Write",
-  description: "Post new tweets, reply to tweets, or create polls on X (Twitter)",
-  version: "1.0.0",
+  id: 'x_write',
+  name: 'X Write',
+  description: 'Post new tweets, reply to tweets, or create polls on X (Twitter)',
+  version: '1.0.0',
 
   oauth: {
     required: true,
-    provider: "x",
-    additionalScopes: ["tweet.read", "tweet.write", "users.read"],
+    provider: 'x',
+    additionalScopes: ['tweet.read', 'tweet.write', 'users.read'],
   },
 
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "X OAuth access token",
+      description: 'X OAuth access token',
     },
     text: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The text content of your tweet",
+      description: 'The text content of your tweet',
     },
     replyTo: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "ID of the tweet to reply to",
+      description: 'ID of the tweet to reply to',
     },
     mediaIds: {
-      type: "array",
+      type: 'array',
       required: false,
-      description: "Array of media IDs to attach to the tweet",
+      description: 'Array of media IDs to attach to the tweet',
     },
     poll: {
-      type: "object",
+      type: 'object',
       required: false,
-      description: "Poll configuration for the tweet",
+      description: 'Poll configuration for the tweet',
     },
   },
 
   request: {
-    url: "https://api.twitter.com/2/tweets",
-    method: "POST",
+    url: 'https://api.twitter.com/2/tweets',
+    method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
     body: (params) => {
       const body: any = {
@@ -94,12 +94,12 @@ export const xWriteTool: ToolConfig<XWriteParams, XWriteResponse> = {
   },
 
   transformError: (error) => {
-    if (error.title === "Unauthorized") {
-      return "Invalid or expired access token. Please reconnect your X account."
+    if (error.title === 'Unauthorized') {
+      return 'Invalid or expired access token. Please reconnect your X account.'
     }
-    if (error.title === "Forbidden") {
-      return "You do not have permission to post tweets. Ensure your X app has tweet.write scope."
+    if (error.title === 'Forbidden') {
+      return 'You do not have permission to post tweets. Ensure your X app has tweet.write scope.'
     }
-    return error.detail || "An unexpected error occurred while posting to X"
+    return error.detail || 'An unexpected error occurred while posting to X'
   },
 }

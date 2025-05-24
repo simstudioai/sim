@@ -21,7 +21,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "email:dev": "email dev --dir components/emails",
-    "check-types": "tsc --noEmit"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

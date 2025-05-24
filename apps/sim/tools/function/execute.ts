@@ -1,38 +1,38 @@
-import type { ToolConfig } from "../types"
-import type { CodeExecutionInput, CodeExecutionOutput } from "./types"
+import type { ToolConfig } from '../types'
+import type { CodeExecutionInput, CodeExecutionOutput } from './types'
 
 const DEFAULT_TIMEOUT = 10000 // 10 seconds
 
 export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
-  id: "function_execute",
-  name: "Function Execute",
+  id: 'function_execute',
+  name: 'Function Execute',
   description:
-    "Execute JavaScript code in a secure, sandboxed environment with proper isolation and resource limits.",
-  version: "1.0.0",
+    'Execute JavaScript code in a secure, sandboxed environment with proper isolation and resource limits.',
+  version: '1.0.0',
 
   params: {
     code: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The code to execute",
+      description: 'The code to execute',
     },
     timeout: {
-      type: "number",
+      type: 'number',
       required: false,
-      description: "Execution timeout in milliseconds",
+      description: 'Execution timeout in milliseconds',
       default: DEFAULT_TIMEOUT,
     },
   },
 
   request: {
-    url: "/api/function/execute",
-    method: "POST",
+    url: '/api/function/execute',
+    method: 'POST',
     headers: () => ({
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
     body: (params: CodeExecutionInput) => {
       const codeContent = Array.isArray(params.code)
-        ? params.code.map((c: { content: string }) => c.content).join("\n")
+        ? params.code.map((c: { content: string }) => c.content).join('\n')
         : params.code
 
       return {
@@ -47,7 +47,7 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
     const result = await response.json()
 
     if (!response.ok || !result.success) {
-      throw new Error(result.error || "Code execution failed")
+      throw new Error(result.error || 'Code execution failed')
     }
 
     return {
@@ -60,6 +60,6 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
   },
 
   transformError: (error: any) => {
-    return error.message || "Code execution failed"
+    return error.message || 'Code execution failed'
   },
 }

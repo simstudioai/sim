@@ -4,8 +4,8 @@
  * A testable version of the Executor class that can be used in tests
  * without requiring all the complex dependencies.
  */
-import { Executor } from ".."
-import type { ExecutionResult, NormalizedBlockOutput } from "../types"
+import { Executor } from '..'
+import type { ExecutionResult, NormalizedBlockOutput } from '../types'
 
 /**
  * Test implementation of Executor for unit testing.
@@ -26,7 +26,7 @@ export class TestExecutor extends Executor {
       return {
         success: true,
         output: {
-          response: { result: "Test execution completed" },
+          response: { result: 'Test execution completed' },
         } as NormalizedBlockOutput,
         logs: [],
         metadata: {

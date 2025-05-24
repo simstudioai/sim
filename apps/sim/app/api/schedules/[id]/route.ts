@@ -1,14 +1,14 @@
-import crypto from "node:crypto"
-import { db } from "@/db"
-import { workflow, workflowSchedule } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { createLogger } from "@/lib/logs/console-logger"
-import { eq } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
+import crypto from 'crypto'
+import { db } from '@/db'
+import { workflow, workflowSchedule } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 
-const logger = createLogger("ScheduleAPI")
+const logger = createLogger('ScheduleAPI')
 
-export const dynamic = "force-dynamic"
+export const dynamic = 'force-dynamic'
 
 /**
  * Delete a schedule
@@ -26,7 +26,7 @@ export async function DELETE(
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized schedule deletion attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Find the schedule and check ownership
@@ -45,12 +45,12 @@ export async function DELETE(
 
     if (schedules.length === 0) {
       logger.warn(`[${requestId}] Schedule not found: ${id}`)
-      return NextResponse.json({ error: "Schedule not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
     if (schedules[0].workflow.userId !== session.user.id) {
       logger.warn(`[${requestId}] Unauthorized schedule deletion attempt for schedule: ${id}`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
     // Delete the schedule
@@ -60,7 +60,7 @@ export async function DELETE(
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error deleting schedule`, error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -78,7 +78,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized schedule update attempt`)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
@@ -96,7 +96,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!schedule) {
       logger.warn(`[${requestId}] Schedule not found: ${scheduleId}`)
-      return NextResponse.json({ error: "Schedule not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
     const [workflowRecord] = await db
@@ -107,17 +107,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!workflowRecord) {
       logger.warn(`[${requestId}] Workflow not found for schedule: ${scheduleId}`)
-      return NextResponse.json({ error: "Workflow not found" }, { status: 404 })
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
     }
 
     if (workflowRecord.userId !== session.user.id) {
       logger.warn(`[${requestId}] User not authorized to modify this schedule: ${scheduleId}`)
-      return NextResponse.json({ error: "Not authorized to modify this schedule" }, { status: 403 })
+      return NextResponse.json({ error: 'Not authorized to modify this schedule' }, { status: 403 })
     }
 
-    if (action === "reactivate" || (body.status && body.status === "active")) {
-      if (schedule.status === "active") {
-        return NextResponse.json({ message: "Schedule is already active" }, { status: 200 })
+    if (action === 'reactivate' || (body.status && body.status === 'active')) {
+      if (schedule.status === 'active') {
+        return NextResponse.json({ message: 'Schedule is already active' }, { status: 200 })
       }
 
       const now = new Date()
@@ -126,7 +126,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       await db
         .update(workflowSchedule)
         .set({
-          status: "active",
+          status: 'active',
           failedCount: 0,
           updatedAt: now,
           nextRunAt,
@@ -136,15 +136,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       logger.info(`[${requestId}] Reactivated schedule: ${scheduleId}`)
 
       return NextResponse.json({
-        message: "Schedule activated successfully",
+        message: 'Schedule activated successfully',
         nextRunAt,
       })
     }
 
     logger.warn(`[${requestId}] Unsupported update action for schedule: ${scheduleId}`)
-    return NextResponse.json({ error: "Unsupported update action" }, { status: 400 })
+    return NextResponse.json({ error: 'Unsupported update action' }, { status: 400 })
   } catch (error) {
     logger.error(`[${requestId}] Error updating schedule`, error)
-    return NextResponse.json({ error: "Failed to update schedule" }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to update schedule' }, { status: 500 })
   }
 }

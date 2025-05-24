@@ -1,55 +1,55 @@
-import type { ToolConfig } from "../types"
-import type { ConfluenceRetrieveResponse } from "./types"
-import type { ConfluenceRetrieveParams } from "./types"
+import type { ToolConfig } from '../types'
+import type { ConfluenceRetrieveResponse } from './types'
+import type { ConfluenceRetrieveParams } from './types'
 
 export const confluenceRetrieveTool: ToolConfig<
   ConfluenceRetrieveParams,
   ConfluenceRetrieveResponse
 > = {
-  id: "confluence_retrieve",
-  name: "Confluence Retrieve",
-  description: "Retrieve content from Confluence pages using the Confluence API.",
-  version: "1.0.0",
+  id: 'confluence_retrieve',
+  name: 'Confluence Retrieve',
+  description: 'Retrieve content from Confluence pages using the Confluence API.',
+  version: '1.0.0',
 
   oauth: {
     required: true,
-    provider: "confluence",
+    provider: 'confluence',
   },
 
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "OAuth access token for Confluence",
+      description: 'OAuth access token for Confluence',
     },
     domain: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "Your Confluence domain (e.g., yourcompany.atlassian.net)",
+      description: 'Your Confluence domain (e.g., yourcompany.atlassian.net)',
     },
     pageId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Confluence page ID to retrieve",
+      description: 'Confluence page ID to retrieve',
     },
     cloudId: {
-      type: "string",
+      type: 'string',
       required: false,
       description:
-        "Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.",
+        'Confluence Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
   },
 
   request: {
     url: (params: ConfluenceRetrieveParams) => {
       // Instead of calling Confluence API directly, use your API route
-      return "/api/auth/oauth/confluence/page"
+      return '/api/auth/oauth/confluence/page'
     },
-    method: "POST",
+    method: 'POST',
     headers: (params: ConfluenceRetrieveParams) => {
       return {
-        Accept: "application/json",
+        Accept: 'application/json',
         Authorization: `Bearer ${params.accessToken}`,
       }
     },
@@ -77,14 +77,14 @@ export const confluenceRetrieveTool: ToolConfig<
   },
 
   transformError: (error: any) => {
-    return error.message || "Failed to retrieve Confluence page"
+    return error.message || 'Failed to retrieve Confluence page'
   },
 }
 
 function transformPageData(data: any) {
   // More lenient check - only require id and title
   if (!data || !data.id || !data.title) {
-    throw new Error("Invalid response format from Confluence API - missing required fields")
+    throw new Error('Invalid response format from Confluence API - missing required fields')
   }
 
   // Get content from wherever we can find it
@@ -97,12 +97,12 @@ function transformPageData(data: any) {
     `Content for page ${data.title}`
 
   const cleanContent = content
-    .replace(/<[^>]*>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/\s+/g, " ")
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
     .trim()
 
   return {

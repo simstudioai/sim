@@ -1,51 +1,51 @@
-import type { ToolConfig } from "../types"
-import type { ExaGetContentsParams, ExaGetContentsResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { ExaGetContentsParams, ExaGetContentsResponse } from './types'
 
 export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsResponse> = {
-  id: "exa_get_contents",
-  name: "Exa Get Contents",
+  id: 'exa_get_contents',
+  name: 'Exa Get Contents',
   description:
-    "Retrieve the contents of webpages using Exa AI. Returns the title, text content, and optional summaries for each URL.",
-  version: "1.0.0",
+    'Retrieve the contents of webpages using Exa AI. Returns the title, text content, and optional summaries for each URL.',
+  version: '1.0.0',
 
   params: {
     urls: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Comma-separated list of URLs to retrieve content from",
+      description: 'Comma-separated list of URLs to retrieve content from',
     },
     text: {
-      type: "boolean",
+      type: 'boolean',
       required: false,
       description:
-        "If true, returns full page text with default settings. If false, disables text return.",
+        'If true, returns full page text with default settings. If false, disables text return.',
     },
     summaryQuery: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Query to guide the summary generation",
+      description: 'Query to guide the summary generation',
     },
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "Exa AI API Key",
+      description: 'Exa AI API Key',
     },
   },
 
   request: {
-    url: "https://api.exa.ai/contents",
-    method: "POST",
+    url: 'https://api.exa.ai/contents',
+    method: 'POST',
     isInternalRoute: false,
     headers: (params) => ({
-      "Content-Type": "application/json",
-      "x-api-key": params.apiKey,
+      'Content-Type': 'application/json',
+      'x-api-key': params.apiKey,
     }),
     body: (params) => {
       // Parse the comma-separated URLs into an array
       const urlsString = params.urls
       const urlArray = urlsString
-        .split(",")
+        .split(',')
         .map((url: string) => url.trim())
         .filter((url: string) => url.length > 0)
 
@@ -73,7 +73,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.message || data.error || "Failed to retrieve webpage contents")
+      throw new Error(data.message || data.error || 'Failed to retrieve webpage contents')
     }
 
     return {
@@ -81,9 +81,9 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
       output: {
         results: data.results.map((result: any) => ({
           url: result.url,
-          title: result.title || "",
-          text: result.text || "",
-          summary: result.summary || "",
+          title: result.title || '',
+          text: result.text || '',
+          summary: result.summary || '',
         })),
       },
     }
@@ -92,6 +92,6 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
   transformError: (error) => {
     return error instanceof Error
       ? error.message
-      : "An error occurred while retrieving webpage contents"
+      : 'An error occurred while retrieving webpage contents'
   },
 }

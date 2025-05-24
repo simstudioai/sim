@@ -1,13 +1,13 @@
-import { generateRouterPrompt } from "@/blocks/blocks/router"
-import type { BlockOutput } from "@/blocks/types"
-import { env } from "@/lib/env"
-import { createLogger } from "@/lib/logs/console-logger"
-import { getProviderFromModel } from "@/providers/utils"
-import type { SerializedBlock } from "@/serializer/types"
-import type { PathTracker } from "../../path"
-import type { BlockHandler, ExecutionContext } from "../../types"
+import { generateRouterPrompt } from '@/blocks/blocks/router'
+import type { BlockOutput } from '@/blocks/types'
+import { env } from '@/lib/env'
+import { createLogger } from '@/lib/logs/console-logger'
+import { getProviderFromModel } from '@/providers/utils'
+import type { SerializedBlock } from '@/serializer/types'
+import type { PathTracker } from '../../path'
+import type { BlockHandler, ExecutionContext } from '../../types'
 
-const logger = createLogger("RouterBlockHandler")
+const logger = createLogger('RouterBlockHandler')
 
 /**
  * Handler for Router blocks that dynamically select execution paths.
@@ -19,7 +19,7 @@ export class RouterBlockHandler implements BlockHandler {
   constructor(private pathTracker: PathTracker) {}
 
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === "router"
+    return block.metadata?.id === 'router'
   }
 
   async execute(
@@ -31,7 +31,7 @@ export class RouterBlockHandler implements BlockHandler {
 
     const routerConfig = {
       prompt: inputs.prompt,
-      model: inputs.model || "gpt-4o",
+      model: inputs.model || 'gpt-4o',
       apiKey: inputs.apiKey,
       temperature: inputs.temperature || 0,
     }
@@ -39,11 +39,11 @@ export class RouterBlockHandler implements BlockHandler {
     const providerId = getProviderFromModel(routerConfig.model)
 
     try {
-      const baseUrl = env.NEXT_PUBLIC_APP_URL || ""
-      const url = new URL("/api/providers", baseUrl)
+      const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
+      const url = new URL('/api/providers', baseUrl)
 
       // Create the provider request with proper message formatting
-      const messages = [{ role: "user", content: routerConfig.prompt }]
+      const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
       const providerRequest = {
         provider: providerId,
@@ -56,9 +56,9 @@ export class RouterBlockHandler implements BlockHandler {
       }
 
       const response = await fetch(url.toString(), {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(providerRequest),
       })
@@ -103,13 +103,13 @@ export class RouterBlockHandler implements BlockHandler {
           },
           selectedPath: {
             blockId: chosenBlock.id,
-            blockType: chosenBlock.type || "unknown",
-            blockTitle: chosenBlock.title || "Untitled Block",
+            blockType: chosenBlock.type || 'unknown',
+            blockTitle: chosenBlock.title || 'Untitled Block',
           },
         },
       }
     } catch (error) {
-      logger.error("Router execution failed:", error)
+      logger.error('Router execution failed:', error)
       throw error
     }
   }
@@ -132,15 +132,15 @@ export class RouterBlockHandler implements BlockHandler {
         }
 
         // Extract system prompt for agent blocks
-        let systemPrompt = ""
-        if (targetBlock.metadata?.id === "agent") {
+        let systemPrompt = ''
+        if (targetBlock.metadata?.id === 'agent') {
           // Try to get system prompt from different possible locations
           systemPrompt =
-            targetBlock.config?.params?.systemPrompt || targetBlock.inputs?.systemPrompt || ""
+            targetBlock.config?.params?.systemPrompt || targetBlock.inputs?.systemPrompt || ''
 
           // If system prompt is still not found, check if we can extract it from inputs
           if (!systemPrompt && targetBlock.inputs) {
-            systemPrompt = targetBlock.inputs.systemPrompt || ""
+            systemPrompt = targetBlock.inputs.systemPrompt || ''
           }
         }
 

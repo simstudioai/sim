@@ -1,7 +1,7 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { type NextRequest, NextResponse } from "next/server"
+import { createLogger } from '@/lib/logs/console-logger'
+import { type NextRequest, NextResponse } from 'next/server'
 
-const logger = createLogger("ImageProxyAPI")
+const logger = createLogger('ImageProxyAPI')
 
 /**
  * Proxy for fetching images
@@ -9,12 +9,12 @@ const logger = createLogger("ImageProxyAPI")
  */
 export async function GET(request: NextRequest) {
   const url = new URL(request.url)
-  const imageUrl = url.searchParams.get("url")
+  const imageUrl = url.searchParams.get('url')
   const requestId = crypto.randomUUID().slice(0, 8)
 
   if (!imageUrl) {
     logger.error(`[${requestId}] Missing 'url' parameter`)
-    return new NextResponse("Missing URL parameter", { status: 400 })
+    return new NextResponse('Missing URL parameter', { status: 400 })
   }
 
   logger.info(`[${requestId}] Proxying image request for: ${imageUrl}`)
@@ -23,15 +23,15 @@ export async function GET(request: NextRequest) {
     // Use fetch with custom headers that appear more browser-like
     const imageResponse = await fetch(imageUrl, {
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        Accept: "image/webp,image/avif,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        Referer: "https://simstudio.ai/",
-        "Sec-Fetch-Dest": "image",
-        "Sec-Fetch-Mode": "no-cors",
-        "Sec-Fetch-Site": "cross-site",
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        Accept: 'image/webp,image/avif,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        Referer: 'https://simstudio.ai/',
+        'Sec-Fetch-Dest': 'image',
+        'Sec-Fetch-Mode': 'no-cors',
+        'Sec-Fetch-Site': 'cross-site',
       },
     })
 
@@ -46,22 +46,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Get image content type from response headers
-    const contentType = imageResponse.headers.get("content-type") || "image/jpeg"
+    const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
 
     // Get the image as a blob
     const imageBlob = await imageResponse.blob()
 
     if (imageBlob.size === 0) {
       logger.error(`[${requestId}] Empty image blob received`)
-      return new NextResponse("Empty image received", { status: 404 })
+      return new NextResponse('Empty image received', { status: 404 })
     }
 
     // Return the image with appropriate headers
     return new NextResponse(imageBlob, {
       headers: {
-        "Content-Type": contentType,
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, max-age=86400", // Cache for 24 hours
+        'Content-Type': contentType,
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
       },
     })
   } catch (error) {
@@ -78,10 +78,10 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Max-Age": "86400",
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
     },
   })
 }

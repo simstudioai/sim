@@ -2,7 +2,7 @@
  * Variable types supported in the application
  * Note: 'string' is deprecated - use 'plain' for text values instead
  */
-export type VariableType = "plain" | "number" | "boolean" | "object" | "array" | "string"
+export type VariableType = 'plain' | 'number' | 'boolean' | 'object' | 'array' | 'string'
 
 /**
  * Represents a workflow variable with workflow-specific naming
@@ -27,13 +27,13 @@ export interface VariablesStore {
    * Adds a new variable with automatic name uniqueness validation
    * If a variable with the same name exists, it will be suffixed with a number
    */
-  addVariable: (variable: Omit<Variable, "id">) => string
+  addVariable: (variable: Omit<Variable, 'id'>) => string
 
   /**
    * Updates a variable, ensuring name remains unique within the workflow
    * If an updated name conflicts with existing ones, a numbered suffix is added
    */
-  updateVariable: (id: string, update: Partial<Omit<Variable, "id" | "workflowId">>) => void
+  updateVariable: (id: string, update: Partial<Omit<Variable, 'id' | 'workflowId'>>) => void
 
   deleteVariable: (id: string) => void
 

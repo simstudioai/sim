@@ -1,4 +1,4 @@
-import type { ToolResponse } from "../types"
+import type { ToolResponse } from '../types'
 
 export interface RedditPost {
   id: string
@@ -36,9 +36,9 @@ export interface RedditHotPostsResponse extends ToolResponse {
 // Parameters for the generalized get_posts tool
 export interface RedditPostsParams {
   subreddit: string
-  sort?: "hot" | "new" | "top" | "rising"
+  sort?: 'hot' | 'new' | 'top' | 'rising'
   limit?: number
-  time?: "day" | "week" | "month" | "year" | "all"
+  time?: 'day' | 'week' | 'month' | 'year' | 'all'
 }
 
 // Response for the generalized get_posts tool
@@ -53,7 +53,7 @@ export interface RedditPostsResponse extends ToolResponse {
 export interface RedditCommentsParams {
   postId: string
   subreddit: string
-  sort?: "confidence" | "top" | "new" | "controversial" | "old" | "random" | "qa"
+  sort?: 'confidence' | 'top' | 'new' | 'controversial' | 'old' | 'random' | 'qa'
   limit?: number
 }
 

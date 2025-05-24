@@ -1,54 +1,54 @@
-import type { ToolConfig } from "../types"
-import type { GmailSearchParams, GmailToolResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { GmailSearchParams, GmailToolResponse } from './types'
 
-const GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
+const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me'
 
 export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> = {
-  id: "gmail_search",
-  name: "Gmail Search",
-  description: "Search emails in Gmail",
-  version: "1.0.0",
+  id: 'gmail_search',
+  name: 'Gmail Search',
+  description: 'Search emails in Gmail',
+  version: '1.0.0',
 
   oauth: {
     required: true,
-    provider: "google-email",
+    provider: 'google-email',
     additionalScopes: [
       // 'https://www.googleapis.com/auth/gmail.readonly',
-      "https://www.googleapis.com/auth/gmail.labels",
+      'https://www.googleapis.com/auth/gmail.labels',
     ],
   },
 
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Access token for Gmail API",
+      description: 'Access token for Gmail API',
     },
     query: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Search query for emails",
+      description: 'Search query for emails',
     },
     maxResults: {
-      type: "number",
+      type: 'number',
       required: false,
-      description: "Maximum number of results to return",
+      description: 'Maximum number of results to return',
     },
   },
 
   request: {
     url: (params: GmailSearchParams) => {
       const searchParams = new URLSearchParams()
-      searchParams.append("q", params.query)
+      searchParams.append('q', params.query)
       if (params.maxResults) {
-        searchParams.append("maxResults", params.maxResults.toString())
+        searchParams.append('maxResults', params.maxResults.toString())
       }
       return `${GMAIL_API_BASE}/messages?${searchParams.toString()}`
     },
-    method: "GET",
+    method: 'GET',
     headers: (params: GmailSearchParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
   },
 
@@ -56,7 +56,7 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
     const data = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || "Failed to search emails")
+      throw new Error(data.error?.message || 'Failed to search emails')
     }
 
     return {
@@ -77,14 +77,14 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
   transformError: (error) => {
     // Handle Google API error format
     if (error.error?.message) {
-      if (error.error.message.includes("invalid authentication credentials")) {
-        return "Invalid or expired access token. Please reauthenticate."
+      if (error.error.message.includes('invalid authentication credentials')) {
+        return 'Invalid or expired access token. Please reauthenticate.'
       }
-      if (error.error.message.includes("quota")) {
-        return "Gmail API quota exceeded. Please try again later."
+      if (error.error.message.includes('quota')) {
+        return 'Gmail API quota exceeded. Please try again later.'
       }
       return error.error.message
     }
-    return error.message || "An unexpected error occurred while searching emails"
+    return error.message || 'An unexpected error occurred while searching emails'
   },
 }

@@ -1,15 +1,15 @@
-import "../../__test-utils__/mock-dependencies"
-import type { SerializedBlock, SerializedWorkflow } from "@/serializer/types"
-import { type Mocked, type MockedClass, beforeEach, describe, expect, it, vi } from "vitest"
-import { PathTracker } from "../../path"
-import { InputResolver } from "../../resolver"
-import type { BlockState, ExecutionContext } from "../../types"
-import { ConditionBlockHandler } from "./condition-handler"
+import '../../__test-utils__/mock-dependencies'
+import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+import { type Mocked, type MockedClass, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PathTracker } from '../../path'
+import { InputResolver } from '../../resolver'
+import type { BlockState, ExecutionContext } from '../../types'
+import { ConditionBlockHandler } from './condition-handler'
 
 const MockPathTracker = PathTracker as MockedClass<typeof PathTracker>
 const MockInputResolver = InputResolver as MockedClass<typeof InputResolver>
 
-describe("ConditionBlockHandler", () => {
+describe('ConditionBlockHandler', () => {
   let handler: ConditionBlockHandler
   let mockBlock: SerializedBlock
   let mockContext: ExecutionContext
@@ -23,37 +23,37 @@ describe("ConditionBlockHandler", () => {
   beforeEach(() => {
     // Define blocks first
     mockSourceBlock = {
-      id: "source-block-1",
-      metadata: { id: "source", name: "Source Block" },
+      id: 'source-block-1',
+      metadata: { id: 'source', name: 'Source Block' },
       position: { x: 10, y: 10 },
-      config: { tool: "source_tool", params: {} },
+      config: { tool: 'source_tool', params: {} },
       inputs: {},
       outputs: {},
       enabled: true,
     }
     mockBlock = {
-      id: "cond-block-1",
-      metadata: { id: "condition", name: "Test Condition" },
+      id: 'cond-block-1',
+      metadata: { id: 'condition', name: 'Test Condition' },
       position: { x: 50, y: 50 },
-      config: { tool: "condition", params: {} },
-      inputs: { conditions: "json" }, // Corrected based on previous step
+      config: { tool: 'condition', params: {} },
+      inputs: { conditions: 'json' }, // Corrected based on previous step
       outputs: {},
       enabled: true,
     }
     mockTargetBlock1 = {
-      id: "target-block-1",
-      metadata: { id: "target", name: "Target Block 1" },
+      id: 'target-block-1',
+      metadata: { id: 'target', name: 'Target Block 1' },
       position: { x: 100, y: 100 },
-      config: { tool: "target_tool_1", params: {} },
+      config: { tool: 'target_tool_1', params: {} },
       inputs: {},
       outputs: {},
       enabled: true,
     }
     mockTargetBlock2 = {
-      id: "target-block-2",
-      metadata: { id: "target", name: "Target Block 2" },
+      id: 'target-block-2',
+      metadata: { id: 'target', name: 'Target Block 2' },
       position: { x: 100, y: 150 },
-      config: { tool: "target_tool_2", params: {} },
+      config: { tool: 'target_tool_2', params: {} },
       inputs: {},
       outputs: {},
       enabled: true,
@@ -67,12 +67,12 @@ describe("ConditionBlockHandler", () => {
         {
           source: mockBlock.id,
           target: mockTargetBlock1.id,
-          sourceHandle: "condition-cond1",
+          sourceHandle: 'condition-cond1',
         },
         {
           source: mockBlock.id,
           target: mockTargetBlock2.id,
-          sourceHandle: "condition-else1",
+          sourceHandle: 'condition-else1',
         },
       ],
     }
@@ -90,12 +90,12 @@ describe("ConditionBlockHandler", () => {
 
     // Define mock context *after* workflow and blocks are set up
     mockContext = {
-      workflowId: "test-workflow-id",
+      workflowId: 'test-workflow-id',
       blockStates: new Map<string, BlockState>([
         [
           mockSourceBlock.id,
           {
-            output: { response: { value: 10, text: "hello" } },
+            output: { response: { value: 10, text: 'hello' } },
             executed: true,
           },
         ],
@@ -119,83 +119,83 @@ describe("ConditionBlockHandler", () => {
     // mockResolver.resolveBlockReferences.mockImplementation((value) => value)
   })
 
-  it("should handle condition blocks", () => {
+  it('should handle condition blocks', () => {
     expect(handler.canHandle(mockBlock)).toBe(true)
-    const nonCondBlock: SerializedBlock = { ...mockBlock, metadata: { id: "other" } }
+    const nonCondBlock: SerializedBlock = { ...mockBlock, metadata: { id: 'other' } }
     expect(handler.canHandle(nonCondBlock)).toBe(false)
   })
 
-  it("should execute condition block correctly and select first path", async () => {
+  it('should execute condition block correctly and select first path', async () => {
     const conditions = [
-      { id: "cond1", title: "if", value: "context.response.value > 5" },
-      { id: "else1", title: "else", value: "" },
+      { id: 'cond1', title: 'if', value: 'context.response.value > 5' },
+      { id: 'else1', title: 'else', value: '' },
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
     const expectedOutput = {
       response: {
         value: 10,
-        text: "hello",
+        text: 'hello',
         conditionResult: true,
         selectedPath: {
           blockId: mockTargetBlock1.id,
-          blockType: "target",
-          blockTitle: "Target Block 1",
+          blockType: 'target',
+          blockTitle: 'Target Block 1',
         },
-        selectedConditionId: "cond1",
+        selectedConditionId: 'cond1',
       },
     }
 
     // Mock directly in the test
-    mockResolver.resolveBlockReferences.mockReturnValue("context.response.value > 5")
+    mockResolver.resolveBlockReferences.mockReturnValue('context.response.value > 5')
 
     const result = (await handler.execute(mockBlock, inputs, mockContext)) as { response: any }
 
     expect(mockResolver.resolveBlockReferences).toHaveBeenCalledWith(
-      "context.response.value > 5",
+      'context.response.value > 5',
       mockContext,
       mockBlock
     )
     expect(result).toEqual(expectedOutput)
-    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe("cond1")
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
   })
 
-  it("should select the else path if other conditions fail", async () => {
+  it('should select the else path if other conditions fail', async () => {
     const conditions = [
-      { id: "cond1", title: "if", value: "context.value < 0" }, // Should fail (10 < 0 is false)
-      { id: "else1", title: "else", value: "" }, // Should be selected
+      { id: 'cond1', title: 'if', value: 'context.value < 0' }, // Should fail (10 < 0 is false)
+      { id: 'else1', title: 'else', value: '' }, // Should be selected
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
     const expectedOutput = {
       response: {
         value: 10,
-        text: "hello",
+        text: 'hello',
         conditionResult: true,
         selectedPath: {
           blockId: mockTargetBlock2.id,
-          blockType: "target",
-          blockTitle: "Target Block 2",
+          blockType: 'target',
+          blockTitle: 'Target Block 2',
         },
-        selectedConditionId: "else1",
+        selectedConditionId: 'else1',
       },
     }
 
     // Mock directly in the test
-    mockResolver.resolveBlockReferences.mockReturnValue("context.value < 0")
+    mockResolver.resolveBlockReferences.mockReturnValue('context.value < 0')
 
     const result = (await handler.execute(mockBlock, inputs, mockContext)) as { response: any }
 
     expect(mockResolver.resolveBlockReferences).toHaveBeenCalledWith(
-      "context.value < 0",
+      'context.value < 0',
       mockContext,
       mockBlock
     )
     expect(result).toEqual(expectedOutput)
-    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe("else1")
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('else1')
   })
 
-  it("should handle invalid conditions JSON format", async () => {
+  it('should handle invalid conditions JSON format', async () => {
     const inputs = { conditions: '{ "invalid json ' }
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
@@ -203,61 +203,61 @@ describe("ConditionBlockHandler", () => {
     )
   })
 
-  it("should resolve references in conditions before evaluation", async () => {
+  it('should resolve references in conditions before evaluation', async () => {
     const conditions = [
-      { id: "cond1", title: "if", value: "{{source-block-1.response.value}} > 5" },
-      { id: "else1", title: "else", value: "" },
+      { id: 'cond1', title: 'if', value: '{{source-block-1.response.value}} > 5' },
+      { id: 'else1', title: 'else', value: '' },
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
     // Mock directly in the test
-    mockResolver.resolveBlockReferences.mockReturnValue("10 > 5")
+    mockResolver.resolveBlockReferences.mockReturnValue('10 > 5')
 
     const result = (await handler.execute(mockBlock, inputs, mockContext)) as { response: any }
 
     expect(mockResolver.resolveBlockReferences).toHaveBeenCalledWith(
-      "{{source-block-1.response.value}} > 5",
+      '{{source-block-1.response.value}} > 5',
       mockContext,
       mockBlock
     )
-    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe("cond1")
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
   })
 
-  it("should throw error if reference resolution fails", async () => {
+  it('should throw error if reference resolution fails', async () => {
     const conditions = [
-      { id: "cond1", title: "if", value: "{{invalid-ref}}" },
-      { id: "else1", title: "else", value: "" },
+      { id: 'cond1', title: 'if', value: '{{invalid-ref}}' },
+      { id: 'else1', title: 'else', value: '' },
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
-    const resolutionError = new Error("Could not resolve reference: invalid-ref")
+    const resolutionError = new Error('Could not resolve reference: invalid-ref')
     // Mock directly in the test
     mockResolver.resolveBlockReferences.mockImplementation(() => {
       throw resolutionError
     })
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
-      "Failed to resolve references in condition: Could not resolve reference: invalid-ref"
+      'Failed to resolve references in condition: Could not resolve reference: invalid-ref'
     )
   })
 
-  it("should handle evaluation errors gracefully", async () => {
+  it('should handle evaluation errors gracefully', async () => {
     const conditions = [
-      { id: "cond1", title: "if", value: "context.nonExistentProperty.doSomething()" },
-      { id: "else1", title: "else", value: "" },
+      { id: 'cond1', title: 'if', value: 'context.nonExistentProperty.doSomething()' },
+      { id: 'else1', title: 'else', value: '' },
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
     // Mock directly in the test
-    mockResolver.resolveBlockReferences.mockReturnValue("context.nonExistentProperty.doSomething()")
+    mockResolver.resolveBlockReferences.mockReturnValue('context.nonExistentProperty.doSomething()')
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
       /^Evaluation error in condition "if": Cannot read properties of undefined \(reading 'doSomething'\)\. \(Resolved: context\.nonExistentProperty\.doSomething\(\)\)$/
     )
   })
 
-  it("should throw error if source block output is missing", async () => {
-    const conditions = [{ id: "cond1", title: "if", value: "true" }]
+  it('should throw error if source block output is missing', async () => {
+    const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
     const inputs = { conditions: JSON.stringify(conditions) }
     mockContext.blockStates.delete(mockSourceBlock.id)
 
@@ -266,24 +266,24 @@ describe("ConditionBlockHandler", () => {
     )
   })
 
-  it("should throw error if target block is missing", async () => {
-    const conditions = [{ id: "cond1", title: "if", value: "true" }]
+  it('should throw error if target block is missing', async () => {
+    const conditions = [{ id: 'cond1', title: 'if', value: 'true' }]
     const inputs = { conditions: JSON.stringify(conditions) }
 
     mockContext.workflow!.blocks = [mockSourceBlock, mockBlock, mockTargetBlock2]
 
     // Mock directly in the test
-    mockResolver.resolveBlockReferences.mockReturnValue("true")
+    mockResolver.resolveBlockReferences.mockReturnValue('true')
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
       `Target block ${mockTargetBlock1.id} not found`
     )
   })
 
-  it("should throw error if no condition matches and no else exists", async () => {
+  it('should throw error if no condition matches and no else exists', async () => {
     const conditions = [
-      { id: "cond1", title: "if", value: "false" },
-      { id: "cond2", title: "else if", value: "context.value === 99" },
+      { id: 'cond1', title: 'if', value: 'false' },
+      { id: 'cond2', title: 'else if', value: 'context.value === 99' },
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
@@ -292,35 +292,35 @@ describe("ConditionBlockHandler", () => {
       {
         source: mockBlock.id,
         target: mockTargetBlock1.id,
-        sourceHandle: "condition-cond1",
+        sourceHandle: 'condition-cond1',
       },
     ]
 
     // Mock directly in the test
     mockResolver.resolveBlockReferences
-      .mockReturnValueOnce("false")
-      .mockReturnValueOnce("context.value === 99")
+      .mockReturnValueOnce('false')
+      .mockReturnValueOnce('context.value === 99')
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
       `No matching path found for condition block ${mockBlock.id}, and no 'else' block exists.`
     )
   })
 
-  it("should use loop context during evaluation if available", async () => {
+  it('should use loop context during evaluation if available', async () => {
     const conditions = [
-      { id: "cond1", title: "if", value: 'context.item === "apple"' },
-      { id: "else1", title: "else", value: "" },
+      { id: 'cond1', title: 'if', value: 'context.item === "apple"' },
+      { id: 'else1', title: 'else', value: '' },
     ]
     const inputs = { conditions: JSON.stringify(conditions) }
 
-    mockContext.loopItems.set(mockBlock.id, { item: "apple" })
+    mockContext.loopItems.set(mockBlock.id, { item: 'apple' })
 
     // Mock directly in the test
     mockResolver.resolveBlockReferences.mockReturnValue('context.item === "apple"')
 
     const result = (await handler.execute(mockBlock, inputs, mockContext)) as { response: any }
 
-    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe("cond1")
-    expect(result.response.selectedConditionId).toBe("cond1")
+    expect(mockContext.decisions.condition.get(mockBlock.id)).toBe('cond1')
+    expect(result.response.selectedConditionId).toBe('cond1')
   })
 })

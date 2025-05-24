@@ -1,17 +1,17 @@
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { ShieldCheck } from "lucide-react"
-import { ConfigField } from "../ui/config-field"
-import { ConfigSection } from "../ui/config-section"
-import { CopyableField } from "../ui/copyable"
-import { InstructionsSection } from "../ui/instructions-section"
-import { TestResultDisplay } from "../ui/test-result"
+} from '@/components/ui/select'
+import { ShieldCheck } from 'lucide-react'
+import { ConfigField } from '../ui/config-field'
+import { ConfigSection } from '../ui/config-section'
+import { CopyableField } from '../ui/copyable'
+import { InstructionsSection } from '../ui/instructions-section'
+import { TestResultDisplay } from '../ui/test-result'
 
 interface GithubConfigProps {
   contentType: string
@@ -44,56 +44,56 @@ export function GithubConfig({
   copyToClipboard,
 }: GithubConfigProps) {
   return (
-    <div className="space-y-4">
-      <ConfigSection title="GitHub Webhook Settings">
+    <div className='space-y-4'>
+      <ConfigSection title='GitHub Webhook Settings'>
         <ConfigField
-          id="github-content-type"
-          label="Content Type"
-          description="Format GitHub will use when sending the webhook payload."
+          id='github-content-type'
+          label='Content Type'
+          description='Format GitHub will use when sending the webhook payload.'
         >
           <Select value={contentType} onValueChange={setContentType} disabled={isLoadingToken}>
-            <SelectTrigger id="github-content-type">
-              <SelectValue placeholder="Select content type" />
+            <SelectTrigger id='github-content-type'>
+              <SelectValue placeholder='Select content type' />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="application/json">application/json</SelectItem>
-              <SelectItem value="application/x-www-form-urlencoded">
+              <SelectItem value='application/json'>application/json</SelectItem>
+              <SelectItem value='application/x-www-form-urlencoded'>
                 application/x-www-form-urlencoded
               </SelectItem>
             </SelectContent>
           </Select>
         </ConfigField>
 
-        <ConfigField id="webhook-secret" label="Webhook Secret (Recommended)">
+        <ConfigField id='webhook-secret' label='Webhook Secret (Recommended)'>
           <CopyableField
-            id="webhook-secret"
+            id='webhook-secret'
             value={webhookSecret}
             onChange={setWebhookSecret}
-            placeholder="Generate or enter a strong secret"
-            description="Validates that webhook deliveries originate from GitHub."
+            placeholder='Generate or enter a strong secret'
+            description='Validates that webhook deliveries originate from GitHub.'
             isLoading={isLoadingToken}
             copied={copied}
-            copyType="github-secret"
+            copyType='github-secret'
             copyToClipboard={copyToClipboard}
           />
         </ConfigField>
 
         <ConfigField
-          id="github-ssl-verification"
-          label="SSL Verification"
-          description="GitHub verifies SSL certificates when delivering webhooks."
+          id='github-ssl-verification'
+          label='SSL Verification'
+          description='GitHub verifies SSL certificates when delivering webhooks.'
         >
           <Select
             value={sslVerification}
             onValueChange={setSslVerification}
             disabled={isLoadingToken}
           >
-            <SelectTrigger id="github-ssl-verification">
-              <SelectValue placeholder="Select SSL verification option" />
+            <SelectTrigger id='github-ssl-verification'>
+              <SelectValue placeholder='Select SSL verification option' />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="enabled">Enabled (Recommended)</SelectItem>
-              <SelectItem value="disabled">Disabled (Use with caution)</SelectItem>
+              <SelectItem value='enabled'>Enabled (Recommended)</SelectItem>
+              <SelectItem value='disabled'>Disabled (Use with caution)</SelectItem>
             </SelectContent>
           </Select>
         </ConfigField>
@@ -106,10 +106,10 @@ export function GithubConfig({
         showCurlCommand={true} // GitHub webhooks can be tested
       />
 
-      <InstructionsSection tip="GitHub will send a ping event to verify after you add the webhook.">
-        <ol className="list-inside list-decimal space-y-1">
+      <InstructionsSection tip='GitHub will send a ping event to verify after you add the webhook.'>
+        <ol className='list-inside list-decimal space-y-1'>
           <li>
-            Go to your GitHub Repository {">"} Settings {">"} Webhooks.
+            Go to your GitHub Repository {'>'} Settings {'>'} Webhooks.
           </li>
           <li>Click "Add webhook".</li>
           <li>

@@ -1,44 +1,44 @@
-import type { ToolConfig } from "../types"
-import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from "./types"
+import type { ToolConfig } from '../types'
+import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from './types'
 
 export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResponse> = {
-  id: "google_drive_create_folder",
-  name: "Create Folder in Google Drive",
-  description: "Create a new folder in Google Drive",
-  version: "1.0",
+  id: 'google_drive_create_folder',
+  name: 'Create Folder in Google Drive',
+  description: 'Create a new folder in Google Drive',
+  version: '1.0',
   oauth: {
     required: true,
-    provider: "google-drive",
-    additionalScopes: ["https://www.googleapis.com/auth/drive.file"],
+    provider: 'google-drive',
+    additionalScopes: ['https://www.googleapis.com/auth/drive.file'],
   },
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "The access token for the Google Drive API",
+      description: 'The access token for the Google Drive API',
     },
     fileName: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Name of the folder to create",
+      description: 'Name of the folder to create',
     },
     folderId: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "ID of the parent folder (leave empty for root folder)",
+      description: 'ID of the parent folder (leave empty for root folder)',
     },
   },
   request: {
-    url: "https://www.googleapis.com/drive/v3/files",
-    method: "POST",
+    url: 'https://www.googleapis.com/drive/v3/files',
+    method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     }),
     body: (params) => {
       const metadata = {
         name: params.fileName,
-        mimeType: "application/vnd.google-apps.folder",
+        mimeType: 'application/vnd.google-apps.folder',
         ...(params.folderId ? { parents: [params.folderId] } : {}),
       }
 
@@ -52,7 +52,7 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
-      throw new Error(data.error?.message || "Failed to create folder in Google Drive")
+      throw new Error(data.error?.message || 'Failed to create folder in Google Drive')
     }
     const data = await response.json()
 
@@ -74,6 +74,6 @@ export const createFolderTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUplo
     }
   },
   transformError: (error) => {
-    return error.message || "An error occurred while creating folder in Google Drive"
+    return error.message || 'An error occurred while creating folder in Google Drive'
   },
 }

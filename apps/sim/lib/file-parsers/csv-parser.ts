@@ -1,10 +1,10 @@
-import { createReadStream, existsSync } from "node:fs"
-import { Readable } from "node:stream"
-import { createLogger } from "@/lib/logs/console-logger"
-import csvParser from "csv-parser"
-import type { FileParseResult, FileParser } from "./types"
+import { createReadStream, existsSync } from 'fs'
+import { Readable } from 'stream'
+import { createLogger } from '@/lib/logs/console-logger'
+import csvParser from 'csv-parser'
+import type { FileParseResult, FileParser } from './types'
 
-const logger = createLogger("CsvParser")
+const logger = createLogger('CsvParser')
 
 export class CsvParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
@@ -12,7 +12,7 @@ export class CsvParser implements FileParser {
       try {
         // Validate input
         if (!filePath) {
-          return reject(new Error("No file path provided"))
+          return reject(new Error('No file path provided'))
         }
 
         // Check if file exists
@@ -24,29 +24,29 @@ export class CsvParser implements FileParser {
         const headers: string[] = []
 
         createReadStream(filePath)
-          .on("error", (error: Error) => {
-            logger.error("CSV stream error:", error)
+          .on('error', (error: Error) => {
+            logger.error('CSV stream error:', error)
             reject(new Error(`Failed to read CSV file: ${error.message}`))
           })
           .pipe(csvParser())
-          .on("headers", (headerList: string[]) => {
+          .on('headers', (headerList: string[]) => {
             headers.push(...headerList)
           })
-          .on("data", (data: Record<string, any>) => {
+          .on('data', (data: Record<string, any>) => {
             results.push(data)
           })
-          .on("end", () => {
+          .on('end', () => {
             // Convert CSV data to a formatted string representation
-            let content = ""
+            let content = ''
 
             // Add headers
             if (headers.length > 0) {
-              content += `${headers.join(", ")}\n`
+              content += `${headers.join(', ')}\n`
             }
 
             // Add rows
             results.forEach((row) => {
-              const rowValues = Object.values(row).join(", ")
+              const rowValues = Object.values(row).join(', ')
               content += `${rowValues}\n`
             })
 
@@ -59,12 +59,12 @@ export class CsvParser implements FileParser {
               },
             })
           })
-          .on("error", (error: Error) => {
-            logger.error("CSV parsing error:", error)
+          .on('error', (error: Error) => {
+            logger.error('CSV parsing error:', error)
             reject(new Error(`Failed to parse CSV file: ${error.message}`))
           })
       } catch (error) {
-        logger.error("CSV general error:", error)
+        logger.error('CSV general error:', error)
         reject(new Error(`Failed to process CSV file: ${(error as Error).message}`))
       }
     })
@@ -73,7 +73,7 @@ export class CsvParser implements FileParser {
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
     return new Promise((resolve, reject) => {
       try {
-        logger.info("Parsing buffer, size:", buffer.length)
+        logger.info('Parsing buffer, size:', buffer.length)
 
         const results: Record<string, any>[] = []
         const headers: string[] = []
@@ -84,29 +84,29 @@ export class CsvParser implements FileParser {
         bufferStream.push(null) // Signal the end of the stream
 
         bufferStream
-          .on("error", (error: Error) => {
-            logger.error("CSV buffer stream error:", error)
+          .on('error', (error: Error) => {
+            logger.error('CSV buffer stream error:', error)
             reject(new Error(`Failed to read CSV buffer: ${error.message}`))
           })
           .pipe(csvParser())
-          .on("headers", (headerList: string[]) => {
+          .on('headers', (headerList: string[]) => {
             headers.push(...headerList)
           })
-          .on("data", (data: Record<string, any>) => {
+          .on('data', (data: Record<string, any>) => {
             results.push(data)
           })
-          .on("end", () => {
+          .on('end', () => {
             // Convert CSV data to a formatted string representation
-            let content = ""
+            let content = ''
 
             // Add headers
             if (headers.length > 0) {
-              content += `${headers.join(", ")}\n`
+              content += `${headers.join(', ')}\n`
             }
 
             // Add rows
             results.forEach((row) => {
-              const rowValues = Object.values(row).join(", ")
+              const rowValues = Object.values(row).join(', ')
               content += `${rowValues}\n`
             })
 
@@ -119,12 +119,12 @@ export class CsvParser implements FileParser {
               },
             })
           })
-          .on("error", (error: Error) => {
-            logger.error("CSV parsing error:", error)
+          .on('error', (error: Error) => {
+            logger.error('CSV parsing error:', error)
             reject(new Error(`Failed to parse CSV buffer: ${error.message}`))
           })
       } catch (error) {
-        logger.error("CSV buffer parsing error:", error)
+        logger.error('CSV buffer parsing error:', error)
         reject(new Error(`Failed to process CSV buffer: ${(error as Error).message}`))
       }
     })

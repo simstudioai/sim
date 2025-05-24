@@ -1,10 +1,10 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { executeTool } from "@/tools"
-import { getTool } from "@/tools/utils"
-import { validateToolRequest } from "@/tools/utils"
-import { NextResponse } from "next/server"
+import { createLogger } from '@/lib/logs/console-logger'
+import { executeTool } from '@/tools'
+import { getTool } from '@/tools/utils'
+import { validateToolRequest } from '@/tools/utils'
+import { NextResponse } from 'next/server'
 
-const logger = createLogger("ProxyAPI")
+const logger = createLogger('ProxyAPI')
 
 /**
  * Creates a minimal set of default headers for proxy requests
@@ -12,12 +12,12 @@ const logger = createLogger("ProxyAPI")
  */
 const getProxyHeaders = (): Record<string, string> => {
   return {
-    "User-Agent":
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-    Accept: "*/*",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
+    'User-Agent':
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+    Accept: '*/*',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
   }
 }
 
@@ -31,9 +31,9 @@ const formatResponse = (responseData: any, status = 200) => {
   return NextResponse.json(responseData, {
     status,
     headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   })
 }
@@ -64,19 +64,19 @@ const createErrorResponse = (error: any, status = 500, additionalData = {}) => {
  */
 export async function GET(request: Request) {
   const url = new URL(request.url)
-  const targetUrl = url.searchParams.get("url")
+  const targetUrl = url.searchParams.get('url')
   const requestId = crypto.randomUUID().slice(0, 8)
 
   if (!targetUrl) {
     return createErrorResponse("Missing 'url' parameter", 400)
   }
 
-  const method = url.searchParams.get("method") || "GET"
+  const method = url.searchParams.get('method') || 'GET'
 
-  const bodyParam = url.searchParams.get("body")
+  const bodyParam = url.searchParams.get('body')
   let body: string | undefined = undefined
 
-  if (bodyParam && ["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
+  if (bodyParam && ['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
     try {
       body = decodeURIComponent(bodyParam)
     } catch (error) {
@@ -87,14 +87,14 @@ export async function GET(request: Request) {
   const customHeaders: Record<string, string> = {}
 
   for (const [key, value] of url.searchParams.entries()) {
-    if (key.startsWith("header.")) {
+    if (key.startsWith('header.')) {
       const headerName = key.substring(7)
       customHeaders[headerName] = value
     }
   }
 
-  if (body && !customHeaders["Content-Type"]) {
-    customHeaders["Content-Type"] = "application/json"
+  if (body && !customHeaders['Content-Type']) {
+    customHeaders['Content-Type'] = 'application/json'
   }
 
   logger.info(`[${requestId}] Proxying ${method} request to: ${targetUrl}`)
@@ -111,10 +111,10 @@ export async function GET(request: Request) {
     })
 
     // Get response data
-    const contentType = response.headers.get("content-type") || ""
+    const contentType = response.headers.get('content-type') || ''
     let data
 
-    if (contentType.includes("application/json")) {
+    if (contentType.includes('application/json')) {
       data = await response.json()
     } else {
       data = await response.text()
@@ -122,7 +122,7 @@ export async function GET(request: Request) {
 
     // For error responses, include a more descriptive error message
     const errorMessage = !response.ok
-      ? data && typeof data === "object" && data.error
+      ? data && typeof data === 'object' && data.error
         ? `${data.error.message || JSON.stringify(data.error)}`
         : response.statusText || `HTTP error ${response.status}`
       : undefined
@@ -192,7 +192,7 @@ export async function POST(request: Request) {
     if (!result.success) {
       logger.warn(`[${requestId}] Tool execution failed`, {
         toolId,
-        error: result.error || "Unknown error",
+        error: result.error || 'Unknown error',
       })
 
       if (tool.transformError) {
@@ -200,32 +200,32 @@ export async function POST(request: Request) {
           const errorResult = tool.transformError(result)
 
           // Handle both string and Promise return types
-          if (typeof errorResult === "string") {
+          if (typeof errorResult === 'string') {
             throw new Error(errorResult)
           }
           // It's a Promise, await it
           const transformedError = await errorResult
           // If it's a string or has an error property, use it
-          if (typeof transformedError === "string") {
+          if (typeof transformedError === 'string') {
             throw new Error(transformedError)
           }
           if (
             transformedError &&
-            typeof transformedError === "object" &&
-            "error" in transformedError
+            typeof transformedError === 'object' &&
+            'error' in transformedError
           ) {
-            throw new Error(transformedError.error || "Tool returned an error")
+            throw new Error(transformedError.error || 'Tool returned an error')
           }
           // Fallback
-          throw new Error("Tool returned an error")
+          throw new Error('Tool returned an error')
         } catch (e) {
           if (e instanceof Error) {
             throw e
           }
-          throw new Error("Tool returned an error")
+          throw new Error('Tool returned an error')
         }
       } else {
-        throw new Error("Tool returned an error")
+        throw new Error('Tool returned an error')
       }
     }
 
@@ -279,10 +279,10 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Access-Control-Max-Age": "86400",
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
     },
   })
 }

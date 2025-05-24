@@ -11,9 +11,12 @@
     "test": "turbo run test",
     "format": "bunx biome format --write .",
     "format:check": "bunx biome format .",
-    "lint": "bunx biome lint --write --unsafe .",
-    "lint:check": "bunx biome lint --unsafe .",
-    "prepare": "bun husky"
+    "lint": "bunx biome check --write --unsafe .",
+    "lint:check": "bunx biome check --unsafe .",
+    "check": "bunx biome check --files-ignore-unknown=true",
+    "prepare": "bun husky",
+    "prebuild": "bun run lint:check",
+    "type-check": "turbo run type-check"
   },
   "overrides": {
     "react": "19.1.0",

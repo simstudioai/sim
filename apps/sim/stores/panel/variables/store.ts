@@ -1,12 +1,12 @@
-import { createLogger } from "@/lib/logs/console-logger"
-import { API_ENDPOINTS } from "@/stores/constants"
-import { useWorkflowRegistry } from "@/stores/workflows/registry/store"
-import { useSubBlockStore } from "@/stores/workflows/subblock/store"
-import { create } from "zustand"
-import { devtools, persist } from "zustand/middleware"
-import type { Variable, VariablesStore } from "./types"
+import { createLogger } from '@/lib/logs/console-logger'
+import { API_ENDPOINTS } from '@/stores/constants'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { create } from 'zustand'
+import { devtools, persist } from 'zustand/middleware'
+import type { Variable, VariablesStore } from './types'
 
-const logger = createLogger("VariablesStore")
+const logger = createLogger('VariablesStore')
 const SAVE_DEBOUNCE_DELAY = 500 // 500ms debounce delay
 
 // Map to store debounce timers for each workflow
@@ -38,27 +38,27 @@ function validateVariable(variable: Variable): string | undefined {
   try {
     // We only care about the validation result, not the parsed value
     switch (variable.type) {
-      case "number":
+      case 'number':
         // Check if it's a valid number
         if (Number.isNaN(Number(variable.value))) {
-          return "Not a valid number"
+          return 'Not a valid number'
         }
         break
-      case "boolean":
+      case 'boolean':
         // Check if it's a valid boolean
         if (!/^(true|false)$/i.test(String(variable.value).trim())) {
           return 'Expected "true" or "false"'
         }
         break
-      case "object":
+      case 'object':
         // Check if it's a valid JSON object
         try {
           // Handle both JavaScript and JSON syntax
           const valueToEvaluate = String(variable.value).trim()
 
           // Basic security check to prevent arbitrary code execution
-          if (!valueToEvaluate.startsWith("{") || !valueToEvaluate.endsWith("}")) {
-            return "Not a valid object format"
+          if (!valueToEvaluate.startsWith('{') || !valueToEvaluate.endsWith('}')) {
+            return 'Not a valid object format'
           }
 
           // Use Function constructor to safely evaluate the object expression
@@ -66,30 +66,30 @@ function validateVariable(variable: Variable): string | undefined {
           const parsed = new Function(`return ${valueToEvaluate}`)()
 
           // Verify it's actually an object (not array or null)
-          if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-            return "Not a valid object"
+          if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            return 'Not a valid object'
           }
 
           return undefined // Valid object
         } catch (e) {
-          console.log("Object parsing error:", e)
-          return "Invalid object syntax"
+          console.log('Object parsing error:', e)
+          return 'Invalid object syntax'
         }
-      case "array":
+      case 'array':
         // Check if it's a valid JSON array
         try {
           const parsed = JSON.parse(String(variable.value))
           if (!Array.isArray(parsed)) {
-            return "Not a valid JSON array"
+            return 'Not a valid JSON array'
           }
         } catch {
-          return "Invalid JSON array syntax"
+          return 'Invalid JSON array syntax'
         }
         break
     }
     return undefined
   } catch (e) {
-    return e instanceof Error ? e.message : "Invalid format"
+    return e instanceof Error ? e.message : 'Invalid format'
   }
 }
 
@@ -98,14 +98,14 @@ function validateVariable(variable: Variable): string | undefined {
  * Handles the value conversion appropriately
  */
 function migrateStringToPlain(variable: Variable): Variable {
-  if (variable.type !== "string") {
+  if (variable.type !== 'string') {
     return variable
   }
 
   // Convert string type to plain
   const updated = {
     ...variable,
-    type: "plain" as const,
+    type: 'plain' as const,
   }
 
   // For plain text, we want to preserve values exactly as they are,
@@ -155,8 +155,8 @@ export const useVariablesStore = create<VariablesStore>()(
           }
 
           // Check for type conversion - only for backward compatibility
-          if (variable.type === "string") {
-            variable.type = "plain"
+          if (variable.type === 'string') {
+            variable.type = 'plain'
           }
 
           // Create the new variable with empty value
@@ -165,7 +165,7 @@ export const useVariablesStore = create<VariablesStore>()(
             workflowId: variable.workflowId,
             name: uniqueName,
             type: variable.type,
-            value: variable.value || "",
+            value: variable.value || '',
             validationError: undefined,
           }
 
@@ -243,9 +243,9 @@ export const useVariablesStore = create<VariablesStore>()(
                     // Loop through subblocks and update references
                     Object.entries(blockValues as Record<string, any>).forEach(
                       ([subBlockId, value]) => {
-                        const oldVarName = oldVariableName.replace(/\s+/g, "").toLowerCase()
-                        const newVarName = uniqueName.replace(/\s+/g, "").toLowerCase()
-                        const regex = new RegExp(`<variable\.${oldVarName}>`, "gi")
+                        const oldVarName = oldVariableName.replace(/\s+/g, '').toLowerCase()
+                        const newVarName = uniqueName.replace(/\s+/g, '').toLowerCase()
+                        const regex = new RegExp(`<variable\.${oldVarName}>`, 'gi')
 
                         // Use a recursive function to handle all object types
                         updatedWorkflowValues[blockId][subBlockId] = updateReferences(
@@ -261,7 +261,7 @@ export const useVariablesStore = create<VariablesStore>()(
                           replacement: string
                         ): any {
                           // Handle string values
-                          if (typeof value === "string") {
+                          if (typeof value === 'string') {
                             return regex.test(value) ? value.replace(regex, replacement) : value
                           }
 
@@ -271,7 +271,7 @@ export const useVariablesStore = create<VariablesStore>()(
                           }
 
                           // Handle objects
-                          if (value !== null && typeof value === "object") {
+                          if (value !== null && typeof value === 'object') {
                             const result = { ...value }
                             for (const key in result) {
                               result[key] = updateReferences(result[key], regex, replacement)
@@ -301,8 +301,8 @@ export const useVariablesStore = create<VariablesStore>()(
             }
 
             // If type is being updated to 'string', convert it to 'plain' instead
-            if (update.type === "string") {
-              update = { ...update, type: "plain" }
+            if (update.type === 'string') {
+              update = { ...update, type: 'plain' }
             }
 
             // Create updated variable to check for validation
@@ -370,7 +370,7 @@ export const useVariablesStore = create<VariablesStore>()(
 
         duplicateVariable: (id) => {
           const state = get()
-          if (!state.variables[id]) return ""
+          if (!state.variables[id]) return ''
 
           const variable = state.variables[id]
           const newId = crypto.randomUUID()
@@ -536,7 +536,7 @@ export const useVariablesStore = create<VariablesStore>()(
                 return {
                   variables: otherVariables,
                   isLoading: false,
-                  error: "You do not have permission to access these variables",
+                  error: 'You do not have permission to access these variables',
                 }
               })
               return
@@ -548,7 +548,7 @@ export const useVariablesStore = create<VariablesStore>()(
 
             const { data } = await response.json()
 
-            if (data && typeof data === "object") {
+            if (data && typeof data === 'object') {
               set((state) => {
                 // Migrate any 'string' type variables to 'plain'
                 const migratedData: Record<string, Variable> = {}
@@ -615,12 +615,12 @@ export const useVariablesStore = create<VariablesStore>()(
               })
             }
           } catch (error) {
-            logger.error("Error loading workflow variables:", {
+            logger.error('Error loading workflow variables:', {
               error,
               workflowId,
             })
             set({
-              error: error instanceof Error ? error.message : "Unknown error",
+              error: error instanceof Error ? error.message : 'Unknown error',
               isLoading: false,
             })
           }
@@ -650,9 +650,9 @@ export const useVariablesStore = create<VariablesStore>()(
 
             // Send to DB
             const response = await fetch(`${API_ENDPOINTS.WORKFLOWS}/${workflowId}/variables`, {
-              method: "POST",
+              method: 'POST',
               headers: {
-                "Content-Type": "application/json",
+                'Content-Type': 'application/json',
               },
               body: JSON.stringify({
                 variables: workflowVariables,
@@ -675,12 +675,12 @@ export const useVariablesStore = create<VariablesStore>()(
 
             set({ isLoading: false })
           } catch (error) {
-            logger.error("Error saving workflow variables:", {
+            logger.error('Error saving workflow variables:', {
               error,
               workflowId,
             })
             set({
-              error: error instanceof Error ? error.message : "Unknown error",
+              error: error instanceof Error ? error.message : 'Unknown error',
               isLoading: false,
             })
 
@@ -709,7 +709,7 @@ export const useVariablesStore = create<VariablesStore>()(
         },
       }),
       {
-        name: "variables-store",
+        name: 'variables-store',
       }
     )
   )

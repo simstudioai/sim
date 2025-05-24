@@ -1,3 +1,3 @@
-import { telegramMessageTool } from "./message"
+import { telegramMessageTool } from './message'
 
 export { telegramMessageTool }

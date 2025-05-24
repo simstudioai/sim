@@ -1,11 +1,11 @@
-import type { BlockOutput } from "@/blocks/types"
-import { createLogger } from "@/lib/logs/console-logger"
-import type { SerializedBlock } from "@/serializer/types"
-import type { PathTracker } from "../../path"
-import type { InputResolver } from "../../resolver"
-import type { BlockHandler, ExecutionContext } from "../../types"
+import type { BlockOutput } from '@/blocks/types'
+import { createLogger } from '@/lib/logs/console-logger'
+import type { SerializedBlock } from '@/serializer/types'
+import type { PathTracker } from '../../path'
+import type { InputResolver } from '../../resolver'
+import type { BlockHandler, ExecutionContext } from '../../types'
 
-const logger = createLogger("ConditionBlockHandler")
+const logger = createLogger('ConditionBlockHandler')
 
 /**
  * Handler for Condition blocks that evaluate expressions to determine execution paths.
@@ -21,7 +21,7 @@ export class ConditionBlockHandler implements BlockHandler {
   ) {}
 
   canHandle(block: SerializedBlock): boolean {
-    return block.metadata?.id === "condition"
+    return block.metadata?.id === 'condition'
   }
 
   async execute(
@@ -39,10 +39,10 @@ export class ConditionBlockHandler implements BlockHandler {
     try {
       conditions = Array.isArray(inputs.conditions)
         ? inputs.conditions
-        : JSON.parse(inputs.conditions || "[]")
-      logger.info("Parsed conditions:", JSON.stringify(conditions, null, 2))
+        : JSON.parse(inputs.conditions || '[]')
+      logger.info('Parsed conditions:', JSON.stringify(conditions, null, 2))
     } catch (error: any) {
-      logger.error("Failed to parse conditions JSON:", {
+      logger.error('Failed to parse conditions JSON:', {
         conditionsInput: inputs.conditions,
         error,
       })
@@ -72,11 +72,11 @@ export class ConditionBlockHandler implements BlockHandler {
     // Build evaluation context (primarily for potential 'context' object in Function)
     // We might not strictly need sourceKey here if references handle everything
     const evalContext = {
-      ...(typeof sourceOutput === "object" && sourceOutput !== null ? sourceOutput : {}),
+      ...(typeof sourceOutput === 'object' && sourceOutput !== null ? sourceOutput : {}),
       // Add other relevant context if needed, like loop variables
       ...(context.loopItems.get(block.id) || {}), // Example: Add loop context if applicable
     }
-    logger.info("Base eval context:", JSON.stringify(evalContext, null, 2))
+    logger.info('Base eval context:', JSON.stringify(evalContext, null, 2))
 
     // Get outgoing connections
     const outgoingConnections = context.workflow?.connections.filter(
@@ -89,7 +89,7 @@ export class ConditionBlockHandler implements BlockHandler {
 
     for (const condition of conditions) {
       // Skip 'else' conditions that have no value to evaluate
-      if (condition.title === "else") {
+      if (condition.title === 'else') {
         const connection = outgoingConnections?.find(
           (conn) => conn.sourceHandle === `condition-${condition.id}`
         ) as { target: string; sourceHandle?: string } | undefined
@@ -128,7 +128,7 @@ export class ConditionBlockHandler implements BlockHandler {
         })
         // IMPORTANT: The resolved value (e.g., "some string".length > 0) IS the code to run
         const conditionMet = new Function(
-          "context",
+          'context',
           `with(context) { return ${resolvedConditionValue} }`
         )(evalContext)
         logger.info(`Condition "${condition.title}" (${condition.id}) met: ${conditionMet}`)
@@ -160,7 +160,7 @@ export class ConditionBlockHandler implements BlockHandler {
     // Handle case where no condition was met (should only happen if no 'else' exists)
     if (!selectedConnection || !selectedCondition) {
       // Check if an 'else' block exists but wasn't selected (shouldn't happen with current logic)
-      const elseCondition = conditions.find((c) => c.title === "else")
+      const elseCondition = conditions.find((c) => c.title === 'else')
       if (elseCondition) {
         logger.warn(`No condition met, but an 'else' block exists. Selecting 'else' path.`, {
           blockId: block.id,
@@ -204,8 +204,8 @@ export class ConditionBlockHandler implements BlockHandler {
         conditionResult: true, // Indicate a path was successfully chosen
         selectedPath: {
           blockId: targetBlock.id,
-          blockType: targetBlock.metadata?.id || "unknown",
-          blockTitle: targetBlock.metadata?.name || "Untitled Block",
+          blockType: targetBlock.metadata?.id || 'unknown',
+          blockTitle: targetBlock.metadata?.name || 'Untitled Block',
         },
         selectedConditionId: selectedCondition.id,
       },

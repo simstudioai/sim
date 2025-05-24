@@ -1,21 +1,21 @@
-import { randomUUID } from "node:crypto"
-import { db } from "@/db"
-import { user, workspace, workspaceInvitation, workspaceMember } from "@/db/schema"
-import { getSession } from "@/lib/auth"
-import { env } from "@/lib/env"
-import { and, eq } from "drizzle-orm"
-import { type NextRequest, NextResponse } from "next/server"
+import { randomUUID } from 'crypto'
+import { db } from '@/db'
+import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
+import { getSession } from '@/lib/auth'
+import { env } from '@/lib/env'
+import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
 
 // Accept an invitation via token
 export async function GET(req: NextRequest) {
-  const token = req.nextUrl.searchParams.get("token")
+  const token = req.nextUrl.searchParams.get('token')
 
   if (!token) {
     // Redirect to a page explaining the error
     return NextResponse.redirect(
       new URL(
-        "/invite/invite-error?reason=missing-token",
-        env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
+        '/invite/invite-error?reason=missing-token',
+        env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
       )
     )
   }
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     // No need to encode API URL as callback, just redirect to invite page
     // The middleware will handle proper login flow and return to invite page
     return NextResponse.redirect(
-      new URL(`/invite/${token}?token=${token}`, env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai")
+      new URL(`/invite/${token}?token=${token}`, env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai')
     )
   }
 
@@ -41,8 +41,8 @@ export async function GET(req: NextRequest) {
     if (!invitation) {
       return NextResponse.redirect(
         new URL(
-          "/invite/invite-error?reason=invalid-token",
-          env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
+          '/invite/invite-error?reason=invalid-token',
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
         )
       )
     }
@@ -51,18 +51,18 @@ export async function GET(req: NextRequest) {
     if (new Date() > new Date(invitation.expiresAt)) {
       return NextResponse.redirect(
         new URL(
-          "/invite/invite-error?reason=expired",
-          env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
+          '/invite/invite-error?reason=expired',
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
         )
       )
     }
 
     // Check if invitation is already accepted
-    if (invitation.status !== "pending") {
+    if (invitation.status !== 'pending') {
       return NextResponse.redirect(
         new URL(
-          "/invite/invite-error?reason=already-processed",
-          env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
+          '/invite/invite-error?reason=already-processed',
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
         )
       )
     }
@@ -79,12 +79,12 @@ export async function GET(req: NextRequest) {
     // This handles cases like john.doe@company.com vs john@company.com
     const normalizeUsername = (email: string): string => {
       return email
-        .split("@")[0]
-        .replace(/[^a-zA-Z0-9]/g, "")
+        .split('@')[0]
+        .replace(/[^a-zA-Z0-9]/g, '')
         .toLowerCase()
     }
 
-    const isSameDomain = userEmail.split("@")[1] === invitationEmail.split("@")[1]
+    const isSameDomain = userEmail.split('@')[1] === invitationEmail.split('@')[1]
     const normalizedUserEmail = normalizeUsername(userEmail)
     const normalizedInvitationEmail = normalizeUsername(invitationEmail)
     const isSimilarUsername =
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(
         new URL(
           `/invite/invite-error?reason=email-mismatch&details=${encodeURIComponent(`Invitation was sent to ${invitation.email}, but you're logged in as ${userData?.email || session.user.email}`)}`,
-          env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
         )
       )
     }
@@ -120,8 +120,8 @@ export async function GET(req: NextRequest) {
     if (!workspaceDetails) {
       return NextResponse.redirect(
         new URL(
-          "/invite/invite-error?reason=workspace-not-found",
-          env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
+          '/invite/invite-error?reason=workspace-not-found',
+          env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
         )
       )
     }
@@ -143,13 +143,13 @@ export async function GET(req: NextRequest) {
       await db
         .update(workspaceInvitation)
         .set({
-          status: "accepted",
+          status: 'accepted',
           updatedAt: new Date(),
         })
         .where(eq(workspaceInvitation.id, invitation.id))
 
       return NextResponse.redirect(
-        new URL(`/w/${invitation.workspaceId}`, env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai")
+        new URL(`/w/${invitation.workspaceId}`, env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai')
       )
     }
 
@@ -167,21 +167,21 @@ export async function GET(req: NextRequest) {
     await db
       .update(workspaceInvitation)
       .set({
-        status: "accepted",
+        status: 'accepted',
         updatedAt: new Date(),
       })
       .where(eq(workspaceInvitation.id, invitation.id))
 
     // Redirect to the workspace
     return NextResponse.redirect(
-      new URL(`/w/${invitation.workspaceId}`, env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai")
+      new URL(`/w/${invitation.workspaceId}`, env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai')
     )
   } catch (error) {
-    console.error("Error accepting invitation:", error)
+    console.error('Error accepting invitation:', error)
     return NextResponse.redirect(
       new URL(
-        "/invite/invite-error?reason=server-error",
-        env.NEXT_PUBLIC_APP_URL || "https://simstudio.ai"
+        '/invite/invite-error?reason=server-error',
+        env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
       )
     )
   }

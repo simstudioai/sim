@@ -1,12 +1,12 @@
-import { Button } from "@/components/ui/button"
-import { EnvVarDropdown, checkEnvVarTrigger } from "@/components/ui/env-var-dropdown"
-import { formatDisplayText } from "@/components/ui/formatted-text"
-import { Input } from "@/components/ui/input"
-import { TagDropdown, checkTagTrigger } from "@/components/ui/tag-dropdown"
-import { cn } from "@/lib/utils"
-import { Trash2 } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useSubBlockValue } from "../hooks/use-sub-block-value"
+import { Button } from '@/components/ui/button'
+import { EnvVarDropdown, checkEnvVarTrigger } from '@/components/ui/env-var-dropdown'
+import { formatDisplayText } from '@/components/ui/formatted-text'
+import { Input } from '@/components/ui/input'
+import { TagDropdown, checkTagTrigger } from '@/components/ui/tag-dropdown'
+import { cn } from '@/lib/utils'
+import { Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface TableProps {
   columns: string[]
@@ -31,7 +31,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
       return [
         {
           id: crypto.randomUUID(),
-          cells: Object.fromEntries(columns.map((col) => [col, ""])),
+          cells: Object.fromEntries(columns.map((col) => [col, ''])),
         },
       ]
     }
@@ -62,9 +62,9 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
           overlay.scrollLeft = input.scrollLeft
         }
 
-        input.addEventListener("scroll", handleScroll)
+        input.addEventListener('scroll', handleScroll)
         return () => {
-          input.removeEventListener("scroll", handleScroll)
+          input.removeEventListener('scroll', handleScroll)
         }
       }
     }
@@ -80,10 +80,10 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
         : row
     )
 
-    if (rowIndex === rows.length - 1 && value !== "") {
+    if (rowIndex === rows.length - 1 && value !== '') {
       updatedRows.push({
         id: crypto.randomUUID(),
-        cells: Object.fromEntries(columns.map((col) => [col, ""])),
+        cells: Object.fromEntries(columns.map((col) => [col, ''])),
       })
     }
 
@@ -97,13 +97,13 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
 
   const renderHeader = () => (
     <thead>
-      <tr className="border-b">
+      <tr className='border-b'>
         {columns.map((column, index) => (
           <th
             key={column}
             className={cn(
-              "px-4 py-2 text-left font-medium text-sm",
-              index < columns.length - 1 && "border-r"
+              'px-4 py-2 text-left font-medium text-sm',
+              index < columns.length - 1 && 'border-r'
             )}
           >
             {column}
@@ -114,15 +114,15 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
   )
 
   const renderCell = (row: TableRow, rowIndex: number, column: string, cellIndex: number) => {
-    const cellValue = row.cells[column] || ""
+    const cellValue = row.cells[column] || ''
     const cellKey = `${rowIndex}-${column}`
 
     return (
       <td
         key={`${row.id}-${column}`}
-        className={cn("relative p-1", cellIndex < columns.length - 1 && "border-r")}
+        className={cn('relative p-1', cellIndex < columns.length - 1 && 'border-r')}
       >
-        <div className="relative w-full">
+        <div className='relative w-full'>
           <Input
             ref={(el) => {
               if (el) inputRefs.current.set(cellKey, el)
@@ -145,7 +145,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
                 showEnvVars: envVarTrigger.show,
                 showTags: tagTrigger.show,
                 cursorPosition,
-                searchTerm: envVarTrigger.show ? envVarTrigger.searchTerm : "",
+                searchTerm: envVarTrigger.show ? envVarTrigger.searchTerm : '',
                 activeSourceBlockId: null,
                 element: e.target,
               })
@@ -157,7 +157,7 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
                 showEnvVars: false,
                 showTags: false,
                 cursorPosition: 0,
-                searchTerm: "",
+                searchTerm: '',
                 activeSourceBlockId: null,
                 element: e.target,
               })
@@ -168,17 +168,17 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
               }, 200)
             }}
             onKeyDown={(e) => {
-              if (e.key === "Escape") {
+              if (e.key === 'Escape') {
                 setActiveCell(null)
               }
             }}
-            className="w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0"
+            className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div
             data-overlay={cellKey}
-            className="pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm"
+            className='pointer-events-none absolute inset-0 flex items-center overflow-hidden bg-transparent px-3 text-sm'
           >
-            <div className="whitespace-pre">{formatDisplayText(cellValue)}</div>
+            <div className='whitespace-pre'>{formatDisplayText(cellValue)}</div>
           </div>
         </div>
       </td>
@@ -187,26 +187,26 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
 
   const renderDeleteButton = (rowIndex: number) =>
     rows.length > 1 && (
-      <td className="w-0 p-0">
+      <td className='w-0 p-0'>
         <Button
-          variant="ghost"
-          size="icon"
-          className="-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100"
+          variant='ghost'
+          size='icon'
+          className='-translate-y-1/2 absolute top-1/2 right-2 h-8 w-8 opacity-0 group-hover:opacity-100'
           onClick={() => handleDeleteRow(rowIndex)}
         >
-          <Trash2 className="h-4 w-4 text-muted-foreground" />
+          <Trash2 className='h-4 w-4 text-muted-foreground' />
         </Button>
       </td>
     )
 
   return (
-    <div className="relative">
-      <div className="overflow-hidden rounded-md border">
-        <table className="w-full">
+    <div className='relative'>
+      <div className='overflow-hidden rounded-md border'>
+        <table className='w-full'>
           {renderHeader()}
           <tbody>
             {rows.map((row, rowIndex) => (
-              <tr key={row.id} className="group relative border-t">
+              <tr key={row.id} className='group relative border-t'>
                 {columns.map((column, cellIndex) => renderCell(row, rowIndex, column, cellIndex))}
                 {renderDeleteButton(rowIndex)}
               </tr>
@@ -224,12 +224,12 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
               setActiveCell(null)
             }}
             searchTerm={activeCell.searchTerm}
-            inputValue={rows[activeCell.rowIndex].cells[activeCell.column] || ""}
+            inputValue={rows[activeCell.rowIndex].cells[activeCell.column] || ''}
             cursorPosition={activeCell.cursorPosition}
             onClose={() => {
               setActiveCell((prev) => (prev ? { ...prev, showEnvVars: false } : null))
             }}
-            className="absolute w-[200px]"
+            className='absolute w-[200px]'
           />
           <TagDropdown
             visible={activeCell.showTags}
@@ -239,14 +239,14 @@ export function Table({ columns, blockId, subBlockId }: TableProps) {
             }}
             blockId={blockId}
             activeSourceBlockId={activeCell.activeSourceBlockId}
-            inputValue={rows[activeCell.rowIndex].cells[activeCell.column] || ""}
+            inputValue={rows[activeCell.rowIndex].cells[activeCell.column] || ''}
             cursorPosition={activeCell.cursorPosition}
             onClose={() => {
               setActiveCell((prev) =>
                 prev ? { ...prev, showTags: false, activeSourceBlockId: null } : null
               )
             }}
-            className="absolute"
+            className='absolute'
           />
         </>
       )}

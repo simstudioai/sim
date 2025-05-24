@@ -1,76 +1,76 @@
-import type { ToolConfig } from "../types"
-import type { JiraWriteParams, JiraWriteResponse } from "./types"
-import { getJiraCloudId } from "./utils"
+import type { ToolConfig } from '../types'
+import type { JiraWriteParams, JiraWriteResponse } from './types'
+import { getJiraCloudId } from './utils'
 
 export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
-  id: "jira_write",
-  name: "Jira Write",
-  description: "Write a Jira issue",
-  version: "1.0.0",
+  id: 'jira_write',
+  name: 'Jira Write',
+  description: 'Write a Jira issue',
+  version: '1.0.0',
 
   oauth: {
     required: true,
-    provider: "jira",
+    provider: 'jira',
     additionalScopes: [
-      "read:jira-user",
-      "write:jira-work",
-      "read:project:jira",
-      "read:issue:jira",
-      "write:issue:jira",
-      "write:comment:jira",
-      "write:comment.property:jira",
-      "write:attachment:jira",
-      "read:attachment:jira",
+      'read:jira-user',
+      'write:jira-work',
+      'read:project:jira',
+      'read:issue:jira',
+      'write:issue:jira',
+      'write:comment:jira',
+      'write:comment.property:jira',
+      'write:attachment:jira',
+      'read:attachment:jira',
     ],
   },
 
   params: {
     accessToken: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "OAuth access token for Jira",
+      description: 'OAuth access token for Jira',
     },
     domain: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "Your Jira domain (e.g., yourcompany.atlassian.net)",
+      description: 'Your Jira domain (e.g., yourcompany.atlassian.net)',
     },
     projectId: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Project ID for the issue",
+      description: 'Project ID for the issue',
     },
     summary: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Summary for the issue",
+      description: 'Summary for the issue',
     },
     description: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Description for the issue",
+      description: 'Description for the issue',
     },
     priority: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Priority for the issue",
+      description: 'Priority for the issue',
     },
     assignee: {
-      type: "string",
+      type: 'string',
       required: false,
-      description: "Assignee for the issue",
+      description: 'Assignee for the issue',
     },
     cloudId: {
-      type: "string",
+      type: 'string',
       required: false,
       description:
-        "Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.",
+        'Jira Cloud ID for the instance. If not provided, it will be fetched using the domain.',
     },
     issueType: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Type of issue to create (e.g., Task, Story, Bug, Sub-task)",
+      description: 'Type of issue to create (e.g., Task, Story, Bug, Sub-task)',
     },
   },
 
@@ -86,29 +86,29 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
     url: (params) => {
       const { domain, cloudId } = params
       if (!domain || !cloudId) {
-        throw new Error("Domain and cloudId are required")
+        throw new Error('Domain and cloudId are required')
       }
 
       const url = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/issue`
 
       return url
     },
-    method: "POST",
+    method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
     }),
     body: (params) => {
       // Validate required fields
       if (!params.projectId) {
-        throw new Error("Project ID is required")
+        throw new Error('Project ID is required')
       }
       if (!params.summary) {
-        throw new Error("Summary is required")
+        throw new Error('Summary is required')
       }
       if (!params.issueType) {
-        throw new Error("Issue type is required")
+        throw new Error('Issue type is required')
       }
 
       // Construct fields object with only the necessary fields
@@ -125,14 +125,14 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
       // Only add description if it exists
       if (params.description) {
         fields.description = {
-          type: "doc",
+          type: 'doc',
           version: 1,
           content: [
             {
-              type: "paragraph",
+              type: 'paragraph',
               content: [
                 {
-                  type: "text",
+                  type: 'text',
                   text: params.description,
                 },
               ],
@@ -163,7 +163,7 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
             data.errorMessages?.[0] ||
               data.errors?.[Object.keys(data.errors)[0]] ||
               data.message ||
-              "Failed to create Jira issue"
+              'Failed to create Jira issue'
           )
         }
         throw new Error(`Request failed with status ${response.status}: ${response.statusText}`)
@@ -183,10 +183,10 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
           success: true,
           output: {
             ts: new Date().toISOString(),
-            issueKey: "unknown",
-            summary: "Issue created successfully",
+            issueKey: 'unknown',
+            summary: 'Issue created successfully',
             success: true,
-            url: "",
+            url: '',
           },
         }
       }
@@ -196,8 +196,8 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
         success: true,
         output: {
           ts: new Date().toISOString(),
-          issueKey: data.key || "unknown",
-          summary: data.fields?.summary || "Issue created",
+          issueKey: data.key || 'unknown',
+          summary: data.fields?.summary || 'Issue created',
           success: true,
           url: `https://${params?.domain}/browse/${data.key}`,
         },
@@ -207,16 +207,16 @@ export const jiraWriteTool: ToolConfig<JiraWriteParams, JiraWriteResponse> = {
         success: true,
         output: {
           ts: new Date().toISOString(),
-          issueKey: "unknown",
-          summary: "Issue created (response parsing failed)",
+          issueKey: 'unknown',
+          summary: 'Issue created (response parsing failed)',
           success: true,
-          url: "",
+          url: '',
         },
       }
     }
   },
 
   transformError: (error: any) => {
-    return error.message || "Failed to create Jira issue"
+    return error.message || 'Failed to create Jira issue'
   },
 }

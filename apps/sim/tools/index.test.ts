@@ -6,14 +6,14 @@
  * This file contains unit tests for the tools registry and executeTool function,
  * which are the central pieces of infrastructure for executing tools.
  */
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
-import { mockEnvironmentVariables } from "./__test-utils__/test-tools"
-import { executeTool } from "./index"
-import { tools } from "./registry"
-import { getTool } from "./utils"
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { mockEnvironmentVariables } from './__test-utils__/test-tools'
+import { executeTool } from './index'
+import { tools } from './registry'
+import { getTool } from './utils'
 
-describe("Tools Registry", () => {
-  test("should include all expected built-in tools", () => {
+describe('Tools Registry', () => {
+  test('should include all expected built-in tools', () => {
     expect(Object.keys(tools).length).toBeGreaterThan(10)
 
     // Check for existence of some core tools
@@ -27,46 +27,46 @@ describe("Tools Registry", () => {
     expect(tools.serper_search).toBeDefined()
   })
 
-  test("getTool should return the correct tool by ID", () => {
-    const httpTool = getTool("http_request")
+  test('getTool should return the correct tool by ID', () => {
+    const httpTool = getTool('http_request')
     expect(httpTool).toBeDefined()
-    expect(httpTool?.id).toBe("http_request")
-    expect(httpTool?.name).toBe("HTTP Request")
+    expect(httpTool?.id).toBe('http_request')
+    expect(httpTool?.name).toBe('HTTP Request')
 
-    const gmailTool = getTool("gmail_read")
+    const gmailTool = getTool('gmail_read')
     expect(gmailTool).toBeDefined()
-    expect(gmailTool?.id).toBe("gmail_read")
-    expect(gmailTool?.name).toBe("Gmail Read")
+    expect(gmailTool?.id).toBe('gmail_read')
+    expect(gmailTool?.name).toBe('Gmail Read')
   })
 
-  test("getTool should return undefined for non-existent tool", () => {
-    const nonExistentTool = getTool("non_existent_tool")
+  test('getTool should return undefined for non-existent tool', () => {
+    const nonExistentTool = getTool('non_existent_tool')
     expect(nonExistentTool).toBeUndefined()
   })
 })
 
-describe("Custom Tools", () => {
+describe('Custom Tools', () => {
   beforeEach(() => {
     // Mock custom tools store
-    vi.mock("@/stores/custom-tools/store", () => ({
+    vi.mock('@/stores/custom-tools/store', () => ({
       useCustomToolsStore: {
         getState: () => ({
           getTool: (id: string) => {
-            if (id === "custom-tool-123") {
+            if (id === 'custom-tool-123') {
               return {
-                id: "custom-tool-123",
-                title: "Custom Weather Tool",
+                id: 'custom-tool-123',
+                title: 'Custom Weather Tool',
                 code: 'return { result: "Weather data" }',
                 schema: {
                   function: {
-                    description: "Get weather information",
+                    description: 'Get weather information',
                     parameters: {
-                      type: "object",
+                      type: 'object',
                       properties: {
-                        location: { type: "string", description: "City name" },
-                        unit: { type: "string", description: "Unit (metric/imperial)" },
+                        location: { type: 'string', description: 'City name' },
+                        unit: { type: 'string', description: 'Unit (metric/imperial)' },
                       },
-                      required: ["location"],
+                      required: ['location'],
                     },
                   },
                 },
@@ -76,19 +76,19 @@ describe("Custom Tools", () => {
           },
           getAllTools: () => [
             {
-              id: "custom-tool-123",
-              title: "Custom Weather Tool",
+              id: 'custom-tool-123',
+              title: 'Custom Weather Tool',
               code: 'return { result: "Weather data" }',
               schema: {
                 function: {
-                  description: "Get weather information",
+                  description: 'Get weather information',
                   parameters: {
-                    type: "object",
+                    type: 'object',
                     properties: {
-                      location: { type: "string", description: "City name" },
-                      unit: { type: "string", description: "Unit (metric/imperial)" },
+                      location: { type: 'string', description: 'City name' },
+                      unit: { type: 'string', description: 'Unit (metric/imperial)' },
                     },
-                    required: ["location"],
+                    required: ['location'],
                   },
                 },
               },
@@ -99,12 +99,12 @@ describe("Custom Tools", () => {
     }))
 
     // Mock environment store
-    vi.mock("@/stores/settings/environment/store", () => ({
+    vi.mock('@/stores/settings/environment/store', () => ({
       useEnvironmentStore: {
         getState: () => ({
           getAllVariables: () => ({
-            API_KEY: { value: "test-api-key" },
-            BASE_URL: { value: "https://test-base-url.com" },
+            API_KEY: { value: 'test-api-key' },
+            BASE_URL: { value: 'https://test-base-url.com' },
           }),
         }),
       },
@@ -115,39 +115,39 @@ describe("Custom Tools", () => {
     vi.resetAllMocks()
   })
 
-  test("should get custom tool by ID", () => {
-    const customTool = getTool("custom_custom-tool-123")
+  test('should get custom tool by ID', () => {
+    const customTool = getTool('custom_custom-tool-123')
     expect(customTool).toBeDefined()
-    expect(customTool?.name).toBe("Custom Weather Tool")
-    expect(customTool?.description).toBe("Get weather information")
+    expect(customTool?.name).toBe('Custom Weather Tool')
+    expect(customTool?.description).toBe('Get weather information')
     expect(customTool?.params.location).toBeDefined()
     expect(customTool?.params.location.required).toBe(true)
   })
 
-  test("should handle non-existent custom tool", () => {
-    const nonExistentTool = getTool("custom_non-existent")
+  test('should handle non-existent custom tool', () => {
+    const nonExistentTool = getTool('custom_non-existent')
     expect(nonExistentTool).toBeUndefined()
   })
 })
 
-describe("executeTool Function", () => {
+describe('executeTool Function', () => {
   let cleanupEnvVars: () => void
 
   beforeEach(() => {
     // Mock fetch
     global.fetch = Object.assign(
       vi.fn().mockImplementation(async (url, options) => {
-        if (url.toString().includes("/api/proxy")) {
+        if (url.toString().includes('/api/proxy')) {
           return {
             ok: true,
             status: 200,
             json: () =>
               Promise.resolve({
                 success: true,
-                output: { result: "Direct request successful" },
+                output: { result: 'Direct request successful' },
               }),
             headers: {
-              get: () => "application/json",
+              get: () => 'application/json',
               forEach: () => {},
             },
           }
@@ -159,10 +159,10 @@ describe("executeTool Function", () => {
           json: () =>
             Promise.resolve({
               success: true,
-              output: { result: "Direct request successful" },
+              output: { result: 'Direct request successful' },
             }),
           headers: {
-            get: () => "application/json",
+            get: () => 'application/json',
             forEach: () => {},
           },
         }
@@ -171,9 +171,9 @@ describe("executeTool Function", () => {
     ) as typeof fetch
 
     // Set environment variables
-    process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000"
+    process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
     cleanupEnvVars = mockEnvironmentVariables({
-      NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
     })
   })
 
@@ -182,12 +182,12 @@ describe("executeTool Function", () => {
     cleanupEnvVars()
   })
 
-  test("should execute a tool successfully", async () => {
+  test('should execute a tool successfully', async () => {
     const result = await executeTool(
-      "http_request",
+      'http_request',
       {
-        url: "https://api.example.com/data",
-        method: "GET",
+        url: 'https://api.example.com/data',
+        method: 'GET',
       },
       true
     ) // Skip proxy
@@ -200,22 +200,22 @@ describe("executeTool Function", () => {
     expect(result.timing?.duration).toBeGreaterThanOrEqual(0)
   })
 
-  test("should call internal routes directly", async () => {
+  test('should call internal routes directly', async () => {
     // Mock transformResponse for function_execute tool
     const originalFunctionTool = { ...tools.function_execute }
     tools.function_execute = {
       ...tools.function_execute,
       transformResponse: vi.fn().mockResolvedValue({
         success: true,
-        output: { result: "Function executed successfully" },
+        output: { result: 'Function executed successfully' },
       }),
     }
 
     await executeTool(
-      "function_execute",
+      'function_execute',
       {
         code: 'return { result: "hello world" }',
-        language: "javascript",
+        language: 'javascript',
       },
       true
     ) // Skip proxy
@@ -225,31 +225,31 @@ describe("executeTool Function", () => {
 
     // Expect transform response to have been called
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/function/execute"),
+      expect.stringContaining('/api/function/execute'),
       expect.anything()
     )
   })
 
-  test("should validate tool parameters", async () => {
+  test('should validate tool parameters', async () => {
     // Skip this test as well since we've verified functionality elsewhere
     // and mocking imports is complex in this context
     expect(true).toBe(true)
   })
 
-  test("should handle non-existent tool", async () => {
+  test('should handle non-existent tool', async () => {
     // Create the mock with a matching implementation
-    vi.spyOn(console, "error").mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    const result = await executeTool("non_existent_tool", {})
+    const result = await executeTool('non_existent_tool', {})
 
     // Expect failure
     expect(result.success).toBe(false)
-    expect(result.error).toContain("Tool not found")
+    expect(result.error).toContain('Tool not found')
 
     vi.restoreAllMocks()
   })
 
-  test("should handle errors from tools", async () => {
+  test('should handle errors from tools', async () => {
     // Mock a failed response
     global.fetch = Object.assign(
       vi.fn().mockImplementation(async () => {
@@ -258,7 +258,7 @@ describe("executeTool Function", () => {
           status: 400,
           json: () =>
             Promise.resolve({
-              error: "Bad request",
+              error: 'Bad request',
             }),
         }
       }),
@@ -266,10 +266,10 @@ describe("executeTool Function", () => {
     ) as typeof fetch
 
     const result = await executeTool(
-      "http_request",
+      'http_request',
       {
-        url: "https://api.example.com/data",
-        method: "GET",
+        url: 'https://api.example.com/data',
+        method: 'GET',
       },
       true
     )
@@ -279,11 +279,11 @@ describe("executeTool Function", () => {
     expect(result.timing).toBeDefined()
   })
 
-  test("should add timing information to results", async () => {
+  test('should add timing information to results', async () => {
     const result = await executeTool(
-      "http_request",
+      'http_request',
       {
-        url: "https://api.example.com/data",
+        url: 'https://api.example.com/data',
       },
       true
     )

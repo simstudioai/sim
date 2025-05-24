@@ -1,10 +1,10 @@
-import { createErrorResponse, createSuccessResponse } from "@/app/api/workflows/utils"
-import { db } from "@/db"
-import { chat } from "@/db/schema"
-import { createLogger } from "@/lib/logs/console-logger"
-import { eq } from "drizzle-orm"
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { db } from '@/db'
+import { chat } from '@/db/schema'
+import { createLogger } from '@/lib/logs/console-logger'
+import { eq } from 'drizzle-orm'
 
-const logger = createLogger("ChatStatusAPI")
+const logger = createLogger('ChatStatusAPI')
 
 /**
  * GET endpoint to check if a workflow has an active chat deployment
@@ -42,6 +42,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error checking chat deployment status:`, error)
-    return createErrorResponse(error.message || "Failed to check chat deployment status", 500)
+    return createErrorResponse(error.message || 'Failed to check chat deployment status', 500)
   }
 }

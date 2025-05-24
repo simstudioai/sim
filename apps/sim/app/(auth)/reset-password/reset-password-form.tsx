@@ -1,18 +1,18 @@
-"use client"
+'use client'
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { cn } from "@/lib/utils"
-import { Loader2 } from "lucide-react"
-import { useState } from "react"
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
+import { Loader2 } from 'lucide-react'
+import { useState } from 'react'
 
 interface RequestResetFormProps {
   email: string
   onEmailChange: (email: string) => void
   onSubmit: (email: string) => Promise<void>
   isSubmitting: boolean
-  statusType: "success" | "error" | null
+  statusType: 'success' | 'error' | null
   statusMessage: string
   className?: string
 }
@@ -33,20 +33,20 @@ export function RequestResetForm({
 
   return (
     <form onSubmit={handleSubmit} className={className}>
-      <div className="grid gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="reset-email">Email</Label>
+      <div className='grid gap-4'>
+        <div className='grid gap-2'>
+          <Label htmlFor='reset-email'>Email</Label>
           <Input
-            id="reset-email"
+            id='reset-email'
             value={email}
             onChange={(e) => onEmailChange(e.target.value)}
-            placeholder="your@email.com"
-            type="email"
+            placeholder='your@email.com'
+            type='email'
             disabled={isSubmitting}
             required
-            className="placeholder:text-white/60"
+            className='placeholder:text-white/60'
           />
-          <p className="text-muted-foreground text-sm">
+          <p className='text-muted-foreground text-sm'>
             We'll send a password reset link to this email address.
           </p>
         </div>
@@ -55,24 +55,24 @@ export function RequestResetForm({
         {statusType && (
           <div
             className={cn(
-              "rounded-md border p-3 text-sm",
-              statusType === "success"
-                ? "border-green-200 bg-green-50 text-green-700"
-                : "border-red-200 bg-red-50 text-red-700"
+              'rounded-md border p-3 text-sm',
+              statusType === 'success'
+                ? 'border-green-200 bg-green-50 text-green-700'
+                : 'border-red-200 bg-red-50 text-red-700'
             )}
           >
             {statusMessage}
           </div>
         )}
 
-        <Button type="submit" disabled={isSubmitting} className="w-full">
+        <Button type='submit' disabled={isSubmitting} className='w-full'>
           {isSubmitting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
               Sending...
             </>
           ) : (
-            "Send Reset Link"
+            'Send Reset Link'
           )}
         </Button>
       </div>
@@ -84,7 +84,7 @@ interface SetNewPasswordFormProps {
   token: string | null
   onSubmit: (password: string) => Promise<void>
   isSubmitting: boolean
-  statusType: "success" | "error" | null
+  statusType: 'success' | 'error' | null
   statusMessage: string
   className?: string
 }
@@ -97,66 +97,66 @@ export function SetNewPasswordForm({
   statusMessage,
   className,
 }: SetNewPasswordFormProps) {
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [validationMessage, setValidationMessage] = useState("")
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [validationMessage, setValidationMessage] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     // Simple validation
     if (password.length < 8) {
-      setValidationMessage("Password must be at least 8 characters long")
+      setValidationMessage('Password must be at least 8 characters long')
       return
     }
 
     if (password !== confirmPassword) {
-      setValidationMessage("Passwords do not match")
+      setValidationMessage('Passwords do not match')
       return
     }
 
-    setValidationMessage("")
+    setValidationMessage('')
     onSubmit(password)
   }
 
   return (
     <form onSubmit={handleSubmit} className={className}>
-      <div className="grid gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="password">New Password</Label>
+      <div className='grid gap-4'>
+        <div className='grid gap-2'>
+          <Label htmlFor='password'>New Password</Label>
           <Input
-            id="password"
-            type="password"
-            autoCapitalize="none"
-            autoComplete="new-password"
-            autoCorrect="off"
+            id='password'
+            type='password'
+            autoCapitalize='none'
+            autoComplete='new-password'
+            autoCorrect='off'
             disabled={isSubmitting || !token}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            placeholder="Enter new password"
-            className="placeholder:text-white/60"
+            placeholder='Enter new password'
+            className='placeholder:text-white/60'
           />
         </div>
-        <div className="grid gap-2">
-          <Label htmlFor="confirmPassword">Confirm Password</Label>
+        <div className='grid gap-2'>
+          <Label htmlFor='confirmPassword'>Confirm Password</Label>
           <Input
-            id="confirmPassword"
-            type="password"
-            autoCapitalize="none"
-            autoComplete="new-password"
-            autoCorrect="off"
+            id='confirmPassword'
+            type='password'
+            autoCapitalize='none'
+            autoComplete='new-password'
+            autoCorrect='off'
             disabled={isSubmitting || !token}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            placeholder="Confirm new password"
-            className="placeholder:text-white/60"
+            placeholder='Confirm new password'
+            className='placeholder:text-white/60'
           />
         </div>
 
         {validationMessage && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-red-700 text-sm">
+          <div className='rounded-md border border-red-200 bg-red-50 p-3 text-red-700 text-sm'>
             {validationMessage}
           </div>
         )}
@@ -164,24 +164,24 @@ export function SetNewPasswordForm({
         {statusType && (
           <div
             className={cn(
-              "rounded-md border p-3 text-sm",
-              statusType === "success"
-                ? "border-green-200 bg-green-50 text-green-700"
-                : "border-red-200 bg-red-50 text-red-700"
+              'rounded-md border p-3 text-sm',
+              statusType === 'success'
+                ? 'border-green-200 bg-green-50 text-green-700'
+                : 'border-red-200 bg-red-50 text-red-700'
             )}
           >
             {statusMessage}
           </div>
         )}
 
-        <Button disabled={isSubmitting || !token} type="submit" className="w-full">
+        <Button disabled={isSubmitting || !token} type='submit' className='w-full'>
           {isSubmitting ? (
             <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
               Resetting...
             </>
           ) : (
-            "Reset Password"
+            'Reset Password'
           )}
         </Button>
       </div>

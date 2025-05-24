@@ -1,8 +1,8 @@
-import type { ToolConfig, ToolResponse } from "../types"
+import type { ToolConfig, ToolResponse } from '../types'
 
 export interface ContactsParams {
   apiKey: string
-  action: "create" | "update" | "search" | "delete"
+  action: 'create' | 'update' | 'search' | 'delete'
   id?: string
   email?: string
   firstName?: string
@@ -27,70 +27,70 @@ export interface ContactsResponse extends ToolResponse {
 }
 
 export const contactsTool: ToolConfig<ContactsParams, ContactsResponse> = {
-  id: "hubspot_contacts",
-  name: "HubSpot Contacts",
+  id: 'hubspot_contacts',
+  name: 'HubSpot Contacts',
   description:
-    "Manage HubSpot CRM contacts with full CRUD operations support. Handle contact properties, pagination, and custom fields while maintaining data consistency across the CRM.",
-  version: "1.0.0",
+    'Manage HubSpot CRM contacts with full CRUD operations support. Handle contact properties, pagination, and custom fields while maintaining data consistency across the CRM.',
+  version: '1.0.0',
 
   params: {
     apiKey: {
-      type: "string",
+      type: 'string',
       required: true,
       requiredForToolCall: true,
-      description: "HubSpot API key",
+      description: 'HubSpot API key',
     },
     email: {
-      type: "string",
+      type: 'string',
       required: true,
-      description: "Contact email address",
+      description: 'Contact email address',
     },
     firstName: {
-      type: "string",
-      description: "Contact first name",
+      type: 'string',
+      description: 'Contact first name',
     },
     lastName: {
-      type: "string",
-      description: "Contact last name",
+      type: 'string',
+      description: 'Contact last name',
     },
     phone: {
-      type: "string",
-      description: "Contact phone number",
+      type: 'string',
+      description: 'Contact phone number',
     },
     company: {
-      type: "string",
-      description: "Contact company name",
+      type: 'string',
+      description: 'Contact company name',
     },
     id: {
-      type: "string",
-      description: "Contact ID (required for updates)",
+      type: 'string',
+      description: 'Contact ID (required for updates)',
     },
     properties: {
-      type: "object",
-      description: "Additional contact properties",
+      type: 'object',
+      description: 'Additional contact properties',
     },
     limit: {
-      type: "number",
+      type: 'number',
       default: 100,
-      description: "Number of records to return",
+      description: 'Number of records to return',
     },
     after: {
-      type: "string",
-      description: "Pagination cursor",
+      type: 'string',
+      description: 'Pagination cursor',
     },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = "https://api.hubapi.com/crm/v3/objects/contacts"
+      const baseUrl = 'https://api.hubapi.com/crm/v3/objects/contacts'
       if (params.id) {
         return `${baseUrl}/${params.id}`
       }
       return baseUrl
     },
-    method: "POST",
+    method: 'POST',
     headers: (params) => ({
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {

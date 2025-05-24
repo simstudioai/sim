@@ -1,23 +1,23 @@
-import { existsSync } from "node:fs"
-import { mkdir } from "node:fs/promises"
-import { join } from "node:path"
-import path from "node:path"
-import { createLogger } from "@/lib/logs/console-logger"
-import { env } from "../env"
+import { existsSync } from 'fs'
+import { join } from 'path'
+import path from 'path'
+import { createLogger } from '@/lib/logs/console-logger'
+import { mkdir } from 'fs/promises'
+import { env } from '../env'
 
-const logger = createLogger("UploadsSetup")
+const logger = createLogger('UploadsSetup')
 
 // Define project root - this works regardless of how the app is started
 const PROJECT_ROOT = path.resolve(process.cwd())
 
 // Define the upload directory path using project root
-export const UPLOAD_DIR = join(PROJECT_ROOT, "uploads")
+export const UPLOAD_DIR = join(PROJECT_ROOT, 'uploads')
 
-export const USE_S3_STORAGE = env.NODE_ENV === "production" || env.USE_S3
+export const USE_S3_STORAGE = env.NODE_ENV === 'production' || env.USE_S3
 
 export const S3_CONFIG = {
-  bucket: env.S3_BUCKET_NAME || "",
-  region: env.AWS_REGION || "",
+  bucket: env.S3_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
 }
 
 /**
@@ -25,7 +25,7 @@ export const S3_CONFIG = {
  */
 export async function ensureUploadsDirectory() {
   if (USE_S3_STORAGE) {
-    logger.info("Using S3 storage, skipping local uploads directory creation")
+    logger.info('Using S3 storage, skipping local uploads directory creation')
     return true
   }
 
@@ -37,7 +37,7 @@ export async function ensureUploadsDirectory() {
     }
     return true
   } catch (error) {
-    logger.error("Failed to create uploads directory:", error)
+    logger.error('Failed to create uploads directory:', error)
     return false
   }
 }
