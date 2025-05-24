@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getBaseUrl } from '@/lib/urls/utils'
 import { refreshAccessTokenIfNeeded } from '../../utils'
 import { getSession } from '@/lib/auth'
 
@@ -8,13 +7,7 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('teams-channels')
 
-interface Channel {
-  id: string
-  displayName: string
-}
-
 export async function POST(request: Request) {
-  logger.info('POST request received at /api/auth/oauth/microsoft-teams/channels')
   try {
     const session = await getSession()
     const body = await request.json()
@@ -56,7 +49,7 @@ export async function POST(request: Request) {
 
       logger.info('Successfully obtained access token, calling Microsoft Graph API')
 
-      const response = await fetch(`https://graph.microsoft.com/v1.0/teams/${teamId}/channels`, {
+      const response = await fetch(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,

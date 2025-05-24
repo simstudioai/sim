@@ -9,7 +9,6 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
   oauth: {
     required: true,
     provider: 'microsoft-teams',
-    additionalScopes: ['Chat.ReadBasic', 'Chat.Read', 'Chat.ReadWrite'],
   },
   params: {
     accessToken: {
@@ -31,7 +30,7 @@ export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsRe
         throw new Error('Chat ID is required')
       }
       // Fetch the most recent messages from the chat
-      return `https://graph.microsoft.com/v1.0/chats/${chatId}/messages?$top=50&$orderby=createdDateTime desc`
+      return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages?$top=50&$orderby=createdDateTime desc`
     },
     method: 'GET',
     headers: (params) => {

@@ -4,12 +4,14 @@ import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { env } from '@/lib/env'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { SubBlockConfig } from '@/blocks/types'
 import { ConfluenceFileInfo, ConfluenceFileSelector } from './components/confluence-file-selector'
 import { DiscordChannelInfo, DiscordChannelSelector } from './components/discord-channel-selector'
 import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
 import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
 import { TeamsMessageInfo, TeamsMessageSelector } from './components/teams-message-selector'
+import { Logger } from '@/lib/logs/console-logger'
 
 interface FileSelectorInputProps {
   blockId: string
@@ -18,7 +20,9 @@ interface FileSelectorInputProps {
 }
 
 export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileSelectorInputProps) {
+  const logger = new Logger('file-selector-input')
   const { getValue, setValue } = useSubBlockStore()
+  const { activeWorkflowId } = useWorkflowRegistry()
   const [selectedFileId, setSelectedFileId] = useState<string>('')
   const [_fileInfo, setFileInfo] = useState<FileInfo | ConfluenceFileInfo | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string>('')
@@ -227,6 +231,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
                 credential={credential}
                 selectionType={selectionType}
                 initialTeamId={selectedTeamId}
+                workflowId={activeWorkflowId || ''}
               />
             </div>
           </TooltipTrigger>

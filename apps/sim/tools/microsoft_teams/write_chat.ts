@@ -35,7 +35,7 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
         throw new Error('Chat ID is required')
       }
 
-      return `https://graph.microsoft.com/v1.0/chats/${chatId}/messages`
+      return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages`
     },
     method: 'POST',
     headers: (params) => {
@@ -54,8 +54,6 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
       if (!params.content) {
         throw new Error('Content is required')
       }
-
-      console.log('params.content', params.content)
     
       // Microsoft Teams API expects this specific format
       const requestBody = {

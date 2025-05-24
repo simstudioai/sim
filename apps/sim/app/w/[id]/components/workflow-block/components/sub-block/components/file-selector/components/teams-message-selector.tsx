@@ -48,6 +48,7 @@ interface TeamsMessageSelectorProps {
   credential: string
   selectionType?: 'team' | 'channel' | 'chat'
   initialTeamId?: string
+  workflowId: string
 }
 
 export function TeamsMessageSelector({
@@ -63,6 +64,7 @@ export function TeamsMessageSelector({
   credential,
   selectionType = 'team',
   initialTeamId,
+  workflowId,
 }: TeamsMessageSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -138,10 +140,6 @@ export function TeamsMessageSelector({
     setError(null)
 
     try {
-      // Get the workflowId from the URL
-      const urlParts = window.location.pathname.split('/')
-      const workflowId = urlParts[2] // Assuming path is /w/[id]/...
-
       const response = await fetch('/api/auth/oauth/microsoft-teams/teams', {
         method: 'POST',
         headers: {
@@ -193,7 +191,7 @@ export function TeamsMessageSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [selectedCredentialId, selectedTeamId, onMessageInfoChange])
+  }, [selectedCredentialId, selectedTeamId, onMessageInfoChange, workflowId])
 
   // Fetch channels for a selected team
   const fetchChannels = useCallback(
@@ -204,10 +202,6 @@ export function TeamsMessageSelector({
       setError(null)
 
       try {
-        // Get the workflowId from the URL
-        const urlParts = window.location.pathname.split('/')
-        const workflowId = urlParts[2] // Assuming path is /w/[id]/...
-
         const response = await fetch('/api/auth/oauth/microsoft-teams/channels', {
           method: 'POST',
           headers: {
@@ -262,7 +256,7 @@ export function TeamsMessageSelector({
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, selectedChannelId, onMessageInfoChange]
+    [selectedCredentialId, selectedChannelId, onMessageInfoChange, workflowId]
   )
 
   // Fetch chats
@@ -273,10 +267,6 @@ export function TeamsMessageSelector({
     setError(null)
 
     try {
-      // Get the workflowId from the URL
-      const urlParts = window.location.pathname.split('/')
-      const workflowId = urlParts[2] // Assuming path is /w/[id]/...
-
       const response = await fetch('/api/auth/oauth/microsoft-teams/chats', {
         method: 'POST',
         headers: {
@@ -328,7 +318,7 @@ export function TeamsMessageSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [selectedCredentialId, selectedChatId, onMessageInfoChange])
+  }, [selectedCredentialId, selectedChatId, onMessageInfoChange, workflowId])
 
   // Update selection stage based on selected values and selectionType
   useEffect(() => {
@@ -354,12 +344,8 @@ export function TeamsMessageSelector({
     }
   }, [selectedTeamId, selectedChannelId, selectedChatId, selectionType])
 
-  // Auto-fetch channels when we have a team ID and are in channel selection mode
-  useEffect(() => {
-    if (selectionType === 'channel' && selectionStage === 'channel' && selectedTeamId && selectedCredentialId && channels.length === 0) {
-      fetchChannels(selectedTeamId)
-    }
-  }, [selectionType, selectionStage, selectedTeamId, selectedCredentialId, channels.length, fetchChannels])
+  // Note: Removed auto-fetch useEffect to prevent race conditions when selectedTeamId changes rapidly.
+  // Channel fetching is handled by handleOpenChange() and handleSelectTeam() instead.
 
   // Handle open change
   const handleOpenChange = (isOpen: boolean) => {
@@ -528,9 +514,6 @@ export function TeamsMessageSelector({
 
     setIsLoading(true)
     try {
-      const urlParts = window.location.pathname.split('/')
-      const workflowId = urlParts[2]
-
       const response = await fetch('/api/auth/oauth/microsoft-teams/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -558,7 +541,7 @@ export function TeamsMessageSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [selectedCredentialId, selectionType, onMessageInfoChange])
+  }, [selectedCredentialId, selectionType, onMessageInfoChange, workflowId])
 
   // Restore chat selection on page refresh
   const restoreChatSelection = useCallback(async (chatId: string) => {
@@ -566,9 +549,6 @@ export function TeamsMessageSelector({
 
     setIsLoading(true)
     try {
-      const urlParts = window.location.pathname.split('/')
-      const workflowId = urlParts[2]
-
       const response = await fetch('/api/auth/oauth/microsoft-teams/chats', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -596,7 +576,7 @@ export function TeamsMessageSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [selectedCredentialId, selectionType, onMessageInfoChange])
+  }, [selectedCredentialId, selectionType, onMessageInfoChange, workflowId])
 
   // Restore channel selection on page refresh
   const restoreChannelSelection = useCallback(async (channelId: string) => {
@@ -604,9 +584,6 @@ export function TeamsMessageSelector({
 
     setIsLoading(true)
     try {
-      const urlParts = window.location.pathname.split('/')
-      const workflowId = urlParts[2]
-
       // First fetch teams to search through them
       const teamsResponse = await fetch('/api/auth/oauth/microsoft-teams/teams', {
         method: 'POST',
@@ -617,8 +594,8 @@ export function TeamsMessageSelector({
       if (teamsResponse.ok) {
         const teamsData = await teamsResponse.json()
         
-        // Search through all teams to find the channel
-        for (const team of teamsData.teams) {
+        // Create parallel promises for all teams to search for the channel
+        const channelSearchPromises = teamsData.teams.map(async (team: { id: string; displayName: string }) => {
           try {
             const channelsResponse = await fetch('/api/auth/oauth/microsoft-teams/channels', {
               method: 'POST',
@@ -630,32 +607,50 @@ export function TeamsMessageSelector({
               const channelsData = await channelsResponse.json()
               const channel = channelsData.channels.find((c: { id: string; displayName: string }) => c.id === channelId)
               if (channel) {
-                const channelInfo: TeamsMessageInfo = {
-                  id: `${team.id}-${channel.id}`,
-                  displayName: channel.displayName,
-                  type: 'channel',
-                  teamId: team.id,
-                  channelId: channel.id,
-                  webViewLink: `https://teams.microsoft.com/l/channel/${team.id}/${encodeURIComponent(channel.displayName)}/${channel.id}`,
+                return {
+                  team,
+                  channel,
+                  channelInfo: {
+                    id: `${team.id}-${channel.id}`,
+                    displayName: channel.displayName,
+                    type: 'channel' as const,
+                    teamId: team.id,
+                    channelId: channel.id,
+                    webViewLink: `https://teams.microsoft.com/l/channel/${team.id}/${encodeURIComponent(channel.displayName)}/${channel.id}`,
+                  }
                 }
-                setSelectedTeamId(team.id)
-                setSelectedChannelId(channel.id)
-                setSelectedMessage(channelInfo)
-                onMessageInfoChange?.(channelInfo)
-                return
               }
             }
           } catch (error) {
             logger.warn(`Error searching for channel in team ${team.id}:`, error instanceof Error ? error.message : String(error))
           }
+          return null
+        })
+
+        // Wait for all parallel requests to complete (or fail)
+        const results = await Promise.allSettled(channelSearchPromises)
+        
+        // Find the first successful result that contains our channel
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value) {
+            const { channelInfo } = result.value
+            setSelectedTeamId(channelInfo.teamId!)
+            setSelectedChannelId(channelInfo.channelId!)
+            setSelectedMessage(channelInfo)
+            onMessageInfoChange?.(channelInfo)
+            return // Found the channel, exit successfully
+          }
         }
+
+        // If we get here, the channel wasn't found in any team
+        logger.warn(`Channel ${channelId} not found in any accessible team`)
       }
     } catch (error) {
       logger.error('Error restoring channel selection:', error)
     } finally {
       setIsLoading(false)
     }
-  }, [selectedCredentialId, selectionType, onMessageInfoChange])
+  }, [selectedCredentialId, selectionType, onMessageInfoChange, workflowId])
 
   // Keep internal selectedCredentialId in sync with the credential prop
   useEffect(() => {

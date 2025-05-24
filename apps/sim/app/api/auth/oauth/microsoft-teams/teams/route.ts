@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getBaseUrl } from '@/lib/urls/utils'
 import { refreshAccessTokenIfNeeded } from '../../utils'
 import { getSession } from '@/lib/auth'
 

@@ -8,13 +8,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('teams-chats')
 
-// Helper function to format chat names
-const formatChatName = (chat: any): string => {
-  // In a real implementation, this would format a chat name based on participants
-  // For now, just return a generic name if no topic is available
-  return chat.topic || `Chat ${chat.id}`;
-}
-
 // Helper function to get chat members and create a meaningful name
 const getChatDisplayName = async (chatId: string, accessToken: string, chatTopic?: string): Promise<string> => {
   try {
