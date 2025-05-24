@@ -1,5 +1,5 @@
-import { ToolConfig } from '../types'
-import { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
+import type { ToolConfig } from '../types'
+import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
 
 export const readChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_chat',

@@ -5,12 +5,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { env } from '@/lib/env'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { SubBlockConfig } from '@/blocks/types'
-import { ConfluenceFileInfo, ConfluenceFileSelector } from './components/confluence-file-selector'
-import { DiscordChannelInfo, DiscordChannelSelector } from './components/discord-channel-selector'
-import { FileInfo, GoogleDrivePicker } from './components/google-drive-picker'
-import { JiraIssueInfo, JiraIssueSelector } from './components/jira-issue-selector'
-import { TeamsMessageInfo, TeamsMessageSelector } from './components/teams-message-selector'
+import type { SubBlockConfig } from '@/blocks/types'
+import type { ConfluenceFileInfo } from './components/confluence-file-selector'
+import { ConfluenceFileSelector } from './components/confluence-file-selector'
+import type { DiscordChannelInfo } from './components/discord-channel-selector'
+import { DiscordChannelSelector } from './components/discord-channel-selector'
+import type { FileInfo } from './components/google-drive-picker'
+import { GoogleDrivePicker } from './components/google-drive-picker'
+import type { JiraIssueInfo } from './components/jira-issue-selector'
+import { JiraIssueSelector } from './components/jira-issue-selector'
+import type { TeamsMessageInfo } from './components/teams-message-selector'
+import { TeamsMessageSelector } from './components/teams-message-selector'
 
 interface FileSelectorInputProps {
   blockId: string
