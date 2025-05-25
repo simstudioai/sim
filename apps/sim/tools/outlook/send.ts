@@ -52,38 +52,61 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
           'Content-Type': 'application/json',
         }
       },
-    },
-    transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Failed to send Outlook mail: ${errorText}`)
-      }
-  
-      return {
-        success: true,
-        output: {
-        message: 'Email sent successfully',
-        results: [],
-        },
-      }
-    },
-    transformError: (error) => {
-      // If it's an Error instance with a message, use that
-      if (error instanceof Error) {
-        return error.message
-      }
-  
-      // If it's an object with an error or message property
-      if (typeof error === 'object' && error !== null) {
-        if (error.error) {
-          return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
+      body: (params: OutlookSendParams): Record<string, any> => {
+        return {
+          message: {
+            subject: params.subject,
+            body: {
+              contentType: "Text",
+              content: params.body,
+            },
+            toRecipients: [
+              {
+                emailAddress: {
+                  address: params.to,
+                },
+              },
+            ],
+          },
+          saveToSentItems: true,
         }
-        if (error.message) {
-          return error.message
-        }
-      }
-  
-      // Default fallback message
-      return 'An error occurred while reading Microsoft Teams chat'
+      },
     },
-  }
+    transformResponse: async (response) => {
+        if (!response.ok) {
+          let errorData
+          try {
+            errorData = await response.json()
+          } catch {
+            throw new Error('Failed to send email')
+          }
+          throw new Error(errorData.error?.message || 'Failed to send email')
+        }
+    
+        // Outlook sendMail API returns empty body on success
+        return {
+          success: true,
+          output: {
+            message: 'Email sent successfully',
+            results: {
+              status: 'sent',
+              timestamp: new Date().toISOString(),
+            },
+          },
+        }
+      },
+    
+      transformError: (error) => {
+        // Handle Google API error format
+        if (error.error?.message) {
+          if (error.error.message.includes('invalid authentication credentials')) {
+            return 'Invalid or expired access token. Please reauthenticate.'
+          }
+          if (error.error.message.includes('quota')) {
+            return 'Outlook API quota exceeded. Please try again later.'
+          }
+          return error.error.message
+        }
+        return error.message || 'An unexpected error occurred while sending email'
+      },
+    }

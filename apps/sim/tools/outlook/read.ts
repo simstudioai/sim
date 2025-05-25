@@ -17,10 +17,20 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
       required: true,
       description: 'OAuth access token for Outlook',
     },
+    folder: {
+      type: 'string',
+      required: false,
+      description: 'Folder ID to read emails from (default: Inbox)',
+    },
+    maxResults: {
+      type: 'number',
+      required: false,
+      description: 'Maximum number of emails to retrieve (default: 1, max: 10)',
+    },
     messageId: {
-        type: 'string',
-        required: false,
-        description: 'Message ID to read',
+      type: 'string',
+      required: false,
+      description: 'Message ID to read',
     }
   },
   request: {
@@ -29,8 +39,17 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
         if (params.messageId) {
             return `https://graph.microsoft.com/v1.0/me/messages/${params.messageId}`
         }
-        // Otherwise fetch the most recent messages
-        return `https://graph.microsoft.com/v1.0/me/messages?$top=50&$orderby=createdDateTime desc`
+        
+        // Set max results (default to 1 for simplicity, max 10)
+        const maxResults = params.maxResults ? Math.min(params.maxResults, 10) : 1
+        
+        // If folder is provided, read from that specific folder
+        if (params.folder) {
+            return `https://graph.microsoft.com/v1.0/me/mailFolders/${params.folder}/messages?$top=${maxResults}&$orderby=createdDateTime desc`
+        }
+        
+        // Otherwise fetch from all messages (default behavior)
+        return `https://graph.microsoft.com/v1.0/me/messages?$top=${maxResults}&$orderby=createdDateTime desc`
     },
       method: 'GET',
       headers: (params) => {
@@ -63,13 +82,45 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
             results: [],
           },
         }
-      }     
+      }
+
+      // Clean up the message data to only include essential fields
+      const cleanedMessages = messages.map((message: any) => ({
+        id: message.id,
+        subject: message.subject,
+        bodyPreview: message.bodyPreview,
+        body: {
+          contentType: message.body?.contentType,
+          content: message.body?.content,
+        },
+        sender: {
+          name: message.sender?.emailAddress?.name,
+          address: message.sender?.emailAddress?.address,
+        },
+        from: {
+          name: message.from?.emailAddress?.name,
+          address: message.from?.emailAddress?.address,
+        },
+        toRecipients: message.toRecipients?.map((recipient: any) => ({
+          name: recipient.emailAddress?.name,
+          address: recipient.emailAddress?.address,
+        })) || [],
+        ccRecipients: message.ccRecipients?.map((recipient: any) => ({
+          name: recipient.emailAddress?.name,
+          address: recipient.emailAddress?.address,
+        })) || [],
+        receivedDateTime: message.receivedDateTime,
+        sentDateTime: message.sentDateTime,
+        hasAttachments: message.hasAttachments,
+        isRead: message.isRead,
+        importance: message.importance,
+      }))
   
       return {
         success: true,
         output: {
-          message: 'Email read successfully',
-          results: messages,
+          message: `Successfully read ${cleanedMessages.length} email${cleanedMessages.length === 1 ? '' : 's'}`,
+          results: cleanedMessages,
         },
       }
     },

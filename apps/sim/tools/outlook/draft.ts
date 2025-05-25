@@ -52,38 +52,62 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
           'Content-Type': 'application/json',
         }
       },
-    },
-    transformResponse: async (response: Response) => {
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Failed to draft Outlook mail: ${errorText}`)
-      }
-  
-      return {
-        success: true,
-        output: {
-        message: 'Email drafted successfully',
-        results: [],
-        },
-      }
-    },
-    transformError: (error) => {
-      // If it's an Error instance with a message, use that
-      if (error instanceof Error) {
-        return error.message
-      }
-  
-      // If it's an object with an error or message property
-      if (typeof error === 'object' && error !== null) {
-        if (error.error) {
-          return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
+      body: (params: OutlookDraftParams): Record<string, any> => {
+        return {
+          subject: params.subject,
+          body: {
+            contentType: "Text",
+            content: params.body,
+          },
+          toRecipients: [
+            {
+              emailAddress: {
+                address: params.to,
+              },
+            },
+          ],
         }
-        if (error.message) {
-          return error.message
-        }
-      }
-  
-      // Default fallback message
-      return 'An error occurred while reading Microsoft Teams chat'
+      },
     },
-  }
+    transformResponse: async (response) => {
+        if (!response.ok) {
+          let errorData
+          try {
+            errorData = await response.json()
+          } catch {
+            throw new Error('Failed to draft email')
+          }
+          throw new Error(errorData.error?.message || 'Failed to draft email')
+        }
+    
+        // Outlook draft API returns the created message object
+        const data = await response.json()
+        
+        return {
+          success: true,
+          output: {
+            message: 'Email drafted successfully',
+            results: {
+              id: data.id,
+              subject: data.subject,
+              status: 'drafted',
+              timestamp: new Date().toISOString(),
+            },
+          },
+        }
+      },
+    
+      transformError: (error) => {
+        // Handle Google API error format
+        if (error.error?.message) {
+          if (error.error.message.includes('invalid authentication credentials')) {
+            return 'Invalid or expired access token. Please reauthenticate.'
+          }
+          if (error.error.message.includes('quota')) {
+            return 'Outlook API quota exceeded. Please try again later.'
+          }
+          return error.error.message
+        }
+        return error.message || 'An unexpected error occurred while sending email'
+      },
+    }

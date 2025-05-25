@@ -28,15 +28,22 @@ export const OutlookBlock: BlockConfig<OutlookReadResponse | OutlookSendResponse
     // Gmail Credentials
     {
       id: 'credential',
-      title: 'Outlook Account',
+      title: 'Microsoft Account',
       type: 'oauth-input',
       layout: 'full',
       provider: 'outlook',
       serviceId: 'outlook',
       requiredScopes: [
-        
+        'Mail.ReadWrite',
+        'Mail.ReadBasic',
+        'Mail.Read',
+        'Mail.Send',
+        'offline_access',
+        'openid',
+        'profile',
+        'email',
       ],
-      placeholder: 'Select Outlook account',
+      placeholder: 'Select Microsoft account',
     },
     // Send Email Fields
     {
@@ -66,15 +73,17 @@ export const OutlookBlock: BlockConfig<OutlookReadResponse | OutlookSendResponse
     // Read Email Fields - Add folder selector
     {
       id: 'folder',
-      title: 'Label',
+      title: 'Folder',
       type: 'folder-selector',
       layout: 'full',
       provider: 'outlook',
       serviceId: 'outlook',
       requiredScopes: [
-
+        'Mail.ReadWrite',
+        'Mail.ReadBasic',
+        'Mail.Read',
       ],
-      placeholder: 'Select Outlook label/folder',
+      placeholder: 'Select Outlook folder',
       condition: { field: 'operation', value: 'read_outlook' },
     },
     {
