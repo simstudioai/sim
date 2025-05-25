@@ -18,10 +18,11 @@ import 'reactflow/dist/style.css'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { LoopTool } from '@/app/w/[id]/components/loop-node/loop-config'
 import { WorkflowEdge } from '@/app/w/[id]/components/workflow-edge/workflow-edge'
-import { LoopInput } from '@/app/w/[id]/components/workflow-loop/components/loop-input/loop-input'
-import { LoopLabel } from '@/app/w/[id]/components/workflow-loop/components/loop-label/loop-label'
-import { createLoopNode } from '@/app/w/[id]/components/workflow-loop/workflow-loop'
+// import { LoopInput } from '@/app/w/[id]/components/workflow-loop/components/loop-input/loop-input'
+// import { LoopLabel } from '@/app/w/[id]/components/workflow-loop/components/loop-label/loop-label'
+// import { createLoopNode } from '@/app/w/[id]/components/workflow-loop/workflow-loop'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 
@@ -57,8 +58,8 @@ interface ExtendedSubBlockConfig extends SubBlockConfig {
 // Define node types
 const nodeTypes: NodeTypes = {
   workflowBlock: PreviewWorkflowBlock,
-  loopLabel: LoopLabel,
-  loopInput: LoopInput,
+  // loopLabel: LoopLabel,
+  // loopInput: LoopInput,
 }
 
 // Define edge types
@@ -407,13 +408,21 @@ function PreviewSubBlock({ config }: { config: ExtendedSubBlockConfig }) {
 }
 
 function PreviewWorkflowBlock({ id, data }: NodeProps<any>) {
-  const { type, config, name, blockState, showSubBlocks = true } = data
+  const { type, config, name, blockState, showSubBlocks = true, isLoopBlock } = data
+
+  // Get block configuration - use LoopTool for loop blocks if config is missing
+  const blockConfig = useMemo(() => {
+    if (type === 'loop' && !config) {
+      return LoopTool
+    }
+    return config
+  }, [type, config])
 
   // Only prepare subblocks if they should be shown
   const preparedSubBlocks = useMemo(() => {
     if (!showSubBlocks) return []
-    return prepareSubBlocks(blockState?.subBlocks, config)
-  }, [blockState?.subBlocks, config, showSubBlocks])
+    return prepareSubBlocks(blockState?.subBlocks, blockConfig)
+  }, [blockState?.subBlocks, blockConfig, showSubBlocks])
 
   // Group subblocks for layout
   const subBlockRows = useMemo(() => {
@@ -442,6 +451,12 @@ function PreviewWorkflowBlock({ id, data }: NodeProps<any>) {
               {name}
             </span>
           </div>
+          {type === 'loop' && (
+            <div className='text-muted-foreground text-xs'>
+              {blockState?.data?.loopType === 'forEach' ? 'For Each' : 'For'}
+              {blockState?.data?.count && ` (${blockState.data.count}x)`}
+            </div>
+          )}
         </div>
 
         {/* Block Content */}
@@ -461,7 +476,9 @@ function PreviewWorkflowBlock({ id, data }: NodeProps<any>) {
                 </div>
               ))
             ) : (
-              <div className='py-2 text-muted-foreground text-xs'>No configured items</div>
+              <div className='py-2 text-muted-foreground text-xs'>
+                {type === 'loop' ? 'Loop configuration' : 'No configured items'}
+              </div>
             )}
           </div>
         )}
@@ -513,27 +530,24 @@ function WorkflowPreviewContent({
   const nodes: Node[] = useMemo(() => {
     const nodeArray: Node[] = []
 
-    // Add loop nodes
-    Object.entries(workflowState.loops || {}).forEach(([loopId, loop]) => {
-      const loopNodes = createLoopNode({
-        loopId,
-        loop: loop as any,
-        blocks: workflowState.blocks,
-      })
+    // First, get all blocks with parent-child relationships
+    const blocksWithParents: Record<string, any> = {}
+    const topLevelBlocks: Record<string, any> = {}
 
-      if (loopNodes) {
-        if (Array.isArray(loopNodes)) {
-          nodeArray.push(...(loopNodes as Node[]))
-        } else {
-          nodeArray.push(loopNodes)
-        }
+    // Categorize blocks as top-level or child blocks
+    Object.entries(workflowState.blocks).forEach(([blockId, block]) => {
+      if (block.data?.parentId) {
+        // This is a child block
+        blocksWithParents[blockId] = block
+      } else {
+        // This is a top-level block
+        topLevelBlocks[blockId] = block
       }
     })
 
-    // Add block nodes
-    Object.entries(workflowState.blocks).forEach(([blockId, block]) => {
+    // Process top-level blocks first
+    Object.entries(topLevelBlocks).forEach(([blockId, block]) => {
       const blockConfig = getBlock(block.type)
-      if (!blockConfig) return
 
       nodeArray.push({
         id: blockId,
@@ -541,17 +555,50 @@ function WorkflowPreviewContent({
         position: block.position,
         data: {
           type: block.type,
-          config: blockConfig,
+          config: blockConfig || (block.type === 'loop' ? LoopTool : null),
           name: block.name,
           blockState: block,
           showSubBlocks,
         },
         draggable: false,
       })
+
+      // Add children of this block if it's a loop
+      if (block.type === 'loop') {
+        // Find all children of this loop
+        const childBlocks = Object.entries(blocksWithParents).filter(
+          ([_, childBlock]) => childBlock.data?.parentId === blockId
+        )
+
+        // Add all child blocks to the node array
+        childBlocks.forEach(([childId, childBlock]) => {
+          const childConfig = getBlock(childBlock.type)
+
+          nodeArray.push({
+            id: childId,
+            type: 'workflowBlock',
+            // Position child blocks relative to the parent
+            position: {
+              x: block.position.x + 50, // Offset children to the right
+              y: block.position.y + (childBlock.position?.y || 100), // Preserve vertical positioning
+            },
+            data: {
+              type: childBlock.type,
+              config: childConfig,
+              name: childBlock.name,
+              blockState: childBlock,
+              showSubBlocks,
+              isChild: true,
+              parentId: blockId,
+            },
+            draggable: false,
+          })
+        })
+      }
     })
 
     return nodeArray
-  }, [workflowState.blocks, workflowState.loops, showSubBlocks])
+  }, [workflowState.blocks, showSubBlocks])
 
   // Transform edges
   const edges: Edge[] = useMemo(() => {

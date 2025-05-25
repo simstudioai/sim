@@ -18,6 +18,7 @@ export interface BlockState {
   isWide?: boolean
   height?: number
   advancedMode?: boolean
+  data?: Record<string, any>
 }
 
 export interface SubBlockState {
@@ -26,12 +27,46 @@ export interface SubBlockState {
   value: string | number | string[][] | null
 }
 
+export interface LoopBlock {
+  id: string
+  loopType: 'for' | 'forEach'
+  count: number
+  collection: string
+  width: number
+  height: number
+  executionState: {
+    currentIteration: number
+    isExecuting: boolean
+    startTime: null | number
+    endTime: null | number
+  }
+}
+
+export interface ParallelBlock {
+  id: string
+  collection: string
+  width: number
+  height: number
+  executionState: {
+    currentExecution: number
+    isExecuting: boolean
+    startTime: null | number
+    endTime: null | number
+  }
+}
+
 export interface Loop {
   id: string
   nodes: string[]
   iterations: number
   loopType: 'for' | 'forEach'
   forEachItems?: any[] | Record<string, any> | string // Items or expression
+}
+
+export interface Parallel {
+  id: string
+  nodes: string[]
+  distribution?: any[] | Record<string, any> | string // Items or expression
 }
 
 export interface DeploymentStatus {
@@ -46,6 +81,7 @@ export interface WorkflowState {
   edges: Edge[]
   lastSaved?: number
   loops: Record<string, Loop>
+  parallels: Record<string, Parallel>
   lastUpdate?: number
   // Legacy deployment fields (keeping for compatibility)
   isDeployed?: boolean
@@ -68,8 +104,18 @@ export interface SyncControl {
 }
 
 export interface WorkflowActions {
-  addBlock: (id: string, type: string, name: string, position: Position) => void
+  addBlock: (
+    id: string,
+    type: string,
+    name: string,
+    position: Position,
+    data?: Record<string, any>,
+    parentId?: string,
+    extent?: 'parent'
+  ) => void
   updateBlockPosition: (id: string, position: Position) => void
+  updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
+  updateParentId: (id: string, parentId: string, extent: 'parent') => void
   removeBlock: (id: string) => void
   addEdge: (edge: Edge) => void
   removeEdge: (edgeId: string) => void
@@ -82,12 +128,17 @@ export interface WorkflowActions {
   toggleBlockWide: (id: string) => void
   updateBlockHeight: (id: string, height: number) => void
   triggerUpdate: () => void
-  updateLoopIterations: (loopId: string, iterations: number) => void
-  updateLoopType: (loopId: string, loopType: Loop['loopType']) => void
-  updateLoopForEachItems: (loopId: string, items: string) => void
+  updateLoopCount: (loopId: string, count: number) => void
+  updateLoopType: (loopId: string, loopType: 'for' | 'forEach') => void
+  updateLoopCollection: (loopId: string, collection: string) => void
+  updateParallelCount: (parallelId: string, count: number) => void
+  updateParallelCollection: (parallelId: string, collection: string) => void
+  generateLoopBlocks: () => Record<string, Loop>
+  generateParallelBlocks: () => Record<string, Parallel>
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   setScheduleStatus: (hasActiveSchedule: boolean) => void
   setWebhookStatus: (hasActiveWebhook: boolean) => void
+  revertToDeployedState: (deployedState: WorkflowState) => void
   toggleBlockAdvancedMode: (id: string) => void
 
   // Add the sync control methods to the WorkflowActions interface

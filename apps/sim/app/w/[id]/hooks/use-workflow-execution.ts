@@ -19,7 +19,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 const logger = createLogger('useWorkflowExecution')
 
 export function useWorkflowExecution() {
-  const { blocks, edges, loops } = useWorkflowStore()
+  const { blocks, edges, loops, parallels } = useWorkflowStore()
   const { activeWorkflowId } = useWorkflowRegistry()
   const { addNotification } = useNotificationStore()
   const { toggleConsole } = useConsoleStore()
@@ -185,7 +185,7 @@ export function useWorkflowExecution() {
         )
 
         // Create serialized workflow
-        const workflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
+        const workflow = new Serializer().serializeWorkflow(mergedStates, edges, loops, parallels)
 
         // Create executor options with streaming support for chat
         const executorOptions: any = {
@@ -439,6 +439,7 @@ export function useWorkflowExecution() {
       blocks,
       edges,
       loops,
+      parallels,
       addNotification,
       toggleConsole,
       togglePanel,

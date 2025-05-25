@@ -10,6 +10,7 @@ export const WorkflowEdge = ({
   sourcePosition,
   targetPosition,
   data,
+  style,
 }: EdgeProps) => {
   const isHorizontal = sourcePosition === 'right' || sourcePosition === 'left'
 
@@ -24,20 +25,30 @@ export const WorkflowEdge = ({
     offset: isHorizontal ? 30 : 20,
   })
 
-  const isSelected = id === data?.selectedEdgeId
+  // Use the directly provided isSelected flag instead of computing it
+  const isSelected = data?.isSelected ?? false
+  const isInsideLoop = data?.isInsideLoop ?? false
+  const parentLoopId = data?.parentLoopId
+
+  // Merge any style props passed from parent
+  const edgeStyle = {
+    strokeWidth: isSelected ? 2.5 : 2,
+    stroke: isSelected ? '#475569' : '#94a3b8',
+    strokeDasharray: '5,5',
+    ...style,
+  }
 
   return (
     <>
       <BaseEdge
         path={edgePath}
         data-testid='workflow-edge'
-        style={{
-          strokeWidth: 2,
-          stroke: isSelected ? '#475569' : '#94a3b8',
-          strokeDasharray: '5,5',
-          zIndex: -10,
-        }}
-        interactionWidth={20}
+        style={edgeStyle}
+        interactionWidth={30}
+        data-edge-id={id}
+        data-parent-loop-id={parentLoopId}
+        data-is-selected={isSelected ? 'true' : 'false'}
+        data-is-inside-loop={isInsideLoop ? 'true' : 'false'}
       />
       <animate
         attributeName='stroke-dashoffset'
@@ -50,16 +61,18 @@ export const WorkflowEdge = ({
       {isSelected && (
         <EdgeLabelRenderer>
           <div
-            className='nodrag nopan flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#FAFBFC]'
+            className='nodrag nopan flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-[#FAFBFC] shadow-sm'
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
-              zIndex: 1000,
+              zIndex: 22,
             }}
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
+
               if (data?.onDelete) {
+                // Pass this specific edge's ID to the delete function
                 data.onDelete(id)
               }
             }}

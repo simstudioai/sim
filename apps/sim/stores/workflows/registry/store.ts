@@ -128,6 +128,7 @@ function resetWorkflowStores() {
           blocks: {},
           edges: [],
           loops: {},
+          parallels: {},
           isDeployed: false,
           deployedAt: undefined,
         },
@@ -497,6 +498,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             blocks: currentState.blocks,
             edges: currentState.edges,
             loops: currentState.loops,
+            parallels: currentState.parallels,
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
@@ -517,6 +519,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           const {
             blocks,
             edges,
+            parallels,
             history,
             loops,
             isDeployed,
@@ -545,6 +548,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             blocks,
             edges,
             loops,
+            parallels,
             isDeployed: workflowIsDeployed !== undefined ? workflowIsDeployed : false,
             deployedAt: workflowDeployedAt ? new Date(workflowDeployedAt) : undefined,
             needsRedeployment:
@@ -557,7 +561,8 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 state: {
                   blocks,
                   edges,
-                  loops: {},
+                  loops,
+                  parallels,
                   isDeployed: workflowIsDeployed !== undefined ? workflowIsDeployed : false,
                   deployedAt: workflowDeployedAt,
                 },
@@ -599,6 +604,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             blocks: {},
             edges: [],
             loops: {},
+            parallels: {},
             isDeployed: false,
             deployedAt: undefined,
             deploymentStatuses: {},
@@ -610,6 +616,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   blocks: {},
                   edges: [],
                   loops: {},
+                  parallels: {},
                   isDeployed: false,
                   deployedAt: undefined,
                 },
@@ -664,6 +671,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             blocks: options.marketplaceState.blocks || {},
             edges: options.marketplaceState.edges || [],
             loops: options.marketplaceState.loops || {},
+            parallels: options.marketplaceState.parallels || {},
             isDeployed: false,
             deployedAt: undefined,
             deploymentStatuses: {}, // Initialize empty deployment statuses map
@@ -675,6 +683,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   blocks: options.marketplaceState.blocks || {},
                   edges: options.marketplaceState.edges || [],
                   loops: options.marketplaceState.loops || {},
+                  parallels: options.marketplaceState.parallels || {},
                   isDeployed: false,
                   deployedAt: undefined,
                   workspaceId, // Include workspace ID in history
@@ -788,6 +797,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
             edges: [],
             loops: {},
+            parallels: {},
             isDeployed: false,
             deployedAt: undefined,
             deploymentStatuses: {}, // Initialize empty deployment statuses map
@@ -801,6 +811,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                   },
                   edges: [],
                   loops: {},
+                  parallels: {},
                   isDeployed: false,
                   deployedAt: undefined,
                   workspaceId, // Include workspace ID in history
@@ -887,6 +898,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           blocks: state.blocks || {},
           edges: state.edges || [],
           loops: state.loops || {},
+          parallels: state.parallels || {},
           isDeployed: false,
           deployedAt: undefined,
           history: {
@@ -896,6 +908,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 blocks: state.blocks || {},
                 edges: state.edges || [],
                 loops: state.loops || {},
+                parallels: state.parallels || {},
                 isDeployed: false,
                 deployedAt: undefined,
               },
@@ -982,6 +995,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           blocks: sourceState.blocks || {},
           edges: sourceState.edges || [],
           loops: sourceState.loops || {},
+          parallels: sourceState.parallels || {},
           isDeployed: false, // Reset deployment status
           deployedAt: undefined, // Reset deployment timestamp
           workspaceId, // Include workspaceId in state
@@ -993,6 +1007,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 blocks: sourceState.blocks || {},
                 edges: sourceState.edges || [],
                 loops: sourceState.loops || {},
+                parallels: sourceState.parallels || {},
                 isDeployed: false,
                 deployedAt: undefined,
                 workspaceId, // Include workspaceId in history state
@@ -1087,11 +1102,13 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             newActiveWorkflowId = remainingIds[0]
             const savedState = loadWorkflowState(newActiveWorkflowId)
             if (savedState) {
-              const { blocks, edges, history, loops, isDeployed, deployedAt } = savedState
+              const { blocks, edges, history, loops, parallels, isDeployed, deployedAt } =
+                savedState
               useWorkflowStore.setState({
                 blocks,
                 edges,
                 loops,
+                parallels,
                 isDeployed: isDeployed || false,
                 deployedAt: deployedAt ? new Date(deployedAt) : undefined,
                 hasActiveSchedule: false,
@@ -1102,6 +1119,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                       blocks,
                       edges,
                       loops,
+                      parallels,
                       isDeployed: isDeployed || false,
                       deployedAt,
                     },
@@ -1117,6 +1135,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 blocks: {},
                 edges: [],
                 loops: {},
+                parallels: {},
                 isDeployed: false,
                 deployedAt: undefined,
                 hasActiveSchedule: false,
@@ -1127,6 +1146,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                       blocks: {},
                       edges: [],
                       loops: {},
+                      parallels: {},
                       isDeployed: false,
                       deployedAt: undefined,
                     },

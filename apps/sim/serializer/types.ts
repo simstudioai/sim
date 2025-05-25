@@ -6,6 +6,7 @@ export interface SerializedWorkflow {
   blocks: SerializedBlock[]
   connections: SerializedConnection[]
   loops: Record<string, SerializedLoop>
+  parallels?: Record<string, SerializedParallel>
 }
 
 export interface SerializedConnection {
@@ -45,4 +46,10 @@ export interface SerializedLoop {
   iterations: number
   loopType?: 'for' | 'forEach' | 'while'
   forEachItems?: any[] | Record<string, any> | string // Items to iterate over or expression to evaluate
+}
+
+export interface SerializedParallel {
+  id: string
+  nodes: string[]
+  distribution?: any[] | Record<string, any> | string // Items to distribute or expression to evaluate
 }
