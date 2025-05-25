@@ -1,6 +1,9 @@
 import type { ToolConfig } from '../types'
-import { extractMessageAttachments } from './attachment-utils'
 import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
+import { extractMessageAttachments } from './attachment-utils'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('MicrosoftTeamsReadChannel')
 
 export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_channel',
@@ -64,7 +67,8 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
   transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Failed to read Microsoft Teams channel: ${errorText}`)
+      logger.error(`Microsoft Teams channel API error: ${response.status} ${response.statusText}`, errorText)
+      throw new Error(`Failed to read Microsoft Teams channel: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
     const data = await response.json()
@@ -93,20 +97,41 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       throw new Error('Missing required parameters: teamId and channelId')
     }
     // Process messages with attachments
-    const processedMessages = messages.map((message: any) => {
-      const content = message.body?.content || 'No content'
-      const messageId = message.id
+    const processedMessages = messages.map((message: any, index: number) => {
+      try {
+        const content = message.body?.content || 'No content'
+        const messageId = message.id
 
-      // Extract attachments without any content processing
-      const attachments = extractMessageAttachments(message)
+        // Extract attachments without any content processing
+        const attachments = extractMessageAttachments(message)
 
-      return {
-        id: messageId,
-        content: content, // Keep original content without modification
-        sender: message.from?.user?.displayName || 'Unknown',
-        timestamp: message.createdDateTime,
-        messageType: message.messageType || 'message',
-        attachments, // Attachments only stored here
+        // Handle sender field more robustly - some messages (like system messages) have null from field
+        let sender = 'Unknown'
+        if (message.from?.user?.displayName) {
+          sender = message.from.user.displayName
+        } else if (message.messageType === 'systemEventMessage') {
+          sender = 'System'
+        }
+
+        return {
+          id: messageId,
+          content: content, // Keep original content without modification
+          sender,
+          timestamp: message.createdDateTime,
+          messageType: message.messageType || 'message',
+          attachments, // Attachments only stored here
+        }
+      } catch (error) {
+        logger.error(`Error processing message at index ${index}:`, error)
+        // Return a safe fallback message
+        return {
+          id: message.id || `unknown-${index}`,
+          content: 'Error processing message',
+          sender: 'Unknown',
+          timestamp: message.createdDateTime || new Date().toISOString(),
+          messageType: 'error',
+          attachments: [],
+        }
       }
     })
 
