@@ -26,4 +26,4 @@ export function extractMessageAttachments(message: any): MicrosoftTeamsAttachmen
   const attachments = (message.attachments || []).map(transformAttachment)
 
   return attachments
-} 
+}

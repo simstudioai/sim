@@ -1,11 +1,11 @@
 import type { ToolConfig } from '../types'
-import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
 import { extractMessageAttachments } from './attachment-utils'
+import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
 
 export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_channel',
   name: 'Read Microsoft Teams Channel',
-  description: 'Read content from a Microsoft Teams channel, including attachments',
+  description: 'Read content from a Microsoft Teams channel',
   version: '1.1',
   oauth: {
     required: true,
@@ -126,9 +126,13 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
     const allAttachments = processedMessages.flatMap((msg: any) => msg.attachments || [])
     const attachmentTypes: string[] = []
     const seenTypes = new Set<string>()
-    
+
     allAttachments.forEach((att: any) => {
-      if (att.contentType && typeof att.contentType === 'string' && !seenTypes.has(att.contentType)) {
+      if (
+        att.contentType &&
+        typeof att.contentType === 'string' &&
+        !seenTypes.has(att.contentType)
+      ) {
         attachmentTypes.push(att.contentType)
         seenTypes.add(att.contentType)
       }
@@ -152,7 +156,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       },
     }
   },
-  transformError: (error) => {    
+  transformError: (error) => {
     // If it's an Error instance with a message, use that
     if (error instanceof Error) {
       return error.message
