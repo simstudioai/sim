@@ -102,6 +102,21 @@ export class PathTracker {
             logger.debug(`Condition ${blockId} selected: ${selectedConditionId}`)
           }
         }
+      } else if (block?.metadata?.id === 'loop') {
+        // Special handling for loop blocks
+        // Only activate loop-start-source connections, NOT loop-end-source
+        const outgoingConnections = this.workflow.connections.filter(
+          (conn) => conn.source === blockId
+        )
+
+        for (const conn of outgoingConnections) {
+          // Only activate loop-start connections
+          if (conn.sourceHandle === 'loop-start-source') {
+            context.activeExecutionPath.add(conn.target)
+            logger.info(`Loop ${blockId} activated start path to: ${conn.target}`)
+          }
+          // loop-end-source connections will be activated by the loop manager when the loop completes
+        }
       } else {
         // For regular blocks, activate all outgoing connections based on success or error status
         const blockState = context.blockStates.get(blockId)

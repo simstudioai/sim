@@ -78,12 +78,21 @@ export class LoopManager {
           hasLoopReachedMaxIterations = true
           logger.info(`Loop ${loopId} has completed all ${maxIterations} iterations`)
 
-          // Reset the loop block so it can execute one more time to handle completion
-          context.executedBlocks.delete(loopId)
-          context.blockStates.delete(loopId)
-          context.activeExecutionPath.add(loopId)
+          // Mark this loop as completed
+          context.completedLoops.add(loopId)
 
-          logger.info(`Loop ${loopId} - Reactivated for completion handling`)
+          // Activate the loop-end-source connections to continue workflow after loop
+          const loopEndConnections =
+            context.workflow?.connections.filter(
+              (conn) => conn.source === loopId && conn.sourceHandle === 'loop-end-source'
+            ) || []
+
+          for (const conn of loopEndConnections) {
+            context.activeExecutionPath.add(conn.target)
+            logger.info(`Activated post-loop path from ${loopId} to ${conn.target}`)
+          }
+
+          logger.info(`Loop ${loopId} - Completed and activated end connections`)
         } else {
           // More iterations to go - reset the blocks inside the loop
           this.resetLoopBlocks(loopId, loop, context)
