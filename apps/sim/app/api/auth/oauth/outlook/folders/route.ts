@@ -27,7 +27,11 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      const accessToken = await refreshAccessTokenIfNeeded(credentialId, userId, crypto.randomUUID().slice(0, 8))
+      const accessToken = await refreshAccessTokenIfNeeded(
+        credentialId,
+        userId,
+        crypto.randomUUID().slice(0, 8)
+      )
 
       if (!accessToken) {
         logger.error('Failed to get access token', { credentialId, userId })
@@ -118,4 +122,4 @@ export async function GET(request: Request) {
       { status: 500 }
     )
   }
-} 
+}

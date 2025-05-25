@@ -13,8 +13,8 @@ import {
   JiraIcon,
   MicrosoftIcon,
   MicrosoftTeamsIcon,
-  OutlookIcon,
   NotionIcon,
+  OutlookIcon,
   SupabaseIcon,
   xIcon,
 } from '@/components/icons'

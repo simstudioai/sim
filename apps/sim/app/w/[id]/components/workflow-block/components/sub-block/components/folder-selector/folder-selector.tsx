@@ -275,7 +275,8 @@ export function FolderSelector({
     const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
     if (provider === 'gmail') {
       return <GmailIcon className={iconSize} />
-    } else if (provider === 'outlook') {
+    }
+    if (provider === 'outlook') {
       return <OutlookIcon className={iconSize} />
     }
     return null
@@ -341,7 +342,10 @@ export function FolderSelector({
             )}
 
             <Command>
-              <CommandInput placeholder={`Search ${getFolderLabel()}...`} onValueChange={handleSearch} />
+              <CommandInput
+                placeholder={`Search ${getFolderLabel()}...`}
+                onValueChange={handleSearch}
+              />
               <CommandList>
                 <CommandEmpty>
                   {isLoading ? (

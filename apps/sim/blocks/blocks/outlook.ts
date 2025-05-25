@@ -1,8 +1,14 @@
 import { OutlookIcon } from '@/components/icons'
-import { OutlookReadResponse, OutlookSendResponse, OutlookDraftResponse } from '@/tools/outlook/types'
-import { BlockConfig } from '../types'
+import type {
+  OutlookDraftResponse,
+  OutlookReadResponse,
+  OutlookSendResponse,
+} from '@/tools/outlook/types'
+import type { BlockConfig } from '../types'
 
-export const OutlookBlock: BlockConfig<OutlookReadResponse | OutlookSendResponse | OutlookDraftResponse> = {
+export const OutlookBlock: BlockConfig<
+  OutlookReadResponse | OutlookSendResponse | OutlookDraftResponse
+> = {
   type: 'outlook',
   name: 'Outlook',
   description: 'Access Outlook',
@@ -78,37 +84,33 @@ export const OutlookBlock: BlockConfig<OutlookReadResponse | OutlookSendResponse
       layout: 'full',
       provider: 'outlook',
       serviceId: 'outlook',
-      requiredScopes: [
-        'Mail.ReadWrite',
-        'Mail.ReadBasic',
-        'Mail.Read',
-      ],
+      requiredScopes: ['Mail.ReadWrite', 'Mail.ReadBasic', 'Mail.Read'],
       placeholder: 'Select Outlook folder',
       condition: { field: 'operation', value: 'read_outlook' },
     },
     {
-        id: 'maxResults',
-        title: 'Number of Emails',
-        type: 'short-input',
-        layout: 'full',
-        placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
-        condition: { field: 'operation', value: 'read_outlook' },
+      id: 'maxResults',
+      title: 'Number of Emails',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'Number of emails to retrieve (default: 1, max: 10)',
+      condition: { field: 'operation', value: 'read_outlook' },
     },
   ],
   tools: {
     access: ['outlook_send', 'outlook_draft', 'outlook_read'],
     config: {
       tool: (params) => {
-            switch (params.operation) {
-              case 'send_outlook':
-                return 'outlook_send'
-              case 'read_outlook':
-                return 'outlook_read'
-              case 'draft_outlook':
-                return 'outlook_draft'
-              default:
-                throw new Error(`Invalid Outlook operation: ${params.operation}`)
-            }
+        switch (params.operation) {
+          case 'send_outlook':
+            return 'outlook_send'
+          case 'read_outlook':
+            return 'outlook_read'
+          case 'draft_outlook':
+            return 'outlook_draft'
+          default:
+            throw new Error(`Invalid Outlook operation: ${params.operation}`)
+        }
       },
       params: (params) => {
         // Pass the credential directly from the credential field

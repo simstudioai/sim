@@ -57,6 +57,7 @@ import {
 import { mistralParserTool } from './mistral'
 import { notionReadTool, notionWriteTool } from './notion'
 import { imageTool, embeddingsTool as openAIEmbeddings } from './openai'
+import { outlookDraftTool, outlookReadTool, outlookSendTool } from './outlook'
 import { perplexityChatTool } from './perplexity'
 import {
   pineconeFetchTool,
@@ -68,7 +69,6 @@ import {
 import { redditGetCommentsTool, redditGetPostsTool, redditHotPostsTool } from './reddit'
 import { s3GetObjectTool } from './s3'
 import { opportunitiesTool as salesforceOpportunities } from './salesforce/opportunities'
-import { outlookReadTool, outlookSendTool, outlookDraftTool } from './outlook'
 import { searchTool as serperSearch } from './serper'
 import { slackMessageTool } from './slack'
 import { stagehandAgentTool, stagehandExtractTool } from './stagehand'
