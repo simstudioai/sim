@@ -11,9 +11,12 @@ import {
   EvaluatorBlockHandler,
   FunctionBlockHandler,
   GenericBlockHandler,
+  LoopBlockHandler,
+  ParallelBlockHandler,
   RouterBlockHandler,
 } from './handlers/index'
 import { LoopManager } from './loops'
+import { ParallelManager } from './parallels'
 import { PathTracker } from './path'
 import { InputResolver } from './resolver'
 import type {
@@ -55,6 +58,7 @@ export class Executor {
   // Core components are initialized once and remain immutable
   private resolver: InputResolver
   private loopManager: LoopManager
+  private parallelManager: ParallelManager
   private pathTracker: PathTracker
   private blockHandlers: BlockHandler[]
   private workflowInput: any
@@ -119,6 +123,7 @@ export class Executor {
     this.validateWorkflow()
 
     this.loopManager = new LoopManager(this.actualWorkflow.loops || {})
+    this.parallelManager = new ParallelManager(this.actualWorkflow.parallels || {})
     this.resolver = new InputResolver(
       this.actualWorkflow,
       this.environmentVariables,
@@ -134,6 +139,8 @@ export class Executor {
       new EvaluatorBlockHandler(),
       new FunctionBlockHandler(),
       new ApiBlockHandler(),
+      new LoopBlockHandler(this.resolver),
+      new ParallelBlockHandler(this.resolver),
       new GenericBlockHandler(),
     ]
 
@@ -334,6 +341,9 @@ export class Executor {
                           // Handle any loop activations, etc.
                           await this.loopManager.processLoopIterations(context)
 
+                          // Process parallel iterations - similar to loops but conceptually for parallel execution
+                          await this.parallelManager.processParallelIterations(context)
+
                           // Fetch the subsequent layer (if any)
                           nextLayer = this.getNextExecutionLayer(context)
                         }
@@ -420,6 +430,9 @@ export class Executor {
             // Process loop iterations - this will activate external paths when loops complete
             await this.loopManager.processLoopIterations(context)
 
+            // Process parallel iterations - similar to loops but conceptually for parallel execution
+            await this.parallelManager.processParallelIterations(context)
+
             // Continue execution for any newly activated paths
             // Only stop execution if there are no more blocks to execute
             const updatedNextLayer = this.getNextExecutionLayer(context)
@@ -504,6 +517,7 @@ export class Executor {
         finalOutput = outputs[outputs.length - 1]
       }
       await this.loopManager.processLoopIterations(context)
+      await this.parallelManager.processParallelIterations(context)
       const nextLayer = this.getNextExecutionLayer(context)
       setPendingBlocks(nextLayer)
 
@@ -604,6 +618,15 @@ export class Executor {
 
       if (loop.iterations <= 0) {
         throw new Error(`Loop ${loopId} must have a positive iterations value`)
+      }
+
+      if (loop.loopType === 'forEach') {
+        if (
+          !loop.forEachItems ||
+          (typeof loop.forEachItems === 'string' && loop.forEachItems.trim() === '')
+        ) {
+          throw new Error(`forEach loop ${loopId} requires a collection to iterate over`)
+        }
       }
     }
   }
@@ -813,6 +836,7 @@ export class Executor {
   /**
    * Determines the next layer of blocks to execute based on dependencies and execution path.
    * Handles special cases for blocks in loops, condition blocks, and router blocks.
+   * For blocks inside parallel executions, creates multiple virtual instances.
    *
    * @param context - Current execution context
    * @returns Array of block IDs that are ready to be executed
@@ -821,112 +845,132 @@ export class Executor {
     const executedBlocks = context.executedBlocks
     const pendingBlocks = new Set<string>()
 
+    // Check if we have any active parallel executions
+    const activeParallels = new Map<string, any>()
+    if (context.parallelExecutions) {
+      for (const [parallelId, state] of context.parallelExecutions) {
+        if (
+          state.currentIteration > 0 &&
+          state.currentIteration <= state.parallelCount &&
+          !context.completedLoops.has(parallelId)
+        ) {
+          activeParallels.set(parallelId, state)
+        }
+      }
+    }
+
     for (const block of this.actualWorkflow.blocks) {
       if (executedBlocks.has(block.id) || block.enabled === false) {
         continue
       }
 
-      // Only consider blocks in the active execution path
-      if (!context.activeExecutionPath.has(block.id)) {
-        continue
+      // Check if this block is inside an active parallel
+      let insideParallel: string | null = null
+      for (const [parallelId, parallel] of Object.entries(this.actualWorkflow.parallels || {})) {
+        if (parallel.nodes.includes(block.id)) {
+          insideParallel = parallelId
+          break
+        }
       }
 
-      const incomingConnections = this.actualWorkflow.connections.filter(
-        (conn) => conn.target === block.id
-      )
+      // If block is inside a parallel, handle multiple instances
+      if (insideParallel && activeParallels.has(insideParallel)) {
+        const parallelState = activeParallels.get(insideParallel)
 
-      // Find all loops that this block is a part of
-      const containingLoops = Object.values(this.actualWorkflow.loops || {}).filter((loop) =>
-        loop.nodes.includes(block.id)
-      )
-
-      const isInLoop = containingLoops.length > 0
-
-      if (isInLoop) {
-        // Check if this block is part of a self-loop (single-node loop)
-        const isInSelfLoop = containingLoops.some(
-          (loop) => loop.nodes.length === 1 && loop.nodes[0] === block.id
+        // Create virtual instances for each unprocessed iteration
+        const virtualBlockIds = this.parallelManager.createVirtualBlockInstances(
+          block,
+          insideParallel,
+          parallelState,
+          executedBlocks,
+          context.activeExecutionPath
         )
 
-        // Check if there's a direct self-connection
-        const hasSelfConnection = this.actualWorkflow.connections.some(
-          (conn) => conn.source === block.id && conn.target === block.id
-        )
+        for (const virtualBlockId of virtualBlockIds) {
+          // Check dependencies for this virtual instance
+          const incomingConnections = this.actualWorkflow.connections.filter(
+            (conn) => conn.target === block.id
+          )
 
-        if (isInSelfLoop || hasSelfConnection) {
-          // For self-loops, we only need the node to be in the active execution path
-          // It will be reset after each iteration by the loop manager
-          pendingBlocks.add(block.id)
+          const iterationIndex = Number.parseInt(virtualBlockId.split('_iteration_')[1])
+          const allDependenciesMet = this.checkDependencies(
+            incomingConnections,
+            executedBlocks,
+            context,
+            insideParallel,
+            iterationIndex
+          )
+
+          if (allDependenciesMet) {
+            pendingBlocks.add(virtualBlockId)
+
+            // Store mapping for virtual block
+            if (!context.parallelBlockMapping) {
+              context.parallelBlockMapping = new Map()
+            }
+            context.parallelBlockMapping.set(virtualBlockId, {
+              originalBlockId: block.id,
+              parallelId: insideParallel,
+              iterationIndex: iterationIndex,
+            })
+          }
+        }
+      } else if (insideParallel) {
+        // Block is inside a parallel but the parallel is not active
+        // Check if all virtual instances have been executed
+        const parallelState = context.parallelExecutions?.get(insideParallel)
+        if (parallelState) {
+          let allVirtualInstancesExecuted = true
+          for (let i = 0; i < parallelState.parallelCount; i++) {
+            const virtualBlockId = `${block.id}_parallel_${insideParallel}_iteration_${i}`
+            if (!executedBlocks.has(virtualBlockId)) {
+              allVirtualInstancesExecuted = false
+              break
+            }
+          }
+
+          // If all virtual instances have been executed, skip this block
+          // It should not be executed as a regular block
+          if (allVirtualInstancesExecuted) {
+            continue
+          }
+        }
+
+        // If we reach here, the parallel hasn't been initialized yet
+        // Allow normal execution flow
+        if (!context.activeExecutionPath.has(block.id)) {
           continue
         }
 
-        // For regular multi-node loops
-        const hasValidPath = incomingConnections.some((conn) => {
-          return executedBlocks.has(conn.source)
-        })
+        const incomingConnections = this.actualWorkflow.connections.filter(
+          (conn) => conn.target === block.id
+        )
 
-        if (hasValidPath) {
+        const allDependenciesMet = this.checkDependencies(
+          incomingConnections,
+          executedBlocks,
+          context
+        )
+
+        if (allDependenciesMet) {
           pendingBlocks.add(block.id)
         }
       } else {
-        // Regular non-loop block handling (unchanged)
-        const allDependenciesMet = incomingConnections.every((conn) => {
-          const sourceExecuted = executedBlocks.has(conn.source)
-          const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
-          const sourceBlockState = context.blockStates.get(conn.source)
-          const hasSourceError =
-            sourceBlockState?.output?.error !== undefined ||
-            sourceBlockState?.output?.response?.error !== undefined
+        // Regular block handling (not inside a parallel)
+        // Only consider blocks in the active execution path
+        if (!context.activeExecutionPath.has(block.id)) {
+          continue
+        }
 
-          // For condition blocks, check if this is the selected path
-          if (conn.sourceHandle?.startsWith('condition-')) {
-            const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
-            if (sourceBlock?.metadata?.id === 'condition') {
-              const conditionId = conn.sourceHandle.replace('condition-', '')
-              const selectedCondition = context.decisions.condition.get(conn.source)
+        const incomingConnections = this.actualWorkflow.connections.filter(
+          (conn) => conn.target === block.id
+        )
 
-              // If source is executed and this is not the selected path, consider it met
-              if (sourceExecuted && selectedCondition && conditionId !== selectedCondition) {
-                return true
-              }
-
-              // Otherwise, this dependency is met only if source is executed and this is the selected path
-              return sourceExecuted && conditionId === selectedCondition
-            }
-          }
-
-          // For router blocks, check if this is the selected target
-          if (sourceBlock?.metadata?.id === 'router') {
-            const selectedTarget = context.decisions.router.get(conn.source)
-
-            // If source is executed and this is not the selected target, consider it met
-            if (sourceExecuted && selectedTarget && conn.target !== selectedTarget) {
-              return true
-            }
-
-            // Otherwise, this dependency is met only if source is executed and this is the selected target
-            return sourceExecuted && conn.target === selectedTarget
-          }
-
-          // For error connections, check if the source had an error
-          if (conn.sourceHandle === 'error') {
-            return sourceExecuted && hasSourceError
-          }
-
-          // For regular connections, check if the source was executed without error
-          if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
-            return sourceExecuted && !hasSourceError
-          }
-
-          // If source is not in active path, consider this dependency met
-          // This allows blocks with multiple inputs to execute even if some inputs are from inactive paths
-          if (!context.activeExecutionPath.has(conn.source)) {
-            return true
-          }
-
-          // For regular blocks, dependency is met if source is executed
-          return sourceExecuted
-        })
+        const allDependenciesMet = this.checkDependencies(
+          incomingConnections,
+          executedBlocks,
+          context
+        )
 
         if (allDependenciesMet) {
           pendingBlocks.add(block.id)
@@ -935,6 +979,162 @@ export class Executor {
     }
 
     return Array.from(pendingBlocks)
+  }
+
+  /**
+   * Checks if all dependencies for a block are met.
+   * Handles special cases for different connection types.
+   *
+   * @param incomingConnections - Connections coming into the block
+   * @param executedBlocks - Set of executed block IDs
+   * @param context - Execution context
+   * @param insideParallel - ID of parallel block if this block is inside one
+   * @param iterationIndex - Index of the parallel iteration if applicable
+   * @returns Whether all dependencies are met
+   */
+  private checkDependencies(
+    incomingConnections: any[],
+    executedBlocks: Set<string>,
+    context: ExecutionContext,
+    insideParallel?: string,
+    iterationIndex?: number
+  ): boolean {
+    // Check if this is a loop block
+    const isLoopBlock = incomingConnections.some((conn) => {
+      const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
+      return sourceBlock?.metadata?.id === 'loop'
+    })
+
+    if (isLoopBlock) {
+      // Loop blocks are treated as regular blocks with standard dependency checking
+      return incomingConnections.every((conn) => {
+        const sourceExecuted = executedBlocks.has(conn.source)
+        const sourceBlockState = context.blockStates.get(conn.source)
+        const hasSourceError =
+          sourceBlockState?.output?.error !== undefined ||
+          sourceBlockState?.output?.response?.error !== undefined
+
+        // For error connections, check if the source had an error
+        if (conn.sourceHandle === 'error') {
+          return sourceExecuted && hasSourceError
+        }
+
+        // For regular connections, check if the source was executed without error
+        if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
+          return sourceExecuted && !hasSourceError
+        }
+
+        // If source is not in active path, consider this dependency met
+        if (!context.activeExecutionPath.has(conn.source)) {
+          return true
+        }
+
+        // For regular blocks, dependency is met if source is executed
+        return sourceExecuted
+      })
+    }
+    // Regular non-loop block handling
+    return incomingConnections.every((conn) => {
+      // For virtual blocks inside parallels, check the source appropriately
+      let sourceId = conn.source
+      if (insideParallel !== undefined && iterationIndex !== undefined) {
+        // If the source is also inside the same parallel, use virtual ID
+        const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
+        if (
+          sourceBlock &&
+          this.actualWorkflow.parallels?.[insideParallel]?.nodes.includes(conn.source)
+        ) {
+          sourceId = `${conn.source}_parallel_${insideParallel}_iteration_${iterationIndex}`
+        }
+      }
+
+      const sourceExecuted = executedBlocks.has(sourceId)
+      const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
+      const sourceBlockState =
+        context.blockStates.get(sourceId) || context.blockStates.get(conn.source)
+      const hasSourceError =
+        sourceBlockState?.output?.error !== undefined ||
+        sourceBlockState?.output?.response?.error !== undefined
+
+      // Special handling for loop-start-source connections
+      if (conn.sourceHandle === 'loop-start-source') {
+        // This block is connected to a loop's start output
+        // It should be activated when the loop block executes
+        return sourceExecuted
+      }
+
+      // Special handling for loop-end-source connections
+      if (conn.sourceHandle === 'loop-end-source') {
+        // This block is connected to a loop's end output
+        // It should only be activated when the loop completes
+        const loopCompleted = context.completedLoops.has(conn.source)
+        return loopCompleted
+      }
+
+      // Special handling for parallel-start-source connections
+      if (conn.sourceHandle === 'parallel-start-source') {
+        // This block is connected to a parallel's start output
+        // It should be activated when the parallel block executes
+        return executedBlocks.has(conn.source)
+      }
+
+      // Special handling for parallel-end-source connections
+      if (conn.sourceHandle === 'parallel-end-source') {
+        // This block is connected to a parallel's end output
+        // It should only be activated when the parallel completes
+        const parallelCompleted = context.completedLoops.has(conn.source)
+        return parallelCompleted
+      }
+
+      // For condition blocks, check if this is the selected path
+      if (conn.sourceHandle?.startsWith('condition-')) {
+        const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
+        if (sourceBlock?.metadata?.id === 'condition') {
+          const conditionId = conn.sourceHandle.replace('condition-', '')
+          const selectedCondition = context.decisions.condition.get(conn.source)
+
+          // If source is executed and this is not the selected path, consider it met
+          if (sourceExecuted && selectedCondition && conditionId !== selectedCondition) {
+            return true
+          }
+
+          // Otherwise, this dependency is met only if source is executed and this is the selected path
+          return sourceExecuted && conditionId === selectedCondition
+        }
+      }
+
+      // For router blocks, check if this is the selected target
+      if (sourceBlock?.metadata?.id === 'router') {
+        const selectedTarget = context.decisions.router.get(conn.source)
+
+        // If source is executed and this is not the selected target, consider it met
+        if (sourceExecuted && selectedTarget && conn.target !== selectedTarget) {
+          return true
+        }
+
+        // Otherwise, this dependency is met only if source is executed and this is the selected target
+        return sourceExecuted && conn.target === selectedTarget
+      }
+
+      // For error connections, check if the source had an error
+      if (conn.sourceHandle === 'error') {
+        return sourceExecuted && hasSourceError
+      }
+
+      // For regular connections, check if the source was executed without error
+      if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
+        return sourceExecuted && !hasSourceError
+      }
+
+      // If source is not in active path, consider this dependency met
+      // This allows blocks with multiple inputs to execute even if some inputs are from inactive paths
+      if (!context.activeExecutionPath.has(conn.source)) {
+        return true
+      }
+
+      // For regular blocks, dependency is met if source is executed
+      return sourceExecuted
+    })
   }
 
   /**
@@ -975,8 +1175,9 @@ export class Executor {
 
   /**
    * Executes a single block with error handling and logging.
+   * Handles virtual block IDs for parallel iterations.
    *
-   * @param blockId - ID of the block to execute
+   * @param blockId - ID of the block to execute (may be a virtual ID)
    * @param context - Current execution context
    * @returns Normalized block output
    * @throws Error if block execution fails
@@ -985,21 +1186,49 @@ export class Executor {
     blockId: string,
     context: ExecutionContext
   ): Promise<NormalizedBlockOutput> {
-    const block = this.actualWorkflow.blocks.find((b) => b.id === blockId)
+    // Check if this is a virtual block ID for parallel execution
+    let actualBlockId = blockId
+    let parallelInfo:
+      | { originalBlockId: string; parallelId: string; iterationIndex: number }
+      | undefined
+
+    if (context.parallelBlockMapping?.has(blockId)) {
+      parallelInfo = context.parallelBlockMapping.get(blockId)
+      actualBlockId = parallelInfo!.originalBlockId
+
+      // Set the current virtual block ID in context so resolver can access it
+      context.currentVirtualBlockId = blockId
+
+      // Set up iteration-specific context BEFORE resolving inputs
+      if (parallelInfo) {
+        this.parallelManager.setupIterationContext(context, parallelInfo)
+      }
+    } else {
+      // Clear currentVirtualBlockId for non-virtual blocks
+      context.currentVirtualBlockId = undefined
+    }
+
+    const block = this.actualWorkflow.blocks.find((b) => b.id === actualBlockId)
     if (!block) {
-      throw new Error(`Block ${blockId} not found`)
+      throw new Error(`Block ${actualBlockId} not found`)
     }
 
     // Special case for starter block - it's already been initialized in createExecutionContext
     // This ensures we don't re-execute the starter block and just return its existing state
     if (block.metadata?.id === 'starter') {
-      const starterState = context.blockStates.get(blockId)
+      const starterState = context.blockStates.get(actualBlockId)
       if (starterState) {
         return starterState.output as NormalizedBlockOutput
       }
     }
 
     const blockLog = this.createBlockLog(block)
+    // Use virtual block ID in logs if applicable
+    if (parallelInfo) {
+      blockLog.blockId = blockId
+      blockLog.blockName = `${block.metadata?.name || ''} (iteration ${parallelInfo.iterationIndex + 1})`
+    }
+
     const addConsole = useConsoleStore.getState().addConsole
     const { setActiveBlocks } = useExecutionStore.getState()
 
@@ -1015,7 +1244,7 @@ export class Executor {
         const starterState = context.blockStates.get(starterBlock.id)
         if (!starterState) {
           logger.warn(
-            `Starter block state not found when executing ${block.metadata?.name || blockId}. This may cause reference errors.`
+            `Starter block state not found when executing ${block.metadata?.name || actualBlockId}. This may cause reference errors.`
           )
         }
       }
@@ -1030,6 +1259,8 @@ export class Executor {
       trackWorkflowTelemetry('block_execution_start', {
         workflowId: context.workflowId,
         blockId: block.id,
+        virtualBlockId: parallelInfo ? blockId : undefined,
+        iterationIndex: parallelInfo?.iterationIndex,
         blockType: block.metadata?.id || 'unknown',
         blockName: block.metadata?.name || 'Unnamed Block',
         inputSize: Object.keys(inputs).length,
@@ -1059,11 +1290,24 @@ export class Executor {
       const output = this.normalizeBlockOutput(rawOutput, block)
 
       // Update the context with the execution result
+      // Use virtual block ID for parallel executions
       context.blockStates.set(blockId, {
         output,
         executed: true,
         executionTime,
       })
+
+      // Also store under the actual block ID for reference
+      if (parallelInfo) {
+        // Store iteration result in parallel state
+        this.parallelManager.storeIterationResult(
+          context,
+          parallelInfo.parallelId,
+          parallelInfo.iterationIndex,
+          actualBlockId,
+          output
+        )
+      }
 
       // Update the execution log
       blockLog.success = true
@@ -1072,20 +1316,28 @@ export class Executor {
       blockLog.endedAt = new Date().toISOString()
 
       context.blockLogs.push(blockLog)
-      addConsole({
-        output: blockLog.output,
-        durationMs: blockLog.durationMs,
-        startedAt: blockLog.startedAt,
-        endedAt: blockLog.endedAt,
-        workflowId: context.workflowId,
-        blockId: block.id,
-        blockName: block.metadata?.name || 'Unnamed Block',
-        blockType: block.metadata?.id || 'unknown',
-      })
+
+      // Skip console logging for infrastructure blocks like loops and parallels
+      if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
+        addConsole({
+          output: blockLog.output,
+          durationMs: blockLog.durationMs,
+          startedAt: blockLog.startedAt,
+          endedAt: blockLog.endedAt,
+          workflowId: context.workflowId,
+          blockId: parallelInfo ? blockId : block.id,
+          blockName: parallelInfo
+            ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${parallelInfo.iterationIndex + 1})`
+            : block.metadata?.name || 'Unnamed Block',
+          blockType: block.metadata?.id || 'unknown',
+        })
+      }
 
       trackWorkflowTelemetry('block_execution', {
         workflowId: context.workflowId,
         blockId: block.id,
+        virtualBlockId: parallelInfo ? blockId : undefined,
+        iterationIndex: parallelInfo?.iterationIndex,
         blockType: block.metadata?.id || 'unknown',
         blockName: block.metadata?.name || 'Unnamed Block',
         durationMs: Math.round(executionTime),
@@ -1111,25 +1363,31 @@ export class Executor {
 
       // Log the error even if we'll continue execution through error path
       context.blockLogs.push(blockLog)
-      addConsole({
-        output: {},
-        error:
-          error.message ||
-          `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
-        durationMs: blockLog.durationMs,
-        startedAt: blockLog.startedAt,
-        endedAt: blockLog.endedAt,
-        workflowId: context.workflowId,
-        blockName: block.metadata?.name || 'Unnamed Block',
-        blockType: block.metadata?.id || 'unknown',
-      })
+
+      // Skip console logging for infrastructure blocks like loops and parallels
+      if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
+        addConsole({
+          output: {},
+          error:
+            error.message ||
+            `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
+          durationMs: blockLog.durationMs,
+          startedAt: blockLog.startedAt,
+          endedAt: blockLog.endedAt,
+          workflowId: context.workflowId,
+          blockName: parallelInfo
+            ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${parallelInfo.iterationIndex + 1})`
+            : block.metadata?.name || 'Unnamed Block',
+          blockType: block.metadata?.id || 'unknown',
+        })
+      }
 
       // Check for error connections and follow them if they exist
-      const hasErrorPath = this.activateErrorPath(blockId, context)
+      const hasErrorPath = this.activateErrorPath(actualBlockId, context)
 
       // Log the error for visibility
       logger.error(
-        `Error executing block ${block.metadata?.name || blockId}:`,
+        `Error executing block ${block.metadata?.name || actualBlockId}:`,
         this.sanitizeError(error)
       )
 
@@ -1173,6 +1431,8 @@ export class Executor {
       trackWorkflowTelemetry('block_execution_error', {
         workflowId: context.workflowId,
         blockId: block.id,
+        virtualBlockId: parallelInfo ? blockId : undefined,
+        iterationIndex: parallelInfo?.iterationIndex,
         blockType: block.metadata?.id || 'unknown',
         blockName: block.metadata?.name || 'Unnamed Block',
         durationMs: blockLog.durationMs,
@@ -1195,7 +1455,12 @@ export class Executor {
   private activateErrorPath(blockId: string, context: ExecutionContext): boolean {
     // Skip for starter blocks which don't have error handles
     const block = this.actualWorkflow.blocks.find((b) => b.id === blockId)
-    if (block?.metadata?.id === 'starter' || block?.metadata?.id === 'condition') {
+    if (
+      block?.metadata?.id === 'starter' ||
+      block?.metadata?.id === 'condition' ||
+      block?.metadata?.id === 'loop' ||
+      block?.metadata?.id === 'parallel'
+    ) {
       return false
     }
 
@@ -1336,6 +1601,34 @@ export class Executor {
       }
 
       return { response: evaluatorResponse }
+    }
+
+    if (blockType === 'loop') {
+      return {
+        response: {
+          loopId: output?.loopId || block.id,
+          currentIteration: output?.currentIteration || 0,
+          maxIterations: output?.maxIterations || 0,
+          loopType: output?.loopType || 'for',
+          completed: output?.completed || false,
+          results: output?.results || [],
+          message: output?.message || '',
+        },
+      }
+    }
+
+    if (blockType === 'parallel') {
+      return {
+        response: {
+          parallelId: output?.parallelId || block.id,
+          parallelCount: output?.parallelCount || 1,
+          distributionType: output?.distributionType || 'simple',
+          completed: output?.completed || false,
+          completedCount: output?.completedCount || 0,
+          results: output?.results || [],
+          message: output?.message || '',
+        },
+      }
     }
 
     return {

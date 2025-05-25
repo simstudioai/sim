@@ -13,6 +13,7 @@ import { environment, userStats, webhook } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
 import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WebhookUtils')
 
@@ -345,8 +346,8 @@ export async function executeWorkflowFromPayload(
       })
       throw new Error(`Workflow ${foundWorkflow.id} has no state`)
     }
-    const state = foundWorkflow.state as any
-    const { blocks, edges, loops } = state
+    const state = foundWorkflow.state as WorkflowState
+    const { blocks, edges, loops, parallels } = state
 
     // DEBUG: Log state information
     logger.debug(`[${requestId}] TRACE: Retrieved workflow state`, {
@@ -465,7 +466,12 @@ export async function executeWorkflowFromPayload(
 
     // Serialize and get workflow variables
     const serializeStartTime = Date.now()
-    const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates as any, edges, loops)
+    const serializedWorkflow = new Serializer().serializeWorkflow(
+      mergedStates as any,
+      edges,
+      loops,
+      parallels
+    )
     let workflowVariables = {}
     if (foundWorkflow.variables) {
       try {

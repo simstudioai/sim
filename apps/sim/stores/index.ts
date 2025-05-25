@@ -180,6 +180,7 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
       blocks: currentState.blocks,
       edges: currentState.edges,
       loops: currentState.loops,
+      parallels: currentState.parallels,
       isDeployed: currentState.isDeployed,
       deployedAt: currentState.deployedAt,
       lastSaved: Date.now(),

@@ -28,6 +28,14 @@ interface HistoryActions {
 // MAX for each individual workflow
 const MAX_HISTORY_LENGTH = 20
 
+// Default empty state for consistent initialization
+const EMPTY_WORKFLOW_STATE = {
+  blocks: {},
+  edges: [] as any[],
+  loops: {},
+  parallels: {},
+}
+
 // Types for workflow store with history management capabilities
 export interface WorkflowStoreWithHistory extends WorkflowStore, HistoryActions {
   history: WorkflowHistory
@@ -46,6 +54,7 @@ export const withHistory = (
         blocks: initialState.blocks,
         edges: initialState.edges,
         loops: initialState.loops,
+        parallels: initialState.parallels,
       },
       timestamp: Date.now(),
       action: 'Initial state',
@@ -110,6 +119,7 @@ export const withHistory = (
           blocks: currentState.blocks,
           edges: currentState.edges,
           loops: currentState.loops,
+          parallels: currentState.parallels,
           history: currentState.history,
           isDeployed: currentState.isDeployed,
           deployedAt: currentState.deployedAt,
@@ -161,6 +171,7 @@ export const withHistory = (
           blocks: currentState.blocks,
           edges: currentState.edges,
           loops: currentState.loops,
+          parallels: currentState.parallels,
           history: currentState.history,
           isDeployed: currentState.isDeployed,
           deployedAt: currentState.deployedAt,
@@ -171,13 +182,11 @@ export const withHistory = (
       // Reset workflow to empty state
       clear: () => {
         const newState = {
-          blocks: {},
-          edges: [],
-          loops: {},
+          ...EMPTY_WORKFLOW_STATE,
           history: {
             past: [],
             present: {
-              state: { blocks: {}, edges: [], loops: {} },
+              state: { ...EMPTY_WORKFLOW_STATE },
               timestamp: Date.now(),
               action: 'Clear workflow',
               subblockValues: {},
@@ -236,6 +245,7 @@ export const withHistory = (
           blocks: currentState.blocks,
           edges: currentState.edges,
           loops: currentState.loops,
+          parallels: currentState.parallels,
           history: currentState.history,
           isDeployed: currentState.isDeployed,
           deployedAt: currentState.deployedAt,
@@ -256,6 +266,7 @@ export const createHistoryEntry = (state: WorkflowState, action: string): Histor
     blocks: { ...state.blocks },
     edges: [...state.edges],
     loops: { ...state.loops },
+    parallels: { ...state.parallels },
   }
 
   // Capture the current subblock values for this workflow

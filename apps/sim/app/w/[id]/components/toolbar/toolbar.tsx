@@ -9,6 +9,8 @@ import { getAllBlocks, getBlocksByCategory } from '@/blocks'
 import type { BlockCategory } from '@/blocks/types'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { ToolbarBlock } from './components/toolbar-block/toolbar-block'
+import LoopToolbarItem from './components/toolbar-loop-block/toolbar-loop-block'
+import ParallelToolbarItem from './components/toolbar-parallel-block/toolbar-parallel-block'
 import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
 
 export function Toolbar() {
@@ -87,6 +89,12 @@ export function Toolbar() {
               {blocks.map((block) => (
                 <ToolbarBlock key={block.type} config={block} />
               ))}
+              {activeTab === 'blocks' && !searchQuery && (
+                <>
+                  <LoopToolbarItem />
+                  <ParallelToolbarItem />
+                </>
+              )}
             </div>
           </div>
         </ScrollArea>

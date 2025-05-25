@@ -421,7 +421,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             data-handleid='target'
             isConnectableStart={false}
             isConnectableEnd={true}
-            isValidConnection={(connection) => true}
+            isValidConnection={(connection) => connection.source !== id}
           />
         )}
 
@@ -707,7 +707,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               data-handleid='source'
               isConnectableStart={true}
               isConnectableEnd={false}
-              isValidConnection={(connection) => true}
+              isValidConnection={(connection) => connection.target !== id}
             />
 
             {/* Error Handle - Don't show for starter blocks */}
@@ -747,7 +747,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 data-handleid='error'
                 isConnectableStart={true}
                 isConnectableEnd={false}
-                isValidConnection={(connection) => true}
+                isValidConnection={(connection) => connection.target !== id}
               />
             )}
           </>

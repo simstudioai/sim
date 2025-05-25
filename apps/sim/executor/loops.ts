@@ -6,6 +6,7 @@ const logger = createLogger('LoopManager')
 
 /**
  * Manages loop detection, iteration limits, and state resets.
+ * With the new loop block approach, this class is significantly simplified.
  */
 export class LoopManager {
   constructor(
@@ -15,7 +16,7 @@ export class LoopManager {
 
   /**
    * Processes all loops and checks if any need to be iterated.
-   * Resets blocks in loops that should iterate again.
+   * This is called after each execution layer to handle loop iterations.
    *
    * @param context - Current execution context
    * @returns Whether any loop has reached its maximum iterations
@@ -28,144 +29,144 @@ export class LoopManager {
 
     // Check each loop to see if it should iterate
     for (const [loopId, loop] of Object.entries(this.loops)) {
-      // Get the loop type (default to 'for')
-      const loopType = loop.loopType || 'for'
-      const currentIteration = context.loopIterations.get(loopId) || 0
+      // Skip if this loop has already been marked as completed
+      if (context.completedLoops.has(loopId)) {
+        continue
+      }
 
-      // Handle forEach loop
-      if (loopType === 'forEach') {
-        // Get the items to iterate over if we haven't already processed them into an array/object
-        if (
-          !loop.forEachItems ||
-          typeof loop.forEachItems === 'string' ||
-          !(Array.isArray(loop.forEachItems) || typeof loop.forEachItems === 'object')
-        ) {
-          // Evaluate the forEach items expression
-          const items = await this.evalForEachItems(loopId, loop, context)
+      // Check if the loop block itself has been executed
+      const loopBlockExecuted = context.executedBlocks.has(loopId)
+      if (!loopBlockExecuted) {
+        // Loop block hasn't been executed yet, skip processing
+        continue
+      }
 
-          // Store the evaluated items for future iterations
-          if (Array.isArray(items) || (typeof items === 'object' && items !== null)) {
-            loop.forEachItems = items
-          } else {
-            // Default to empty array if we couldn't get any valid items
-            loop.forEachItems = []
-          }
-        }
+      // Check if all blocks in the loop have been executed
+      const allBlocksInLoopExecuted = this.allBlocksExecuted(loop.nodes, context)
 
-        // For forEach, convert to array if it's an object
-        const items = Array.isArray(loop.forEachItems)
-          ? loop.forEachItems
-          : Object.entries(loop.forEachItems as Record<string, any>)
+      logger.info(`Loop ${loopId} - Processing iteration check`)
+      logger.info(`  Loop block executed: ${loopBlockExecuted}`)
+      logger.info(`  All blocks executed: ${allBlocksInLoopExecuted}`)
+      logger.info(`  Blocks in loop: ${loop.nodes.join(', ')}`)
+      logger.info(`  Current iteration: ${context.loopIterations.get(loopId) || 0}`)
 
-        // If we've processed all items or hit max iterations, mark loop as completed
-        if (currentIteration >= items.length || currentIteration >= loop.iterations) {
-          if (currentIteration >= items.length) {
-            hasLoopReachedMaxIterations = true
-          } else {
-            hasLoopReachedMaxIterations = true
-          }
-
-          // Now that the loop is complete, activate only external paths
-          this.activateExternalPaths(loopId, loop, context)
-          continue
-        }
-
-        // Check if all blocks in the loop have been executed
-        const allExecuted = this.allBlocksExecuted(loop.nodes, context)
-
-        if (allExecuted) {
-          // Get current item to process in this iteration
-          const currentItem = items[currentIteration]
-
-          // Store the current item in the context for blocks to access via <loop.currentItem>
-          context.loopItems.set(loopId, currentItem)
-
-          // IMPORTANT: We're incrementing the iteration counter AFTER storing the current item
-          // But BEFORE resetting the blocks for next iteration
-          // This ensures that when blocks execute in the new iteration, they'll get the correct index
-          context.loopIterations.set(loopId, currentIteration + 1)
-
-          // Check if we've now reached iterations limit after incrementing
-          if (currentIteration + 1 >= items.length || currentIteration + 1 >= loop.iterations) {
-            hasLoopReachedMaxIterations = true
-
-            // IMPORTANT: If we've completed all iterations, activate the external paths
-            // This is different from the previous approach - we activate external paths
-            // at the end of the last iteration
-            this.activateExternalPaths(loopId, loop, context)
-          } else {
-            // We have more iterations to go, reset the blocks
-            // Reset ALL blocks in the loop for the next iteration
-            for (const nodeId of loop.nodes) {
-              // Remove from executed blocks
-              context.executedBlocks.delete(nodeId)
-
-              // Make sure it's in the active execution path
-              context.activeExecutionPath.add(nodeId)
-            }
-
-            // Make sure the first block in the loop is marked as executable
-            const entryBlock = this.findEntryBlock(loop.nodes, context)
-            if (loop.nodes.length > 0 && entryBlock) {
-              context.activeExecutionPath.add(entryBlock)
-            }
-          }
-        } else {
-          // Not all blocks in the loop have been executed yet
-          // We need to activate the next block(s) in the loop sequence
-          this.activateNextBlocksInLoop(loopId, loop, context)
-        }
-      } else {
-        // Original logic for 'for' loops
-        // Get current iteration count
+      if (allBlocksInLoopExecuted) {
+        // All blocks in the loop have been executed
         const currentIteration = context.loopIterations.get(loopId) || 0
 
-        // If we've hit the iterations count, skip this loop and mark flag
-        if (currentIteration >= loop.iterations) {
-          hasLoopReachedMaxIterations = true
-
-          // Activate external paths from loop blocks when the loop is completed
-          this.activateExternalPaths(loopId, loop, context)
-          continue
+        // Store the results from this iteration before potentially resetting blocks
+        const iterationResults: Record<string, any> = {}
+        for (const nodeId of loop.nodes) {
+          const blockState = context.blockStates.get(nodeId)
+          if (blockState?.output) {
+            iterationResults[nodeId] = blockState.output
+          }
         }
 
-        // Check if all blocks in the loop have been executed
-        const allExecuted = this.allBlocksExecuted(loop.nodes, context)
+        // Store the iteration results
+        if (Object.keys(iterationResults).length > 0) {
+          this.storeIterationResult(
+            context,
+            loopId,
+            currentIteration - 1,
+            'iteration',
+            iterationResults
+          )
+        }
 
-        if (allExecuted) {
-          // IMPORTANT: Increment the counter BEFORE resetting blocks for the next iteration
-          // This ensures the next iteration will show the correct index value
-          context.loopIterations.set(loopId, currentIteration + 1)
+        // The loop block will handle incrementing the iteration when it executes next
+        // We just need to reset the blocks so they can run again
 
-          // Check if we've now reached iterations limit after incrementing
-          if (currentIteration + 1 >= loop.iterations) {
-            hasLoopReachedMaxIterations = true
+        // Determine the maximum iterations
+        let maxIterations = loop.iterations || this.defaultIterations
 
-            // IMPORTANT: If we've completed all iterations, activate the external paths
-            // This is different from the previous approach - we activate external paths
-            // at the end of the last iteration
-            this.activateExternalPaths(loopId, loop, context)
+        // For forEach loops, check the actual items length
+        if (loop.loopType === 'forEach' && loop.forEachItems) {
+          // First check if the items have already been evaluated and stored by the loop handler
+          const storedItems = context.loopItems.get(`${loopId}_items`)
+          if (storedItems) {
+            const itemsLength = Array.isArray(storedItems)
+              ? storedItems.length
+              : Object.keys(storedItems).length
+            maxIterations = Math.min(maxIterations, itemsLength)
+            logger.info(
+              `Loop ${loopId} using stored items length: ${itemsLength} (max iterations: ${maxIterations})`
+            )
           } else {
-            // Reset ALL blocks in the loop, not just blocks after the entry
-            for (const nodeId of loop.nodes) {
-              // Remove from executed blocks
-              context.executedBlocks.delete(nodeId)
-
-              // Make sure it's in the active execution path
-              context.activeExecutionPath.add(nodeId)
-            }
-
-            // Important: Make sure the first block in the loop is marked as executable
-            const entryBlock = this.findEntryBlock(loop.nodes, context)
-            if (loop.nodes.length > 0 && entryBlock) {
-              // Make sure it's in the active path
-              context.activeExecutionPath.add(entryBlock)
+            // Fallback to parsing the forEachItems string if it's not a reference
+            const itemsLength = this.getItemsLength(loop.forEachItems)
+            if (itemsLength > 0) {
+              maxIterations = Math.min(maxIterations, itemsLength)
             }
           }
+        }
+
+        logger.info(`Loop ${loopId} - Current: ${currentIteration}, Max: ${maxIterations}`)
+
+        // Check if we've completed all iterations
+        // The loop handler increments the counter after setting up each iteration
+        // So if currentIteration equals maxIterations, we've completed all iterations
+        if (currentIteration >= maxIterations) {
+          // This was the last iteration
+          hasLoopReachedMaxIterations = true
+          logger.info(`Loop ${loopId} has completed all ${maxIterations} iterations`)
+
+          // Aggregate results from all iterations using stored results
+          const results = []
+          const loopState = context.loopExecutions?.get(loopId)
+          if (loopState) {
+            for (let i = 0; i < maxIterations; i++) {
+              const result = loopState.executionResults.get(`iteration_${i}`)
+              if (result?.iteration) {
+                results.push(result.iteration)
+              }
+            }
+          }
+
+          // Store the aggregated results in the loop block's state so subsequent blocks can reference them
+          const aggregatedOutput = {
+            response: {
+              loopId,
+              currentIteration: maxIterations - 1, // Last iteration index
+              maxIterations,
+              loopType: loop.loopType || 'for',
+              completed: true,
+              results,
+              message: `Completed all ${maxIterations} iterations`,
+            },
+          }
+
+          // Store the aggregated results in context so blocks connected to loop-end-source can access them
+          context.blockStates.set(loopId, {
+            output: aggregatedOutput,
+            executed: true,
+            executionTime: 0, // Loop coordination doesn't have meaningful execution time
+          })
+
+          // Mark this loop as completed
+          context.completedLoops.add(loopId)
+
+          // Activate the loop-end-source connections to continue workflow after loop
+          const loopEndConnections =
+            context.workflow?.connections.filter(
+              (conn) => conn.source === loopId && conn.sourceHandle === 'loop-end-source'
+            ) || []
+
+          for (const conn of loopEndConnections) {
+            context.activeExecutionPath.add(conn.target)
+            logger.info(`Activated post-loop path from ${loopId} to ${conn.target}`)
+          }
+
+          logger.info(`Loop ${loopId} - Completed and activated end connections`)
         } else {
-          // Not all blocks in the loop have been executed yet
-          // We need to activate the next block(s) in the loop sequence
-          this.activateNextBlocksInLoop(loopId, loop, context)
+          // More iterations to go - reset the blocks inside the loop
+          this.resetLoopBlocks(loopId, loop, context)
+
+          // Reset the loop block itself so it can execute again
+          context.executedBlocks.delete(loopId)
+          context.blockStates.delete(loopId)
+
+          logger.info(`Loop ${loopId} - Reset for iteration ${currentIteration}`)
         }
       }
     }
@@ -174,100 +175,111 @@ export class LoopManager {
   }
 
   /**
-   * Activates only paths that go from loop nodes to nodes outside the loop.
-   * This is called when a loop completes all iterations.
+   * Helper to get the length of items for forEach loops
+   */
+  private getItemsLength(forEachItems: any): number {
+    if (Array.isArray(forEachItems)) {
+      return forEachItems.length
+    }
+    if (typeof forEachItems === 'object' && forEachItems !== null) {
+      return Object.keys(forEachItems).length
+    }
+    if (typeof forEachItems === 'string') {
+      // Try to parse if it's a JSON string
+      try {
+        const parsed = JSON.parse(forEachItems)
+        if (Array.isArray(parsed)) {
+          return parsed.length
+        }
+        if (typeof parsed === 'object' && parsed !== null) {
+          return Object.keys(parsed).length
+        }
+      } catch {
+        // Not valid JSON
+      }
+    }
+    return 0
+  }
+
+  /**
+   * Resets all blocks within a loop for the next iteration.
    *
    * @param loopId - ID of the loop
    * @param loop - The loop configuration
    * @param context - Current execution context
    */
-  private activateExternalPaths(
-    loopId: string,
-    loop: SerializedLoop,
-    context: ExecutionContext
-  ): void {
-    if (!context.workflow) return
+  private resetLoopBlocks(loopId: string, loop: SerializedLoop, context: ExecutionContext): void {
+    logger.info(`Resetting blocks for loop ${loopId}`)
 
-    // Mark this loop as completed
-    if (!context.completedLoops) {
-      context.completedLoops = new Set<string>()
-    }
-    context.completedLoops.add(loopId)
-
-    // First, identify all paths that lead to outside the loop
-    // We need to ensure only these are activated on loop completion
-    const externalTargets = new Set<string>()
-
-    // Build a map of outgoing connections from each node in the loop
+    // Reset all blocks in the loop
     for (const nodeId of loop.nodes) {
-      // Get all outgoing connections from this node
-      const outgoingConnections = context.workflow.connections.filter(
-        (conn) => conn.source === nodeId
-      )
+      // Remove from executed blocks
+      context.executedBlocks.delete(nodeId)
 
-      // For each outgoing connection, check if it leads outside the loop
-      for (const conn of outgoingConnections) {
-        // If target is not in the loop, it's an external path
-        if (!loop.nodes.includes(conn.target)) {
-          externalTargets.add(conn.target)
-        }
-      }
+      // Clear the block state
+      context.blockStates.delete(nodeId)
+
+      // Remove from active execution path
+      context.activeExecutionPath.delete(nodeId)
+
+      // Clear any routing decisions for this block
+      context.decisions.router.delete(nodeId)
+      context.decisions.condition.delete(nodeId)
+
+      logger.info(`Reset block ${nodeId} in loop ${loopId} for next iteration`)
     }
 
-    // Now, only activate the identified external targets
-    for (const target of externalTargets) {
-      // Find all connections leading to this target from nodes in the loop
-      const incomingConnections = context.workflow.connections.filter(
-        (conn) => loop.nodes.includes(conn.source) && conn.target === target
-      )
+    logger.info(`After reset - executed blocks: ${Array.from(context.executedBlocks).join(', ')}`)
+    logger.info(`After reset - active paths: ${Array.from(context.activeExecutionPath).join(', ')}`)
+  }
 
-      for (const conn of incomingConnections) {
-        const sourceBlockId = conn.source
-        const blockState = context.blockStates.get(sourceBlockId)
-        const hasError =
-          blockState?.output?.error !== undefined ||
-          blockState?.output?.response?.error !== undefined
-
-        // Apply connection type rules, but only activate for the final iteration
-        if (conn.sourceHandle === 'error') {
-          // Only activate error paths if there was an error
-          if (hasError) {
-            context.activeExecutionPath.add(target)
-          }
-        } else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
-          // Only activate regular paths if there was no error
-          if (!hasError) {
-            context.activeExecutionPath.add(target)
-          }
-        } else if (conn.sourceHandle?.startsWith('condition-')) {
-          // For condition connections, check if this was the selected condition
-          const conditionId = conn.sourceHandle.replace('condition-', '')
-          const selectedCondition = context.decisions.condition.get(sourceBlockId)
-
-          if (conditionId === selectedCondition) {
-            context.activeExecutionPath.add(target)
-          }
-        } else if (sourceBlockId === conn.source) {
-          // For router blocks, check if this was the selected target
-          const sourceBlock = context.workflow.blocks.find((b) => b.id === sourceBlockId)
-          if (sourceBlock?.metadata?.id === 'router') {
-            const selectedTarget = context.decisions.router.get(sourceBlockId)
-
-            if (selectedTarget === target) {
-              context.activeExecutionPath.add(target)
-            }
-          } else {
-            // For any other connection type
-            context.activeExecutionPath.add(target)
-          }
-        }
-      }
+  /**
+   * Stores the result of a loop iteration.
+   */
+  storeIterationResult(
+    context: ExecutionContext,
+    loopId: string,
+    iterationIndex: number,
+    blockId: string,
+    output: any
+  ): void {
+    if (!context.loopExecutions) {
+      context.loopExecutions = new Map()
     }
+
+    let loopState = context.loopExecutions.get(loopId)
+    if (!loopState) {
+      const loop = this.loops[loopId]
+      const loopType = loop?.loopType === 'forEach' ? 'forEach' : 'for'
+      const forEachItems = loop?.forEachItems
+
+      loopState = {
+        maxIterations: loop?.iterations || this.defaultIterations,
+        loopType,
+        forEachItems:
+          Array.isArray(forEachItems) || (typeof forEachItems === 'object' && forEachItems !== null)
+            ? forEachItems
+            : null,
+        executionResults: new Map(),
+        currentIteration: 0,
+      }
+      context.loopExecutions.set(loopId, loopState)
+    }
+
+    // Get or create the iteration results object
+    const iterationKey = `iteration_${iterationIndex}`
+    let iterationResults = loopState.executionResults.get(iterationKey)
+    if (!iterationResults) {
+      iterationResults = {}
+      loopState.executionResults.set(iterationKey, iterationResults)
+    }
+
+    // Store the block's output for this iteration
+    iterationResults[blockId] = output
   }
 
   /**
    * Gets the correct loop index based on the current block being executed.
-   * Accounts for position within the loop cycle to provide accurate index.
    *
    * @param loopId - ID of the loop
    * @param blockId - ID of the block requesting the index
@@ -278,258 +290,8 @@ export class LoopManager {
     const loop = this.loops[loopId]
     if (!loop) return 0
 
-    // Get the current iteration counter from context
-    const iterationCounter = context.loopIterations.get(loopId) || 0
-
-    // Simply return the current iteration counter
-    // Since we're updating the iteration counter BEFORE resetting blocks,
-    // the counter will already be at the correct value for the current iteration
-    return iterationCounter
-  }
-
-  /**
-   * Evaluates the forEach items string or retrieves items for a forEach loop.
-   *
-   * @param loopId - ID of the loop
-   * @param loop - Loop configuration
-   * @param context - Current execution context
-   * @returns Items to iterate over (array or object)
-   */
-  private async evalForEachItems(
-    loopId: string,
-    loop: SerializedLoop,
-    context: ExecutionContext
-  ): Promise<any[] | Record<string, any> | undefined> {
-    // If forEachItems is not set, return empty array
-    if (!loop.forEachItems) {
-      return []
-    }
-
-    // If we already have items as an array or object, return them directly
-    if (
-      Array.isArray(loop.forEachItems) ||
-      (typeof loop.forEachItems === 'object' && loop.forEachItems !== null)
-    ) {
-      return loop.forEachItems as any[] | Record<string, any>
-    }
-
-    // If we have forEachItems as a string, try to evaluate it as an expression
-    if (typeof loop.forEachItems === 'string') {
-      try {
-        // Skip comments or empty expressions
-        const trimmedExpression = loop.forEachItems.trim()
-        if (trimmedExpression.startsWith('//') || trimmedExpression === '') {
-          return []
-        }
-
-        // First check if it's valid JSON (array or object)
-        if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
-          try {
-            // Try to parse as JSON first
-            // Handle both JSON format (double quotes) and JS format (single quotes)
-            const normalizedExpression = trimmedExpression
-              .replace(/'/g, '"') // Replace all single quotes with double quotes
-              .replace(/(\w+):/g, '"$1":') // Convert property names to double-quoted strings
-              .replace(/,\s*]/g, ']') // Remove trailing commas before closing brackets
-              .replace(/,\s*}/g, '}') // Remove trailing commas before closing braces
-
-            return JSON.parse(normalizedExpression)
-          } catch (jsonError) {
-            logger.debug(`Error parsing JSON for loop ${loopId}:`, jsonError)
-            // If JSON parsing fails, continue with expression evaluation
-          }
-        }
-
-        // If not valid JSON or JSON parsing failed, try to evaluate as an expression
-        const result = new Function('context', `return ${loop.forEachItems}`)(context)
-
-        // If the result is an array or object, return it
-        if (Array.isArray(result) || (typeof result === 'object' && result !== null)) {
-          return result
-        }
-
-        // If it's a primitive, wrap it in an array
-        if (result !== undefined) {
-          return [result]
-        }
-
-        return []
-      } catch (e) {
-        logger.error(`Error evaluating forEach items for loop ${loopId}:`, e)
-        return []
-      }
-    }
-
-    // As a fallback, try to find the first non-empty array or object in the context
-    for (const [_blockId, blockState] of context.blockStates.entries()) {
-      const output = blockState.output?.response
-      if (output) {
-        // Look for arrays or objects in the response that could be iterated over
-        for (const [_key, value] of Object.entries(output)) {
-          if (Array.isArray(value) && value.length > 0) {
-            return value
-          }
-          if (typeof value === 'object' && value !== null && Object.keys(value).length > 0) {
-            return value
-          }
-        }
-      }
-    }
-
-    return []
-  }
-
-  /**
-   * Finds the entry block for a loop (the one that should be executed first).
-   * Typically the block with incoming connections from outside the loop.
-   *
-   * @param nodeIds - IDs of nodes in the loop
-   * @param context - Current execution context
-   * @returns ID of the entry block
-   */
-  private findEntryBlock(nodeIds: string[], context: ExecutionContext): string | undefined {
-    // If there's only one node in the loop, it's the entry block
-    if (nodeIds.length === 1) {
-      return nodeIds[0]
-    }
-
-    // Check which blocks have connections from outside the loop
-    const blocksWithExternalConnections = new Map<
-      string,
-      {
-        incomingExternal: number
-        outgoingExternal: number
-        incomingInternal: number
-      }
-    >()
-
-    for (const nodeId of nodeIds) {
-      // Count connections coming from outside the loop
-      const externalIncomingCount = context.workflow?.connections.filter(
-        (conn) => conn.target === nodeId && !nodeIds.includes(conn.source)
-      ).length
-
-      // Count connections going to outside the loop
-      const externalOutgoingCount = context.workflow?.connections.filter(
-        (conn) => conn.source === nodeId && !nodeIds.includes(conn.target)
-      ).length
-
-      // Count internal incoming connections that aren't self-connections
-      const internalIncomingCount = context.workflow?.connections.filter(
-        (conn) => conn.target === nodeId && conn.source !== nodeId && nodeIds.includes(conn.source)
-      ).length
-
-      blocksWithExternalConnections.set(nodeId, {
-        incomingExternal: externalIncomingCount || 0,
-        outgoingExternal: externalOutgoingCount || 0,
-        incomingInternal: internalIncomingCount || 0,
-      })
-    }
-
-    // First priority: blocks with incoming connections from outside the loop
-    const blocksWithExternalIncoming = nodeIds.filter(
-      (id) => blocksWithExternalConnections.get(id)?.incomingExternal! > 0
-    )
-
-    if (blocksWithExternalIncoming.length > 0) {
-      // If multiple blocks have external incoming connections,
-      // prioritize the one with the most external incoming connections
-      return blocksWithExternalIncoming.sort(
-        (a, b) =>
-          blocksWithExternalConnections.get(b)?.incomingExternal! -
-          blocksWithExternalConnections.get(a)?.incomingExternal!
-      )[0]
-    }
-
-    // Second priority: look for the likely first node in a self-contained loop
-    // This is often the node that has the fewest internal incoming connections
-    // but might have outgoing connections to outside the loop
-
-    // Sort blocks by fewest internal incoming connections
-    const sortedByInternalIncoming = [...nodeIds].sort(
-      (a, b) =>
-        (blocksWithExternalConnections.get(a)?.incomingInternal || 0) -
-        (blocksWithExternalConnections.get(b)?.incomingInternal || 0)
-    )
-
-    // Among those with the fewest internal incoming connections,
-    // prioritize those with external outgoing connections
-    const candidatesWithFewestIncoming = sortedByInternalIncoming.filter(
-      (id) =>
-        blocksWithExternalConnections.get(id)?.incomingInternal ===
-        blocksWithExternalConnections.get(sortedByInternalIncoming[0])?.incomingInternal
-    )
-
-    if (candidatesWithFewestIncoming.length > 1) {
-      // Among these candidates, prioritize those with external outgoing connections
-      const withExternalOutgoing = candidatesWithFewestIncoming.filter(
-        (id) => blocksWithExternalConnections.get(id)?.outgoingExternal! > 0
-      )
-
-      if (withExternalOutgoing.length > 0) {
-        return withExternalOutgoing[0]
-      }
-    }
-
-    // If no better criteria found, return the first node with fewest internal incoming connections
-    return sortedByInternalIncoming[0]
-  }
-
-  /**
-   * Checks if all blocks in a list have been executed.
-   *
-   * @param nodeIds - IDs of nodes to check
-   * @param context - Current execution context
-   * @returns Whether all blocks have been executed
-   */
-  private allBlocksExecuted(nodeIds: string[], context: ExecutionContext): boolean {
-    // For single-node loops, ensure the node has been executed at least once
-    if (nodeIds.length === 1 && context.executedBlocks.has(nodeIds[0])) {
-      return true
-    }
-
-    // For multi-node loops, ensure all nodes have been executed
-    return nodeIds.every((nodeId) => context.executedBlocks.has(nodeId))
-  }
-
-  /**
-   * Checks if a connection forms a feedback path in a loop.
-   * A feedback path points to an earlier block in the loop.
-   *
-   * @param connection - Connection to check
-   * @param blocks - All blocks in the workflow
-   * @returns Whether the connection forms a feedback path
-   */
-  isFeedbackPath(connection: SerializedConnection, blocks: SerializedBlock[]): boolean {
-    // Self-loops are always feedback paths
-    if (connection.source === connection.target) {
-      return true
-    }
-
-    for (const [_loopId, loop] of Object.entries(this.loops)) {
-      if (loop.nodes.includes(connection.source) && loop.nodes.includes(connection.target)) {
-        // For single-node loops, any connection to itself is a feedback path
-        if (
-          loop.nodes.length === 1 &&
-          loop.nodes[0] === connection.source &&
-          connection.source === connection.target
-        ) {
-          return true
-        }
-
-        const sourceIndex = loop.nodes.indexOf(connection.source)
-        const targetIndex = loop.nodes.indexOf(connection.target)
-
-        if (targetIndex < sourceIndex) {
-          const sourceBlock = blocks.find((b) => b.id === connection.source)
-          const isCondition = sourceBlock?.metadata?.id === 'condition'
-
-          return isCondition && connection.sourceHandle?.startsWith('condition-') === true
-        }
-      }
-    }
-
-    return false
+    // Return the current iteration counter
+    return context.loopIterations.get(loopId) || 0
   }
 
   /**
@@ -554,57 +316,144 @@ export class LoopManager {
   }
 
   /**
-   * Activates the next blocks in the loop sequence when not all blocks have been executed.
-   * This ensures proper flow through the loop when PathTracker is prevented from activating within-loop paths.
+   * Checks if all blocks in a list have been executed.
+   * For routing blocks (condition/router), only checks if the selected path has been executed.
    *
-   * @param loopId - ID of the loop
-   * @param loop - The loop configuration
+   * @param nodeIds - IDs of nodes to check
    * @param context - Current execution context
+   * @returns Whether all blocks have been executed
    */
-  private activateNextBlocksInLoop(
-    loopId: string,
-    loop: SerializedLoop,
-    context: ExecutionContext
-  ): void {
-    if (!context.workflow) return
+  private allBlocksExecuted(nodeIds: string[], context: ExecutionContext): boolean {
+    // Get all connections within the loop
+    const loopConnections =
+      context.workflow?.connections.filter(
+        (conn) => nodeIds.includes(conn.source) && nodeIds.includes(conn.target)
+      ) || []
 
-    // Find which blocks in the loop have been executed
-    const executedLoopBlocks = new Set(
-      loop.nodes.filter((nodeId) => context.executedBlocks.has(nodeId))
-    )
-
-    if (executedLoopBlocks.size === 0) {
-      // If no blocks have been executed yet, activate the entry block
-      const entryBlock = this.findEntryBlock(loop.nodes, context)
-      if (entryBlock) {
-        context.activeExecutionPath.add(entryBlock)
-      }
-      return
+    // Build a map of blocks to their outgoing connections within the loop
+    const blockOutgoingConnections = new Map<string, typeof loopConnections>()
+    for (const nodeId of nodeIds) {
+      blockOutgoingConnections.set(
+        nodeId,
+        loopConnections.filter((conn) => conn.source === nodeId)
+      )
     }
 
-    // For each executed block, find and activate its next blocks in the loop
-    for (const executedBlockId of executedLoopBlocks) {
-      // Get outgoing connections from this block to other blocks in the loop
-      const outgoingConnections = context.workflow.connections.filter(
-        (conn) =>
-          conn.source === executedBlockId &&
-          loop.nodes.includes(conn.target) &&
-          !executedLoopBlocks.has(conn.target)
-      )
+    // Find blocks that have no incoming connections within the loop (entry points)
+    const entryBlocks = nodeIds.filter((nodeId) => {
+      const hasIncomingFromLoop = loopConnections.some((conn) => conn.target === nodeId)
+      return !hasIncomingFromLoop
+    })
 
-      // Activate each target that hasn't been executed yet
-      for (const conn of outgoingConnections) {
-        // Skip error connections unless there was an error
-        if (conn.sourceHandle === 'error') {
-          const blockState = context.blockStates.get(executedBlockId)
-          const hasError =
-            blockState?.output?.error !== undefined ||
-            blockState?.output?.response?.error !== undefined
+    // Track which blocks we've visited and determined are reachable
+    const reachableBlocks = new Set<string>()
+    const toVisit = [...entryBlocks]
 
-          if (!hasError) continue
+    // Traverse the graph to find all reachable blocks
+    while (toVisit.length > 0) {
+      const currentBlockId = toVisit.shift()!
+
+      // Skip if already visited
+      if (reachableBlocks.has(currentBlockId)) continue
+
+      reachableBlocks.add(currentBlockId)
+
+      // Get the block
+      const block = context.workflow?.blocks.find((b) => b.id === currentBlockId)
+      if (!block) continue
+
+      // Get outgoing connections from this block
+      const outgoing = blockOutgoingConnections.get(currentBlockId) || []
+
+      // Handle routing blocks specially
+      if (block.metadata?.id === 'router') {
+        // For router blocks, only follow the selected path
+        const selectedTarget = context.decisions.router.get(currentBlockId)
+        if (selectedTarget && nodeIds.includes(selectedTarget)) {
+          toVisit.push(selectedTarget)
         }
+      } else if (block.metadata?.id === 'condition') {
+        // For condition blocks, only follow the selected condition path
+        const selectedConditionId = context.decisions.condition.get(currentBlockId)
+        if (selectedConditionId) {
+          const selectedConnection = outgoing.find(
+            (conn) => conn.sourceHandle === `condition-${selectedConditionId}`
+          )
+          if (selectedConnection?.target) {
+            toVisit.push(selectedConnection.target)
+          }
+        }
+      } else {
+        // For regular blocks, use the extracted error handling method
+        this.handleErrorConnections(currentBlockId, outgoing, context, toVisit)
+      }
+    }
 
-        context.activeExecutionPath.add(conn.target)
+    // Now check if all reachable blocks have been executed
+    for (const reachableBlockId of reachableBlocks) {
+      if (!context.executedBlocks.has(reachableBlockId)) {
+        logger.info(
+          `Loop iteration not complete - block ${reachableBlockId} is reachable but not executed`
+        )
+        return false
+      }
+    }
+
+    logger.info(
+      `All reachable blocks in loop have been executed. Reachable: ${Array.from(reachableBlocks).join(', ')}`
+    )
+    return true
+  }
+
+  /**
+   * Checks if a connection forms a feedback path in a loop.
+   * With loop blocks, feedback paths are now handled by loop-to-inner-block connections.
+   *
+   * @param connection - Connection to check
+   * @param blocks - All blocks in the workflow
+   * @returns Whether the connection forms a feedback path
+   */
+  isFeedbackPath(connection: SerializedConnection, blocks: SerializedBlock[]): boolean {
+    // With the new loop block approach, feedback paths are connections from
+    // blocks inside the loop back to the loop block itself
+    for (const [loopId, loop] of Object.entries(this.loops)) {
+      // Use Set for O(1) lookup performance instead of O(n) includes()
+      const loopNodesSet = new Set(loop.nodes)
+
+      // Check if source is inside the loop and target is the loop block
+      if (loopNodesSet.has(connection.source) && connection.target === loopId) {
+        return true
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * Handles error connections and follows appropriate paths based on error state.
+   *
+   * @param blockId - ID of the block to check for error handling
+   * @param outgoing - Outgoing connections from the block
+   * @param context - Current execution context
+   * @param toVisit - Array to add next blocks to visit
+   */
+  private handleErrorConnections(
+    blockId: string,
+    outgoing: any[],
+    context: ExecutionContext,
+    toVisit: string[]
+  ): void {
+    // For regular blocks, check if they had an error
+    const blockState = context.blockStates.get(blockId)
+    const hasError =
+      blockState?.output?.error !== undefined || blockState?.output?.response?.error !== undefined
+
+    // Follow appropriate connections based on error state
+    for (const conn of outgoing) {
+      if (conn.sourceHandle === 'error' && hasError) {
+        toVisit.push(conn.target)
+      } else if ((conn.sourceHandle === 'source' || !conn.sourceHandle) && !hasError) {
+        toVisit.push(conn.target)
       }
     }
   }

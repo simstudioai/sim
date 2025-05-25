@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { SerializedWorkflow } from '@/serializer/types'
-import type { ExecutionContext } from './types'
+import type { SerializedBlock, SerializedConnection, SerializedWorkflow } from '@/serializer/types'
+import type { BlockState, ExecutionContext } from './types'
 
 const logger = createLogger('PathTracker')
 
@@ -20,45 +20,17 @@ export class PathTracker {
    * @returns Whether the block is in the active execution path
    */
   isInActivePath(blockId: string, context: ExecutionContext): boolean {
-    // If the block is already in the active path set, it's valid
+    // Early return if already in active path
     if (context.activeExecutionPath.has(blockId)) {
       return true
     }
 
     // Get all incoming connections to this block
-    const incomingConnections = this.workflow.connections.filter((conn) => conn.target === blockId)
+    const incomingConnections = this.getIncomingConnections(blockId)
 
     // A block is in the active path if at least one of its incoming connections
     // is from an active and executed block
-    return incomingConnections.some((conn) => {
-      const sourceBlock = this.workflow.blocks.find((b) => b.id === conn.source)
-
-      // For router blocks, check if this is the selected target
-      if (sourceBlock?.metadata?.id === 'router') {
-        const selectedTarget = context.decisions.router.get(conn.source)
-        // This path is active if the router selected this target
-        if (context.executedBlocks.has(conn.source) && selectedTarget === blockId) {
-          return true
-        }
-        return false
-      }
-
-      // For condition blocks, check if this is the selected condition
-      if (sourceBlock?.metadata?.id === 'condition') {
-        if (conn.sourceHandle?.startsWith('condition-')) {
-          const conditionId = conn.sourceHandle.replace('condition-', '')
-          const selectedCondition = context.decisions.condition.get(conn.source)
-          // This path is active if the condition selected this path
-          if (context.executedBlocks.has(conn.source) && conditionId === selectedCondition) {
-            return true
-          }
-          return false
-        }
-      }
-
-      // For regular blocks, check if the source is in the active path and executed
-      return context.activeExecutionPath.has(conn.source) && context.executedBlocks.has(conn.source)
-    })
+    return incomingConnections.some((conn) => this.isConnectionActive(conn, context))
   }
 
   /**
@@ -72,102 +44,244 @@ export class PathTracker {
     logger.info(`Updating paths for blocks: ${executedBlockIds.join(', ')}`)
 
     for (const blockId of executedBlockIds) {
-      const block = this.workflow.blocks.find((b) => b.id === blockId)
+      const block = this.getBlock(blockId)
+      if (!block) continue
 
-      if (block?.metadata?.id === 'router') {
-        const routerOutput = context.blockStates.get(blockId)?.output
-        const selectedPath = routerOutput?.response?.selectedPath?.blockId
+      this.updatePathForBlock(block, context)
+    }
+  }
 
-        if (selectedPath) {
-          // Record the decision but don't deactivate other paths
-          context.decisions.router.set(blockId, selectedPath)
-          context.activeExecutionPath.add(selectedPath)
-          logger.info(`Router ${blockId} selected path: ${selectedPath}`)
-        }
-      } else if (block?.metadata?.id === 'condition') {
-        const conditionOutput = context.blockStates.get(blockId)?.output
-        const selectedConditionId = conditionOutput?.response?.selectedConditionId
+  /**
+   * Get all incoming connections to a block
+   */
+  private getIncomingConnections(blockId: string): SerializedConnection[] {
+    return this.workflow.connections.filter((conn) => conn.target === blockId)
+  }
 
-        if (selectedConditionId) {
-          // Record the decision but don't deactivate other paths
-          context.decisions.condition.set(blockId, selectedConditionId)
+  /**
+   * Get all outgoing connections from a block
+   */
+  private getOutgoingConnections(blockId: string): SerializedConnection[] {
+    return this.workflow.connections.filter((conn) => conn.source === blockId)
+  }
 
-          const targetConnection = this.workflow.connections.find(
-            (conn) =>
-              conn.source === blockId && conn.sourceHandle === `condition-${selectedConditionId}`
-          )
+  /**
+   * Get a block by ID
+   */
+  private getBlock(blockId: string): SerializedBlock | undefined {
+    return this.workflow.blocks.find((b) => b.id === blockId)
+  }
 
-          if (targetConnection) {
-            context.activeExecutionPath.add(targetConnection.target)
-            logger.debug(`Condition ${blockId} selected: ${selectedConditionId}`)
-          }
-        }
-      } else {
-        // For regular blocks, activate all outgoing connections based on success or error status
-        const blockState = context.blockStates.get(blockId)
-        const hasError =
-          blockState?.output?.error !== undefined ||
-          blockState?.output?.response?.error !== undefined
+  /**
+   * Check if a connection is active based on its source block type and state
+   */
+  private isConnectionActive(connection: SerializedConnection, context: ExecutionContext): boolean {
+    const sourceBlock = this.getBlock(connection.source)
+    if (!sourceBlock) return false
 
-        // Get all outgoing connections
-        const outgoingConnections = this.workflow.connections.filter(
-          (conn) => conn.source === blockId
-        )
+    const blockType = sourceBlock.metadata?.id
 
-        // Find out which loops this block belongs to
-        const blockLoops = Object.entries(context.workflow?.loops || {})
-          .filter(([_, loop]) => loop.nodes.includes(blockId))
-          .map(([id, loop]) => ({ id, loop }))
+    // Use strategy pattern for different block types
+    switch (blockType) {
+      case 'router':
+        return this.isRouterConnectionActive(connection, context)
+      case 'condition':
+        return this.isConditionConnectionActive(connection, context)
+      default:
+        return this.isRegularConnectionActive(connection, context)
+    }
+  }
 
-        // Check if the block is part of any loops
-        const isPartOfLoop = blockLoops.length > 0
+  /**
+   * Check if a router connection is active
+   */
+  private isRouterConnectionActive(
+    connection: SerializedConnection,
+    context: ExecutionContext
+  ): boolean {
+    const selectedTarget = context.decisions.router.get(connection.source)
+    return context.executedBlocks.has(connection.source) && selectedTarget === connection.target
+  }
 
-        // Process each outgoing connection
-        for (const conn of outgoingConnections) {
-          // Check if this connection is internal to any loop the source block belongs to
-          const isInternalLoopConnection = blockLoops.some(({ loop }) =>
-            // Target is also in the same loop as the source
-            loop.nodes.includes(conn.target)
-          )
+  /**
+   * Check if a condition connection is active
+   */
+  private isConditionConnectionActive(
+    connection: SerializedConnection,
+    context: ExecutionContext
+  ): boolean {
+    if (!connection.sourceHandle?.startsWith('condition-')) {
+      return false
+    }
 
-          // Check if this is a connection to a block outside any loop that contains the source
-          const isExternalLoopConnection = isPartOfLoop && !isInternalLoopConnection
+    const conditionId = connection.sourceHandle.replace('condition-', '')
+    const selectedCondition = context.decisions.condition.get(connection.source)
 
-          // Let the LoopManager handle all connections within loops
-          if (isInternalLoopConnection) {
-            continue
-          }
+    return context.executedBlocks.has(connection.source) && conditionId === selectedCondition
+  }
 
-          // Check if all loops this block belongs to are completed
-          const allLoopsCompleted = blockLoops.every(({ id }) => context.completedLoops?.has(id))
+  /**
+   * Check if a regular connection is active
+   */
+  private isRegularConnectionActive(
+    connection: SerializedConnection,
+    context: ExecutionContext
+  ): boolean {
+    return (
+      context.activeExecutionPath.has(connection.source) &&
+      context.executedBlocks.has(connection.source)
+    )
+  }
 
-          // Skip external connections from loop blocks UNLESS all loops are completed
-          if (isExternalLoopConnection && !allLoopsCompleted) {
-            continue
-          }
+  /**
+   * Update paths for a specific block based on its type
+   */
+  private updatePathForBlock(block: SerializedBlock, context: ExecutionContext): void {
+    const blockType = block.metadata?.id
 
-          // Now we can activate the path if:
-          // 1. It's not a loop connection, or
-          // 2. It's an external connection and all loops are completed
+    switch (blockType) {
+      case 'router':
+        this.updateRouterPaths(block, context)
+        break
+      case 'condition':
+        this.updateConditionPaths(block, context)
+        break
+      case 'loop':
+        this.updateLoopPaths(block, context)
+        break
+      default:
+        this.updateRegularBlockPaths(block, context)
+        break
+    }
+  }
 
-          // For error connections, only activate them on error
-          if (conn.sourceHandle === 'error') {
-            if (hasError) {
-              context.activeExecutionPath.add(conn.target)
-            }
-          }
-          // For regular (source) connections, only activate them if there's no error
-          else if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
-            if (!hasError) {
-              context.activeExecutionPath.add(conn.target)
-            }
-          }
-          // All other types of connections (e.g., from condition blocks) follow their own rules
-          else {
-            context.activeExecutionPath.add(conn.target)
-          }
-        }
+  /**
+   * Update paths for router blocks
+   */
+  private updateRouterPaths(block: SerializedBlock, context: ExecutionContext): void {
+    const routerOutput = context.blockStates.get(block.id)?.output
+    const selectedPath = routerOutput?.response?.selectedPath?.blockId
+
+    if (selectedPath) {
+      context.decisions.router.set(block.id, selectedPath)
+      context.activeExecutionPath.add(selectedPath)
+      logger.info(`Router ${block.id} selected path: ${selectedPath}`)
+    }
+  }
+
+  /**
+   * Update paths for condition blocks
+   */
+  private updateConditionPaths(block: SerializedBlock, context: ExecutionContext): void {
+    const conditionOutput = context.blockStates.get(block.id)?.output
+    const selectedConditionId = conditionOutput?.response?.selectedConditionId
+
+    if (!selectedConditionId) return
+
+    context.decisions.condition.set(block.id, selectedConditionId)
+
+    const targetConnection = this.workflow.connections.find(
+      (conn) => conn.source === block.id && conn.sourceHandle === `condition-${selectedConditionId}`
+    )
+
+    if (targetConnection) {
+      context.activeExecutionPath.add(targetConnection.target)
+      logger.debug(`Condition ${block.id} selected: ${selectedConditionId}`)
+    }
+  }
+
+  /**
+   * Update paths for loop blocks
+   */
+  private updateLoopPaths(block: SerializedBlock, context: ExecutionContext): void {
+    const outgoingConnections = this.getOutgoingConnections(block.id)
+
+    for (const conn of outgoingConnections) {
+      // Only activate loop-start connections
+      if (conn.sourceHandle === 'loop-start-source') {
+        context.activeExecutionPath.add(conn.target)
+        logger.info(`Loop ${block.id} activated start path to: ${conn.target}`)
+      }
+      // loop-end-source connections will be activated by the loop manager
+    }
+  }
+
+  /**
+   * Update paths for regular blocks
+   */
+  private updateRegularBlockPaths(block: SerializedBlock, context: ExecutionContext): void {
+    const blockState = context.blockStates.get(block.id)
+    const hasError = this.blockHasError(blockState)
+    const outgoingConnections = this.getOutgoingConnections(block.id)
+
+    // Check if block is part of loops
+    const blockLoops = this.getBlockLoops(block.id, context)
+    const isPartOfLoop = blockLoops.length > 0
+
+    for (const conn of outgoingConnections) {
+      if (
+        this.shouldActivateConnection(conn, block.id, hasError, isPartOfLoop, blockLoops, context)
+      ) {
+        context.activeExecutionPath.add(conn.target)
       }
     }
+  }
+
+  /**
+   * Check if a block has an error
+   */
+  private blockHasError(blockState: BlockState | undefined): boolean {
+    return (
+      blockState?.output?.error !== undefined || blockState?.output?.response?.error !== undefined
+    )
+  }
+
+  /**
+   * Get loops that contain a block
+   */
+  private getBlockLoops(
+    blockId: string,
+    context: ExecutionContext
+  ): Array<{ id: string; loop: any }> {
+    return Object.entries(context.workflow?.loops || {})
+      .filter(([_, loop]) => loop.nodes.includes(blockId))
+      .map(([id, loop]) => ({ id, loop }))
+  }
+
+  /**
+   * Determine if a connection should be activated
+   */
+  private shouldActivateConnection(
+    conn: SerializedConnection,
+    sourceBlockId: string,
+    hasError: boolean,
+    isPartOfLoop: boolean,
+    blockLoops: Array<{ id: string; loop: any }>,
+    context: ExecutionContext
+  ): boolean {
+    // Check if this is an external loop connection
+    if (isPartOfLoop) {
+      const isInternalConnection = blockLoops.some(({ loop }) => loop.nodes.includes(conn.target))
+      const isExternalConnection = !isInternalConnection
+      const allLoopsCompleted = blockLoops.every(({ id }) => context.completedLoops?.has(id))
+
+      // Skip external connections unless all loops are completed
+      if (isExternalConnection && !allLoopsCompleted) {
+        return false
+      }
+    }
+
+    // Handle error connections
+    if (conn.sourceHandle === 'error') {
+      return hasError
+    }
+
+    // Handle regular connections
+    if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
+      return !hasError
+    }
+
+    // All other connection types are activated
+    return true
   }
 }

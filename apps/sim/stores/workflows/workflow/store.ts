@@ -1,7 +1,6 @@
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { createLogger } from '@/lib/logs/console-logger'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { pushHistory, type WorkflowStoreWithHistory, withHistory } from '../middleware'
@@ -10,15 +9,14 @@ import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
 import { markWorkflowsDirty, workflowSync } from '../sync'
 import { mergeSubblockState } from '../utils'
-import type { Loop, Position, SubBlockState, SyncControl, WorkflowState } from './types'
-import { detectCycle } from './utils'
-
-const _logger = createLogger('WorkflowStore')
+import type { Position, SubBlockState, SyncControl, WorkflowState } from './types'
+import { generateLoopBlocks, generateParallelBlocks } from './utils'
 
 const initialState = {
   blocks: {},
   edges: [],
   loops: {},
+  parallels: {},
   lastSaved: undefined,
   // Legacy deployment fields (keeping for compatibility but they will be deprecated)
   isDeployed: false,
@@ -31,7 +29,14 @@ const initialState = {
   history: {
     past: [],
     present: {
-      state: { blocks: {}, edges: [], loops: {}, isDeployed: false, isPublished: false },
+      state: {
+        blocks: {},
+        edges: [],
+        loops: {},
+        parallels: {},
+        isDeployed: false,
+        isPublished: false,
+      },
       timestamp: Date.now(),
       action: 'Initial state',
       subblockValues: {},
@@ -87,9 +92,60 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set({ needsRedeployment })
       },
 
-      addBlock: (id: string, type: string, name: string, position: Position) => {
+      addBlock: (
+        id: string,
+        type: string,
+        name: string,
+        position: Position,
+        data?: Record<string, any>,
+        parentId?: string,
+        extent?: 'parent'
+      ) => {
         const blockConfig = getBlock(type)
+        // For custom nodes like loop and parallel that don't use BlockConfig
+        if (!blockConfig && (type === 'loop' || type === 'parallel')) {
+          // Merge parentId and extent into data if provided
+          const nodeData = {
+            ...data,
+            ...(parentId && { parentId, extent: extent || 'parent' }),
+          }
+
+          const newState = {
+            blocks: {
+              ...get().blocks,
+              [id]: {
+                id,
+                type,
+                name,
+                position,
+                subBlocks: {},
+                outputs: {},
+                enabled: true,
+                horizontalHandles: true,
+                isWide: false,
+                height: 0,
+                data: nodeData,
+              },
+            },
+            edges: [...get().edges],
+            loops: get().generateLoopBlocks(),
+            parallels: get().generateParallelBlocks(),
+          }
+
+          set(newState)
+          pushHistory(set, get, newState, `Add ${type} node`)
+          get().updateLastSaved()
+          workflowSync.sync()
+          return
+        }
+
         if (!blockConfig) return
+
+        // Merge parentId and extent into data for regular blocks
+        const nodeData = {
+          ...data,
+          ...(parentId && { parentId, extent: extent || 'parent' }),
+        }
 
         const subBlocks: Record<string, SubBlockState> = {}
         blockConfig.subBlocks.forEach((subBlock) => {
@@ -117,10 +173,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               horizontalHandles: true,
               isWide: false,
               height: 0,
+              data: nodeData,
             },
           },
           edges: [...get().edges],
-          loops: { ...get().loops },
+          loops: get().generateLoopBlocks(),
+          parallels: get().generateParallelBlocks(),
         }
 
         set(newState)
@@ -146,6 +204,96 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // No sync here as this is a frequent operation during dragging
       },
 
+      updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {
+        set((state) => ({
+          blocks: {
+            ...state.blocks,
+            [id]: {
+              ...state.blocks[id],
+              data: {
+                ...state.blocks[id].data,
+                width: dimensions.width,
+                height: dimensions.height,
+              },
+            },
+          },
+          edges: [...state.edges],
+        }))
+        get().updateLastSaved()
+        workflowSync.sync()
+      },
+
+      updateParentId: (id: string, parentId: string, extent: 'parent') => {
+        const block = get().blocks[id]
+        if (!block) {
+          console.warn(`Cannot set parent: Block ${id} not found`)
+          return
+        }
+
+        console.log('UpdateParentId called:', {
+          blockId: id,
+          blockName: block.name,
+          blockType: block.type,
+          newParentId: parentId,
+          extent,
+          currentParentId: block.data?.parentId,
+        })
+
+        // Skip if the parent ID hasn't changed
+        if (block.data?.parentId === parentId) {
+          console.log('Parent ID unchanged, skipping update')
+          return
+        }
+
+        // Store current absolute position
+        const absolutePosition = { ...block.position }
+
+        // Handle empty or null parentId (removing from parent)
+        const newData = !parentId
+          ? { ...block.data } // Remove parentId and extent if empty
+          : {
+              ...block.data,
+              parentId,
+              extent,
+            }
+
+        // Remove parentId and extent properties for empty parent ID
+        if (!parentId && newData.parentId) {
+          newData.parentId = undefined
+          newData.extent = undefined
+        }
+
+        const newState = {
+          blocks: {
+            ...get().blocks,
+            [id]: {
+              ...block,
+              position: absolutePosition,
+              data: newData,
+            },
+          },
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: { ...get().parallels },
+        }
+
+        console.log('[WorkflowStore/updateParentId] Updated parentId relationship:', {
+          blockId: id,
+          newParentId: parentId || 'None (removed parent)',
+          keepingPosition: absolutePosition,
+        })
+
+        set(newState)
+        pushHistory(
+          set,
+          get,
+          newState,
+          parentId ? `Set parent for ${block.name}` : `Remove parent for ${block.name}`
+        )
+        get().updateLastSaved()
+        workflowSync.sync()
+      },
+
       removeBlock: (id: string) => {
         // First, clean up any subblock values for this block
         const subBlockStore = useSubBlockStore.getState()
@@ -155,14 +303,42 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: { ...get().blocks },
           edges: [...get().edges].filter((edge) => edge.source !== id && edge.target !== id),
           loops: { ...get().loops },
+          parallels: { ...get().parallels },
         }
 
+        // Find and remove all child blocks if this is a parent node
+        const blocksToRemove = new Set([id])
+
+        // Recursively find all descendant blocks (children, grandchildren, etc.)
+        const findAllDescendants = (parentId: string) => {
+          Object.entries(newState.blocks).forEach(([blockId, block]) => {
+            if (block.data?.parentId === parentId) {
+              blocksToRemove.add(blockId)
+              // Recursively find this block's children
+              findAllDescendants(blockId)
+            }
+          })
+        }
+
+        // Start recursive search from the target block
+        findAllDescendants(id)
+
+        console.log('[WorkflowStore/removeBlock] Found blocks to remove:', {
+          targetId: id,
+          totalBlocksToRemove: Array.from(blocksToRemove),
+          includesHierarchy: blocksToRemove.size > 1,
+        })
+
         // Clean up subblock values before removing the block
-        if (activeWorkflowId) {
+        if (activeWorkflowId && subBlockStore.workflowValues) {
           const updatedWorkflowValues = {
             ...(subBlockStore.workflowValues[activeWorkflowId] || {}),
           }
-          delete updatedWorkflowValues[id]
+
+          // Remove values for all blocks being deleted
+          blocksToRemove.forEach((blockId) => {
+            delete updatedWorkflowValues[blockId]
+          })
 
           // Update subblock store
           useSubBlockStore.setState((state) => ({
@@ -173,26 +349,18 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }))
         }
 
-        // Clean up loops
-        Object.entries(newState.loops).forEach(([loopId, loop]) => {
-          if (loop.nodes.includes(id)) {
-            // If removing this node would leave the loop empty, delete the loop
-            if (loop.nodes.length <= 1) {
-              delete newState.loops[loopId]
-            } else {
-              newState.loops[loopId] = {
-                ...loop,
-                nodes: loop.nodes.filter((nodeId) => nodeId !== id),
-              }
-            }
-          }
+        // Remove all edges connected to any of the blocks being removed
+        newState.edges = newState.edges.filter(
+          (edge) => !blocksToRemove.has(edge.source) && !blocksToRemove.has(edge.target)
+        )
+
+        // Delete all blocks marked for removal
+        blocksToRemove.forEach((blockId) => {
+          delete newState.blocks[blockId]
         })
 
-        // Delete the block last
-        delete newState.blocks[id]
-
         set(newState)
-        pushHistory(set, get, newState, 'Remove block')
+        pushHistory(set, get, newState, 'Remove block and children')
         get().updateLastSaved()
         get().sync.markDirty()
         get().sync.forceSync()
@@ -223,55 +391,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         const newEdges = [...get().edges, newEdge]
 
-        // Recalculate all loops after adding the edge
-        const newLoops: Record<string, Loop> = {}
-        const processedPaths = new Set<string>()
-        const existingLoops = get().loops
-
-        // Check for cycles from each node
-        const nodes = new Set(newEdges.map((e) => e.source))
-        nodes.forEach((node) => {
-          const { paths } = detectCycle(newEdges, node)
-          paths.forEach((path) => {
-            // Create a canonical path representation for deduplication
-            const canonicalPath = [...path].sort().join(',')
-            if (!processedPaths.has(canonicalPath)) {
-              processedPaths.add(canonicalPath)
-
-              // Check if this path matches an existing loop
-              let existingLoop: Loop | undefined
-              Object.values(existingLoops).forEach((loop) => {
-                const loopCanonicalPath = [...loop.nodes].sort().join(',')
-                if (loopCanonicalPath === canonicalPath) {
-                  existingLoop = loop
-                }
-              })
-
-              if (existingLoop) {
-                // Preserve the existing loop's properties
-                newLoops[existingLoop.id] = {
-                  ...existingLoop,
-                  nodes: path, // Update nodes in case order changed
-                }
-              } else {
-                // Create a new loop with default settings
-                const loopId = crypto.randomUUID()
-                newLoops[loopId] = {
-                  id: loopId,
-                  nodes: path,
-                  iterations: 5,
-                  loopType: 'for',
-                  forEachItems: '',
-                }
-              }
-            }
-          })
-        })
-
+        // Use the new loop generation approach
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
-          loops: newLoops,
+          loops: generateLoopBlocks(get().blocks),
+          parallels: get().generateParallelBlocks(),
         }
 
         set(newState)
@@ -282,57 +407,21 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       removeEdge: (edgeId: string) => {
+        // Validate the edge exists
+        const edgeToRemove = get().edges.find((edge) => edge.id === edgeId)
+        if (!edgeToRemove) {
+          console.warn(`Attempted to remove non-existent edge: ${edgeId}`)
+          return
+        }
+
         const newEdges = get().edges.filter((edge) => edge.id !== edgeId)
 
-        // Recalculate all loops after edge removal
-        const newLoops: Record<string, Loop> = {}
-        const processedPaths = new Set<string>()
-        const existingLoops = get().loops
-
-        // Check for cycles from each node
-        const nodes = new Set(newEdges.map((e) => e.source))
-        nodes.forEach((node) => {
-          const { paths } = detectCycle(newEdges, node)
-          paths.forEach((path) => {
-            // Create a canonical path representation for deduplication
-            const canonicalPath = [...path].sort().join(',')
-            if (!processedPaths.has(canonicalPath)) {
-              processedPaths.add(canonicalPath)
-
-              // Check if this path matches an existing loop
-              let existingLoop: Loop | undefined
-              Object.values(existingLoops).forEach((loop) => {
-                const loopCanonicalPath = [...loop.nodes].sort().join(',')
-                if (loopCanonicalPath === canonicalPath) {
-                  existingLoop = loop
-                }
-              })
-
-              if (existingLoop) {
-                // Preserve the existing loop's properties
-                newLoops[existingLoop.id] = {
-                  ...existingLoop,
-                  nodes: path, // Update nodes in case order changed
-                }
-              } else {
-                // Create a new loop with default settings
-                const loopId = crypto.randomUUID()
-                newLoops[loopId] = {
-                  id: loopId,
-                  nodes: path,
-                  iterations: 5,
-                  loopType: 'for',
-                  forEachItems: '',
-                }
-              }
-            }
-          })
-        })
-
+        // Use the new loop generation approach instead of cycle detection
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
-          loops: newLoops,
+          loops: generateLoopBlocks(get().blocks),
+          parallels: get().generateParallelBlocks(),
         }
 
         set(newState)
@@ -354,6 +443,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
                 blocks: {},
                 edges: [],
                 loops: {},
+                parallels: {},
                 isDeployed: false,
                 isPublished: false,
               },
@@ -383,10 +473,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
         if (activeWorkflowId) {
           const currentState = get()
+          const generatedLoops = currentState.generateLoopBlocks()
           saveWorkflowState(activeWorkflowId, {
             blocks: currentState.blocks,
             edges: currentState.edges,
-            loops: currentState.loops,
+            loops: generatedLoops,
             history: currentState.history,
             // Include both legacy and new deployment status fields
             isDeployed: currentState.isDeployed,
@@ -412,6 +503,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
+          loops: { ...get().loops },
         }
 
         set(newState)
@@ -463,7 +555,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
-          loops: { ...get().loops },
+          loops: get().generateLoopBlocks(),
+          parallels: get().generateParallelBlocks(),
         }
 
         // Update the subblock store with the duplicated values
@@ -499,6 +592,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...get().edges],
+          loops: { ...get().loops },
         }
 
         set(newState)
@@ -522,6 +616,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: { ...get().loops },
+          parallels: { ...get().parallels },
         }
 
         // Update references in subblock store
@@ -603,7 +698,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...state.edges],
-          loops: { ...get().loops },
+          loops: { ...state.loops },
         }))
         get().updateLastSaved()
         get().sync.markDirty()
@@ -620,69 +715,84 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             },
           },
           edges: [...state.edges],
+          loops: { ...state.loops },
         }))
         get().updateLastSaved()
         // No sync needed for height changes, just visual
       },
 
-      updateLoopIterations: (loopId: string, iterations: number) => {
-        const newState = {
-          blocks: { ...get().blocks },
-          edges: [...get().edges],
-          loops: {
-            ...get().loops,
+      updateLoopCount: (loopId: string, count: number) =>
+        set((state) => {
+          const block = state.blocks[loopId]
+          if (!block || block.type !== 'loop') return state
+
+          const newBlocks = {
+            ...state.blocks,
             [loopId]: {
-              ...get().loops[loopId],
-              iterations: Math.max(1, Math.min(50, iterations)), // Clamp between 1-50
+              ...block,
+              data: {
+                ...block.data,
+                count: Math.max(1, Math.min(50, count)), // Clamp between 1-50
+              },
             },
-          },
-        }
+          }
 
-        set(newState)
-        pushHistory(set, get, newState, 'Update loop iterations')
-        get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
-      },
+          return {
+            blocks: newBlocks,
+            edges: [...state.edges],
+            loops: generateLoopBlocks(newBlocks), // Regenerate loops
+          }
+        }),
 
-      updateLoopType: (loopId: string, loopType: Loop['loopType']) => {
-        const newState = {
-          blocks: { ...get().blocks },
-          edges: [...get().edges],
-          loops: {
-            ...get().loops,
+      updateLoopType: (loopId: string, loopType: 'for' | 'forEach') =>
+        set((state) => {
+          const block = state.blocks[loopId]
+          if (!block || block.type !== 'loop') return state
+
+          const newBlocks = {
+            ...state.blocks,
             [loopId]: {
-              ...get().loops[loopId],
-              loopType,
+              ...block,
+              data: {
+                ...block.data,
+                loopType,
+              },
             },
-          },
-        }
+          }
 
-        set(newState)
-        pushHistory(set, get, newState, 'Update loop type')
-        get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
-      },
+          return {
+            blocks: newBlocks,
+            edges: [...state.edges],
+            loops: generateLoopBlocks(newBlocks), // Regenerate loops
+          }
+        }),
 
-      updateLoopForEachItems: (loopId: string, items: string) => {
-        const newState = {
-          blocks: { ...get().blocks },
-          edges: [...get().edges],
-          loops: {
-            ...get().loops,
+      updateLoopCollection: (loopId: string, collection: string) =>
+        set((state) => {
+          const block = state.blocks[loopId]
+          if (!block || block.type !== 'loop') return state
+
+          const newBlocks = {
+            ...state.blocks,
             [loopId]: {
-              ...get().loops[loopId],
-              forEachItems: items,
+              ...block,
+              data: {
+                ...block.data,
+                collection,
+              },
             },
-          },
-        }
+          }
 
-        set(newState)
-        pushHistory(set, get, newState, 'Update forEach items')
-        get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+          return {
+            blocks: newBlocks,
+            edges: [...state.edges],
+            loops: generateLoopBlocks(newBlocks), // Regenerate loops
+          }
+        }),
+
+      // Function to convert UI loop blocks to execution format
+      generateLoopBlocks: () => {
+        return generateLoopBlocks(get().blocks)
       },
 
       triggerUpdate: () => {
@@ -726,8 +836,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         const newState = {
           blocks: deployedState.blocks,
           edges: deployedState.edges,
-          loops: deployedState.loops,
-          // Legacy fields for backward compatibility
+          loops: deployedState.loops || {},
+          parallels: deployedState.parallels || {},
           isDeployed: true,
           needsRedeployment: false,
           hasActiveWebhook: false, // Reset webhook status
@@ -831,6 +941,70 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         get().triggerUpdate()
         get().sync.markDirty()
         get().sync.forceSync()
+      },
+
+      // Parallel block methods implementation
+      updateParallelCount: (parallelId: string, count: number) => {
+        const block = get().blocks[parallelId]
+        if (!block || block.type !== 'parallel') return
+
+        const newBlocks = {
+          ...get().blocks,
+          [parallelId]: {
+            ...block,
+            data: {
+              ...block.data,
+              count: Math.max(1, Math.min(50, count)), // Clamp between 1-50
+            },
+          },
+        }
+
+        const newState = {
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: generateParallelBlocks(newBlocks), // Regenerate parallels
+        }
+
+        set(newState)
+        pushHistory(set, get, newState, `Update parallel count`)
+        get().updateLastSaved()
+        get().sync.markDirty()
+        get().sync.forceSync()
+      },
+
+      updateParallelCollection: (parallelId: string, collection: string) => {
+        const block = get().blocks[parallelId]
+        if (!block || block.type !== 'parallel') return
+
+        const newBlocks = {
+          ...get().blocks,
+          [parallelId]: {
+            ...block,
+            data: {
+              ...block.data,
+              collection,
+            },
+          },
+        }
+
+        const newState = {
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: generateParallelBlocks(newBlocks), // Regenerate parallels
+        }
+
+        set(newState)
+        pushHistory(set, get, newState, `Update parallel collection`)
+        get().updateLastSaved()
+        get().sync.markDirty()
+        get().sync.forceSync()
+      },
+
+      // Function to convert UI parallel blocks to execution format
+      generateParallelBlocks: () => {
+        return generateParallelBlocks(get().blocks)
       },
     })),
     { name: 'workflow-store' }

@@ -81,9 +81,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   // Get available tags from workflow state
   const blocks = useWorkflowStore((state) => state.blocks)
+  const loops = useWorkflowStore((state) => state.loops)
+  const parallels = useWorkflowStore((state) => state.parallels)
   const _edges = useWorkflowStore((state) => state.edges)
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const loops = useWorkflowStore((state) => state.loops)
 
   // Get variables from variables store
   const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
@@ -193,6 +194,23 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
     }
 
+    // Parallel tags - Add if this block is in a parallel
+    const parallelTags: string[] = []
+
+    // Check if the current block is part of a parallel
+    const containingParallel = Object.entries(parallels || {}).find(([_, parallel]) =>
+      parallel.nodes.includes(blockId)
+    )
+
+    if (containingParallel) {
+      // Add parallel.index for all parallel blocks
+      parallelTags.push('parallel.index')
+
+      // Add parallel.currentItem and parallel.items
+      parallelTags.push('parallel.currentItem')
+      parallelTags.push('parallel.items')
+    }
+
     // If we have an active source block ID from a drop, use that specific block only
     if (activeSourceBlockId) {
       const sourceBlock = blocks[activeSourceBlockId]
@@ -256,8 +274,78 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
     }
 
-    // Use all incoming connections instead of just direct edges
-    const sourceTags = incomingConnections.flatMap((connection: ConnectedBlock) => {
+    // Find parallel and loop blocks connected via end-source handles
+    const endSourceConnections: ConnectedBlock[] = []
+
+    // Get all edges that connect to this block
+    const incomingEdges = useWorkflowStore
+      .getState()
+      .edges.filter((edge) => edge.target === blockId)
+
+    for (const edge of incomingEdges) {
+      const sourceBlock = blocks[edge.source]
+      if (!sourceBlock) continue
+
+      // Check if this is a parallel-end-source or loop-end-source connection
+      if (edge.sourceHandle === 'parallel-end-source' && sourceBlock.type === 'parallel') {
+        const blockName = sourceBlock.name || sourceBlock.type
+        const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
+
+        // Add the parallel block as a referenceable block with its aggregated results
+        endSourceConnections.push({
+          id: sourceBlock.id,
+          type: sourceBlock.type,
+          outputType: ['response'],
+          name: blockName,
+          responseFormat: {
+            fields: [
+              {
+                name: 'completed',
+                type: 'boolean',
+                description: 'Whether all executions completed',
+              },
+              {
+                name: 'results',
+                type: 'array',
+                description: 'Aggregated results from all parallel executions',
+              },
+              { name: 'message', type: 'string', description: 'Status message' },
+            ],
+          },
+        })
+      } else if (edge.sourceHandle === 'loop-end-source' && sourceBlock.type === 'loop') {
+        const blockName = sourceBlock.name || sourceBlock.type
+        const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
+
+        // Add the loop block as a referenceable block with its aggregated results
+        endSourceConnections.push({
+          id: sourceBlock.id,
+          type: sourceBlock.type,
+          outputType: ['response'],
+          name: blockName,
+          responseFormat: {
+            fields: [
+              {
+                name: 'completed',
+                type: 'boolean',
+                description: 'Whether all iterations completed',
+              },
+              {
+                name: 'results',
+                type: 'array',
+                description: 'Aggregated results from all loop iterations',
+              },
+              { name: 'message', type: 'string', description: 'Status message' },
+            ],
+          },
+        })
+      }
+    }
+
+    // Use all incoming connections plus end-source connections
+    const allConnections = [...incomingConnections, ...endSourceConnections]
+
+    const sourceTags = allConnections.flatMap((connection: ConnectedBlock) => {
       const blockName = connection.name || connection.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 
@@ -294,8 +382,16 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       return outputPaths.map((path) => `${normalizedBlockName}.${path}`)
     })
 
-    return { tags: [...variableTags, ...loopTags, ...sourceTags], variableInfoMap }
-  }, [blocks, incomingConnections, blockId, activeSourceBlockId, workflowVariables, loops])
+    return { tags: [...variableTags, ...loopTags, ...parallelTags, ...sourceTags], variableInfoMap }
+  }, [
+    blocks,
+    incomingConnections,
+    blockId,
+    activeSourceBlockId,
+    workflowVariables,
+    loops,
+    parallels,
+  ])
 
   // Filter tags based on search term
   const filteredTags = useMemo(() => {
@@ -304,9 +400,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
   }, [tags, searchTerm])
 
   // Group tags into variables, loops, and blocks
-  const { variableTags, loopTags, blockTags } = useMemo(() => {
+  const { variableTags, loopTags, parallelTags, blockTags } = useMemo(() => {
     const varTags: string[] = []
     const loopTags: string[] = []
+    const parTags: string[] = []
     const blkTags: string[] = []
 
     filteredTags.forEach((tag) => {
@@ -314,12 +411,14 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         varTags.push(tag)
       } else if (tag.startsWith('loop.')) {
         loopTags.push(tag)
+      } else if (tag.startsWith('parallel.')) {
+        parTags.push(tag)
       } else {
         blkTags.push(tag)
       }
     })
 
-    return { variableTags: varTags, loopTags: loopTags, blockTags: blkTags }
+    return { variableTags: varTags, loopTags: loopTags, parallelTags: parTags, blockTags: blkTags }
   }, [filteredTags])
 
   // Reset selection when filtered results change
@@ -515,9 +614,70 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
               </>
             )}
 
+            {parallelTags.length > 0 && (
+              <>
+                {loopTags.length > 0 && <div className='my-0' />}
+                <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
+                  Parallel
+                </div>
+                <div className='-mx-1 -px-1'>
+                  {parallelTags.map((tag: string, index: number) => {
+                    const tagIndex = filteredTags.indexOf(tag)
+                    const parallelProperty = tag.split('.')[1]
+
+                    // Choose appropriate icon/label based on type
+                    let tagIcon = 'P'
+                    let tagDescription = ''
+                    const bgColor = '#FF5757' // Red for parallel variables
+
+                    if (parallelProperty === 'currentItem') {
+                      tagIcon = 'i'
+                      tagDescription = 'Current item'
+                    } else if (parallelProperty === 'items') {
+                      tagIcon = 'I'
+                      tagDescription = 'All items'
+                    } else if (parallelProperty === 'index') {
+                      tagIcon = '#'
+                      tagDescription = 'Index'
+                    }
+
+                    return (
+                      <button
+                        key={tag}
+                        className={cn(
+                          'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
+                          'hover:bg-accent hover:text-accent-foreground',
+                          'focus:bg-accent focus:text-accent-foreground focus:outline-none',
+                          tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
+                        )}
+                        onMouseEnter={() => setSelectedIndex(tagIndex)}
+                        onMouseDown={(e) => {
+                          e.preventDefault() // Prevent input blur
+                          handleTagSelect(tag)
+                        }}
+                      >
+                        <div
+                          className='flex h-5 w-5 items-center justify-center rounded'
+                          style={{ backgroundColor: bgColor }}
+                        >
+                          <span className='h-3 w-3 font-bold text-white text-xs'>{tagIcon}</span>
+                        </div>
+                        <span className='flex-1 truncate'>{tag}</span>
+                        <span className='ml-auto text-muted-foreground text-xs'>
+                          {tagDescription}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
             {blockTags.length > 0 && (
               <>
-                {(variableTags.length > 0 || loopTags.length > 0) && <div className='my-0' />}
+                {(variableTags.length > 0 || loopTags.length > 0 || parallelTags.length > 0) && (
+                  <div className='my-0' />
+                )}
                 <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
                   Blocks
                 </div>
