@@ -203,7 +203,7 @@ describe('workflow store', () => {
       // Try to set count above max
       updateParallelCount('parallel1', 100)
       let state = useWorkflowStore.getState()
-      expect(state.blocks.parallel1?.data?.count).toBe(20)
+      expect(state.blocks.parallel1?.data?.count).toBe(50)
 
       // Try to set count below min
       updateParallelCount('parallel1', 0)

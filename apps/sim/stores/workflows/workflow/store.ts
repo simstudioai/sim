@@ -9,8 +9,8 @@ import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
 import { markWorkflowsDirty, workflowSync } from '../sync'
 import { mergeSubblockState } from '../utils'
-import type { Loop, Position, SubBlockState, SyncControl, WorkflowState } from './types'
-import { detectCycle, generateLoopBlocks, generateParallelBlocks } from './utils'
+import type { Position, SubBlockState, SyncControl, WorkflowState } from './types'
+import { generateLoopBlocks, generateParallelBlocks } from './utils'
 
 const initialState = {
   blocks: {},
@@ -391,61 +391,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         const newEdges = [...get().edges, newEdge]
 
-        // Recalculate all loops after adding the edge
-        const newLoops: Record<string, Loop> = {}
-        const processedPaths = new Set<string>()
-        const existingLoops = get().loops
-
-        // Check for cycles from each node
-        const nodes = new Set(newEdges.map((e) => e.source))
-        nodes.forEach((node) => {
-          const { paths } = detectCycle(newEdges, node)
-          paths.forEach((path) => {
-            // Create a canonical path representation for deduplication
-            const canonicalPath = [...path].sort().join(',')
-            if (!processedPaths.has(canonicalPath)) {
-              processedPaths.add(canonicalPath)
-
-              // Check if this path matches an existing loop
-              let existingLoop: Loop | undefined
-              Object.values(existingLoops).forEach((loop) => {
-                const loopCanonicalPath = [...loop.nodes].sort().join(',')
-                if (loopCanonicalPath === canonicalPath) {
-                  existingLoop = loop
-                }
-              })
-
-              if (existingLoop) {
-                // Preserve the existing loop's properties
-                newLoops[existingLoop.id] = {
-                  ...existingLoop,
-                  nodes: path, // Update nodes in case order changed
-                }
-              } else {
-                // Create a new loop with default settings
-                const loopId = crypto.randomUUID()
-                newLoops[loopId] = {
-                  id: loopId,
-                  nodes: path,
-                  iterations: 5,
-                  loopType: 'for',
-                  forEachItems: '',
-                }
-              }
-            }
-          })
-        })
-
-        // Generate loops from custom loop blocks
-        const generatedLoops = generateLoopBlocks(get().blocks)
-
-        // Merge with detected cycles loops
-        const mergedLoops = { ...newLoops, ...generatedLoops }
-
+        // Use the new loop generation approach
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
-          loops: mergedLoops,
+          loops: generateLoopBlocks(get().blocks),
           parallels: get().generateParallelBlocks(),
         }
 
@@ -464,67 +414,14 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           return
         }
 
-        console.log('Removing edge in store:', {
-          id: edgeId,
-          source: edgeToRemove.source,
-          target: edgeToRemove.target,
-        })
-
         const newEdges = get().edges.filter((edge) => edge.id !== edgeId)
 
-        // Recalculate all loops after edge removal
-
-        //TODO: comment this loop logic out.
-        const newLoops: Record<string, Loop> = {}
-        const processedPaths = new Set<string>()
-        const existingLoops = get().loops
-
-        // Check for cycles from each node
-        const nodes = new Set(newEdges.map((e) => e.source))
-        nodes.forEach((node) => {
-          const { paths } = detectCycle(newEdges, node)
-          paths.forEach((path) => {
-            // Create a canonical path representation for deduplication
-            const canonicalPath = [...path].sort().join(',')
-            if (!processedPaths.has(canonicalPath)) {
-              processedPaths.add(canonicalPath)
-
-              // Check if this path matches an existing loop
-              let existingLoop: Loop | undefined
-              Object.values(existingLoops).forEach((loop) => {
-                const loopCanonicalPath = [...loop.nodes].sort().join(',')
-                if (loopCanonicalPath === canonicalPath) {
-                  existingLoop = loop
-                }
-              })
-
-              if (existingLoop) {
-                // Preserve the existing loop's properties
-                newLoops[existingLoop.id] = {
-                  ...existingLoop,
-                  nodes: path, // Update nodes in case order changed
-                }
-              } else {
-                // Create a new loop with default settings
-                const loopId = crypto.randomUUID()
-                newLoops[loopId] = {
-                  id: loopId,
-                  nodes: path,
-                  iterations: 5,
-                  loopType: 'for',
-                  forEachItems: '',
-                }
-              }
-            }
-          })
-        })
-
-        // Only remove the specific edge by ID and maintain existing loops
+        // Use the new loop generation approach instead of cycle detection
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
-          loops: {},
-          parallels: { ...get().parallels },
+          loops: generateLoopBlocks(get().blocks),
+          parallels: get().generateParallelBlocks(),
         }
 
         set(newState)
@@ -1057,7 +954,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             ...block,
             data: {
               ...block.data,
-              count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
+              count: Math.max(1, Math.min(50, count)), // Clamp between 1-50
             },
           },
         }

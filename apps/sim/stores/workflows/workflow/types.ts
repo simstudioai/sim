@@ -30,8 +30,8 @@ export interface SubBlockState {
 export interface LoopBlock {
   id: string
   loopType: 'for' | 'forEach'
-  count: number // UI representation of iterations
-  collection: string // UI representation of forEachItems
+  count: number
+  collection: string
   width: number
   height: number
   executionState: {
