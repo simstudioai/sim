@@ -1,5 +1,5 @@
 import type React from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
@@ -40,7 +40,7 @@ interface TagDropdownProps {
 }
 
 // Add a helper function to extract fields from JSON Schema
-const extractFieldsFromSchema = (responseFormat: any): Field[] => {
+export const extractFieldsFromSchema = (responseFormat: any): Field[] => {
   if (!responseFormat) return []
 
   // Handle legacy format with fields array
@@ -54,7 +54,8 @@ const extractFieldsFromSchema = (responseFormat: any): Field[] => {
     !schema ||
     typeof schema !== 'object' ||
     !('properties' in schema) ||
-    typeof schema.properties !== 'object'
+    typeof schema.properties !== 'object' ||
+    schema.properties === null
   ) {
     return []
   }
@@ -421,64 +422,90 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     return { variableTags: varTags, loopTags: loopTags, parallelTags: parTags, blockTags: blkTags }
   }, [filteredTags])
 
+  // Create ordered tags array that matches the display order for keyboard navigation
+  const orderedTags = useMemo(() => {
+    return [...variableTags, ...loopTags, ...parallelTags, ...blockTags]
+  }, [variableTags, loopTags, parallelTags, blockTags])
+
+  // Create a map for efficient tag index lookups
+  const tagIndexMap = useMemo(() => {
+    const map = new Map<string, number>()
+    orderedTags.forEach((tag, index) => {
+      map.set(tag, index)
+    })
+    return map
+  }, [orderedTags])
+
   // Reset selection when filtered results change
   useEffect(() => {
     setSelectedIndex(0)
   }, [searchTerm])
 
-  // Handle tag selection
-  const handleTagSelect = (tag: string) => {
-    const textBeforeCursor = inputValue.slice(0, cursorPosition)
-    const textAfterCursor = inputValue.slice(cursorPosition)
-
-    // Find the position of the last '<' before cursor
-    const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
-    if (lastOpenBracket === -1) return
-
-    // Process the tag if it's a variable tag
-    let processedTag = tag
-    if (tag.startsWith('variable.')) {
-      // Get the variable name from the tag (after 'variable.')
-      const variableName = tag.substring('variable.'.length)
-
-      // Find the variable in the store by name
-      const variableObj = Object.values(variables).find(
-        (v) => v.name.replace(/\s+/g, '') === variableName
-      )
-
-      // We still use the full tag format internally to maintain compatibility
-      if (variableObj) {
-        processedTag = tag
-      }
+  // Ensure selectedIndex stays within bounds when orderedTags changes
+  useEffect(() => {
+    if (selectedIndex >= orderedTags.length) {
+      setSelectedIndex(Math.max(0, orderedTags.length - 1))
     }
+  }, [orderedTags.length, selectedIndex])
 
-    const newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${processedTag}>${textAfterCursor}`
+  // Handle tag selection
+  const handleTagSelect = useCallback(
+    (tag: string) => {
+      const textBeforeCursor = inputValue.slice(0, cursorPosition)
+      const textAfterCursor = inputValue.slice(cursorPosition)
 
-    onSelect(newValue)
-    onClose?.()
-  }
+      // Find the position of the last '<' before cursor
+      const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
+      if (lastOpenBracket === -1) return
+
+      // Process the tag if it's a variable tag
+      let processedTag = tag
+      if (tag.startsWith('variable.')) {
+        // Get the variable name from the tag (after 'variable.')
+        const variableName = tag.substring('variable.'.length)
+
+        // Find the variable in the store by name
+        const variableObj = Object.values(variables).find(
+          (v) => v.name.replace(/\s+/g, '') === variableName
+        )
+
+        // We still use the full tag format internally to maintain compatibility
+        if (variableObj) {
+          processedTag = tag
+        }
+      }
+
+      const newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${processedTag}>${textAfterCursor}`
+
+      onSelect(newValue)
+      onClose?.()
+    },
+    [inputValue, cursorPosition, variables, onSelect, onClose]
+  )
 
   // Add and remove keyboard event listener
   useEffect(() => {
     if (visible) {
       const handleKeyboardEvent = (e: KeyboardEvent) => {
-        if (!filteredTags.length) return
+        if (!orderedTags.length) return
 
         switch (e.key) {
           case 'ArrowDown':
             e.preventDefault()
             e.stopPropagation()
-            setSelectedIndex((prev) => (prev < filteredTags.length - 1 ? prev + 1 : prev))
+            setSelectedIndex((prev) => Math.min(prev + 1, orderedTags.length - 1))
             break
           case 'ArrowUp':
             e.preventDefault()
             e.stopPropagation()
-            setSelectedIndex((prev) => (prev > 0 ? prev - 1 : prev))
+            setSelectedIndex((prev) => Math.max(prev - 1, 0))
             break
           case 'Enter':
             e.preventDefault()
             e.stopPropagation()
-            handleTagSelect(filteredTags[selectedIndex])
+            if (selectedIndex >= 0 && selectedIndex < orderedTags.length) {
+              handleTagSelect(orderedTags[selectedIndex])
+            }
             break
           case 'Escape':
             e.preventDefault()
@@ -491,10 +518,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       window.addEventListener('keydown', handleKeyboardEvent, true)
       return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
     }
-  }, [visible, selectedIndex, filteredTags])
+  }, [visible, selectedIndex, orderedTags, handleTagSelect, onClose])
 
   // Don't render if not visible or no tags
-  if (!visible || tags.length === 0 || filteredTags.length === 0) return null
+  if (!visible || tags.length === 0 || orderedTags.length === 0) return null
 
   return (
     <div
@@ -505,7 +532,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       style={style}
     >
       <div className='py-1'>
-        {filteredTags.length === 0 ? (
+        {orderedTags.length === 0 ? (
           <div className='px-3 py-2 text-muted-foreground text-sm'>No matching tags found</div>
         ) : (
           <>
@@ -515,9 +542,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   Variables
                 </div>
                 <div className='-mx-1 -px-1'>
-                  {variableTags.map((tag: string, index: number) => {
+                  {variableTags.map((tag: string) => {
                     const variableInfo = variableInfoMap?.[tag] || null
-                    const tagIndex = filteredTags.indexOf(tag)
+                    const tagIndex = tagIndexMap.get(tag) ?? -1
 
                     return (
                       <button
@@ -526,11 +553,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                           'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
                           'hover:bg-accent hover:text-accent-foreground',
                           'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                          tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
+                          tagIndex === selectedIndex &&
+                            tagIndex >= 0 &&
+                            'bg-accent text-accent-foreground'
                         )}
-                        onMouseEnter={() => setSelectedIndex(tagIndex)}
+                        onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
                         onMouseDown={(e) => {
                           e.preventDefault() // Prevent input blur
+                          e.stopPropagation() // Prevent event bubbling
+                          handleTagSelect(tag)
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
                           handleTagSelect(tag)
                         }}
                       >
@@ -562,8 +597,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   Loop
                 </div>
                 <div className='-mx-1 -px-1'>
-                  {loopTags.map((tag: string, index: number) => {
-                    const tagIndex = filteredTags.indexOf(tag)
+                  {loopTags.map((tag: string) => {
+                    const tagIndex = tagIndexMap.get(tag) ?? -1
                     const loopProperty = tag.split('.')[1]
 
                     // Choose appropriate icon/label based on type
@@ -589,11 +624,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                           'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
                           'hover:bg-accent hover:text-accent-foreground',
                           'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                          tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
+                          tagIndex === selectedIndex &&
+                            tagIndex >= 0 &&
+                            'bg-accent text-accent-foreground'
                         )}
-                        onMouseEnter={() => setSelectedIndex(tagIndex)}
+                        onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
                         onMouseDown={(e) => {
                           e.preventDefault() // Prevent input blur
+                          e.stopPropagation() // Prevent event bubbling
+                          handleTagSelect(tag)
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
                           handleTagSelect(tag)
                         }}
                       >
@@ -621,8 +664,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   Parallel
                 </div>
                 <div className='-mx-1 -px-1'>
-                  {parallelTags.map((tag: string, index: number) => {
-                    const tagIndex = filteredTags.indexOf(tag)
+                  {parallelTags.map((tag: string) => {
+                    const tagIndex = tagIndexMap.get(tag) ?? -1
                     const parallelProperty = tag.split('.')[1]
 
                     // Choose appropriate icon/label based on type
@@ -648,11 +691,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                           'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
                           'hover:bg-accent hover:text-accent-foreground',
                           'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                          tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
+                          tagIndex === selectedIndex &&
+                            tagIndex >= 0 &&
+                            'bg-accent text-accent-foreground'
                         )}
-                        onMouseEnter={() => setSelectedIndex(tagIndex)}
+                        onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
                         onMouseDown={(e) => {
                           e.preventDefault() // Prevent input blur
+                          e.stopPropagation() // Prevent event bubbling
+                          handleTagSelect(tag)
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
                           handleTagSelect(tag)
                         }}
                       >
@@ -682,8 +733,8 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   Blocks
                 </div>
                 <div className='-mx-1 -px-1'>
-                  {blockTags.map((tag: string, index: number) => {
-                    const tagIndex = filteredTags.indexOf(tag)
+                  {blockTags.map((tag: string) => {
+                    const tagIndex = tagIndexMap.get(tag) ?? -1
 
                     // Get block name from tag (first part before the dot)
                     const blockName = tag.split('.')[0]
@@ -706,11 +757,19 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                           'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm',
                           'hover:bg-accent hover:text-accent-foreground',
                           'focus:bg-accent focus:text-accent-foreground focus:outline-none',
-                          tagIndex === selectedIndex && 'bg-accent text-accent-foreground'
+                          tagIndex === selectedIndex &&
+                            tagIndex >= 0 &&
+                            'bg-accent text-accent-foreground'
                         )}
-                        onMouseEnter={() => setSelectedIndex(tagIndex)}
+                        onMouseEnter={() => setSelectedIndex(tagIndex >= 0 ? tagIndex : 0)}
                         onMouseDown={(e) => {
                           e.preventDefault() // Prevent input blur
+                          e.stopPropagation() // Prevent event bubbling
+                          handleTagSelect(tag)
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
                           handleTagSelect(tag)
                         }}
                       >

@@ -44,9 +44,10 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   const [editorValue, setEditorValue] = useState('')
   const [typePopoverOpen, setTypePopoverOpen] = useState(false)
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
-  const [showTags, setShowTags] = useState(false)
+  const [showTagDropdown, setShowTagDropdown] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
-  const editorRef = useRef<HTMLDivElement>(null)
+  const editorContainerRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Get store methods
   const updateParallelCount = useWorkflowStore((state) => state.updateParallelCount)
@@ -144,14 +145,15 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
       updateParallelCollection(nodeId, value)
 
       // Get the textarea element and cursor position
-      const textarea = editorRef.current?.querySelector('textarea')
+      const textarea = editorContainerRef.current?.querySelector('textarea')
       if (textarea) {
+        textareaRef.current = textarea
         const position = textarea.selectionStart || 0
         setCursorPosition(position)
 
         // Check for tag trigger
         const tagTrigger = checkTagTrigger(value, position)
-        setShowTags(tagTrigger.show)
+        setShowTagDropdown(tagTrigger.show)
       }
     },
     [nodeId, updateParallelCollection]
@@ -162,11 +164,11 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
     (newValue: string) => {
       setEditorValue(newValue)
       updateParallelCollection(nodeId, newValue)
-      setShowTags(false)
+      setShowTagDropdown(false)
 
       // Focus back on the editor after selection
       setTimeout(() => {
-        const textarea = editorRef.current?.querySelector('textarea')
+        const textarea = textareaRef.current
         if (textarea) {
           textarea.focus()
         }
@@ -178,7 +180,7 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   // Handle key events
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      setShowTags(false)
+      setShowTagDropdown(false)
     }
   }, [])
 
@@ -269,7 +271,7 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
               // Code editor for collection-based parallel
               <div className='relative'>
                 <div
-                  ref={editorRef}
+                  ref={editorContainerRef}
                   className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'
                 >
                   {editorValue === '' && (
@@ -290,28 +292,26 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
                     textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap'
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') {
-                        setShowTags(false)
+                        setShowTagDropdown(false)
                       }
                     }}
                   />
-
-                  {/* Tag dropdown positioned inside the editor container */}
-                  {showTags && (
-                    <TagDropdown
-                      visible={showTags}
-                      onSelect={handleTagSelect}
-                      blockId={nodeId}
-                      activeSourceBlockId={nodeId}
-                      inputValue={editorValue}
-                      cursorPosition={cursorPosition}
-                      onClose={() => setShowTags(false)}
-                    />
-                  )}
                 </div>
                 <div className='mt-2 text-[10px] text-muted-foreground'>
                   Array or object to use for parallel execution. Type "{'<'}" to reference other
                   blocks.
                 </div>
+                {showTagDropdown && (
+                  <TagDropdown
+                    visible={showTagDropdown}
+                    onSelect={handleTagSelect}
+                    blockId={nodeId}
+                    activeSourceBlockId={null}
+                    inputValue={editorValue}
+                    cursorPosition={cursorPosition}
+                    onClose={() => setShowTagDropdown(false)}
+                  />
+                )}
               </div>
             )}
 
