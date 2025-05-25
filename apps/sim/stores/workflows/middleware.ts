@@ -28,6 +28,14 @@ interface HistoryActions {
 // MAX for each individual workflow
 const MAX_HISTORY_LENGTH = 20
 
+// Default empty state for consistent initialization
+const EMPTY_WORKFLOW_STATE = {
+  blocks: {},
+  edges: [] as any[],
+  loops: {},
+  parallels: {},
+}
+
 // Types for workflow store with history management capabilities
 export interface WorkflowStoreWithHistory extends WorkflowStore, HistoryActions {
   history: WorkflowHistory
@@ -174,14 +182,11 @@ export const withHistory = (
       // Reset workflow to empty state
       clear: () => {
         const newState = {
-          blocks: {},
-          edges: [],
-          loops: {},
-          parallels: {},
+          ...EMPTY_WORKFLOW_STATE,
           history: {
             past: [],
             present: {
-              state: { blocks: {}, edges: [], loops: {}, parallels: {} },
+              state: { ...EMPTY_WORKFLOW_STATE },
               timestamp: Date.now(),
               action: 'Clear workflow',
               subblockValues: {},

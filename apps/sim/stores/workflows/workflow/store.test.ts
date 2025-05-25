@@ -82,7 +82,6 @@ describe('workflow store', () => {
         { x: 0, y: 0 },
         {
           loopType: 'forEach',
-          count: 10,
           collection: '["item1", "item2"]',
         }
       )
@@ -183,9 +182,13 @@ describe('workflow store', () => {
       // Check that parallels were regenerated
       expect(state.parallels.parallel1).toBeDefined()
       expect(state.parallels.parallel1.distribution).toBe('["item1", "item2", "item3"]')
+
+      // Verify that the parallel count matches the collection size
+      const parsedDistribution = JSON.parse(state.parallels.parallel1.distribution as string)
+      expect(parsedDistribution).toHaveLength(3)
     })
 
-    it('should clamp parallel count between 1 and 20', () => {
+    it('should clamp parallel count between 1 and 50', () => {
       const { addBlock, updateParallelCount } = useWorkflowStore.getState()
 
       // Add a parallel block

@@ -54,6 +54,26 @@ export class LoopManager {
         // All blocks in the loop have been executed
         const currentIteration = context.loopIterations.get(loopId) || 0
 
+        // Store the results from this iteration before potentially resetting blocks
+        const iterationResults: Record<string, any> = {}
+        for (const nodeId of loop.nodes) {
+          const blockState = context.blockStates.get(nodeId)
+          if (blockState?.output) {
+            iterationResults[nodeId] = blockState.output
+          }
+        }
+
+        // Store the iteration results
+        if (Object.keys(iterationResults).length > 0) {
+          this.storeIterationResult(
+            context,
+            loopId,
+            currentIteration - 1,
+            'iteration',
+            iterationResults
+          )
+        }
+
         // The loop block will handle incrementing the iteration when it executes next
         // We just need to reset the blocks so they can run again
 
@@ -90,6 +110,38 @@ export class LoopManager {
           // This was the last iteration
           hasLoopReachedMaxIterations = true
           logger.info(`Loop ${loopId} has completed all ${maxIterations} iterations`)
+
+          // Aggregate results from all iterations using stored results
+          const results = []
+          const loopState = context.loopExecutions?.get(loopId)
+          if (loopState) {
+            for (let i = 0; i < maxIterations; i++) {
+              const result = loopState.executionResults.get(`iteration_${i}`)
+              if (result?.iteration) {
+                results.push(result.iteration)
+              }
+            }
+          }
+
+          // Store the aggregated results in the loop block's state so subsequent blocks can reference them
+          const aggregatedOutput = {
+            response: {
+              loopId,
+              currentIteration: maxIterations - 1, // Last iteration index
+              maxIterations,
+              loopType: loop.loopType || 'for',
+              completed: true,
+              results,
+              message: `Completed all ${maxIterations} iterations`,
+            },
+          }
+
+          // Store the aggregated results in context so blocks connected to loop-end-source can access them
+          context.blockStates.set(loopId, {
+            output: aggregatedOutput,
+            executed: true,
+            executionTime: 0, // Loop coordination doesn't have meaningful execution time
+          })
 
           // Mark this loop as completed
           context.completedLoops.add(loopId)
@@ -179,6 +231,51 @@ export class LoopManager {
 
     logger.info(`After reset - executed blocks: ${Array.from(context.executedBlocks).join(', ')}`)
     logger.info(`After reset - active paths: ${Array.from(context.activeExecutionPath).join(', ')}`)
+  }
+
+  /**
+   * Stores the result of a loop iteration.
+   */
+  storeIterationResult(
+    context: ExecutionContext,
+    loopId: string,
+    iterationIndex: number,
+    blockId: string,
+    output: any
+  ): void {
+    if (!context.loopExecutions) {
+      context.loopExecutions = new Map()
+    }
+
+    let loopState = context.loopExecutions.get(loopId)
+    if (!loopState) {
+      const loop = this.loops[loopId]
+      const loopType = loop?.loopType === 'forEach' ? 'forEach' : 'for'
+      const forEachItems = loop?.forEachItems
+
+      loopState = {
+        maxIterations: loop?.iterations || this.defaultIterations,
+        loopType,
+        forEachItems:
+          Array.isArray(forEachItems) || (typeof forEachItems === 'object' && forEachItems !== null)
+            ? forEachItems
+            : null,
+        executionResults: new Map(),
+        currentIteration: 0,
+      }
+      context.loopExecutions.set(loopId, loopState)
+    }
+
+    // Get or create the iteration results object
+    const iterationKey = `iteration_${iterationIndex}`
+    let iterationResults = loopState.executionResults.get(iterationKey)
+    if (!iterationResults) {
+      iterationResults = {}
+      loopState.executionResults.set(iterationKey, iterationResults)
+    }
+
+    // Store the block's output for this iteration
+    iterationResults[blockId] = output
   }
 
   /**
@@ -287,20 +384,8 @@ export class LoopManager {
           }
         }
       } else {
-        // For regular blocks, check if they had an error
-        const blockState = context.blockStates.get(currentBlockId)
-        const hasError =
-          blockState?.output?.error !== undefined ||
-          blockState?.output?.response?.error !== undefined
-
-        // Follow appropriate connections based on error state
-        for (const conn of outgoing) {
-          if (conn.sourceHandle === 'error' && hasError) {
-            toVisit.push(conn.target)
-          } else if ((conn.sourceHandle === 'source' || !conn.sourceHandle) && !hasError) {
-            toVisit.push(conn.target)
-          }
-        }
+        // For regular blocks, use the extracted error handling method
+        this.handleErrorConnections(currentBlockId, outgoing, context, toVisit)
       }
     }
 
@@ -332,12 +417,44 @@ export class LoopManager {
     // With the new loop block approach, feedback paths are connections from
     // blocks inside the loop back to the loop block itself
     for (const [loopId, loop] of Object.entries(this.loops)) {
+      // Use Set for O(1) lookup performance instead of O(n) includes()
+      const loopNodesSet = new Set(loop.nodes)
+
       // Check if source is inside the loop and target is the loop block
-      if (loop.nodes.includes(connection.source) && connection.target === loopId) {
+      if (loopNodesSet.has(connection.source) && connection.target === loopId) {
         return true
       }
     }
 
     return false
+  }
+
+  /**
+   * Handles error connections and follows appropriate paths based on error state.
+   *
+   * @param blockId - ID of the block to check for error handling
+   * @param outgoing - Outgoing connections from the block
+   * @param context - Current execution context
+   * @param toVisit - Array to add next blocks to visit
+   */
+  private handleErrorConnections(
+    blockId: string,
+    outgoing: any[],
+    context: ExecutionContext,
+    toVisit: string[]
+  ): void {
+    // For regular blocks, check if they had an error
+    const blockState = context.blockStates.get(blockId)
+    const hasError =
+      blockState?.output?.error !== undefined || blockState?.output?.response?.error !== undefined
+
+    // Follow appropriate connections based on error state
+    for (const conn of outgoing) {
+      if (conn.sourceHandle === 'error' && hasError) {
+        toVisit.push(conn.target)
+      } else if ((conn.sourceHandle === 'source' || !conn.sourceHandle) && !hasError) {
+        toVisit.push(conn.target)
+      }
+    }
   }
 }

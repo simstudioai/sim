@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SerializedBlock, SerializedParallel } from '@/serializer/types'
+import { createParallelExecutionState } from '../../__test-utils__/executor-mocks'
 import type { ExecutionContext } from '../../types'
 import { ParallelBlockHandler } from './parallel-handler'
 
@@ -105,14 +106,13 @@ describe('ParallelBlockHandler', () => {
     context.parallelExecutions = new Map([
       [
         'parallel-1',
-        {
+        createParallelExecutionState({
           parallelCount: 2,
           distributionItems: ['item1', 'item2'],
           completedExecutions: 0,
-          executionResults: new Map(),
-          activeIterations: new Set(),
+          activeIterations: new Set([0, 1]),
           currentIteration: 1,
-        },
+        }),
       ],
     ])
 
@@ -152,7 +152,7 @@ describe('ParallelBlockHandler', () => {
     context.parallelExecutions = new Map([
       [
         'parallel-1',
-        {
+        createParallelExecutionState({
           parallelCount: 2,
           distributionItems: ['item1', 'item2'],
           completedExecutions: 0,
@@ -162,7 +162,7 @@ describe('ParallelBlockHandler', () => {
           ]),
           activeIterations: new Set(),
           currentIteration: 1,
-        },
+        }),
       ],
     ])
 

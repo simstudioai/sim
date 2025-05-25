@@ -12,20 +12,17 @@ export function ToolbarBlock({ config }: ToolbarBlockProps) {
   }
 
   // Handle click to add block
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (config.type === 'connectionBlock') return
+  const handleClick = useCallback(() => {
+    if (config.type === 'connectionBlock') return
 
-      // Dispatch a custom event to be caught by the workflow component
-      const event = new CustomEvent('add-block-from-toolbar', {
-        detail: {
-          type: config.type,
-        },
-      })
-      window.dispatchEvent(event)
-    },
-    [config.type]
-  )
+    // Dispatch a custom event to be caught by the workflow component
+    const event = new CustomEvent('add-block-from-toolbar', {
+      detail: {
+        type: config.type,
+      },
+    })
+    window.dispatchEvent(event)
+  }, [config.type])
 
   return (
     <div

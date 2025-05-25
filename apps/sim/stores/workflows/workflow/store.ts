@@ -330,7 +330,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         })
 
         // Clean up subblock values before removing the block
-        if (activeWorkflowId) {
+        if (activeWorkflowId && subBlockStore.workflowValues) {
           const updatedWorkflowValues = {
             ...(subBlockStore.workflowValues[activeWorkflowId] || {}),
           }

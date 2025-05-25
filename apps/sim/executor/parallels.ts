@@ -1,5 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
-import type { SerializedWorkflow } from '@/serializer/types'
+import type { SerializedBlock, SerializedParallel, SerializedWorkflow } from '@/serializer/types'
 import type { ExecutionContext, NormalizedBlockOutput } from './types'
 
 const logger = createLogger('ParallelManager')
@@ -60,7 +60,7 @@ export class ParallelManager {
    */
   areAllVirtualBlocksExecuted(
     parallelId: string,
-    parallel: any,
+    parallel: SerializedParallel,
     executedBlocks: Set<string>,
     parallelState: ParallelState
   ): boolean {
@@ -130,7 +130,7 @@ export class ParallelManager {
    * Creates virtual block instances for parallel execution.
    */
   createVirtualBlockInstances(
-    block: any,
+    block: SerializedBlock,
     parallelId: string,
     parallelState: ParallelState,
     executedBlocks: Set<string>,
@@ -190,7 +190,10 @@ export class ParallelManager {
   ): void {
     const parallelState = context.parallelExecutions?.get(parallelId)
     if (parallelState) {
+      const existingResults =
+        parallelState.executionResults.get(`iteration_${iterationIndex}`) || {}
       parallelState.executionResults.set(`iteration_${iterationIndex}`, {
+        ...existingResults,
         [blockId]: output,
       })
     }

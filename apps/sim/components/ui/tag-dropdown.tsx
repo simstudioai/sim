@@ -274,8 +274,78 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
     }
 
-    // Use all incoming connections instead of just direct edges
-    const sourceTags = incomingConnections.flatMap((connection: ConnectedBlock) => {
+    // Find parallel and loop blocks connected via end-source handles
+    const endSourceConnections: ConnectedBlock[] = []
+
+    // Get all edges that connect to this block
+    const incomingEdges = useWorkflowStore
+      .getState()
+      .edges.filter((edge) => edge.target === blockId)
+
+    for (const edge of incomingEdges) {
+      const sourceBlock = blocks[edge.source]
+      if (!sourceBlock) continue
+
+      // Check if this is a parallel-end-source or loop-end-source connection
+      if (edge.sourceHandle === 'parallel-end-source' && sourceBlock.type === 'parallel') {
+        const blockName = sourceBlock.name || sourceBlock.type
+        const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
+
+        // Add the parallel block as a referenceable block with its aggregated results
+        endSourceConnections.push({
+          id: sourceBlock.id,
+          type: sourceBlock.type,
+          outputType: ['response'],
+          name: blockName,
+          responseFormat: {
+            fields: [
+              {
+                name: 'completed',
+                type: 'boolean',
+                description: 'Whether all executions completed',
+              },
+              {
+                name: 'results',
+                type: 'array',
+                description: 'Aggregated results from all parallel executions',
+              },
+              { name: 'message', type: 'string', description: 'Status message' },
+            ],
+          },
+        })
+      } else if (edge.sourceHandle === 'loop-end-source' && sourceBlock.type === 'loop') {
+        const blockName = sourceBlock.name || sourceBlock.type
+        const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
+
+        // Add the loop block as a referenceable block with its aggregated results
+        endSourceConnections.push({
+          id: sourceBlock.id,
+          type: sourceBlock.type,
+          outputType: ['response'],
+          name: blockName,
+          responseFormat: {
+            fields: [
+              {
+                name: 'completed',
+                type: 'boolean',
+                description: 'Whether all iterations completed',
+              },
+              {
+                name: 'results',
+                type: 'array',
+                description: 'Aggregated results from all loop iterations',
+              },
+              { name: 'message', type: 'string', description: 'Status message' },
+            ],
+          },
+        })
+      }
+    }
+
+    // Use all incoming connections plus end-source connections
+    const allConnections = [...incomingConnections, ...endSourceConnections]
+
+    const sourceTags = allConnections.flatMap((connection: ConnectedBlock) => {
       const blockName = connection.name || connection.type
       const normalizedBlockName = blockName.replace(/\s+/g, '').toLowerCase()
 

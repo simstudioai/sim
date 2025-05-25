@@ -86,6 +86,8 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
       } else if (Array.isArray(data.collection) || typeof data.collection === 'object') {
         setEditorValue(JSON.stringify(data.collection))
       }
+    } else if (loopType === 'for') {
+      setEditorValue('')
     }
   }, [data?.loopType, data?.count, data?.collection, loopType, iterations])
 

@@ -6,6 +6,8 @@ import type { BlockHandler, ExecutionContext } from '../../types'
 
 const logger = createLogger('LoopBlockHandler')
 
+const DEFAULT_MAX_ITERATIONS = 5
+
 /**
  * Handler for loop blocks that manage iteration control and flow.
  * Loop blocks don't execute logic themselves but control the flow of blocks within them.
@@ -37,24 +39,41 @@ export class LoopBlockHandler implements BlockHandler {
     }
 
     const currentIteration = context.loopIterations.get(block.id) || 0
-    let maxIterations = loop.iterations || 5
+    let maxIterations = loop.iterations || DEFAULT_MAX_ITERATIONS
 
     // For forEach loops, we need to check the actual items length
     let forEachItems: any[] | Record<string, any> | null = null
-    if (loop.loopType === 'forEach' && loop.forEachItems) {
+    if (loop.loopType === 'forEach') {
+      if (
+        !loop.forEachItems ||
+        (typeof loop.forEachItems === 'string' && loop.forEachItems.trim() === '')
+      ) {
+        throw new Error(
+          `forEach loop "${block.id}" requires a collection to iterate over. Please provide an array or object in the collection field.`
+        )
+      }
+
       forEachItems = await this.evaluateForEachItems(loop.forEachItems, context, block)
       logger.info(`Evaluated forEach items for loop ${block.id}:`, forEachItems)
 
-      if (forEachItems) {
-        // Adjust max iterations based on actual items
-        const itemsLength = Array.isArray(forEachItems)
-          ? forEachItems.length
-          : Object.keys(forEachItems).length
-        maxIterations = Math.min(maxIterations, itemsLength)
-        logger.info(
-          `Loop ${block.id} max iterations set to ${maxIterations} based on ${itemsLength} items`
+      if (
+        !forEachItems ||
+        (Array.isArray(forEachItems) && forEachItems.length === 0) ||
+        (typeof forEachItems === 'object' && Object.keys(forEachItems).length === 0)
+      ) {
+        throw new Error(
+          `forEach loop "${block.id}" collection is empty or invalid. Please provide a non-empty array or object.`
         )
       }
+
+      // Adjust max iterations based on actual items
+      const itemsLength = Array.isArray(forEachItems)
+        ? forEachItems.length
+        : Object.keys(forEachItems).length
+      maxIterations = Math.min(maxIterations, itemsLength)
+      logger.info(
+        `Loop ${block.id} max iterations set to ${maxIterations} based on ${itemsLength} items`
+      )
     }
 
     logger.info(

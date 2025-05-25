@@ -36,7 +36,6 @@ describe('TagDropdown Loop Suggestions', () => {
         enabled: true,
         data: {
           loopType: 'forEach',
-          count: 10,
           collection: '["item1", "item2", "item3"]',
         },
       },

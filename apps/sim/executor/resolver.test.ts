@@ -796,7 +796,7 @@ describe('InputResolver', () => {
         metadata: { duration: 0 },
         environmentVariables: {},
         decisions: { router: new Map(), condition: new Map() },
-        loopIterations: new Map([['loop-1', 3]]), // Iteration 3
+        loopIterations: new Map([['loop-1', 3]]), // Iteration 3 (corresponds to 0-based index 2)
         loopItems: new Map(),
         completedLoops: new Set(),
         executedBlocks: new Set(),
@@ -874,6 +874,74 @@ describe('InputResolver', () => {
       const resolvedInputs = resolver.resolveInputs(functionBlock, context)
 
       expect(resolvedInputs.allItems).toEqual(items) // Direct array, not stringified
+    })
+
+    it('should handle missing loop-1_items gracefully', () => {
+      const loopBlock: SerializedBlock = {
+        id: 'loop-1',
+        position: { x: 0, y: 0 },
+        config: { tool: 'loop', params: {} },
+        inputs: {},
+        outputs: {},
+        metadata: { id: 'loop', name: 'Test Loop' },
+        enabled: true,
+      }
+
+      const functionBlock: SerializedBlock = {
+        id: 'function-1',
+        position: { x: 0, y: 0 },
+        config: {
+          tool: 'function',
+          params: {
+            allItems: '<loop.items>', // Direct reference to all items
+          },
+        },
+        inputs: {},
+        outputs: {},
+        metadata: { id: 'function', name: 'Process All Items' },
+        enabled: true,
+      }
+
+      const items = ['item1', 'item2', 'item3']
+      const workflow: SerializedWorkflow = {
+        version: '1.0',
+        blocks: [loopBlock, functionBlock],
+        connections: [],
+        loops: {
+          'loop-1': {
+            id: 'loop-1',
+            nodes: ['function-1'],
+            iterations: 3,
+            loopType: 'forEach',
+            forEachItems: items,
+          },
+        },
+      }
+
+      const resolver = new InputResolver(workflow, {})
+      const loopItemsMap = new Map<string, any>()
+      loopItemsMap.set('loop-1', 'item1')
+      // Note: loop-1_items is NOT set to test fallback behavior
+
+      const context: ExecutionContext = {
+        workflowId: 'test',
+        blockStates: new Map(),
+        blockLogs: [],
+        metadata: { duration: 0 },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map([['loop-1', 1]]),
+        loopItems: loopItemsMap,
+        completedLoops: new Set(),
+        executedBlocks: new Set(),
+        activeExecutionPath: new Set(['function-1']),
+        workflow,
+      }
+
+      const resolvedInputs = resolver.resolveInputs(functionBlock, context)
+
+      // Should fall back to the items from the loop configuration
+      expect(resolvedInputs.allItems).toEqual(items)
     })
   })
 })

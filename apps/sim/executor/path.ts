@@ -1,6 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { SerializedBlock, SerializedConnection, SerializedWorkflow } from '@/serializer/types'
-import type { ExecutionContext } from './types'
+import type { BlockState, ExecutionContext } from './types'
 
 const logger = createLogger('PathTracker')
 
@@ -230,7 +230,7 @@ export class PathTracker {
   /**
    * Check if a block has an error
    */
-  private blockHasError(blockState: any): boolean {
+  private blockHasError(blockState: BlockState | undefined): boolean {
     return (
       blockState?.output?.error !== undefined || blockState?.output?.response?.error !== undefined
     )

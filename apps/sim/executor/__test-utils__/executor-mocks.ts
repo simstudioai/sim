@@ -458,6 +458,28 @@ export const createLoopManagerMock = (options?: {
 })
 
 /**
+ * Create a parallel execution state object for testing
+ */
+export const createParallelExecutionState = (options?: {
+  parallelCount?: number
+  distributionItems?: any[] | Record<string, any> | null
+  completedExecutions?: number
+  executionResults?: Map<string, any>
+  activeIterations?: Set<number>
+  currentIteration?: number
+  parallelType?: 'count' | 'collection'
+}) => ({
+  parallelCount: options?.parallelCount ?? 3,
+  distributionItems:
+    options?.distributionItems !== undefined ? options.distributionItems : ['a', 'b', 'c'],
+  completedExecutions: options?.completedExecutions ?? 0,
+  executionResults: options?.executionResults ?? new Map<string, any>(),
+  activeIterations: options?.activeIterations ?? new Set<number>(),
+  currentIteration: options?.currentIteration ?? 1,
+  parallelType: options?.parallelType,
+})
+
+/**
  * Mock implementations for testing parallels
  */
 export const createParallelManagerMock = (options?: {

@@ -21,6 +21,7 @@ export default function ParallelToolbarItem() {
         clientX: e.clientX,
         clientY: e.clientY,
       },
+      bubbles: true,
     })
     window.dispatchEvent(event)
   }, [])

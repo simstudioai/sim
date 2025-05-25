@@ -2,6 +2,10 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('WorkflowUtils')
 
+// Default dimensions for loop and parallel container nodes
+const DEFAULT_CONTAINER_WIDTH = 500
+const DEFAULT_CONTAINER_HEIGHT = 300
+
 /**
  * Utility functions for handling node hierarchies and loop operations in the workflow
  */
@@ -10,12 +14,14 @@ const logger = createLogger('WorkflowUtils')
  * Calculates the depth of a node in the hierarchy tree
  * @param nodeId ID of the node to check
  * @param getNodes Function to retrieve all nodes from ReactFlow
+ * @param maxDepth Maximum depth to prevent stack overflow
  * @returns Depth level (0 for root nodes, increasing for nested nodes)
  */
-export const getNodeDepth = (nodeId: string, getNodes: () => any[]): number => {
+export const getNodeDepth = (nodeId: string, getNodes: () => any[], maxDepth = 100): number => {
   const node = getNodes().find((n) => n.id === nodeId)
   if (!node || !node.parentId) return 0
-  return 1 + getNodeDepth(node.parentId, getNodes)
+  if (maxDepth <= 0) return 0
+  return 1 + getNodeDepth(node.parentId, getNodes, maxDepth - 1)
 }
 
 /**
@@ -151,6 +157,19 @@ export const updateNodeParent = (
       newParentId,
       relativePosition,
     })
+  } else if (currentParentId) {
+    // Removing parent - convert to absolute position
+    const absolutePosition = getNodeAbsolutePosition(nodeId, getNodes)
+
+    // Update position to absolute coordinates and remove parent
+    updateBlockPosition(nodeId, absolutePosition)
+    // Note: updateParentId function signature needs to handle null case
+
+    logger.info('Removed node parent', {
+      nodeId,
+      previousParentId: currentParentId,
+      absolutePosition,
+    })
   }
 
   // Resize affected loops
@@ -177,9 +196,9 @@ export const isPointInLoopNode = (
     .filter((n) => {
       const rect = {
         left: n.position.x,
-        right: n.position.x + (n.data?.width || 500),
+        right: n.position.x + (n.data?.width || DEFAULT_CONTAINER_WIDTH),
         top: n.position.y,
-        bottom: n.position.y + (n.data?.height || 300),
+        bottom: n.position.y + (n.data?.height || DEFAULT_CONTAINER_HEIGHT),
       }
 
       return (
@@ -193,8 +212,8 @@ export const isPointInLoopNode = (
       loopId: n.id,
       loopPosition: n.position,
       dimensions: {
-        width: n.data?.width || 500,
-        height: n.data?.height || 300,
+        width: n.data?.width || DEFAULT_CONTAINER_WIDTH,
+        height: n.data?.height || DEFAULT_CONTAINER_HEIGHT,
       },
     }))
 
@@ -221,8 +240,8 @@ export const calculateLoopDimensions = (
   getNodes: () => any[]
 ): { width: number; height: number } => {
   // Default minimum dimensions
-  const minWidth = 500
-  const minHeight = 300
+  const minWidth = DEFAULT_CONTAINER_WIDTH
+  const minHeight = DEFAULT_CONTAINER_HEIGHT
 
   // Get all child nodes of this container
   const childNodes = getNodes().filter((node) => node.parentId === nodeId)
@@ -245,8 +264,8 @@ export const calculateLoopDimensions = (
     if (node.type === 'loopNode' || node.type === 'parallelNode') {
       // For nested containers, don't add excessive padding to the parent
       // Use actual dimensions without additional padding to prevent cascading expansion
-      nodeWidth = node.data?.width || 500
-      nodeHeight = node.data?.height || 300
+      nodeWidth = node.data?.width || DEFAULT_CONTAINER_WIDTH
+      nodeHeight = node.data?.height || DEFAULT_CONTAINER_HEIGHT
     } else if (node.type === 'workflowBlock') {
       // Handle all workflowBlock types appropriately
       const blockType = node.data?.type

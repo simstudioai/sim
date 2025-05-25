@@ -80,6 +80,7 @@ const LoopNodeStyles: React.FC = () => {
 
 export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
   const { getNodes } = useReactFlow()
+  const removeBlock = useWorkflowStore((state) => state.removeBlock)
   const blockRef = useRef<HTMLDivElement>(null)
 
   // Determine nesting level by counting parents
@@ -172,7 +173,7 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
               size='sm'
               onClick={(e) => {
                 e.stopPropagation()
-                useWorkflowStore.getState().removeBlock(id)
+                removeBlock(id)
               }}
               className='absolute top-2 right-2 z-20 text-gray-500 opacity-0 transition-opacity duration-200 hover:text-red-600 group-hover:opacity-100'
               style={{ pointerEvents: 'auto' }}
@@ -194,7 +195,7 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
                 type='source'
                 position={Position.Right}
                 id='loop-start-source'
-                className='!w-[6px] !h-4 !bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none !z-[30] hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none !cursor-crosshair -[colors] duration-150'
+                className='!w-[6px] !h-4 !bg-slate-300 dark:!bg-slate-500 !rounded-[2px] !border-none !z-[30] hover:!w-[10px] hover:!right-[-10px] hover:!rounded-r-full hover:!rounded-l-none !cursor-crosshair transition-[colors] duration-150'
                 style={{
                   right: '-6px',
                   top: '50%',

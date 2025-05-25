@@ -12,6 +12,7 @@ const logger = createLogger('InputResolver')
 export class InputResolver {
   private blockById: Map<string, SerializedBlock>
   private blockByNormalizedName: Map<string, SerializedBlock>
+  private loopsByBlockId: Map<string, string> // Maps block ID to containing loop ID
 
   constructor(
     private workflow: SerializedWorkflow,
@@ -40,6 +41,14 @@ export class InputResolver {
           this.normalizeBlockName(starterBlock.metadata.name),
           starterBlock
         )
+      }
+    }
+
+    // Create efficient loop lookup map
+    this.loopsByBlockId = new Map()
+    for (const [loopId, loop] of Object.entries(workflow.loops || {})) {
+      for (const blockId of loop.nodes) {
+        this.loopsByBlockId.set(blockId, loopId)
       }
     }
   }
@@ -99,14 +108,8 @@ export class InputResolver {
         // Check for direct loop reference pattern: <loop.property>
         const directLoopMatch = trimmedValue.match(/^<loop\.([^>]+)>$/)
         if (directLoopMatch) {
-          // Find which loop this block belongs to
-          let containingLoopId: string | undefined
-          for (const [loopId, loop] of Object.entries(context.workflow?.loops || {})) {
-            if (loop.nodes.includes(block.id)) {
-              containingLoopId = loopId
-              break
-            }
-          }
+          // Find which loop this block belongs to using efficient lookup
+          const containingLoopId = this.loopsByBlockId.get(block.id)
 
           if (containingLoopId) {
             const pathParts = directLoopMatch[1].split('.')
@@ -452,15 +455,8 @@ export class InputResolver {
 
       // Special case for "loop" references - allows accessing loop properties
       if (blockRef.toLowerCase() === 'loop') {
-        // Find which loop this block belongs to
-        let containingLoopId: string | undefined
-
-        for (const [loopId, loop] of Object.entries(context.workflow?.loops || {})) {
-          if (loop.nodes.includes(currentBlock.id)) {
-            containingLoopId = loopId
-            break
-          }
-        }
+        // Find which loop this block belongs to using efficient lookup
+        const containingLoopId = this.loopsByBlockId.get(currentBlock.id)
 
         if (containingLoopId) {
           const formattedValue = this.resolveLoopReference(
@@ -538,9 +534,7 @@ export class InputResolver {
 
       if (!blockState) {
         // If the block is in a loop, return empty string
-        const isInLoop = Object.values(this.workflow.loops || {}).some((loop) =>
-          loop.nodes.includes(sourceBlock.id)
-        )
+        const isInLoop = this.loopsByBlockId.has(sourceBlock.id)
 
         if (isInLoop) {
           resolvedValue = resolvedValue.replace(match, '')

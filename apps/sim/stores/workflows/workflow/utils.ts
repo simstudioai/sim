@@ -1,5 +1,7 @@
 import type { BlockState, Loop, Parallel } from './types'
 
+const DEFAULT_LOOP_ITERATIONS = 5
+
 /**
  * Convert UI loop block to executor Loop format
  *
@@ -31,7 +33,7 @@ export function convertLoopBlockToLoop(
   return {
     id: loopBlockId,
     nodes: findChildNodes(loopBlockId, blocks),
-    iterations: loopBlock.data?.count || 5,
+    iterations: loopBlock.data?.count || DEFAULT_LOOP_ITERATIONS,
     loopType: loopBlock.data?.loopType || 'for',
     forEachItems,
   }
@@ -53,7 +55,15 @@ export function convertParallelBlockToParallel(
 
   // Only set distribution if it's a collection-based parallel
   const parallelType = parallelBlock.data?.parallelType || 'collection'
-  const distribution = parallelType === 'collection' ? parallelBlock.data?.collection || '' : ''
+
+  // Validate parallelType against allowed values
+  const validParallelTypes = ['collection', 'count'] as const
+  const validatedParallelType = validParallelTypes.includes(parallelType as any)
+    ? parallelType
+    : 'collection'
+
+  const distribution =
+    validatedParallelType === 'collection' ? parallelBlock.data?.collection || '' : ''
 
   return {
     id: parallelBlockId,

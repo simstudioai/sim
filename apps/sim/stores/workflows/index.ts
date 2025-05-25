@@ -70,8 +70,8 @@ export function getWorkflowWithValues(workflowId: string) {
     state: {
       blocks: mergedBlocks,
       edges: workflowState.edges,
-      loops: workflowState.loops || {},
-      parallels: workflowState.parallels || {},
+      loops: workflowState.loops,
+      parallels: workflowState.parallels,
       lastSaved: workflowState.lastSaved,
       isDeployed: workflowState.isDeployed,
       deployedAt: workflowState.deployedAt,
@@ -164,8 +164,8 @@ export function getAllWorkflowsWithValues() {
       state: {
         blocks: mergedBlocks,
         edges: workflowState.edges,
-        loops: workflowState.loops || {},
-        parallels: workflowState.parallels || {},
+        loops: workflowState.loops,
+        parallels: workflowState.parallels,
         lastSaved: workflowState.lastSaved,
         isDeployed: workflowState.isDeployed,
         deployedAt: workflowState.deployedAt,

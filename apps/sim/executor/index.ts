@@ -619,6 +619,15 @@ export class Executor {
       if (loop.iterations <= 0) {
         throw new Error(`Loop ${loopId} must have a positive iterations value`)
       }
+
+      if (loop.loopType === 'forEach') {
+        if (
+          !loop.forEachItems ||
+          (typeof loop.forEachItems === 'string' && loop.forEachItems.trim() === '')
+        ) {
+          throw new Error(`forEach loop ${loopId} requires a collection to iterate over`)
+        }
+      }
     }
   }
 
@@ -1602,6 +1611,7 @@ export class Executor {
           maxIterations: output?.maxIterations || 0,
           loopType: output?.loopType || 'for',
           completed: output?.completed || false,
+          results: output?.results || [],
           message: output?.message || '',
         },
       }

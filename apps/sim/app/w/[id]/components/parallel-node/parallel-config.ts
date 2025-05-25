@@ -12,8 +12,6 @@ export const ParallelTool = {
     parallelType: 'collection' as 'collection' | 'count',
     count: 5,
     collection: '',
-    width: 500,
-    height: 300,
     extent: 'parent',
     executionState: {
       currentExecution: 0,

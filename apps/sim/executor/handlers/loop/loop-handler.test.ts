@@ -65,7 +65,9 @@ describe('LoopBlockHandler', () => {
     })
 
     it('should not handle non-loop blocks', () => {
-      mockBlock.metadata!.id = 'function'
+      if (mockBlock.metadata) {
+        mockBlock.metadata.id = 'function'
+      }
       expect(handler.canHandle(mockBlock)).toBe(false)
     })
   })
@@ -180,13 +182,34 @@ describe('LoopBlockHandler', () => {
       result = await handler.execute(mockBlock, {}, mockContext)
       // The loop handler no longer marks loops as completed - that's handled by the loop manager
       expect(mockContext.completedLoops.has('loop-1')).toBe(false)
+    })
 
-      if (typeof result === 'object' && result !== null && 'response' in result) {
-        const response = result.response as any
-        expect(response.completed).toBe(false) // Not completed until all blocks execute
-        expect(response.message).toContain('Final iteration') // Should indicate final iteration
-        expect(response.currentIteration).toBe(1) // Reports actual last iteration number (0-indexed)
+    it('should throw error for forEach loops without collection', async () => {
+      mockContext.workflow!.loops['loop-1'] = {
+        id: 'loop-1',
+        nodes: ['inner-block'],
+        iterations: 5,
+        loopType: 'forEach',
+        forEachItems: '', // Empty collection
       }
+
+      await expect(handler.execute(mockBlock, {}, mockContext)).rejects.toThrow(
+        'forEach loop "loop-1" requires a collection to iterate over'
+      )
+    })
+
+    it('should throw error for forEach loops with empty collection', async () => {
+      mockContext.workflow!.loops['loop-1'] = {
+        id: 'loop-1',
+        nodes: ['inner-block'],
+        iterations: 5,
+        loopType: 'forEach',
+        forEachItems: [], // Empty array
+      }
+
+      await expect(handler.execute(mockBlock, {}, mockContext)).rejects.toThrow(
+        'forEach loop "loop-1" collection is empty or invalid'
+      )
     })
   })
 })

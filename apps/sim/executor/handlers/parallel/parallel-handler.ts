@@ -126,6 +126,33 @@ export class ParallelBlockHandler implements BlockHandler {
       // Mark this parallel as completed
       context.completedLoops.add(block.id)
 
+      // Aggregate results
+      const results = []
+      for (let i = 0; i < parallelState.parallelCount; i++) {
+        const result = parallelState.executionResults.get(`iteration_${i}`)
+        if (result) {
+          results.push(result)
+        }
+      }
+
+      // Store the aggregated results in the block state so subsequent blocks can reference them
+      const aggregatedOutput = {
+        response: {
+          parallelId: block.id,
+          parallelCount: parallelState.parallelCount,
+          completed: true,
+          results,
+          message: `Completed all ${parallelState.parallelCount} executions`,
+        },
+      }
+
+      // Store the aggregated results in context so blocks connected to parallel-end-source can access them
+      context.blockStates.set(block.id, {
+        output: aggregatedOutput,
+        executed: true,
+        executionTime: 0, // Parallel coordination doesn't have meaningful execution time
+      })
+
       // Activate the parallel-end-source connection to continue workflow
       const parallelEndConnections =
         context.workflow?.connections.filter(
@@ -138,28 +165,17 @@ export class ParallelBlockHandler implements BlockHandler {
       }
 
       // Clean up iteration data
-      context.loopItems.delete(`${block.id}_items`)
-      context.loopItems.delete(block.id)
-      context.loopIterations.delete(block.id)
-
-      // Aggregate results
-      const results = []
-      for (let i = 0; i < parallelState.parallelCount; i++) {
-        const result = parallelState.executionResults.get(`iteration_${i}`)
-        if (result) {
-          results.push(result)
-        }
+      if (context.loopItems.has(`${block.id}_items`)) {
+        context.loopItems.delete(`${block.id}_items`)
+      }
+      if (context.loopItems.has(block.id)) {
+        context.loopItems.delete(block.id)
+      }
+      if (context.loopIterations.has(block.id)) {
+        context.loopIterations.delete(block.id)
       }
 
-      return {
-        response: {
-          parallelId: block.id,
-          parallelCount: parallelState.parallelCount,
-          completed: true,
-          results,
-          message: `Completed all ${parallelState.parallelCount} executions`,
-        },
-      }
+      return aggregatedOutput
     }
 
     // Still waiting for iterations to complete

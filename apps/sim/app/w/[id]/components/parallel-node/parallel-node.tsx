@@ -81,12 +81,13 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   const { getNodes } = useReactFlow()
   const blockRef = useRef<HTMLDivElement>(null)
 
-  // Determine nesting level by ing parents
+  // Determine nesting level by counting parents
   const nestingLevel = useMemo(() => {
+    const maxDepth = 100 // Prevent infinite loops
     let level = 0
     let currentParentId = data?.parentId
 
-    while (currentParentId) {
+    while (currentParentId && level < maxDepth) {
       level++
       const parentNode = getNodes().find((n) => n.id === currentParentId)
       if (!parentNode) break

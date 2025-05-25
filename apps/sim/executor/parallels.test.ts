@@ -1,9 +1,9 @@
 import { describe, expect, test, vi } from 'vitest'
 import type { SerializedWorkflow } from '@/serializer/types'
+import { createParallelExecutionState } from './__test-utils__/executor-mocks'
 import { ParallelManager } from './parallels'
 import type { ExecutionContext } from './types'
 
-// Mock the logger
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
@@ -59,14 +59,10 @@ describe('ParallelManager', () => {
   describe('getIterationItem', () => {
     test('should get item from array distribution', () => {
       const manager = new ParallelManager()
-      const state = {
+      const state = createParallelExecutionState({
         parallelCount: 3,
         distributionItems: ['apple', 'banana', 'cherry'],
-        completedExecutions: 0,
-        executionResults: new Map(),
-        activeIterations: new Set<number>(),
-        currentIteration: 1,
-      }
+      })
 
       expect(manager.getIterationItem(state, 0)).toBe('apple')
       expect(manager.getIterationItem(state, 1)).toBe('banana')
@@ -75,14 +71,10 @@ describe('ParallelManager', () => {
 
     test('should get entry from object distribution', () => {
       const manager = new ParallelManager()
-      const state = {
+      const state = createParallelExecutionState({
         parallelCount: 3,
         distributionItems: { first: 'alpha', second: 'beta', third: 'gamma' },
-        completedExecutions: 0,
-        executionResults: new Map(),
-        activeIterations: new Set<number>(),
-        currentIteration: 1,
-      }
+      })
 
       expect(manager.getIterationItem(state, 0)).toEqual(['first', 'alpha'])
       expect(manager.getIterationItem(state, 1)).toEqual(['second', 'beta'])
@@ -91,14 +83,10 @@ describe('ParallelManager', () => {
 
     test('should return null for null distribution items', () => {
       const manager = new ParallelManager()
-      const state = {
+      const state = createParallelExecutionState({
         parallelCount: 0,
         distributionItems: null,
-        completedExecutions: 0,
-        executionResults: new Map(),
-        activeIterations: new Set<number>(),
-        currentIteration: 1,
-      }
+      })
 
       expect(manager.getIterationItem(state, 0)).toBeNull()
     })
@@ -112,15 +100,15 @@ describe('ParallelManager', () => {
         'func-1_parallel_parallel-1_iteration_1',
         'func-1_parallel_parallel-1_iteration_2',
       ])
-      const parallel = { nodes: ['func-1'] }
-      const state = {
+      const parallel = {
+        id: 'parallel-1',
+        nodes: ['func-1'],
+        distribution: ['a', 'b', 'c'],
+      }
+      const state = createParallelExecutionState({
         parallelCount: 3,
         distributionItems: ['a', 'b', 'c'],
-        completedExecutions: 0,
-        executionResults: new Map(),
-        activeIterations: new Set<number>(),
-        currentIteration: 1,
-      }
+      })
 
       const result = manager.areAllVirtualBlocksExecuted(
         'parallel-1',
@@ -139,15 +127,15 @@ describe('ParallelManager', () => {
         'func-1_parallel_parallel-1_iteration_1',
         // Missing iteration_2
       ])
-      const parallel = { nodes: ['func-1'] }
-      const state = {
+      const parallel = {
+        id: 'parallel-1',
+        nodes: ['func-1'],
+        distribution: ['a', 'b', 'c'],
+      }
+      const state = createParallelExecutionState({
         parallelCount: 3,
         distributionItems: ['a', 'b', 'c'],
-        completedExecutions: 0,
-        executionResults: new Map(),
-        activeIterations: new Set<number>(),
-        currentIteration: 1,
-      }
+      })
 
       const result = manager.areAllVirtualBlocksExecuted(
         'parallel-1',
@@ -163,17 +151,20 @@ describe('ParallelManager', () => {
   describe('createVirtualBlockInstances', () => {
     test('should create virtual block instances for unexecuted blocks', () => {
       const manager = new ParallelManager()
-      const block = { id: 'func-1' }
+      const block = {
+        id: 'func-1',
+        position: { x: 0, y: 0 },
+        config: { tool: 'function', params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
       const executedBlocks = new Set(['func-1_parallel_parallel-1_iteration_0'])
       const activeExecutionPath = new Set(['func-1'])
-      const state = {
+      const state = createParallelExecutionState({
         parallelCount: 3,
         distributionItems: ['a', 'b', 'c'],
-        completedExecutions: 0,
-        executionResults: new Map(),
-        activeIterations: new Set<number>(),
-        currentIteration: 1,
-      }
+      })
 
       const virtualIds = manager.createVirtualBlockInstances(
         block,
@@ -191,17 +182,20 @@ describe('ParallelManager', () => {
 
     test('should skip blocks not in active execution path', () => {
       const manager = new ParallelManager()
-      const block = { id: 'func-1' }
+      const block = {
+        id: 'func-1',
+        position: { x: 0, y: 0 },
+        config: { tool: 'function', params: {} },
+        inputs: {},
+        outputs: {},
+        enabled: true,
+      }
       const executedBlocks = new Set<string>()
       const activeExecutionPath = new Set<string>() // Block not in active path
-      const state = {
+      const state = createParallelExecutionState({
         parallelCount: 3,
         distributionItems: ['a', 'b', 'c'],
-        completedExecutions: 0,
-        executionResults: new Map(),
-        activeIterations: new Set<number>(),
-        currentIteration: 1,
-      }
+      })
 
       const virtualIds = manager.createVirtualBlockInstances(
         block,
@@ -245,14 +239,10 @@ describe('ParallelManager', () => {
       const manager = new ParallelManager()
       const context = createMockContext()
 
-      const state = {
+      const state = createParallelExecutionState({
         parallelCount: 2,
         distributionItems: { key1: 'value1', key2: 'value2' },
-        completedExecutions: 0,
-        executionResults: new Map(),
-        activeIterations: new Set<number>(),
-        currentIteration: 1,
-      }
+      })
 
       context.parallelExecutions?.set('parallel-1', state)
 

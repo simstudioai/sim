@@ -301,12 +301,10 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
                       visible={showTags}
                       onSelect={handleTagSelect}
                       blockId={nodeId}
-                      activeSourceBlockId={null}
+                      activeSourceBlockId={nodeId}
                       inputValue={editorValue}
                       cursorPosition={cursorPosition}
-                      onClose={() => {
-                        setShowTags(false)
-                      }}
+                      onClose={() => setShowTags(false)}
                     />
                   )}
                 </div>
