@@ -1,11 +1,12 @@
 import type { ToolConfig } from '../types'
 import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
+import { extractMessageAttachments } from './attachment-utils'
 
 export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_channel',
   name: 'Read Microsoft Teams Channel',
-  description: 'Read content from a Microsoft Teams channel',
-  version: '1.0',
+  description: 'Read content from a Microsoft Teams channel, including attachments',
+  version: '1.1',
   oauth: {
     required: true,
     provider: 'microsoft-teams',
@@ -60,7 +61,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       }
     },
   },
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(`Failed to read Microsoft Teams channel: ${errorText}`)
@@ -81,36 +82,66 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
             channelId: '',
             messageCount: 0,
             messages: [],
+            totalAttachments: 0,
+            attachmentTypes: [],
           },
         },
       }
     }
 
-    // Format the messages into a readable text
-    const formattedMessages = messages
+    if (!params?.teamId || !params?.channelId) {
+      throw new Error('Missing required parameters: teamId and channelId')
+    }
+    // Process messages with attachments
+    const processedMessages = messages.map((message: any) => {
+      const content = message.body?.content || 'No content'
+      const messageId = message.id
+
+      // Extract attachments without any content processing
+      const attachments = extractMessageAttachments(message)
+
+      return {
+        id: messageId,
+        content: content, // Keep original content without modification
+        sender: message.from?.user?.displayName || 'Unknown',
+        timestamp: message.createdDateTime,
+        messageType: message.messageType || 'message',
+        attachments, // Attachments only stored here
+      }
+    })
+
+    // Format the messages into a readable text (no attachment info in content)
+    const formattedMessages = processedMessages
       .map((message: any) => {
-        const content = message.body?.content || 'No content'
-        const sender = message.from?.user?.displayName || 'Unknown sender'
-        const timestamp = message.createdDateTime
-          ? new Date(message.createdDateTime).toLocaleString()
+        const sender = message.sender
+        const timestamp = message.timestamp
+          ? new Date(message.timestamp).toLocaleString()
           : 'Unknown time'
 
-        return `[${timestamp}] ${sender}: ${content}`
+        return `[${timestamp}] ${sender}: ${message.content}`
       })
       .join('\n\n')
 
+    // Calculate attachment statistics
+    const allAttachments = processedMessages.flatMap((msg: any) => msg.attachments || [])
+    const attachmentTypes: string[] = []
+    const seenTypes = new Set<string>()
+    
+    allAttachments.forEach((att: any) => {
+      if (att.contentType && typeof att.contentType === 'string' && !seenTypes.has(att.contentType)) {
+        attachmentTypes.push(att.contentType)
+        seenTypes.add(att.contentType)
+      }
+    })
+
     // Create document metadata
     const metadata = {
-      teamId: messages[0]?.channelIdentity?.teamId || '',
-      channelId: messages[0]?.channelIdentity?.channelId || '',
+      teamId: messages[0]?.channelIdentity?.teamId || params.teamId || '',
+      channelId: messages[0]?.channelIdentity?.channelId || params.channelId || '',
       messageCount: messages.length,
-      messages: messages.map((msg: any) => ({
-        id: msg.id,
-        content: msg.body?.content || '',
-        sender: msg.from?.user?.displayName || 'Unknown',
-        timestamp: msg.createdDateTime,
-        messageType: msg.messageType || 'message',
-      })),
+      totalAttachments: allAttachments.length,
+      attachmentTypes,
+      messages: processedMessages,
     }
 
     return {
@@ -121,7 +152,7 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       },
     }
   },
-  transformError: (error) => {
+  transformError: (error) => {    
     // If it's an Error instance with a message, use that
     if (error instanceof Error) {
       return error.message

@@ -1,5 +1,18 @@
 import type { ToolResponse } from '../types'
 
+export interface MicrosoftTeamsAttachment {
+  id: string
+  contentType: string
+  contentUrl?: string
+  content?: string
+  name?: string
+  thumbnailUrl?: string
+  size?: number
+  sourceUrl?: string
+  providerType?: string
+  item?: any
+}
+
 export interface MicrosoftTeamsMetadata {
   messageId?: string
   channelId?: string
@@ -7,7 +20,6 @@ export interface MicrosoftTeamsMetadata {
   chatId?: string
   content?: string
   createdTime?: string
-  modifiedTime?: string
   url?: string
   messageCount?: number
   messages?: Array<{
@@ -16,7 +28,11 @@ export interface MicrosoftTeamsMetadata {
     sender: string
     timestamp: string
     messageType: string
+    attachments?: MicrosoftTeamsAttachment[]
   }>
+  // Global attachments summary
+  totalAttachments?: number
+  attachmentTypes?: string[]
 }
 
 export interface MicrosoftTeamsReadResponse extends ToolResponse {
