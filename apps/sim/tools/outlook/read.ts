@@ -27,18 +27,9 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
       required: false,
       description: 'Maximum number of emails to retrieve (default: 1, max: 10)',
     },
-    messageId: {
-      type: 'string',
-      required: false,
-      description: 'Message ID to read',
-    },
   },
   request: {
     url: (params) => {
-      // If messageId is provided, fetch that specific message
-      if (params.messageId) {
-        return `https://graph.microsoft.com/v1.0/me/messages/${params.messageId}`
-      }
 
       // Set max results (default to 1 for simplicity, max 10)
       const maxResults = params.maxResults ? Math.min(params.maxResults, 10) : 1

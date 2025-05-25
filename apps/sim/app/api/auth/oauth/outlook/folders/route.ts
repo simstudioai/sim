@@ -7,6 +7,13 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OutlookFoldersAPI')
 
+interface OutlookFolder {
+    id: string;
+    displayName: string;
+    totalItemCount?: number;
+    unreadItemCount?: number;
+  }
+
 export async function GET(request: Request) {
   try {
     const session = await getSession()
@@ -78,7 +85,7 @@ export async function GET(request: Request) {
       const folders = data.value || []
 
       // Transform folders to match the expected format
-      const transformedFolders = folders.map((folder: any) => ({
+      const transformedFolders = folders.map((folder: OutlookFolder) => ({
         id: folder.id,
         name: folder.displayName,
         type: 'folder',
