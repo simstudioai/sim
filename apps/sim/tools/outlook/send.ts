@@ -56,7 +56,7 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
         message: {
           subject: params.subject,
           body: {
-            contentType: ['Text', 'HTML'],
+            contentType: 'Text',
             content: params.body,
           },
           toRecipients: [

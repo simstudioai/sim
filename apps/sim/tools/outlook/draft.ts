@@ -55,7 +55,7 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
       return {
         subject: params.subject,
         body: {
-          contentType: ['Text', 'HTML'],
+          contentType: 'Text',
           content: params.body,
         },
         toRecipients: [
