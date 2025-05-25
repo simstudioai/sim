@@ -6,15 +6,8 @@ import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '
 
 const logger = createLogger('FileBlock')
 
-// Create a safe client-only env subset to avoid server-side env access errors
-const clientEnv = {
-  USE_S3: process.env.USE_S3,
-}
+const shouldEnableURLInput = isProd
 
-const isS3Enabled = clientEnv.USE_S3
-const shouldEnableURLInput = isProd || isS3Enabled
-
-// Define sub-blocks conditionally
 const inputMethodBlock: SubBlockConfig = {
   id: 'inputMethod',
   title: 'Select Input Method',
@@ -24,18 +17,6 @@ const inputMethodBlock: SubBlockConfig = {
     { id: 'url', label: 'File URL' },
     { id: 'upload', label: 'Upload Files' },
   ],
-}
-
-const fileUrlBlock: SubBlockConfig = {
-  id: 'filePath',
-  title: 'File URL',
-  type: 'short-input' as SubBlockType,
-  layout: 'full' as SubBlockLayout,
-  placeholder: 'Enter URL to a file (https://example.com/document.pdf)',
-  condition: {
-    field: 'inputMethod',
-    value: 'url',
-  },
 }
 
 const fileUploadBlock: SubBlockConfig = {
@@ -62,7 +43,23 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
   bgColor: '#40916C',
   icon: DocumentIcon,
   subBlocks: [
-    ...(shouldEnableURLInput ? [inputMethodBlock, fileUrlBlock] : []),
+    ...(shouldEnableURLInput ? [inputMethodBlock] : []),
+    {
+      id: 'filePath',
+      title: 'File URL',
+      type: 'short-input' as SubBlockType,
+      layout: 'full' as SubBlockLayout,
+      placeholder: 'Enter URL to a file (https://example.com/document.pdf)',
+      ...(shouldEnableURLInput
+        ? {
+            condition: {
+              field: 'inputMethod',
+              value: 'url',
+            },
+          }
+        : {}),
+    },
+
     {
       ...fileUploadBlock,
       ...(shouldEnableURLInput ? { condition: { field: 'inputMethod', value: 'upload' } } : {}),

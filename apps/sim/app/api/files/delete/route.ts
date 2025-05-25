@@ -5,7 +5,6 @@ import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { deleteFromS3 } from '@/lib/uploads/s3-client'
 import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
-// Import to ensure the uploads directory is created
 import '@/lib/uploads/setup.server'
 
 import {

@@ -3,15 +3,8 @@ import { isProd } from '@/lib/environment'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
 
-// Create a safe client-only env subset to avoid server-side env access errors
-const clientEnv = {
-  USE_S3: process.env.USE_S3,
-}
+const shouldEnableFileUpload = isProd
 
-const isS3Enabled = clientEnv.USE_S3
-const shouldEnableFileUpload = isProd || isS3Enabled
-
-// Define the input method selector block when needed
 const inputMethodBlock: SubBlockConfig = {
   id: 'inputMethod',
   title: 'Select Input Method',
@@ -23,7 +16,6 @@ const inputMethodBlock: SubBlockConfig = {
   ],
 }
 
-// Define the file upload block when needed
 const fileUploadBlock: SubBlockConfig = {
   id: 'fileUpload',
   title: 'Upload PDF',

@@ -66,7 +66,6 @@ export const env = createEnv({
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
     S3_BUCKET_NAME: z.string().optional(),
     S3_LOGS_BUCKET_NAME: z.string().optional(),
-    USE_S3: z.coerce.boolean().optional(),
     CRON_SECRET: z.string().optional(),
     FREE_PLAN_LOG_RETENTION_DAYS: z.string().optional(),
     NODE_ENV: z.string().optional(),
