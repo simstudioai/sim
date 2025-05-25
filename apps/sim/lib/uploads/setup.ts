@@ -1,7 +1,6 @@
 import { existsSync } from 'fs'
 import { mkdir } from 'fs/promises'
 import path, { join } from 'path'
-import { isProd } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { env } from '../env'
 
@@ -11,7 +10,7 @@ const PROJECT_ROOT = path.resolve(process.cwd())
 
 export const UPLOAD_DIR = join(PROJECT_ROOT, 'uploads')
 
-export const USE_S3_STORAGE = isProd
+export const USE_S3_STORAGE = process.env.NODE_ENV === 'production'
 
 export const S3_CONFIG = {
   bucket: env.S3_BUCKET_NAME || '',

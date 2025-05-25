@@ -1,9 +1,8 @@
 import { MistralIcon } from '@/components/icons'
-import { isProd } from '@/lib/environment'
 import type { MistralParserOutput } from '@/tools/mistral/types'
 import type { BlockConfig, SubBlockConfig, SubBlockLayout, SubBlockType } from '../types'
 
-const shouldEnableFileUpload = isProd
+const shouldEnableFileUpload = process.env.NODE_ENV === 'production'
 
 const inputMethodBlock: SubBlockConfig = {
   id: 'inputMethod',
