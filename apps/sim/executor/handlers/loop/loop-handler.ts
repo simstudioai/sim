@@ -63,28 +63,18 @@ export class LoopBlockHandler implements BlockHandler {
 
     // Check if we've reached the maximum iterations
     if (currentIteration >= maxIterations) {
-      logger.info(`Loop ${block.id} has completed all ${maxIterations} iterations`)
+      logger.info(`Loop ${block.id} has reached maximum iterations (${maxIterations})`)
 
-      // Mark this loop as completed
-      context.completedLoops.add(block.id)
-
-      // Activate the loop-end-source connection to continue workflow after loop
-      const loopEndConnections =
-        context.workflow?.connections.filter(
-          (conn) => conn.source === block.id && conn.sourceHandle === 'loop-end-source'
-        ) || []
-
-      for (const conn of loopEndConnections) {
-        context.activeExecutionPath.add(conn.target)
-        logger.info(`Activated post-loop path to ${conn.target}`)
-      }
-
+      // Don't mark as completed here - let the loop manager handle it after all blocks execute
+      // Just return that this is the final iteration
       return {
         response: {
           loopId: block.id,
-          iterations: maxIterations,
-          completed: true,
-          message: `Loop completed after ${maxIterations} iterations`,
+          currentIteration: currentIteration - 1, // Report the actual last iteration number
+          maxIterations,
+          loopType: loop.loopType || 'for',
+          completed: false, // Not completed until all blocks in this iteration execute
+          message: `Final iteration ${currentIteration} of ${maxIterations}`,
         },
       }
     }

@@ -16,6 +16,7 @@ import {
   RouterBlockHandler,
 } from './handlers/index'
 import { LoopManager } from './loops'
+import { ParallelManager } from './parallels'
 import { PathTracker } from './path'
 import { InputResolver } from './resolver'
 import type {
@@ -57,6 +58,7 @@ export class Executor {
   // Core components are initialized once and remain immutable
   private resolver: InputResolver
   private loopManager: LoopManager
+  private parallelManager: ParallelManager
   private pathTracker: PathTracker
   private blockHandlers: BlockHandler[]
   private workflowInput: any
@@ -121,6 +123,7 @@ export class Executor {
     this.validateWorkflow()
 
     this.loopManager = new LoopManager(this.actualWorkflow.loops || {})
+    this.parallelManager = new ParallelManager(this.actualWorkflow.parallels || {})
     this.resolver = new InputResolver(
       this.actualWorkflow,
       this.environmentVariables,
@@ -339,7 +342,7 @@ export class Executor {
                           await this.loopManager.processLoopIterations(context)
 
                           // Process parallel iterations - similar to loops but conceptually for parallel execution
-                          await this.processParallelIterations(context)
+                          await this.parallelManager.processParallelIterations(context)
 
                           // Fetch the subsequent layer (if any)
                           nextLayer = this.getNextExecutionLayer(context)
@@ -428,7 +431,7 @@ export class Executor {
             await this.loopManager.processLoopIterations(context)
 
             // Process parallel iterations - similar to loops but conceptually for parallel execution
-            await this.processParallelIterations(context)
+            await this.parallelManager.processParallelIterations(context)
 
             // Continue execution for any newly activated paths
             // Only stop execution if there are no more blocks to execute
@@ -514,7 +517,7 @@ export class Executor {
         finalOutput = outputs[outputs.length - 1]
       }
       await this.loopManager.processLoopIterations(context)
-      await this.processParallelIterations(context)
+      await this.parallelManager.processParallelIterations(context)
       const nextLayer = this.getNextExecutionLayer(context)
       setPendingBlocks(nextLayer)
 
@@ -564,67 +567,6 @@ export class Executor {
         output: finalOutput,
         error: this.extractErrorMessage(error),
         logs: context.blockLogs,
-      }
-    }
-  }
-
-  /**
-   * Processes parallel block iterations.
-   * Checks if all virtual blocks have completed and re-executes the parallel block
-   * to trigger the parallel-end connections.
-   */
-  private async processParallelIterations(context: ExecutionContext): Promise<void> {
-    // Nothing to do if no parallels
-    if (!this.actualWorkflow.parallels || Object.keys(this.actualWorkflow.parallels).length === 0) {
-      return
-    }
-
-    // Check each parallel to see if it needs to be re-executed to check completion
-    for (const [parallelId, parallel] of Object.entries(this.actualWorkflow.parallels)) {
-      // Skip if this parallel has already been marked as completed
-      if (context.completedLoops.has(parallelId)) {
-        continue
-      }
-
-      // Check if the parallel block itself has been executed
-      const parallelBlockExecuted = context.executedBlocks.has(parallelId)
-      if (!parallelBlockExecuted) {
-        // Parallel block hasn't been executed yet, skip processing
-        continue
-      }
-
-      // Get the parallel state
-      const parallelState = context.parallelExecutions?.get(parallelId)
-      if (!parallelState || parallelState.currentIteration === 0) {
-        continue
-      }
-
-      // Check if all virtual blocks have been executed
-      let allVirtualBlocksExecuted = true
-      for (const nodeId of parallel.nodes) {
-        for (let i = 0; i < parallelState.parallelCount; i++) {
-          const virtualBlockId = `${nodeId}_parallel_${parallelId}_iteration_${i}`
-          if (!context.executedBlocks.has(virtualBlockId)) {
-            allVirtualBlocksExecuted = false
-            break
-          }
-        }
-        if (!allVirtualBlocksExecuted) break
-      }
-
-      if (allVirtualBlocksExecuted && !context.completedLoops.has(parallelId)) {
-        logger.info(
-          `All virtual blocks completed for parallel ${parallelId}, re-executing to check completion`
-        )
-
-        // Re-execute the parallel block to check completion and trigger end connections
-        context.executedBlocks.delete(parallelId)
-        context.activeExecutionPath.add(parallelId)
-
-        // IMPORTANT: Remove child nodes from active execution path to prevent re-execution
-        for (const nodeId of parallel.nodes) {
-          context.activeExecutionPath.delete(nodeId)
-        }
       }
     }
   }
@@ -927,33 +869,27 @@ export class Executor {
         const parallelState = activeParallels.get(insideParallel)
 
         // Create virtual instances for each unprocessed iteration
-        for (let i = 0; i < parallelState.parallelCount; i++) {
-          const virtualBlockId = `${block.id}_parallel_${insideParallel}_iteration_${i}`
+        const virtualBlockIds = this.parallelManager.createVirtualBlockInstances(
+          block,
+          insideParallel,
+          parallelState,
+          executedBlocks,
+          context.activeExecutionPath
+        )
 
-          // Skip if this virtual instance was already executed
-          if (executedBlocks.has(virtualBlockId)) {
-            continue
-          }
-
-          // Check if this virtual instance is in the active path
-          if (
-            !context.activeExecutionPath.has(virtualBlockId) &&
-            !context.activeExecutionPath.has(block.id)
-          ) {
-            continue
-          }
-
+        for (const virtualBlockId of virtualBlockIds) {
           // Check dependencies for this virtual instance
           const incomingConnections = this.actualWorkflow.connections.filter(
             (conn) => conn.target === block.id
           )
 
+          const iterationIndex = Number.parseInt(virtualBlockId.split('_iteration_')[1])
           const allDependenciesMet = this.checkDependencies(
             incomingConnections,
             executedBlocks,
             context,
             insideParallel,
-            i
+            iterationIndex
           )
 
           if (allDependenciesMet) {
@@ -966,7 +902,7 @@ export class Executor {
             context.parallelBlockMapping.set(virtualBlockId, {
               originalBlockId: block.id,
               parallelId: insideParallel,
-              iterationIndex: i,
+              iterationIndex: iterationIndex,
             })
           }
         }
@@ -1255,20 +1191,8 @@ export class Executor {
       context.currentVirtualBlockId = blockId
 
       // Set up iteration-specific context BEFORE resolving inputs
-      const parallelState = context.parallelExecutions?.get(parallelInfo!.parallelId)
-      if (parallelState?.distributionItems) {
-        const currentItem = Array.isArray(parallelState.distributionItems)
-          ? parallelState.distributionItems[parallelInfo!.iterationIndex]
-          : Object.entries(parallelState.distributionItems)[parallelInfo!.iterationIndex]
-
-        // Store the current item for this specific iteration
-        // Use a unique key that includes the iteration index to avoid conflicts
-        const iterationKey = `${parallelInfo!.parallelId}_iteration_${parallelInfo!.iterationIndex}`
-        context.loopItems.set(iterationKey, currentItem)
-        context.loopItems.set(parallelInfo!.parallelId, currentItem) // Also set for backward compatibility
-        context.loopIterations.set(parallelInfo!.parallelId, parallelInfo!.iterationIndex)
-
-        logger.info(`Executing virtual block ${blockId} with item:`, currentItem)
+      if (parallelInfo) {
+        this.parallelManager.setupIterationContext(context, parallelInfo)
       }
     } else {
       // Clear currentVirtualBlockId for non-virtual blocks
@@ -1367,12 +1291,13 @@ export class Executor {
       // Also store under the actual block ID for reference
       if (parallelInfo) {
         // Store iteration result in parallel state
-        const parallelState = context.parallelExecutions?.get(parallelInfo.parallelId)
-        if (parallelState) {
-          parallelState.executionResults.set(`iteration_${parallelInfo.iterationIndex}`, {
-            [actualBlockId]: output,
-          })
-        }
+        this.parallelManager.storeIterationResult(
+          context,
+          parallelInfo.parallelId,
+          parallelInfo.iterationIndex,
+          actualBlockId,
+          output
+        )
       }
 
       // Update the execution log

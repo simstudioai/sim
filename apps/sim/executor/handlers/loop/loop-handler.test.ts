@@ -93,13 +93,17 @@ describe('LoopBlockHandler', () => {
 
       const result = await handler.execute(mockBlock, {}, mockContext)
 
-      expect(mockContext.completedLoops.has('loop-1')).toBe(true)
-      expect(mockContext.activeExecutionPath.has('after-loop')).toBe(true)
+      // The loop handler no longer marks loops as completed - that's handled by the loop manager
+      expect(mockContext.completedLoops.has('loop-1')).toBe(false)
+      // The loop handler also doesn't activate end connections anymore
+      expect(mockContext.activeExecutionPath.has('after-loop')).toBe(false)
+      // But it should not activate the inner block either since we're at max iterations
       expect(mockContext.activeExecutionPath.has('inner-block')).toBe(false)
 
       if (typeof result === 'object' && result !== null && 'response' in result) {
         const response = result.response as any
-        expect(response.completed).toBe(true)
+        expect(response.completed).toBe(false) // Not completed until all blocks execute
+        expect(response.message).toContain('Final iteration')
       }
     })
 
@@ -174,12 +178,14 @@ describe('LoopBlockHandler', () => {
 
       // Third execution should complete the loop
       result = await handler.execute(mockBlock, {}, mockContext)
-      expect(mockContext.completedLoops.has('loop-1')).toBe(true)
+      // The loop handler no longer marks loops as completed - that's handled by the loop manager
+      expect(mockContext.completedLoops.has('loop-1')).toBe(false)
 
       if (typeof result === 'object' && result !== null && 'response' in result) {
         const response = result.response as any
-        expect(response.completed).toBe(true)
-        expect(response.message).toContain('2 iterations') // Should mention 2, not 10
+        expect(response.completed).toBe(false) // Not completed until all blocks execute
+        expect(response.message).toContain('Final iteration') // Should indicate final iteration
+        expect(response.currentIteration).toBe(1) // Reports actual last iteration number (0-indexed)
       }
     })
   })
