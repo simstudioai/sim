@@ -107,10 +107,8 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
         const content = message.body?.content || 'No content'
         const messageId = message.id
 
-        // Extract attachments without any content processing
         const attachments = extractMessageAttachments(message)
 
-        // Handle sender field more robustly - some messages (like system messages) have null from field
         let sender = 'Unknown'
         if (message.from?.user?.displayName) {
           sender = message.from.user.displayName
@@ -120,15 +118,14 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
 
         return {
           id: messageId,
-          content: content, // Keep original content without modification
+          content: content,
           sender,
           timestamp: message.createdDateTime,
           messageType: message.messageType || 'message',
-          attachments, // Attachments only stored here
+          attachments,
         }
       } catch (error) {
         logger.error(`Error processing message at index ${index}:`, error)
-        // Return a safe fallback message
         return {
           id: message.id || `unknown-${index}`,
           content: 'Error processing message',
