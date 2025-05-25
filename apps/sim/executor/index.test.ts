@@ -10,6 +10,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { SerializedWorkflow } from '@/serializer/types'
 import { Executor } from './index'
+import type { BlockLog } from './types'
 
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: () => ({
@@ -37,6 +38,7 @@ vi.mock('@/stores/execution/store', () => ({
       setPendingBlocks: vi.fn(),
       setIsDebugging: vi.fn(),
     }),
+    setState: vi.fn(),
   },
 }))
 
@@ -66,6 +68,7 @@ vi.mock('./handlers', () => {
     FunctionBlockHandler: createHandler('function'),
     ApiBlockHandler: createHandler('api'),
     LoopBlockHandler: createHandler('loop'),
+    ParallelBlockHandler: createHandler('parallel'),
     GenericBlockHandler: createHandler('generic'),
   }
 })
@@ -948,6 +951,10 @@ describe('Executor', () => {
           canHandle: (block: any) => block.metadata?.id === 'loop',
           execute: vi.fn().mockResolvedValue({ response: { result: 'Loop executed' } }),
         })),
+        ParallelBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: (block: any) => block.metadata?.id === 'parallel',
+          execute: vi.fn().mockResolvedValue({ response: { result: 'Parallel executed' } }),
+        })),
         GenericBlockHandler: vi.fn().mockImplementation(() => ({
           canHandle: () => true,
           execute: vi.fn().mockResolvedValue({ response: { result: 'Executed' } }),
@@ -1033,6 +1040,10 @@ describe('Executor', () => {
         LoopBlockHandler: vi.fn().mockImplementation(() => ({
           canHandle: (block: any) => block.metadata?.id === 'loop',
           execute: vi.fn().mockResolvedValue({ response: { result: 'Loop executed' } }),
+        })),
+        ParallelBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: (block: any) => block.metadata?.id === 'parallel',
+          execute: vi.fn().mockResolvedValue({ response: { result: 'Parallel executed' } }),
         })),
         GenericBlockHandler: vi.fn().mockImplementation(() => ({
           canHandle: () => true,
@@ -1165,6 +1176,615 @@ describe('Executor', () => {
 
       expect(thirdIterationIndex1).toBe(2)
       expect(thirdIterationIndex2).toBe(2)
+    })
+  })
+
+  describe('parallel management', () => {
+    beforeEach(() => {
+      // Reset modules before each test to ensure clean mocks
+      vi.resetModules()
+      vi.clearAllMocks()
+
+      // Mock the general store to disable debug mode for these tests
+      vi.doMock('@/stores/settings/general/store', () => ({
+        useGeneralStore: {
+          getState: () => ({
+            isDebugModeEnabled: false,
+          }),
+        },
+      }))
+
+      // Mock the execution store
+      vi.doMock('@/stores/execution/store', () => ({
+        useExecutionStore: {
+          getState: () => ({
+            setIsExecuting: vi.fn(),
+            reset: vi.fn(),
+            setActiveBlocks: vi.fn(),
+            setPendingBlocks: vi.fn(),
+            setIsDebugging: vi.fn(),
+          }),
+          setState: vi.fn(),
+        },
+      }))
+
+      // Mock the console store
+      vi.doMock('@/stores/console/store', () => ({
+        useConsoleStore: {
+          getState: () => ({
+            addConsole: vi.fn(),
+          }),
+        },
+      }))
+
+      // Mock the panel store
+      vi.doMock('@/stores/panel/console/store', () => ({
+        useConsoleStore: {
+          getState: () => ({
+            addConsole: vi.fn(),
+            updateConsole: vi.fn(),
+          }),
+        },
+      }))
+
+      // Mock the PathTracker
+      vi.doMock('./path', () => ({
+        PathTracker: vi.fn().mockImplementation(() => ({
+          updateExecutionPaths: vi.fn(),
+        })),
+      }))
+
+      // Mock the LoopManager
+      vi.doMock('./loops', () => ({
+        LoopManager: vi.fn().mockImplementation(() => ({
+          processLoopIterations: vi.fn().mockResolvedValue(false),
+        })),
+      }))
+    })
+
+    it('should execute blocks inside parallel with correct iteration items', async () => {
+      // Set up custom mocks for this test
+      vi.doMock('./handlers', () => ({
+        AgentBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        RouterBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        ConditionBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        EvaluatorBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        FunctionBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: (block: any) => block.metadata?.id === 'function',
+          execute: vi.fn().mockImplementation(async (block, inputs) => {
+            return {
+              response: {
+                result: inputs.code
+                  ? new Function(inputs.code)()
+                  : { key: inputs.key, value: inputs.value },
+                stdout: '',
+              },
+            }
+          }),
+        })),
+        ApiBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        LoopBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        ParallelBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: (block: any) => block.metadata?.id === 'parallel',
+          execute: vi.fn().mockImplementation(async (block, inputs, context) => {
+            const parallelId = block.id
+            const parallel = context.workflow?.parallels?.[parallelId]
+
+            if (!parallel) {
+              throw new Error('Parallel configuration not found')
+            }
+
+            // Initialize parallel execution
+            if (!context.parallelExecutions) {
+              context.parallelExecutions = new Map()
+            }
+
+            let parallelState = context.parallelExecutions.get(parallelId)
+
+            if (!parallelState) {
+              // First execution - initialize
+              const distributionItems = parallel.distribution || []
+              const parallelCount = Array.isArray(distributionItems) ? distributionItems.length : 1
+
+              parallelState = {
+                parallelCount,
+                distributionItems,
+                completedExecutions: 0,
+                executionResults: new Map(),
+                activeIterations: new Set(),
+                currentIteration: 1,
+              }
+              context.parallelExecutions.set(parallelId, parallelState)
+
+              // Store items for access
+              if (distributionItems) {
+                context.loopItems.set(`${parallelId}_items`, distributionItems)
+              }
+
+              // Activate child nodes
+              const connections =
+                context.workflow?.connections.filter(
+                  (conn: any) =>
+                    conn.source === parallelId && conn.sourceHandle === 'parallel-start-source'
+                ) || []
+
+              for (const conn of connections) {
+                context.activeExecutionPath.add(conn.target)
+              }
+
+              return {
+                response: {
+                  parallelId,
+                  parallelCount,
+                  distributionType: 'distributed',
+                  started: true,
+                  message: `Initialized ${parallelCount} parallel executions`,
+                },
+              }
+            }
+
+            // Check completion
+            const allCompleted = parallel.nodes.every((nodeId: string) => {
+              for (let i = 0; i < parallelState.parallelCount; i++) {
+                const virtualBlockId = `${nodeId}_parallel_${parallelId}_iteration_${i}`
+                if (!context.executedBlocks.has(virtualBlockId)) {
+                  return false
+                }
+              }
+              return true
+            })
+
+            if (allCompleted) {
+              context.completedLoops.add(parallelId)
+
+              // Activate end connections
+              const endConnections =
+                context.workflow?.connections.filter(
+                  (conn: any) =>
+                    conn.source === parallelId && conn.sourceHandle === 'parallel-end-source'
+                ) || []
+
+              for (const conn of endConnections) {
+                context.activeExecutionPath.add(conn.target)
+              }
+
+              return {
+                response: {
+                  parallelId,
+                  parallelCount: parallelState.parallelCount,
+                  completed: true,
+                  message: `Completed all ${parallelState.parallelCount} executions`,
+                },
+              }
+            }
+
+            return {
+              response: {
+                parallelId,
+                parallelCount: parallelState.parallelCount,
+                waiting: true,
+                message: 'Waiting for iterations to complete',
+              },
+            }
+          }),
+        })),
+        GenericBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: (block: any) =>
+            block.metadata?.id === 'generic' || block.metadata?.id === 'starter',
+          execute: vi.fn().mockResolvedValue({ response: { result: 'Executed' } }),
+        })),
+      }))
+
+      // Mock the InputResolver to properly resolve parallel references
+      vi.doMock('./resolver', () => ({
+        InputResolver: vi.fn().mockImplementation(() => ({
+          resolveInputs: vi.fn().mockImplementation((block, context) => {
+            if (block.metadata?.id === 'function') {
+              // Get the current virtual block info
+              const virtualBlockId = context.currentVirtualBlockId
+              if (virtualBlockId && context.parallelBlockMapping) {
+                const mapping = context.parallelBlockMapping.get(virtualBlockId)
+                if (mapping) {
+                  const items = ['apple', 'banana', 'cherry']
+                  const currentItem = items[mapping.iterationIndex]
+                  const currentIndex = mapping.iterationIndex
+
+                  // Return resolved code with actual values
+                  return {
+                    code: `return { item: "${currentItem}", index: ${currentIndex} }`,
+                  }
+                }
+              }
+            }
+            return {}
+          }),
+        })),
+      }))
+
+      // Import Executor with fresh mocks
+      const { Executor } = await import('./index')
+
+      const workflow: SerializedWorkflow = {
+        version: '2.0',
+        blocks: [
+          {
+            id: 'starter',
+            position: { x: 0, y: 0 },
+            metadata: { id: 'starter', name: 'Start' },
+            config: { tool: 'starter', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'parallel-1',
+            position: { x: 100, y: 0 },
+            metadata: { id: 'parallel', name: 'Test Parallel' },
+            config: { tool: 'parallel', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'function-1',
+            position: { x: 200, y: 0 },
+            metadata: { id: 'function', name: 'Process Item' },
+            config: {
+              tool: 'function',
+              params: {
+                code: 'return { item: <parallel.currentItem>, index: <parallel.index> }',
+              },
+            },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'endpoint',
+            position: { x: 300, y: 0 },
+            metadata: { id: 'generic', name: 'End' },
+            config: { tool: 'generic', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [
+          { source: 'starter', target: 'parallel-1' },
+          { source: 'parallel-1', target: 'function-1', sourceHandle: 'parallel-start-source' },
+          { source: 'parallel-1', target: 'endpoint', sourceHandle: 'parallel-end-source' },
+        ],
+        loops: {},
+        parallels: {
+          'parallel-1': {
+            id: 'parallel-1',
+            nodes: ['function-1'],
+            distribution: ['apple', 'banana', 'cherry'],
+          },
+        },
+      }
+
+      const executor = new Executor(workflow)
+      const result = await executor.execute('test-workflow-id')
+
+      // Type guard to ensure we have ExecutionResult, not StreamingExecution
+      if ('stream' in result) {
+        throw new Error('Expected ExecutionResult but got StreamingExecution')
+      }
+
+      console.log('Execution result:', JSON.stringify(result, null, 2))
+      console.log('Logs:', result.logs)
+
+      expect(result.success).toBe(true)
+      expect(result.logs).toBeDefined()
+
+      // Find the function block executions
+      const functionLogs =
+        result.logs?.filter(
+          (log: BlockLog) => log.blockType === 'function' && log.blockId.includes('_parallel_')
+        ) || []
+      console.log('Function logs:', functionLogs)
+      expect(functionLogs).toHaveLength(3) // One for each key-value pair
+
+      // Collect all results
+      const results = functionLogs.map((log: BlockLog) => log.output?.response?.result)
+
+      // Since they execute in parallel, order might vary, so we check for presence
+      expect(results).toContainEqual({ item: 'apple', index: 0 })
+      expect(results).toContainEqual({ item: 'banana', index: 1 })
+      expect(results).toContainEqual({ item: 'cherry', index: 2 })
+    })
+
+    it('should handle object distribution in parallel blocks', async () => {
+      // Set up custom mocks for this test
+      vi.doMock('./handlers', () => ({
+        AgentBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        RouterBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        ConditionBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        EvaluatorBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        FunctionBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: (block: any) => block.metadata?.id === 'function',
+          execute: vi.fn().mockImplementation(async (block, inputs) => {
+            return {
+              response: {
+                result: inputs.code
+                  ? new Function(inputs.code)()
+                  : { key: inputs.key, value: inputs.value },
+                stdout: '',
+              },
+            }
+          }),
+        })),
+        ApiBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        LoopBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: () => false,
+          execute: vi.fn(),
+        })),
+        ParallelBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: (block: any) => block.metadata?.id === 'parallel',
+          execute: vi.fn().mockImplementation(async (block, inputs, context) => {
+            const parallelId = block.id
+            const parallel = context.workflow?.parallels?.[parallelId]
+
+            if (!parallel) {
+              throw new Error('Parallel configuration not found')
+            }
+
+            // Initialize parallel execution
+            if (!context.parallelExecutions) {
+              context.parallelExecutions = new Map()
+            }
+
+            let parallelState = context.parallelExecutions.get(parallelId)
+
+            if (!parallelState) {
+              // First execution - initialize
+              const distributionItems = parallel.distribution || {}
+              const parallelCount =
+                typeof distributionItems === 'object' && !Array.isArray(distributionItems)
+                  ? Object.keys(distributionItems).length
+                  : 1
+
+              parallelState = {
+                parallelCount,
+                distributionItems,
+                completedExecutions: 0,
+                executionResults: new Map(),
+                activeIterations: new Set(),
+                currentIteration: 1,
+              }
+              context.parallelExecutions.set(parallelId, parallelState)
+
+              // Store items for access
+              if (distributionItems) {
+                context.loopItems.set(`${parallelId}_items`, distributionItems)
+              }
+
+              // Activate child nodes
+              const connections =
+                context.workflow?.connections.filter(
+                  (conn: any) =>
+                    conn.source === parallelId && conn.sourceHandle === 'parallel-start-source'
+                ) || []
+
+              for (const conn of connections) {
+                context.activeExecutionPath.add(conn.target)
+              }
+
+              return {
+                response: {
+                  parallelId,
+                  parallelCount,
+                  distributionType: 'distributed',
+                  started: true,
+                  message: `Initialized ${parallelCount} parallel executions`,
+                },
+              }
+            }
+
+            // Check completion
+            const allCompleted = parallel.nodes.every((nodeId: string) => {
+              for (let i = 0; i < parallelState.parallelCount; i++) {
+                const virtualBlockId = `${nodeId}_parallel_${parallelId}_iteration_${i}`
+                if (!context.executedBlocks.has(virtualBlockId)) {
+                  return false
+                }
+              }
+              return true
+            })
+
+            if (allCompleted) {
+              context.completedLoops.add(parallelId)
+
+              // Activate end connections
+              const endConnections =
+                context.workflow?.connections.filter(
+                  (conn: any) =>
+                    conn.source === parallelId && conn.sourceHandle === 'parallel-end-source'
+                ) || []
+
+              for (const conn of endConnections) {
+                context.activeExecutionPath.add(conn.target)
+              }
+
+              return {
+                response: {
+                  parallelId,
+                  parallelCount: parallelState.parallelCount,
+                  completed: true,
+                  message: `Completed all ${parallelState.parallelCount} executions`,
+                },
+              }
+            }
+
+            return {
+              response: {
+                parallelId,
+                parallelCount: parallelState.parallelCount,
+                waiting: true,
+                message: 'Waiting for iterations to complete',
+              },
+            }
+          }),
+        })),
+        GenericBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: (block: any) =>
+            block.metadata?.id === 'generic' || block.metadata?.id === 'starter',
+          execute: vi.fn().mockResolvedValue({ response: { result: 'Executed' } }),
+        })),
+      }))
+
+      // Mock the InputResolver to properly resolve parallel references for objects
+      vi.doMock('./resolver', () => ({
+        InputResolver: vi.fn().mockImplementation(() => ({
+          resolveInputs: vi.fn().mockImplementation((block, context) => {
+            if (block.metadata?.id === 'function') {
+              // Get the current virtual block info
+              const virtualBlockId = context.currentVirtualBlockId
+              if (virtualBlockId && context.parallelBlockMapping) {
+                const mapping = context.parallelBlockMapping.get(virtualBlockId)
+                if (mapping) {
+                  const items = { first: 'alpha', second: 'beta', third: 'gamma' }
+                  const entries = Object.entries(items)
+                  const [key, value] = entries[mapping.iterationIndex]
+
+                  // Return resolved code with actual values
+                  return {
+                    code: `return { key: "${key}", value: "${value}" }`,
+                  }
+                }
+              }
+            }
+            return {}
+          }),
+        })),
+      }))
+
+      // Import Executor with fresh mocks
+      const { Executor } = await import('./index')
+
+      const workflow: SerializedWorkflow = {
+        version: '2.0',
+        blocks: [
+          {
+            id: 'starter',
+            position: { x: 0, y: 0 },
+            metadata: { id: 'starter', name: 'Start' },
+            config: { tool: 'starter', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'parallel-1',
+            position: { x: 100, y: 0 },
+            metadata: { id: 'parallel', name: 'Test Parallel' },
+            config: { tool: 'parallel', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'function-1',
+            position: { x: 200, y: 0 },
+            metadata: { id: 'function', name: 'Process Entry' },
+            config: {
+              tool: 'function',
+              params: {
+                code: 'return { key: <parallel.currentItem.key>, value: <parallel.currentItem.value> }',
+              },
+            },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+          {
+            id: 'endpoint',
+            position: { x: 300, y: 0 },
+            metadata: { id: 'generic', name: 'End' },
+            config: { tool: 'generic', params: {} },
+            inputs: {},
+            outputs: {},
+            enabled: true,
+          },
+        ],
+        connections: [
+          { source: 'starter', target: 'parallel-1' },
+          { source: 'parallel-1', target: 'function-1', sourceHandle: 'parallel-start-source' },
+          { source: 'parallel-1', target: 'endpoint', sourceHandle: 'parallel-end-source' },
+        ],
+        loops: {},
+        parallels: {
+          'parallel-1': {
+            id: 'parallel-1',
+            nodes: ['function-1'],
+            distribution: { first: 'alpha', second: 'beta', third: 'gamma' },
+          },
+        },
+      }
+
+      const executor = new Executor(workflow)
+      const result = await executor.execute('test-workflow-id')
+
+      // Type guard to ensure we have ExecutionResult, not StreamingExecution
+      if ('stream' in result) {
+        throw new Error('Expected ExecutionResult but got StreamingExecution')
+      }
+
+      console.log('Execution result:', JSON.stringify(result, null, 2))
+      console.log('Logs:', result.logs)
+
+      expect(result.success).toBe(true)
+      expect(result.logs).toBeDefined()
+
+      // Find the function block executions
+      const functionLogs =
+        result.logs?.filter(
+          (log: BlockLog) => log.blockType === 'function' && log.blockId.includes('_parallel_')
+        ) || []
+      console.log('Function logs:', functionLogs)
+      expect(functionLogs).toHaveLength(3) // One for each key-value pair
+
+      // Collect all results
+      const results = functionLogs.map((log: BlockLog) => log.output?.response?.result)
+
+      // Since they execute in parallel, order might vary, so we check for presence
+      expect(results).toContainEqual({ key: 'first', value: 'alpha' })
+      expect(results).toContainEqual({ key: 'second', value: 'beta' })
+      expect(results).toContainEqual({ key: 'third', value: 'gamma' })
     })
   })
 })

@@ -1,7 +1,7 @@
 import type { Edge } from 'reactflow'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getBlock } from '@/blocks'
-import type { BlockState, Loop } from '@/stores/workflows/workflow/types'
+import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import type { SerializedBlock, SerializedWorkflow } from './types'
 
 const logger = createLogger('Serializer')
@@ -10,7 +10,8 @@ export class Serializer {
   serializeWorkflow(
     blocks: Record<string, BlockState>,
     edges: Edge[],
-    loops: Record<string, Loop>
+    loops: Record<string, Loop>,
+    parallels?: Record<string, Parallel>
   ): SerializedWorkflow {
     return {
       version: '1.0',
@@ -22,6 +23,7 @@ export class Serializer {
         targetHandle: edge.targetHandle || undefined,
       })),
       loops,
+      parallels,
     }
   }
 

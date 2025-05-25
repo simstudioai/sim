@@ -97,7 +97,7 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
     }
 
     const state = workflowState as WorkflowState
-    const { blocks, edges, loops } = state
+    const { blocks, edges, loops, parallels } = state
 
     // Use the same execution flow as in scheduled executions
     const mergedStates = mergeSubblockState(blocks)
@@ -227,7 +227,12 @@ async function executeWorkflow(workflow: any, requestId: string, input?: any) {
 
     // Serialize and execute the workflow
     logger.debug(`[${requestId}] Serializing workflow: ${workflowId}`)
-    const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
+    const serializedWorkflow = new Serializer().serializeWorkflow(
+      mergedStates,
+      edges,
+      loops,
+      parallels
+    )
 
     const executor = new Executor(
       serializedWorkflow,

@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
         }
 
         const state = workflowRecord.state as WorkflowState
-        const { blocks, edges, loops } = state
+        const { blocks, edges, loops, parallels } = state
 
         const mergedStates = mergeSubblockState(blocks)
 
@@ -224,7 +224,12 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
+        const serializedWorkflow = new Serializer().serializeWorkflow(
+          mergedStates,
+          edges,
+          loops,
+          parallels
+        )
 
         const input = {
           workflowId: schedule.workflowId,

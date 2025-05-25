@@ -335,8 +335,8 @@ export async function executeWorkflowForChat(
   }
 
   // Use deployed state for execution
-  const state = (workflowResult[0].deployedState || workflowResult[0].state) as WorkflowState
-  const { blocks, edges, loops } = state
+  const state = workflowResult[0].deployedState || workflowResult[0].state
+  const { blocks, edges, loops, parallels } = state as WorkflowState
 
   // Prepare for execution, similar to use-workflow-execution.ts
   const mergedStates = mergeSubblockState(blocks)
@@ -386,7 +386,12 @@ export async function executeWorkflowForChat(
   }
 
   // Create serialized workflow
-  const serializedWorkflow = new Serializer().serializeWorkflow(mergedStates, edges, loops)
+  const serializedWorkflow = new Serializer().serializeWorkflow(
+    mergedStates,
+    edges,
+    loops,
+    parallels
+  )
 
   // Decrypt environment variables
   const decryptedEnvVars: Record<string, string> = {}

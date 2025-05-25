@@ -36,23 +36,7 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
 
   // Get store methods
-  const updateNodeData = useCallback(
-    (updates: Partial<ParallelNodeData>) => {
-      useWorkflowStore.setState((state) => ({
-        blocks: {
-          ...state.blocks,
-          [nodeId]: {
-            ...state.blocks[nodeId],
-            data: {
-              ...state.blocks[nodeId].data,
-              ...updates,
-            },
-          },
-        },
-      }))
-    },
-    [nodeId]
-  )
+  const updateParallelCollection = useWorkflowStore((state) => state.updateParallelCollection)
 
   // Initialize editor value from data when it changes
   useEffect(() => {
@@ -69,9 +53,9 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   const handleEditorChange = useCallback(
     (value: string) => {
       setEditorValue(value)
-      updateNodeData({ collection: value })
+      updateParallelCollection(nodeId, value)
     },
-    [updateNodeData]
+    [nodeId, updateParallelCollection]
   )
 
   return (

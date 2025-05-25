@@ -127,4 +127,120 @@ describe('workflow store', () => {
       expect(state.blocks.loop1?.data?.count).toBe(1)
     })
   })
+
+  describe('parallel management', () => {
+    it('should regenerate parallels when updateParallelCount is called', () => {
+      const { addBlock, updateParallelCount } = useWorkflowStore.getState()
+
+      // Add a parallel block
+      addBlock(
+        'parallel1',
+        'parallel',
+        'Test Parallel',
+        { x: 0, y: 0 },
+        {
+          count: 3,
+          collection: '',
+        }
+      )
+
+      // Update parallel count
+      updateParallelCount('parallel1', 5)
+
+      const state = useWorkflowStore.getState()
+
+      // Check that block data was updated
+      expect(state.blocks.parallel1?.data?.count).toBe(5)
+
+      // Check that parallels were regenerated
+      expect(state.parallels.parallel1).toBeDefined()
+      expect(state.parallels.parallel1.distribution).toBe('')
+    })
+
+    it('should regenerate parallels when updateParallelCollection is called', () => {
+      const { addBlock, updateParallelCollection } = useWorkflowStore.getState()
+
+      // Add a parallel block
+      addBlock(
+        'parallel1',
+        'parallel',
+        'Test Parallel',
+        { x: 0, y: 0 },
+        {
+          count: 3,
+          collection: '["item1", "item2"]',
+        }
+      )
+
+      // Update parallel collection
+      updateParallelCollection('parallel1', '["item1", "item2", "item3"]')
+
+      const state = useWorkflowStore.getState()
+
+      // Check that block data was updated
+      expect(state.blocks.parallel1?.data?.collection).toBe('["item1", "item2", "item3"]')
+
+      // Check that parallels were regenerated
+      expect(state.parallels.parallel1).toBeDefined()
+      expect(state.parallels.parallel1.distribution).toBe('["item1", "item2", "item3"]')
+    })
+
+    it('should clamp parallel count between 1 and 20', () => {
+      const { addBlock, updateParallelCount } = useWorkflowStore.getState()
+
+      // Add a parallel block
+      addBlock(
+        'parallel1',
+        'parallel',
+        'Test Parallel',
+        { x: 0, y: 0 },
+        {
+          count: 5,
+          collection: '',
+        }
+      )
+
+      // Try to set count above max
+      updateParallelCount('parallel1', 100)
+      let state = useWorkflowStore.getState()
+      expect(state.blocks.parallel1?.data?.count).toBe(20)
+
+      // Try to set count below min
+      updateParallelCount('parallel1', 0)
+      state = useWorkflowStore.getState()
+      expect(state.blocks.parallel1?.data?.count).toBe(1)
+    })
+
+    it('should save to history when updating parallel properties', () => {
+      const { addBlock, updateParallelCollection, updateParallelCount } =
+        useWorkflowStore.getState()
+
+      // Add a parallel block
+      addBlock(
+        'parallel1',
+        'parallel',
+        'Test Parallel',
+        { x: 0, y: 0 },
+        {
+          count: 3,
+          collection: '',
+        }
+      )
+
+      // Get initial history length
+      const initialHistoryLength = useWorkflowStore.getState().history.past.length
+
+      // Update collection
+      updateParallelCollection('parallel1', '["a", "b", "c"]')
+
+      let state = useWorkflowStore.getState()
+      expect(state.history.past.length).toBe(initialHistoryLength + 1)
+
+      // Update count
+      updateParallelCount('parallel1', 5)
+
+      state = useWorkflowStore.getState()
+      expect(state.history.past.length).toBe(initialHistoryLength + 2)
+    })
+  })
 })
