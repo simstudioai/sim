@@ -96,6 +96,32 @@ export interface ExecutionContext {
   loopItems: Map<string, any> // Tracks current item for forEach loops
   completedLoops: Set<string> // Tracks which loops have completed all iterations
 
+  // Parallel execution tracking
+  parallelExecutions?: Map<
+    string,
+    {
+      parallelCount: number
+      distributionItems: any[] | Record<string, any> | null
+      completedExecutions: number
+      executionResults: Map<string, any>
+      activeIterations: Set<number>
+      currentIteration: number
+    }
+  >
+
+  // Mapping for virtual parallel block IDs to their original blocks
+  parallelBlockMapping?: Map<
+    string,
+    {
+      originalBlockId: string
+      parallelId: string
+      iterationIndex: number
+    }
+  >
+
+  // Current virtual block being executed (for parallel iterations)
+  currentVirtualBlockId?: string
+
   // Execution tracking
   executedBlocks: Set<string> // Set of block IDs that have been executed
   activeExecutionPath: Set<string> // Set of block IDs in the current execution path

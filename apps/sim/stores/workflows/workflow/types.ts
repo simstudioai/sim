@@ -131,12 +131,14 @@ export interface WorkflowActions {
   updateLoopCount: (loopId: string, count: number) => void
   updateLoopType: (loopId: string, loopType: 'for' | 'forEach') => void
   updateLoopCollection: (loopId: string, collection: string) => void
+  updateParallelCount: (parallelId: string, count: number) => void
   updateParallelCollection: (parallelId: string, collection: string) => void
   generateLoopBlocks: () => Record<string, Loop>
   generateParallelBlocks: () => Record<string, Parallel>
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void
   setScheduleStatus: (hasActiveSchedule: boolean) => void
   setWebhookStatus: (hasActiveWebhook: boolean) => void
+  revertToDeployedState: (deployedState: WorkflowState) => void
   toggleBlockAdvancedMode: (id: string) => void
 
   // Add the sync control methods to the WorkflowActions interface

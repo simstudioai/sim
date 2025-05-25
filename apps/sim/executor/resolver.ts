@@ -135,6 +135,47 @@ export class InputResolver {
           continue
         }
 
+        // Check for direct parallel reference pattern: <parallel.property>
+        const directParallelMatch = trimmedValue.match(/^<parallel\.([^>]+)>$/)
+        if (directParallelMatch) {
+          // Find which parallel this block belongs to
+          let containingParallelId: string | undefined
+          for (const [parallelId, parallel] of Object.entries(context.workflow?.parallels || {})) {
+            if (parallel.nodes.includes(block.id)) {
+              containingParallelId = parallelId
+              break
+            }
+          }
+
+          if (containingParallelId) {
+            const pathParts = directParallelMatch[1].split('.')
+            const parallelValue = this.resolveParallelReference(
+              containingParallelId,
+              pathParts,
+              context,
+              block,
+              false
+            )
+
+            if (parallelValue !== null) {
+              // Parse the value if it's a JSON string
+              try {
+                result[key] = JSON.parse(parallelValue)
+              } catch {
+                // If it's not valid JSON, use as is
+                result[key] = parallelValue
+              }
+              continue
+            }
+          }
+
+          logger.warn(
+            `Direct parallel reference <parallel.${directParallelMatch[1]}> could not be resolved.`
+          )
+          result[key] = value
+          continue
+        }
+
         // Process string with potential interpolations and references
         result[key] = this.processStringValue(value, key, context, block)
       }
@@ -424,6 +465,34 @@ export class InputResolver {
         if (containingLoopId) {
           const formattedValue = this.resolveLoopReference(
             containingLoopId,
+            pathParts,
+            context,
+            currentBlock,
+            isInTemplateLiteral
+          )
+
+          if (formattedValue !== null) {
+            resolvedValue = resolvedValue.replace(match, formattedValue)
+            continue
+          }
+        }
+      }
+
+      // Special case for "parallel" references - allows accessing parallel properties
+      if (blockRef.toLowerCase() === 'parallel') {
+        // Find which parallel this block belongs to
+        let containingParallelId: string | undefined
+
+        for (const [parallelId, parallel] of Object.entries(context.workflow?.parallels || {})) {
+          if (parallel.nodes.includes(currentBlock.id)) {
+            containingParallelId = parallelId
+            break
+          }
+        }
+
+        if (containingParallelId) {
+          const formattedValue = this.resolveParallelReference(
+            containingParallelId,
             pathParts,
             context,
             currentBlock,
@@ -1057,6 +1126,218 @@ export class InputResolver {
       default:
         return null
     }
+  }
+
+  /**
+   * Resolves a parallel reference (<parallel.property>).
+   * Handles currentItem, items, and index references for parallel executions.
+   *
+   * @param parallelId - ID of the parallel block
+   * @param pathParts - Parts of the reference path after 'parallel'
+   * @param context - Current execution context
+   * @param currentBlock - Block containing the reference
+   * @param isInTemplateLiteral - Whether this is inside a template literal
+   * @returns Formatted value or null if reference is invalid
+   */
+  private resolveParallelReference(
+    parallelId: string,
+    pathParts: string[],
+    context: ExecutionContext,
+    currentBlock: SerializedBlock,
+    isInTemplateLiteral: boolean
+  ): string | null {
+    const parallel = context.workflow?.parallels?.[parallelId]
+    if (!parallel) return null
+
+    const property = pathParts[0]
+
+    // For parallel blocks, we need to determine which parallel iteration this block is part of
+    // This is more complex than loops since multiple instances run concurrently
+
+    switch (property) {
+      case 'currentItem': {
+        // Try to find the current item for this parallel execution
+        let currentItem = context.loopItems.get(parallelId)
+
+        // If we have a current virtual block ID, use it to get the exact iteration
+        if (context.currentVirtualBlockId && context.parallelBlockMapping) {
+          const mapping = context.parallelBlockMapping.get(context.currentVirtualBlockId)
+          if (mapping && mapping.parallelId === parallelId) {
+            const iterationKey = `${parallelId}_iteration_${mapping.iterationIndex}`
+            const iterationItem = context.loopItems.get(iterationKey)
+            if (iterationItem !== undefined) {
+              currentItem = iterationItem
+            }
+          }
+        } else if (parallel.nodes.includes(currentBlock.id)) {
+          // Fallback: if we're inside a parallel execution but don't have currentVirtualBlockId
+          // This shouldn't happen in normal execution but provides backward compatibility
+          for (const [virtualId, mapping] of context.parallelBlockMapping || new Map()) {
+            if (mapping.originalBlockId === currentBlock.id && mapping.parallelId === parallelId) {
+              const iterationKey = `${parallelId}_iteration_${mapping.iterationIndex}`
+              const iterationItem = context.loopItems.get(iterationKey)
+              if (iterationItem !== undefined) {
+                currentItem = iterationItem
+                break
+              }
+            }
+          }
+        }
+
+        // If not found directly, try to find it with parallel iteration suffix (backward compatibility)
+        if (currentItem === undefined) {
+          // Check for parallel-specific keys like "parallelId_parallel_0", "parallelId_parallel_1", etc.
+          for (let i = 0; i < 100; i++) {
+            // Reasonable upper limit
+            const parallelKey = `${parallelId}_parallel_${i}`
+            if (context.loopItems.has(parallelKey)) {
+              currentItem = context.loopItems.get(parallelKey)
+              break
+            }
+          }
+        }
+
+        if (currentItem === undefined) {
+          return ''
+        }
+
+        // Handle nested path access (e.g., <parallel.currentItem.key>)
+        if (pathParts.length > 1) {
+          // Special handling for [key, value] pairs from Object.entries()
+          if (
+            Array.isArray(currentItem) &&
+            currentItem.length === 2 &&
+            typeof currentItem[0] === 'string'
+          ) {
+            const subProperty = pathParts[1]
+            if (subProperty === 'key') {
+              return this.formatValueForCodeContext(
+                currentItem[0],
+                currentBlock,
+                isInTemplateLiteral
+              )
+            }
+            if (subProperty === 'value') {
+              return this.formatValueForCodeContext(
+                currentItem[1],
+                currentBlock,
+                isInTemplateLiteral
+              )
+            }
+          }
+
+          // Navigate nested path for objects
+          let value = currentItem
+          for (let i = 1; i < pathParts.length; i++) {
+            if (!value || typeof value !== 'object') {
+              throw new Error(`Invalid path "${pathParts[i]}" in parallel item reference`)
+            }
+            value = value[pathParts[i]]
+            if (value === undefined) {
+              throw new Error(
+                `No value found at path "parallel.${pathParts.join('.')}" in parallel item`
+              )
+            }
+          }
+          return this.formatValueForCodeContext(value, currentBlock, isInTemplateLiteral)
+        }
+
+        // Return the whole current item
+        return this.formatValueForCodeContext(currentItem, currentBlock, isInTemplateLiteral)
+      }
+
+      case 'items': {
+        // Get all items for the parallel distribution
+        const items =
+          context.loopItems.get(`${parallelId}_items`) ||
+          (parallel.distribution && this.getParallelItems(parallel, context))
+        if (!items) {
+          return '[]'
+        }
+
+        return this.formatValueForCodeContext(items, currentBlock, isInTemplateLiteral)
+      }
+
+      case 'index': {
+        // Get the current parallel index
+        let index = context.loopIterations.get(parallelId)
+
+        // If we have a current virtual block ID, use it to get the exact iteration
+        if (context.currentVirtualBlockId && context.parallelBlockMapping) {
+          const mapping = context.parallelBlockMapping.get(context.currentVirtualBlockId)
+          if (mapping && mapping.parallelId === parallelId) {
+            index = mapping.iterationIndex
+          }
+        } else {
+          // Fallback: try to find it with parallel iteration suffix
+          if (index === undefined) {
+            for (let i = 0; i < 100; i++) {
+              const parallelKey = `${parallelId}_parallel_${i}`
+              if (context.loopIterations.has(parallelKey)) {
+                index = context.loopIterations.get(parallelKey)
+                break
+              }
+            }
+          }
+        }
+
+        const adjustedIndex = index !== undefined ? index : 0
+        return this.formatValueForCodeContext(adjustedIndex, currentBlock, isInTemplateLiteral)
+      }
+
+      default:
+        return null
+    }
+  }
+
+  /**
+   * Gets the items for a parallel distribution.
+   * Similar to getLoopItems but for parallel blocks.
+   *
+   * @param parallel - The parallel configuration
+   * @param context - Current execution context
+   * @returns The items to distribute (array or object)
+   */
+  private getParallelItems(
+    parallel: any,
+    context: ExecutionContext
+  ): any[] | Record<string, any> | null {
+    if (!parallel || !parallel.distribution) return null
+
+    // If items are already available as an array or object, return them directly
+    if (
+      Array.isArray(parallel.distribution) ||
+      (typeof parallel.distribution === 'object' && parallel.distribution !== null)
+    ) {
+      return parallel.distribution
+    }
+
+    // If it's a string, try to evaluate it (could be an expression or JSON)
+    if (typeof parallel.distribution === 'string') {
+      try {
+        // Check if it's valid JSON
+        const trimmedExpression = parallel.distribution.trim()
+        if (trimmedExpression.startsWith('[') || trimmedExpression.startsWith('{')) {
+          try {
+            return JSON.parse(trimmedExpression)
+          } catch {
+            // Continue with expression evaluation
+          }
+        }
+
+        // Try to evaluate as an expression
+        if (trimmedExpression && !trimmedExpression.startsWith('//')) {
+          const result = new Function('context', `return ${parallel.distribution}`)(context)
+          if (Array.isArray(result) || (typeof result === 'object' && result !== null)) {
+            return result
+          }
+        }
+      } catch (e) {
+        console.error('Error evaluating parallel distribution items:', e)
+      }
+    }
+
+    return []
   }
 
   /**

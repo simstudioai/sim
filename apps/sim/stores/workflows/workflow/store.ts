@@ -1048,53 +1048,61 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
       // Parallel block methods implementation
       updateParallelCount: (parallelId: string, count: number) => {
-        return set((state) => {
-          const block = state.blocks[parallelId]
-          if (!block || block.type !== 'parallel') return state
+        const block = get().blocks[parallelId]
+        if (!block || block.type !== 'parallel') return
 
-          const newBlocks = {
-            ...state.blocks,
-            [parallelId]: {
-              ...block,
-              data: {
-                ...block.data,
-                count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
-              },
+        const newBlocks = {
+          ...get().blocks,
+          [parallelId]: {
+            ...block,
+            data: {
+              ...block.data,
+              count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
             },
-          }
+          },
+        }
 
-          return {
-            blocks: newBlocks,
-            edges: [...state.edges],
-            loops: { ...state.loops },
-            parallels: generateParallelBlocks(newBlocks), // Regenerate parallels
-          }
-        })
+        const newState = {
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: generateParallelBlocks(newBlocks), // Regenerate parallels
+        }
+
+        set(newState)
+        pushHistory(set, get, newState, `Update parallel count`)
+        get().updateLastSaved()
+        get().sync.markDirty()
+        get().sync.forceSync()
       },
 
       updateParallelCollection: (parallelId: string, collection: string) => {
-        return set((state) => {
-          const block = state.blocks[parallelId]
-          if (!block || block.type !== 'parallel') return state
+        const block = get().blocks[parallelId]
+        if (!block || block.type !== 'parallel') return
 
-          const newBlocks = {
-            ...state.blocks,
-            [parallelId]: {
-              ...block,
-              data: {
-                ...block.data,
-                collection,
-              },
+        const newBlocks = {
+          ...get().blocks,
+          [parallelId]: {
+            ...block,
+            data: {
+              ...block.data,
+              collection,
             },
-          }
+          },
+        }
 
-          return {
-            blocks: newBlocks,
-            edges: [...state.edges],
-            loops: { ...state.loops },
-            parallels: generateParallelBlocks(newBlocks), // Regenerate parallels
-          }
-        })
+        const newState = {
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: generateParallelBlocks(newBlocks), // Regenerate parallels
+        }
+
+        set(newState)
+        pushHistory(set, get, newState, `Update parallel collection`)
+        get().updateLastSaved()
+        get().sync.markDirty()
+        get().sync.forceSync()
       },
 
       // Function to convert UI parallel blocks to execution format
