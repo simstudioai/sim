@@ -556,6 +556,10 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
               isConnectableStart={true}
               isConnectableEnd={false}
               isValidConnection={(connection) => {
+                // Prevent self-connections
+                if (connection.source === connection.target) return false
+
+                // Existing validation to prevent connections within the same parent node
                 const sourceNodeId = connection.source?.split('-')[0]
                 const targetNodeId = connection.target?.split('-')[0]
                 return sourceNodeId !== targetNodeId
