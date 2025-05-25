@@ -14,6 +14,7 @@ import {
   MicrosoftIcon,
   MicrosoftTeamsIcon,
   NotionIcon,
+  OutlookIcon,
   SupabaseIcon,
   xIcon,
 } from '@/components/icons'
@@ -51,6 +52,7 @@ export type OAuthService =
   | 'jira'
   | 'discord'
   | 'microsoft-teams'
+  | 'outlook'
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -160,6 +162,24 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'Group.Read.All',
           'Group.ReadWrite.All',
           'Team.ReadBasic.All',
+          'offline_access',
+        ],
+      },
+      outlook: {
+        id: 'outlook',
+        name: 'Outlook',
+        description: 'Connect to Outlook and manage emails.',
+        providerId: 'outlook',
+        icon: (props) => OutlookIcon(props),
+        baseProviderIcon: (props) => MicrosoftIcon(props),
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Mail.ReadWrite',
+          'Mail.ReadBasic',
+          'Mail.Read',
+          'Mail.Send',
           'offline_access',
         ],
       },
@@ -356,6 +376,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     }
   } else if (provider === 'microsoft-teams') {
     return 'microsoft-teams'
+  } else if (provider === 'outlook') {
+    return 'outlook'
   } else if (provider === 'github') {
     return 'github'
   } else if (provider === 'supabase') {
@@ -412,6 +434,14 @@ export interface ProviderConfig {
  * This is a server-safe utility that can be used in both client and server code
  */
 export function parseProvider(provider: OAuthProvider): ProviderConfig {
+  // Handle special cases first
+  if (provider === 'outlook') {
+    return {
+      baseProvider: 'microsoft',
+      featureType: 'outlook',
+    }
+  }
+
   // Handle compound providers (e.g., 'google-email' -> { baseProvider: 'google', featureType: 'email' })
   const [base, feature] = provider.split('-')
 
@@ -502,6 +532,11 @@ export async function refreshOAuthToken(
         useBasicAuth = true
         break
       case 'microsoft':
+        tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
+        clientId = env.MICROSOFT_CLIENT_ID
+        clientSecret = env.MICROSOFT_CLIENT_SECRET
+        break
+      case 'outlook':
         tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
         clientId = env.MICROSOFT_CLIENT_ID
         clientSecret = env.MICROSOFT_CLIENT_SECRET

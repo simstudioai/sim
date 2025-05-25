@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, RefreshCw } from 'lucide-react'
-import { GmailIcon } from '@/components/icons'
+import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -112,7 +112,7 @@ export function FolderSelector({
   // Fetch a single folder by ID when we have a selectedFolderId but no metadata
   const fetchFolderById = useCallback(
     async (folderId: string) => {
-      if (!selectedCredentialId || !folderId) return null
+      if (!selectedCredentialId || !folderId || provider === 'outlook') return null
 
       setIsLoadingSelectedFolder(true)
       try {
@@ -144,10 +144,10 @@ export function FolderSelector({
         setIsLoadingSelectedFolder(false)
       }
     },
-    [selectedCredentialId, onFolderInfoChange]
+    [selectedCredentialId, onFolderInfoChange, provider]
   )
 
-  // Fetch folders from Gmail
+  // Fetch folders from Gmail or Outlook
   const fetchFolders = useCallback(
     async (searchQuery?: string) => {
       if (!selectedCredentialId) return
@@ -163,22 +163,32 @@ export function FolderSelector({
           queryParams.append('query', searchQuery)
         }
 
-        const response = await fetch(`/api/auth/oauth/gmail/labels?${queryParams.toString()}`)
+        // Determine the API endpoint based on provider
+        let apiEndpoint: string
+        if (provider === 'outlook') {
+          apiEndpoint = `/api/auth/oauth/outlook/folders?${queryParams.toString()}`
+        } else {
+          // Default to Gmail
+          apiEndpoint = `/api/auth/oauth/gmail/labels?${queryParams.toString()}`
+        }
+
+        const response = await fetch(apiEndpoint)
 
         if (response.ok) {
           const data = await response.json()
-          setFolders(data.labels || [])
+          const folderList = provider === 'outlook' ? data.folders : data.labels
+          setFolders(folderList || [])
 
           // If we have a selected folder ID, find the folder info
           if (selectedFolderId) {
-            const folderInfo = data.labels.find(
+            const folderInfo = folderList.find(
               (folder: FolderInfo) => folder.id === selectedFolderId
             )
             if (folderInfo) {
               setSelectedFolder(folderInfo)
               onFolderInfoChange?.(folderInfo)
-            } else if (!searchQuery) {
-              // Only try to fetch by ID if this is not a search query
+            } else if (!searchQuery && provider !== 'outlook') {
+              // Only try to fetch by ID for Gmail if this is not a search query
               // and we couldn't find the folder in the list
               fetchFolderById(selectedFolderId)
             }
@@ -196,7 +206,7 @@ export function FolderSelector({
         setIsLoading(false)
       }
     },
-    [selectedCredentialId, selectedFolderId, onFolderInfoChange, fetchFolderById]
+    [selectedCredentialId, selectedFolderId, onFolderInfoChange, fetchFolderById, provider]
   )
 
   // Fetch credentials on initial mount
@@ -221,12 +231,12 @@ export function FolderSelector({
     }
   }, [value])
 
-  // Fetch the selected folder metadata once credentials are ready
+  // Fetch the selected folder metadata once credentials are ready (Gmail only)
   useEffect(() => {
-    if (value && selectedCredentialId && !selectedFolder) {
+    if (value && selectedCredentialId && !selectedFolder && provider !== 'outlook') {
       fetchFolderById(value)
     }
-  }, [value, selectedCredentialId, selectedFolder, fetchFolderById])
+  }, [value, selectedCredentialId, selectedFolder, fetchFolderById, provider])
 
   // Handle folder selection
   const handleSelectFolder = (folder: FolderInfo) => {
@@ -263,7 +273,23 @@ export function FolderSelector({
 
   const getFolderIcon = (size: 'sm' | 'md' = 'sm') => {
     const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
-    return <GmailIcon className={iconSize} />
+    if (provider === 'gmail') {
+      return <GmailIcon className={iconSize} />
+    }
+    if (provider === 'outlook') {
+      return <OutlookIcon className={iconSize} />
+    }
+    return null
+  }
+
+  const getProviderName = () => {
+    if (provider === 'outlook') return 'Outlook'
+    return 'Gmail'
+  }
+
+  const getFolderLabel = () => {
+    if (provider === 'outlook') return 'folders'
+    return 'labels'
   }
 
   return (
@@ -282,11 +308,6 @@ export function FolderSelector({
                 <div className='flex items-center gap-2 overflow-hidden'>
                   {getFolderIcon('sm')}
                   <span className='truncate font-normal'>{selectedFolder.name}</span>
-                </div>
-              ) : selectedFolderId && (isLoadingSelectedFolder || !selectedCredentialId) ? (
-                <div className='flex items-center gap-2'>
-                  <RefreshCw className='h-4 w-4 animate-spin' />
-                  <span className='text-muted-foreground'>Loading label...</span>
                 </div>
               ) : (
                 <div className='flex items-center gap-2'>
@@ -321,24 +342,27 @@ export function FolderSelector({
             )}
 
             <Command>
-              <CommandInput placeholder='Search labels...' onValueChange={handleSearch} />
+              <CommandInput
+                placeholder={`Search ${getFolderLabel()}...`}
+                onValueChange={handleSearch}
+              />
               <CommandList>
                 <CommandEmpty>
                   {isLoading ? (
                     <div className='flex items-center justify-center p-4'>
                       <RefreshCw className='h-4 w-4 animate-spin' />
-                      <span className='ml-2'>Loading labels...</span>
+                      <span className='ml-2'>Loading {getFolderLabel()}...</span>
                     </div>
                   ) : credentials.length === 0 ? (
                     <div className='p-4 text-center'>
                       <p className='font-medium text-sm'>No accounts connected.</p>
                       <p className='text-muted-foreground text-xs'>
-                        Connect a Gmail account to continue.
+                        Connect a {getProviderName()} account to continue.
                       </p>
                     </div>
                   ) : (
                     <div className='p-4 text-center'>
-                      <p className='font-medium text-sm'>No labels found.</p>
+                      <p className='font-medium text-sm'>No {getFolderLabel()} found.</p>
                       <p className='text-muted-foreground text-xs'>
                         Try a different search or account.
                       </p>
@@ -371,7 +395,7 @@ export function FolderSelector({
                 {folders.length > 0 && (
                   <CommandGroup>
                     <div className='px-2 py-1.5 font-medium text-muted-foreground text-xs'>
-                      Labels
+                      {getFolderLabel().charAt(0).toUpperCase() + getFolderLabel().slice(1)}
                     </div>
                     {folders.map((folder) => (
                       <CommandItem
@@ -394,22 +418,11 @@ export function FolderSelector({
                   <CommandGroup>
                     <CommandItem onSelect={handleAddCredential}>
                       <div className='flex items-center gap-2 text-primary'>
-                        <span>Connect Gmail account</span>
+                        <span>Connect {getProviderName()} account</span>
                       </div>
                     </CommandItem>
                   </CommandGroup>
                 )}
-
-                {/* Add another account option */}
-                {/* {credentials.length > 0 && (
-                  <CommandGroup>
-                    <CommandItem onSelect={handleAddCredential}>
-                      <div className="flex items-center gap-2 text-primary">
-                        <span>Connect Another Account</span>
-                      </div>
-                    </CommandItem>
-                  </CommandGroup>
-                )} */}
               </CommandList>
             </Command>
           </PopoverContent>
@@ -421,7 +434,7 @@ export function FolderSelector({
           isOpen={showOAuthModal}
           onClose={() => setShowOAuthModal(false)}
           provider={provider}
-          toolName='Gmail'
+          toolName={getProviderName()}
           requiredScopes={requiredScopes}
           serviceId={getServiceId()}
         />

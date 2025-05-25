@@ -168,7 +168,6 @@ export function CredentialSelector({
     if (!baseProviderConfig) {
       return <ExternalLink className='h-4 w-4' />
     }
-
     // Always use the base provider icon for a more consistent UI
     return baseProviderConfig.icon({ className: 'h-4 w-4' })
   }

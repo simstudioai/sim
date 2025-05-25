@@ -36,6 +36,7 @@ import { MicrosoftTeamsBlock } from './blocks/microsoft_teams'
 import { MistralParseBlock } from './blocks/mistral_parse'
 import { NotionBlock } from './blocks/notion'
 import { OpenAIBlock } from './blocks/openai'
+import { OutlookBlock } from './blocks/outlook'
 import { PerplexityBlock } from './blocks/perplexity'
 import { PineconeBlock } from './blocks/pinecone'
 import { RedditBlock } from './blocks/reddit'
@@ -92,6 +93,7 @@ export const registry: Record<string, BlockConfig> = {
   mistral_parse: MistralParseBlock,
   notion: NotionBlock,
   openai: OpenAIBlock,
+  outlook: OutlookBlock,
   perplexity: PerplexityBlock,
   pinecone: PineconeBlock,
   reddit: RedditBlock,
