@@ -1,7 +1,7 @@
-import type { ToolConfig } from '../types'
-import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
-import { extractMessageAttachments } from './attachment-utils'
 import { createLogger } from '@/lib/logs/console-logger'
+import type { ToolConfig } from '../types'
+import { extractMessageAttachments } from './attachment-utils'
+import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
 
 const logger = createLogger('MicrosoftTeamsReadChannel')
 
@@ -67,8 +67,13 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
   transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     if (!response.ok) {
       const errorText = await response.text()
-      logger.error(`Microsoft Teams channel API error: ${response.status} ${response.statusText}`, errorText)
-      throw new Error(`Failed to read Microsoft Teams channel: ${response.status} ${response.statusText} - ${errorText}`)
+      logger.error(
+        `Microsoft Teams channel API error: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      throw new Error(
+        `Failed to read Microsoft Teams channel: ${response.status} ${response.statusText} - ${errorText}`
+      )
     }
 
     const data = await response.json()
