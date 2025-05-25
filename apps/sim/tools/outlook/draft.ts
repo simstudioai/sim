@@ -55,7 +55,7 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
       return {
         subject: params.subject,
         body: {
-          contentType: 'Text',
+          contentType: ['Text', 'HTML'],
           content: params.body,
         },
         toRecipients: [
@@ -97,7 +97,7 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
   },
 
   transformError: (error) => {
-    // Handle Google API error format
+    // Handle Outlook API error format
     if (error.error?.message) {
       if (error.error.message.includes('invalid authentication credentials')) {
         return 'Invalid or expired access token. Please reauthenticate.'
@@ -107,6 +107,6 @@ export const outlookDraftTool: ToolConfig<OutlookDraftParams, OutlookDraftRespon
       }
       return error.error.message
     }
-    return error.message || 'An unexpected error occurred while sending email'
+    return error.message || 'An unexpected error occurred while drafting email'
   },
 }

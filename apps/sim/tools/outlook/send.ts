@@ -56,7 +56,7 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
         message: {
           subject: params.subject,
           body: {
-            contentType: 'Text',
+            contentType: ['Text', 'HTML'],
             content: params.body,
           },
           toRecipients: [
@@ -96,7 +96,7 @@ export const outlookSendTool: ToolConfig<OutlookSendParams, OutlookSendResponse>
   },
 
   transformError: (error) => {
-    // Handle Google API error format
+    // Handle Outlook API error format
     if (error.error?.message) {
       if (error.error.message.includes('invalid authentication credentials')) {
         return 'Invalid or expired access token. Please reauthenticate.'

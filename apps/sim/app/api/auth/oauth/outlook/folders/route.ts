@@ -8,11 +8,11 @@ export const dynamic = 'force-dynamic'
 const logger = createLogger('OutlookFoldersAPI')
 
 interface OutlookFolder {
-    id: string;
-    displayName: string;
-    totalItemCount?: number;
-    unreadItemCount?: number;
-  }
+  id: string
+  displayName: string
+  totalItemCount?: number
+  unreadItemCount?: number
+}
 
 export async function GET(request: Request) {
   try {

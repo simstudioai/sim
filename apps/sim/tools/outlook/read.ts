@@ -1,5 +1,11 @@
 import type { ToolConfig } from '../types'
-import type { OutlookReadParams, OutlookReadResponse } from './types'
+import type {
+  CleanedOutlookMessage,
+  OutlookMessage,
+  OutlookMessagesResponse,
+  OutlookReadParams,
+  OutlookReadResponse,
+} from './types'
 
 export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse> = {
   id: 'outlook_read',
@@ -30,9 +36,10 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
   },
   request: {
     url: (params) => {
-
-      // Set max results (default to 1 for simplicity, max 10)
-      const maxResults = params.maxResults ? Math.min(params.maxResults, 10) : 1
+      // Set max results (default to 1 for simplicity, max 10) with no negative values
+      const maxResults = params.maxResults
+        ? Math.max(1, Math.min(Math.abs(params.maxResults), 10))
+        : 1
 
       // If folder is provided, read from that specific folder
       if (params.folder) {
@@ -60,7 +67,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
       throw new Error(`Failed to read Outlook mail: ${errorText}`)
     }
 
-    const data = await response.json()
+    const data: OutlookMessagesResponse = await response.json()
 
     // Microsoft Graph API returns messages in a 'value' array
     const messages = data.value || []
@@ -76,7 +83,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     }
 
     // Clean up the message data to only include essential fields
-    const cleanedMessages = messages.map((message: any) => ({
+    const cleanedMessages: CleanedOutlookMessage[] = messages.map((message: OutlookMessage) => ({
       id: message.id,
       subject: message.subject,
       bodyPreview: message.bodyPreview,
@@ -93,12 +100,12 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
         address: message.from?.emailAddress?.address,
       },
       toRecipients:
-        message.toRecipients?.map((recipient: any) => ({
+        message.toRecipients?.map((recipient) => ({
           name: recipient.emailAddress?.name,
           address: recipient.emailAddress?.address,
         })) || [],
       ccRecipients:
-        message.ccRecipients?.map((recipient: any) => ({
+        message.ccRecipients?.map((recipient) => ({
           name: recipient.emailAddress?.name,
           address: recipient.emailAddress?.address,
         })) || [],
@@ -112,7 +119,7 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     return {
       success: true,
       output: {
-        message: `Successfully read ${cleanedMessages.length} email${cleanedMessages.length === 1 ? '' : 's'}`,
+        message: `Successfully read ${cleanedMessages.length} email(s).`,
         results: cleanedMessages,
       },
     }
@@ -134,6 +141,6 @@ export const outlookReadTool: ToolConfig<OutlookReadParams, OutlookReadResponse>
     }
 
     // Default fallback message
-    return 'An error occurred while reading Microsoft Teams chat'
+    return 'An error occurred while reading Outlook email'
   },
 }
