@@ -829,19 +829,21 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           const block = state.blocks[loopId]
           if (!block || block.type !== 'loop') return state
 
-          return {
-            blocks: {
-              ...state.blocks,
-              [loopId]: {
-                ...block,
-                data: {
-                  ...block.data,
-                  count: Math.max(1, Math.min(50, count)), // Clamp between 1-50
-                },
+          const newBlocks = {
+            ...state.blocks,
+            [loopId]: {
+              ...block,
+              data: {
+                ...block.data,
+                count: Math.max(1, Math.min(50, count)), // Clamp between 1-50
               },
             },
+          }
+
+          return {
+            blocks: newBlocks,
             edges: [...state.edges],
-            loops: { ...state.loops },
+            loops: generateLoopBlocks(newBlocks), // Regenerate loops
           }
         }),
 
@@ -850,19 +852,21 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           const block = state.blocks[loopId]
           if (!block || block.type !== 'loop') return state
 
-          return {
-            blocks: {
-              ...state.blocks,
-              [loopId]: {
-                ...block,
-                data: {
-                  ...block.data,
-                  loopType,
-                },
+          const newBlocks = {
+            ...state.blocks,
+            [loopId]: {
+              ...block,
+              data: {
+                ...block.data,
+                loopType,
               },
             },
+          }
+
+          return {
+            blocks: newBlocks,
             edges: [...state.edges],
-            loops: { ...state.loops },
+            loops: generateLoopBlocks(newBlocks), // Regenerate loops
           }
         }),
 
@@ -871,19 +875,21 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           const block = state.blocks[loopId]
           if (!block || block.type !== 'loop') return state
 
-          return {
-            blocks: {
-              ...state.blocks,
-              [loopId]: {
-                ...block,
-                data: {
-                  ...block.data,
-                  collection,
-                },
+          const newBlocks = {
+            ...state.blocks,
+            [loopId]: {
+              ...block,
+              data: {
+                ...block.data,
+                collection,
               },
             },
+          }
+
+          return {
+            blocks: newBlocks,
             edges: [...state.edges],
-            loops: { ...state.loops },
+            loops: generateLoopBlocks(newBlocks), // Regenerate loops
           }
         }),
 
@@ -1046,20 +1052,22 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           const block = state.blocks[parallelId]
           if (!block || block.type !== 'parallel') return state
 
-          return {
-            blocks: {
-              ...state.blocks,
-              [parallelId]: {
-                ...block,
-                data: {
-                  ...block.data,
-                  count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
-                },
+          const newBlocks = {
+            ...state.blocks,
+            [parallelId]: {
+              ...block,
+              data: {
+                ...block.data,
+                count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
               },
             },
+          }
+
+          return {
+            blocks: newBlocks,
             edges: [...state.edges],
             loops: { ...state.loops },
-            parallels: { ...state.parallels },
+            parallels: generateParallelBlocks(newBlocks), // Regenerate parallels
           }
         })
       },
@@ -1069,20 +1077,22 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           const block = state.blocks[parallelId]
           if (!block || block.type !== 'parallel') return state
 
-          return {
-            blocks: {
-              ...state.blocks,
-              [parallelId]: {
-                ...block,
-                data: {
-                  ...block.data,
-                  collection,
-                },
+          const newBlocks = {
+            ...state.blocks,
+            [parallelId]: {
+              ...block,
+              data: {
+                ...block.data,
+                collection,
               },
             },
+          }
+
+          return {
+            blocks: newBlocks,
             edges: [...state.edges],
             loops: { ...state.loops },
-            parallels: { ...state.parallels },
+            parallels: generateParallelBlocks(newBlocks), // Regenerate parallels
           }
         })
       },

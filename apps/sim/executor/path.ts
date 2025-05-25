@@ -133,11 +133,6 @@ export class PathTracker {
           // Check if this is a connection to a block outside any loop that contains the source
           const isExternalLoopConnection = isPartOfLoop && !isInternalLoopConnection
 
-          // Let the LoopManager handle all connections within loops
-          if (isInternalLoopConnection) {
-            continue
-          }
-
           // Check if all loops this block belongs to are completed
           const allLoopsCompleted = blockLoops.every(({ id }) => context.completedLoops?.has(id))
 
@@ -146,9 +141,7 @@ export class PathTracker {
             continue
           }
 
-          // Now we can activate the path if:
-          // 1. It's not a loop connection, or
-          // 2. It's an external connection and all loops are completed
+          // Now we can activate the path for all connections (including internal loop connections)
 
           // For error connections, only activate them on error
           if (conn.sourceHandle === 'error') {

@@ -72,12 +72,26 @@ export function convertLoopBlockToLoop(
   const loopBlock = blocks[loopBlockId]
   if (!loopBlock || loopBlock.type !== 'loop') return undefined
 
+  // Parse collection if it's a string representation of an array/object
+  let forEachItems: any = loopBlock.data?.collection || ''
+  if (typeof forEachItems === 'string' && forEachItems.trim()) {
+    const trimmed = forEachItems.trim()
+    // Try to parse if it looks like JSON
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        forEachItems = JSON.parse(trimmed)
+      } catch {
+        // Keep as string if parsing fails - will be evaluated at runtime
+      }
+    }
+  }
+
   return {
     id: loopBlockId,
     nodes: findChildNodes(loopBlockId, blocks),
     iterations: loopBlock.data?.count || 5,
     loopType: loopBlock.data?.loopType || 'for',
-    forEachItems: loopBlock.data?.collection || '',
+    forEachItems,
   }
 }
 

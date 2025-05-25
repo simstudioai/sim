@@ -81,9 +81,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   // Get available tags from workflow state
   const blocks = useWorkflowStore((state) => state.blocks)
+  const loops = useWorkflowStore((state) => state.loops)
   const _edges = useWorkflowStore((state) => state.edges)
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const loops = useWorkflowStore((state) => state.loops)
 
   // Get variables from variables store
   const getVariablesByWorkflowId = useVariablesStore((state) => state.getVariablesByWorkflowId)
