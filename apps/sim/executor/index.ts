@@ -11,6 +11,7 @@ import {
   EvaluatorBlockHandler,
   FunctionBlockHandler,
   GenericBlockHandler,
+  LoopBlockHandler,
   RouterBlockHandler,
 } from './handlers/index'
 import { LoopManager } from './loops'
@@ -134,6 +135,7 @@ export class Executor {
       new EvaluatorBlockHandler(),
       new FunctionBlockHandler(),
       new ApiBlockHandler(),
+      new LoopBlockHandler(this.resolver),
       new GenericBlockHandler(),
     ]
 
@@ -835,41 +837,42 @@ export class Executor {
         (conn) => conn.target === block.id
       )
 
-      // Find all loops that this block is a part of
-      const containingLoops = Object.values(this.actualWorkflow.loops || {}).filter((loop) =>
-        loop.nodes.includes(block.id)
-      )
+      // Check if this is a loop block
+      const isLoopBlock = block.metadata?.id === 'loop'
 
-      const isInLoop = containingLoops.length > 0
+      if (isLoopBlock) {
+        // Loop blocks are treated as regular blocks with standard dependency checking
+        const allDependenciesMet = incomingConnections.every((conn) => {
+          const sourceExecuted = executedBlocks.has(conn.source)
+          const sourceBlockState = context.blockStates.get(conn.source)
+          const hasSourceError =
+            sourceBlockState?.output?.error !== undefined ||
+            sourceBlockState?.output?.response?.error !== undefined
 
-      if (isInLoop) {
-        // Check if this block is part of a self-loop (single-node loop)
-        const isInSelfLoop = containingLoops.some(
-          (loop) => loop.nodes.length === 1 && loop.nodes[0] === block.id
-        )
+          // For error connections, check if the source had an error
+          if (conn.sourceHandle === 'error') {
+            return sourceExecuted && hasSourceError
+          }
 
-        // Check if there's a direct self-connection
-        const hasSelfConnection = this.actualWorkflow.connections.some(
-          (conn) => conn.source === block.id && conn.target === block.id
-        )
+          // For regular connections, check if the source was executed without error
+          if (conn.sourceHandle === 'source' || !conn.sourceHandle) {
+            return sourceExecuted && !hasSourceError
+          }
 
-        if (isInSelfLoop || hasSelfConnection) {
-          // For self-loops, we only need the node to be in the active execution path
-          // It will be reset after each iteration by the loop manager
-          pendingBlocks.add(block.id)
-          continue
-        }
+          // If source is not in active path, consider this dependency met
+          if (!context.activeExecutionPath.has(conn.source)) {
+            return true
+          }
 
-        // For regular multi-node loops
-        const hasValidPath = incomingConnections.some((conn) => {
-          return executedBlocks.has(conn.source)
+          // For regular blocks, dependency is met if source is executed
+          return sourceExecuted
         })
 
-        if (hasValidPath) {
+        if (allDependenciesMet) {
           pendingBlocks.add(block.id)
         }
       } else {
-        // Regular non-loop block handling (unchanged)
+        // Regular non-loop block handling
         const allDependenciesMet = incomingConnections.every((conn) => {
           const sourceExecuted = executedBlocks.has(conn.source)
           const sourceBlock = this.actualWorkflow.blocks.find((b) => b.id === conn.source)
@@ -877,6 +880,21 @@ export class Executor {
           const hasSourceError =
             sourceBlockState?.output?.error !== undefined ||
             sourceBlockState?.output?.response?.error !== undefined
+
+          // Special handling for loop-start-source connections
+          if (conn.sourceHandle === 'loop-start-source') {
+            // This block is connected to a loop's start output
+            // It should be activated when the loop block executes
+            return sourceExecuted
+          }
+
+          // Special handling for loop-end-source connections
+          if (conn.sourceHandle === 'loop-end-source') {
+            // This block is connected to a loop's end output
+            // It should only be activated when the loop completes
+            const loopCompleted = context.completedLoops.has(conn.source)
+            return loopCompleted
+          }
 
           // For condition blocks, check if this is the selected path
           if (conn.sourceHandle?.startsWith('condition-')) {
@@ -1072,16 +1090,20 @@ export class Executor {
       blockLog.endedAt = new Date().toISOString()
 
       context.blockLogs.push(blockLog)
-      addConsole({
-        output: blockLog.output,
-        durationMs: blockLog.durationMs,
-        startedAt: blockLog.startedAt,
-        endedAt: blockLog.endedAt,
-        workflowId: context.workflowId,
-        blockId: block.id,
-        blockName: block.metadata?.name || 'Unnamed Block',
-        blockType: block.metadata?.id || 'unknown',
-      })
+
+      // Skip console logging for infrastructure blocks like loops
+      if (block.metadata?.id !== 'loop') {
+        addConsole({
+          output: blockLog.output,
+          durationMs: blockLog.durationMs,
+          startedAt: blockLog.startedAt,
+          endedAt: blockLog.endedAt,
+          workflowId: context.workflowId,
+          blockId: block.id,
+          blockName: block.metadata?.name || 'Unnamed Block',
+          blockType: block.metadata?.id || 'unknown',
+        })
+      }
 
       trackWorkflowTelemetry('block_execution', {
         workflowId: context.workflowId,
@@ -1111,18 +1133,22 @@ export class Executor {
 
       // Log the error even if we'll continue execution through error path
       context.blockLogs.push(blockLog)
-      addConsole({
-        output: {},
-        error:
-          error.message ||
-          `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
-        durationMs: blockLog.durationMs,
-        startedAt: blockLog.startedAt,
-        endedAt: blockLog.endedAt,
-        workflowId: context.workflowId,
-        blockName: block.metadata?.name || 'Unnamed Block',
-        blockType: block.metadata?.id || 'unknown',
-      })
+
+      // Skip console logging for infrastructure blocks like loops
+      if (block.metadata?.id !== 'loop') {
+        addConsole({
+          output: {},
+          error:
+            error.message ||
+            `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
+          durationMs: blockLog.durationMs,
+          startedAt: blockLog.startedAt,
+          endedAt: blockLog.endedAt,
+          workflowId: context.workflowId,
+          blockName: block.metadata?.name || 'Unnamed Block',
+          blockType: block.metadata?.id || 'unknown',
+        })
+      }
 
       // Check for error connections and follow them if they exist
       const hasErrorPath = this.activateErrorPath(blockId, context)
@@ -1195,7 +1221,11 @@ export class Executor {
   private activateErrorPath(blockId: string, context: ExecutionContext): boolean {
     // Skip for starter blocks which don't have error handles
     const block = this.actualWorkflow.blocks.find((b) => b.id === blockId)
-    if (block?.metadata?.id === 'starter' || block?.metadata?.id === 'condition') {
+    if (
+      block?.metadata?.id === 'starter' ||
+      block?.metadata?.id === 'condition' ||
+      block?.metadata?.id === 'loop'
+    ) {
       return false
     }
 
@@ -1336,6 +1366,19 @@ export class Executor {
       }
 
       return { response: evaluatorResponse }
+    }
+
+    if (blockType === 'loop') {
+      return {
+        response: {
+          loopId: output?.loopId || block.id,
+          currentIteration: output?.currentIteration || 0,
+          maxIterations: output?.maxIterations || 0,
+          loopType: output?.loopType || 'for',
+          completed: output?.completed || false,
+          message: output?.message || '',
+        },
+      }
     }
 
     return {

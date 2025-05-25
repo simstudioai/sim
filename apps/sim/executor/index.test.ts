@@ -8,7 +8,7 @@
  * resolving inputs and dependencies, and managing errors.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import type { SerializedWorkflow } from '../serializer/types'
+import type { SerializedWorkflow } from '@/serializer/types'
 import { Executor } from './index'
 
 vi.mock('@/lib/logs/console-logger', () => ({
@@ -65,6 +65,7 @@ vi.mock('./handlers', () => {
     EvaluatorBlockHandler: createHandler('evaluator'),
     FunctionBlockHandler: createHandler('function'),
     ApiBlockHandler: createHandler('api'),
+    LoopBlockHandler: createHandler('loop'),
     GenericBlockHandler: createHandler('generic'),
   }
 })
@@ -670,11 +671,6 @@ describe('Executor', () => {
       expect(result).toBe(false)
     })
 
-    test('should execute error path when a block throws an error', async () => {
-      // Skip this test for now, as it requires complex mocking
-      // TODO: Revisit this test with proper mocks for handler execution
-    })
-
     test('should create proper error output for a block error', () => {
       const workflow = createWorkflowWithErrorPath()
       const executor = new Executor(workflow)
@@ -948,6 +944,10 @@ describe('Executor', () => {
           canHandle: () => false,
           execute: vi.fn(),
         })),
+        LoopBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: (block: any) => block.metadata?.id === 'loop',
+          execute: vi.fn().mockResolvedValue({ response: { result: 'Loop executed' } }),
+        })),
         GenericBlockHandler: vi.fn().mockImplementation(() => ({
           canHandle: () => true,
           execute: vi.fn().mockResolvedValue({ response: { result: 'Executed' } }),
@@ -1029,6 +1029,10 @@ describe('Executor', () => {
         ApiBlockHandler: vi.fn().mockImplementation(() => ({
           canHandle: () => false,
           execute: vi.fn(),
+        })),
+        LoopBlockHandler: vi.fn().mockImplementation(() => ({
+          canHandle: (block: any) => block.metadata?.id === 'loop',
+          execute: vi.fn().mockResolvedValue({ response: { result: 'Loop executed' } }),
         })),
         GenericBlockHandler: vi.fn().mockImplementation(() => ({
           canHandle: () => true,

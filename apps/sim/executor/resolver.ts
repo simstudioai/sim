@@ -77,9 +77,9 @@ export class InputResolver {
       // Handle string values that may contain references
       if (typeof value === 'string') {
         const trimmedValue = value.trim()
-        const directVariableMatch = trimmedValue.match(/^<variable\.([^>]+)>$/)
 
-        // Check for direct variable reference first
+        // Check for direct variable reference pattern: <variable.name>
+        const directVariableMatch = trimmedValue.match(/^<variable\.([^>]+)>$/)
         if (directVariableMatch) {
           const variableName = directVariableMatch[1]
           const variable = this.findVariableByName(variableName)
@@ -87,137 +87,60 @@ export class InputResolver {
           if (variable) {
             // Return the typed value directly
             result[key] = this.getTypedVariableValue(variable)
-            continue // Skip further processing for this direct reference
+            continue
           }
           logger.warn(
             `Direct variable reference <variable.${variableName}> not found. Treating as literal.`
           )
-          result[key] = value // Return original string
+          result[key] = value
           continue
         }
 
-        // If not direct reference, proceed with interpolation + other resolutions
-        // First resolve variable references (interpolation)
-        const resolvedVars = this.resolveVariableReferences(value, block)
-
-        // Then resolve block references
-        // Need to ensure input is string here if resolveVariableReferences returned non-string somehow (shouldn't)
-        const resolvedReferences =
-          typeof resolvedVars === 'string'
-            ? this.resolveBlockReferences(resolvedVars, context, block)
-            : resolvedVars // Pass non-string through
-
-        // Check if this is an API key field - needs original context, less reliable here
-        // We might need a better way to pass isApiKey context down recursively
-        const isApiKey = this.isApiKeyField(block, value) // Check original value context
-
-        // Then resolve environment variables
-        // Need to ensure input is string here
-        const resolvedEnv =
-          typeof resolvedReferences === 'string'
-            ? this.resolveEnvVariables(resolvedReferences, isApiKey)
-            : resolvedReferences // Pass non-string through
-
-        // Special handling for different block types
-        const isFunctionBlock = block.metadata?.id === 'function'
-        const isApiBlock = block.metadata?.id === 'api'
-
-        // For function blocks, we need special handling for code input
-        if (isFunctionBlock && key === 'code') {
-          result[key] = resolvedEnv
-        }
-        // For API blocks, handle body input specially
-        else if (isApiBlock && key === 'body') {
-          // If the final resolved value is a string that looks like JSON, parse it.
-          // Otherwise, use the value as is (it might already be an object/array from direct ref).
-          if (typeof resolvedEnv === 'string') {
-            try {
-              if (resolvedEnv.trim().startsWith('{') || resolvedEnv.trim().startsWith('[')) {
-                result[key] = JSON.parse(resolvedEnv)
-              } else {
-                result[key] = resolvedEnv // Keep as string if not JSON-like
-              }
-            } catch {
-              result[key] = resolvedEnv // Keep as string if JSON parsing fails
+        // Check for direct loop reference pattern: <loop.property>
+        const directLoopMatch = trimmedValue.match(/^<loop\.([^>]+)>$/)
+        if (directLoopMatch) {
+          // Find which loop this block belongs to
+          let containingLoopId: string | undefined
+          for (const [loopId, loop] of Object.entries(context.workflow?.loops || {})) {
+            if (loop.nodes.includes(block.id)) {
+              containingLoopId = loopId
+              break
             }
-          } else {
-            result[key] = resolvedEnv // Already a non-string type
           }
-        }
-        // For other inputs, try to convert JSON strings to objects/arrays
-        else {
-          // If the final resolved value is a string that looks like JSON, parse it.
-          if (typeof resolvedEnv === 'string') {
-            try {
-              if (
-                resolvedEnv.trim().length > 0 &&
-                (resolvedEnv.trim().startsWith('{') || resolvedEnv.trim().startsWith('['))
-              ) {
-                result[key] = JSON.parse(resolvedEnv)
-              } else {
-                // If not JSON-like or empty, keep as string
-                result[key] = resolvedEnv
+
+          if (containingLoopId) {
+            const pathParts = directLoopMatch[1].split('.')
+            const loopValue = this.resolveLoopReference(
+              containingLoopId,
+              pathParts,
+              context,
+              block,
+              false
+            )
+
+            if (loopValue !== null) {
+              // Parse the value if it's a JSON string
+              try {
+                result[key] = JSON.parse(loopValue)
+              } catch {
+                // If it's not valid JSON, use as is
+                result[key] = loopValue
               }
-            } catch {
-              // If it's not valid JSON, keep it as a string
-              result[key] = resolvedEnv
+              continue
             }
-          } else {
-            // If resolvedValue is already not a string (due to direct reference), keep its type
-            result[key] = resolvedEnv
           }
+
+          logger.warn(`Direct loop reference <loop.${directLoopMatch[1]}> could not be resolved.`)
+          result[key] = value
+          continue
         }
+
+        // Process string with potential interpolations and references
+        result[key] = this.processStringValue(value, key, context, block)
       }
       // Handle objects and arrays recursively
       else if (typeof value === 'object') {
-        // Special handling for table-like arrays (e.g., from API params/headers)
-        if (
-          Array.isArray(value) &&
-          value.every((item) => typeof item === 'object' && item !== null && 'cells' in item)
-        ) {
-          // Resolve each cell's value within the array
-          // Cell values are resolved here and will be extracted by tools/utils.ts transformTable function
-          result[key] = value.map((row) => ({
-            ...row,
-            cells: Object.entries(row.cells).reduce(
-              (acc, [cellKey, cellValue]) => {
-                if (typeof cellValue === 'string') {
-                  const trimmedValue = cellValue.trim()
-                  // Check for direct variable reference pattern: <variable.name>
-                  const directVariableMatch = trimmedValue.match(/^<variable\.([^>]+)>$/)
-
-                  if (directVariableMatch) {
-                    // Direct variable reference - handle with clean variable lookup
-                    const variableName = directVariableMatch[1]
-                    const variable = this.findVariableByName(variableName)
-
-                    if (variable) {
-                      // Use the variable's typed value directly
-                      acc[cellKey] = this.getTypedVariableValue(variable)
-                    } else {
-                      logger.warn(
-                        `Variable reference <variable.${variableName}> not found in table cell`
-                      )
-                      acc[cellKey] = cellValue // Fall back to original string
-                    }
-                  } else {
-                    // Process interpolated variables, block references, and environment variables
-                    // The resolveNestedStructure handles all types of resolution in a consistent way
-                    acc[cellKey] = this.resolveNestedStructure(cellValue, context, block)
-                  }
-                } else {
-                  // Handle non-string values (objects, arrays, etc.)
-                  acc[cellKey] = this.resolveNestedStructure(cellValue, context, block)
-                }
-                return acc
-              },
-              {} as Record<string, any>
-            ),
-          }))
-        } else {
-          // Use general recursive resolution for other objects/arrays
-          result[key] = this.resolveNestedStructure(value, context, block)
-        }
+        result[key] = this.processObjectValue(value, key, context, block)
       }
       // Pass through other value types
       else {
@@ -393,7 +316,9 @@ export class InputResolver {
     // Check if we're in a template literal for function blocks
     const isInTemplateLiteral =
       currentBlock.metadata?.id === 'function' &&
-      (/\${[^}]*</.test(value) || /<[^>]*}}\$/.test(value))
+      value.includes('${') &&
+      value.includes('}') &&
+      value.includes('`')
 
     for (const match of blockMatches) {
       // Skip variables - they've already been processed
@@ -497,114 +422,16 @@ export class InputResolver {
         }
 
         if (containingLoopId) {
-          const loop = context.workflow?.loops[containingLoopId]
-          const loopType = loop?.loopType || 'for'
+          const formattedValue = this.resolveLoopReference(
+            containingLoopId,
+            pathParts,
+            context,
+            currentBlock,
+            isInTemplateLiteral
+          )
 
-          // Handle each loop property
-          if (pathParts[0] === 'currentItem') {
-            // Get the items to iterate over
-            const items = this.getLoopItems(loop, context)
-
-            // Get the correct index using the LoopManager
-            const index = this.loopManager
-              ? this.loopManager.getLoopIndex(containingLoopId, currentBlock.id, context)
-              : context.loopIterations.get(containingLoopId) || 0
-
-            // Get the current item directly from the items array at the current index
-            if (Array.isArray(items) && index >= 0 && index < items.length) {
-              const currentItem = items[index]
-
-              // Format the value based on type
-              if (currentItem !== undefined) {
-                if (typeof currentItem !== 'object' || currentItem === null) {
-                  // Format primitive values properly for code contexts
-                  resolvedValue = resolvedValue.replace(
-                    match,
-                    this.formatValueForCodeContext(currentItem, currentBlock, isInTemplateLiteral)
-                  )
-                } else if (
-                  Array.isArray(currentItem) &&
-                  currentItem.length === 2 &&
-                  typeof currentItem[0] === 'string'
-                ) {
-                  // Handle [key, value] pair from Object.entries()
-                  if (pathParts.length > 1) {
-                    if (pathParts[1] === 'key') {
-                      resolvedValue = resolvedValue.replace(
-                        match,
-                        this.formatValueForCodeContext(
-                          currentItem[0],
-                          currentBlock,
-                          isInTemplateLiteral
-                        )
-                      )
-                    } else if (pathParts[1] === 'value') {
-                      resolvedValue = resolvedValue.replace(
-                        match,
-                        this.formatValueForCodeContext(
-                          currentItem[1],
-                          currentBlock,
-                          isInTemplateLiteral
-                        )
-                      )
-                    }
-                  } else {
-                    // Default to stringifying the whole item
-                    resolvedValue = resolvedValue.replace(match, JSON.stringify(currentItem))
-                  }
-                } else {
-                  // Navigate path if provided for objects
-                  if (pathParts.length > 1) {
-                    let itemValue = currentItem
-                    for (let i = 1; i < pathParts.length; i++) {
-                      if (!itemValue || typeof itemValue !== 'object') {
-                        throw new Error(
-                          `Invalid path "${pathParts[i]}" in loop item reference "${path}"`
-                        )
-                      }
-                      itemValue = itemValue[pathParts[i]]
-                      if (itemValue === undefined) {
-                        throw new Error(`No value found at path "${path}" in loop item`)
-                      }
-                    }
-
-                    // Use the formatter helper method
-                    resolvedValue = resolvedValue.replace(
-                      match,
-                      this.formatValueForCodeContext(itemValue, currentBlock, isInTemplateLiteral)
-                    )
-                  } else {
-                    // Return the whole item as JSON
-                    resolvedValue = resolvedValue.replace(match, JSON.stringify(currentItem))
-                  }
-                }
-              }
-
-              continue
-            }
-          } else if (pathParts[0] === 'items' && loopType === 'forEach') {
-            // Get all items in the forEach loop
-            const items = this.getLoopItems(loop, context)
-
-            if (items) {
-              // Format the items using our helper
-              resolvedValue = resolvedValue.replace(
-                match,
-                this.formatValueForCodeContext(items, currentBlock, isInTemplateLiteral)
-              )
-              continue
-            }
-          } else if (pathParts[0] === 'index') {
-            // Use the LoopManager to get the correct index
-            const index = this.loopManager
-              ? this.loopManager.getLoopIndex(containingLoopId, currentBlock.id, context)
-              : context.loopIterations.get(containingLoopId) || 0
-
-            // For function blocks, we don't need to quote numbers, but use the formatter for consistency
-            resolvedValue = resolvedValue.replace(
-              match,
-              this.formatValueForCodeContext(index, currentBlock, isInTemplateLiteral)
-            )
+          if (formattedValue !== null) {
+            resolvedValue = resolvedValue.replace(match, formattedValue)
             continue
           }
         }
@@ -692,7 +519,9 @@ export class InputResolver {
         // Check if we're in a template literal
         const isInTemplateLiteral =
           currentBlock.metadata?.id === 'function' &&
-          (/\${[^}]*</.test(value) || /<[^>]*}\$/.test(value))
+          value.includes('${') &&
+          value.includes('}') &&
+          value.includes('`')
 
         // For code blocks, use our formatter
         formattedValue = this.formatValueForCodeContext(
@@ -1042,9 +871,9 @@ export class InputResolver {
         return String(value)
       }
 
-      // Regular (non-template) contexts
+      // Regular (non-template) contexts - ALL strings need to be quoted for JavaScript
       if (typeof value === 'string') {
-        // Quote strings for JavaScript
+        // Always quote strings for JavaScript code
         return JSON.stringify(value)
       }
       if (typeof value === 'object' && value !== null) {
@@ -1125,5 +954,239 @@ export class InputResolver {
     }
 
     return false
+  }
+
+  /**
+   * Resolves a loop reference (<loop.property>).
+   * Handles currentItem, items, and index references.
+   *
+   * @param loopId - ID of the loop
+   * @param pathParts - Parts of the reference path after 'loop'
+   * @param context - Current execution context
+   * @param currentBlock - Block containing the reference
+   * @param isInTemplateLiteral - Whether this is inside a template literal
+   * @returns Formatted value or null if reference is invalid
+   */
+  private resolveLoopReference(
+    loopId: string,
+    pathParts: string[],
+    context: ExecutionContext,
+    currentBlock: SerializedBlock,
+    isInTemplateLiteral: boolean
+  ): string | null {
+    const loop = context.workflow?.loops[loopId]
+    if (!loop) return null
+
+    const property = pathParts[0]
+
+    switch (property) {
+      case 'currentItem': {
+        // Get the current item from context (set by loop handler)
+        const currentItem = context.loopItems.get(loopId)
+        if (currentItem === undefined) {
+          // If no current item stored, we're probably not in an active iteration
+          return ''
+        }
+
+        // Handle nested path access (e.g., <loop.currentItem.key>)
+        if (pathParts.length > 1) {
+          // Special handling for [key, value] pairs from Object.entries()
+          if (
+            Array.isArray(currentItem) &&
+            currentItem.length === 2 &&
+            typeof currentItem[0] === 'string'
+          ) {
+            const subProperty = pathParts[1]
+            if (subProperty === 'key') {
+              return this.formatValueForCodeContext(
+                currentItem[0],
+                currentBlock,
+                isInTemplateLiteral
+              )
+            }
+            if (subProperty === 'value') {
+              return this.formatValueForCodeContext(
+                currentItem[1],
+                currentBlock,
+                isInTemplateLiteral
+              )
+            }
+          }
+
+          // Navigate nested path for objects
+          let value = currentItem
+          for (let i = 1; i < pathParts.length; i++) {
+            if (!value || typeof value !== 'object') {
+              throw new Error(`Invalid path "${pathParts[i]}" in loop item reference`)
+            }
+            value = value[pathParts[i]]
+            if (value === undefined) {
+              throw new Error(`No value found at path "loop.${pathParts.join('.')}" in loop item`)
+            }
+          }
+          return this.formatValueForCodeContext(value, currentBlock, isInTemplateLiteral)
+        }
+
+        // Return the whole current item
+        return this.formatValueForCodeContext(currentItem, currentBlock, isInTemplateLiteral)
+      }
+
+      case 'items': {
+        // Only valid for forEach loops
+        if (loop.loopType !== 'forEach') {
+          return null
+        }
+
+        // Get all items - prefer stored items from context
+        const items = context.loopItems.get(`${loopId}_items`) || this.getLoopItems(loop, context)
+        if (!items) {
+          return '[]'
+        }
+
+        return this.formatValueForCodeContext(items, currentBlock, isInTemplateLiteral)
+      }
+
+      case 'index': {
+        // Get the current iteration index
+        const index = context.loopIterations.get(loopId) || 0
+        // Adjust for the fact that the loop handler increments after setting up the iteration
+        const adjustedIndex = Math.max(0, index - 1)
+        return this.formatValueForCodeContext(adjustedIndex, currentBlock, isInTemplateLiteral)
+      }
+
+      default:
+        return null
+    }
+  }
+
+  /**
+   * Processes a string value that may contain interpolations and references.
+   * Handles the full resolution pipeline: variables -> blocks -> environment.
+   *
+   * @param value - String value to process
+   * @param key - The parameter key (for special handling)
+   * @param context - Current execution context
+   * @param block - Block containing the value
+   * @returns Processed value (may be parsed JSON or string)
+   */
+  private processStringValue(
+    value: string,
+    key: string,
+    context: ExecutionContext,
+    block: SerializedBlock
+  ): any {
+    // First resolve variable references (interpolation)
+    const resolvedVars = this.resolveVariableReferences(value, block)
+
+    // Then resolve block references
+    const resolvedReferences = this.resolveBlockReferences(resolvedVars, context, block)
+
+    // Check if this is an API key field
+    const isApiKey = this.isApiKeyField(block, value)
+
+    // Then resolve environment variables
+    const resolvedEnv = this.resolveEnvVariables(resolvedReferences, isApiKey)
+
+    // Special handling for different block types
+    const blockType = block.metadata?.id
+
+    // For function blocks, code input doesn't need JSON parsing
+    if (blockType === 'function' && key === 'code') {
+      return resolvedEnv
+    }
+
+    // For API blocks, handle body input specially
+    if (blockType === 'api' && key === 'body') {
+      return this.tryParseJSON(resolvedEnv)
+    }
+
+    // For other inputs, try to convert JSON strings to objects/arrays
+    return this.tryParseJSON(resolvedEnv)
+  }
+
+  /**
+   * Processes object/array values recursively.
+   * Handles special cases like table-like arrays with cells.
+   *
+   * @param value - Object or array to process
+   * @param key - The parameter key
+   * @param context - Current execution context
+   * @param block - Block containing the value
+   * @returns Processed object/array
+   */
+  private processObjectValue(
+    value: any,
+    key: string,
+    context: ExecutionContext,
+    block: SerializedBlock
+  ): any {
+    // Special handling for table-like arrays (e.g., from API params/headers)
+    if (
+      Array.isArray(value) &&
+      value.every((item) => typeof item === 'object' && item !== null && 'cells' in item)
+    ) {
+      // Resolve each cell's value within the array
+      return value.map((row) => ({
+        ...row,
+        cells: Object.entries(row.cells).reduce(
+          (acc, [cellKey, cellValue]) => {
+            if (typeof cellValue === 'string') {
+              const trimmedValue = cellValue.trim()
+              // Check for direct variable reference
+              const directVariableMatch = trimmedValue.match(/^<variable\.([^>]+)>$/)
+
+              if (directVariableMatch) {
+                const variableName = directVariableMatch[1]
+                const variable = this.findVariableByName(variableName)
+
+                if (variable) {
+                  acc[cellKey] = this.getTypedVariableValue(variable)
+                } else {
+                  logger.warn(
+                    `Variable reference <variable.${variableName}> not found in table cell`
+                  )
+                  acc[cellKey] = cellValue
+                }
+              } else {
+                // Process interpolated variables, block references, and environment variables
+                acc[cellKey] = this.resolveNestedStructure(cellValue, context, block)
+              }
+            } else {
+              // Handle non-string values
+              acc[cellKey] = this.resolveNestedStructure(cellValue, context, block)
+            }
+            return acc
+          },
+          {} as Record<string, any>
+        ),
+      }))
+    }
+
+    // Use general recursive resolution for other objects/arrays
+    return this.resolveNestedStructure(value, context, block)
+  }
+
+  /**
+   * Tries to parse a string as JSON if it looks like JSON.
+   * Returns the original string if parsing fails or it doesn't look like JSON.
+   *
+   * @param value - Value to potentially parse
+   * @returns Parsed JSON or original value
+   */
+  private tryParseJSON(value: any): any {
+    if (typeof value !== 'string') {
+      return value
+    }
+
+    const trimmed = value.trim()
+    if (trimmed.length > 0 && (trimmed.startsWith('{') || trimmed.startsWith('['))) {
+      try {
+        return JSON.parse(trimmed)
+      } catch {
+        // Not valid JSON, return as string
+      }
+    }
+
+    return value
   }
 }

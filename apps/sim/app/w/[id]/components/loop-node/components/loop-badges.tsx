@@ -61,6 +61,10 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
     [nodeId]
   )
 
+  const updateLoopType = useWorkflowStore((state) => state.updateLoopType)
+  const updateLoopCount = useWorkflowStore((state) => state.updateLoopCount)
+  const updateLoopCollection = useWorkflowStore((state) => state.updateLoopCollection)
+
   // Initialize editor value from data when it changes
   useEffect(() => {
     if (data?.loopType && data.loopType !== loopType) {
@@ -84,10 +88,10 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   const handleLoopTypeChange = useCallback(
     (newType: 'for' | 'forEach') => {
       setLoopType(newType)
-      updateNodeData({ loopType: newType })
+      updateLoopType(nodeId, newType)
       setTypePopoverOpen(false)
     },
-    [updateNodeData]
+    [nodeId, updateLoopType]
   )
 
   // Handle iterations input change
@@ -109,21 +113,21 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
     if (!Number.isNaN(value)) {
       const newValue = Math.min(100, Math.max(1, value))
       setIterations(newValue)
-      updateNodeData({ count: newValue })
+      updateLoopCount(nodeId, newValue)
       setInputValue(newValue.toString())
     } else {
       setInputValue(iterations.toString())
     }
     setConfigPopoverOpen(false)
-  }, [inputValue, iterations, updateNodeData])
+  }, [inputValue, iterations, nodeId, updateLoopCount])
 
   // Handle editor change
   const handleEditorChange = useCallback(
     (value: string) => {
       setEditorValue(value)
-      updateNodeData({ collection: value })
+      updateLoopCollection(nodeId, value)
     },
-    [updateNodeData]
+    [nodeId, updateLoopCollection]
   )
 
   return (
