@@ -62,9 +62,22 @@ export class LoopManager {
 
         // For forEach loops, check the actual items length
         if (loop.loopType === 'forEach' && loop.forEachItems) {
-          const itemsLength = this.getItemsLength(loop.forEachItems)
-          if (itemsLength > 0) {
+          // First check if the items have already been evaluated and stored by the loop handler
+          const storedItems = context.loopItems.get(`${loopId}_items`)
+          if (storedItems) {
+            const itemsLength = Array.isArray(storedItems)
+              ? storedItems.length
+              : Object.keys(storedItems).length
             maxIterations = Math.min(maxIterations, itemsLength)
+            logger.info(
+              `Loop ${loopId} using stored items length: ${itemsLength} (max iterations: ${maxIterations})`
+            )
+          } else {
+            // Fallback to parsing the forEachItems string if it's not a reference
+            const itemsLength = this.getItemsLength(loop.forEachItems)
+            if (itemsLength > 0) {
+              maxIterations = Math.min(maxIterations, itemsLength)
+            }
           }
         }
 

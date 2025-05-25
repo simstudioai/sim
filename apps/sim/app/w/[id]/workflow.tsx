@@ -829,6 +829,14 @@ function WorkflowContent() {
   const onConnect = useCallback(
     (connection: any) => {
       if (connection.source && connection.target) {
+        // Prevent self-connections
+        if (connection.source === connection.target) {
+          logger.info('Rejected self-connection:', {
+            nodeId: connection.source,
+          })
+          return
+        }
+
         // Check if connecting nodes across container boundaries
         const sourceNode = getNodes().find((n) => n.id === connection.source)
         const targetNode = getNodes().find((n) => n.id === connection.target)
