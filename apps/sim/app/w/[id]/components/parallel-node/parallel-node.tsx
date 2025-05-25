@@ -9,7 +9,6 @@ import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ParallelBadges } from './components/parallel-badges'
 
-// Add these styles to your existing global CSS file or create a separate CSS module
 const ParallelNodeStyles: React.FC = () => {
   return (
     <style jsx global>{`

@@ -42,9 +42,13 @@ export class ParallelBlockHandler implements BlockHandler {
     if (!parallelState) {
       logger.info(`Initializing parallel block ${block.id}`)
 
-      // Evaluate distribution items if provided
+      // Get the parallel type and count from block data
+      const parallelType = block.config?.params?.parallelType || 'collection'
+      const countValue = block.config?.params?.count || 5
+
+      // Evaluate distribution items if provided and type is collection
       let distributionItems: any[] | Record<string, any> | null = null
-      if (parallel.distribution) {
+      if (parallelType === 'collection' && parallel.distribution) {
         distributionItems = await this.evaluateDistributionItems(
           parallel.distribution,
           context,
@@ -55,7 +59,12 @@ export class ParallelBlockHandler implements BlockHandler {
 
       // Determine the number of parallel executions
       let parallelCount = 1
-      if (distributionItems) {
+      if (parallelType === 'count') {
+        // Use the count value for count-based parallel
+        parallelCount = Math.min(20, Math.max(1, countValue))
+        logger.info(`Parallel ${block.id} will execute ${parallelCount} times based on count`)
+      } else if (distributionItems) {
+        // Use distribution items length for collection-based parallel
         parallelCount = Array.isArray(distributionItems)
           ? distributionItems.length
           : Object.keys(distributionItems).length
@@ -72,12 +81,17 @@ export class ParallelBlockHandler implements BlockHandler {
         executionResults: new Map<string, any>(),
         activeIterations: new Set<number>(),
         currentIteration: 1, // Start at 1 to indicate activation
+        parallelType,
       }
       context.parallelExecutions.set(block.id, parallelState)
 
       // Store the distribution items for access by child blocks
       if (distributionItems) {
         context.loopItems.set(`${block.id}_items`, distributionItems)
+      } else if (parallelType === 'count') {
+        // For count-based parallel, create an array of indices
+        const indices = Array.from({ length: parallelCount }, (_, i) => i)
+        context.loopItems.set(`${block.id}_items`, indices)
       }
 
       // Activate all child nodes (the executor will handle creating virtual instances)
@@ -95,7 +109,8 @@ export class ParallelBlockHandler implements BlockHandler {
         response: {
           parallelId: block.id,
           parallelCount,
-          distributionType: distributionItems ? 'distributed' : 'simple',
+          distributionType:
+            parallelType === 'count' ? 'count' : distributionItems ? 'distributed' : 'simple',
           started: true,
           message: `Initialized ${parallelCount} parallel executions`,
         },

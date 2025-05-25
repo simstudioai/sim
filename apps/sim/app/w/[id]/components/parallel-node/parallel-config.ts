@@ -9,6 +9,8 @@ export const ParallelTool = {
   bgColor: '#FEE12B', // Yellow color for parallel execution
   data: {
     label: 'Parallel',
+    parallelType: 'collection' as 'collection' | 'count',
+    count: 5,
     collection: '',
     width: 500,
     height: 300,
