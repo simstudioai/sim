@@ -109,10 +109,14 @@ export function convertParallelBlockToParallel(
   const parallelBlock = blocks[parallelBlockId]
   if (!parallelBlock || parallelBlock.type !== 'parallel') return undefined
 
+  // Only set distribution if it's a collection-based parallel
+  const parallelType = parallelBlock.data?.parallelType || 'collection'
+  const distribution = parallelType === 'collection' ? parallelBlock.data?.collection || '' : ''
+
   return {
     id: parallelBlockId,
     nodes: findChildNodes(parallelBlockId, blocks),
-    distribution: parallelBlock.data?.collection || '',
+    distribution,
   }
 }
 

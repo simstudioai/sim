@@ -106,6 +106,7 @@ export interface ExecutionContext {
       executionResults: Map<string, any>
       activeIterations: Set<number>
       currentIteration: number
+      parallelType?: 'count' | 'collection'
     }
   >
 

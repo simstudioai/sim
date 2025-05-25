@@ -35,7 +35,7 @@ export class Serializer {
         position: block.position,
         config: {
           tool: '', // Loop blocks don't have tools
-          params: {}, // Loop blocks don't have traditional params
+          params: block.data || {}, // Preserve the block data (parallelType, count, etc.)
         },
         inputs: {},
         outputs: block.outputs,
@@ -195,6 +195,7 @@ export class Serializer {
         subBlocks: {}, // Loops and parallels don't have traditional subBlocks
         outputs: serializedBlock.outputs,
         enabled: serializedBlock.enabled ?? true,
+        data: serializedBlock.config.params, // Preserve the data (parallelType, count, etc.)
       }
     }
 

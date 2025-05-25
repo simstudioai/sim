@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import Editor from 'react-simple-code-editor'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import 'prismjs/components/prism-javascript'
@@ -41,6 +42,10 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   const [editorValue, setEditorValue] = useState('')
   const [typePopoverOpen, setTypePopoverOpen] = useState(false)
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
+  const [showTagDropdown, setShowTagDropdown] = useState(false)
+  const [cursorPosition, setCursorPosition] = useState(0)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const editorContainerRef = useRef<HTMLDivElement>(null)
 
   // Get store methods
   const updateNodeData = useCallback(
@@ -121,11 +126,41 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
     setConfigPopoverOpen(false)
   }, [inputValue, iterations, nodeId, updateLoopCount])
 
-  // Handle editor change
+  // Handle editor change with tag dropdown support
   const handleEditorChange = useCallback(
     (value: string) => {
       setEditorValue(value)
       updateLoopCollection(nodeId, value)
+
+      // Get the textarea element from the editor
+      const textarea = editorContainerRef.current?.querySelector('textarea')
+      if (textarea) {
+        textareaRef.current = textarea
+        const cursorPos = textarea.selectionStart || 0
+        setCursorPosition(cursorPos)
+
+        // Check for tag trigger
+        const triggerCheck = checkTagTrigger(value, cursorPos)
+        setShowTagDropdown(triggerCheck.show)
+      }
+    },
+    [nodeId, updateLoopCollection]
+  )
+
+  // Handle tag selection
+  const handleTagSelect = useCallback(
+    (newValue: string) => {
+      setEditorValue(newValue)
+      updateLoopCollection(nodeId, newValue)
+      setShowTagDropdown(false)
+
+      // Focus back on the editor after a short delay
+      setTimeout(() => {
+        const textarea = textareaRef.current
+        if (textarea) {
+          textarea.focus()
+        }
+      }, 0)
     },
     [nodeId, updateLoopCollection]
   )
@@ -214,32 +249,48 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
               </div>
             ) : (
               // Code editor for 'forEach' loops
-              <div className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'>
-                {editorValue === '' && (
-                  <div className='pointer-events-none absolute top-[8.5px] left-3 select-none text-muted-foreground/50'>
-                    ['item1', 'item2', 'item3']
-                  </div>
+              <div ref={editorContainerRef} className='relative'>
+                <div className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'>
+                  {editorValue === '' && (
+                    <div className='pointer-events-none absolute top-[8.5px] left-3 select-none text-muted-foreground/50'>
+                      ["item1", "item2", "item3"]
+                    </div>
+                  )}
+                  <Editor
+                    value={editorValue}
+                    onValueChange={handleEditorChange}
+                    highlight={(code) => highlight(code, languages.javascript, 'javascript')}
+                    padding={0}
+                    style={{
+                      fontFamily: 'monospace',
+                      lineHeight: '21px',
+                    }}
+                    className='w-full focus:outline-none'
+                    textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap'
+                  />
+                </div>
+                <div className='mt-2 text-[10px] text-muted-foreground'>
+                  Array or object to iterate over. Type "{'<'}" to reference other blocks.
+                </div>
+                {showTagDropdown && (
+                  <TagDropdown
+                    visible={showTagDropdown}
+                    onSelect={handleTagSelect}
+                    blockId={nodeId}
+                    activeSourceBlockId={null}
+                    inputValue={editorValue}
+                    cursorPosition={cursorPosition}
+                    onClose={() => setShowTagDropdown(false)}
+                  />
                 )}
-                <Editor
-                  value={editorValue}
-                  onValueChange={handleEditorChange}
-                  highlight={(code) => highlight(code, languages.javascript, 'javascript')}
-                  padding={0}
-                  style={{
-                    fontFamily: 'monospace',
-                    lineHeight: '21px',
-                  }}
-                  className='w-full focus:outline-none'
-                  textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap'
-                />
               </div>
             )}
 
-            <div className='text-[10px] text-muted-foreground'>
-              {loopType === 'for'
-                ? 'Enter a number between 1 and 100'
-                : 'Array or object to iterate over'}
-            </div>
+            {loopType === 'for' && (
+              <div className='text-[10px] text-muted-foreground'>
+                Enter a number between 1 and 100
+              </div>
+            )}
           </div>
         </PopoverContent>
       </Popover>
