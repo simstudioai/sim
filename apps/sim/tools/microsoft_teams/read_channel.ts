@@ -1,11 +1,15 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import type { ToolConfig } from '../types'
+import { extractMessageAttachments } from './attachment-utils'
 import type { MicrosoftTeamsReadResponse, MicrosoftTeamsToolParams } from './types'
+
+const logger = createLogger('MicrosoftTeamsReadChannel')
 
 export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsReadResponse> = {
   id: 'microsoft_teams_read_channel',
   name: 'Read Microsoft Teams Channel',
   description: 'Read content from a Microsoft Teams channel',
-  version: '1.0',
+  version: '1.1',
   oauth: {
     required: true,
     provider: 'microsoft-teams',
@@ -60,10 +64,16 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
       }
     },
   },
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: MicrosoftTeamsToolParams) => {
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Failed to read Microsoft Teams channel: ${errorText}`)
+      logger.error(
+        `Microsoft Teams channel API error: ${response.status} ${response.statusText}`,
+        errorText
+      )
+      throw new Error(
+        `Failed to read Microsoft Teams channel: ${response.status} ${response.statusText} - ${errorText}`
+      )
     }
 
     const data = await response.json()
@@ -81,36 +91,88 @@ export const readChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeam
             channelId: '',
             messageCount: 0,
             messages: [],
+            totalAttachments: 0,
+            attachmentTypes: [],
           },
         },
       }
     }
 
-    // Format the messages into a readable text
-    const formattedMessages = messages
-      .map((message: any) => {
+    if (!params?.teamId || !params?.channelId) {
+      throw new Error('Missing required parameters: teamId and channelId')
+    }
+    // Process messages with attachments
+    const processedMessages = messages.map((message: any, index: number) => {
+      try {
         const content = message.body?.content || 'No content'
-        const sender = message.from?.user?.displayName || 'Unknown sender'
-        const timestamp = message.createdDateTime
-          ? new Date(message.createdDateTime).toLocaleString()
+        const messageId = message.id
+
+        const attachments = extractMessageAttachments(message)
+
+        let sender = 'Unknown'
+        if (message.from?.user?.displayName) {
+          sender = message.from.user.displayName
+        } else if (message.messageType === 'systemEventMessage') {
+          sender = 'System'
+        }
+
+        return {
+          id: messageId,
+          content: content,
+          sender,
+          timestamp: message.createdDateTime,
+          messageType: message.messageType || 'message',
+          attachments,
+        }
+      } catch (error) {
+        logger.error(`Error processing message at index ${index}:`, error)
+        return {
+          id: message.id || `unknown-${index}`,
+          content: 'Error processing message',
+          sender: 'Unknown',
+          timestamp: message.createdDateTime || new Date().toISOString(),
+          messageType: 'error',
+          attachments: [],
+        }
+      }
+    })
+
+    // Format the messages into a readable text (no attachment info in content)
+    const formattedMessages = processedMessages
+      .map((message: any) => {
+        const sender = message.sender
+        const timestamp = message.timestamp
+          ? new Date(message.timestamp).toLocaleString()
           : 'Unknown time'
 
-        return `[${timestamp}] ${sender}: ${content}`
+        return `[${timestamp}] ${sender}: ${message.content}`
       })
       .join('\n\n')
 
+    // Calculate attachment statistics
+    const allAttachments = processedMessages.flatMap((msg: any) => msg.attachments || [])
+    const attachmentTypes: string[] = []
+    const seenTypes = new Set<string>()
+
+    allAttachments.forEach((att: any) => {
+      if (
+        att.contentType &&
+        typeof att.contentType === 'string' &&
+        !seenTypes.has(att.contentType)
+      ) {
+        attachmentTypes.push(att.contentType)
+        seenTypes.add(att.contentType)
+      }
+    })
+
     // Create document metadata
     const metadata = {
-      teamId: messages[0]?.channelIdentity?.teamId || '',
-      channelId: messages[0]?.channelIdentity?.channelId || '',
+      teamId: messages[0]?.channelIdentity?.teamId || params.teamId || '',
+      channelId: messages[0]?.channelIdentity?.channelId || params.channelId || '',
       messageCount: messages.length,
-      messages: messages.map((msg: any) => ({
-        id: msg.id,
-        content: msg.body?.content || '',
-        sender: msg.from?.user?.displayName || 'Unknown',
-        timestamp: msg.createdDateTime,
-        messageType: msg.messageType || 'message',
-      })),
+      totalAttachments: allAttachments.length,
+      attachmentTypes,
+      messages: processedMessages,
     }
 
     return {

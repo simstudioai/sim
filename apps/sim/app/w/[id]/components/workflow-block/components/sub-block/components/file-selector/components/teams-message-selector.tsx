@@ -381,8 +381,8 @@ export function TeamsMessageSelector({
     setSelectedChannelId(channel.channelId || '')
     setSelectedChatId('')
     setSelectedMessage(channel)
-    setSelectedMessageId(channel.id)
-    onChange(channel.id, channel)
+    setSelectedMessageId(channel.channelId || '')
+    onChange(channel.channelId || '', channel)
     onMessageInfoChange?.(channel)
     setOpen(false)
   }

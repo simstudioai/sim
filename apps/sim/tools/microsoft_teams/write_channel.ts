@@ -44,11 +44,9 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
         throw new Error('Channel ID is required')
       }
 
-      // URL encode the IDs to handle special characters
       const encodedTeamId = encodeURIComponent(teamId)
       const encodedChannelId = encodeURIComponent(channelId)
 
-      // Send a message to a channel
       const url = `https://graph.microsoft.com/v1.0/teams/${encodedTeamId}/channels/${encodedChannelId}/messages`
 
       return url
