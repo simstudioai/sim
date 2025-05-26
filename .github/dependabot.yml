@@ -1,98 +1,81 @@
 version: 2
 updates:
-  - package-ecosystem: 'bun'
-    directory: '/apps/sim'
+  # Main app dependencies (most critical - daily updates)
+  - package-ecosystem: "npm"
+    directory: "/apps/sim"
     schedule:
-      interval: 'weekly'
-      day: 'monday'
-      time: '09:00'
-    # Disable version updates
-    open-pull-requests-limit: 0
-    labels:
-      - 'dependencies'
-      - 'security'
-    commit-message:
-      prefix: 'fix'
-      prefix-development: 'chore'
-      include: 'scope'
+      interval: "daily"
+    open-pull-requests-limit: 5
     groups:
-      dependencies:
+      production-dependencies:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@types/*"
+      security-updates:
         applies-to: security-updates
         patterns:
-          - '*'
-
-  # Documentation site dependencies (/apps/docs)
-  - package-ecosystem: 'bun'
-    directory: '/apps/docs'
-    schedule:
-      interval: 'weekly'
-      day: 'wednesday'
-    # Disable version updates
-    open-pull-requests-limit: 0
+          - "*"
     labels:
-      - 'dependencies'
-      - 'security'
-    commit-message:
-      prefix: 'docs'
-      include: 'scope'
+      - "dependencies"
+      - "sim-app"
+
+  # Documentation app dependencies (weekly updates)
+  - package-ecosystem: "npm"
+    directory: "/apps/docs"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+    open-pull-requests-limit: 3
     groups:
       docs-dependencies:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      docs-security:
         applies-to: security-updates
         patterns:
-          - '*'
-
-  # Root-level dependencies (if any)
-  - package-ecosystem: 'bun'
-    directory: '/'
-    schedule:
-      interval: 'weekly'
-      day: 'friday'
-    # Disable version updates
-    open-pull-requests-limit: 0
+          - "*"
     labels:
-      - 'dependencies'
-      - 'security'
-    commit-message:
-      prefix: 'chore'
-      include: 'scope'
-    groups:
-      root-dependencies:
-        applies-to: security-updates
-        patterns:
-          - '*'
+      - "dependencies"
+      - "docs"
 
-  # GitHub Actions workflows
-  - package-ecosystem: 'github-actions'
-    directory: '/'
+  # Root workspace dependencies (weekly updates)
+  - package-ecosystem: "npm"
+    directory: "/"
     schedule:
-      interval: 'monthly'
-    # Disable version updates
-    open-pull-requests-limit: 0
-    labels:
-      - 'dependencies'
-      - 'security'
-    commit-message:
-      prefix: 'ci'
+      interval: "weekly"
+      day: "wednesday"
+    open-pull-requests-limit: 3
     groups:
-      actions:
+      workspace-dependencies:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      workspace-security:
         applies-to: security-updates
         patterns:
-          - '*'
+          - "*"
+    labels:
+      - "dependencies"
+      - "workspace"
 
-  # Docker containers (if applicable)
-  - package-ecosystem: 'docker'
-    directory: '/'
+  # GitHub Actions (monthly updates)
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: 'monthly'
-    # Disable version updates
-    open-pull-requests-limit: 0
-    labels:
-      - 'dependencies'
-      - 'security'
-    commit-message:
-      prefix: 'docker'
+      interval: "monthly"
+    open-pull-requests-limit: 2
     groups:
-      docker:
+      actions-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
+      actions-security:
         applies-to: security-updates
         patterns:
-          - '*'
+          - "*"
+    labels:
+      - "dependencies"
+      - "github-actions"
