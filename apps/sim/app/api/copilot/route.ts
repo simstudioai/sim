@@ -6,7 +6,6 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('CopilotAPI')
 
-// Validation schemas
 const MessageSchema = z.object({
   role: z.enum(['user', 'assistant', 'system']),
   content: z.string(),
@@ -20,7 +19,6 @@ const RequestSchema = z.object({
   }),
 })
 
-// Define function schemas with strict typing
 const workflowActions = {
   addBlock: {
     description: 'Add one new block to the workflow',

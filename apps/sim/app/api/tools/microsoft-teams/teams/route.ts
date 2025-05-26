@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { refreshAccessTokenIfNeeded } from '../../utils'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
