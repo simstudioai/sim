@@ -7,6 +7,7 @@ import { useUserSubscription } from '@/hooks/use-user-subscription'
 import FilterSection from './components/filter-section'
 import Level from './components/level'
 import Timeline from './components/timeline'
+import Trigger from './components/trigger'
 import Workflow from './components/workflow'
 
 /**
@@ -57,6 +58,9 @@ export function Filters() {
 
       {/* Level Filter */}
       <FilterSection title='Level' defaultOpen={true} content={<Level />} />
+
+      {/* Trigger Filter */}
+      <FilterSection title='Trigger' defaultOpen={true} content={<Trigger />} />
 
       {/* Workflow Filter */}
       <FilterSection title='Workflow' defaultOpen={true} content={<Workflow />} />

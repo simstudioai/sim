@@ -175,6 +175,7 @@ describe('Workflow Logs API Route', () => {
         id: 'workflowLogs.id',
         workflowId: 'workflowLogs.workflowId',
         level: 'workflowLogs.level',
+        trigger: 'workflowLogs.trigger',
         createdAt: 'workflowLogs.createdAt',
         message: 'workflowLogs.message',
         executionId: 'workflowLogs.executionId',
@@ -469,6 +470,62 @@ describe('Workflow Logs API Route', () => {
       expect(response.status).toBe(200)
       expect(data.data).toHaveLength(2)
       expect(data.data.every((log: any) => log.executionId === 'exec-1')).toBe(true)
+    })
+
+    it('should filter logs by single trigger type', async () => {
+      const apiLogs = mockWorkflowLogs.filter((log) => log.trigger === 'api')
+      setupDatabaseMock({ logs: apiLogs })
+
+      const url = new URL('http://localhost:3000/api/logs?triggers=api')
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toHaveLength(1)
+      expect(data.data[0].trigger).toBe('api')
+    })
+
+    it('should filter logs by multiple trigger types', async () => {
+      const manualAndApiLogs = mockWorkflowLogs.filter(
+        (log) => log.trigger === 'manual' || log.trigger === 'api'
+      )
+      setupDatabaseMock({ logs: manualAndApiLogs })
+
+      const url = new URL('http://localhost:3000/api/logs?triggers=manual,api')
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toHaveLength(3)
+      expect(data.data.every((log: any) => ['manual', 'api'].includes(log.trigger))).toBe(true)
+    })
+
+    it('should combine trigger filter with other filters', async () => {
+      const filteredLogs = mockWorkflowLogs.filter(
+        (log) => log.trigger === 'manual' && log.level === 'info' && log.workflowId === 'workflow-1'
+      )
+      setupDatabaseMock({ logs: filteredLogs })
+
+      const url = new URL(
+        'http://localhost:3000/api/logs?triggers=manual&level=info&workflowIds=workflow-1'
+      )
+      const req = new Request(url.toString())
+
+      const { GET } = await import('./route')
+      const response = await GET(req as any)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.data).toHaveLength(1)
+      expect(data.data[0].trigger).toBe('manual')
+      expect(data.data[0].level).toBe('info')
+      expect(data.data[0].workflowId).toBe('workflow-1')
     })
   })
 })

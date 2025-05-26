@@ -83,6 +83,7 @@ export interface LogsResponse {
 
 export type TimeRange = 'Past 30 minutes' | 'Past hour' | 'Past 24 hours' | 'All time'
 export type LogLevel = 'error' | 'info' | 'all'
+export type TriggerType = 'chat' | 'api' | 'webhook' | 'manual' | 'schedule' | 'all'
 
 export interface FilterState {
   // Original logs from API
@@ -93,6 +94,7 @@ export interface FilterState {
   level: LogLevel
   workflowIds: string[]
   searchQuery: string
+  triggers: TriggerType[]
 
   // Loading state
   loading: boolean
@@ -110,6 +112,8 @@ export interface FilterState {
   setWorkflowIds: (workflowIds: string[]) => void
   toggleWorkflowId: (workflowId: string) => void
   setSearchQuery: (query: string) => void
+  setTriggers: (triggers: TriggerType[]) => void
+  toggleTrigger: (trigger: TriggerType) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   setPage: (page: number) => void

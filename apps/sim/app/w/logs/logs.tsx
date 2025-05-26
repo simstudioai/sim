@@ -73,6 +73,7 @@ export default function Logs() {
     level,
     workflowIds,
     searchQuery,
+    triggers,
   } = useFilterStore()
 
   const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
@@ -225,6 +226,7 @@ export default function Logs() {
     level,
     workflowIds,
     searchQuery,
+    triggers,
     setPage,
     setHasMore,
     setLoading,

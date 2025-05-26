@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { FilterState } from './types'
+import type { FilterState, TriggerType } from './types'
 
 export const useFilterStore = create<FilterState>((set, get) => ({
   logs: [],
@@ -7,6 +7,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   level: 'all',
   workflowIds: [],
   searchQuery: '',
+  triggers: [],
   loading: true,
   error: null,
   page: 1,
@@ -57,6 +58,25 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     get().resetPagination()
   },
 
+  setTriggers: (triggers: TriggerType[]) => {
+    set({ triggers })
+    get().resetPagination()
+  },
+
+  toggleTrigger: (trigger: TriggerType) => {
+    const currentTriggers = [...get().triggers]
+    const index = currentTriggers.indexOf(trigger)
+
+    if (index === -1) {
+      currentTriggers.push(trigger)
+    } else {
+      currentTriggers.splice(index, 1)
+    }
+
+    set({ triggers: currentTriggers })
+    get().resetPagination()
+  },
+
   setLoading: (loading) => set({ loading }),
 
   setError: (error) => set({ error }),
@@ -71,7 +91,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   // Build query parameters for server-side filtering
   buildQueryParams: (page: number, limit: number) => {
-    const { timeRange, level, workflowIds, searchQuery } = get()
+    const { timeRange, level, workflowIds, searchQuery, triggers } = get()
     const params = new URLSearchParams()
 
     params.set('includeWorkflow', 'true')
@@ -81,6 +101,11 @@ export const useFilterStore = create<FilterState>((set, get) => ({
     // Add level filter
     if (level !== 'all') {
       params.set('level', level)
+    }
+
+    // Add trigger filter
+    if (triggers.length > 0) {
+      params.set('triggers', triggers.join(','))
     }
 
     // Add workflow filter

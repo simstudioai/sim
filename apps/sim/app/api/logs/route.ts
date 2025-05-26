@@ -17,6 +17,7 @@ const QueryParamsSchema = z.object({
   offset: z.coerce.number().optional().default(0),
   level: z.string().optional(),
   workflowIds: z.string().optional(), // Comma-separated list of workflow IDs
+  triggers: z.string().optional(), // Comma-separated list of trigger types
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   search: z.string().optional(),
@@ -77,6 +78,18 @@ export async function GET(request: NextRequest) {
       // Apply additional filters if provided
       if (params.level) {
         conditions = and(conditions, eq(workflowLogs.level, params.level))
+      }
+
+      if (params.triggers) {
+        const triggerTypes = params.triggers.split(',').map((trigger) => trigger.trim())
+        if (triggerTypes.length === 1) {
+          conditions = and(conditions, eq(workflowLogs.trigger, triggerTypes[0]))
+        } else {
+          conditions = and(
+            conditions,
+            or(...triggerTypes.map((trigger) => eq(workflowLogs.trigger, trigger)))
+          )
+        }
       }
 
       if (params.startDate) {
