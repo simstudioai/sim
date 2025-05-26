@@ -408,9 +408,9 @@ function TraceSpanItem({
             <span className='block text-muted-foreground text-xs'>{formatDuration(duration)}</span>
           </div>
 
-          <div className='ml-auto flex flex-shrink-0 items-center gap-2 w-[40%]'>
+          <div className='ml-auto flex w-[40%] flex-shrink-0 items-center gap-2'>
             {/* Timeline visualization - responsive width based on container size */}
-            <div className='relative hidden h-2 flex-shrink-0 overflow-hidden rounded-full bg-accent/40 sm:block flex-1 min-w-[15%]'>
+            <div className='relative hidden h-2 min-w-[15%] flex-1 flex-shrink-0 overflow-hidden rounded-full bg-accent/40 sm:block'>
               <div
                 className='absolute h-full rounded-full'
                 style={{
