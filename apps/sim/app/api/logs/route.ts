@@ -6,23 +6,20 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflow, workflowLogs } from '@/db/schema'
 
-// Create a logger for this module
 const logger = createLogger('WorkflowLogsAPI')
 
-// No cache
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// Schema for query parameters
 const QueryParamsSchema = z.object({
   includeWorkflow: z.enum(['true', 'false']).optional().default('false'),
   limit: z.coerce.number().optional().default(100),
   offset: z.coerce.number().optional().default(0),
-  // Add more filters as needed (e.g., by level, date range, etc.)
   level: z.string().optional(),
-  workflowId: z.string().optional(),
+  workflowIds: z.string().optional(), // Comma-separated list of workflow IDs
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  search: z.string().optional(),
 })
 
 // Used to retrieve and display workflow logs
@@ -30,7 +27,6 @@ export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
 
   try {
-    // Get the session directly in the API route
     const session = await getSession()
     if (!session?.user?.id) {
       logger.warn(`[${requestId}] Unauthorized workflow logs access attempt`)
@@ -40,49 +36,47 @@ export async function GET(request: NextRequest) {
     const userId = session.user.id
 
     try {
-      // Parse query parameters
       const { searchParams } = new URL(request.url)
       const params = QueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
-      // Start building the query to get all workflows for the user
       const userWorkflows = await db
         .select({ id: workflow.id })
         .from(workflow)
         .where(eq(workflow.userId, userId))
 
-      const workflowIds = userWorkflows.map((w) => w.id)
+      const userWorkflowIds = userWorkflows.map((w) => w.id)
 
-      if (workflowIds.length === 0) {
+      if (userWorkflowIds.length === 0) {
         return NextResponse.json({ data: [], total: 0 }, { status: 200 })
       }
 
       // Build the conditions for the query
       let conditions: SQL<unknown> | undefined
 
-      // Start with the first workflowId
-      conditions = eq(workflowLogs.workflowId, workflowIds[0])
-
-      // Add additional workflowIds if there are more than one
-      if (workflowIds.length > 1) {
-        const workflowConditions = workflowIds.map((id) => eq(workflowLogs.workflowId, id))
-        conditions = or(...workflowConditions)
+      // Apply workflow filtering
+      if (params.workflowIds) {
+        const requestedWorkflowIds = params.workflowIds.split(',').map((id) => id.trim())
+        // Ensure all requested workflows belong to the user
+        const unauthorizedIds = requestedWorkflowIds.filter((id) => !userWorkflowIds.includes(id))
+        if (unauthorizedIds.length > 0) {
+          logger.warn(`[${requestId}] Unauthorized access to workflow logs`, {
+            unauthorizedWorkflowIds: unauthorizedIds,
+          })
+          return NextResponse.json({ error: 'Unauthorized access to workflows' }, { status: 403 })
+        }
+        conditions = or(...requestedWorkflowIds.map((id) => eq(workflowLogs.workflowId, id)))
+      } else {
+        // No specific workflows requested, filter by all user workflows
+        if (userWorkflowIds.length === 1) {
+          conditions = eq(workflowLogs.workflowId, userWorkflowIds[0])
+        } else {
+          conditions = or(...userWorkflowIds.map((id) => eq(workflowLogs.workflowId, id)))
+        }
       }
 
       // Apply additional filters if provided
       if (params.level) {
         conditions = and(conditions, eq(workflowLogs.level, params.level))
-      }
-
-      if (params.workflowId) {
-        // Ensure the requested workflow belongs to the user
-        if (workflowIds.includes(params.workflowId)) {
-          conditions = and(conditions, eq(workflowLogs.workflowId, params.workflowId))
-        } else {
-          logger.warn(`[${requestId}] Unauthorized access to workflow logs`, {
-            requestedWorkflowId: params.workflowId,
-          })
-          return NextResponse.json({ error: 'Unauthorized access to workflow' }, { status: 403 })
-        }
       }
 
       if (params.startDate) {
@@ -93,6 +87,17 @@ export async function GET(request: NextRequest) {
       if (params.endDate) {
         const endDate = new Date(params.endDate)
         conditions = and(conditions, lte(workflowLogs.createdAt, endDate))
+      }
+
+      if (params.search) {
+        const searchTerm = `%${params.search}%`
+        conditions = and(
+          conditions,
+          or(
+            sql`${workflowLogs.message} ILIKE ${searchTerm}`,
+            sql`${workflowLogs.executionId} ILIKE ${searchTerm}`
+          )
+        )
       }
 
       // Execute the query with all conditions

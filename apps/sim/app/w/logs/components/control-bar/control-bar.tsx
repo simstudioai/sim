@@ -26,7 +26,7 @@ export function ControlBar() {
     setLogs,
     logs,
     setError,
-    applyFilters,
+    buildQueryParams,
   } = useFilterStore()
 
   // Update store when debounced search query changes
@@ -36,8 +36,9 @@ export function ControlBar() {
 
   const fetchLogs = async () => {
     try {
-      // Include workflow data in the response
-      const response = await fetch('/api/logs?includeWorkflow=true')
+      // Use the same filtering logic as the main logs component
+      const queryParams = buildQueryParams(1, 50) // Get first 50 logs for refresh
+      const response = await fetch(`/api/logs?${queryParams}`)
 
       if (!response.ok) {
         throw new Error(`Error fetching logs: ${response.statusText}`)
@@ -66,12 +67,8 @@ export function ControlBar() {
       // Wait for minimum loading time
       await minLoadingTime
 
-      // Merge new logs with existing logs (avoid duplicates by ID)
-      const existingLogIds = new Set(logs.map((log) => log.id))
-      const newLogs = logsResponse.data.filter((log) => !existingLogIds.has(log.id))
-
-      // Update logs in the store with merged logs
-      setLogs([...newLogs, ...logs])
+      // Replace logs with fresh filtered results from server
+      setLogs(logsResponse.data)
       setError(null)
     } catch (err) {
       // Wait for minimum loading time

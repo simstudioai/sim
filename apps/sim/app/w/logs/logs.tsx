@@ -56,7 +56,6 @@ const selectedRowAnimation = `
 
 export default function Logs() {
   const {
-    filteredLogs,
     logs,
     loading,
     error,
@@ -69,6 +68,11 @@ export default function Logs() {
     setHasMore,
     isFetchingMore,
     setIsFetchingMore,
+    buildQueryParams,
+    timeRange,
+    level,
+    workflowIds,
+    searchQuery,
   } = useFilterStore()
 
   const [selectedLog, setSelectedLog] = useState<WorkflowLog | null>(null)
@@ -85,7 +89,7 @@ export default function Logs() {
     const groups: Record<string, WorkflowLog[]> = {}
 
     // Group logs by executionId
-    filteredLogs.forEach((log) => {
+    logs.forEach((log) => {
       if (log.executionId) {
         if (!groups[log.executionId]) {
           groups[log.executionId] = []
@@ -101,20 +105,20 @@ export default function Logs() {
     })
 
     return groups
-  }, [filteredLogs])
+  }, [logs])
 
   const handleLogClick = (log: WorkflowLog) => {
     setSelectedLog(log)
-    const index = filteredLogs.findIndex((l) => l.id === log.id)
+    const index = logs.findIndex((l) => l.id === log.id)
     setSelectedLogIndex(index)
     setIsSidebarOpen(true)
   }
 
   const handleNavigateNext = () => {
-    if (selectedLogIndex < filteredLogs.length - 1) {
+    if (selectedLogIndex < logs.length - 1) {
       const nextIndex = selectedLogIndex + 1
       setSelectedLogIndex(nextIndex)
-      setSelectedLog(filteredLogs[nextIndex])
+      setSelectedLog(logs[nextIndex])
     }
   }
 
@@ -122,7 +126,7 @@ export default function Logs() {
     if (selectedLogIndex > 0) {
       const prevIndex = selectedLogIndex - 1
       setSelectedLogIndex(prevIndex)
-      setSelectedLog(filteredLogs[prevIndex])
+      setSelectedLog(logs[prevIndex])
     }
   }
 
@@ -148,9 +152,8 @@ export default function Logs() {
           setIsFetchingMore(true)
         }
 
-        const response = await fetch(
-          `/api/logs?includeWorkflow=true&limit=${LOGS_PER_PAGE}&offset=${(pageNum - 1) * LOGS_PER_PAGE}`
-        )
+        const queryParams = buildQueryParams(pageNum, LOGS_PER_PAGE)
+        const response = await fetch(`/api/logs?${queryParams}`)
 
         if (!response.ok) {
           throw new Error(`Error fetching logs: ${response.statusText}`)
@@ -161,6 +164,7 @@ export default function Logs() {
         setHasMore(data.data.length === LOGS_PER_PAGE && data.page < data.totalPages)
 
         setLogs(data.data, append)
+
         setError(null)
       } catch (err) {
         logger.error('Failed to fetch logs:', { err })
@@ -173,8 +177,61 @@ export default function Logs() {
         }
       }
     },
-    [setLogs, setLoading, setError, setHasMore, setIsFetchingMore]
+    [setLogs, setLoading, setError, setHasMore, setIsFetchingMore, buildQueryParams]
   )
+
+  useEffect(() => {
+    fetchLogs(1)
+  }, [fetchLogs])
+
+  // Refetch when filters change (but not on initial load)
+  const isInitialMount = useRef(true)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    // Reset pagination and fetch from beginning when filters change
+    setPage(1)
+    setHasMore(true)
+
+    // Fetch logs with new filters
+    const fetchWithNewFilters = async () => {
+      try {
+        setLoading(true)
+        const queryParams = buildQueryParams(1, LOGS_PER_PAGE)
+        const response = await fetch(`/api/logs?${queryParams}`)
+
+        if (!response.ok) {
+          throw new Error(`Error fetching logs: ${response.statusText}`)
+        }
+
+        const data: LogsResponse = await response.json()
+        setHasMore(data.data.length === LOGS_PER_PAGE && data.page < data.totalPages)
+        setLogs(data.data, false)
+        setError(null)
+      } catch (err) {
+        logger.error('Failed to fetch logs:', { err })
+        setError(err instanceof Error ? err.message : 'An unknown error occurred')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchWithNewFilters()
+  }, [
+    timeRange,
+    level,
+    workflowIds,
+    searchQuery,
+    setPage,
+    setHasMore,
+    setLoading,
+    setLogs,
+    setError,
+    buildQueryParams,
+  ])
 
   const loadMoreLogs = useCallback(() => {
     if (!isFetchingMore && hasMore) {
@@ -239,17 +296,13 @@ export default function Logs() {
   }, [loading, hasMore, isFetchingMore, loadMoreLogs])
 
   useEffect(() => {
-    fetchLogs(1)
-  }, [fetchLogs])
-
-  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (filteredLogs.length === 0) return
+      if (logs.length === 0) return
 
       if (selectedLogIndex === -1 && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         e.preventDefault()
         setSelectedLogIndex(0)
-        setSelectedLog(filteredLogs[0])
+        setSelectedLog(logs[0])
         return
       }
 
@@ -258,12 +311,7 @@ export default function Logs() {
         handleNavigatePrev()
       }
 
-      if (
-        e.key === 'ArrowDown' &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        selectedLogIndex < filteredLogs.length - 1
-      ) {
+      if (e.key === 'ArrowDown' && !e.metaKey && !e.ctrlKey && selectedLogIndex < logs.length - 1) {
         e.preventDefault()
         handleNavigateNext()
       }
@@ -277,7 +325,7 @@ export default function Logs() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
-    filteredLogs,
+    logs,
     selectedLogIndex,
     isSidebarOpen,
     selectedLog,
@@ -359,7 +407,7 @@ export default function Logs() {
                     <span className='text-sm'>Error: {error}</span>
                   </div>
                 </div>
-              ) : filteredLogs.length === 0 ? (
+              ) : logs.length === 0 ? (
                 <div className='flex h-full items-center justify-center'>
                   <div className='flex items-center gap-2 text-muted-foreground'>
                     <Info className='h-5 w-5' />
@@ -380,7 +428,7 @@ export default function Logs() {
                     <col className='w-[8%] md:w-[10%]' />
                   </colgroup>
                   <tbody>
-                    {filteredLogs.map((log) => {
+                    {logs.map((log) => {
                       const formattedDate = formatDate(log.createdAt)
                       const isSelected = selectedLog?.id === log.id
                       const _isWorkflowExecutionLog =
@@ -503,7 +551,7 @@ export default function Logs() {
                     <tr className='border-t'>
                       <td colSpan={7}>
                         <div className='flex items-center justify-between px-4 py-2 text-muted-foreground text-xs'>
-                          <span>Showing {filteredLogs.length} logs</span>
+                          <span>Showing {logs.length} logs</span>
                           <div className='flex items-center gap-4'>
                             {isFetchingMore ? (
                               <div className='flex items-center gap-2' />
@@ -537,7 +585,7 @@ export default function Logs() {
         onClose={handleCloseSidebar}
         onNavigateNext={handleNavigateNext}
         onNavigatePrev={handleNavigatePrev}
-        hasNext={selectedLogIndex < filteredLogs.length - 1}
+        hasNext={selectedLogIndex < logs.length - 1}
         hasPrev={selectedLogIndex > 0}
       />
     </div>

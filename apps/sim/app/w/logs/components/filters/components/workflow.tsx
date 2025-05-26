@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,25 +10,41 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useFilterStore } from '@/app/w/logs/stores/store'
 
+interface WorkflowOption {
+  id: string
+  name: string
+  color: string
+}
+
 export default function Workflow() {
-  const { logs, workflowIds, toggleWorkflowId, setWorkflowIds } = useFilterStore()
+  const { workflowIds, toggleWorkflowId, setWorkflowIds } = useFilterStore()
+  const [workflows, setWorkflows] = useState<WorkflowOption[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Extract unique workflows from logs
-  const workflows = useMemo(() => {
-    const uniqueWorkflows = new Map()
-
-    logs.forEach((log) => {
-      if (log.workflow && !uniqueWorkflows.has(log.workflowId)) {
-        uniqueWorkflows.set(log.workflowId, {
-          id: log.workflowId,
-          name: log.workflow.name,
-          color: log.workflow.color,
-        })
+  // Fetch all available workflows from the API
+  useEffect(() => {
+    const fetchWorkflows = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch('/api/workflows/sync')
+        if (response.ok) {
+          const { data } = await response.json()
+          const workflowOptions: WorkflowOption[] = data.map((workflow: any) => ({
+            id: workflow.id,
+            name: workflow.name,
+            color: workflow.color || '#3972F6',
+          }))
+          setWorkflows(workflowOptions)
+        }
+      } catch (error) {
+        console.error('Failed to fetch workflows:', error)
+      } finally {
+        setLoading(false)
       }
-    })
+    }
 
-    return Array.from(uniqueWorkflows.values())
-  }, [logs])
+    fetchWorkflows()
+  }, [])
 
   // Get display text for the dropdown button
   const getSelectedWorkflowsText = () => {
@@ -54,7 +70,7 @@ export default function Workflow() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant='outline' size='sm' className='w-full justify-between font-normal text-sm'>
-          {getSelectedWorkflowsText()}
+          {loading ? 'Loading workflows...' : getSelectedWorkflowsText()}
           <ChevronDown className='ml-2 h-4 w-4 text-muted-foreground' />
         </Button>
       </DropdownMenuTrigger>
@@ -71,27 +87,34 @@ export default function Workflow() {
           {workflowIds.length === 0 && <Check className='h-4 w-4 text-primary' />}
         </DropdownMenuItem>
 
-        {workflows.length > 0 && <DropdownMenuSeparator />}
+        {!loading && workflows.length > 0 && <DropdownMenuSeparator />}
 
-        {workflows.map((workflow) => (
-          <DropdownMenuItem
-            key={workflow.id}
-            onSelect={(e) => {
-              e.preventDefault()
-              toggleWorkflowId(workflow.id)
-            }}
-            className='flex cursor-pointer items-center justify-between p-2 text-sm'
-          >
-            <div className='flex items-center'>
-              <div
-                className='mr-2 h-2 w-2 rounded-full'
-                style={{ backgroundColor: workflow.color }}
-              />
-              {workflow.name}
-            </div>
-            {isWorkflowSelected(workflow.id) && <Check className='h-4 w-4 text-primary' />}
+        {!loading &&
+          workflows.map((workflow) => (
+            <DropdownMenuItem
+              key={workflow.id}
+              onSelect={(e) => {
+                e.preventDefault()
+                toggleWorkflowId(workflow.id)
+              }}
+              className='flex cursor-pointer items-center justify-between p-2 text-sm'
+            >
+              <div className='flex items-center'>
+                <div
+                  className='mr-2 h-2 w-2 rounded-full'
+                  style={{ backgroundColor: workflow.color }}
+                />
+                {workflow.name}
+              </div>
+              {isWorkflowSelected(workflow.id) && <Check className='h-4 w-4 text-primary' />}
+            </DropdownMenuItem>
+          ))}
+
+        {loading && (
+          <DropdownMenuItem disabled className='p-2 text-muted-foreground text-sm'>
+            Loading workflows...
           </DropdownMenuItem>
-        ))}
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

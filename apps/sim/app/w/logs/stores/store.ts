@@ -3,7 +3,6 @@ import type { FilterState } from './types'
 
 export const useFilterStore = create<FilterState>((set, get) => ({
   logs: [],
-  filteredLogs: [],
   timeRange: 'All time',
   level: 'all',
   workflowIds: [],
@@ -19,28 +18,24 @@ export const useFilterStore = create<FilterState>((set, get) => ({
       const currentLogs = [...get().logs]
       const newLogs = [...currentLogs, ...logs]
       set({ logs: newLogs })
-      get().applyFilters()
     } else {
-      set({ logs, filteredLogs: logs, loading: false })
+      set({ logs, loading: false })
     }
   },
 
   setTimeRange: (timeRange) => {
     set({ timeRange })
     get().resetPagination()
-    get().applyFilters()
   },
 
   setLevel: (level) => {
     set({ level })
     get().resetPagination()
-    get().applyFilters()
   },
 
   setWorkflowIds: (workflowIds) => {
     set({ workflowIds })
     get().resetPagination()
-    get().applyFilters()
   },
 
   toggleWorkflowId: (workflowId) => {
@@ -55,13 +50,11 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
     set({ workflowIds: currentWorkflowIds })
     get().resetPagination()
-    get().applyFilters()
   },
 
   setSearchQuery: (searchQuery) => {
     set({ searchQuery })
     get().resetPagination()
-    get().applyFilters()
   },
 
   setLoading: (loading) => set({ loading }),
@@ -76,53 +69,52 @@ export const useFilterStore = create<FilterState>((set, get) => ({
 
   resetPagination: () => set({ page: 1, hasMore: true }),
 
-  applyFilters: () => {
-    const { logs, timeRange, level, workflowIds, searchQuery } = get()
+  // Build query parameters for server-side filtering
+  buildQueryParams: (page: number, limit: number) => {
+    const { timeRange, level, workflowIds, searchQuery } = get()
+    const params = new URLSearchParams()
 
-    let filtered = [...logs]
+    params.set('includeWorkflow', 'true')
+    params.set('limit', limit.toString())
+    params.set('offset', ((page - 1) * limit).toString())
 
-    // Apply time range filter
+    // Add level filter
+    if (level !== 'all') {
+      params.set('level', level)
+    }
+
+    // Add workflow filter
+    if (workflowIds.length > 0) {
+      params.set('workflowIds', workflowIds.join(','))
+    }
+
+    // Add time range filter
     if (timeRange !== 'All time') {
       const now = new Date()
-      let cutoffTime: Date
+      let startDate: Date
 
       switch (timeRange) {
         case 'Past 30 minutes':
-          cutoffTime = new Date(now.getTime() - 30 * 60 * 1000)
+          startDate = new Date(now.getTime() - 30 * 60 * 1000)
           break
         case 'Past hour':
-          cutoffTime = new Date(now.getTime() - 60 * 60 * 1000)
+          startDate = new Date(now.getTime() - 60 * 60 * 1000)
           break
         case 'Past 24 hours':
-          cutoffTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+          startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000)
           break
         default:
-          cutoffTime = new Date(0) // Beginning of time
+          startDate = new Date(0)
       }
 
-      filtered = filtered.filter((log) => new Date(log.createdAt) >= cutoffTime)
+      params.set('startDate', startDate.toISOString())
     }
 
-    // Apply level filter
-    if (level !== 'all') {
-      filtered = filtered.filter((log) => log.level.toLowerCase() === level)
-    }
-
-    // Apply workflow filter
-    if (workflowIds.length > 0) {
-      filtered = filtered.filter((log) => workflowIds.includes(log.workflowId))
-    }
-
-    // Apply search query filter
+    // Add search filter
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim()
-      filtered = filtered.filter(
-        (log) =>
-          log.message.toLowerCase().includes(query) ||
-          log.executionId?.toLowerCase().includes(query)
-      )
+      params.set('search', searchQuery.trim())
     }
 
-    set({ filteredLogs: filtered })
+    return params.toString()
   },
 }))
