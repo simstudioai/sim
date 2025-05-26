@@ -24,7 +24,6 @@ export function ControlBar() {
   const {
     setSearchQuery: setStoreSearchQuery,
     setLogs,
-    logs,
     setError,
     buildQueryParams,
   } = useFilterStore()
@@ -36,7 +35,6 @@ export function ControlBar() {
 
   const fetchLogs = async () => {
     try {
-      // Use the same filtering logic as the main logs component
       const queryParams = buildQueryParams(1, 50) // Get first 50 logs for refresh
       const response = await fetch(`/api/logs?${queryParams}`)
 
