@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@tabler/icons-react": "^3.31.0",
+    "@vercel/analytics": "1.5.0",
     "@vercel/og": "^0.6.5",
     "clsx": "^2.1.1",
     "fumadocs-core": "^15.0.16",
