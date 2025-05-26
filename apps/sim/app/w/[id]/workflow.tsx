@@ -223,6 +223,13 @@ function WorkflowContent() {
         }
       }
     }
+    // For loop and parallel nodes, use their end source handle
+    else if (block.type === 'loop') {
+      sourceHandle = 'loop-end-source'
+    }
+    else if (block.type === 'parallel') {
+      sourceHandle = 'parallel-end-source'
+    }
 
     return sourceHandle
   }, [])
@@ -479,8 +486,6 @@ function WorkflowContent() {
             extent: 'parent',
           })
 
-
-
           // Resize the container node to fit the new block
           // Immediate resize without delay
           debouncedResizeLoopNodes()
@@ -488,42 +493,60 @@ function WorkflowContent() {
           // Auto-connect logic for blocks inside containers
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
           if (isAutoConnectEnabled && data.type !== 'starter') {
-            // Try to find other nodes in the container to connect to
-            const containerNodes = getNodes().filter((n) => n.parentId === containerInfo.loopId)
+            // First priority: Connect to the container's start node
+            const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
+            const containerType = containerNode?.type
+            
+            if (containerType === 'loopNode' || containerType === 'parallelNode') {
+              // Connect from the container's start node to the new block
+              const startSourceHandle = containerType === 'loopNode' ? 'loop-start-source' : 'parallel-start-source'
+              
+              addEdge({
+                id: crypto.randomUUID(),
+                source: containerInfo.loopId,
+                target: id,
+                sourceHandle: startSourceHandle,
+                targetHandle: 'target',
+                type: 'workflowEdge',
+              })
+            } else {
+              // Fallback: Try to find other nodes in the container to connect to
+              const containerNodes = getNodes().filter((n) => n.parentId === containerInfo.loopId)
 
-            if (containerNodes.length > 0) {
-              // Connect to the closest node in the container
-              const closestNode = containerNodes
-                .map((n) => ({
-                  id: n.id,
-                  distance: Math.sqrt(
-                    (n.position.x - relativePosition.x) ** 2 +
-                      (n.position.y - relativePosition.y) ** 2
-                  ),
-                }))
-                .sort((a, b) => a.distance - b.distance)[0]
+              if (containerNodes.length > 0) {
+                // Connect to the closest node in the container
+                const closestNode = containerNodes
+                  .map((n) => ({
+                    id: n.id,
+                    distance: Math.sqrt(
+                      (n.position.x - relativePosition.x) ** 2 +
+                        (n.position.y - relativePosition.y) ** 2
+                    ),
+                  }))
+                  .sort((a, b) => a.distance - b.distance)[0]
 
-              if (closestNode) {
-                // Get appropriate source handle
-                const sourceNode = getNodes().find((n) => n.id === closestNode.id)
-                const sourceType = sourceNode?.data?.type
+                if (closestNode) {
+                  // Get appropriate source handle
+                  const sourceNode = getNodes().find((n) => n.id === closestNode.id)
+                  const sourceType = sourceNode?.data?.type
 
-                // Default source handle
-                let sourceHandle = 'source'
+                  // Default source handle
+                  let sourceHandle = 'source'
 
-                // For condition blocks, use the condition-true handle
-                if (sourceType === 'condition') {
-                  sourceHandle = 'condition-true'
+                  // For condition blocks, use the condition-true handle
+                  if (sourceType === 'condition') {
+                    sourceHandle = 'condition-true'
+                  }
+
+                  addEdge({
+                    id: crypto.randomUUID(),
+                    source: closestNode.id,
+                    target: id,
+                    sourceHandle,
+                    targetHandle: 'target',
+                    type: 'workflowEdge',
+                  })
                 }
-
-                addEdge({
-                  id: crypto.randomUUID(),
-                  source: closestNode.id,
-                  target: id,
-                  sourceHandle,
-                  targetHandle: 'target',
-                  type: 'workflowEdge',
-                })
               }
             }
           }
@@ -742,6 +765,9 @@ function WorkflowContent() {
           isActive,
           isPending,
         },
+        // Include dynamic dimensions for container resizing calculations
+        width: block.isWide ? 450 : 350, // Standard width based on isWide state
+        height: Math.max(block.height || 100, 100), // Use actual height with minimum
       })
     })
 
@@ -1050,16 +1076,6 @@ function WorkflowContent() {
   // Add in a nodeDrag start event to set the dragStartParentId
   const onNodeDragStart = useCallback(
     (event: React.MouseEvent, node: any) => {
-      console.log('⚛️ REACTFLOW: onNodeDragStart called', {
-        nodeId: node.id,
-        nodeType: node.type,
-        eventTarget: event.target,
-        eventCurrentTarget: event.currentTarget,
-        targetClassName: (event.target as HTMLElement)?.className,
-        clientX: event.clientX,
-        clientY: event.clientY,
-        button: event.button,
-      })
       
       // Store the original parent ID when starting to drag
       const currentParentId = node.parentId || blocks[node.id]?.data?.parentId || null
