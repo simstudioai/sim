@@ -104,7 +104,9 @@ export function LongInput({
 
   // Handle resize functionality
   const startResize = (e: React.MouseEvent) => {
+    
     e.preventDefault()
+    e.stopPropagation()
     isResizing.current = true
 
     const startY = e.clientY
@@ -126,6 +128,7 @@ export function LongInput({
     }
 
     const handleMouseUp = () => {
+      
       if (textareaRef.current) {
         const finalHeight = Number.parseInt(textareaRef.current.style.height, 10) || height
         setHeight(finalHeight)
@@ -290,6 +293,9 @@ export function LongInput({
       <div
         className='absolute right-1 bottom-1 flex h-4 w-4 cursor-s-resize items-center justify-center rounded-sm bg-background'
         onMouseDown={startResize}
+        onDragStart={(e) => {
+          e.preventDefault()
+        }}
       >
         <ChevronsUpDown className='h-3 w-3 text-muted-foreground/70' />
       </div>

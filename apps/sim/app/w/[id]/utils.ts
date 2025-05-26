@@ -152,11 +152,6 @@ export const updateNodeParent = (
     updateBlockPosition(nodeId, relativePosition)
     updateParentId(nodeId, newParentId, 'parent')
 
-    logger.info('Updated node parent', {
-      nodeId,
-      newParentId,
-      relativePosition,
-    })
   } else if (currentParentId) {
     // Removing parent - convert to absolute position
     const absolutePosition = getNodeAbsolutePosition(nodeId, getNodes)
@@ -165,11 +160,6 @@ export const updateNodeParent = (
     updateBlockPosition(nodeId, absolutePosition)
     // Note: updateParentId function signature needs to handle null case
 
-    logger.info('Removed node parent', {
-      nodeId,
-      previousParentId: currentParentId,
-      absolutePosition,
-    })
   }
 
   // Resize affected loops
