@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ParallelNodeComponent } from './parallel-node'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ParallelNodeComponent } from './parallel-node'
 
 // Mock dependencies that don't need DOM
 vi.mock('@/stores/workflows/workflow/store', () => ({
@@ -86,8 +86,9 @@ describe('ParallelNodeComponent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    
+
     // Mock useWorkflowStore
+
     ;(useWorkflowStore as any).mockImplementation((selector: any) => {
       const state = {
         removeBlock: mockRemoveBlock,
@@ -164,22 +165,22 @@ describe('ParallelNodeComponent', () => {
     it('should integrate with workflow store', () => {
       // Test that the component uses the store correctly
       expect(useWorkflowStore).toBeDefined()
-      
+
       // Verify the store selector function works
       const mockState = { removeBlock: mockRemoveBlock }
       const selector = vi.fn((state) => state.removeBlock)
-      
+
       expect(() => {
         selector(mockState)
       }).not.toThrow()
-      
+
       expect(selector(mockState)).toBe(mockRemoveBlock)
     })
 
     it('should handle removeBlock function', () => {
       expect(mockRemoveBlock).toBeDefined()
       expect(typeof mockRemoveBlock).toBe('function')
-      
+
       // Test calling removeBlock
       mockRemoveBlock('test-id')
       expect(mockRemoveBlock).toHaveBeenCalledWith('test-id')
@@ -192,19 +193,19 @@ describe('ParallelNodeComponent', () => {
       const testCases = [
         { nodes: [], parentId: undefined, expectedLevel: 0 },
         { nodes: [{ id: 'parent', data: {} }], parentId: 'parent', expectedLevel: 1 },
-        { 
+        {
           nodes: [
             { id: 'parent', data: { parentId: 'grandparent' } },
-            { id: 'grandparent', data: {} }
-          ], 
-          parentId: 'parent', 
-          expectedLevel: 2 
+            { id: 'grandparent', data: {} },
+          ],
+          parentId: 'parent',
+          expectedLevel: 2,
         },
       ]
 
       testCases.forEach(({ nodes, parentId, expectedLevel }) => {
         mockGetNodes.mockReturnValue(nodes)
-        
+
         // Simulate the nesting level calculation logic
         let level = 0
         let currentParentId = parentId
@@ -253,11 +254,11 @@ describe('ParallelNodeComponent', () => {
       parallelStates.forEach((state) => {
         const data = { width: 500, height: 300, state }
         expect(data.state).toBe(state)
-        
+
         // Test parallel-specific state handling
         const isExecuting = state === 'executing'
         const isCompleted = state === 'completed'
-        
+
         expect(typeof isExecuting).toBe('boolean')
         expect(typeof isCompleted).toBe('boolean')
       })
@@ -364,11 +365,11 @@ describe('ParallelNodeComponent', () => {
 
       testCases.forEach((data) => {
         const props = { ...defaultProps, data }
-        
+
         // Test default values logic
         const width = data?.width || 500
         const height = data?.height || 300
-        
+
         expect(width).toBeGreaterThanOrEqual(0)
         expect(height).toBeGreaterThanOrEqual(0)
       })
@@ -481,7 +482,7 @@ describe('ParallelNodeComponent', () => {
     it('should have similar structure to loop node but different type', () => {
       expect(defaultProps.type).toBe('parallelNode')
       expect(defaultProps.id).toContain('parallel')
-      
+
       // Should not be a loop node
       expect(defaultProps.type).not.toBe('loopNode')
       expect(defaultProps.id).not.toContain('loop')
@@ -509,7 +510,7 @@ describe('ParallelNodeComponent', () => {
         const _component: typeof ParallelNodeComponent = ParallelNodeComponent
         expect(_component).toBeDefined()
       }).not.toThrow()
-      
+
       // Verify the structure
       expect(sharedPropStructure.type).toBe('parallelNode')
       expect(sharedPropStructure.data.width).toBe(400)
@@ -518,12 +519,21 @@ describe('ParallelNodeComponent', () => {
 
     it('should maintain consistency with loop node interface', () => {
       // Both components should accept the same base props
-      const baseProps = ['id', 'type', 'data', 'selected', 'zIndex', 'isConnectable', 'xPos', 'yPos', 'dragging']
-      
+      const baseProps = [
+        'id',
+        'type',
+        'data',
+        'selected',
+        'zIndex',
+        'isConnectable',
+        'xPos',
+        'yPos',
+        'dragging',
+      ]
+
       baseProps.forEach((prop) => {
         expect(defaultProps).toHaveProperty(prop)
       })
     })
   })
 })
-

@@ -226,8 +226,7 @@ function WorkflowContent() {
     // For loop and parallel nodes, use their end source handle
     else if (block.type === 'loop') {
       sourceHandle = 'loop-end-source'
-    }
-    else if (block.type === 'parallel') {
+    } else if (block.type === 'parallel') {
       sourceHandle = 'parallel-end-source'
     }
 
@@ -496,11 +495,12 @@ function WorkflowContent() {
             // First priority: Connect to the container's start node
             const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
             const containerType = containerNode?.type
-            
+
             if (containerType === 'loopNode' || containerType === 'parallelNode') {
               // Connect from the container's start node to the new block
-              const startSourceHandle = containerType === 'loopNode' ? 'loop-start-source' : 'parallel-start-source'
-              
+              const startSourceHandle =
+                containerType === 'loopNode' ? 'loop-start-source' : 'parallel-start-source'
+
               addEdge({
                 id: crypto.randomUUID(),
                 source: containerInfo.loopId,
@@ -899,8 +899,6 @@ function WorkflowContent() {
         const isInsideContainer = Boolean(sourceParentId) || Boolean(targetParentId)
         const parentId = sourceParentId || targetParentId
 
-
-
         // Add appropriate metadata for container context
         addEdge({
           ...connection,
@@ -1076,7 +1074,6 @@ function WorkflowContent() {
   // Add in a nodeDrag start event to set the dragStartParentId
   const onNodeDragStart = useCallback(
     (event: React.MouseEvent, node: any) => {
-      
       // Store the original parent ID when starting to drag
       const currentParentId = node.parentId || blocks[node.id]?.data?.parentId || null
       setDragStartParentId(currentParentId)
@@ -1095,8 +1092,6 @@ function WorkflowContent() {
 
       // Don't process if the node hasn't actually changed parent or is being moved within same parent
       if (potentialParentId === dragStartParentId) return
-
-
 
       // Check if this is a starter block - starter blocks should never be in containers
       const isStarterBlock = node.data?.type === 'starter'
@@ -1162,8 +1157,6 @@ function WorkflowContent() {
       // Create a unique identifier that combines edge ID and parent context
       const contextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
 
-
-
       setSelectedEdgeInfo({
         id: edge.id,
         parentLoopId,
@@ -1214,8 +1207,6 @@ function WorkflowContent() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeInfo) {
-
-
         // Only delete the specific selected edge
         removeEdge(selectedEdgeInfo.id)
         setSelectedEdgeInfo(null)

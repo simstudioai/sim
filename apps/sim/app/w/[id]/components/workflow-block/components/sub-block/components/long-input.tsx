@@ -104,7 +104,6 @@ export function LongInput({
 
   // Handle resize functionality
   const startResize = (e: React.MouseEvent) => {
-    
     e.preventDefault()
     e.stopPropagation()
     isResizing.current = true
@@ -128,7 +127,6 @@ export function LongInput({
     }
 
     const handleMouseUp = () => {
-      
       if (textareaRef.current) {
         const finalHeight = Number.parseInt(textareaRef.current.style.height, 10) || height
         setHeight(finalHeight)

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LoopNodeComponent } from './loop-node'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { LoopNodeComponent } from './loop-node'
 
 // Mock dependencies that don't need DOM
 vi.mock('@/stores/workflows/workflow/store', () => ({
@@ -86,8 +86,9 @@ describe('LoopNodeComponent', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    
+
     // Mock useWorkflowStore
+
     ;(useWorkflowStore as any).mockImplementation((selector: any) => {
       const state = {
         removeBlock: mockRemoveBlock,
@@ -164,22 +165,22 @@ describe('LoopNodeComponent', () => {
     it('should integrate with workflow store', () => {
       // Test that the component uses the store correctly
       expect(useWorkflowStore).toBeDefined()
-      
+
       // Verify the store selector function works
       const mockState = { removeBlock: mockRemoveBlock }
       const selector = vi.fn((state) => state.removeBlock)
-      
+
       expect(() => {
         selector(mockState)
       }).not.toThrow()
-      
+
       expect(selector(mockState)).toBe(mockRemoveBlock)
     })
 
     it('should handle removeBlock function', () => {
       expect(mockRemoveBlock).toBeDefined()
       expect(typeof mockRemoveBlock).toBe('function')
-      
+
       // Test calling removeBlock
       mockRemoveBlock('test-id')
       expect(mockRemoveBlock).toHaveBeenCalledWith('test-id')
@@ -192,19 +193,19 @@ describe('LoopNodeComponent', () => {
       const testCases = [
         { nodes: [], parentId: undefined, expectedLevel: 0 },
         { nodes: [{ id: 'parent', data: {} }], parentId: 'parent', expectedLevel: 1 },
-        { 
+        {
           nodes: [
             { id: 'parent', data: { parentId: 'grandparent' } },
-            { id: 'grandparent', data: {} }
-          ], 
-          parentId: 'parent', 
-          expectedLevel: 2 
+            { id: 'grandparent', data: {} },
+          ],
+          parentId: 'parent',
+          expectedLevel: 2,
         },
       ]
 
       testCases.forEach(({ nodes, parentId, expectedLevel }) => {
         mockGetNodes.mockReturnValue(nodes)
-        
+
         // Simulate the nesting level calculation logic
         let level = 0
         let currentParentId = parentId
@@ -314,11 +315,11 @@ describe('LoopNodeComponent', () => {
 
       testCases.forEach((data) => {
         const props = { ...defaultProps, data }
-        
+
         // Test default values logic
         const width = data?.width || 500
         const height = data?.height || 300
-        
+
         expect(width).toBeGreaterThanOrEqual(0)
         expect(height).toBeGreaterThanOrEqual(0)
       })

@@ -151,7 +151,6 @@ export const updateNodeParent = (
     // Update both position and parent
     updateBlockPosition(nodeId, relativePosition)
     updateParentId(nodeId, newParentId, 'parent')
-
   } else if (currentParentId) {
     // Removing parent - convert to absolute position
     const absolutePosition = getNodeAbsolutePosition(nodeId, getNodes)
@@ -159,7 +158,6 @@ export const updateNodeParent = (
     // Update position to absolute coordinates and remove parent
     updateBlockPosition(nodeId, absolutePosition)
     // Note: updateParentId function signature needs to handle null case
-
   }
 
   // Resize affected loops
@@ -260,7 +258,7 @@ export const calculateLoopDimensions = (
       // Fall back to block type defaults only if no dynamic dimensions exist
       nodeWidth = node.data?.width || node.width
       nodeHeight = node.data?.height || node.height
-      
+
       // If still no dimensions, use block type defaults as last resort
       if (!nodeWidth || !nodeHeight) {
         const blockType = node.data?.type
@@ -308,7 +306,7 @@ export const calculateLoopDimensions = (
   // More reasonable padding values, especially for nested containers
   // Reduce the excessive padding that was causing parent containers to be too large
   const sidePadding = hasNestedContainers ? 150 : 120 // Reduced padding for containers containing other containers
-  
+
   // Add extra padding to the right side to prevent sidebar from covering the right handle
   const extraPadding = 50
 
