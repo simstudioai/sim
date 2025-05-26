@@ -113,7 +113,7 @@ export function ConfluenceFileSelector({
     setIsLoading(true)
     try {
       const providerId = getProviderId()
-      const response = await fetch(`/api/tools/oauth/credentials?provider=${providerId}`)
+      const response = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
 
       if (response.ok) {
         const data = await response.json()
