@@ -1088,11 +1088,6 @@ function WorkflowContent() {
       const currentParentId = node.parentId || blocks[node.id]?.data?.parentId || null
       setDragStartParentId(currentParentId)
 
-      logger.info('Node drag started', {
-        nodeId: node.id,
-        startParentId: currentParentId,
-        nodeType: node.type,
-      })
     },
     [blocks]
   )
