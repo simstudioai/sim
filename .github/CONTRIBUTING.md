@@ -411,6 +411,12 @@ In addition, you will need to update the registries:
 7. **Test Your Tool:**  
    Ensure that your tool functions correctly by making test requests and verifying the responses.
 
+8. **Generate Documentation:**  
+   Run the documentation generator to create docs for your new tool:
+   ```bash
+   ./scripts/generate-docs.sh
+   ```
+
 ### Naming Conventions
 
 Maintaining consistent naming across the codebase is critical for auto-generation of tools and documentation. Follow these naming guidelines:
