@@ -7,6 +7,14 @@ import { EmptyStateCard } from './components/empty-state-card/empty-state-card'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useState } from 'react'
 
+interface KnowledgeBase {
+  id: string
+  title: string
+  docCount: number
+  tokenCount: string
+  description: string
+}
+
 export function Knowledge() {
   const { mode, isExpanded } = useSidebarStore()
   const isSidebarCollapsed =
@@ -15,40 +23,7 @@ export function Knowledge() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
   // Sample data for knowledge base cards
-  const knowledgeBases = [
-    {
-      id: 'product-documentation',
-      title: 'Product Documentation',
-      docCount: 12,
-      tokenCount: '45k',
-      description:
-        'Comprehensive guides and API references for all product features and integrations.',
-    },
-    {
-      id: 'customer-support-faqs',
-      title: 'Customer Support FAQs',
-      docCount: 8,
-      tokenCount: '20k',
-      description:
-        'Common questions and solutions to help customers resolve issues quickly.',
-    },
-    {
-      id: 'internal-wiki',
-      title: 'Internal Wiki',
-      docCount: 25,
-      tokenCount: '80k',
-      description:
-        'Company policies, procedures, and best practices for team members.',
-    },
-    {
-      id: 'research-papers',
-      title: 'Research Papers',
-      docCount: 5,
-      tokenCount: '35k',
-      description:
-        'Academic papers and research findings related to our domain expertise.',
-    },
-  ]
+  const knowledgeBases: KnowledgeBase[] = []
 
   // Filter knowledge bases based on search query
   const filteredKnowledgeBases = knowledgeBases.filter(
@@ -116,7 +91,7 @@ export function Knowledge() {
               {filteredKnowledgeBases.length === 0 ? (
                 <EmptyStateCard
                   title="Create your first knowledge base"
-                  description="Get started by creating a knowledge base to organize your documents and information."
+                  description="Upload your documents to create a knowledge base for your agents."
                   buttonText="Create Knowledge Base"
                   onClick={() => setIsCreateModalOpen(true)}
                   icon={
