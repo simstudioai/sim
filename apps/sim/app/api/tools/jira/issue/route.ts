@@ -4,7 +4,7 @@ import { getJiraCloudId } from '@/tools/jira/utils'
 
 export const dynamic = 'force-dynamic'
 
-const logger = new Logger('jira_issue')
+const logger = new Logger('JiraIssueAPI')
 
 export async function POST(request: Request) {
   try {

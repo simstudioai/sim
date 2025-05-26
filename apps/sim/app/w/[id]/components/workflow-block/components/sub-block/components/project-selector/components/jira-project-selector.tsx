@@ -196,7 +196,7 @@ export function JiraProjectSelector({
           ...(cloudId && { cloudId }),
         })
 
-        const response = await fetch(`/api/auth/oauth/jira/project?${queryParams.toString()}`)
+        const response = await fetch(`/api/tools/jira/project?${queryParams.toString()}`)
 
         if (!response.ok) {
           const errorData = await response.json()
@@ -280,7 +280,7 @@ export function JiraProjectSelector({
         })
 
         // Use the GET endpoint for project search
-        const response = await fetch(`/api/auth/oauth/jira/projects?${queryParams.toString()}`)
+        const response = await fetch(`/api/tools/jira/projects?${queryParams.toString()}`)
 
         if (!response.ok) {
           const errorData = await response.json()

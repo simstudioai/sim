@@ -102,7 +102,7 @@ const nextConfig: NextConfig = {
       },
       {
         // Apply Cross-Origin Isolation headers to all routes except those that use the Google Drive Picker
-        source: '/((?!w/.*|api/auth/oauth/drive).*)',
+        source: '/((?!w/.*|api/tools/drive).*)',
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -116,7 +116,7 @@ const nextConfig: NextConfig = {
       },
       {
         // For routes that use the Google Drive Picker, only apply COOP but not COEP
-        source: '/(w/.*|api/auth/oauth/drive)',
+        source: '/(w/.*|api/tools/drive)',
         headers: [
           {
             key: 'Cross-Origin-Opener-Policy',

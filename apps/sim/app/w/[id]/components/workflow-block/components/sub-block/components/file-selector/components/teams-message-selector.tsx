@@ -138,7 +138,7 @@ export function TeamsMessageSelector({
     setError(null)
 
     try {
-      const response = await fetch('/api/auth/oauth/microsoft-teams/teams', {
+      const response = await fetch('/api/tools/microsoft-teams/teams', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -198,7 +198,7 @@ export function TeamsMessageSelector({
       setError(null)
 
       try {
-        const response = await fetch('/api/auth/oauth/microsoft-teams/channels', {
+        const response = await fetch('/api/tools/microsoft-teams/channels', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -263,7 +263,7 @@ export function TeamsMessageSelector({
     setError(null)
 
     try {
-      const response = await fetch('/api/auth/oauth/microsoft-teams/chats', {
+      const response = await fetch('/api/tools/microsoft-teams/chats', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -501,7 +501,7 @@ export function TeamsMessageSelector({
 
       setIsLoading(true)
       try {
-        const response = await fetch('/api/auth/oauth/microsoft-teams/teams', {
+        const response = await fetch('/api/tools/microsoft-teams/teams', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
@@ -539,7 +539,7 @@ export function TeamsMessageSelector({
 
       setIsLoading(true)
       try {
-        const response = await fetch('/api/auth/oauth/microsoft-teams/chats', {
+        const response = await fetch('/api/tools/microsoft-teams/chats', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
@@ -578,7 +578,7 @@ export function TeamsMessageSelector({
       setIsLoading(true)
       try {
         // First fetch teams to search through them
-        const teamsResponse = await fetch('/api/auth/oauth/microsoft-teams/teams', {
+        const teamsResponse = await fetch('/api/tools/microsoft-teams/teams', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ credential: selectedCredentialId, workflowId }),
@@ -591,7 +591,7 @@ export function TeamsMessageSelector({
           const channelSearchPromises = teamsData.teams.map(
             async (team: { id: string; displayName: string }) => {
               try {
-                const channelsResponse = await fetch('/api/auth/oauth/microsoft-teams/channels', {
+                const channelsResponse = await fetch('/api/tools/microsoft-teams/channels', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({

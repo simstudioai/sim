@@ -192,7 +192,7 @@ export function JiraIssueSelector({
         }
 
         // Use the access token to fetch the issue info
-        const response = await fetch('/api/auth/oauth/jira/issue', {
+        const response = await fetch('/api/tools/jira/issue', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -299,7 +299,7 @@ export function JiraIssueSelector({
           ...(cloudId && { cloudId }),
         })
 
-        const response = await fetch(`/api/auth/oauth/jira/issues?${queryParams.toString()}`, {
+        const response = await fetch(`/api/tools/jira/issues?${queryParams.toString()}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',

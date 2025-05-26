@@ -1,32 +1,26 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { refreshAccessTokenIfNeeded } from '../../utils'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('OutlookFoldersAPI')
+const logger = createLogger('teams-teams')
 
-interface OutlookFolder {
-  id: string
-  displayName: string
-  totalItemCount?: number
-  unreadItemCount?: number
-}
-
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   try {
     const session = await getSession()
-    const { searchParams } = new URL(request.url)
-    const credentialId = searchParams.get('credentialId')
+    const body = await request.json()
 
-    if (!credentialId) {
-      logger.error('Missing credentialId in request')
-      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
+    const { credential, workflowId } = body
+
+    if (!credential) {
+      logger.error('Missing credential in request')
+      return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
     }
 
     try {
-      // Get the userId from the session
+      // Get the userId either from the session or from the workflowId
       const userId = session?.user?.id || ''
 
       if (!userId) {
@@ -34,14 +28,10 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
       }
 
-      const accessToken = await refreshAccessTokenIfNeeded(
-        credentialId,
-        userId,
-        crypto.randomUUID().slice(0, 8)
-      )
+      const accessToken = await refreshAccessTokenIfNeeded(credential, userId, workflowId)
 
       if (!accessToken) {
-        logger.error('Failed to get access token', { credentialId, userId })
+        logger.error('Failed to get access token', { credentialId: credential, userId })
         return NextResponse.json(
           {
             error: 'Could not retrieve access token',
@@ -51,7 +41,7 @@ export async function GET(request: Request) {
         )
       }
 
-      const response = await fetch('https://graph.microsoft.com/v1.0/me/mailFolders', {
+      const response = await fetch('https://graph.microsoft.com/v1.0/me/joinedTeams', {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -61,17 +51,17 @@ export async function GET(request: Request) {
 
       if (!response.ok) {
         const errorData = await response.json()
-        logger.error('Microsoft Graph API error getting folders', {
+        logger.error('Microsoft Graph API error getting teams', {
           status: response.status,
           error: errorData,
-          endpoint: 'https://graph.microsoft.com/v1.0/me/mailFolders',
+          endpoint: 'https://graph.microsoft.com/v1.0/me/joinedTeams',
         })
 
         // Check for auth errors specifically
         if (response.status === 401) {
           return NextResponse.json(
             {
-              error: 'Authentication failed. Please reconnect your Outlook account.',
+              error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
               authRequired: true,
             },
             { status: 401 }
@@ -82,19 +72,10 @@ export async function GET(request: Request) {
       }
 
       const data = await response.json()
-      const folders = data.value || []
-
-      // Transform folders to match the expected format
-      const transformedFolders = folders.map((folder: OutlookFolder) => ({
-        id: folder.id,
-        name: folder.displayName,
-        type: 'folder',
-        messagesTotal: folder.totalItemCount || 0,
-        messagesUnread: folder.unreadItemCount || 0,
-      }))
+      const teams = data.value
 
       return NextResponse.json({
-        folders: transformedFolders,
+        teams: teams,
       })
     } catch (innerError) {
       logger.error('Error during API requests:', innerError)
@@ -109,7 +90,7 @@ export async function GET(request: Request) {
       ) {
         return NextResponse.json(
           {
-            error: 'Authentication failed. Please reconnect your Outlook account.',
+            error: 'Authentication failed. Please reconnect your Microsoft Teams account.',
             authRequired: true,
             details: errorMessage,
           },
@@ -120,10 +101,10 @@ export async function GET(request: Request) {
       throw innerError
     }
   } catch (error) {
-    logger.error('Error processing Outlook folders request:', error)
+    logger.error('Error processing Teams request:', error)
     return NextResponse.json(
       {
-        error: 'Failed to retrieve Outlook folders',
+        error: 'Failed to retrieve Microsoft Teams teams',
         details: (error as Error).message,
       },
       { status: 500 }

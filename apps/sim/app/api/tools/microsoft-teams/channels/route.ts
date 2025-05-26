@@ -1,22 +1,27 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { refreshAccessTokenIfNeeded } from '../../utils'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('teams-teams')
+const logger = createLogger('TeamsChannelsAPI')
 
 export async function POST(request: Request) {
   try {
     const session = await getSession()
     const body = await request.json()
 
-    const { credential, workflowId } = body
+    const { credential, teamId, workflowId } = body
 
     if (!credential) {
       logger.error('Missing credential in request')
       return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+    }
+
+    if (!teamId) {
+      logger.error('Missing team ID in request')
+      return NextResponse.json({ error: 'Team ID is required' }, { status: 400 })
     }
 
     try {
@@ -41,20 +46,23 @@ export async function POST(request: Request) {
         )
       }
 
-      const response = await fetch('https://graph.microsoft.com/v1.0/me/joinedTeams', {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      })
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(teamId)}/channels`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      )
 
       if (!response.ok) {
         const errorData = await response.json()
-        logger.error('Microsoft Graph API error getting teams', {
+        logger.error('Microsoft Graph API error getting channels', {
           status: response.status,
           error: errorData,
-          endpoint: 'https://graph.microsoft.com/v1.0/me/joinedTeams',
+          endpoint: `https://graph.microsoft.com/v1.0/teams/${teamId}/channels`,
         })
 
         // Check for auth errors specifically
@@ -72,10 +80,10 @@ export async function POST(request: Request) {
       }
 
       const data = await response.json()
-      const teams = data.value
+      const channels = data.value
 
       return NextResponse.json({
-        teams: teams,
+        channels: channels,
       })
     } catch (innerError) {
       logger.error('Error during API requests:', innerError)
@@ -101,10 +109,10 @@ export async function POST(request: Request) {
       throw innerError
     }
   } catch (error) {
-    logger.error('Error processing Teams request:', error)
+    logger.error('Error processing Channels request:', error)
     return NextResponse.json(
       {
-        error: 'Failed to retrieve Microsoft Teams teams',
+        error: 'Failed to retrieve Microsoft Teams channels',
         details: (error as Error).message,
       },
       { status: 500 }
