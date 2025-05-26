@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
@@ -47,7 +47,7 @@ jobs:
         run: bun run build
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           directory: ./apps/sim/coverage
           fail_ci_if_error: false
