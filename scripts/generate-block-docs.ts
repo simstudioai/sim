@@ -220,8 +220,28 @@ function extractStringProperty(content: string, propName: string): string | null
   if (simpleMatch) return simpleMatch[1]
 
   // Try to match multi-line string with template literals
-  const templateMatch = content.match(new RegExp(`${propName}\\s*:\\s*\`([^\`]+)\``, 'm'))
-  return templateMatch ? templateMatch[1] : null
+  const templateMatch = content.match(new RegExp(`${propName}\\s*:\\s*\`([^\`]+)\``, 's'))
+  if (templateMatch) {
+    let templateContent = templateMatch[1]
+
+    // Handle template literals with expressions by replacing them with reasonable defaults
+    // This is a simple approach - we'll replace common variable references with sensible defaults
+    templateContent = templateContent.replace(
+      /\$\{[^}]*shouldEnableURLInput[^}]*\?[^:]*:[^}]*\}/g,
+      'Upload files directly. '
+    )
+    templateContent = templateContent.replace(/\$\{[^}]*shouldEnableURLInput[^}]*\}/g, 'false')
+
+    // Remove any remaining template expressions that we can't safely evaluate
+    templateContent = templateContent.replace(/\$\{[^}]+\}/g, '')
+
+    // Clean up any extra whitespace
+    templateContent = templateContent.replace(/\s+/g, ' ').trim()
+
+    return templateContent
+  }
+
+  return null
 }
 
 // Helper to extract icon name from content

@@ -88,9 +88,6 @@ export interface FilterState {
   // Original logs from API
   logs: WorkflowLog[]
 
-  // Filtered logs to display
-  filteredLogs: WorkflowLog[]
-
   // Filter states
   timeRange: TimeRange
   level: LogLevel
@@ -120,6 +117,6 @@ export interface FilterState {
   setIsFetchingMore: (isFetchingMore: boolean) => void
   resetPagination: () => void
 
-  // Apply filters
-  applyFilters: () => void
+  // Build query parameters for server-side filtering
+  buildQueryParams: (page: number, limit: number) => string
 }
