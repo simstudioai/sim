@@ -1,8 +1,8 @@
 import {
   CreditCard,
-  Key,
   KeyRound,
   KeySquare,
+  Lock,
   Settings,
   Shield,
   UserCircle,
@@ -63,7 +63,7 @@ const allNavigationItems: NavigationItem[] = [
   {
     id: 'credentials',
     label: 'Credentials',
-    icon: Key,
+    icon: Lock,
   },
   {
     id: 'apikeys',

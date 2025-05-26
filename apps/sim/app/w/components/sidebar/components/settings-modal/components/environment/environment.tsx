@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Search } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,18 +31,27 @@ interface EnvironmentVariablesProps {
 }
 
 export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps) {
-  // Store access
   const { variables } = useEnvironmentStore()
 
-  // State
   const [envVars, setEnvVars] = useState<UIEnvironmentVariable[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
   const [focusedValueIndex, setFocusedValueIndex] = useState<number | null>(null)
   const [showUnsavedChanges, setShowUnsavedChanges] = useState(false)
 
-  // Refs
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const pendingClose = useRef(false)
   const initialVarsRef = useRef<UIEnvironmentVariable[]>([])
+
+  // Filter environment variables based on search term
+  const filteredEnvVars = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return envVars.map((envVar, index) => ({ envVar, originalIndex: index }))
+    }
+
+    return envVars
+      .map((envVar, index) => ({ envVar, originalIndex: index }))
+      .filter(({ envVar }) => envVar.key.toLowerCase().includes(searchTerm.toLowerCase()))
+  }, [envVars, searchTerm])
 
   // Derived state
   const hasChanges = useMemo(() => {
@@ -88,6 +98,8 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
   const addEnvVar = () => {
     const newVar = { key: '', value: '', id: Date.now() }
     setEnvVars([...envVars, newVar])
+    // Clear search to ensure the new variable is visible
+    setSearchTerm('')
   }
 
   const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
@@ -202,38 +214,43 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
   }
 
   // UI rendering
-  const renderEnvVarRow = (envVar: UIEnvironmentVariable, index: number) => (
-    <div key={envVar.id || index} className={`${GRID_COLS} items-center`}>
+  const renderEnvVarRow = (envVar: UIEnvironmentVariable, originalIndex: number) => (
+    <div key={envVar.id || originalIndex} className={`${GRID_COLS} items-center`}>
       <Input
         data-input-type='key'
         value={envVar.key}
-        onChange={(e) => updateEnvVar(index, 'key', e.target.value)}
-        onPaste={(e) => handlePaste(e, index)}
+        onChange={(e) => updateEnvVar(originalIndex, 'key', e.target.value)}
+        onPaste={(e) => handlePaste(e, originalIndex)}
         placeholder='API_KEY'
         autoComplete='off'
         autoCorrect='off'
         autoCapitalize='off'
         spellCheck='false'
-        name={`env-var-key-${envVar.id || index}-${Math.random()}`}
+        name={`env-var-key-${envVar.id || originalIndex}-${Math.random()}`}
       />
       <Input
         data-input-type='value'
         value={envVar.value}
-        onChange={(e) => updateEnvVar(index, 'value', e.target.value)}
-        type={focusedValueIndex === index ? 'text' : 'password'}
-        onFocus={(e) => handleValueFocus(index, e)}
+        onChange={(e) => updateEnvVar(originalIndex, 'value', e.target.value)}
+        type={focusedValueIndex === originalIndex ? 'text' : 'password'}
+        onFocus={(e) => handleValueFocus(originalIndex, e)}
         onClick={handleValueClick}
         onBlur={() => setFocusedValueIndex(null)}
-        onPaste={(e) => handlePaste(e, index)}
+        onPaste={(e) => handlePaste(e, originalIndex)}
         placeholder='Enter value'
         className='allow-scroll'
         autoComplete='off'
         autoCorrect='off'
         autoCapitalize='off'
         spellCheck='false'
-        name={`env-var-value-${envVar.id || index}-${Math.random()}`}
+        name={`env-var-value-${envVar.id || originalIndex}-${Math.random()}`}
       />
-      <Button variant='ghost' size='icon' onClick={() => removeEnvVar(index)} className='h-10 w-10'>
+      <Button
+        variant='ghost'
+        size='icon'
+        onClick={() => removeEnvVar(originalIndex)}
+        className='h-10 w-10'
+      >
         ×
       </Button>
     </div>
@@ -243,7 +260,21 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
     <div className='flex h-full flex-col'>
       {/* Fixed Header */}
       <div className='px-6 pt-6'>
-        <h2 className='mb-6 font-medium text-lg'>Environment Variables</h2>
+        <div className='mb-6 flex items-center justify-between'>
+          <h2 className='font-medium text-lg'>Environment Variables</h2>
+
+          {/* Search Input */}
+          <div className='relative w-48'>
+            <Search className='-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground' />
+            <Input
+              placeholder='Search...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='h-9 pl-9 text-sm'
+            />
+          </div>
+        </div>
+
         <div className={`${GRID_COLS} mb-2 px-0.5`}>
           <Label>Key</Label>
           <Label>Value</Label>
@@ -256,7 +287,17 @@ export function EnvironmentVariables({ onOpenChange }: EnvironmentVariablesProps
         ref={scrollContainerRef}
         className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
       >
-        <div className='space-y-2 py-2'>{envVars.map(renderEnvVarRow)}</div>
+        <div className='space-y-2 py-2'>
+          {filteredEnvVars.map(({ envVar, originalIndex }) =>
+            renderEnvVarRow(envVar, originalIndex)
+          )}
+          {/* Show message when search has no results but there are variables */}
+          {searchTerm.trim() && filteredEnvVars.length === 0 && envVars.length > 0 && (
+            <div className='py-8 text-center text-muted-foreground text-sm'>
+              No environment variables found matching "{searchTerm}"
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Fixed Footer */}

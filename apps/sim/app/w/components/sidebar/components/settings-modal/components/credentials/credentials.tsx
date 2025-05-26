@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, RefreshCw, Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { client, useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -32,6 +33,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   const pendingServiceRef = useRef<HTMLDivElement>(null)
 
   const [services, setServices] = useState<ServiceInfo[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isConnecting, setIsConnecting] = useState<string | null>(null)
   const [pendingService, setPendingService] = useState<string | null>(null)
@@ -292,6 +294,24 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
     {} as Record<string, ServiceInfo[]>
   )
 
+  // Filter services based on search term
+  const filteredGroupedServices = Object.entries(groupedServices).reduce(
+    (acc, [providerKey, providerServices]) => {
+      const filteredServices = providerServices.filter(
+        (service) =>
+          service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          service.description.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+
+      if (filteredServices.length > 0) {
+        acc[providerKey] = filteredServices
+      }
+
+      return acc
+    },
+    {} as Record<string, ServiceInfo[]>
+  )
+
   const scrollToHighlightedService = () => {
     if (pendingServiceRef.current) {
       pendingServiceRef.current.scrollIntoView({
@@ -304,7 +324,20 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
   return (
     <div className='space-y-6 p-6'>
       <div>
-        <h3 className='mb-1 font-medium text-lg'>Credentials</h3>
+        <div className='mb-1 flex items-center justify-between'>
+          <h3 className='font-medium text-lg'>Credentials</h3>
+
+          {/* Search Input */}
+          <div className='relative w-48'>
+            <Search className='-translate-y-1/2 absolute top-1/2 left-3 h-4 w-4 text-muted-foreground' />
+            <Input
+              placeholder='Search...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='h-9 pl-9 text-sm'
+            />
+          </div>
+        </div>
         <p className='mb-6 text-muted-foreground text-sm'>
           Connect your accounts to use tools that require authentication.
         </p>
@@ -359,7 +392,7 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
       ) : (
         <div className='space-y-6'>
           {/* Group services by provider */}
-          {Object.entries(groupedServices).map(([providerKey, providerServices]) => (
+          {Object.entries(filteredGroupedServices).map(([providerKey, providerServices]) => (
             <div key={providerKey} className='space-y-4'>
               <h4 className='font-medium text-muted-foreground text-sm'>
                 {OAUTH_PROVIDERS[providerKey]?.name || 'Other Services'}
@@ -466,6 +499,13 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
               </div>
             </div>
           ))}
+
+          {/* Show message when search has no results */}
+          {searchTerm.trim() && Object.keys(filteredGroupedServices).length === 0 && (
+            <div className='py-8 text-center text-muted-foreground text-sm'>
+              No services found matching "{searchTerm}"
+            </div>
+          )}
         </div>
       )}
     </div>

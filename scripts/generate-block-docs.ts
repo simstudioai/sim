@@ -170,9 +170,42 @@ function extractBlockConfig(fileContent: string): BlockConfig | null {
 
 // Helper function to find the block type
 function findBlockType(content: string, blockName: string): string {
-  // Try to find explicitly defined type
-  const typeMatch = content.match(/type\s*:\s*['"]([^'"]+)['"]/)
-  if (typeMatch) return typeMatch[1]
+  // Try to find the type within the main block export
+  // Look for the pattern: export const [BlockName]Block: BlockConfig = { ... type: 'value' ... }
+  const blockExportRegex = new RegExp(
+    `export\\s+const\\s+${blockName}Block\\s*:[^{]*{[\\s\\S]*?type\\s*:\\s*['"]([^'"]+)['"][\\s\\S]*?}`,
+    'i'
+  )
+  const blockExportMatch = content.match(blockExportRegex)
+  if (blockExportMatch) return blockExportMatch[1]
+
+  // Fallback: try to find type within a block config object that comes after the export
+  const exportMatch = content.match(new RegExp(`export\\s+const\\s+${blockName}Block\\s*:`))
+  if (exportMatch) {
+    // Find the content after the export statement
+    const afterExport = content.substring(exportMatch.index! + exportMatch[0].length)
+
+    // Look for the first opening brace and then find type within that block
+    const blockStartMatch = afterExport.match(/{/)
+    if (blockStartMatch) {
+      const blockStart = blockStartMatch.index!
+
+      // Find the matching closing brace by counting braces
+      let braceCount = 1
+      let blockEnd = blockStart + 1
+
+      while (blockEnd < afterExport.length && braceCount > 0) {
+        if (afterExport[blockEnd] === '{') braceCount++
+        else if (afterExport[blockEnd] === '}') braceCount--
+        blockEnd++
+      }
+
+      // Extract the block content and look for type
+      const blockContent = afterExport.substring(blockStart, blockEnd)
+      const typeMatch = blockContent.match(/type\s*:\s*['"]([^'"]+)['"]/)
+      if (typeMatch) return typeMatch[1]
+    }
+  }
 
   // Convert CamelCase to snake_case as fallback
   return blockName
