@@ -26,12 +26,6 @@ const LoopNodeStyles: React.FC = () => {
         box-shadow: 0 0 0 8px rgba(47, 179, 255, 0.1);
       }
       
-      /* Make resizer handles more visible */
-      .react-flow__resize-control {
-        z-index: 10;
-        pointer-events: all !important;
-      }
-      
       /* Ensure parent borders are visible when hovering over resize controls */
       .react-flow__node-group:hover,
       .hover-highlight {
@@ -43,12 +37,7 @@ const LoopNodeStyles: React.FC = () => {
         opacity: 1 !important;
         visibility: visible !important;
       }
-      
-      /* React Flow position transitions within loops */
-      .react-flow__node[data-parent-node-id] {
-        transition: transform 0.05s ease;
-        pointer-events: all;
-      }
+    
       
       /* Prevent jumpy drag behavior */
       .loop-drop-container .react-flow__node {

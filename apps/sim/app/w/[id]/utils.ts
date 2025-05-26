@@ -151,12 +151,6 @@ export const updateNodeParent = (
     // Update both position and parent
     updateBlockPosition(nodeId, relativePosition)
     updateParentId(nodeId, newParentId, 'parent')
-
-    logger.info('Updated node parent', {
-      nodeId,
-      newParentId,
-      relativePosition,
-    })
   } else if (currentParentId) {
     // Removing parent - convert to absolute position
     const absolutePosition = getNodeAbsolutePosition(nodeId, getNodes)
@@ -164,12 +158,6 @@ export const updateNodeParent = (
     // Update position to absolute coordinates and remove parent
     updateBlockPosition(nodeId, absolutePosition)
     // Note: updateParentId function signature needs to handle null case
-
-    logger.info('Removed node parent', {
-      nodeId,
-      previousParentId: currentParentId,
-      absolutePosition,
-    })
   }
 
   // Resize affected loops
@@ -262,45 +250,51 @@ export const calculateLoopDimensions = (
     let nodeHeight
 
     if (node.type === 'loopNode' || node.type === 'parallelNode') {
-      // For nested containers, don't add excessive padding to the parent
-      // Use actual dimensions without additional padding to prevent cascading expansion
+      // For nested containers, use their actual dimensions
       nodeWidth = node.data?.width || DEFAULT_CONTAINER_WIDTH
       nodeHeight = node.data?.height || DEFAULT_CONTAINER_HEIGHT
     } else if (node.type === 'workflowBlock') {
-      // Handle all workflowBlock types appropriately
-      const blockType = node.data?.type
+      // Use actual dynamic dimensions from the node data if available
+      // Fall back to block type defaults only if no dynamic dimensions exist
+      nodeWidth = node.data?.width || node.width
+      nodeHeight = node.data?.height || node.height
 
-      switch (blockType) {
-        case 'agent':
-        case 'api':
-          // Tall blocks
-          nodeWidth = 350
-          nodeHeight = 650
-          break
-        case 'condition':
-        case 'function':
-          nodeWidth = 250
-          nodeHeight = 200
-          break
-        case 'router':
-          nodeWidth = 250
-          nodeHeight = 350
-          break
-        default:
-          // Default dimensions for other block types
-          nodeWidth = 200
-          nodeHeight = 200
+      // If still no dimensions, use block type defaults as last resort
+      if (!nodeWidth || !nodeHeight) {
+        const blockType = node.data?.type
+
+        switch (blockType) {
+          case 'agent':
+          case 'api':
+            // Tall blocks
+            nodeWidth = nodeWidth || 350
+            nodeHeight = nodeHeight || 650
+            break
+          case 'condition':
+          case 'function':
+            nodeWidth = nodeWidth || 250
+            nodeHeight = nodeHeight || 200
+            break
+          case 'router':
+            nodeWidth = nodeWidth || 250
+            nodeHeight = nodeHeight || 350
+            break
+          default:
+            // Default dimensions for other block types
+            nodeWidth = nodeWidth || 200
+            nodeHeight = nodeHeight || 200
+        }
       }
     } else {
-      // Default dimensions for any other node types
-      nodeWidth = 200
-      nodeHeight = 200
+      // For any other node types, try to get actual dimensions first
+      nodeWidth = node.data?.width || node.width || 200
+      nodeHeight = node.data?.height || node.height || 200
     }
 
-    minX = Math.min(minX, node.position.x)
-    minY = Math.min(minY, node.position.y)
+    minX = Math.min(minX, node.position.x + nodeWidth)
+    minY = Math.min(minY, node.position.y + nodeHeight)
     maxX = Math.max(maxX, node.position.x + nodeWidth)
-    maxY = Math.max(maxY, node.position.y + nodeHeight)
+    maxY = Math.max(maxY, node.position.y + nodeHeight + 50)
   })
 
   // Add buffer padding to all sides (20px buffer before edges)
@@ -313,9 +307,12 @@ export const calculateLoopDimensions = (
   // Reduce the excessive padding that was causing parent containers to be too large
   const sidePadding = hasNestedContainers ? 150 : 120 // Reduced padding for containers containing other containers
 
+  // Add extra padding to the right side to prevent sidebar from covering the right handle
+  const extraPadding = 50
+
   // Ensure the width and height are never less than the minimums
-  // Apply padding to all sides (left/right and top/bottom)
-  const width = Math.max(minWidth, maxX + sidePadding)
+  // Apply padding to all sides (left/right and top/bottom) with extra right padding
+  const width = Math.max(minWidth, maxX + sidePadding + extraPadding)
   const height = Math.max(minHeight, maxY + sidePadding)
 
   return { width, height }

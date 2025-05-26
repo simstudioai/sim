@@ -223,6 +223,12 @@ function WorkflowContent() {
         }
       }
     }
+    // For loop and parallel nodes, use their end source handle
+    else if (block.type === 'loop') {
+      sourceHandle = 'loop-end-source'
+    } else if (block.type === 'parallel') {
+      sourceHandle = 'parallel-end-source'
+    }
 
     return sourceHandle
   }, [])
@@ -376,12 +382,6 @@ function WorkflowContent() {
               extent: 'parent',
             })
 
-            logger.info(`Added nested ${data.type} inside parent container`, {
-              nodeId: id,
-              parentId: containerInfo.loopId,
-              relativePosition,
-            })
-
             // Auto-connect the nested container to nodes inside the parent container
             const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
             if (isAutoConnectEnabled) {
@@ -485,13 +485,6 @@ function WorkflowContent() {
             extent: 'parent',
           })
 
-          logger.info('Added block inside container', {
-            blockId: id,
-            blockType: data.type,
-            containerId: containerInfo.loopId,
-            relativePosition,
-          })
-
           // Resize the container node to fit the new block
           // Immediate resize without delay
           debouncedResizeLoopNodes()
@@ -499,42 +492,61 @@ function WorkflowContent() {
           // Auto-connect logic for blocks inside containers
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
           if (isAutoConnectEnabled && data.type !== 'starter') {
-            // Try to find other nodes in the container to connect to
-            const containerNodes = getNodes().filter((n) => n.parentId === containerInfo.loopId)
+            // First priority: Connect to the container's start node
+            const containerNode = getNodes().find((n) => n.id === containerInfo.loopId)
+            const containerType = containerNode?.type
 
-            if (containerNodes.length > 0) {
-              // Connect to the closest node in the container
-              const closestNode = containerNodes
-                .map((n) => ({
-                  id: n.id,
-                  distance: Math.sqrt(
-                    (n.position.x - relativePosition.x) ** 2 +
-                      (n.position.y - relativePosition.y) ** 2
-                  ),
-                }))
-                .sort((a, b) => a.distance - b.distance)[0]
+            if (containerType === 'loopNode' || containerType === 'parallelNode') {
+              // Connect from the container's start node to the new block
+              const startSourceHandle =
+                containerType === 'loopNode' ? 'loop-start-source' : 'parallel-start-source'
 
-              if (closestNode) {
-                // Get appropriate source handle
-                const sourceNode = getNodes().find((n) => n.id === closestNode.id)
-                const sourceType = sourceNode?.data?.type
+              addEdge({
+                id: crypto.randomUUID(),
+                source: containerInfo.loopId,
+                target: id,
+                sourceHandle: startSourceHandle,
+                targetHandle: 'target',
+                type: 'workflowEdge',
+              })
+            } else {
+              // Fallback: Try to find other nodes in the container to connect to
+              const containerNodes = getNodes().filter((n) => n.parentId === containerInfo.loopId)
 
-                // Default source handle
-                let sourceHandle = 'source'
+              if (containerNodes.length > 0) {
+                // Connect to the closest node in the container
+                const closestNode = containerNodes
+                  .map((n) => ({
+                    id: n.id,
+                    distance: Math.sqrt(
+                      (n.position.x - relativePosition.x) ** 2 +
+                        (n.position.y - relativePosition.y) ** 2
+                    ),
+                  }))
+                  .sort((a, b) => a.distance - b.distance)[0]
 
-                // For condition blocks, use the condition-true handle
-                if (sourceType === 'condition') {
-                  sourceHandle = 'condition-true'
+                if (closestNode) {
+                  // Get appropriate source handle
+                  const sourceNode = getNodes().find((n) => n.id === closestNode.id)
+                  const sourceType = sourceNode?.data?.type
+
+                  // Default source handle
+                  let sourceHandle = 'source'
+
+                  // For condition blocks, use the condition-true handle
+                  if (sourceType === 'condition') {
+                    sourceHandle = 'condition-true'
+                  }
+
+                  addEdge({
+                    id: crypto.randomUUID(),
+                    source: closestNode.id,
+                    target: id,
+                    sourceHandle,
+                    targetHandle: 'target',
+                    type: 'workflowEdge',
+                  })
                 }
-
-                addEdge({
-                  id: crypto.randomUUID(),
-                  source: closestNode.id,
-                  target: id,
-                  sourceHandle,
-                  targetHandle: 'target',
-                  type: 'workflowEdge',
-                })
               }
             }
           }
@@ -744,6 +756,7 @@ function WorkflowContent() {
         type: 'workflowBlock',
         position,
         parentId: block.data?.parentId,
+        dragHandle: '.workflow-drag-handle',
         extent: block.data?.extent || undefined,
         data: {
           type: block.type,
@@ -752,6 +765,9 @@ function WorkflowContent() {
           isActive,
           isPending,
         },
+        // Include dynamic dimensions for container resizing calculations
+        width: block.isWide ? 450 : 350, // Standard width based on isWide state
+        height: Math.max(block.height || 100, 100), // Use actual height with minimum
       })
     })
 
@@ -815,9 +831,6 @@ function WorkflowContent() {
     (changes: any) => {
       changes.forEach((change: any) => {
         if (change.type === 'remove') {
-          logger.info('Edge removal requested via ReactFlow:', {
-            edgeId: change.id,
-          })
           removeEdge(change.id)
         }
       })
@@ -831,9 +844,6 @@ function WorkflowContent() {
       if (connection.source && connection.target) {
         // Prevent self-connections
         if (connection.source === connection.target) {
-          logger.info('Rejected self-connection:', {
-            nodeId: connection.source,
-          })
           return
         }
 
@@ -862,12 +872,6 @@ function WorkflowContent() {
           targetNode.parentId === sourceNode.id
         ) {
           // This is a connection from container start to a node inside the container - always allow
-          logger.info('Creating container start connection:', {
-            edgeId,
-            sourceId: connection.source,
-            targetId: connection.target,
-            parentId: sourceNode.id,
-          })
 
           addEdge({
             ...connection,
@@ -888,26 +892,12 @@ function WorkflowContent() {
           (!sourceParentId && targetParentId) ||
           (sourceParentId && targetParentId && sourceParentId !== targetParentId)
         ) {
-          logger.info('Rejected cross-boundary connection:', {
-            sourceId: connection.source,
-            targetId: connection.target,
-            sourceParentId,
-            targetParentId,
-          })
           return
         }
 
         // Track if this connection is inside a container
         const isInsideContainer = Boolean(sourceParentId) || Boolean(targetParentId)
         const parentId = sourceParentId || targetParentId
-
-        logger.info('Creating connection:', {
-          edgeId,
-          sourceId: connection.source,
-          targetId: connection.target,
-          isInsideContainer,
-          parentId,
-        })
 
         // Add appropriate metadata for container context
         addEdge({
@@ -1087,12 +1077,6 @@ function WorkflowContent() {
       // Store the original parent ID when starting to drag
       const currentParentId = node.parentId || blocks[node.id]?.data?.parentId || null
       setDragStartParentId(currentParentId)
-
-      logger.info('Node drag started', {
-        nodeId: node.id,
-        startParentId: currentParentId,
-        nodeType: node.type,
-      })
     },
     [blocks]
   )
@@ -1108,13 +1092,6 @@ function WorkflowContent() {
 
       // Don't process if the node hasn't actually changed parent or is being moved within same parent
       if (potentialParentId === dragStartParentId) return
-
-      logger.info('Node drag stopped', {
-        nodeId: node.id,
-        dragStartParentId,
-        potentialParentId,
-        nodeType: node.type,
-      })
 
       // Check if this is a starter block - starter blocks should never be in containers
       const isStarterBlock = node.data?.type === 'starter'
@@ -1180,16 +1157,6 @@ function WorkflowContent() {
       // Create a unique identifier that combines edge ID and parent context
       const contextId = `${edge.id}${parentLoopId ? `-${parentLoopId}` : ''}`
 
-      logger.info('Edge selected:', {
-        edgeId: edge.id,
-        sourceId: edge.source,
-        targetId: edge.target,
-        sourceNodeParent: sourceNode?.parentId,
-        targetNodeParent: targetNode?.parentId,
-        parentLoopId,
-        contextId,
-      })
-
       setSelectedEdgeInfo({
         id: edge.id,
         parentLoopId,
@@ -1223,11 +1190,6 @@ function WorkflowContent() {
         parentLoopId,
         onDelete: (edgeId: string) => {
           // Log deletion for debugging
-          logger.info('Deleting edge:', {
-            edgeId,
-            fromSelection: selectedEdgeInfo?.id === edgeId,
-            contextId: edgeContextId,
-          })
 
           // Only delete this specific edge
           removeEdge(edgeId)
@@ -1245,12 +1207,6 @@ function WorkflowContent() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedEdgeInfo) {
-        logger.info('Keyboard shortcut edge deletion:', {
-          edgeId: selectedEdgeInfo.id,
-          parentLoopId: selectedEdgeInfo.parentLoopId,
-          contextId: selectedEdgeInfo.contextId,
-        })
-
         // Only delete the specific selected edge
         removeEdge(selectedEdgeInfo.id)
         setSelectedEdgeInfo(null)

@@ -25,12 +25,6 @@ const ParallelNodeStyles: React.FC = () => {
         box-shadow: 0 0 0 8px rgba(254, 225, 43, 0.1);
       }
       
-      /* Make resizer handles more visible */
-      .react-flow__resize-control {
-        z-index: 10;
-        pointer-events: all !important;
-      }
-      
       /* Ensure parent borders are visible when hovering over resize controls */
       .react-flow__node-group:hover,
       .hover-highlight {
@@ -43,11 +37,6 @@ const ParallelNodeStyles: React.FC = () => {
         visibility: visible !important;
       }
       
-      /* React Flow position transitions within parallel blocks */
-      .react-flow__node[data-parent-node-id] {
-        transition: transform 0.05s ease;
-        pointer-events: all;
-      }
       
       /* Prevent jumpy drag behavior */
       .parallel-drop-container .react-flow__node {

@@ -426,7 +426,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         {/* Block Header */}
-        <div className='workflow-drag-handle flex cursor-grab items-center justify-between border-b p-3 [&:active]:cursor-grabbing'>
+        <div
+          className='workflow-drag-handle flex cursor-grab items-center justify-between border-b p-3 [&:active]:cursor-grabbing'
+          onMouseDown={(e) => {
+            e.stopPropagation()
+          }}
+        >
           <div className='flex items-center gap-3'>
             <div
               className='flex h-7 w-7 items-center justify-center rounded'
@@ -662,7 +667,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         </div>
 
         {/* Block Content */}
-        <div ref={contentRef} className='cursor-pointer space-y-4 px-4 pt-3 pb-4'>
+        <div
+          ref={contentRef}
+          className='cursor-pointer space-y-4 px-4 pt-3 pb-4'
+          onMouseDown={(e) => {
+            e.stopPropagation()
+          }}
+        >
           {subBlockRows.length > 0
             ? subBlockRows.map((row, rowIndex) => (
                 <div key={`row-${rowIndex}`} className='flex gap-4'>
