@@ -122,7 +122,7 @@ export function FolderSelector({
           labelId: folderId,
         })
 
-        const response = await fetch(`/api/auth/oauth/gmail/label?${queryParams.toString()}`)
+        const response = await fetch(`/api/tools/gmail/label?${queryParams.toString()}`)
 
         if (response.ok) {
           const data = await response.json()
@@ -166,10 +166,10 @@ export function FolderSelector({
         // Determine the API endpoint based on provider
         let apiEndpoint: string
         if (provider === 'outlook') {
-          apiEndpoint = `/api/auth/oauth/outlook/folders?${queryParams.toString()}`
+          apiEndpoint = `/api/tools/outlook/folders?${queryParams.toString()}`
         } else {
           // Default to Gmail
-          apiEndpoint = `/api/auth/oauth/gmail/labels?${queryParams.toString()}`
+          apiEndpoint = `/api/tools/gmail/labels?${queryParams.toString()}`
         }
 
         const response = await fetch(apiEndpoint)

@@ -59,7 +59,7 @@ export function DiscordServerSelector({
     setError(null)
 
     try {
-      const response = await fetch('/api/auth/oauth/discord/servers', {
+      const response = await fetch('/api/tools/discord/servers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -114,7 +114,7 @@ export function DiscordServerSelector({
 
     try {
       // Only fetch the specific server by ID instead of all servers
-      const response = await fetch('/api/auth/oauth/discord/servers', {
+      const response = await fetch('/api/tools/discord/servers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

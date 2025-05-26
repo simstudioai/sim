@@ -54,7 +54,7 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
 
   request: {
     url: (params: ConfluenceUpdateParams) => {
-      return '/api/auth/oauth/confluence/page'
+      return '/api/tools/confluence/page'
     },
     method: 'PUT',
     headers: (params: ConfluenceUpdateParams) => {

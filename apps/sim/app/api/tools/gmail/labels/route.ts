@@ -4,11 +4,19 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { account } from '@/db/schema'
-import { refreshAccessTokenIfNeeded } from '../../utils'
+import { refreshAccessTokenIfNeeded } from '../../../auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('GmailLabelAPI')
+const logger = createLogger('GmailLabelsAPI')
+
+interface GmailLabel {
+  id: string
+  name: string
+  type: 'system' | 'user'
+  messagesTotal?: number
+  messagesUnread?: number
+}
 
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -19,20 +27,17 @@ export async function GET(request: NextRequest) {
 
     // Check if the user is authenticated
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthenticated label request rejected`)
+      logger.warn(`[${requestId}] Unauthenticated labels request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
     const credentialId = searchParams.get('credentialId')
-    const labelId = searchParams.get('labelId')
+    const query = searchParams.get('query')
 
-    if (!credentialId || !labelId) {
-      logger.warn(`[${requestId}] Missing required parameters`)
-      return NextResponse.json(
-        { error: 'Credential ID and Label ID are required' },
-        { status: 400 }
-      )
+    if (!credentialId) {
+      logger.warn(`[${requestId}] Missing credentialId parameter`)
+      return NextResponse.json({ error: 'Credential ID is required' }, { status: 400 })
     }
 
     // Get the credential from the database
@@ -61,16 +66,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Fetch specific label from Gmail API
-    logger.info(`[${requestId}] Fetching label ${labelId} from Gmail API`)
-    const response = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/labels/${labelId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    )
+    // Fetch labels from Gmail API
+    const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
 
     // Log the response status
     logger.info(`[${requestId}] Gmail API response status: ${response.status}`)
@@ -87,29 +88,42 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const label = await response.json()
-
-    // Transform the label to a more usable format
-    // Format the label name with proper capitalization
-    let formattedName = label.name
-
-    // Handle system labels (INBOX, SENT, etc.)
-    if (label.type === 'system') {
-      // Convert to title case (first letter uppercase, rest lowercase)
-      formattedName = label.name.charAt(0).toUpperCase() + label.name.slice(1).toLowerCase()
+    const data = await response.json()
+    if (!Array.isArray(data.labels)) {
+      logger.error(`[${requestId}] Unexpected labels response structure:`, data)
+      return NextResponse.json({ error: 'Invalid labels response' }, { status: 500 })
     }
 
-    const formattedLabel = {
-      id: label.id,
-      name: formattedName,
-      type: label.type,
-      messagesTotal: label.messagesTotal || 0,
-      messagesUnread: label.messagesUnread || 0,
-    }
+    // Transform the labels to a more usable format
+    const labels = data.labels.map((label: GmailLabel) => {
+      // Format the label name with proper capitalization
+      let formattedName = label.name
 
-    return NextResponse.json({ label: formattedLabel }, { status: 200 })
+      // Handle system labels (INBOX, SENT, etc.)
+      if (label.type === 'system') {
+        // Convert to title case (first letter uppercase, rest lowercase)
+        formattedName = label.name.charAt(0).toUpperCase() + label.name.slice(1).toLowerCase()
+      }
+
+      return {
+        id: label.id,
+        name: formattedName,
+        type: label.type,
+        messagesTotal: label.messagesTotal || 0,
+        messagesUnread: label.messagesUnread || 0,
+      }
+    })
+
+    // Filter labels if a query is provided
+    const filteredLabels = query
+      ? labels.filter((label: GmailLabel) =>
+          label.name.toLowerCase().includes((query as string).toLowerCase())
+        )
+      : labels
+
+    return NextResponse.json({ labels: filteredLabels }, { status: 200 })
   } catch (error) {
-    logger.error(`[${requestId}] Error fetching Gmail label:`, error)
-    return NextResponse.json({ error: 'Failed to fetch Gmail label' }, { status: 500 })
+    logger.error(`[${requestId}] Error fetching Gmail labels:`, error)
+    return NextResponse.json({ error: 'Failed to fetch Gmail labels' }, { status: 500 })
   }
 }

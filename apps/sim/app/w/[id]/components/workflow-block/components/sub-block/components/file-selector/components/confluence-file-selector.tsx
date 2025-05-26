@@ -113,7 +113,7 @@ export function ConfluenceFileSelector({
     setIsLoading(true)
     try {
       const providerId = getProviderId()
-      const response = await fetch(`/api/auth/oauth/credentials?provider=${providerId}`)
+      const response = await fetch(`/api/tools/oauth/credentials?provider=${providerId}`)
 
       if (response.ok) {
         const data = await response.json()
@@ -183,7 +183,7 @@ export function ConfluenceFileSelector({
         const accessToken = tokenData.accessToken
 
         // Use the access token to fetch the page info
-        const response = await fetch('/api/auth/oauth/confluence/page', {
+        const response = await fetch('/api/tools/confluence/page', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -267,7 +267,7 @@ export function ConfluenceFileSelector({
         }
 
         // Simply fetch pages directly using the endpoint
-        const response = await fetch('/api/auth/oauth/confluence/pages', {
+        const response = await fetch('/api/tools/confluence/pages', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

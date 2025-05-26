@@ -63,7 +63,7 @@ export function DiscordChannelSelector({
     setError(null)
 
     try {
-      const response = await fetch('/api/auth/oauth/discord/channels', {
+      const response = await fetch('/api/tools/discord/channels', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -120,7 +120,7 @@ export function DiscordChannelSelector({
 
     try {
       // Only fetch the specific channel by ID instead of all channels
-      const response = await fetch('/api/auth/oauth/discord/channels', {
+      const response = await fetch('/api/tools/discord/channels', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

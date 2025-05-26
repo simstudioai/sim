@@ -144,7 +144,7 @@ export function GoogleDrivePicker({
           fileId: fileId,
         })
 
-        const response = await fetch(`/api/auth/oauth/drive/file?${queryParams.toString()}`)
+        const response = await fetch(`/api/tools/drive/file?${queryParams.toString()}`)
 
         if (response.ok) {
           const data = await response.json()

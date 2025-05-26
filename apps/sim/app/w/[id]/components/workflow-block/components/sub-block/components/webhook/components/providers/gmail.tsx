@@ -123,7 +123,7 @@ export function GmailConfig({
 
         const credentialId = credentialsData.credentials[0].id
 
-        const response = await fetch(`/api/auth/oauth/gmail/labels?credentialId=${credentialId}`)
+        const response = await fetch(`/api/tools/gmail/labels?credentialId=${credentialId}`)
         if (!response.ok) {
           throw new Error('Failed to fetch Gmail labels')
         }
