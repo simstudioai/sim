@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, ExternalLink, FileIcon, RefreshCw, X } from 'lucide-react'
+import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -23,6 +23,7 @@ import {
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
+import { MicrosoftExcelIcon } from '@/components/icons'
 
 const logger = createLogger('MicrosoftFileSelector')
 
@@ -346,15 +347,15 @@ export function MicrosoftFileSelector({
     const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5'
 
     if (file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-      return <FileIcon className={`${iconSize} text-green-600`} />
+      return <MicrosoftExcelIcon className={`${iconSize} text-green-600`} />
     }
-    if (file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      return <FileIcon className={`${iconSize} text-blue-600`} />
-    }
-    if (file.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
-      return <FileIcon className={`${iconSize} text-orange-600`} />
-    }
-    return <FileIcon className={`${iconSize} text-muted-foreground`} />
+    // if (file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    //   return <FileIcon className={`${iconSize} text-blue-600`} />
+    // }
+    // if (file.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+    //   return <FileIcon className={`${iconSize} text-orange-600`} />
+    // }
+    // return <FileIcon className={`${iconSize} text-muted-foreground`} />
   }
 
   return (
