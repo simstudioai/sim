@@ -67,6 +67,7 @@
     "ai": "^4.3.2",
     "better-auth": "^1.2.8-beta.3",
     "browser-image-compression": "^2.0.2",
+    "chonkie": "^0.2.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",

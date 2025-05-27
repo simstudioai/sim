@@ -41,6 +41,7 @@ export const env = createEnv({
     OPENAI_API_KEY_1: z.string().min(1).optional(),
     OPENAI_API_KEY_2: z.string().min(1).optional(),
     OPENAI_API_KEY_3: z.string().min(1).optional(),
+    MISTRAL_API_KEY: z.string().min(1).optional(),
     ANTHROPIC_API_KEY_1: z.string().min(1).optional(),
     ANTHROPIC_API_KEY_2: z.string().min(1).optional(),
     ANTHROPIC_API_KEY_3: z.string().min(1).optional(),
@@ -70,6 +71,7 @@ export const env = createEnv({
     FREE_PLAN_LOG_RETENTION_DAYS: z.string().optional(),
     NODE_ENV: z.string().optional(),
     GITHUB_TOKEN: z.string().optional(),
+    CHONKIE_API_KEY: z.string().min(1).optional(),
 
     // OAuth blocks (all optional)
     GOOGLE_CLIENT_ID: z.string().optional(),
