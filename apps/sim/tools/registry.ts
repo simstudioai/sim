@@ -193,6 +193,5 @@ export const tools: Record<string, ToolConfig> = {
   linear_create_issue: linearCreateIssueTool,
   microsoft_excel_read: microsoftExcelReadTool,
   microsoft_excel_write: microsoftExcelWriteTool,
-  microsoft_excel_table_update: microsoftExcelTableUpdateTool,
   microsoft_excel_table_add: microsoftExcelTableAddTool,
 }

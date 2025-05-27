@@ -37,16 +37,6 @@ export interface MicrosoftExcelWriteResponse extends ToolResponse {
   }
 }
 
-export interface MicrosoftExcelUpdateResponse extends ToolResponse {
-  output: {
-    updatedRange: string
-    updatedRows: number
-    updatedColumns: number
-    updatedCells: number
-    metadata: MicrosoftExcelMetadata
-  }
-}
-
 export interface MicrosoftExcelTableAddResponse extends ToolResponse {
   output: {
     index: number
@@ -55,13 +45,6 @@ export interface MicrosoftExcelTableAddResponse extends ToolResponse {
   }
 }
 
-export interface MicrosoftExcelTableUpdateResponse extends ToolResponse {
-  output: {
-    index: number
-    values: any[][]
-    metadata: MicrosoftExcelMetadata
-  }
-}
 
 export interface MicrosoftExcelToolParams {
   accessToken: string
