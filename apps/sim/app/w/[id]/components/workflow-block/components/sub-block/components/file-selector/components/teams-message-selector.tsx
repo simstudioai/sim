@@ -23,7 +23,7 @@ import {
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
-const logger = new Logger('teams_message_selector')
+const logger = new Logger('TeamsMessageSelector')
 
 export interface TeamsMessageInfo {
   id: string

@@ -33,6 +33,7 @@ import { LinkupBlock } from './blocks/linkup'
 import { Mem0Block } from './blocks/mem0'
 // import { GuestyBlock } from './blocks/guesty'
 import { MemoryBlock } from './blocks/memory'
+import { MicrosoftExcelBlock } from './blocks/microsoft_excel'
 import { MicrosoftTeamsBlock } from './blocks/microsoft_teams'
 import { MistralParseBlock } from './blocks/mistral_parse'
 import { NotionBlock } from './blocks/notion'
@@ -84,6 +85,7 @@ export const registry: Record<string, BlockConfig> = {
   google_drive: GoogleDriveBlock,
   google_search: GoogleSearchBlock,
   google_sheets: GoogleSheetsBlock,
+  microsoft_excel: MicrosoftExcelBlock,
   microsoft_teams: MicrosoftTeamsBlock,
   // guesty: GuestyBlock,
   image_generator: ImageGeneratorBlock,
