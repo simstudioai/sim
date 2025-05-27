@@ -1,19 +1,15 @@
 import { MicrosoftExcelIcon } from '@/components/icons'
 import type {
   MicrosoftExcelReadResponse,
-  MicrosoftExcelUpdateResponse,
   MicrosoftExcelWriteResponse,
   MicrosoftExcelTableAddResponse,
-  MicrosoftExcelTableUpdateResponse,
 } from '@/tools/microsoft_excel/types'
 import type { BlockConfig } from '../types'
 
 type MicrosoftExcelResponse =
   | MicrosoftExcelReadResponse
   | MicrosoftExcelWriteResponse
-  | MicrosoftExcelUpdateResponse
   | MicrosoftExcelTableAddResponse
-  | MicrosoftExcelTableUpdateResponse
 
 export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   type: 'microsoft_excel',
@@ -34,9 +30,8 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       layout: 'full',
       options: [
         { label: 'Read Data', id: 'read' },
-        { label: 'Write Data', id: 'write' },
+        { label: 'Write/Update Data', id: 'write' },
         { label: 'Add to Table', id: 'table_add' },
-        { label: 'Update Table', id: 'table_update' },
       ],
     },
     // Microsoft Excel Credentials
@@ -71,15 +66,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       placeholder: 'ID of the spreadsheet (from URL)',
       condition: { field: 'spreadsheetId', value: '' },
     },
-    // Worksheet ID (for table operations)
-    {
-      id: 'worksheetId',
-      title: 'Worksheet ID/Name (Optional)',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'ID or name of the worksheet (optional)',
-      condition: { field: 'operation', value: ['table_add', 'table_update'] },
-    },
     // Range (for worksheet operations)
     {
       id: 'range',
@@ -96,16 +82,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Name of the Excel table',
-      condition: { field: 'operation', value: ['table_add', 'table_update'] },
-    },
-    // Row Index (for table update)
-    {
-      id: 'rowIndex',
-      title: 'Row Index',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Index of the row to update (0-based)',
-      condition: { field: 'operation', value: 'table_update' },
+      condition: { field: 'operation', value: ['table_add'] },
     },
     // Write-specific Fields
     {
@@ -159,24 +136,12 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         'Enter values as JSON array of arrays (e.g., [["A1", "B1"], ["A2", "B2"]]) or an array of objects (e.g., [{"name":"John", "age":30}, {"name":"Jane", "age":25}])',
       condition: { field: 'operation', value: 'table_add' },
     },
-    // Table Update Fields
-    {
-      id: 'values',
-      title: 'Values',
-      type: 'long-input',
-      layout: 'full',
-      placeholder:
-        'Enter values as JSON array (e.g., ["A1", "B1"]) or an object (e.g., {"name":"John", "age":30})',
-      condition: { field: 'operation', value: 'table_update' },
-    },
   ],
   tools: {
     access: [
       'microsoft_excel_read',
       'microsoft_excel_write',
-      'microsoft_excel_update',
       'microsoft_excel_table_add',
-      'microsoft_excel_table_update',
     ],
     config: {
       tool: (params) => {
@@ -185,18 +150,14 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
             return 'microsoft_excel_read'
           case 'write':
             return 'microsoft_excel_write'
-          case 'update':
-            return 'microsoft_excel_update'
           case 'table_add':
             return 'microsoft_excel_table_add'
-          case 'table_update':
-            return 'microsoft_excel_table_update'
           default:
             throw new Error(`Invalid Microsoft Excel operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, values, spreadsheetId, manualSpreadsheetId, tableName, rowIndex, worksheetId, ...rest } = params
+        const { credential, values, spreadsheetId, manualSpreadsheetId, tableName, ...rest } = params
 
         // Parse values from JSON string to array if it exists
         const parsedValues = values ? JSON.parse(values as string) : undefined
@@ -211,13 +172,8 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         }
 
         // For table operations, ensure tableName is provided
-        if ((params.operation === 'table_add' || params.operation === 'table_update') && !tableName) {
+        if (params.operation === 'table_add' && !tableName) {
           throw new Error('Table name is required for table operations.')
-        }
-
-        // For table update, ensure rowIndex is provided
-        if (params.operation === 'table_update' && (rowIndex === undefined || rowIndex === '')) {
-          throw new Error('Row index is required for table update operations.')
         }
 
         const baseParams = {
@@ -228,12 +184,10 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         }
 
         // Add table-specific parameters
-        if (params.operation === 'table_add' || params.operation === 'table_update') {
+        if (params.operation === 'table_add') {
           return {
             ...baseParams,
             tableName,
-            ...(worksheetId && { worksheetId }),
-            ...(params.operation === 'table_update' && { rowIndex: parseInt(rowIndex as string, 10) }),
           }
         }
 
@@ -246,10 +200,8 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
     credential: { type: 'string', required: true },
     spreadsheetId: { type: 'string', required: false },
     manualSpreadsheetId: { type: 'string', required: false },
-    worksheetId: { type: 'string', required: false },
     range: { type: 'string', required: false },
     tableName: { type: 'string', required: false },
-    rowIndex: { type: 'string', required: false },
     values: { type: 'string', required: false },
     valueInputOption: { type: 'string', required: false },
   },
