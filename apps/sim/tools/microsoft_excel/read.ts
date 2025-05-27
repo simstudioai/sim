@@ -34,7 +34,7 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
 
       // Get a collection of worksheet objects
       if (!params.range) {
-        return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets`
+        return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets('Sheet1')/range(address='A1:Z1000')`
       }
 
       // Parse range in the format "Sheet1!A1:B2"
