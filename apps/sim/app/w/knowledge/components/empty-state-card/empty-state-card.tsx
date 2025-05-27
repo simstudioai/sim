@@ -20,23 +20,19 @@ export function EmptyStateCard({
   return (
     <div
       onClick={onClick}
-      className="group flex flex-col gap-3 rounded-md border border-dashed border-muted-foreground/25 bg-background p-4 transition-colors hover:bg-accent/50 hover:border-muted-foreground/40 cursor-pointer"
+      className='group flex cursor-pointer flex-col gap-3 rounded-md border border-muted-foreground/25 border-dashed bg-background p-4 transition-colors hover:border-muted-foreground/40 hover:bg-accent/50'
     >
-      <div className="flex items-center gap-2">
-        {icon || (
-          <LibraryBig className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-        )}
-        <h3 className="font-medium text-sm leading-tight truncate">{title}</h3>
+      <div className='flex items-center gap-2'>
+        {icon || <LibraryBig className='h-4 w-4 flex-shrink-0 text-muted-foreground' />}
+        <h3 className='truncate font-medium text-sm leading-tight'>{title}</h3>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className='flex flex-col gap-2'>
+        <div className='flex items-center gap-2 text-muted-foreground text-xs'>
           <span>Get started</span>
         </div>
 
-        <p className="text-xs text-muted-foreground line-clamp-2 overflow-hidden">
-          {description}
-        </p>
+        <p className='line-clamp-2 overflow-hidden text-muted-foreground text-xs'>{description}</p>
       </div>
     </div>
   )

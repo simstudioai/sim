@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Upload, X, FileIcon, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -14,14 +14,8 @@ import { getDocumentIcon } from '@/app/w/knowledge/icons/document-icons'
 
 // Define form schema
 const formSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Name is required')
-    .max(100, 'Name must be less than 100 characters'),
-  description: z
-    .string()
-    .max(500, 'Description must be less than 500 characters')
-    .optional(),
+  name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
+  description: z.string().max(500, 'Description must be less than 500 characters').optional(),
 })
 
 type FormValues = z.infer<typeof formSchema>
@@ -42,16 +36,28 @@ interface FileWithPreview extends File {
   preview: string
 }
 
-interface CreateFormProps {
-  onClose: () => void
+interface KnowledgeBase {
+  id: string
+  name: string
+  description?: string
+  tokenCount: number
+  embeddingModel: string
+  embeddingDimension: number
+  chunkingConfig: any
+  createdAt: string
+  updatedAt: string
+  workspaceId?: string
 }
 
-export function CreateForm({ onClose }: CreateFormProps) {
+interface CreateFormProps {
+  onClose: () => void
+  onKnowledgeBaseCreated?: (knowledgeBase: KnowledgeBase) => void
+}
+
+export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(
-    null
-  )
+  const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
@@ -112,9 +118,7 @@ export function CreateForm({ onClose }: CreateFormProps) {
       }
     } catch (error) {
       console.error('Error processing files:', error)
-      setFileError(
-        'An error occurred while processing files. Please try again.'
-      )
+      setFileError('An error occurred while processing files. Please try again.')
     } finally {
       // Reset the input
       if (fileInputRef.current) {
@@ -167,7 +171,7 @@ export function CreateForm({ onClose }: CreateFormProps) {
 
   const getFileIcon = (mimeType: string, filename: string) => {
     const IconComponent = getDocumentIcon(mimeType, filename)
-    return <IconComponent className="w-8 h-10" />
+    return <IconComponent className='h-10 w-8' />
   }
 
   const formatFileSize = (bytes: number): string => {
@@ -175,7 +179,7 @@ export function CreateForm({ onClose }: CreateFormProps) {
     const k = 1024
     const sizes = ['B', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+    return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
   }
 
   const onSubmit = async (data: FormValues) => {
@@ -183,28 +187,98 @@ export function CreateForm({ onClose }: CreateFormProps) {
     setSubmitStatus(null)
 
     try {
-      // Create FormData to handle file uploads
-      const formData = new FormData()
-
-      // Add form fields
-      formData.append('name', data.name)
-      if (data.description) {
-        formData.append('description', data.description)
+      // First create the knowledge base
+      const knowledgeBasePayload = {
+        name: data.name,
+        description: data.description || undefined,
       }
 
-      // Add files
-      files.forEach((file, index) => {
-        formData.append(`file_${index}`, file)
-      })
-
-      const response = await fetch('/api/knowledge-base', {
+      const response = await fetch('/api/knowledge', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(knowledgeBasePayload),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to create knowledge base')
+      }
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create knowledge base')
+      }
+
+      const newKnowledgeBase = result.data
+
+      // If files are uploaded, process them
+      if (files.length > 0) {
+        // First, upload all files to get their URLs
+        const uploadedFiles = []
+
+        for (const file of files) {
+          const formData = new FormData()
+          formData.append('file', file)
+
+          const uploadResponse = await fetch('/api/files/upload', {
+            method: 'POST',
+            body: formData,
+          })
+
+          if (!uploadResponse.ok) {
+            const errorData = await uploadResponse.json()
+            throw new Error(`Failed to upload ${file.name}: ${errorData.error || 'Unknown error'}`)
+          }
+
+          const uploadResult = await uploadResponse.json()
+          uploadedFiles.push({
+            filename: file.name,
+            fileUrl: uploadResult.path.startsWith('http')
+              ? uploadResult.path
+              : `${window.location.origin}${uploadResult.path}`,
+            fileSize: file.size,
+            mimeType: file.type,
+            fileHash: undefined,
+          })
+        }
+
+        // Now process the uploaded files
+        const processResponse = await fetch(
+          `/api/knowledge/${newKnowledgeBase.id}/process-documents`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              documents: uploadedFiles,
+              processingOptions: {
+                chunkSize: 1024,
+                minCharactersPerChunk: 24,
+                recipe: 'default',
+                lang: 'en',
+              },
+            }),
+          }
+        )
+
+        if (!processResponse.ok) {
+          const errorData = await processResponse.json()
+          throw new Error(errorData.error || 'Failed to process documents')
+        }
+
+        const processResult = await processResponse.json()
+
+        if (!processResult.success) {
+          throw new Error(processResult.error || 'Failed to process documents')
+        }
+
+        console.log(
+          `Processed ${processResult.data.processed}/${processResult.data.total} documents with ${processResult.data.totalChunks} total chunks`
+        )
       }
 
       setSubmitStatus('success')
@@ -214,6 +288,11 @@ export function CreateForm({ onClose }: CreateFormProps) {
       files.forEach((file) => URL.revokeObjectURL(file.preview))
       setFiles([])
 
+      // Call the callback if provided
+      if (onKnowledgeBaseCreated) {
+        onKnowledgeBaseCreated(newKnowledgeBase)
+      }
+
       // Close modal after a short delay to show success message
       setTimeout(() => {
         onClose()
@@ -221,43 +300,39 @@ export function CreateForm({ onClose }: CreateFormProps) {
     } catch (error) {
       console.error('Error creating knowledge base:', error)
       setSubmitStatus('error')
-      setErrorMessage(
-        error instanceof Error ? error.message : 'An unknown error occurred'
-      )
+      setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred')
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="flex h-full flex-col">
+    <form onSubmit={handleSubmit(onSubmit)} className='flex h-full flex-col'>
       {/* Scrollable Content */}
       <div
         ref={scrollContainerRef}
-        className="scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6"
+        className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
       >
-        <div className="py-4">
+        <div className='py-4'>
           {submitStatus === 'success' ? (
-            <Alert className="mb-6 border-border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30">
-              <div className="flex items-start gap-4 py-1">
-                <div className="mt-[-1.5px] flex-shrink-0">
-                  <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <Alert className='mb-6 border-border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'>
+              <div className='flex items-start gap-4 py-1'>
+                <div className='mt-[-1.5px] flex-shrink-0'>
+                  <CheckCircle2 className='h-4 w-4 text-green-600 dark:text-green-400' />
                 </div>
-                <div className="mr-4 flex-1 space-y-2">
-                  <AlertTitle className="-mt-0.5 flex items-center justify-between">
-                    <span className="font-medium text-green-600 dark:text-green-400">
-                      Success
-                    </span>
+                <div className='mr-4 flex-1 space-y-2'>
+                  <AlertTitle className='-mt-0.5 flex items-center justify-between'>
+                    <span className='font-medium text-green-600 dark:text-green-400'>Success</span>
                   </AlertTitle>
-                  <AlertDescription className="text-green-600 dark:text-green-400">
+                  <AlertDescription className='text-green-600 dark:text-green-400'>
                     Your knowledge base has been created successfully!
                   </AlertDescription>
                 </div>
               </div>
             </Alert>
           ) : submitStatus === 'error' ? (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
+            <Alert variant='destructive' className='mb-6'>
+              <AlertCircle className='h-4 w-4' />
               <AlertTitle>Error</AlertTitle>
               <AlertDescription>
                 {errorMessage ||
@@ -266,40 +341,34 @@ export function CreateForm({ onClose }: CreateFormProps) {
             </Alert>
           ) : null}
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
+          <div className='space-y-4'>
+            <div className='space-y-2'>
+              <Label htmlFor='name'>Name *</Label>
               <Input
-                id="name"
-                placeholder="Enter knowledge base name"
+                id='name'
+                placeholder='Enter knowledge base name'
                 {...register('name')}
                 className={errors.name ? 'border-red-500' : ''}
               />
-              {errors.name && (
-                <p className="mt-1 text-red-500 text-sm">
-                  {errors.name.message}
-                </p>
-              )}
+              {errors.name && <p className='mt-1 text-red-500 text-sm'>{errors.name.message}</p>}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+            <div className='space-y-2'>
+              <Label htmlFor='description'>Description</Label>
               <Textarea
-                id="description"
-                placeholder="Describe what this knowledge base contains (optional)"
+                id='description'
+                placeholder='Describe what this knowledge base contains (optional)'
                 rows={3}
                 {...register('description')}
                 className={errors.description ? 'border-red-500' : ''}
               />
               {errors.description && (
-                <p className="mt-1 text-red-500 text-sm">
-                  {errors.description.message}
-                </p>
+                <p className='mt-1 text-red-500 text-sm'>{errors.description.message}</p>
               )}
             </div>
 
             {/* File Upload Section */}
-            <div className="mt-6 space-y-2">
+            <div className='mt-6 space-y-2'>
               <Label>Upload Documents</Label>
               {files.length === 0 ? (
                 <div
@@ -309,7 +378,7 @@ export function CreateForm({ onClose }: CreateFormProps) {
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`relative rounded-lg border-[1px] border-dashed p-16 text-center transition-colors cursor-pointer ${
+                  className={`relative cursor-pointer rounded-lg border-[1px] border-dashed p-16 text-center transition-colors ${
                     isDragging
                       ? 'border-primary bg-primary/5'
                       : 'border-muted-foreground/25 hover:border-muted-foreground/50'
@@ -317,27 +386,24 @@ export function CreateForm({ onClose }: CreateFormProps) {
                 >
                   <input
                     ref={fileInputRef}
-                    type="file"
+                    type='file'
                     accept={ACCEPTED_FILE_TYPES.join(',')}
                     onChange={handleFileChange}
-                    className="hidden"
+                    className='hidden'
                     multiple
                   />
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">
-                        Drop files here or click to browse
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 50MB
-                        each)
+                  <div className='flex flex-col items-center gap-2'>
+                    <div className='space-y-1'>
+                      <p className='font-medium text-sm'>Drop files here or click to browse</p>
+                      <p className='text-muted-foreground text-xs'>
+                        Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 50MB each)
                       </p>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="space-y-2">
+                <div className='space-y-2'>
+                  <div className='space-y-2'>
                     {/* Compact drop area at top of file list */}
                     <div
                       ref={dropZoneRef}
@@ -346,7 +412,7 @@ export function CreateForm({ onClose }: CreateFormProps) {
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
                       onClick={() => fileInputRef.current?.click()}
-                      className={`flex items-center justify-center rounded-md border border-dashed p-3 transition-colors cursor-pointer ${
+                      className={`flex cursor-pointer items-center justify-center rounded-md border border-dashed p-3 transition-colors ${
                         isDragging
                           ? 'border-primary bg-primary/5'
                           : 'border-muted-foreground/25 hover:border-muted-foreground/50'
@@ -354,17 +420,15 @@ export function CreateForm({ onClose }: CreateFormProps) {
                     >
                       <input
                         ref={fileInputRef}
-                        type="file"
+                        type='file'
                         accept={ACCEPTED_FILE_TYPES.join(',')}
                         onChange={handleFileChange}
-                        className="hidden"
+                        className='hidden'
                         multiple
                       />
-                      <div className="text-center">
-                        <p className="text-sm font-medium">
-                          Drop more files or click to browse
-                        </p>
-                        <p className="text-xs text-muted-foreground">
+                      <div className='text-center'>
+                        <p className='font-medium text-sm'>Drop more files or click to browse</p>
+                        <p className='text-muted-foreground text-xs'>
                           PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 50MB each)
                         </p>
                       </div>
@@ -372,51 +436,44 @@ export function CreateForm({ onClose }: CreateFormProps) {
 
                     {/* File list */}
                     {files.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-3 rounded-md border p-3"
-                      >
+                      <div key={index} className='flex items-center gap-3 rounded-md border p-3'>
                         {getFileIcon(file.type, file.name)}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {file.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
+                        <div className='min-w-0 flex-1'>
+                          <p className='truncate font-medium text-sm'>{file.name}</p>
+                          <p className='text-muted-foreground text-xs'>
                             {formatFileSize(file.size)}
                           </p>
                         </div>
                         <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
+                          type='button'
+                          variant='ghost'
+                          size='sm'
                           onClick={() => removeFile(index)}
-                          className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                          className='h-8 w-8 p-0 text-muted-foreground hover:text-destructive'
                         >
-                          <X className="h-4 w-4" />
+                          <X className='h-4 w-4' />
                         </Button>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-              {fileError && (
-                <p className="mt-1 text-red-500 text-sm">{fileError}</p>
-              )}
+              {fileError && <p className='mt-1 text-red-500 text-sm'>{fileError}</p>}
             </div>
           </div>
         </div>
       </div>
 
       {/* Fixed Footer */}
-      <div className="mt-auto border-t px-6 pt-4 pb-6">
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={onClose} type="button">
+      <div className='mt-auto border-t px-6 pt-4 pb-6'>
+        <div className='flex justify-between'>
+          <Button variant='outline' onClick={onClose} type='button'>
             Cancel
           </Button>
           <Button
-            type="submit"
+            type='submit'
             disabled={isSubmitting}
-            className="bg-[#701FFC] text-primary-foreground shadow-[0_0_0_0_#701FFC] hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] transition-all duration-200 font-[480]"
+            className='bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
           >
             {isSubmitting ? 'Creating...' : 'Create Knowledge Base'}
           </Button>

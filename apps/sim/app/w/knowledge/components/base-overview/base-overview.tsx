@@ -11,28 +11,17 @@ interface BaseOverviewProps {
   description: string
 }
 
-export function BaseOverview({
-  id,
-  title,
-  docCount,
-  tokenCount,
-  description,
-}: BaseOverviewProps) {
+export function BaseOverview({ id, title, docCount, tokenCount, description }: BaseOverviewProps) {
   return (
-    <Link
-      href={`/w/knowledge/${id || title.toLowerCase().replace(/\s+/g, '-')}`}
-      prefetch={true}
-    >
-      <div className="group flex flex-col gap-3 rounded-md border bg-background p-4 transition-colors hover:bg-accent/50 cursor-pointer">
-        <div className="flex items-center gap-2">
-          <LibraryBig className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <h3 className="font-medium text-sm leading-tight truncate">
-            {title}
-          </h3>
+    <Link href={`/w/knowledge/${id || title.toLowerCase().replace(/\s+/g, '-')}`} prefetch={true}>
+      <div className='group flex cursor-pointer flex-col gap-3 rounded-md border bg-background p-4 transition-colors hover:bg-accent/50'>
+        <div className='flex items-center gap-2'>
+          <LibraryBig className='h-4 w-4 flex-shrink-0 text-muted-foreground' />
+          <h3 className='truncate font-medium text-sm leading-tight'>{title}</h3>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className='flex flex-col gap-2'>
+          <div className='flex items-center gap-2 text-muted-foreground text-xs'>
             <span>
               {docCount} {docCount === 1 ? 'doc' : 'docs'}
             </span>
@@ -40,7 +29,7 @@ export function BaseOverview({
             <span>{tokenCount} tokens</span>
           </div>
 
-          <p className="text-xs text-muted-foreground line-clamp-2 overflow-hidden">
+          <p className='line-clamp-2 overflow-hidden text-muted-foreground text-xs'>
             {description}
           </p>
         </div>
