@@ -210,17 +210,11 @@ export class ParallelManager {
     context: ExecutionContext,
     parallelId: string,
     iterationIndex: number,
-    blockId: string,
     output: NormalizedBlockOutput
   ): void {
     const parallelState = context.parallelExecutions?.get(parallelId)
     if (parallelState) {
-      const existingResults =
-        parallelState.executionResults.get(`iteration_${iterationIndex}`) || {}
-      parallelState.executionResults.set(`iteration_${iterationIndex}`, {
-        ...existingResults,
-        [blockId]: output,
-      })
+      parallelState.executionResults.set(`iteration_${iterationIndex}`, output)
     }
   }
 }

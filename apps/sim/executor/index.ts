@@ -1332,7 +1332,6 @@ export class Executor {
           context,
           parallelInfo.parallelId,
           parallelInfo.iterationIndex,
-          actualBlockId,
           output
         )
       }

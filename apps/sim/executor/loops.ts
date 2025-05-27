@@ -55,16 +55,17 @@ export class LoopManager {
         const currentIteration = context.loopIterations.get(loopId) || 0
 
         // Store the results from this iteration before potentially resetting blocks
-        const iterationResults: Record<string, any> = {}
+        const iterationResults: any[] = []
         for (const nodeId of loop.nodes) {
           const blockState = context.blockStates.get(nodeId)
           if (blockState?.output) {
-            iterationResults[nodeId] = blockState.output
+            // Just push the output directly, not nested under block ID
+            iterationResults.push(blockState.output)
           }
         }
 
         // Store the iteration results
-        if (Object.keys(iterationResults).length > 0) {
+        if (iterationResults.length > 0) {
           this.storeIterationResult(
             context,
             loopId,
@@ -117,8 +118,13 @@ export class LoopManager {
           if (loopState) {
             for (let i = 0; i < maxIterations; i++) {
               const result = loopState.executionResults.get(`iteration_${i}`)
-              if (result?.iteration) {
-                results.push(result.iteration)
+              if (result) {
+                // If result is an array (from multiple blocks in the loop), flatten it
+                if (Array.isArray(result)) {
+                  results.push(...result)
+                } else {
+                  results.push(result)
+                }
               }
             }
           }
@@ -240,7 +246,7 @@ export class LoopManager {
     context: ExecutionContext,
     loopId: string,
     iterationIndex: number,
-    blockId: string,
+    _blockId: string, // Not used anymore since we're storing results directly
     output: any
   ): void {
     if (!context.loopExecutions) {
@@ -266,16 +272,9 @@ export class LoopManager {
       context.loopExecutions.set(loopId, loopState)
     }
 
-    // Get or create the iteration results object
+    // Store the output directly for this iteration
     const iterationKey = `iteration_${iterationIndex}`
-    let iterationResults = loopState.executionResults.get(iterationKey)
-    if (!iterationResults) {
-      iterationResults = {}
-      loopState.executionResults.set(iterationKey, iterationResults)
-    }
-
-    // Store the block's output for this iteration
-    iterationResults[blockId] = output
+    loopState.executionResults.set(iterationKey, output)
   }
 
   /**

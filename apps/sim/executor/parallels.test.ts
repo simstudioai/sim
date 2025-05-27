@@ -275,11 +275,9 @@ describe('ParallelManager', () => {
 
       const output = { response: { result: 'test result' } }
 
-      manager.storeIterationResult(context, 'parallel-1', 1, 'func-1', output)
+      manager.storeIterationResult(context, 'parallel-1', 1, output)
 
-      expect(state.executionResults.get('iteration_1')).toEqual({
-        'func-1': output,
-      })
+      expect(state.executionResults.get('iteration_1')).toEqual(output)
     })
   })
 

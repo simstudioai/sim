@@ -316,9 +316,7 @@ describe('LoopManager', () => {
       expect(loopState).toBeDefined()
       expect(loopState?.maxIterations).toBe(3)
       expect(loopState?.loopType).toBe('for')
-      expect(loopState?.executionResults.get('iteration_0')).toEqual({
-        'block-1': output,
-      })
+      expect(loopState?.executionResults.get('iteration_0')).toEqual(output)
     })
 
     test('should add to existing loop state', () => {
@@ -341,10 +339,7 @@ describe('LoopManager', () => {
       const loopState = mockContext.loopExecutions.get('loop-1')
       const iterationResults = loopState?.executionResults.get('iteration_0')
 
-      expect(iterationResults).toEqual({
-        'block-1': output1,
-        'block-2': output2,
-      })
+      expect(iterationResults).toEqual(output2)
     })
 
     test('should handle forEach loop state creation', () => {
