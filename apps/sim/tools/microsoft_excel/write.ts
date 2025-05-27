@@ -64,7 +64,7 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
 
       return url.toString()
     },
-    method: 'PUT',
+    method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',

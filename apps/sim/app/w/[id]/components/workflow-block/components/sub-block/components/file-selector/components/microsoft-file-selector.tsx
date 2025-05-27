@@ -7,6 +7,7 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
+  CommandInput,
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
@@ -74,6 +75,7 @@ export function MicrosoftFileSelector({
   const [isLoadingSelectedFile, setIsLoadingSelectedFile] = useState(false)
   const [isLoadingFiles, setIsLoadingFiles] = useState(false)
   const [availableFiles, setAvailableFiles] = useState<MicrosoftFileInfo[]>([])
+  const [searchQuery, setSearchQuery] = useState<string>('')
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
 
@@ -136,6 +138,11 @@ export function MicrosoftFileSelector({
         credentialId: selectedCredentialId,
       })
 
+      // Add search query if provided
+      if (searchQuery.trim()) {
+        queryParams.append('query', searchQuery.trim())
+      }
+
       const response = await fetch(`/api/auth/oauth/microsoft/files?${queryParams.toString()}`)
 
       if (response.ok) {
@@ -153,7 +160,7 @@ export function MicrosoftFileSelector({
     } finally {
       setIsLoadingFiles(false)
     }
-  }, [selectedCredentialId])
+  }, [selectedCredentialId, searchQuery])
 
   // Fetch a single file by ID when we have a selectedFileId but no metadata
   const fetchFileById = useCallback(
@@ -208,6 +215,17 @@ export function MicrosoftFileSelector({
     }
   }, [selectedCredentialId, fetchAvailableFiles])
 
+  // Refetch files when search query changes
+  useEffect(() => {
+    if (selectedCredentialId && searchQuery !== undefined) {
+      const timeoutId = setTimeout(() => {
+        fetchAvailableFiles()
+      }, 300) // Debounce search
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [searchQuery, selectedCredentialId, fetchAvailableFiles])
+
   // Fetch the selected file metadata once credentials are loaded or changed
   useEffect(() => {
     // If we have a file ID selected and credentials are ready but we still don't have the file info, fetch it
@@ -255,6 +273,7 @@ export function MicrosoftFileSelector({
     onChange(file.id, file)
     onFileInfoChange?.(file)
     setOpen(false)
+    setSearchQuery('') // Clear search when file is selected
   }
 
   // Handle adding a new credential
@@ -271,6 +290,7 @@ export function MicrosoftFileSelector({
     // Show the OAuth modal
     setShowOAuthModal(true)
     setOpen(false)
+    setSearchQuery('') // Clear search when closing
   }
 
   // Clear selection
@@ -358,10 +378,20 @@ export function MicrosoftFileSelector({
     // return <FileIcon className={`${iconSize} text-muted-foreground`} />
   }
 
+  // Handle search input changes
+  const handleSearch = (query: string) => {
+    setSearchQuery(query)
+  }
+
   return (
     <>
       <div className='space-y-2'>
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={(isOpen) => {
+          setOpen(isOpen)
+          if (!isOpen) {
+            setSearchQuery('') // Clear search when popover closes
+          }
+        }}>
           <PopoverTrigger asChild>
             <Button
               variant='outline'
@@ -414,6 +444,7 @@ export function MicrosoftFileSelector({
             )}
 
             <Command>
+              <CommandInput placeholder='Search Excel files...' onValueChange={handleSearch} />
               <CommandList>
                 <CommandEmpty>
                   {isLoading || isLoadingFiles ? (
@@ -469,7 +500,7 @@ export function MicrosoftFileSelector({
                     {availableFiles.map((file) => (
                       <CommandItem
                         key={file.id}
-                        value={`file-${file.id}`}
+                        value={`file-${file.id}-${file.name}`}
                         onSelect={() => handleFileSelect(file)}
                       >
                         <div className='flex items-center gap-2 overflow-hidden'>
