@@ -277,4 +277,215 @@ describe('ParallelBlockHandler', () => {
     // Should not have items when no distribution
     expect(context.loopItems.has('parallel-1_items')).toBe(false)
   })
+
+  describe('multiple downstream connections', () => {
+    it('should make results available to all downstream blocks', async () => {
+      const handler = new ParallelBlockHandler()
+      const parallelBlock = createMockBlock('parallel-1')
+      parallelBlock.config.params = {
+        parallelType: 'collection',
+        count: 3,
+      }
+
+      const parallel: SerializedParallel = {
+        id: 'parallel-1',
+        nodes: ['agent-1'],
+        distribution: ['item1', 'item2', 'item3'],
+      }
+
+      const context = createMockContext(parallel)
+      context.workflow!.connections = [
+        {
+          source: 'parallel-1',
+          target: 'agent-1',
+          sourceHandle: 'parallel-start-source',
+        },
+        {
+          source: 'parallel-1',
+          target: 'function-1',
+          sourceHandle: 'parallel-end-source',
+        },
+        {
+          source: 'parallel-1',
+          target: 'parallel-2',
+          sourceHandle: 'parallel-end-source',
+        },
+      ]
+
+      // Initialize parallel
+      const initResult = await handler.execute(parallelBlock, {}, context)
+      expect((initResult as any).response.started).toBe(true)
+      expect((initResult as any).response.parallelCount).toBe(3)
+
+      // Simulate all virtual blocks being executed
+      const parallelState = context.parallelExecutions?.get('parallel-1')
+      expect(parallelState).toBeDefined()
+
+      // Mark all virtual blocks as executed and store results
+      for (let i = 0; i < 3; i++) {
+        const virtualBlockId = `agent-1_parallel_parallel-1_iteration_${i}`
+        context.executedBlocks.add(virtualBlockId)
+
+        // Store iteration results
+        parallelState!.executionResults.set(`iteration_${i}`, {
+          'agent-1': {
+            response: {
+              content: `Result from iteration ${i}`,
+              model: 'test-model',
+            },
+          },
+        })
+      }
+
+      // Re-execute to aggregate results
+      const aggregatedResult = await handler.execute(parallelBlock, {}, context)
+
+      // Verify results are aggregated
+      expect((aggregatedResult as any).response.completed).toBe(true)
+      expect((aggregatedResult as any).response.results).toHaveLength(3)
+
+      // Verify block state is stored
+      const blockState = context.blockStates.get('parallel-1')
+      expect(blockState).toBeDefined()
+      expect(blockState?.output.response.results).toHaveLength(3)
+
+      // Verify both downstream blocks are activated
+      expect(context.activeExecutionPath.has('function-1')).toBe(true)
+      expect(context.activeExecutionPath.has('parallel-2')).toBe(true)
+
+      // Verify parallel is marked as completed
+      expect(context.completedLoops.has('parallel-1')).toBe(true)
+
+      // Simulate downstream blocks trying to access results
+      // This should work without errors
+      const storedResults = context.blockStates.get('parallel-1')?.output.response.results
+      expect(storedResults).toBeDefined()
+      expect(storedResults).toHaveLength(3)
+    })
+
+    it('should handle reference resolution when multiple parallel blocks exist', async () => {
+      const handler = new ParallelBlockHandler()
+
+      // Create first parallel block
+      const parallel1Block = createMockBlock('parallel-1')
+      parallel1Block.config.params = {
+        parallelType: 'collection',
+        count: 2,
+      }
+
+      // Create second parallel block (even if not connected)
+      const parallel2Block = createMockBlock('parallel-2')
+      parallel2Block.config.params = {
+        parallelType: 'collection',
+        collection: '<parallel.response.results>', // This references the first parallel
+      }
+
+      // Set up context with both parallels
+      const context: ExecutionContext = {
+        workflowId: 'test-workflow',
+        blockStates: new Map(),
+        blockLogs: [],
+        metadata: { duration: 0 },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map(),
+        loopItems: new Map(),
+        completedLoops: new Set(),
+        executedBlocks: new Set(),
+        activeExecutionPath: new Set(),
+        workflow: {
+          version: '1.0',
+          blocks: [
+            parallel1Block,
+            parallel2Block,
+            {
+              id: 'agent-1',
+              position: { x: 0, y: 0 },
+              config: { tool: 'agent', params: {} },
+              inputs: {},
+              outputs: {},
+              metadata: { id: 'agent', name: 'Agent 1' },
+              enabled: true,
+            },
+            {
+              id: 'function-1',
+              position: { x: 0, y: 0 },
+              config: {
+                tool: 'function',
+                params: {
+                  code: 'return <parallel.response.results>;',
+                },
+              },
+              inputs: {},
+              outputs: {},
+              metadata: { id: 'function', name: 'Function 1' },
+              enabled: true,
+            },
+          ],
+          connections: [
+            {
+              source: 'parallel-1',
+              target: 'agent-1',
+              sourceHandle: 'parallel-start-source',
+            },
+            {
+              source: 'parallel-1',
+              target: 'function-1',
+              sourceHandle: 'parallel-end-source',
+            },
+            {
+              source: 'parallel-1',
+              target: 'parallel-2',
+              sourceHandle: 'parallel-end-source',
+            },
+          ],
+          loops: {},
+          parallels: {
+            'parallel-1': {
+              id: 'parallel-1',
+              nodes: ['agent-1'],
+              distribution: ['item1', 'item2'],
+            },
+            'parallel-2': {
+              id: 'parallel-2',
+              nodes: [],
+              distribution: '<parallel.response.results>',
+            },
+          },
+        },
+      }
+
+      // Initialize first parallel
+      await handler.execute(parallel1Block, {}, context)
+
+      // Simulate execution of agent blocks
+      const parallelState = context.parallelExecutions?.get('parallel-1')
+      for (let i = 0; i < 2; i++) {
+        context.executedBlocks.add(`agent-1_parallel_parallel-1_iteration_${i}`)
+        parallelState!.executionResults.set(`iteration_${i}`, {
+          'agent-1': { response: { content: `Result ${i}` } },
+        })
+      }
+
+      // Re-execute first parallel to aggregate results
+      const result = await handler.execute(parallel1Block, {}, context)
+      expect((result as any).response.completed).toBe(true)
+
+      // Verify the block state is available
+      const blockState = context.blockStates.get('parallel-1')
+      expect(blockState).toBeDefined()
+      expect(blockState?.output.response.results).toHaveLength(2)
+
+      // Now when function block tries to resolve <parallel.response.results>, it should work
+      // even though parallel-2 exists on the canvas
+      expect(() => {
+        // This simulates what the resolver would do
+        const state = context.blockStates.get('parallel-1')
+        if (!state) throw new Error('No state found for block parallel-1')
+        const results = state.output?.response?.results
+        if (!results) throw new Error('No results found')
+        return results
+      }).not.toThrow()
+    })
+  })
 })

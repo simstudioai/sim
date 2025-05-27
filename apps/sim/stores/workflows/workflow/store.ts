@@ -474,10 +474,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         if (activeWorkflowId) {
           const currentState = get()
           const generatedLoops = currentState.generateLoopBlocks()
+          const generatedParallels = currentState.generateParallelBlocks()
           saveWorkflowState(activeWorkflowId, {
             blocks: currentState.blocks,
             edges: currentState.edges,
             loops: generatedLoops,
+            parallels: generatedParallels,
             history: currentState.history,
             // Include both legacy and new deployment status fields
             isDeployed: currentState.isDeployed,

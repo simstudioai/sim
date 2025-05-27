@@ -163,12 +163,17 @@ export function setupUnloadPersistence(): void {
         ? currentState.generateLoopBlocks()
         : {}
 
+      // Generate parallels from the current blocks for consistency
+      const generatedParallels = currentState.generateParallelBlocks
+        ? currentState.generateParallelBlocks()
+        : {}
+
       // Save the complete state including history which is added by middleware
       saveWorkflowState(currentId, {
         blocks: currentState.blocks,
         edges: currentState.edges,
         loops: generatedLoops,
-        parallels: currentState.parallels,
+        parallels: generatedParallels,
         isDeployed: currentState.isDeployed,
         deployedAt: currentState.deployedAt,
         lastSaved: Date.now(),

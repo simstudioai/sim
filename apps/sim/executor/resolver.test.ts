@@ -944,4 +944,213 @@ describe('InputResolver', () => {
       expect(resolvedInputs.allItems).toEqual(items)
     })
   })
+
+  describe('parallel references', () => {
+    it('should resolve parallel references when block is inside a parallel', () => {
+      const workflow: SerializedWorkflow = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'parallel-1',
+            position: { x: 0, y: 0 },
+            config: { tool: 'parallel', params: {} },
+            inputs: {},
+            outputs: {},
+            metadata: { id: 'parallel', name: 'Parallel 1' },
+            enabled: true,
+          },
+          {
+            id: 'function-1',
+            position: { x: 0, y: 0 },
+            config: { tool: 'function', params: { code: '<parallel.currentItem>' } },
+            inputs: {},
+            outputs: {},
+            metadata: { id: 'function', name: 'Function 1' },
+            enabled: true,
+          },
+        ],
+        connections: [],
+        loops: {},
+        parallels: {
+          'parallel-1': {
+            id: 'parallel-1',
+            nodes: ['function-1'],
+            distribution: ['item1', 'item2'],
+          },
+        },
+      }
+
+      const resolver = new InputResolver(workflow, {})
+      const context: ExecutionContext = {
+        workflowId: 'test',
+        blockStates: new Map(),
+        blockLogs: [],
+        metadata: { duration: 0 },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map(),
+        loopItems: new Map([['parallel-1', 'test-item']]),
+        completedLoops: new Set(),
+        executedBlocks: new Set(),
+        activeExecutionPath: new Set(['function-1']),
+        workflow,
+      }
+
+      const block = workflow.blocks[1]
+      const result = resolver.resolveInputs(block, context)
+
+      expect(result.code).toBe('test-item')
+    })
+
+    it('should resolve parallel references by block name when multiple parallels exist', () => {
+      const workflow: SerializedWorkflow = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'parallel-1',
+            position: { x: 0, y: 0 },
+            config: { tool: 'parallel', params: {} },
+            inputs: {},
+            outputs: {},
+            metadata: { id: 'parallel', name: 'Parallel 1' },
+            enabled: true,
+          },
+          {
+            id: 'parallel-2',
+            position: { x: 0, y: 0 },
+            config: { tool: 'parallel', params: {} },
+            inputs: {},
+            outputs: {},
+            metadata: { id: 'parallel', name: 'Parallel 2' },
+            enabled: true,
+          },
+          {
+            id: 'function-1',
+            position: { x: 0, y: 0 },
+            config: { tool: 'function', params: { code: '<Parallel1.response.results>' } },
+            inputs: {},
+            outputs: {},
+            metadata: { id: 'function', name: 'Function 1' },
+            enabled: true,
+          },
+        ],
+        connections: [],
+        loops: {},
+        parallels: {
+          'parallel-1': {
+            id: 'parallel-1',
+            nodes: [],
+          },
+          'parallel-2': {
+            id: 'parallel-2',
+            nodes: [],
+          },
+        },
+      }
+
+      const resolver = new InputResolver(workflow, {})
+      const context: ExecutionContext = {
+        workflowId: 'test',
+        blockStates: new Map([
+          [
+            'parallel-1',
+            {
+              output: { response: { results: ['result1', 'result2'] } },
+              executed: true,
+              executionTime: 0,
+            },
+          ],
+          [
+            'parallel-2',
+            {
+              output: { response: { results: ['result3', 'result4'] } },
+              executed: true,
+              executionTime: 0,
+            },
+          ],
+        ]),
+        blockLogs: [],
+        metadata: { duration: 0 },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map(),
+        loopItems: new Map(),
+        completedLoops: new Set(),
+        executedBlocks: new Set(),
+        activeExecutionPath: new Set(['parallel-1', 'parallel-2', 'function-1']),
+        workflow,
+      }
+
+      const block = workflow.blocks[2]
+      const result = resolver.resolveInputs(block, context)
+
+      // Should resolve to Parallel 1's results
+      expect(result.code).toBe('["result1","result2"]')
+    })
+
+    it('should resolve parallel references by block ID when needed', () => {
+      const workflow: SerializedWorkflow = {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'parallel-1',
+            position: { x: 0, y: 0 },
+            config: { tool: 'parallel', params: {} },
+            inputs: {},
+            outputs: {},
+            metadata: { id: 'parallel', name: 'Parallel 1' },
+            enabled: true,
+          },
+          {
+            id: 'function-1',
+            position: { x: 0, y: 0 },
+            config: { tool: 'function', params: { code: '<parallel-1.response.results>' } },
+            inputs: {},
+            outputs: {},
+            metadata: { id: 'function', name: 'Function 1' },
+            enabled: true,
+          },
+        ],
+        connections: [],
+        loops: {},
+        parallels: {
+          'parallel-1': {
+            id: 'parallel-1',
+            nodes: [],
+          },
+        },
+      }
+
+      const resolver = new InputResolver(workflow, {})
+      const context: ExecutionContext = {
+        workflowId: 'test',
+        blockStates: new Map([
+          [
+            'parallel-1',
+            {
+              output: { response: { results: ['result1', 'result2'] } },
+              executed: true,
+              executionTime: 0,
+            },
+          ],
+        ]),
+        blockLogs: [],
+        metadata: { duration: 0 },
+        environmentVariables: {},
+        decisions: { router: new Map(), condition: new Map() },
+        loopIterations: new Map(),
+        loopItems: new Map(),
+        completedLoops: new Set(),
+        executedBlocks: new Set(),
+        activeExecutionPath: new Set(['parallel-1', 'function-1']),
+        workflow,
+      }
+
+      const block = workflow.blocks[1]
+      const result = resolver.resolveInputs(block, context)
+
+      // Should successfully resolve the reference using block ID
+      expect(result.code).toBe('["result1","result2"]')
+    })
+  })
 })

@@ -110,8 +110,33 @@ export class ParallelManager {
       )
 
       if (allVirtualBlocksExecuted && !context.completedLoops.has(parallelId)) {
+        // Check if the parallel block already has aggregated results stored
+        const blockState = context.blockStates.get(parallelId)
+        if (blockState?.output?.response?.completed && blockState?.output?.response?.results) {
+          logger.info(
+            `Parallel ${parallelId} already has aggregated results, marking as completed without re-execution`
+          )
+          // Just mark it as completed without re-execution
+          context.completedLoops.add(parallelId)
+
+          // Activate the parallel-end-source connections if not already done
+          const parallelEndConnections =
+            context.workflow?.connections.filter(
+              (conn) => conn.source === parallelId && conn.sourceHandle === 'parallel-end-source'
+            ) || []
+
+          for (const conn of parallelEndConnections) {
+            if (!context.activeExecutionPath.has(conn.target)) {
+              context.activeExecutionPath.add(conn.target)
+              logger.info(`Activated post-parallel path to ${conn.target}`)
+            }
+          }
+
+          continue
+        }
+
         logger.info(
-          `All virtual blocks completed for parallel ${parallelId}, re-executing to check completion`
+          `All virtual blocks completed for parallel ${parallelId}, re-executing to aggregate results`
         )
 
         // Re-execute the parallel block to check completion and trigger end connections

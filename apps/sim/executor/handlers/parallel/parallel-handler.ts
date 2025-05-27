@@ -39,6 +39,76 @@ export class ParallelBlockHandler implements BlockHandler {
     // Get or initialize the parallel state
     let parallelState = context.parallelExecutions.get(block.id)
 
+    // Check if all virtual blocks have completed (even before initialization)
+    if (parallelState) {
+      const allCompleted = this.checkAllIterationsCompleted(block.id, context)
+
+      if (allCompleted && !context.completedLoops.has(block.id)) {
+        logger.info(`All iterations completed for parallel ${block.id}, aggregating results`)
+
+        // Mark this parallel as completed
+        context.completedLoops.add(block.id)
+
+        // Check if we already have aggregated results stored (from a previous completion check)
+        const existingBlockState = context.blockStates.get(block.id)
+        if (existingBlockState?.output?.response?.results) {
+          logger.info(`Parallel ${block.id} already has aggregated results, returning them`)
+          return existingBlockState.output
+        }
+
+        // Aggregate results
+        const results = []
+        for (let i = 0; i < parallelState.parallelCount; i++) {
+          const result = parallelState.executionResults.get(`iteration_${i}`)
+          if (result) {
+            results.push(result)
+          }
+        }
+
+        // Store the aggregated results in the block state so subsequent blocks can reference them
+        const aggregatedOutput = {
+          response: {
+            parallelId: block.id,
+            parallelCount: parallelState.parallelCount,
+            completed: true,
+            results,
+            message: `Completed all ${parallelState.parallelCount} executions`,
+          },
+        }
+
+        // Store the aggregated results in context so blocks connected to parallel-end-source can access them
+        context.blockStates.set(block.id, {
+          output: aggregatedOutput,
+          executed: true,
+          executionTime: 0, // Parallel coordination doesn't have meaningful execution time
+        })
+
+        // Activate the parallel-end-source connection to continue workflow
+        const parallelEndConnections =
+          context.workflow?.connections.filter(
+            (conn) => conn.source === block.id && conn.sourceHandle === 'parallel-end-source'
+          ) || []
+
+        for (const conn of parallelEndConnections) {
+          context.activeExecutionPath.add(conn.target)
+          logger.info(`Activated post-parallel path to ${conn.target}`)
+        }
+
+        // Clean up iteration data
+        if (context.loopItems.has(`${block.id}_items`)) {
+          context.loopItems.delete(`${block.id}_items`)
+        }
+        if (context.loopItems.has(block.id)) {
+          context.loopItems.delete(block.id)
+        }
+        if (context.loopIterations.has(block.id)) {
+          context.loopIterations.delete(block.id)
+        }
+
+        return aggregatedOutput
+      }
+    }
+
     if (!parallelState) {
       logger.info(`Initializing parallel block ${block.id}`)
 
@@ -123,59 +193,74 @@ export class ParallelBlockHandler implements BlockHandler {
     if (allCompleted) {
       logger.info(`All iterations completed for parallel ${block.id}`)
 
-      // Mark this parallel as completed
-      context.completedLoops.add(block.id)
+      // This case should have been handled earlier, but as a safety check
+      if (!context.completedLoops.has(block.id)) {
+        // Mark this parallel as completed
+        context.completedLoops.add(block.id)
 
-      // Aggregate results
-      const results = []
-      for (let i = 0; i < parallelState.parallelCount; i++) {
-        const result = parallelState.executionResults.get(`iteration_${i}`)
-        if (result) {
-          results.push(result)
+        // Check if we already have aggregated results stored (from a previous completion check)
+        const existingBlockState = context.blockStates.get(block.id)
+        if (existingBlockState?.output?.response?.results) {
+          logger.info(`Parallel ${block.id} already has aggregated results, returning them`)
+          return existingBlockState.output
         }
-      }
 
-      // Store the aggregated results in the block state so subsequent blocks can reference them
-      const aggregatedOutput = {
-        response: {
-          parallelId: block.id,
-          parallelCount: parallelState.parallelCount,
-          completed: true,
-          results,
-          message: `Completed all ${parallelState.parallelCount} executions`,
-        },
-      }
+        // Aggregate results
+        const results = []
+        for (let i = 0; i < parallelState.parallelCount; i++) {
+          const result = parallelState.executionResults.get(`iteration_${i}`)
+          if (result) {
+            results.push(result)
+          }
+        }
 
-      // Store the aggregated results in context so blocks connected to parallel-end-source can access them
-      context.blockStates.set(block.id, {
-        output: aggregatedOutput,
-        executed: true,
-        executionTime: 0, // Parallel coordination doesn't have meaningful execution time
-      })
+        // Store the aggregated results in the block state so subsequent blocks can reference them
+        const aggregatedOutput = {
+          response: {
+            parallelId: block.id,
+            parallelCount: parallelState.parallelCount,
+            completed: true,
+            results,
+            message: `Completed all ${parallelState.parallelCount} executions`,
+          },
+        }
 
-      // Activate the parallel-end-source connection to continue workflow
-      const parallelEndConnections =
-        context.workflow?.connections.filter(
-          (conn) => conn.source === block.id && conn.sourceHandle === 'parallel-end-source'
-        ) || []
+        // Store the aggregated results in context so blocks connected to parallel-end-source can access them
+        context.blockStates.set(block.id, {
+          output: aggregatedOutput,
+          executed: true,
+          executionTime: 0, // Parallel coordination doesn't have meaningful execution time
+        })
 
-      for (const conn of parallelEndConnections) {
-        context.activeExecutionPath.add(conn.target)
-        logger.info(`Activated post-parallel path to ${conn.target}`)
-      }
+        // Activate the parallel-end-source connection to continue workflow
+        const parallelEndConnections =
+          context.workflow?.connections.filter(
+            (conn) => conn.source === block.id && conn.sourceHandle === 'parallel-end-source'
+          ) || []
 
-      // Clean up iteration data
-      if (context.loopItems.has(`${block.id}_items`)) {
-        context.loopItems.delete(`${block.id}_items`)
-      }
-      if (context.loopItems.has(block.id)) {
-        context.loopItems.delete(block.id)
-      }
-      if (context.loopIterations.has(block.id)) {
-        context.loopIterations.delete(block.id)
-      }
+        for (const conn of parallelEndConnections) {
+          context.activeExecutionPath.add(conn.target)
+          logger.info(`Activated post-parallel path to ${conn.target}`)
+        }
 
-      return aggregatedOutput
+        // Clean up iteration data
+        if (context.loopItems.has(`${block.id}_items`)) {
+          context.loopItems.delete(`${block.id}_items`)
+        }
+        if (context.loopItems.has(block.id)) {
+          context.loopItems.delete(block.id)
+        }
+        if (context.loopIterations.has(block.id)) {
+          context.loopIterations.delete(block.id)
+        }
+
+        return aggregatedOutput
+      }
+      // Already completed, return the stored results
+      const existingBlockState = context.blockStates.get(block.id)
+      if (existingBlockState?.output) {
+        return existingBlockState.output
+      }
     }
 
     // Still waiting for iterations to complete

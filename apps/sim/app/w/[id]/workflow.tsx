@@ -245,7 +245,11 @@ function WorkflowContent() {
       if (type === 'loop' || type === 'parallel') {
         // Create a unique ID and name for the container
         const id = crypto.randomUUID()
-        const name = type === 'loop' ? 'Loop' : 'Parallel'
+
+        // Auto-number the blocks based on existing blocks of the same type
+        const existingBlocksOfType = Object.values(blocks).filter((b) => b.type === type)
+        const blockNumber = existingBlocksOfType.length + 1
+        const name = type === 'loop' ? `Loop ${blockNumber}` : `Parallel ${blockNumber}`
 
         // Calculate the center position of the viewport
         const centerPosition = project({
@@ -363,7 +367,11 @@ function WorkflowContent() {
         if (data.type === 'loop' || data.type === 'parallel') {
           // Create a unique ID and name for the container
           const id = crypto.randomUUID()
-          const name = data.type === 'loop' ? 'Loop' : 'Parallel'
+
+          // Auto-number the blocks based on existing blocks of the same type
+          const existingBlocksOfType = Object.values(blocks).filter((b) => b.type === data.type)
+          const blockNumber = existingBlocksOfType.length + 1
+          const name = data.type === 'loop' ? `Loop ${blockNumber}` : `Parallel ${blockNumber}`
 
           // Check if we're dropping inside another container
           if (containerInfo) {
@@ -467,9 +475,9 @@ function WorkflowContent() {
         const id = crypto.randomUUID()
         const name =
           data.type === 'loop'
-            ? 'Loop'
+            ? `Loop ${Object.values(blocks).filter((b) => b.type === 'loop').length + 1}`
             : data.type === 'parallel'
-              ? 'Parallel'
+              ? `Parallel ${Object.values(blocks).filter((b) => b.type === 'parallel').length + 1}`
               : `${blockConfig!.name} ${Object.values(blocks).filter((b) => b.type === data.type).length + 1}`
 
         if (containerInfo) {

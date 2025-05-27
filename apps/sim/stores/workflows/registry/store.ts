@@ -493,12 +493,20 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         if (currentId) {
           const currentState = useWorkflowStore.getState()
 
+          // Generate loops and parallels from current blocks
+          const generatedLoops = currentState.generateLoopBlocks
+            ? currentState.generateLoopBlocks()
+            : {}
+          const generatedParallels = currentState.generateParallelBlocks
+            ? currentState.generateParallelBlocks()
+            : {}
+
           // Save the complete state for the current workflow
           saveWorkflowState(currentId, {
             blocks: currentState.blocks,
             edges: currentState.edges,
-            loops: currentState.loops,
-            parallels: currentState.parallels,
+            loops: generatedLoops,
+            parallels: generatedParallels,
             history: currentState.history,
             isDeployed: currentState.isDeployed,
             deployedAt: currentState.deployedAt,
