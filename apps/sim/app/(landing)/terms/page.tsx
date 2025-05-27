@@ -360,7 +360,7 @@ export default function TermsOfService() {
 
       {/* Footer */}
       <div className='relative z-20'>
-        <Footer onOpenTypeformLink={handleOpenTypeformLink} />
+        <Footer />
       </div>
     </main>
   )

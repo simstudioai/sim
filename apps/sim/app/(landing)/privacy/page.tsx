@@ -739,7 +739,7 @@ export default function PrivacyPolicy() {
 
       {/* Footer */}
       <div className='relative z-20'>
-        <Footer onOpenTypeformLink={handleOpenTypeformLink} />
+        <Footer />
       </div>
     </main>
   )

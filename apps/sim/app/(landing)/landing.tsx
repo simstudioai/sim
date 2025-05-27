@@ -22,7 +22,7 @@ export default function Landing() {
       {/* <Blogs /> */}
 
       {/* Footer */}
-      <Footer onOpenTypeformLink={handleOpenTypeformLink} />
+      <Footer />
     </main>
   )
 }

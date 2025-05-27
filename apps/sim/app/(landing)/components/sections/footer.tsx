@@ -5,15 +5,36 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { DiscordIcon, GithubIcon, xIcon as XIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
+import { useSession } from '@/lib/auth-client'
 import useIsMobile from '../hooks/use-is-mobile'
 
-interface FooterProps {
-  onOpenTypeformLink: () => void
-}
-
-function Footer({ onOpenTypeformLink }: FooterProps) {
-  const _router = useRouter()
+function Footer() {
+  const router = useRouter()
   const { isMobile, mounted } = useIsMobile()
+  const { data: session, isPending } = useSession()
+  const isAuthenticated = !isPending && !!session?.user
+
+  const handleNavigate = () => {
+    if (typeof window !== 'undefined') {
+      // Check if user has an active session
+      if (isAuthenticated) {
+        router.push('/w')
+      } else {
+        // Check if user has logged in before
+        const hasLoggedInBefore =
+          localStorage.getItem('has_logged_in_before') === 'true' ||
+          document.cookie.includes('has_logged_in_before=true')
+
+        if (hasLoggedInBefore) {
+          // User has logged in before but doesn't have an active session
+          router.push('/login')
+        } else {
+          // User has never logged in before
+          router.push('/signup')
+        }
+      }
+    }
+  }
 
   if (!mounted) {
     return <section className='flex w-full p-4 md:p-9' />
@@ -35,7 +56,7 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
                   className='w-fit bg-[#B5A1D4] text-[#1C1C1C] transition-colors duration-500 hover:bg-[#bdaecb]'
                   size={'lg'}
                   variant={'secondary'}
-                  onClick={onOpenTypeformLink}
+                  onClick={handleNavigate}
                 >
                   Get Started
                 </Button>
@@ -196,7 +217,7 @@ function Footer({ onOpenTypeformLink }: FooterProps) {
                 className='w-fit bg-[#B5A1D4] text-[#1C1C1C] transition-colors duration-500 hover:bg-[#bdaecb]'
                 size={'lg'}
                 variant={'secondary'}
-                onClick={onOpenTypeformLink}
+                onClick={handleNavigate}
               >
                 Get Started
               </Button>
