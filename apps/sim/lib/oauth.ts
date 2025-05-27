@@ -14,6 +14,7 @@ import {
   LinearIcon,
   MicrosoftIcon,
   MicrosoftTeamsIcon,
+  MicrosoftExcelIcon,
   NotionIcon,
   OutlookIcon,
   SupabaseIcon,
@@ -53,6 +54,7 @@ export type OAuthService =
   | 'notion'
   | 'jira'
   | 'discord'
+  | 'microsoft-excel'
   | 'microsoft-teams'
   | 'outlook'
   | 'linear'
@@ -144,6 +146,22 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     name: 'Microsoft',
     icon: (props) => MicrosoftIcon(props),
     services: {
+      'microsoft-excel': {
+        id: 'microsoft-excel',
+        name: 'Microsoft Excel',
+        description: 'Connect to Microsoft Excel and manage spreadsheets.',
+        providerId: 'microsoft-excel',
+        icon: (props) => MicrosoftExcelIcon(props),
+        baseProviderIcon: (props) => MicrosoftIcon(props),
+        scopes: [
+          'openid',
+          'profile',
+          'email',
+          'Files.Read',
+          'Files.ReadWrite',
+          'offline_access',
+        ],
+      },
       'microsoft-teams': {
         id: 'microsoft-teams',
         name: 'Microsoft Teams',

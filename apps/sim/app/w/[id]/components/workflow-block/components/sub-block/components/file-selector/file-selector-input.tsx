@@ -16,6 +16,8 @@ import type { JiraIssueInfo } from './components/jira-issue-selector'
 import { JiraIssueSelector } from './components/jira-issue-selector'
 import type { TeamsMessageInfo } from './components/teams-message-selector'
 import { TeamsMessageSelector } from './components/teams-message-selector'
+import type { MicrosoftFileInfo } from './components/microsoft-file-selector'
+import { MicrosoftFileSelector } from './components/microsoft-file-selector'
 
 interface FileSelectorInputProps {
   blockId: string
@@ -41,7 +43,7 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   const isJira = provider === 'jira'
   const isDiscord = provider === 'discord'
   const isMicrosoftTeams = provider === 'microsoft-teams'
-
+  const isMicrosoftExcel = provider === 'microsoft-excel'
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
   const _credentials =
@@ -181,6 +183,29 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
               <p>Please enter a Jira domain first</p>
             </TooltipContent>
           )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  if (isMicrosoftExcel) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <MicrosoftFileSelector
+                value={selectedFileId}
+                onChange={handleFileChange}
+                provider='microsoft-excel'
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId={subBlock.serviceId}
+                label={subBlock.placeholder || 'Select Microsoft Excel file'}
+                showPreview={true}
+                onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+              />
+            </div>
+          </TooltipTrigger>
         </Tooltip>
       </TooltipProvider>
     )
