@@ -57,6 +57,15 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
     },
+    // Manual Spreadsheet ID (hidden by default)
+    {
+      id: 'manualSpreadsheetId',
+      title: 'Or Enter Spreadsheet ID Manually',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'ID of the spreadsheet (from URL)',
+      condition: { field: 'spreadsheetId', value: '' },
+    },
     // Range
     {
       id: 'range',
