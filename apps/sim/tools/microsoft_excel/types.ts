@@ -47,6 +47,22 @@ export interface MicrosoftExcelUpdateResponse extends ToolResponse {
   }
 }
 
+export interface MicrosoftExcelTableAddResponse extends ToolResponse {
+  output: {
+    index: number
+    values: any[][]
+    metadata: MicrosoftExcelMetadata
+  }
+}
+
+export interface MicrosoftExcelTableUpdateResponse extends ToolResponse {
+  output: {
+    index: number
+    values: any[][]
+    metadata: MicrosoftExcelMetadata
+  }
+}
+
 export interface MicrosoftExcelToolParams {
   accessToken: string
   spreadsheetId: string
@@ -57,4 +73,12 @@ export interface MicrosoftExcelToolParams {
   includeValuesInResponse?: boolean
   responseValueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE' | 'FORMULA'
   majorDimension?: 'ROWS' | 'COLUMNS'
+}
+
+export interface MicrosoftExcelTableToolParams {
+  accessToken: string
+  spreadsheetId: string
+  tableName: string
+  values: any[][]
+  rowIndex?: number // For table updates - 0-based index
 }

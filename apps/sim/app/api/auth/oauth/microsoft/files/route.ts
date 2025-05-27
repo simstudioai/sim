@@ -15,7 +15,6 @@ const logger = createLogger('MicrosoftFilesAPI')
  */
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8) // Generate a short request ID for correlation
-  logger.info(`[${requestId}] Microsoft OneDrive Excel files request received`)
 
   try {
     // Get the session
@@ -77,8 +76,6 @@ export async function GET(request: NextRequest) {
     )
     searchParams_new.append('$top', '50')
 
-    // Fetch Excel files from Microsoft Graph API using search
-    logger.info(`[${requestId}] Searching for Excel files in Microsoft OneDrive`)
     const response = await fetch(
       `https://graph.microsoft.com/v1.0/me/drive/root/search(q='${encodeURIComponent(searchQuery)}')?${searchParams_new.toString()}`,
       {

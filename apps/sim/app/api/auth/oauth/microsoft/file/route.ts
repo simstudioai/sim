@@ -63,8 +63,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    // Fetch the file from Microsoft Graph API
-    logger.info(`[${requestId}] Fetching file ${fileId} from Microsoft Graph API`)
     const response = await fetch(
       `https://graph.microsoft.com/v1.0/me/drive/items/${fileId}?$select=id,name,mimeType,webUrl,thumbnails,createdDateTime,lastModifiedDateTime,size,createdBy`,
       {

@@ -49,7 +49,7 @@ import { linearCreateIssueTool, linearReadIssuesTool } from './linear'
 import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from './mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from './memory'
-import { microsoftExcelReadTool, microsoftExcelUpdateTool, microsoftExcelWriteTool } from './microsoft_excel'
+import { microsoftExcelReadTool, microsoftExcelTableAddTool, microsoftExcelWriteTool } from './microsoft_excel'
 import {
   microsoftTeamsReadChannelTool,
   microsoftTeamsReadChatTool,
@@ -193,5 +193,6 @@ export const tools: Record<string, ToolConfig> = {
   linear_create_issue: linearCreateIssueTool,
   microsoft_excel_read: microsoftExcelReadTool,
   microsoft_excel_write: microsoftExcelWriteTool,
-  microsoft_excel_update: microsoftExcelUpdateTool,
+  microsoft_excel_table_update: microsoftExcelTableUpdateTool,
+  microsoft_excel_table_add: microsoftExcelTableAddTool,
 }

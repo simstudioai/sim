@@ -1,10 +1,10 @@
 import type { ToolConfig } from '../types'
-import type { MicrosoftExcelToolParams, MicrosoftExcelUpdateResponse } from './types'
+import type { MicrosoftExcelTableToolParams, MicrosoftExcelTableAddResponse } from './types'
 
-export const updateTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelUpdateResponse> = {
-  id: 'microsoft_excel_update',
-  name: 'Update Microsoft Excel',
-  description: 'Update data in a Microsoft Excel spreadsheet',
+export const tableAddTool: ToolConfig<MicrosoftExcelTableToolParams, MicrosoftExcelTableAddResponse> = {
+  id: 'microsoft_excel_table_add',
+  name: 'Add to Microsoft Excel Table',
+  description: 'Add new rows to a Microsoft Excel table',
   version: '1.0',
   oauth: {
     required: true,
@@ -20,51 +20,25 @@ export const updateTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelUpda
     spreadsheetId: {
       type: 'string',
       required: true,
-      description: 'The ID of the spreadsheet to update',
+      description: 'The ID of the spreadsheet containing the table',
     },
-    range: { type: 'string', required: false, description: 'The range of cells to update' },
-    values: { type: 'array', required: true, description: 'The data to update in the spreadsheet' },
-    valueInputOption: {
+    tableName: {
       type: 'string',
-      required: false,
-      description: 'The format of the data to update',
+      required: true,
+      description: 'The name of the table to add rows to',
     },
-    includeValuesInResponse: {
-      type: 'boolean',
-      required: false,
-      description: 'Whether to include the updated values in the response',
+    values: {
+      type: 'array',
+      required: true,
+      description: 'The data to add to the table (array of arrays or array of objects)',
     },
   },
   request: {
     url: (params) => {
-      // Parse range in the format "Sheet1!A1:B2"
-      const rangeInput = params.range?.trim()
-      const match = rangeInput?.match(/^([^!]+)!(.+)$/)
-    
-      if (!match) {
-        throw new Error(
-          `Invalid range format: "${params.range}". Use the format "Sheet1!A1:B2"`
-        )
-      }
-    
-      const sheetName = encodeURIComponent(match[1])
-      const address = encodeURIComponent(match[2])
-    
-      const url = new URL(
-        `https://graph.microsoft.com/v1.0/me/drive/items/${params.spreadsheetId}/workbook/worksheets('${sheetName}')/range(address='${address}')`
-      )
-
-      // Default to USER_ENTERED if not specified
-      const valueInputOption = params.valueInputOption || 'USER_ENTERED'
-      url.searchParams.append('valueInputOption', valueInputOption)
-
-      if (params.includeValuesInResponse) {
-        url.searchParams.append('includeValuesInResponse', 'true')
-      }
-
-      return url.toString()
+      const tableName = encodeURIComponent(params.tableName)
+      return `https://graph.microsoft.com/v1.0/me/drive/items/${params.spreadsheetId}/workbook/tables('${tableName}')/rows/add`
     },
-    method: 'PUT',
+    method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
@@ -72,7 +46,7 @@ export const updateTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelUpda
     body: (params) => {
       let processedValues: any = params.values || []
 
-      // Handle array of objects
+      // Handle array of objects - convert to array of arrays
       if (
         Array.isArray(processedValues) &&
         processedValues.length > 0 &&
@@ -80,8 +54,7 @@ export const updateTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelUpda
         !Array.isArray(processedValues[0])
       ) {
         // It's an array of objects
-
-        // First, extract all unique keys from all objects to create headers
+        // Extract all unique keys from all objects to determine column order
         const allKeys = new Set<string>()
         processedValues.forEach((obj: any) => {
           if (obj && typeof obj === 'object') {
@@ -90,10 +63,9 @@ export const updateTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelUpda
         })
         const headers = Array.from(allKeys)
 
-        // Then create rows with object values in the order of headers
-        const rows = processedValues.map((obj: any) => {
+        // Convert objects to arrays based on the header order
+        processedValues = processedValues.map((obj: any) => {
           if (!obj || typeof obj !== 'object') {
-            // Handle non-object items by creating an array with empty values
             return Array(headers.length).fill('')
           }
           return headers.map((key) => {
@@ -105,28 +77,27 @@ export const updateTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelUpda
             return value === undefined ? '' : value
           })
         })
-
-        // Add headers as the first row, then add data rows
-        processedValues = [headers, ...rows]
       }
 
-      const body: Record<string, any> = {
-        majorDimension: params.majorDimension || 'ROWS',
+      // Ensure we have a 2D array
+      if (!Array.isArray(processedValues) || processedValues.length === 0) {
+        throw new Error('Values must be a non-empty array')
+      }
+
+      // If it's a 1D array, wrap it in another array
+      if (!Array.isArray(processedValues[0])) {
+        processedValues = [processedValues]
+      }
+
+      return {
         values: processedValues,
       }
-
-      // Only include range if it's provided
-      if (params.range) {
-        body.range = params.range
-      }
-
-      return body
     },
   },
   transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`Failed to update data in Microsoft Excel: ${errorText}`)
+      throw new Error(`Failed to add rows to Microsoft Excel table: ${errorText}`)
     }
 
     const data = await response.json()
@@ -135,20 +106,17 @@ export const updateTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelUpda
     const urlParts = response.url.split('/drive/items/')
     const spreadsheetId = urlParts[1]?.split('/')[0] || ''
 
-    // Create a simple metadata object with just the ID and URL
+    // Create metadata object
     const metadata = {
       spreadsheetId,
-      properties: {},
       spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`,
     }
 
     const result = {
       success: true,
       output: {
-        updatedRange: data.updatedRange,
-        updatedRows: data.updatedRows,
-        updatedColumns: data.updatedColumns,
-        updatedCells: data.updatedCells,
+        index: data.index || 0,
+        values: data.values || [],
         metadata: {
           spreadsheetId: metadata.spreadsheetId,
           spreadsheetUrl: metadata.spreadsheetUrl,
@@ -175,6 +143,6 @@ export const updateTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelUpda
     }
 
     // Default fallback message
-    return 'An error occurred while updating Microsoft Excel'
+    return 'An error occurred while adding rows to Microsoft Excel table'
   },
 }
