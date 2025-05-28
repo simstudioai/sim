@@ -25,7 +25,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
     }),
     body: (params) => ({
       query: `
-        mutation CreateIssue($teamId: ID!, $projectId: ID, $title: String!, $description: String) {
+        mutation CreateIssue($teamId: String!, $projectId: String, $title: String!, $description: String) {
           issueCreate(
             input: {
               teamId: $teamId
