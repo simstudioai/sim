@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ExternalLink, RefreshCw, X } from 'lucide-react'
+import { MicrosoftExcelIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -24,7 +25,6 @@ import {
 } from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
-import { MicrosoftExcelIcon } from '@/components/icons'
 
 const logger = createLogger('MicrosoftFileSelector')
 
@@ -386,12 +386,15 @@ export function MicrosoftFileSelector({
   return (
     <>
       <div className='space-y-2'>
-        <Popover open={open} onOpenChange={(isOpen) => {
-          setOpen(isOpen)
-          if (!isOpen) {
-            setSearchQuery('') // Clear search when popover closes
-          }
-        }}>
+        <Popover
+          open={open}
+          onOpenChange={(isOpen) => {
+            setOpen(isOpen)
+            if (!isOpen) {
+              setSearchQuery('') // Clear search when popover closes
+            }
+          }}
+        >
           <PopoverTrigger asChild>
             <Button
               variant='outline'

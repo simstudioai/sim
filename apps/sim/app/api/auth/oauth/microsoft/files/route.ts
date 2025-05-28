@@ -104,24 +104,30 @@ export async function GET(request: NextRequest) {
 
     // Transform Microsoft Graph response to match expected format and filter for Excel files
     files = files
-      .filter((file: any) => 
-        file.name?.toLowerCase().endsWith('.xlsx') || 
-        file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      .filter(
+        (file: any) =>
+          file.name?.toLowerCase().endsWith('.xlsx') ||
+          file.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       )
       .map((file: any) => ({
         id: file.id,
         name: file.name,
-        mimeType: file.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        mimeType:
+          file.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         iconLink: file.thumbnails?.[0]?.small?.url,
         webViewLink: file.webUrl,
         thumbnailLink: file.thumbnails?.[0]?.medium?.url,
         createdTime: file.createdDateTime,
         modifiedTime: file.lastModifiedDateTime,
         size: file.size?.toString(),
-        owners: file.createdBy ? [{ 
-          displayName: file.createdBy.user?.displayName || 'Unknown', 
-          emailAddress: file.createdBy.user?.email || '' 
-        }] : [],
+        owners: file.createdBy
+          ? [
+              {
+                displayName: file.createdBy.user?.displayName || 'Unknown',
+                emailAddress: file.createdBy.user?.email || '',
+              },
+            ]
+          : [],
       }))
 
     return NextResponse.json({ files }, { status: 200 })

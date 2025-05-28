@@ -1,6 +1,6 @@
+import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from './subblock/store'
 import type { BlockState, SubBlockState } from './workflow/types'
-import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('WorkflowUtils')
 

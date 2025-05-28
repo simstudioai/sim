@@ -1,8 +1,8 @@
 import { MicrosoftExcelIcon } from '@/components/icons'
 import type {
   MicrosoftExcelReadResponse,
-  MicrosoftExcelWriteResponse,
   MicrosoftExcelTableAddResponse,
+  MicrosoftExcelWriteResponse,
 } from '@/tools/microsoft_excel/types'
 import type { BlockConfig } from '../types'
 
@@ -138,11 +138,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
     },
   ],
   tools: {
-    access: [
-      'microsoft_excel_read',
-      'microsoft_excel_write',
-      'microsoft_excel_table_add',
-    ],
+    access: ['microsoft_excel_read', 'microsoft_excel_write', 'microsoft_excel_table_add'],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -157,7 +153,8 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         }
       },
       params: (params) => {
-        const { credential, values, spreadsheetId, manualSpreadsheetId, tableName, ...rest } = params
+        const { credential, values, spreadsheetId, manualSpreadsheetId, tableName, ...rest } =
+          params
 
         // Parse values from JSON string to array if it exists
         const parsedValues = values ? JSON.parse(values as string) : undefined

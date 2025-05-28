@@ -92,17 +92,22 @@ export async function GET(request: NextRequest) {
     const transformedFile = {
       id: file.id,
       name: file.name,
-      mimeType: file.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      mimeType:
+        file.mimeType || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       iconLink: file.thumbnails?.[0]?.small?.url,
       webViewLink: file.webUrl,
       thumbnailLink: file.thumbnails?.[0]?.medium?.url,
       createdTime: file.createdDateTime,
       modifiedTime: file.lastModifiedDateTime,
       size: file.size?.toString(),
-      owners: file.createdBy ? [{ 
-        displayName: file.createdBy.user?.displayName || 'Unknown', 
-        emailAddress: file.createdBy.user?.email || '' 
-      }] : [],
+      owners: file.createdBy
+        ? [
+            {
+              displayName: file.createdBy.user?.displayName || 'Unknown',
+              emailAddress: file.createdBy.user?.email || '',
+            },
+          ]
+        : [],
       downloadUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${file.id}/content`,
     }
 
@@ -111,4 +116,4 @@ export async function GET(request: NextRequest) {
     logger.error(`[${requestId}] Error fetching file from Microsoft OneDrive`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
-} 
+}

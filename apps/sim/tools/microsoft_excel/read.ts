@@ -40,16 +40,14 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
       // Parse range in the format "Sheet1!A1:B2"
       const rangeInput = params.range.trim()
       const match = rangeInput.match(/^([^!]+)!(.+)$/)
-    
+
       if (!match) {
-        throw new Error(
-          `Invalid range format: "${params.range}". Use the format "Sheet1!A1:B2"`
-        )
+        throw new Error(`Invalid range format: "${params.range}". Use the format "Sheet1!A1:B2"`)
       }
-    
+
       const sheetName = encodeURIComponent(match[1])
       const address = encodeURIComponent(match[2])
-    
+
       return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets('${sheetName}')/range(address='${address}')`
     },
     method: 'GET',
@@ -82,10 +80,10 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
 
     // Create a simple metadata object with just the ID and URL
     const metadata = {
-        spreadsheetId,
-        properties: {},
-        spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`,
-      }
+      spreadsheetId,
+      properties: {},
+      spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`,
+    }
 
     // Process the values response
     const result: MicrosoftExcelReadResponse = {
