@@ -1,8 +1,5 @@
-import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from './subblock/store'
 import type { BlockState, SubBlockState } from './workflow/types'
-
-const logger = createLogger('WorkflowUtils')
 
 /**
  * Merges workflow block states with subblock values while maintaining block structure
