@@ -45,14 +45,12 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    // Body should contain { records: [...] } and optionally { typecast: true }
     body: (params) => ({ records: params.records }),
   },
 
   transformResponse: async (response) => {
     const data = await response.json()
     if (!response.ok) {
-      // logger.error('Airtable API error:', data)
       throw new Error(data.error?.message || 'Failed to create Airtable records')
     }
     return {
@@ -67,7 +65,6 @@ export const airtableCreateRecordsTool: ToolConfig<AirtableCreateParams, Airtabl
   },
 
   transformError: (error: any) => {
-    // logger.error('Airtable tool error:', error)
     return `Failed to create Airtable records: ${error.message || 'Unknown error'}`
   },
 }

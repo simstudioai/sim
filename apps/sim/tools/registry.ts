@@ -27,18 +27,18 @@ import {
 } from './github'
 import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { searchTool as googleSearchTool } from './google'
-import { docsCreateTool, docsReadTool, docsWriteTool } from './google_docs'
+import { googleDocsCreateTool, googleDocsReadTool, googleDocsWriteTool } from './google_docs'
 import {
-  driveCreateFolderTool,
-  driveGetContentTool,
-  driveListTool,
-  driveUploadTool,
+  googleDriveCreateFolderTool,
+  googleDriveGetContentTool,
+  googleDriveListTool,
+  googleDriveUploadTool,
 } from './google_drive'
 import {
-  sheetsAppendTool,
-  sheetsReadTool,
-  sheetsUpdateTool,
-  sheetsWriteTool,
+  googleSheetsAppendTool,
+  googleSheetsReadTool,
+  googleSheetsUpdateTool,
+  googleSheetsWriteTool,
 } from './google_sheets'
 import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http'
@@ -139,17 +139,17 @@ export const tools: Record<string, ToolConfig> = {
   reddit_hot_posts: redditHotPostsTool,
   reddit_get_posts: redditGetPostsTool,
   reddit_get_comments: redditGetCommentsTool,
-  google_drive_get_content: driveGetContentTool,
-  google_drive_list: driveListTool,
-  google_drive_upload: driveUploadTool,
-  google_drive_create_folder: driveCreateFolderTool,
-  google_docs_read: docsReadTool,
-  google_docs_write: docsWriteTool,
-  google_docs_create: docsCreateTool,
-  google_sheets_read: sheetsReadTool,
-  google_sheets_write: sheetsWriteTool,
-  google_sheets_update: sheetsUpdateTool,
-  google_sheets_append: sheetsAppendTool,
+  google_drive_get_content: googleDriveGetContentTool,
+  google_drive_list: googleDriveListTool,
+  google_drive_upload: googleDriveUploadTool,
+  google_drive_create_folder: googleDriveCreateFolderTool,
+  google_docs_read: googleDocsReadTool,
+  google_docs_write: googleDocsWriteTool,
+  google_docs_create: googleDocsCreateTool,
+  google_sheets_read: googleSheetsReadTool,
+  google_sheets_write: googleSheetsWriteTool,
+  google_sheets_update: googleSheetsUpdateTool,
+  google_sheets_append: googleSheetsAppendTool,
   guesty_reservation: guestyReservationTool,
   guesty_guest: guestyGuestTool,
   perplexity_chat: perplexityChatTool,
