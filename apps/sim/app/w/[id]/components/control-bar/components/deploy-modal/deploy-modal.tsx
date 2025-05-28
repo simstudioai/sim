@@ -406,10 +406,8 @@ export function DeployModal({
       }
 
       // Fetch the updated deployed state after redeployment
-      logger.info('Redeployment successful, fetching updated deployed state')
       await refetchDeployedState()
 
-      // Add a success notification
       addNotification('info', 'Workflow successfully redeployed', workflowId)
     } catch (error: any) {
       logger.error('Error redeploying workflow:', { error })
@@ -421,7 +419,6 @@ export function DeployModal({
 
   // Custom close handler to ensure we clean up loading states
   const handleCloseModal = () => {
-    // Reset all loading states
     setIsSubmitting(false)
     setIsChatDeploying(false)
     setChatSubmitting(false)
@@ -520,7 +517,6 @@ export function DeployModal({
           apiKey
         )
 
-        logger.info('Workflow automatically deployed for chat deployment')
       } catch (error: any) {
         logger.error('Error auto-deploying workflow for chat:', { error })
         addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
