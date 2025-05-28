@@ -10,7 +10,6 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
   description: 'Run an autonomous web agent to complete tasks and extract structured data',
   version: '1.0.0',
 
-  // Define the input parameters
   params: {
     task: {
       type: 'string',
@@ -40,7 +39,6 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
     },
   },
 
-  // Use HTTP request for server-side execution
   request: {
     url: '/api/tools/stagehand/agent',
     method: 'POST',
@@ -64,7 +62,6 @@ export const agentTool: ToolConfig<StagehandAgentParams, StagehandAgentResponse>
     },
   },
 
-  // Transform the response
   transformResponse: async (response) => {
     try {
       const data = await response.json()

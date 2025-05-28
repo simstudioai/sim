@@ -10,7 +10,6 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
   description: 'Extract structured data from a webpage using Stagehand',
   version: '1.0.0',
 
-  // Define the input parameters
   params: {
     instruction: {
       type: 'string',
@@ -34,7 +33,6 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
     },
   },
 
-  // Use HTTP request for server-side execution
   request: {
     url: '/api/tools/stagehand/extract',
     method: 'POST',
@@ -49,7 +47,6 @@ export const extractTool: ToolConfig<StagehandExtractParams, StagehandExtractRes
     }),
   },
 
-  // Transform the response
   transformResponse: async (response) => {
     try {
       const data = await response.json()

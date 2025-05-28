@@ -759,20 +759,32 @@ async function getToolInfo(toolName: string): Promise<{
   outputs: Record<string, any>
 } | null> {
   try {
-    // Get tool prefix and suffix
-    let toolPrefix = toolName.split('_')[0]
-    let toolSuffix = toolName.split('_').slice(1).join('_')
+    // Split the tool name into parts
+    const parts = toolName.split('_')
 
-    // Handle special cases for tools that have multiple parts
-    if (
-      (toolPrefix === 'google' &&
-        (toolName.startsWith('google_docs_') ||
-          toolName.startsWith('google_sheets_') ||
-          toolName.startsWith('google_drive_'))) ||
-      toolName.startsWith('browser_use')
-    ) {
-      toolPrefix = toolName.split('_').slice(0, 2).join('_')
-      toolSuffix = toolName.split('_').slice(2).join('_')
+    // Try to find the correct split point by checking if directories exist
+    let toolPrefix = ''
+    let toolSuffix = ''
+
+    // Start from the longest possible prefix and work backwards
+    for (let i = parts.length - 1; i >= 1; i--) {
+      const possiblePrefix = parts.slice(0, i).join('_')
+      const possibleSuffix = parts.slice(i).join('_')
+
+      // Check if a directory exists for this prefix
+      const toolDirPath = path.join(rootDir, `apps/sim/tools/${possiblePrefix}`)
+
+      if (fs.existsSync(toolDirPath) && fs.statSync(toolDirPath).isDirectory()) {
+        toolPrefix = possiblePrefix
+        toolSuffix = possibleSuffix
+        break
+      }
+    }
+
+    // If no directory was found, fall back to single-part prefix
+    if (!toolPrefix) {
+      toolPrefix = parts[0]
+      toolSuffix = parts.slice(1).join('_')
     }
 
     // Simplify the file search strategy

@@ -3,7 +3,7 @@ import { getContentTool } from './get_content'
 import { listTool } from './list'
 import { uploadTool } from './upload'
 
-export const driveCreateFolderTool = createFolderTool
-export const driveGetContentTool = getContentTool
-export const driveListTool = listTool
-export const driveUploadTool = uploadTool
+export const googleDriveCreateFolderTool = createFolderTool
+export const googleDriveGetContentTool = getContentTool
+export const googleDriveListTool = listTool
+export const googleDriveUploadTool = uploadTool

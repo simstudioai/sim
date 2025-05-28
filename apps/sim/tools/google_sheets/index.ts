@@ -3,7 +3,7 @@ import { readTool } from './read'
 import { updateTool } from './update'
 import { writeTool } from './write'
 
-export const sheetsReadTool = readTool
-export const sheetsWriteTool = writeTool
-export const sheetsUpdateTool = updateTool
-export const sheetsAppendTool = appendTool
+export const googleSheetsReadTool = readTool
+export const googleSheetsWriteTool = writeTool
+export const googleSheetsUpdateTool = updateTool
+export const googleSheetsAppendTool = appendTool
