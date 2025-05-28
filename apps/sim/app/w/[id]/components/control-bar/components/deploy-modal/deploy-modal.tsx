@@ -516,7 +516,6 @@ export function DeployModal({
           deployedAt ? new Date(deployedAt) : undefined,
           apiKey
         )
-
       } catch (error: any) {
         logger.error('Error auto-deploying workflow for chat:', { error })
         addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
