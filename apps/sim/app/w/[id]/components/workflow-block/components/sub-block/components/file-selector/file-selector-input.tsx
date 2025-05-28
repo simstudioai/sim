@@ -14,10 +14,10 @@ import type { FileInfo } from './components/google-drive-picker'
 import { GoogleDrivePicker } from './components/google-drive-picker'
 import type { JiraIssueInfo } from './components/jira-issue-selector'
 import { JiraIssueSelector } from './components/jira-issue-selector'
-import type { TeamsMessageInfo } from './components/teams-message-selector'
-import { TeamsMessageSelector } from './components/teams-message-selector'
 import type { MicrosoftFileInfo } from './components/microsoft-file-selector'
 import { MicrosoftFileSelector } from './components/microsoft-file-selector'
+import type { TeamsMessageInfo } from './components/teams-message-selector'
+import { TeamsMessageSelector } from './components/teams-message-selector'
 
 interface FileSelectorInputProps {
   blockId: string

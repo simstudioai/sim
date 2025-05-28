@@ -1,7 +1,10 @@
 import type { ToolConfig } from '../types'
-import type { MicrosoftExcelTableToolParams, MicrosoftExcelTableAddResponse } from './types'
+import type { MicrosoftExcelTableAddResponse, MicrosoftExcelTableToolParams } from './types'
 
-export const tableAddTool: ToolConfig<MicrosoftExcelTableToolParams, MicrosoftExcelTableAddResponse> = {
+export const tableAddTool: ToolConfig<
+  MicrosoftExcelTableToolParams,
+  MicrosoftExcelTableAddResponse
+> = {
   id: 'microsoft_excel_table_add',
   name: 'Add to Microsoft Excel Table',
   description: 'Add new rows to a Microsoft Excel table',

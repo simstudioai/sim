@@ -45,7 +45,6 @@ export interface MicrosoftExcelTableAddResponse extends ToolResponse {
   }
 }
 
-
 export interface MicrosoftExcelToolParams {
   accessToken: string
   spreadsheetId: string

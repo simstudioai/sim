@@ -49,7 +49,11 @@ import { linearCreateIssueTool, linearReadIssuesTool } from './linear'
 import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from './mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from './memory'
-import { microsoftExcelReadTool, microsoftExcelTableAddTool, microsoftExcelWriteTool } from './microsoft_excel'
+import {
+  microsoftExcelReadTool,
+  microsoftExcelTableAddTool,
+  microsoftExcelWriteTool,
+} from './microsoft_excel'
 import {
   microsoftTeamsReadChannelTool,
   microsoftTeamsReadChatTool,

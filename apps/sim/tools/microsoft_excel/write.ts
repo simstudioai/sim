@@ -40,13 +40,11 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
       // If range is not provided, use a default range for the first sheet, second row to preserve headers
       const rangeInput = params.range?.trim()
       const match = rangeInput?.match(/^([^!]+)!(.+)$/)
-    
+
       if (!match) {
-        throw new Error(
-          `Invalid range format: "${params.range}". Use the format "Sheet1!A1:B2"`
-        )
+        throw new Error(`Invalid range format: "${params.range}". Use the format "Sheet1!A1:B2"`)
       }
-    
+
       const sheetName = encodeURIComponent(match[1])
       const address = encodeURIComponent(match[2])
 
