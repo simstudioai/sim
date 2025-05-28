@@ -1,5 +1,8 @@
 import { useSubBlockStore } from './subblock/store'
 import type { BlockState, SubBlockState } from './workflow/types'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('WorkflowUtils')
 
 /**
  * Merges workflow block states with subblock values while maintaining block structure
@@ -69,12 +72,19 @@ export function mergeSubblockState(
       // This handles cases where block config has been updated but values still exist
       Object.entries(blockValues).forEach(([subBlockId, value]) => {
         if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
-          // Create a minimal subblock structure
-          mergedSubBlocks[subBlockId] = {
-            id: subBlockId,
-            type: 'short-input', // Default type that's safe to use
-            value: value,
-          }
+          // REMOVED: Creating minimal subblock structures for orphaned values
+          // This was causing phantom blocks to be created when credential selectors
+          // or other components stored values under incorrect block IDs
+          // 
+          // The original code was:
+          // mergedSubBlocks[subBlockId] = {
+          //   id: subBlockId,
+          //   type: 'short-input', // Default type that's safe to use
+          //   value: value,
+          // }
+          //
+          // Instead, we'll log a warning about orphaned values but not create phantom blocks
+          logger.warn(`Orphaned subblock value found: blockId=${id}, subBlockId=${subBlockId}, value=${value}. This value will be ignored to prevent phantom block creation.`)
         }
       })
 
