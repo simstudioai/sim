@@ -70,4 +70,8 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
       }
     },
     transformError: (error) => error.message || 'Failed to create Linear issue',
+    oauth: {
+      required: true,
+      provider: 'linear',
+    },
   }

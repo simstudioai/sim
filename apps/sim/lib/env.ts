@@ -97,6 +97,8 @@ export const env = createEnv({
     HUBSPOT_CLIENT_ID: z.string().optional(),
     HUBSPOT_CLIENT_SECRET: z.string().optional(),
     DOCKER_BUILD: z.boolean().optional(),
+    LINEAR_CLIENT_ID: z.string().optional(),
+    LINEAR_CLIENT_SECRET: z.string().optional(),
   },
 
   client: {

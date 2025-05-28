@@ -69,4 +69,8 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     }
   },
   transformError: (error) => error.message || 'Failed to fetch Linear issues',
+  oauth: {
+    required: true,
+    provider: 'linear',
+  },
 }

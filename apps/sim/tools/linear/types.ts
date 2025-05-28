@@ -14,6 +14,7 @@ export interface LinearReadIssuesParams {
   projectId?: string
   state?: string
   search?: string
+  accessToken?: string
 }
 
 export interface LinearCreateIssueParams {
@@ -21,6 +22,7 @@ export interface LinearCreateIssueParams {
   projectId?: string
   title: string
   description?: string
+  accessToken?: string
 }
 
 export interface LinearReadIssuesResponse extends ToolResponse {
