@@ -15,7 +15,8 @@ import 'reactflow/dist/style.css'
 
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { LoopTool } from '@/app/w/[id]/components/loop-node/loop-config'
+import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
+import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
 import { WorkflowBlock } from '@/app/w/[id]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/w/[id]/components/workflow-edge/workflow-edge'
 import { getBlock } from '@/blocks'
@@ -38,11 +39,11 @@ interface WorkflowPreviewProps {
   defaultZoom?: number
 }
 
-// Define node types - using the actual workflow components
+// Define node types - the components now handle preview mode internally
 const nodeTypes: NodeTypes = {
   workflowBlock: WorkflowBlock,
-  // loopLabel: LoopLabel,
-  // loopInput: LoopInput,
+  loopNode: LoopNodeComponent,
+  parallelNode: ParallelNodeComponent,
 }
 
 // Define edge types
@@ -92,24 +93,36 @@ export function WorkflowPreview({
     [workflowState.edges]
   )
 
+  // Helper function to calculate absolute position for child blocks
+  const calculateAbsolutePosition = (
+    block: any,
+    blocks: Record<string, any>
+  ): { x: number; y: number } => {
+    // If no parent, use the block's position as-is
+    if (!block.data?.parentId) {
+      return block.position
+    }
+
+    // Find the parent block
+    const parentBlock = blocks[block.data.parentId]
+    if (!parentBlock) {
+      logger.warn(`Parent block not found for child block: ${block.id}`)
+      return block.position
+    }
+
+    // Recursively calculate parent's absolute position (for nested containers)
+    const parentAbsolutePosition = calculateAbsolutePosition(parentBlock, blocks)
+
+    // Add parent's absolute position to child's relative position
+    return {
+      x: parentAbsolutePosition.x + block.position.x,
+      y: parentAbsolutePosition.y + block.position.y,
+    }
+  }
+
   // Transform blocks and loops into ReactFlow nodes
   const nodes: Node[] = useMemo(() => {
     const nodeArray: Node[] = []
-
-    // First, get all blocks with parent-child relationships
-    const blocksWithParents: Record<string, any> = {}
-    const topLevelBlocks: Record<string, any> = {}
-
-    // Categorize blocks as top-level or child blocks
-    Object.entries(workflowState.blocks).forEach(([blockId, block]) => {
-      if (block.data?.parentId) {
-        // This is a child block
-        blocksWithParents[blockId] = block
-      } else {
-        // This is a top-level block
-        topLevelBlocks[blockId] = block
-      }
-    })
 
     // Add block nodes using the same approach as workflow.tsx
     Object.entries(workflowState.blocks).forEach(([blockId, block]) => {
@@ -118,6 +131,49 @@ export function WorkflowPreview({
         return
       }
 
+      // Calculate absolute position for proper preview positioning
+      const absolutePosition = calculateAbsolutePosition(block, workflowState.blocks)
+
+      // Handle container nodes (loop and parallel) differently
+      if (block.type === 'loop') {
+        nodeArray.push({
+          id: block.id,
+          type: 'loopNode',
+          position: absolutePosition,
+          parentId: block.data?.parentId,
+          extent: block.data?.extent || undefined,
+          draggable: false,
+          data: {
+            ...block.data,
+            width: block.data?.width || 500,
+            height: block.data?.height || 300,
+            state: 'valid',
+            isPreview: true,
+          },
+        })
+        return
+      }
+
+      if (block.type === 'parallel') {
+        nodeArray.push({
+          id: block.id,
+          type: 'parallelNode',
+          position: absolutePosition,
+          parentId: block.data?.parentId,
+          extent: block.data?.extent || undefined,
+          draggable: false,
+          data: {
+            ...block.data,
+            width: block.data?.width || 500,
+            height: block.data?.height || 300,
+            state: 'valid',
+            isPreview: true,
+          },
+        })
+        return
+      }
+
+      // Handle regular blocks
       const blockConfig = getBlock(block.type)
       if (!blockConfig) {
         logger.error(`No configuration found for block type: ${block.type}`, { blockId })
@@ -130,23 +186,23 @@ export function WorkflowPreview({
       nodeArray.push({
         id: blockId,
         type: 'workflowBlock',
-        position: block.position,
+        position: absolutePosition,
         draggable: false,
         data: {
           type: block.type,
-          config: blockConfig || (block.type === 'loop' ? LoopTool : null),
+          config: blockConfig,
           name: block.name,
           blockState: block,
-          isReadOnly: true, // Set read-only mode for preview
-          isPreview: true, // Indicate this is a preview
-          subBlockValues: subBlocksClone, // Use the deep clone to avoid reference issues
+          isReadOnly: true,
+          isPreview: true,
+          subBlockValues: subBlocksClone,
         },
       })
 
-      // Add children of this block if it's a loop
+      // Add children of this block if it's a loop (for nested blocks)
       if (block.type === 'loop') {
         // Find all children of this loop
-        const childBlocks = Object.entries(blocksWithParents).filter(
+        const childBlocks = Object.entries(workflowState.blocks).filter(
           ([_, childBlock]) => childBlock.data?.parentId === blockId
         )
 
@@ -154,39 +210,35 @@ export function WorkflowPreview({
         childBlocks.forEach(([childId, childBlock]) => {
           const childConfig = getBlock(childBlock.type)
 
-          nodeArray.push({
-            id: childId,
-            type: 'workflowBlock',
-            // Position child blocks relative to the parent
-            position: {
-              x: block.position.x + 50, // Offset children to the right
-              y: block.position.y + (childBlock.position?.y || 100), // Preserve vertical positioning
-            },
-            data: {
-              type: childBlock.type,
-              config: childConfig,
-              name: childBlock.name,
-              blockState: childBlock,
-              showSubBlocks,
-              isChild: true,
-              parentId: blockId,
-            },
-            draggable: false,
-          })
+          if (childConfig) {
+            nodeArray.push({
+              id: childId,
+              type: 'workflowBlock',
+              // Position child blocks relative to the parent
+              position: {
+                x: block.position.x + 50, // Offset children to the right
+                y: block.position.y + (childBlock.position?.y || 100), // Preserve vertical positioning
+              },
+              data: {
+                type: childBlock.type,
+                config: childConfig,
+                name: childBlock.name,
+                blockState: childBlock,
+                showSubBlocks,
+                isChild: true,
+                parentId: blockId,
+                isReadOnly: true,
+                isPreview: true,
+              },
+              draggable: false,
+            })
+          }
         })
       }
     })
 
     return nodeArray
-  }, [
-    blocksStructure,
-    loopsStructure,
-    parallelsStructure,
-    showSubBlocks,
-    workflowState.blocks,
-    workflowState.loops,
-    workflowState.parallels,
-  ])
+  }, [blocksStructure, loopsStructure, parallelsStructure, showSubBlocks, workflowState.blocks])
 
   // Transform edges
   const edges: Edge[] = useMemo(() => {
@@ -198,7 +250,7 @@ export function WorkflowPreview({
       targetHandle: edge.targetHandle,
       type: 'workflowEdge',
     }))
-  }, [edgesStructure, workflowState.edges, workflowState.parallels])
+  }, [edgesStructure, workflowState.edges])
 
   return (
     <ReactFlowProvider>

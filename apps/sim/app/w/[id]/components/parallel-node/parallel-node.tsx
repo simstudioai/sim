@@ -88,6 +88,9 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   const { getNodes } = useReactFlow()
   const blockRef = useRef<HTMLDivElement>(null)
 
+  // Check if this is preview mode
+  const isPreview = data?.isPreview || false
+
   // Determine nesting level by counting parents
   const nestingLevel = useMemo(() => {
     const maxDepth = 100 // Prevent infinite loops
@@ -108,7 +111,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   const getNestedStyles = () => {
     // Base styles
     const styles: Record<string, string> = {
-      backgroundColor: data?.state === 'valid' ? 'rgba(139, 195, 74, 0.05)' : 'transparent',
+      backgroundColor: 'transparent',
     }
 
     // Apply nested styles
@@ -135,7 +138,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
             'relative cursor-default select-none',
             'transition-block-bg transition-ring',
             'z-[20]',
-            data?.state === 'valid' && 'bg-[rgba(139,195,74,0.05)] ring-2 ring-[#8BC34A]',
+            data?.state === 'valid',
             nestingLevel > 0 &&
               `border border-[0.5px] ${nestingLevel % 2 === 0 ? 'border-slate-300/60' : 'border-slate-400/60'}`
           )}
@@ -145,23 +148,27 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
             position: 'relative',
             overflow: 'visible',
             ...nestedStyles,
-            pointerEvents: 'all',
+            pointerEvents: isPreview ? 'none' : 'all',
           }}
           data-node-id={id}
           data-type='parallelNode'
           data-nesting-level={nestingLevel}
         >
           {/* Critical drag handle that controls only the parallel node movement */}
-          <div
-            className='workflow-drag-handle absolute top-0 right-0 left-0 z-10 h-10 cursor-move'
-            style={{ pointerEvents: 'auto' }}
-          />
+          {!isPreview && (
+            <div
+              className='workflow-drag-handle absolute top-0 right-0 left-0 z-10 h-10 cursor-move'
+              style={{ pointerEvents: 'auto' }}
+            />
+          )}
 
           {/* Custom visible resize handle */}
-          <div
-            className='absolute right-2 bottom-2 z-20 flex h-8 w-8 cursor-se-resize items-center justify-center text-muted-foreground'
-            style={{ pointerEvents: 'auto' }}
-          />
+          {!isPreview && (
+            <div
+              className='absolute right-2 bottom-2 z-20 flex h-8 w-8 cursor-se-resize items-center justify-center text-muted-foreground'
+              style={{ pointerEvents: 'auto' }}
+            />
+          )}
 
           {/* Child nodes container - Set pointerEvents to allow dragging of children */}
           <div
@@ -170,27 +177,29 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
             style={{
               position: 'relative',
               minHeight: '100%',
-              pointerEvents: 'auto',
+              pointerEvents: isPreview ? 'none' : 'auto',
             }}
           >
             {/* Delete button - styled like in action-bar.tsx */}
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={(e) => {
-                e.stopPropagation()
-                useWorkflowStore.getState().removeBlock(id)
-              }}
-              className='absolute top-2 right-2 z-20 text-gray-500 opacity-0 transition-opacity duration-200 hover:text-red-600 group-hover:opacity-100'
-              style={{ pointerEvents: 'auto' }}
-            >
-              <Trash2 className='h-4 w-4' />
-            </Button>
+            {!isPreview && (
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  useWorkflowStore.getState().removeBlock(id)
+                }}
+                className='absolute top-2 right-2 z-20 text-gray-500 opacity-0 transition-opacity duration-200 hover:text-red-600 group-hover:opacity-100'
+                style={{ pointerEvents: 'auto' }}
+              >
+                <Trash2 className='h-4 w-4' />
+              </Button>
+            )}
 
             {/* Parallel Start Block */}
             <div
-              className='-translate-y-1/2 absolute top-1/2 left-8 flex h-10 w-10 transform items-center justify-center rounded-md bg-[#8BC34A] p-2'
-              style={{ pointerEvents: 'auto' }}
+              className='-translate-y-1/2 absolute top-1/2 left-8 flex h-10 w-10 transform items-center justify-center rounded-md bg-[#FEE12B] p-2'
+              style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
               data-parent-id={id}
               data-node-role='parallel-start'
               data-extent='parent'
