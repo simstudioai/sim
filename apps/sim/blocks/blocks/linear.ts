@@ -1,16 +1,18 @@
 import { LinearIcon } from '@/components/icons'
-import type { LinearReadIssuesResponse } from '@/tools/linear/types'
+import type { LinearReadIssuesResponse, LinearCreateIssueResponse } from '@/tools/linear/types'
 import type { BlockConfig } from '../types'
 
-export const LinearBlock: BlockConfig<LinearReadIssuesResponse> = {
+type LinearResponse = LinearReadIssuesResponse | LinearCreateIssueResponse
+
+export const LinearBlock: BlockConfig<LinearResponse> = {
   type: 'linear',
   name: 'Linear',
   description: 'Read and create issues in Linear',
   longDescription:
     'Integrate with Linear to fetch, filter, and create issues directly from your workflow.',
   category: 'tools',
-  bgColor: '#5E6AD2',
   icon: LinearIcon,
+  bgColor: '#5E6AD2',
   subBlocks: [
     {
       id: 'operation',
@@ -18,7 +20,7 @@ export const LinearBlock: BlockConfig<LinearReadIssuesResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Read Issues', id: 'read' },
+        { label: 'Read Issues', id: 'read-bulk' },
         { label: 'Create Issue', id: 'write' },
       ],
     },
@@ -29,7 +31,6 @@ export const LinearBlock: BlockConfig<LinearReadIssuesResponse> = {
       layout: 'full',
       provider: 'linear',
       serviceId: 'linear',
-      requiredScopes: [],
       placeholder: 'Select Linear account',
     },
     {
@@ -54,37 +55,37 @@ export const LinearBlock: BlockConfig<LinearReadIssuesResponse> = {
       id: 'state',
       title: 'Issue State',
       type: 'dropdown',
+      layout: 'full',
       options: ['Backlog', 'Todo', 'In Progress', 'Done', 'Canceled'],
-      description: 'Filter by issue state',
-      condition: { field: 'operation', value: ['read'] },
+      condition: { field: 'operation', value: ['read-bulk'] },
     },
     {
       id: 'search',
       title: 'Search',
       type: 'short-input',
-      description: 'Search issues',
-      condition: { field: 'operation', value: ['read'] },
+      layout: 'full',
+      condition: { field: 'operation', value: ['read-bulk'] },
     },
     {
       id: 'title',
       title: 'Title',
       type: 'short-input',
-      description: 'Title for new issue',
+      layout: 'full',
       condition: { field: 'operation', value: ['write'] },
     },
     {
       id: 'description',
       title: 'Description',
       type: 'long-input',
-      description: 'Description for new issue',
+      layout: 'full',
       condition: { field: 'operation', value: ['write'] },
     },
+    // Add assignee, label, priority, etc. as needed
   ],
   tools: {
     access: ['linear_read_issues', 'linear_create_issue'],
     config: {
-      tool: (params) =>
-        params.operation === 'write' ? 'linear_create_issue' : 'linear_read_issues',
+      tool: (params) => (params.operation === 'write' ? 'linear_create_issue' : 'linear_read_issues'),
       params: (params) => {
         if (params.operation === 'write') {
           return {
@@ -93,14 +94,17 @@ export const LinearBlock: BlockConfig<LinearReadIssuesResponse> = {
             projectId: params.projectId,
             title: params.title,
             description: params.description,
+            // Add assigneeId, labelIds, etc. if supported
           }
         }
+        // read-bulk
         return {
           credential: params.credential,
           teamId: params.teamId,
           projectId: params.projectId,
           state: params.state,
           search: params.search,
+          // Add assigneeId, labelId, etc. if supported
         }
       },
     },
@@ -114,11 +118,13 @@ export const LinearBlock: BlockConfig<LinearReadIssuesResponse> = {
     search: { type: 'string', required: false },
     title: { type: 'string', required: false },
     description: { type: 'string', required: false },
+    // Add assigneeId, labelIds, etc. as needed
   },
   outputs: {
     response: {
       type: {
-        issues: 'json',
+        issues: 'json', // For read-bulk
+        issue: 'json',  // For write
       },
     },
   },
