@@ -11,8 +11,8 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     provider: 'linear',
   },
   params: {
-    teamId: { type: 'string', required: false, description: 'Linear team ID' },
-    projectId: { type: 'string', required: false, description: 'Linear project ID' },
+    teamId: { type: 'string', required: true, description: 'Linear team ID' },
+    projectId: { type: 'string', required: true, description: 'Linear project ID' },
   },
   request: {
     url: 'https://api.linear.app/graphql',
@@ -23,7 +23,7 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     }),
     body: (params) => ({
       query: `
-        query Issues($teamId: ID, $projectId: ID) {
+        query Issues($teamId: ID!, $projectId: ID!) {
           issues(
             filter: {
               team: { id: { eq: $teamId } }

@@ -12,7 +12,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
   },
   params: {
     teamId: { type: 'string', required: true, description: 'Linear team ID' },
-    projectId: { type: 'string', required: false, description: 'Linear project ID' },
+    projectId: { type: 'string', required: true, description: 'Linear project ID' },
     title: { type: 'string', required: true, description: 'Issue title' },
     description: { type: 'string', required: false, description: 'Issue description' },
   },
@@ -25,7 +25,7 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
     }),
     body: (params) => ({
       query: `
-        mutation CreateIssue($teamId: String!, $projectId: String, $title: String!, $description: String) {
+        mutation CreateIssue($teamId: String!, $projectId: String!, $title: String!, $description: String) {
           issueCreate(
             input: {
               teamId: $teamId

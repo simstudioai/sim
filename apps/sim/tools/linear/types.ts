@@ -5,19 +5,19 @@ export interface LinearIssue {
   title: string
   description?: string
   state?: string
-  teamId?: string
-  projectId?: string
+  teamId: string
+  projectId: string
 }
 
 export interface LinearReadIssuesParams {
-  teamId?: string
-  projectId?: string
+  teamId: string
+  projectId: string
   accessToken?: string
 }
 
 export interface LinearCreateIssueParams {
   teamId: string
-  projectId?: string
+  projectId: string
   title: string
   description?: string
   accessToken?: string

@@ -66,7 +66,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       layout: 'full',
       condition: { field: 'operation', value: ['write'] },
     },
-    // Add assignee, label, priority, etc. as needed
   ],
   tools: {
     access: ['linear_read_issues', 'linear_create_issue'],
@@ -81,15 +80,12 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
             projectId: params.projectId,
             title: params.title,
             description: params.description,
-            // Add assigneeId, labelIds, etc. if supported
           }
         }
-        // read-bulk
         return {
           credential: params.credential,
           teamId: params.teamId,
           projectId: params.projectId,
-          // Add assigneeId, labelId, etc. if supported
         }
       },
     },
@@ -97,17 +93,16 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   inputs: {
     operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
-    teamId: { type: 'string', required: false },
-    projectId: { type: 'string', required: false },
-    title: { type: 'string', required: false },
+    teamId: { type: 'string', required: true },
+    projectId: { type: 'string', required: true },
+    title: { type: 'string', required: true },
     description: { type: 'string', required: false },
-    // Add assigneeId, labelIds, etc. as needed
   },
   outputs: {
     response: {
       type: {
-        issues: 'json', // For read-bulk
-        issue: 'json', // For write
+        issues: 'json',
+        issue: 'json',
       },
     },
   },
