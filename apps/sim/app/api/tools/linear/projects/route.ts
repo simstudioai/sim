@@ -1,8 +1,8 @@
+import { LinearClient } from '@linear/sdk'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
-import { LinearClient } from '@linear/sdk'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
     if (teamId) {
       const team = await linearClient.team(teamId)
-      const projectsResult = await team.projects();
+      const projectsResult = await team.projects()
       projects = projectsResult.nodes.map((project: any) => ({
         id: project.id,
         name: project.name,
