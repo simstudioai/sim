@@ -188,46 +188,67 @@ export class AgentBlockHandler implements BlockHandler {
       )
     }
 
-    // Parse messages if they're in string format
-    let parsedMessages = inputs.messages
-    if (typeof inputs.messages === 'string' && inputs.messages.trim()) {
-      try {
-        // Fast path: try standard JSON.parse first
-        try {
-          parsedMessages = JSON.parse(inputs.messages)
-          logger.info('Successfully parsed messages from JSON format')
-        } catch (_jsonError) {
-          // Fast direct approach for single-quoted JSON
-          // Replace single quotes with double quotes, but keep single quotes inside double quotes
-          // This optimized approach handles the most common cases in one pass
-          const preprocessed = inputs.messages
-            // Ensure we have valid JSON by replacing all single quotes with double quotes,
-            // except those inside existing double quotes
-            .replace(/(['"])(.*?)\1/g, (match, quote, content) => {
-              if (quote === '"') return match // Keep existing double quotes intact
-              return `"${content}"` // Replace single quotes with double quotes
-            })
+    // Initialize parsedMessages - will be built from memories/prompts if provided
+    let parsedMessages: any[] | undefined
 
-          try {
-            parsedMessages = JSON.parse(preprocessed)
-            logger.info('Successfully parsed messages after single-quote preprocessing')
-          } catch (_preprocessError) {
-            // Ultimate fallback: simply replace all single quotes
-            try {
-              parsedMessages = JSON.parse(inputs.messages.replace(/'/g, '"'))
-              logger.info('Successfully parsed messages using direct quote replacement')
-            } catch (finalError) {
-              logger.error('All parsing attempts failed', {
-                original: inputs.messages,
-                error: finalError,
-              })
-              // Keep original value
-            }
-          }
+    // Check if we're in advanced mode with the memories field
+    if (inputs.memories || (inputs.systemPrompt && inputs.userPrompt)) {
+      logger.info('Processing advanced mode with memories or direct prompts', {
+        hasMemories: !!inputs.memories,
+        hasSystemPrompt: !!inputs.systemPrompt,
+        hasUserPrompt: !!inputs.userPrompt,
+        memoriesType: typeof inputs.memories,
+        memoriesIsArray: Array.isArray(inputs.memories),
+      })
+
+      // Build messages array from system prompt, memories, and user prompt
+      const messages: any[] = []
+
+      // Process memories if provided
+      if (inputs.memories) {
+        const memories = inputs.memories
+
+        const memoryMessages = processMemories(memories, logger)
+        messages.push(...memoryMessages)
+      }
+
+      // Add system prompt as first message ONLY if there are no existing messages or no system message exists
+      const hasSystemMessage = messages.some((msg) => msg.role === 'system')
+      if (inputs.systemPrompt && !hasSystemMessage) {
+        messages.unshift({
+          role: 'system',
+          content: inputs.systemPrompt,
+        })
+        logger.info('Added system prompt to beginning of messages')
+      } else if (inputs.systemPrompt && hasSystemMessage) {
+        logger.info('System message already exists in memories, skipping system prompt addition')
+      }
+
+      // Add user prompt as the last message if provided
+      if (inputs.userPrompt) {
+        // Handle case where userPrompt might be an object with input field
+        let userContent = inputs.userPrompt
+        if (typeof userContent === 'object' && userContent.input) {
+          userContent = userContent.input
+        } else if (typeof userContent === 'object') {
+          // If it's an object but doesn't have input field, stringify it
+          userContent = JSON.stringify(userContent)
         }
-      } catch (error) {
-        logger.error('Failed to parse messages from string:', { error })
-        // Keep original value if all parsing fails
+
+        messages.push({
+          role: 'user',
+          content: userContent,
+        })
+        logger.info('Added user prompt to messages', { contentType: typeof userContent })
+      }
+
+      if (messages.length > 0) {
+        parsedMessages = messages
+        logger.info('Built messages from advanced mode', {
+          messageCount: messages.length,
+          firstMessage: messages[0],
+          lastMessage: messages[messages.length - 1],
+        })
       }
     }
 
@@ -543,4 +564,126 @@ export class AgentBlockHandler implements BlockHandler {
 
 export function stripCustomToolPrefix(name: string) {
   return name.startsWith('custom_') ? name.replace('custom_', '') : name
+}
+
+/**
+ * Helper function to process memories and convert them to message format
+ */
+function processMemories(memories: any, logger: any): any[] {
+  const messages: any[] = []
+
+  if (!memories) {
+    return messages
+  }
+
+  let memoryArray: any[] = []
+
+  // Handle different memory input formats
+  if (memories?.response?.memories && Array.isArray(memories.response.memories)) {
+    // Memory block output format: { response: { memories: [...] } }
+    memoryArray = memories.response.memories
+    logger.info('Using memory block response format', { count: memoryArray.length })
+  } else if (memories?.memories && Array.isArray(memories.memories)) {
+    // Direct memory output format: { memories: [...] }
+    memoryArray = memories.memories
+    logger.info('Using direct memories format', { count: memoryArray.length })
+  } else if (Array.isArray(memories)) {
+    // Direct array of messages: [{ role, content }, ...]
+    memoryArray = memories
+    logger.info('Using direct array format', { count: memoryArray.length })
+  } else {
+    logger.warn('Unexpected memories format', { memories })
+    return messages
+  }
+
+  // Process the memory array
+  memoryArray.forEach((memory: any) => {
+    if (memory.data && Array.isArray(memory.data)) {
+      // Memory object with data array: { key, type, data: [{ role, content }, ...] }
+      memory.data.forEach((msg: any) => {
+        if (msg.role && msg.content) {
+          messages.push({
+            role: msg.role,
+            content: msg.content,
+          })
+        }
+      })
+    } else if (
+      memory.data &&
+      (typeof memory.data === 'string' ||
+        (typeof memory.data === 'object' && !Array.isArray(memory.data)))
+    ) {
+      // Raw memory format: { key, type: "raw", data: "string" } or { key, type: "raw", data: { "key": "value", ... } }
+      // Convert raw data to a formatted message
+      if (memory.type === 'raw' || memory.type === 'Raw') {
+        const rawData = memory.data
+        let content = ''
+
+        // Handle different raw data formats
+        if (typeof rawData === 'string') {
+          content = rawData
+        } else if (typeof rawData === 'object') {
+          // Convert object to readable format
+          try {
+            // Try to parse if it's a JSON string
+            const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData
+
+            // Format as key-value pairs for better readability
+            const formattedEntries = Object.entries(parsedData)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join('\n')
+
+            content = formattedEntries || JSON.stringify(parsedData, null, 2)
+          } catch (error) {
+            // If parsing fails, stringify the raw data
+            content = JSON.stringify(rawData, null, 2)
+          }
+        }
+
+        if (content) {
+          // Add as a user message with the raw data content
+          messages.push({
+            role: 'user',
+            content: content,
+          })
+          logger.info('Processed raw memory data', {
+            key: memory.key,
+            type: memory.type,
+            contentLength: content.length,
+          })
+        }
+      }
+    } else if (memory.role && memory.content) {
+      // Direct message object: { role, content }
+      messages.push({
+        role: memory.role,
+        content: memory.content,
+      })
+    } else if (typeof memory === 'object' && memory !== null) {
+      // Handle other object formats - try to extract meaningful content
+      logger.info('Processing unknown memory format', { memory })
+
+      // If it has a direct key-value structure, convert to content
+      if (!memory.role && !memory.data) {
+        try {
+          const content = Object.entries(memory)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join('\n')
+
+          if (content) {
+            messages.push({
+              role: 'user',
+              content: content,
+            })
+            logger.info('Processed direct key-value memory', { contentLength: content.length })
+          }
+        } catch (error) {
+          logger.warn('Failed to process unknown memory format', { error, memory })
+        }
+      }
+    }
+  })
+
+  logger.info('Processed memories', { addedMessages: messages.length })
+  return messages
 }
