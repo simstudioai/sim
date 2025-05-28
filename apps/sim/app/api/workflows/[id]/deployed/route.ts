@@ -51,7 +51,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // If the workflow is not deployed, return appropriate response
     if (!workflowData.isDeployed || !workflowData.deployedState) {
-      logger.info(`[${requestId}] No deployed state available for workflow: ${id}`)
       const response = createSuccessResponse({
         deployedState: null,
         message: 'Workflow is not deployed or has no deployed state',
@@ -59,7 +58,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return addNoCacheHeaders(response)
     }
 
-    logger.info(`[${requestId}] Successfully retrieved deployed state for: ${id}`)
     const response = createSuccessResponse({
       deployedState: workflowData.deployedState,
     })

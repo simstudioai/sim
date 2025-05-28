@@ -175,10 +175,6 @@ export function WorkflowPreview({
           })
         })
       }
-      logger.info(`Preview node created: ${blockId}`, {
-        blockType: block.type,
-        hasSubBlocks: block.subBlocks && Object.keys(block.subBlocks).length > 0,
-      })
     })
 
     return nodeArray
