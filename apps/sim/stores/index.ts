@@ -149,6 +149,8 @@ function initializeWorkflowState(workflowId: string): void {
     useSubBlockStore.getState().initializeFromWorkflow(workflowId, workflowState.blocks)
   }
 
+  // Clean up phantom blocks
+
   logger.info(`Initialized workflow state for ${workflowId}`)
 }
 

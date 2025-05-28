@@ -344,6 +344,8 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 
     // Mark registry as fully initialized now that all data is loaded
     setRegistryInitialized()
+
+    // Cleanup phantom blocks
   } catch (error) {
     logger.error('Error fetching workflows from DB:', { error })
 
