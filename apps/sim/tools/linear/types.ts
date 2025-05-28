@@ -12,8 +12,6 @@ export interface LinearIssue {
 export interface LinearReadIssuesParams {
   teamId?: string
   projectId?: string
-  state?: string
-  search?: string
   accessToken?: string
 }
 

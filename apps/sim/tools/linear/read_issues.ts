@@ -6,11 +6,13 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
   name: 'Linear Issue Reader',
   description: 'Fetch and filter issues from Linear',
   version: '1.0.0',
+  oauth: {
+    required: true,
+    provider: 'linear',
+  },
   params: {
     teamId: { type: 'string', required: false, description: 'Linear team ID' },
     projectId: { type: 'string', required: false, description: 'Linear project ID' },
-    state: { type: 'string', required: false, description: 'Issue state' },
-    search: { type: 'string', required: false, description: 'Search query' },
   },
   request: {
     url: 'https://api.linear.app/graphql',
@@ -21,13 +23,11 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     }),
     body: (params) => ({
       query: `
-        query Issues($teamId: String, $projectId: String, $state: String, $search: String) {
+        query Issues($teamId: ID, $projectId: ID) {
           issues(
             filter: {
-              team: { id: $teamId }
-              project: { id: $projectId }
-              state: { name: { eq: $state } }
-              search: $search
+              team: { id: { eq: $teamId } }
+              project: { id: { eq: $projectId } }
             }
           ) {
             nodes {
@@ -44,8 +44,6 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
       variables: {
         teamId: params.teamId,
         projectId: params.projectId,
-        state: params.state,
-        search: params.search,
       },
     }),
   },
@@ -69,8 +67,4 @@ export const linearReadIssuesTool: ToolConfig<LinearReadIssuesParams, LinearRead
     }
   },
   transformError: (error) => error.message || 'Failed to fetch Linear issues',
-  oauth: {
-    required: true,
-    provider: 'linear',
-  },
 }
