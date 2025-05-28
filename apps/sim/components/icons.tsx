@@ -2278,6 +2278,28 @@ export function JiraIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function LinearIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox='0 0 32 32'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      width={props.width || 20}
+      height={props.height || 20}
+      {...props}
+    >
+      <rect width='32' height='32' rx='8' fill='#5E6AD2' />
+      <path
+        d='M10 22L22 10M16 10H22V16'
+        stroke='#fff'
+        strokeWidth='2'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
 export function TelegramIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
