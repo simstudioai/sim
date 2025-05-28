@@ -1,5 +1,5 @@
 import { LinearIcon } from '@/components/icons'
-import type { LinearReadIssuesResponse, LinearCreateIssueResponse } from '@/tools/linear/types'
+import type { LinearCreateIssueResponse, LinearReadIssuesResponse } from '@/tools/linear/types'
 import type { BlockConfig } from '../types'
 
 type LinearResponse = LinearReadIssuesResponse | LinearCreateIssueResponse
@@ -31,6 +31,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       layout: 'full',
       provider: 'linear',
       serviceId: 'linear',
+      requiredScopes: ['read', 'write'],
       placeholder: 'Select Linear account',
     },
     {
@@ -52,21 +53,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       placeholder: 'Select a project',
     },
     {
-      id: 'state',
-      title: 'Issue State',
-      type: 'dropdown',
-      layout: 'full',
-      options: ['Backlog', 'Todo', 'In Progress', 'Done', 'Canceled'],
-      condition: { field: 'operation', value: ['read-bulk'] },
-    },
-    {
-      id: 'search',
-      title: 'Search',
-      type: 'short-input',
-      layout: 'full',
-      condition: { field: 'operation', value: ['read-bulk'] },
-    },
-    {
       id: 'title',
       title: 'Title',
       type: 'short-input',
@@ -85,7 +71,8 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   tools: {
     access: ['linear_read_issues', 'linear_create_issue'],
     config: {
-      tool: (params) => (params.operation === 'write' ? 'linear_create_issue' : 'linear_read_issues'),
+      tool: (params) =>
+        params.operation === 'write' ? 'linear_create_issue' : 'linear_read_issues',
       params: (params) => {
         if (params.operation === 'write') {
           return {
@@ -102,8 +89,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
           credential: params.credential,
           teamId: params.teamId,
           projectId: params.projectId,
-          state: params.state,
-          search: params.search,
           // Add assigneeId, labelId, etc. if supported
         }
       },
@@ -114,8 +99,6 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     credential: { type: 'string', required: true },
     teamId: { type: 'string', required: false },
     projectId: { type: 'string', required: false },
-    state: { type: 'string', required: false },
-    search: { type: 'string', required: false },
     title: { type: 'string', required: false },
     description: { type: 'string', required: false },
     // Add assigneeId, labelIds, etc. as needed
@@ -124,7 +107,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     response: {
       type: {
         issues: 'json', // For read-bulk
-        issue: 'json',  // For write
+        issue: 'json', // For write
       },
     },
   },
