@@ -1,7 +1,6 @@
 import { stripeClient } from '@better-auth/stripe/client'
 import { emailOTPClient, genericOAuthClient, organizationClient } from 'better-auth/client/plugins'
 import { createAuthClient } from 'better-auth/react'
-import { isProd } from '@/lib/environment'
 
 const clientEnv = {
   NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
@@ -32,7 +31,7 @@ export const client = createAuthClient({
     emailOTPClient(),
     genericOAuthClient(),
     // Only include Stripe client in production
-    ...(isProd
+    ...(clientEnv.NODE_ENV === 'production'
       ? [
           stripeClient({
             subscription: true, // Enable subscription management
@@ -47,7 +46,7 @@ export const { useSession, useActiveOrganization } = client
 
 export const useSubscription = () => {
   // In development, provide mock implementations
-  if (!isProd) {
+  if (clientEnv.NODE_ENV === 'development') {
     return {
       list: async () => ({ data: [] }),
       upgrade: async () => ({
