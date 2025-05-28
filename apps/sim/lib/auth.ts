@@ -783,7 +783,7 @@ export const auth = betterAuth({
           clientSecret: env.LINEAR_CLIENT_SECRET as string,
           authorizationUrl: 'https://linear.app/oauth/authorize',
           tokenUrl: 'https://api.linear.app/oauth/token',
-          scopes: [], // Add required scopes if Linear supports them
+          scopes: ['read', 'write'],
           responseType: 'code',
           accessType: 'offline',
           prompt: 'consent',

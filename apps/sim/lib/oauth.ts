@@ -345,7 +345,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         providerId: 'linear',
         icon: (props) => LinearIcon(props),
         baseProviderIcon: (props) => LinearIcon(props),
-        scopes: [], // Add required scopes if Linear supports granular OAuth scopes
+        scopes: ['read', 'write'],
       },
     },
     defaultService: 'linear',
