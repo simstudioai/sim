@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -9,7 +9,6 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
-
 
 interface FileUploadProps {
   blockId: string
@@ -41,7 +40,7 @@ export function FileUpload({
   acceptedTypes = '*',
   multiple = false, // Default to single file for backward compatibility
   isPreview = false,
-  previewValue
+  previewValue,
 }: FileUploadProps) {
   // State management - handle both single file and array of files
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
@@ -89,7 +88,7 @@ export function FileUpload({
    */
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (isPreview) return
-    
+
     e.stopPropagation()
 
     const files = e.target.files

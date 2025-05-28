@@ -53,7 +53,7 @@ export function LongInput({
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Use preview value when in preview mode, otherwise use store value or prop value
-  const value = isPreview ? previewValue : (propValue !== undefined ? propValue : storeValue)
+  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Calculate initial height based on rows prop with reasonable defaults
   const getInitialHeight = () => {
@@ -83,14 +83,14 @@ export function LongInput({
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0
-    
+
     if (onChange) {
       onChange(newValue)
     } else if (!isPreview) {
       // Only update store when not in preview mode
       setStoreValue(newValue)
     }
-    
+
     setCursorPosition(newCursorPosition)
 
     // Check for environment variables trigger

@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react'
 import { Eye } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { WorkflowPreview } from '@/app/w/components/workflow-preview/workflow-preview'
-import { Workflow } from '../marketplace'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { Workflow } from '../marketplace'
 
 /**
  * WorkflowCardProps interface - defines the properties for the WorkflowCard component
@@ -96,7 +96,12 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
             // Interactive Preview
             <div className='absolute inset-0 flex items-center justify-center'>
               <div className='h-full w-full scale-[0.9] transform-gpu'>
-                <WorkflowPreview workflowState={workflow.workflowState} />
+                <WorkflowPreview
+                  workflowState={{
+                    ...workflow.workflowState,
+                    parallels: workflow.workflowState.parallels || {},
+                  }}
+                />
               </div>
             </div>
           ) : workflow.thumbnail ? (

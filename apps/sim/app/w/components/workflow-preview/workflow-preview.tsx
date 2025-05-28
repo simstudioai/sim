@@ -7,27 +7,19 @@ import ReactFlow, {
   ConnectionLineType,
   type Edge,
   type EdgeTypes,
-  Handle,
   type Node,
-  type NodeProps,
   type NodeTypes,
-  Position,
   ReactFlowProvider,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
-import { Card } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { LoopTool } from '@/app/w/[id]/components/loop-node/loop-config'
-import { createLogger } from '@/lib/logs/console-logger'
 import { WorkflowBlock } from '@/app/w/[id]/components/workflow-block/workflow-block'
 import { WorkflowEdge } from '@/app/w/[id]/components/workflow-edge/workflow-edge'
-// import { LoopInput } from '@/app/w/[id]/components/workflow-loop/components/loop-input/loop-input'
-// import { LoopLabel } from '@/app/w/[id]/components/workflow-loop/components/loop-label/loop-label'
-// import { createLoopNode } from '@/app/w/[id]/components/workflow-loop/workflow-loop'
 import { getBlock } from '@/blocks'
-import { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowPreview')
 
@@ -68,20 +60,37 @@ export function WorkflowPreview({
   defaultZoom,
 }: WorkflowPreviewProps) {
   // Track structure changes efficiently
-  const blocksStructure = useMemo(() => ({
-    count: Object.keys(workflowState.blocks || {}).length,
-    ids: Object.keys(workflowState.blocks || {}).join(',')
-  }), [workflowState.blocks]);
-  
-  const loopsStructure = useMemo(() => ({
-    count: Object.keys(workflowState.loops || {}).length,
-    ids: Object.keys(workflowState.loops || {}).join(',')
-  }), [workflowState.loops]);
-  
-  const edgesStructure = useMemo(() => ({
-    count: workflowState.edges.length,
-    ids: workflowState.edges.map(e => e.id).join(',')
-  }), [workflowState.edges]);
+  const blocksStructure = useMemo(
+    () => ({
+      count: Object.keys(workflowState.blocks || {}).length,
+      ids: Object.keys(workflowState.blocks || {}).join(','),
+    }),
+    [workflowState.blocks]
+  )
+
+  const loopsStructure = useMemo(
+    () => ({
+      count: Object.keys(workflowState.loops || {}).length,
+      ids: Object.keys(workflowState.loops || {}).join(','),
+    }),
+    [workflowState.loops]
+  )
+
+  const parallelsStructure = useMemo(
+    () => ({
+      count: Object.keys(workflowState.parallels || {}).length,
+      ids: Object.keys(workflowState.parallels || {}).join(','),
+    }),
+    [workflowState.parallels]
+  )
+
+  const edgesStructure = useMemo(
+    () => ({
+      count: workflowState.edges.length,
+      ids: workflowState.edges.map((e) => e.id).join(','),
+    }),
+    [workflowState.edges]
+  )
 
   // Transform blocks and loops into ReactFlow nodes
   const nodes: Node[] = useMemo(() => {
@@ -105,18 +114,18 @@ export function WorkflowPreview({
     // Add block nodes using the same approach as workflow.tsx
     Object.entries(workflowState.blocks).forEach(([blockId, block]) => {
       if (!block || !block.type) {
-        logger.warn(`Skipping invalid block: ${blockId}`);
-        return;
+        logger.warn(`Skipping invalid block: ${blockId}`)
+        return
       }
-    
+
       const blockConfig = getBlock(block.type)
       if (!blockConfig) {
         logger.error(`No configuration found for block type: ${block.type}`, { blockId })
-        return;
+        return
       }
 
       // Create a deep clone of subBlocks to avoid any references to the original state
-      const subBlocksClone = block.subBlocks ? cloneDeep(block.subBlocks) : {};
+      const subBlocksClone = block.subBlocks ? cloneDeep(block.subBlocks) : {}
 
       nodeArray.push({
         id: blockId,
@@ -166,15 +175,22 @@ export function WorkflowPreview({
           })
         })
       }
-      logger.info(`Preview node created: ${blockId}`, { 
+      logger.info(`Preview node created: ${blockId}`, {
         blockType: block.type,
-        hasSubBlocks: block.subBlocks && Object.keys(block.subBlocks).length > 0
-      });
+        hasSubBlocks: block.subBlocks && Object.keys(block.subBlocks).length > 0,
+      })
     })
-    
-    
+
     return nodeArray
-  }, [blocksStructure, loopsStructure, showSubBlocks, workflowState.blocks, workflowState.loops])
+  }, [
+    blocksStructure,
+    loopsStructure,
+    parallelsStructure,
+    showSubBlocks,
+    workflowState.blocks,
+    workflowState.loops,
+    workflowState.parallels,
+  ])
 
   // Transform edges
   const edges: Edge[] = useMemo(() => {
@@ -186,14 +202,11 @@ export function WorkflowPreview({
       targetHandle: edge.targetHandle,
       type: 'workflowEdge',
     }))
-  }, [edgesStructure, workflowState.edges])
+  }, [edgesStructure, workflowState.edges, workflowState.parallels])
 
   return (
     <ReactFlowProvider>
-      <div 
-        style={{ height, width }} 
-        className={cn('preview-mode')}
-      >
+      <div style={{ height, width }} className={cn('preview-mode')}>
         <ReactFlow
           nodes={nodes}
           edges={edges}

@@ -8,7 +8,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
-
 interface TimeInputProps {
   blockId: string
   subBlockId: string
@@ -18,16 +17,16 @@ interface TimeInputProps {
   className?: string
 }
 
-export function TimeInput({ 
-  blockId, 
-  subBlockId, 
+export function TimeInput({
+  blockId,
+  subBlockId,
   placeholder,
   isPreview = false,
   previewValue,
-  className,  
+  className,
 }: TimeInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
-  
+
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
   const [isOpen, setIsOpen] = React.useState(false)
@@ -55,8 +54,8 @@ export function TimeInput({
   // Update the time when any component changes
   const updateTime = (newHour?: string, newMinute?: string, newAmpm?: 'AM' | 'PM') => {
     if (isPreview) return
-    const h = parseInt(newHour ?? hour) || 12
-    const m = parseInt(newMinute ?? minute) || 0
+    const h = Number.parseInt(newHour ?? hour) || 12
+    const m = Number.parseInt(newMinute ?? minute) || 0
     const p = newAmpm ?? ampm
     setStoreValue(formatStorageTime(h, m, p))
   }
@@ -91,7 +90,7 @@ export function TimeInput({
     >
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant='outline'
           disabled={isPreview}
           className={cn(
             'w-full justify-start text-left font-normal',

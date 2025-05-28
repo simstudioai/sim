@@ -6,7 +6,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
 interface DropdownProps {
@@ -21,20 +20,20 @@ interface DropdownProps {
   previewValue?: string | null
 }
 
-export function Dropdown({ 
-  options, 
-  defaultValue, 
-  blockId, 
+export function Dropdown({
+  options,
+  defaultValue,
+  blockId,
   subBlockId,
   value: propValue,
   isPreview = false,
-  previewValue
+  previewValue,
 }: DropdownProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const [storeInitialized, setStoreInitialized] = useState(false)
 
   // Use preview value when in preview mode, otherwise use store value or prop value
-  const value = isPreview ? previewValue : (propValue !== undefined ? propValue : storeValue)
+  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Evaluate options if it's a function
   const evaluatedOptions = useMemo(() => {

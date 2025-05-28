@@ -295,12 +295,12 @@ interface WebhookConfigProps {
   }
 }
 
-export function WebhookConfig({ 
-  blockId, 
-  subBlockId, 
-  isConnecting, 
+export function WebhookConfig({
+  blockId,
+  subBlockId,
+  isConnecting,
   isPreview = false,
-  value: propValue 
+  value: propValue,
 }: WebhookConfigProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -323,7 +323,7 @@ export function WebhookConfig({
 
   // Store provider-specific configuration
   const [storeProviderConfig, setProviderConfig] = useSubBlockValue(blockId, 'providerConfig')
-  
+
   // Use prop values when available (preview mode), otherwise use store values
   const webhookProvider = propValue?.webhookProvider ?? storeWebhookProvider
   const webhookPath = propValue?.webhookPath ?? storeWebhookPath
@@ -570,7 +570,7 @@ export function WebhookConfig({
               'https://www.googleapis.com/auth/gmail.modify',
               'https://www.googleapis.com/auth/gmail.labels',
             ]}
-            label="Select Gmail account"
+            label='Select Gmail account'
             disabled={isConnecting || isSaving || isDeleting || isPreview}
           />
         </div>

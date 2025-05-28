@@ -34,24 +34,21 @@ export function ShortInput({
   onChange,
   value: propValue,
   isPreview = false,
-  previewValue
+  previewValue,
 }: ShortInputProps) {
   const [isFocused, setIsFocused] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
   const [showTags, setShowTags] = useState(false)
   const validatePropValue = (value: any): string => {
-    if (value === undefined || value === null) return '';
-    if (typeof value === 'string') return value;
+    if (value === undefined || value === null) return ''
+    if (typeof value === 'string') return value
     try {
-      return String(value);
+      return String(value)
     } catch {
-      return '';
+      return ''
     }
   }
-  const [storeValue, setStoreValue] = useSubBlockValue(
-    blockId, 
-    subBlockId
-  )
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -62,7 +59,7 @@ export function ShortInput({
   const reactFlowInstance = useReactFlow()
 
   // Use preview value when in preview mode, otherwise use store value or prop value
-  const value = isPreview ? previewValue : (propValue !== undefined ? propValue : storeValue)
+  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Check if this input is API key related
   const isApiKeyField = useMemo(() => {

@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { DeployModal } from '../deploy-modal/deploy-modal'
 
 interface DeploymentControlsProps {
@@ -40,27 +40,27 @@ export function DeploymentControls({
 
   const [isDeploying, _setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  
+
   // Track the last seen workflow ID
   const lastWorkflowIdRef = useRef<string | null>(null)
-  
+
   // Update last seen workflow ID
   useEffect(() => {
     if (activeWorkflowId !== lastWorkflowIdRef.current) {
-      lastWorkflowIdRef.current = activeWorkflowId;
+      lastWorkflowIdRef.current = activeWorkflowId
     }
-  }, [activeWorkflowId]);
-  
+  }, [activeWorkflowId])
+
   // Refetch deployed state wrapper
   const refetchWithErrorHandling = async () => {
-    if (!activeWorkflowId) return;
-    
+    if (!activeWorkflowId) return
+
     try {
-      await refetchDeployedState();
+      await refetchDeployedState()
     } catch (error) {
       // Silent error handling
     }
-  };
+  }
 
   // Update parent component when workflow-specific status changes
   useEffect(() => {

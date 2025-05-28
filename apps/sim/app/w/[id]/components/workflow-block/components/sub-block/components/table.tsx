@@ -8,7 +8,6 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
-
 interface TableProps {
   blockId: string
   subBlockId: string
@@ -22,15 +21,15 @@ interface TableRow {
   cells: Record<string, string>
 }
 
-export function Table({ 
-  blockId, 
-  subBlockId, 
+export function Table({
+  blockId,
+  subBlockId,
   columns,
   isPreview = false,
-  previewValue
+  previewValue,
 }: TableProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<TableRow[]>(blockId, subBlockId)
-  
+
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
@@ -84,7 +83,7 @@ export function Table({
 
   const handleCellChange = (rowIndex: number, column: string, value: string) => {
     if (isPreview) return
-    
+
     const updatedRows = [...rows].map((row, idx) =>
       idx === rowIndex
         ? {
@@ -187,7 +186,7 @@ export function Table({
               }
             }}
             disabled={isPreview}
-            className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 w-full"
+            className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div
             data-overlay={cellKey}
@@ -201,8 +200,9 @@ export function Table({
   }
 
   const renderDeleteButton = (rowIndex: number) =>
-    rows.length > 1 && !isPreview && (
-      <td className="w-0 p-0">
+    rows.length > 1 &&
+    !isPreview && (
+      <td className='w-0 p-0'>
         <Button
           variant='ghost'
           size='icon'

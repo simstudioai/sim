@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Info, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,9 +20,8 @@ import { ApiKey } from '@/app/w/[id]/components/control-bar/components/deploy-mo
 import { DeployStatus } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/deploy-status/deploy-status'
 import { ExampleCommand } from '@/app/w/[id]/components/control-bar/components/deploy-modal/components/deployment-info/components/example-command/example-command'
 import { useNotificationStore } from '@/stores/notifications/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { DeployedWorkflowModal } from '../../../deployment-controls/components/deployed-workflow-modal'
-import { WorkflowState } from '@/stores/workflows/workflow/types'
-
 
 interface DeploymentInfoProps {
   isLoading?: boolean
@@ -51,7 +50,7 @@ export function DeploymentInfo({
   isUndeploying,
   workflowId,
   deployedState,
-  isLoadingDeployedState
+  isLoadingDeployedState,
 }: DeploymentInfoProps) {
   const [isViewingDeployed, setIsViewingDeployed] = useState(false)
   const { addNotification } = useNotificationStore()
@@ -61,12 +60,13 @@ export function DeploymentInfo({
       addNotification('error', 'Cannot view deployment: Workflow ID is missing', null)
       return
     }
-    
+
     // If deployedState is already loaded, use it directly
     if (deployedState) {
       setIsViewingDeployed(true)
       return
-    } else if (!isLoadingDeployedState) {
+    }
+    if (!isLoadingDeployedState) {
       addNotification('error', 'Cannot view deployment: No deployed state available', workflowId)
     }
   }

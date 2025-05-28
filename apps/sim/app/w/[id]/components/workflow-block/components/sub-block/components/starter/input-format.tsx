@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
-
 interface InputField {
   id: string
   name: string
@@ -35,14 +34,14 @@ const DEFAULT_FIELD: InputField = {
   collapsed: true,
 }
 
-export function InputFormat({ 
-  blockId, 
+export function InputFormat({
+  blockId,
   subBlockId,
   isPreview = false,
-  previewValue
+  previewValue,
 }: InputFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<InputField[]>(blockId, subBlockId)
-  
+
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
   const fields: InputField[] = value || [DEFAULT_FIELD]
@@ -50,7 +49,7 @@ export function InputFormat({
   // Field operations
   const addField = () => {
     if (isPreview) return
-    
+
     const newField: InputField = {
       ...DEFAULT_FIELD,
       id: crypto.randomUUID(),
@@ -71,7 +70,9 @@ export function InputFormat({
 
   const toggleCollapse = (id: string) => {
     if (isPreview) return
-    setStoreValue(fields.map((f: InputField) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f)))
+    setStoreValue(
+      fields.map((f: InputField) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f))
+    )
   }
 
   // Field header
@@ -98,10 +99,16 @@ export function InputFormat({
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="icon" onClick={addField} disabled={isPreview} className="h-6 w-6 rounded-full">
-            <Plus className="h-3.5 w-3.5" />
-            <span className="sr-only">Add Field</span>
+        <div className='flex items-center gap-1' onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant='ghost'
+            size='icon'
+            onClick={addField}
+            disabled={isPreview}
+            className='h-6 w-6 rounded-full'
+          >
+            <Plus className='h-3.5 w-3.5' />
+            <span className='sr-only'>Add Field</span>
           </Button>
 
           <Button
@@ -109,7 +116,7 @@ export function InputFormat({
             size='icon'
             onClick={() => removeField(field.id)}
             disabled={isPreview || fields.length === 1}
-            className="h-6 w-6 rounded-full text-destructive hover:text-destructive"
+            className='h-6 w-6 rounded-full text-destructive hover:text-destructive'
           >
             <Trash className='h-3.5 w-3.5' />
             <span className='sr-only'>Delete Field</span>
@@ -148,9 +155,9 @@ export function InputFormat({
                     name='name'
                     value={field.name}
                     onChange={(e) => updateField(field.id, 'name', e.target.value)}
-                    placeholder="firstName"
+                    placeholder='firstName'
                     disabled={isPreview}
-                    className="h-9 placeholder:text-muted-foreground/50"
+                    className='h-9 placeholder:text-muted-foreground/50'
                   />
                 </div>
 
@@ -158,8 +165,12 @@ export function InputFormat({
                   <Label className='text-xs'>Type</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" disabled={isPreview} className="w-full justify-between h-9 font-normal">
-                        <div className="flex items-center">
+                      <Button
+                        variant='outline'
+                        disabled={isPreview}
+                        className='h-9 w-full justify-between font-normal'
+                      >
+                        <div className='flex items-center'>
                           <span>{field.type}</span>
                         </div>
                         <ChevronDown className='h-4 w-4 opacity-50' />

@@ -43,9 +43,10 @@ export function OutputSelect({
       if (block.type === 'starter') return
 
       // Add defensive check to ensure block.name exists and is a string
-      const blockName = block.name && typeof block.name === 'string' 
-        ? block.name.replace(/\s+/g, '').toLowerCase() 
-        : `block-${block.id}`;
+      const blockName =
+        block.name && typeof block.name === 'string'
+          ? block.name.replace(/\s+/g, '').toLowerCase()
+          : `block-${block.id}`
 
       // Add response outputs
       if (block.outputs && typeof block.outputs === 'object') {
@@ -97,9 +98,10 @@ export function OutputSelect({
       const output = workflowOutputs.find((o) => o.id === validOutputs[0])
       if (output) {
         // Add defensive check for output.blockName
-        const blockNameText = output.blockName && typeof output.blockName === 'string'
-          ? output.blockName.replace(/\s+/g, '').toLowerCase()
-          : `block-${output.blockId}`;
+        const blockNameText =
+          output.blockName && typeof output.blockName === 'string'
+            ? output.blockName.replace(/\s+/g, '').toLowerCase()
+            : `block-${output.blockId}`
         return `${blockNameText}.${output.path}`
       }
       return placeholder

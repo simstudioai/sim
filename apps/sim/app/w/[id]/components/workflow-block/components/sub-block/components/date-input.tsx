@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
-
 interface DateInputProps {
   blockId: string
   subBlockId: string
@@ -19,15 +18,15 @@ interface DateInputProps {
   previewValue?: string | null
 }
 
-export function DateInput({ 
-  blockId, 
-  subBlockId, 
+export function DateInput({
+  blockId,
+  subBlockId,
   placeholder,
   isPreview = false,
-  previewValue
+  previewValue,
 }: DateInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
-  
+
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
   const addNotification = useNotificationStore((state) => state.addNotification)
@@ -42,7 +41,7 @@ export function DateInput({
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (isPreview) return
-    
+
     if (selectedDate) {
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -58,7 +57,7 @@ export function DateInput({
     <Popover>
       <PopoverTrigger asChild>
         <Button
-          variant="outline"
+          variant='outline'
           disabled={isPreview}
           className={cn(
             'w-full justify-start text-left font-normal',

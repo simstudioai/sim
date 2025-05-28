@@ -5,7 +5,6 @@ import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
-
 interface EvalMetric {
   id: string
   name: string
@@ -31,14 +30,14 @@ const DEFAULT_METRIC: EvalMetric = {
   range: { min: 0, max: 1 },
 }
 
-export function EvalInput({ 
-  blockId, 
+export function EvalInput({
+  blockId,
   subBlockId,
   isPreview = false,
-  previewValue
+  previewValue,
 }: EvalInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<EvalMetric[]>(blockId, subBlockId)
-  
+
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
@@ -48,7 +47,7 @@ export function EvalInput({
   // Metric operations
   const addMetric = () => {
     if (isPreview) return
-    
+
     const newMetric: EvalMetric = {
       ...DEFAULT_METRIC,
       id: crypto.randomUUID(),
@@ -64,7 +63,9 @@ export function EvalInput({
   // Update handlers
   const updateMetric = (id: string, field: keyof EvalMetric, value: any) => {
     if (isPreview) return
-    setStoreValue(metrics.map((metric) => (metric.id === id ? { ...metric, [field]: value } : metric)))
+    setStoreValue(
+      metrics.map((metric) => (metric.id === id ? { ...metric, [field]: value } : metric))
+    )
   }
 
   const updateRange = (id: string, field: 'min' | 'max', value: string) => {
@@ -76,7 +77,7 @@ export function EvalInput({
               ...metric,
               range: {
                 ...metric.range,
-                [field]: value === '' ? undefined : parseInt(value, 10),
+                [field]: value === '' ? undefined : Number.parseInt(value, 10),
               },
             }
           : metric
@@ -86,23 +87,23 @@ export function EvalInput({
 
   const updateThreshold = (id: string, value: string) => {
     if (isPreview) return
-    
+
     // Allow empty values for clearing
     const sanitizedValue = value.replace(/[^0-9.-]/g, '')
     if (sanitizedValue === '') {
       setStoreValue(
-        metrics.map((metric) =>
-          metric.id === id ? { ...metric, threshold: undefined } : metric
-        )
+        metrics.map((metric) => (metric.id === id ? { ...metric, threshold: undefined } : metric))
       )
       return
     }
 
-    const numValue = parseFloat(sanitizedValue)
+    const numValue = Number.parseFloat(sanitizedValue)
 
     setStoreValue(
       metrics.map((metric) =>
-        metric.id === id ? { ...metric, threshold: isNaN(numValue) ? undefined : numValue } : metric
+        metric.id === id
+          ? { ...metric, threshold: Number.isNaN(numValue) ? undefined : numValue }
+          : metric
       )
     )
   }
@@ -114,9 +115,15 @@ export function EvalInput({
       <div className='flex items-center gap-1'>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="sm" onClick={addMetric} disabled={isPreview} className="h-8 w-8">
-              <Plus className="h-4 w-4" />
-              <span className="sr-only">Add Metric</span>
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={addMetric}
+              disabled={isPreview}
+              className='h-8 w-8'
+            >
+              <Plus className='h-4 w-4' />
+              <span className='sr-only'>Add Metric</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent>Add Metric</TooltipContent>
@@ -129,7 +136,7 @@ export function EvalInput({
               size='sm'
               onClick={() => removeMetric(metric.id)}
               disabled={isPreview || metrics.length === 1}
-              className="h-8 w-8 text-destructive hover:text-destructive"
+              className='h-8 w-8 text-destructive hover:text-destructive'
             >
               <Trash className='h-4 w-4' />
               <span className='sr-only'>Delete Metric</span>
@@ -159,9 +166,9 @@ export function EvalInput({
                 name='name'
                 value={metric.name}
                 onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
-                placeholder="Accuracy"
+                placeholder='Accuracy'
                 disabled={isPreview}
-                className="placeholder:text-muted-foreground/50"
+                className='placeholder:text-muted-foreground/50'
               />
             </div>
 
@@ -170,9 +177,9 @@ export function EvalInput({
               <Input
                 value={metric.description}
                 onChange={(e) => updateMetric(metric.id, 'description', e.target.value)}
-                placeholder="How accurate is the response?"
+                placeholder='How accurate is the response?'
                 disabled={isPreview}
-                className="placeholder:text-muted-foreground/50"
+                className='placeholder:text-muted-foreground/50'
               />
             </div>
 
@@ -185,7 +192,7 @@ export function EvalInput({
                   onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
                   onBlur={(e) => updateThreshold(metric.id, e.target.value)}
                   disabled={isPreview}
-                  className="placeholder:text-muted-foreground/50"
+                  className='placeholder:text-muted-foreground/50'
                 />
               </div>
               <div className='space-y-1'>
@@ -196,7 +203,7 @@ export function EvalInput({
                   onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
                   onBlur={(e) => updateThreshold(metric.id, e.target.value)}
                   disabled={isPreview}
-                  className="placeholder:text-muted-foreground/50"
+                  className='placeholder:text-muted-foreground/50'
                 />
               </div>
             </div>

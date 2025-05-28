@@ -69,4 +69,4 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const response = createErrorResponse(error.message || 'Failed to fetch deployed state', 500)
     return addNoCacheHeaders(response)
   }
-} 
+}

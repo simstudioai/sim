@@ -42,12 +42,12 @@ const generateStableId = (blockId: string, suffix: string): string => {
   return `${blockId}-${suffix}`
 }
 
-export function ConditionInput({ 
-  blockId, 
-  subBlockId, 
+export function ConditionInput({
+  blockId,
+  subBlockId,
   isConnecting,
   isPreview = false,
-  previewValue
+  previewValue,
 }: ConditionInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const editorRef = useRef<HTMLDivElement>(null)
@@ -199,7 +199,8 @@ export function ConditionInput({
   useEffect(() => {
     // Skip if we're currently syncing from store to prevent loops
     // or if we're not ready yet (still initializing) or in preview mode
-    if (isSyncingFromStoreRef.current || !isReady || conditionalBlocks.length === 0 || isPreview) return
+    if (isSyncingFromStoreRef.current || !isReady || conditionalBlocks.length === 0 || isPreview)
+      return
 
     const newValue = JSON.stringify(conditionalBlocks)
 
@@ -209,7 +210,15 @@ export function ConditionInput({
       setStoreValue(newValue)
       updateNodeInternals(`${blockId}-${subBlockId}`)
     }
-  }, [conditionalBlocks, blockId, subBlockId, setStoreValue, updateNodeInternals, isReady, isPreview])
+  }, [
+    conditionalBlocks,
+    blockId,
+    subBlockId,
+    setStoreValue,
+    updateNodeInternals,
+    isReady,
+    isPreview,
+  ])
 
   // Cleanup when component unmounts
   useEffect(() => {
@@ -227,7 +236,7 @@ export function ConditionInput({
     textarea: HTMLTextAreaElement | null
   ) => {
     if (isPreview) return
-    
+
     try {
       setConditionalBlocks((blocks) =>
         blocks.map((block) => {
@@ -440,7 +449,7 @@ export function ConditionInput({
   // Update these functions to use updateBlockTitles and stable IDs
   const addBlock = (afterId: string) => {
     if (isPreview) return
-    
+
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === afterId)
 
     // Generate a stable ID using the blockId and a timestamp
@@ -474,7 +483,7 @@ export function ConditionInput({
 
   const removeBlock = (id: string) => {
     if (isPreview) return
-    
+
     // Remove any associated edges before removing the block
     edges.forEach((edge) => {
       if (edge.sourceHandle?.startsWith(`condition-${id}`)) {
@@ -488,7 +497,7 @@ export function ConditionInput({
 
   const moveBlock = (id: string, direction: 'up' | 'down') => {
     if (isPreview) return
-    
+
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === id)
     if (
       (direction === 'up' && blockIndex === 0) ||
@@ -597,7 +606,7 @@ export function ConditionInput({
                     size='sm'
                     onClick={() => addBlock(block.id)}
                     disabled={isPreview}
-                    className="h-8 w-8"
+                    className='h-8 w-8'
                   >
                     <Plus className='h-4 w-4' />
                     <span className='sr-only'>Add Block</span>
@@ -614,7 +623,7 @@ export function ConditionInput({
                       size='sm'
                       onClick={() => moveBlock(block.id, 'up')}
                       disabled={isPreview || index === 0}
-                      className="h-8 w-8"
+                      className='h-8 w-8'
                     >
                       <ChevronUp className='h-4 w-4' />
                       <span className='sr-only'>Move Up</span>
@@ -630,7 +639,7 @@ export function ConditionInput({
                       size='sm'
                       onClick={() => moveBlock(block.id, 'down')}
                       disabled={isPreview || index === conditionalBlocks.length - 1}
-                      className="h-8 w-8"
+                      className='h-8 w-8'
                     >
                       <ChevronDown className='h-4 w-4' />
                       <span className='sr-only'>Move Down</span>
@@ -647,7 +656,7 @@ export function ConditionInput({
                     size='sm'
                     onClick={() => removeBlock(block.id)}
                     disabled={isPreview || conditionalBlocks.length === 1}
-                    className="h-8 w-8 text-destructive hover:text-destructive"
+                    className='h-8 w-8 text-destructive hover:text-destructive'
                   >
                     <Trash className='h-4 w-4' />
                     <span className='sr-only'>Delete Block</span>
@@ -710,8 +719,11 @@ export function ConditionInput({
                     minHeight: '46px',
                     lineHeight: '21px',
                   }}
-                  className={cn('focus:outline-none', isPreview && 'opacity-50 cursor-not-allowed')}
-                  textareaClassName={cn('focus:outline-none focus:ring-0 bg-transparent', isPreview && 'pointer-events-none')}
+                  className={cn('focus:outline-none', isPreview && 'cursor-not-allowed opacity-50')}
+                  textareaClassName={cn(
+                    'focus:outline-none focus:ring-0 bg-transparent',
+                    isPreview && 'pointer-events-none'
+                  )}
                 />
 
                 {block.showEnvVars && (
