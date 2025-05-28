@@ -6,8 +6,8 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { type DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
 import { type JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
-import { type LinearTeamInfo, LinearTeamSelector } from './components/linear-team-selector'
 import { type LinearProjectInfo, LinearProjectSelector } from './components/linear-project-selector'
+import { type LinearTeamInfo, LinearTeamSelector } from './components/linear-team-selector'
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -44,7 +44,10 @@ export function ProjectSelectorInput({
   }, [blockId, subBlock.id, getValue])
 
   // Handle project selection
-  const handleProjectChange = (projectId: string, info?: JiraProjectInfo | DiscordServerInfo | LinearTeamInfo | LinearProjectInfo) => {
+  const handleProjectChange = (
+    projectId: string,
+    info?: JiraProjectInfo | DiscordServerInfo | LinearTeamInfo | LinearProjectInfo
+  ) => {
     setSelectedProjectId(projectId)
     setProjectInfo(info || null)
     setValue(blockId, subBlock.id, projectId)
@@ -57,8 +60,10 @@ export function ProjectSelectorInput({
     } else if (provider === 'discord') {
       setValue(blockId, 'channelId', '')
     } else if (provider === 'linear') {
-      setValue(blockId, 'credential', '')
-      setValue(blockId, 'teamId', '')
+      if (subBlock.id === 'teamId') {
+        setValue(blockId, 'teamId', projectId)
+        setValue(blockId, 'projectId', '') // Optionally clear project selection
+      }
     }
 
     onProjectSelect?.(projectId)
@@ -112,17 +117,25 @@ export function ProjectSelectorInput({
                   showPreview={true}
                 />
               ) : (
-                <LinearProjectSelector
-                  value={selectedProjectId}
-                  onChange={(projectId: string, projectInfo?: LinearProjectInfo) => {
-                    handleProjectChange(projectId, projectInfo)
-                  }}
-                  credential={getValue(blockId, 'credential') as string}
-                  teamId={getValue(blockId, 'teamId') as string}
-                  label={subBlock.placeholder || 'Select Linear project'}
-                  disabled={disabled || !getValue(blockId, 'credential') || !getValue(blockId, 'teamId')}
-                  showPreview={true}
-                />
+                (() => {
+                  const credential = getValue(blockId, 'credential') as string
+                  const teamId = getValue(blockId, 'teamId') as string
+                  const isDisabled = disabled || !credential || !teamId
+                  console.log('ProjectSelector:', { credential, teamId, disabled: isDisabled })
+                  return (
+                    <LinearProjectSelector
+                      value={selectedProjectId}
+                      onChange={(projectId: string, projectInfo?: LinearProjectInfo) => {
+                        handleProjectChange(projectId, projectInfo)
+                      }}
+                      credential={credential}
+                      teamId={teamId}
+                      label={subBlock.placeholder || 'Select Linear project'}
+                      disabled={isDisabled}
+                      showPreview={true}
+                    />
+                  )
+                })()
               )}
             </div>
           </TooltipTrigger>

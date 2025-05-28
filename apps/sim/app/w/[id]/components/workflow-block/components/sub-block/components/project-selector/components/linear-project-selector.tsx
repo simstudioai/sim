@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export interface LinearProjectInfo {
   id: string
@@ -16,7 +22,14 @@ interface LinearProjectSelectorProps {
   showPreview?: boolean
 }
 
-export function LinearProjectSelector({ value, onChange, credential, teamId, label = 'Select Linear project', disabled = false }: LinearProjectSelectorProps) {
+export function LinearProjectSelector({
+  value,
+  onChange,
+  credential,
+  teamId,
+  label = 'Select Linear project',
+  disabled = false,
+}: LinearProjectSelectorProps) {
   const [projects, setProjects] = useState<LinearProjectInfo[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,25 +37,18 @@ export function LinearProjectSelector({ value, onChange, credential, teamId, lab
   useEffect(() => {
     if (!credential || !teamId) return
     setLoading(true)
-    setError(null)
-    fetch('https://api.linear.app/graphql', {
+    fetch('/api/tools/linear/projects', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${credential}`,
-      },
-      body: JSON.stringify({
-        query: `query($teamId: String!) { team(id: $teamId) { projects { nodes { id name } } } }`,
-        variables: { teamId },
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential, teamId }),
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.errors) {
-          setError(data.errors[0].message)
+        if (data.error) {
+          setError(data.error)
           setProjects([])
         } else {
-          setProjects(data.data.team?.projects?.nodes || [])
+          setProjects(data.projects)
         }
       })
       .catch((err) => {
@@ -74,4 +80,4 @@ export function LinearProjectSelector({ value, onChange, credential, teamId, lab
       </SelectContent>
     </Select>
   )
-} 
+}

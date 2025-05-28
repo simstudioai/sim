@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export interface LinearTeamInfo {
   id: string
@@ -15,7 +21,13 @@ interface LinearTeamSelectorProps {
   showPreview?: boolean
 }
 
-export function LinearTeamSelector({ value, onChange, credential, label = 'Select Linear team', disabled = false }: LinearTeamSelectorProps) {
+export function LinearTeamSelector({
+  value,
+  onChange,
+  credential,
+  label = 'Select Linear team',
+  disabled = false,
+}: LinearTeamSelectorProps) {
   const [teams, setTeams] = useState<LinearTeamInfo[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -23,24 +35,18 @@ export function LinearTeamSelector({ value, onChange, credential, label = 'Selec
   useEffect(() => {
     if (!credential) return
     setLoading(true)
-    setError(null)
-    fetch('https://api.linear.app/graphql', {
+    fetch('/api/tools/linear/teams', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${credential}`,
-      },
-      body: JSON.stringify({
-        query: `query { teams { nodes { id name } } }`,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential }),
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.errors) {
-          setError(data.errors[0].message)
+        if (data.error) {
+          setError(data.error)
           setTeams([])
         } else {
-          setTeams(data.data.teams.nodes)
+          setTeams(data.teams)
         }
       })
       .catch((err) => {
@@ -72,4 +78,4 @@ export function LinearTeamSelector({ value, onChange, credential, label = 'Selec
       </SelectContent>
     </Select>
   )
-} 
+}
