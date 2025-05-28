@@ -5,7 +5,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { env } from '@/lib/env'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { ConfluenceFileInfo } from './components/confluence-file-selector'
 import { ConfluenceFileSelector } from './components/confluence-file-selector'
@@ -20,7 +19,6 @@ import { MicrosoftFileSelector } from './components/microsoft-file-selector'
 import type { TeamsMessageInfo } from './components/teams-message-selector'
 import { TeamsMessageSelector } from './components/teams-message-selector'
 
-
 interface FileSelectorInputProps {
   blockId: string
   subBlock: SubBlockConfig
@@ -29,12 +27,12 @@ interface FileSelectorInputProps {
   previewValue?: any | null
 }
 
-export function FileSelectorInput({ 
-  blockId, 
-  subBlock, 
+export function FileSelectorInput({
+  blockId,
+  subBlock,
   disabled,
   isPreview = false,
-  previewValue
+  previewValue,
 }: FileSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const { activeWorkflowId } = useWorkflowRegistry()
@@ -66,31 +64,33 @@ export function FileSelectorInput({
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
     if (isPreview && previewValue !== undefined) {
-      const value = previewValue;
+      const value = previewValue
       if (value && typeof value === 'string') {
         if (isJira) {
-          setSelectedIssueId(value);
+          setSelectedIssueId(value)
         } else if (isDiscord) {
-          setSelectedChannelId(value);
+          setSelectedChannelId(value)
+        } else if (isMicrosoftTeams) {
+          setSelectedMessageId(value)
         } else {
-          setSelectedFileId(value);
+          setSelectedFileId(value)
         }
       }
     } else {
-      const value = getValue(blockId, subBlock.id);
+      const value = getValue(blockId, subBlock.id)
       if (value && typeof value === 'string') {
         if (isJira) {
-          setSelectedIssueId(value);
+          setSelectedIssueId(value)
         } else if (isDiscord) {
-          setSelectedChannelId(value);
+          setSelectedChannelId(value)
         } else if (isMicrosoftTeams) {
-          setSelectedMessageId(value);
+          setSelectedMessageId(value)
         } else {
-          setSelectedFileId(value);
+          setSelectedFileId(value)
         }
       }
     }
-  }, [blockId, subBlock.id, getValue, isJira, isDiscord, isPreview, previewValue]);
+  }, [blockId, subBlock.id, getValue, isJira, isDiscord, isMicrosoftTeams, isPreview, previewValue])
 
   // Handle file selection
   const handleFileChange = (fileId: string, info?: any) => {

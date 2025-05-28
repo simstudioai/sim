@@ -23,12 +23,12 @@ interface ScheduleConfigProps {
   previewValue?: any | null
 }
 
-export function ScheduleConfig({ 
-  blockId, 
-  subBlockId, 
+export function ScheduleConfig({
+  blockId,
+  subBlockId,
   isConnecting,
   isPreview = false,
-  previewValue
+  previewValue,
 }: ScheduleConfigProps) {
   const [error, setError] = useState<string | null>(null)
   const [scheduleId, setScheduleId] = useState<string | null>(null)
@@ -58,7 +58,7 @@ export function ScheduleConfig({
   const isScheduleEnabled = startWorkflow === 'schedule'
 
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
-  
+
   // Use preview value when in preview mode, otherwise use store value
   const value = isPreview ? previewValue : storeValue
 
@@ -152,7 +152,7 @@ export function ScheduleConfig({
 
   const handleSaveSchedule = async (): Promise<boolean> => {
     if (isPreview) return false
-    
+
     setIsSaving(true)
     setError(null)
 

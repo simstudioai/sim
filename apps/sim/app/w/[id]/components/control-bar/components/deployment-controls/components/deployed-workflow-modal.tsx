@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,19 +13,13 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { DeployedWorkflowCard } from './deployed-workflow-card'
-import { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployedWorkflowModal')
 
@@ -45,15 +39,15 @@ export function DeployedWorkflowModal({
   const [showRevertDialog, setShowRevertDialog] = useState(false)
   const { revertToDeployedState } = useWorkflowStore()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  
+
   // Add instance ID to track component lifecycle
-  const modalOpenCount = useRef(0);
-  
+  const modalOpenCount = useRef(0)
+
   useEffect(() => {
     if (isOpen) {
-      modalOpenCount.current += 1;
+      modalOpenCount.current += 1
     }
-  }, [isOpen]);
+  }, [isOpen])
 
   // Get current workflow state to compare with deployed state
   const currentWorkflowState = useWorkflowStore((state) => ({
@@ -88,13 +82,13 @@ export function DeployedWorkflowModal({
           deployedWorkflowState={deployedWorkflowState}
         />
 
-        <div className="flex justify-between mt-6">
+        <div className='mt-6 flex justify-between'>
           {needsRedeployment && (
             <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive">Revert to Deployed</Button>
+                <Button variant='destructive'>Revert to Deployed</Button>
               </AlertDialogTrigger>
-              <AlertDialogContent style={{ zIndex: 1001 }} className="sm:max-w-[425px]">
+              <AlertDialogContent style={{ zIndex: 1001 }} className='sm:max-w-[425px]'>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Revert to Deployed Version?</AlertDialogTitle>
                   <AlertDialogDescription>
@@ -106,7 +100,7 @@ export function DeployedWorkflowModal({
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={handleRevert}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
                   >
                     Revert
                   </AlertDialogAction>
@@ -115,7 +109,7 @@ export function DeployedWorkflowModal({
             </AlertDialog>
           )}
 
-          <Button variant="outline" onClick={onClose} className="ml-auto">
+          <Button variant='outline' onClick={onClose} className='ml-auto'>
             Close
           </Button>
         </div>

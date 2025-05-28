@@ -46,7 +46,7 @@ import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
@@ -87,7 +87,7 @@ export function ControlBar() {
     showNotification,
     removeNotification,
   } = useNotificationStore()
-  const { history, revertToHistoryState, lastSaved } = useWorkflowStore()  
+  const { history, revertToHistoryState, lastSaved } = useWorkflowStore()
   const {
     workflows,
     updateWorkflow,
@@ -215,15 +215,15 @@ export function ControlBar() {
 
     try {
       setIsLoadingDeployedState(true)
-      
+
       const response = await fetch(`/api/workflows/${requestWorkflowId}/deployed`)
-      
+
       // Check if the workflow ID changed during the request (user navigated away)
       if (requestWorkflowId !== useWorkflowRegistry.getState().activeWorkflowId) {
         logger.debug('Workflow changed during deployed state fetch, ignoring response')
         return
       }
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           // No deployed state found
@@ -232,16 +232,15 @@ export function ControlBar() {
         }
         throw new Error(`Failed to fetch deployed state: ${response.statusText}`)
       }
-      
+
       const data = await response.json()
-      
+
       // Final check to ensure we're still on the same workflow
       if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
         setDeployedState(data.deployedState || null)
       } else {
         logger.debug('Workflow changed after deployed state response, ignoring result')
       }
-      
     } catch (error) {
       logger.error('Error fetching deployed state:', { error })
       // Only set error state if we're still on the same workflow
@@ -263,7 +262,7 @@ export function ControlBar() {
       setDeployedState(null)
       setIsLoadingDeployedState(false)
     }
-    
+
     // Then fetch the new deployed state
     fetchDeployedState()
   }, [activeWorkflowId, isDeployed])
@@ -276,7 +275,7 @@ export function ControlBar() {
       setIsLoadingDeployedState(false)
       return
     }
-    
+
     if (isDeployed) {
       // When deployment status becomes true, reset the needsRedeployment flag
       setNeedsRedeployment(false)

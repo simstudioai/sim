@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { PlusIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -27,8 +27,6 @@ import { CredentialSelector } from '../credential-selector/credential-selector'
 import { ShortInput } from '../short-input'
 import { type CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
 import { ToolCommand } from './components/tool-command/tool-command'
-import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem, CommandSeparator } from '@/components/ui/command'
-import { Plus } from 'lucide-react'
 
 interface ToolInputProps {
   blockId: string
@@ -278,7 +276,7 @@ export function ToolInput({
   blockId, 
   subBlockId,
   isPreview = false,
-  previewValue
+  previewValue,
 }: ToolInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
@@ -604,50 +602,115 @@ export function ToolInput({
               </div>
             </div>
           </PopoverTrigger>
-          <PopoverContent className="p-0 w-[200px]" align="start">
-            <Command filter={customFilter} className="max-h-48" shouldFilter={false}>
-              <CommandInput placeholder="Search for tools..." disabled={isPreview} />
-              <CommandList>
-                <CommandEmpty>No tools found.</CommandEmpty>
-                {toolBlocks.map((block) => (
-                  <CommandGroup key={block.type} heading={block.name}>
-                    <CommandItem
-                      onSelect={() => {
-                        if (!isPreview) {
-                          handleSelectTool(block)
-                          setOpen(false)
-                        }
-                      }}
-                      disabled={isPreview || isToolAlreadySelected(block.type)}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-2">
-                          <IconComponent icon={block.icon} className="h-4 w-4" />
-                          <span>{block.name}</span>
-                        </div>
-                      </div>
-                    </CommandItem>
-                  </CommandGroup>
-                ))}
-                <CommandSeparator />
-                <CommandGroup heading="Custom Tools">
-                  <CommandItem
+          <PopoverContent className='w-[200px] p-0' align='start'>
+            <ToolCommand.Root filter={customFilter}>
+              <ToolCommand.Input placeholder='Search tools...' onValueChange={setSearchQuery} />
+              <ToolCommand.List>
+                <ToolCommand.Empty>No tools found</ToolCommand.Empty>
+                <ToolCommand.Group>
+                  <ToolCommand.Item
+                    value='Create Tool'
                     onSelect={() => {
                       if (!isPreview) {
                         setCustomToolModalOpen(true)
                         setOpen(false)
                       }
                     }}
+                    className='mb-1 flex cursor-pointer items-center gap-2'
                     disabled={isPreview}
                   >
-                    <div className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      <span>Create Custom Tool</span>
+                    <div className='flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
+                      <WrenchIcon className='h-4 w-4 text-muted-foreground' />
                     </div>
-                  </CommandItem>
-                </CommandGroup>
-              </CommandList>
-            </Command>
+                    <span>Create Tool</span>
+                  </ToolCommand.Item>
+
+                  {/* Display saved custom tools at the top */}
+                  {customTools.length > 0 && (
+                    <>
+                      <ToolCommand.Separator />
+                      <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
+                        Custom Tools
+                      </div>
+                      <ToolCommand.Group className='-mx-1 -px-1'>
+                        {customTools.map((customTool) => (
+                          <ToolCommand.Item
+                            key={customTool.id}
+                            value={customTool.title}
+                            onSelect={() => {
+                              const newTool: StoredTool = {
+                                type: 'custom-tool',
+                                title: customTool.title,
+                                params: {},
+                                isExpanded: true,
+                                schema: customTool.schema,
+                                code: customTool.code,
+                                usageControl: 'auto',
+                              }
+
+                              if (isWide) {
+                                setStoreValue([
+                                  ...selectedTools.map((tool, index) => ({
+                                    ...tool,
+                                    isExpanded:
+                                      Math.floor(selectedTools.length / 2) ===
+                                      Math.floor(index / 2),
+                                  })),
+                                  newTool,
+                                ])
+                              } else {
+                                setStoreValue([
+                                  ...selectedTools.map((tool) => ({
+                                    ...tool,
+                                    isExpanded: false,
+                                  })),
+                                  newTool,
+                                ])
+                              }
+                              setOpen(false)
+                            }}
+                            className='flex cursor-pointer items-center gap-2'
+                          >
+                            <div className='flex h-6 w-6 items-center justify-center rounded bg-blue-500'>
+                              <WrenchIcon className='h-4 w-4 text-white' />
+                            </div>
+                            <span className='max-w-[140px] truncate'>{customTool.title}</span>
+                          </ToolCommand.Item>
+                        ))}
+                      </ToolCommand.Group>
+                      <ToolCommand.Separator />
+                    </>
+                  )}
+
+                  {/* Display built-in tools */}
+                  {toolBlocks.some((block) => customFilter(block.name, searchQuery || '') > 0) && (
+                    <>
+                      <div className='px-2 pt-2.5 pb-0.5 font-medium text-muted-foreground text-xs'>
+                        Built-in Tools
+                      </div>
+                      <ToolCommand.Group className='-mx-1 -px-1'>
+                        {toolBlocks.map((block) => (
+                          <ToolCommand.Item
+                            key={block.type}
+                            value={block.name}
+                            onSelect={() => handleSelectTool(block)}
+                            className='flex cursor-pointer items-center gap-2'
+                          >
+                            <div
+                              className='flex h-6 w-6 items-center justify-center rounded'
+                              style={{ backgroundColor: block.bgColor }}
+                            >
+                              <IconComponent icon={block.icon} className='h-4 w-4 text-white' />
+                            </div>
+                            <span className='max-w-[140px] truncate'>{block.name}</span>
+                          </ToolCommand.Item>
+                        ))}
+                      </ToolCommand.Group>
+                    </>
+                  )}
+                </ToolCommand.Group>
+              </ToolCommand.List>
+            </ToolCommand.Root>
           </PopoverContent>
         </Popover>
       ) : (

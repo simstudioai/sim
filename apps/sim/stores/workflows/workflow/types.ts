@@ -1,6 +1,6 @@
-import { Edge } from 'reactflow'
-import { BlockOutput, SubBlockType } from '@/blocks/types'
-import { DeploymentStatus } from '../registry/types'
+import type { Edge } from 'reactflow'
+import type { BlockOutput, SubBlockType } from '@/blocks/types'
+import type { DeploymentStatus } from '../registry/types'
 
 export interface Position {
   x: number
@@ -62,6 +62,12 @@ export interface Loop {
   iterations: number
   loopType: 'for' | 'forEach'
   forEachItems?: any[] | Record<string, any> | string // Items or expression
+}
+
+export interface Parallel {
+  id: string
+  nodes: string[]
+  distribution?: any[] | Record<string, any> | string // Items or expression
 }
 
 export interface WorkflowState {

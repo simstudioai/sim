@@ -27,7 +27,7 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployModal')
 
@@ -618,8 +618,8 @@ export function DeployModal({
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-6">
+          <div className='flex-1 overflow-y-auto'>
+            <div className='p-6'>
               {activeTab === 'api' && (
                 <>
                   {isDeployed ? (
@@ -637,12 +637,12 @@ export function DeployModal({
                   ) : (
                     <>
                       {apiDeployError && (
-                        <div className="mb-4 p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
-                          <div className="font-semibold">API Deployment Error</div>
+                        <div className='mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
+                          <div className='font-semibold'>API Deployment Error</div>
                           <div>{apiDeployError}</div>
                         </div>
                       )}
-                      <div className="px-1 -mx-1">
+                      <div className='-mx-1 px-1'>
                         <DeployForm
                           apiKeys={apiKeys}
                           keysLoaded={keysLoaded}

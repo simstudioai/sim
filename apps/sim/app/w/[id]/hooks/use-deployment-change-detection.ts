@@ -54,7 +54,6 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
           // Always update the needsRedeployment flag based on API response to handle both true and false
           // This ensures it's updated when changes are detected and when changes are no longer detected
           if (data.needsRedeployment) {
-
             // Update local state
             setNeedsRedeployment(true)
 
@@ -66,7 +65,6 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
               .getState()
               .getWorkflowDeploymentStatus(requestedWorkflowId)
             if (currentStatus?.needsRedeployment) {
-
               // Update local state
               setNeedsRedeployment(false)
 

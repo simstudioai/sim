@@ -153,8 +153,8 @@ function storeApiKeyValue(
 export function useSubBlockValue<T = any>(
   blockId: string,
   subBlockId: string,
-  triggerWorkflowUpdate: boolean = false,
-  isPreview: boolean = false,
+  triggerWorkflowUpdate = false,
+  isPreview = false,
   directValue?: T
 ): readonly [T | null, (value: T) => void] {
   const blockType = useWorkflowStore(

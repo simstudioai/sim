@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
 import type { ReactElement } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Wand2 } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -57,11 +57,13 @@ export function Code({
   generationType = 'javascript-function-body',
   value: propValue,
   isPreview = false,
-  previewValue
+  previewValue,
 }: CodeProps) {
   // Determine the AI prompt placeholder based on language
   const aiPromptPlaceholder = useMemo(() => {
-    return language === 'json' ? 'Describe the JSON schema you need...' : 'Describe the function you need...'
+    return language === 'json'
+      ? 'Describe the JSON schema you need...'
+      : 'Describe the function you need...'
   }, [language])
 
   // State management
@@ -89,7 +91,7 @@ export function Code({
     setCollapsedValue(blockId, collapsedStateKey, !isCollapsed)
   }
   // Use preview value when in preview mode, otherwise use store value or prop value
-  const value = isPreview ? previewValue : (propValue !== undefined ? propValue : storeValue)
+  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // AI Code Generation Hook
   const handleStreamStart = () => {
@@ -208,7 +210,7 @@ export function Code({
       clearTimeout(timeoutId)
       resizeObserver.disconnect()
     }
-  }, [code])  
+  }, [code])
 
   // Handlers
   const handleDrop = (e: React.DragEvent) => {
@@ -325,7 +327,7 @@ export function Code({
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-        <div className="absolute right-3 top-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
           {!isCollapsed && !isAiStreaming && !isPreview && (
             <Button
               variant='ghost'

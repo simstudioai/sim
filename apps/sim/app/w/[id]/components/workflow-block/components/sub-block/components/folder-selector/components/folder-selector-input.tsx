@@ -1,11 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-<<<<<<< HEAD
 import type { SubBlockConfig } from '@/blocks/types'
-import { createLogger } from '@/lib/logs/console-logger'
-=======
->>>>>>> 86800d81 (fix: removed comments)
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { type FolderInfo, FolderSelector } from '../folder-selector'
 
@@ -22,7 +18,7 @@ export function FolderSelectorInput({
   subBlock,
   disabled = false,
   isPreview = false,
-  previewValue
+  previewValue,
 }: FolderSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
@@ -31,27 +27,27 @@ export function FolderSelectorInput({
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
     if (isPreview && previewValue !== undefined) {
-      setSelectedFolderId(previewValue);
+      setSelectedFolderId(previewValue)
     } else {
-      const value = getValue(blockId, subBlock.id);
+      const value = getValue(blockId, subBlock.id)
       if (value && typeof value === 'string') {
-        setSelectedFolderId(value);
+        setSelectedFolderId(value)
       } else {
-        const defaultValue = 'INBOX';
-        setSelectedFolderId(defaultValue);
+        const defaultValue = 'INBOX'
+        setSelectedFolderId(defaultValue)
         if (!isPreview) {
-          setValue(blockId, subBlock.id, defaultValue);
+          setValue(blockId, subBlock.id, defaultValue)
         }
       }
     }
-  }, [blockId, subBlock.id, getValue, setValue, isPreview, previewValue]);
+  }, [blockId, subBlock.id, getValue, setValue, isPreview, previewValue])
 
   // Handle folder selection
   const handleFolderChange = (folderId: string, info?: FolderInfo) => {
-    setSelectedFolderId(folderId);
-    setFolderInfo(info || null);
+    setSelectedFolderId(folderId)
+    setFolderInfo(info || null)
     if (!isPreview) {
-      setValue(blockId, subBlock.id, folderId);
+      setValue(blockId, subBlock.id, folderId)
     }
   }
 

@@ -2,17 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-<<<<<<< HEAD
 import type { SubBlockConfig } from '@/blocks/types'
-import { createLogger } from '@/lib/logs/console-logger'
-=======
->>>>>>> 86800d81 (fix: removed comments)
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { type DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
 import { type JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
 import { type LinearProjectInfo, LinearProjectSelector } from './components/linear-project-selector'
 import { type LinearTeamInfo, LinearTeamSelector } from './components/linear-team-selector'
-
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -29,7 +24,7 @@ export function ProjectSelectorInput({
   disabled = false,
   onProjectSelect,
   isPreview = false,
-  previewValue
+  previewValue,
 }: ProjectSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
@@ -47,14 +42,14 @@ export function ProjectSelectorInput({
   // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
     if (isPreview && previewValue !== undefined) {
-      setSelectedProjectId(previewValue);
+      setSelectedProjectId(previewValue)
     } else {
-      const value = getValue(blockId, subBlock.id);
+      const value = getValue(blockId, subBlock.id)
       if (value && typeof value === 'string') {
-        setSelectedProjectId(value);
+        setSelectedProjectId(value)
       }
     }
-  }, [blockId, subBlock.id, getValue, isPreview, previewValue]);
+  }, [blockId, subBlock.id, getValue, isPreview, previewValue])
 
   // Handle project selection
   const handleProjectChange = (

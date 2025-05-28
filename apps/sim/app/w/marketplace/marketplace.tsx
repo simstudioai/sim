@@ -30,6 +30,7 @@ export interface Workflow {
       targetHandle?: string
     }>
     loops: Record<string, any>
+    parallels?: Record<string, any>
   }
 }
 
@@ -54,6 +55,7 @@ export interface MarketplaceWorkflow {
       targetHandle?: string
     }>
     loops: Record<string, any>
+    parallels?: Record<string, any>
   }
 }
 
