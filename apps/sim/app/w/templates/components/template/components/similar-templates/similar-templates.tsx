@@ -8,54 +8,9 @@ import { Button } from '@/components/ui/button'
 import { TemplateWorkflowCard } from '../../../../components/template-workflow-card'
 import { WorkflowCardSkeleton } from '@/app/w/marketplace/components/workflow-card-skeleton'
 import { createLogger } from '@/lib/logs/console-logger'
+import { TemplateData, getTemplateDescription } from '../../../../types'
 
 const logger = createLogger('SimilarTemplates')
-
-interface TemplateData {
-  id: string
-  workflowId: string
-  name: string
-  description: string
-  authorName: string
-  views: number
-  category: string
-  createdAt: string
-  updatedAt: string
-  workflowState?: {
-    blocks: Record<string, any>
-    edges: Array<{
-      id: string
-      source: string
-      target: string
-      sourceHandle?: string
-      targetHandle?: string
-    }>
-    loops: Record<string, any>
-  }
-}
-
-interface TemplateWorkflow {
-  id: string
-  workflowId: string
-  name: string
-  description: string
-  authorName: string
-  views: number
-  category: string
-  createdAt: string
-  updatedAt: string
-  workflowState?: {
-    blocks: Record<string, any>
-    edges: Array<{
-      id: string
-      source: string
-      target: string
-      sourceHandle?: string
-      targetHandle?: string
-    }>
-    loops: Record<string, any>
-  }
-}
 
 interface SimilarTemplatesProps {
   currentTemplate: TemplateData
@@ -63,7 +18,7 @@ interface SimilarTemplatesProps {
 
 export function SimilarTemplates({ currentTemplate }: SimilarTemplatesProps) {
   const router = useRouter()
-  const [similarTemplates, setSimilarTemplates] = useState<TemplateWorkflow[]>([])
+  const [similarTemplates, setSimilarTemplates] = useState<TemplateData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -102,13 +57,13 @@ export function SimilarTemplates({ currentTemplate }: SimilarTemplatesProps) {
   }, [currentTemplate.id, currentTemplate.category])
 
   // Convert template data to workflow format expected by WorkflowCard
-  const convertToWorkflowFormat = (template: TemplateWorkflow) => ({
+  const convertToWorkflowFormat = (template: TemplateData) => ({
     id: template.id,
     name: template.name,
-    description: template.description || '',
+    description: getTemplateDescription(template),
     author: template.authorName,
     views: template.views,
-    tags: [template.category],
+    tags: [template.category || 'uncategorized'],
     workflowState: template.workflowState,
     workflowUrl: `/w/templates/${template.id}`, // Navigate to template detail page
   })
@@ -174,7 +129,6 @@ export function SimilarTemplates({ currentTemplate }: SimilarTemplatesProps) {
               key={template.id}
               workflow={convertToWorkflowFormat(template)}
               index={0}
-              onHover={() => {}} // No hover loading needed for similar templates
             />
           ))}
         </div>

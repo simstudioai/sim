@@ -36,10 +36,10 @@ export async function generateMetadata({ params }: TemplatePageProps) {
     
     return {
       title: `${template.name} | Templates | Sim Studio`,
-      description: template.description || `Template by ${template.authorName}`,
+      description: template.short_description || `Template by ${template.authorName}`,
       openGraph: {
         title: template.name,
-        description: template.description,
+        description: template.short_description,
         type: 'website',
       },
     }

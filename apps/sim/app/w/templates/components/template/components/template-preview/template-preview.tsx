@@ -5,29 +5,7 @@ import { ZoomIn, ZoomOut, Maximize2, Eye, EyeOff } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
-
-interface TemplateData {
-  id: string
-  workflowId: string
-  name: string
-  description: string
-  authorName: string
-  views: number
-  category: string
-  createdAt: string
-  updatedAt: string
-  workflowState?: {
-    blocks: Record<string, any>
-    edges: Array<{
-      id: string
-      source: string
-      target: string
-      sourceHandle?: string
-      targetHandle?: string
-    }>
-    loops: Record<string, any>
-  }
-}
+import { TemplateData } from '../../../../types'
 
 interface TemplatePreviewProps {
   template: TemplateData
