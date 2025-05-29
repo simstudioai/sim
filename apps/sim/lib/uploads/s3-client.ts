@@ -45,6 +45,14 @@ export interface FileInfo {
 }
 
 /**
+ * Custom S3 configuration
+ */
+export interface CustomS3Config {
+  bucket: string
+  region: string
+}
+
+/**
  * Upload a file to S3
  * @param file Buffer containing file data
  * @param fileName Original file name
@@ -57,7 +65,46 @@ export async function uploadToS3(
   fileName: string,
   contentType: string,
   size?: number
+): Promise<FileInfo>
+
+/**
+ * Upload a file to S3 with custom bucket configuration
+ * @param file Buffer containing file data
+ * @param fileName Original file name
+ * @param contentType MIME type of the file
+ * @param customConfig Custom S3 configuration (bucket and region)
+ * @param size File size in bytes (optional, will use buffer length if not provided)
+ * @returns Object with file information
+ */
+export async function uploadToS3(
+  file: Buffer,
+  fileName: string,
+  contentType: string,
+  customConfig: CustomS3Config,
+  size?: number
+): Promise<FileInfo>
+
+export async function uploadToS3(
+  file: Buffer,
+  fileName: string,
+  contentType: string,
+  configOrSize?: CustomS3Config | number,
+  size?: number
 ): Promise<FileInfo> {
+  // Handle overloaded parameters
+  let config: CustomS3Config
+  let fileSize: number
+
+  if (typeof configOrSize === 'object') {
+    // Custom config provided
+    config = configOrSize
+    fileSize = size ?? file.length
+  } else {
+    // Use default config
+    config = { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
+    fileSize = configOrSize ?? file.length
+  }
+
   // Create a unique filename with timestamp to prevent collisions
   // Use a simple timestamp without directory structure
   const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
@@ -68,7 +115,7 @@ export async function uploadToS3(
   // Upload the file to S3
   await s3Client.send(
     new PutObjectCommand({
-      Bucket: S3_CONFIG.bucket,
+      Bucket: config.bucket,
       Key: uniqueKey,
       Body: file,
       ContentType: contentType,
@@ -87,7 +134,7 @@ export async function uploadToS3(
     path: servePath,
     key: uniqueKey,
     name: fileName,
-    size: size ?? file.length,
+    size: fileSize,
     type: contentType,
   }
 }
@@ -101,6 +148,26 @@ export async function uploadToS3(
 export async function getPresignedUrl(key: string, expiresIn = 3600) {
   const command = new GetObjectCommand({
     Bucket: S3_CONFIG.bucket,
+    Key: key,
+  })
+
+  return getSignedUrl(getS3Client(), command, { expiresIn })
+}
+
+/**
+ * Generate a presigned URL for direct file access with custom bucket
+ * @param key S3 object key
+ * @param customConfig Custom S3 configuration
+ * @param expiresIn Time in seconds until URL expires
+ * @returns Presigned URL
+ */
+export async function getPresignedUrlWithConfig(
+  key: string,
+  customConfig: CustomS3Config,
+  expiresIn = 3600
+) {
+  const command = new GetObjectCommand({
+    Bucket: customConfig.bucket,
     Key: key,
   })
 
