@@ -1,8 +1,18 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useWorkflowRegistry } from '../registry/store'
+import { useSubBlockStore } from '../subblock/store'
 import { useWorkflowStore } from './store'
 
 describe('workflow store', () => {
   beforeEach(() => {
+    const localStorageMock = {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+      clear: vi.fn(),
+    }
+    global.localStorage = localStorageMock as any
+
     useWorkflowStore.setState({
       blocks: {},
       edges: [],
@@ -244,6 +254,137 @@ describe('workflow store', () => {
 
       state = useWorkflowStore.getState()
       expect(state.history.past.length).toBe(initialHistoryLength + 2)
+    })
+  })
+
+  describe('mode switching', () => {
+    it('should toggle advanced mode on a block', () => {
+      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
+
+      // Add an agent block
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+
+      // Initially should be in basic mode (advancedMode: false or undefined)
+      let state = useWorkflowStore.getState()
+      expect(state.blocks.agent1?.advancedMode).toBeUndefined()
+
+      // Toggle to advanced mode
+      toggleBlockAdvancedMode('agent1')
+      state = useWorkflowStore.getState()
+      expect(state.blocks.agent1?.advancedMode).toBe(true)
+
+      // Toggle back to basic mode
+      toggleBlockAdvancedMode('agent1')
+      state = useWorkflowStore.getState()
+      expect(state.blocks.agent1?.advancedMode).toBe(false)
+    })
+
+    it('should preserve systemPrompt and userPrompt when switching modes', () => {
+      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
+      const { setState: setSubBlockState } = useSubBlockStore
+      // Set up a mock active workflow
+      useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
+      // Add an agent block
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+      // Set initial values in basic mode
+      setSubBlockState({
+        workflowValues: {
+          'test-workflow': {
+            agent1: {
+              systemPrompt: 'You are a helpful assistant',
+              userPrompt: 'Hello, how are you?',
+            },
+          },
+        },
+      })
+      // Toggle to advanced mode
+      toggleBlockAdvancedMode('agent1')
+      // Check that prompts are preserved in advanced mode
+      let subBlockState = useSubBlockStore.getState()
+      expect(subBlockState.workflowValues['test-workflow'].agent1.systemPrompt).toBe(
+        'You are a helpful assistant'
+      )
+      expect(subBlockState.workflowValues['test-workflow'].agent1.userPrompt).toBe(
+        'Hello, how are you?'
+      )
+      // Toggle back to basic mode
+      toggleBlockAdvancedMode('agent1')
+      // Check that prompts are still preserved
+      subBlockState = useSubBlockStore.getState()
+      expect(subBlockState.workflowValues['test-workflow'].agent1.systemPrompt).toBe(
+        'You are a helpful assistant'
+      )
+      expect(subBlockState.workflowValues['test-workflow'].agent1.userPrompt).toBe(
+        'Hello, how are you?'
+      )
+    })
+
+    it('should clear memories when switching from advanced to basic mode', () => {
+      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
+      const { setState: setSubBlockState } = useSubBlockStore
+
+      // Set up a mock active workflow
+      useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
+
+      // Add an agent block in advanced mode
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+
+      // First toggle to advanced mode
+      toggleBlockAdvancedMode('agent1')
+
+      // Set values including memories
+      setSubBlockState({
+        workflowValues: {
+          'test-workflow': {
+            agent1: {
+              systemPrompt: 'You are a helpful assistant',
+              userPrompt: 'What did we discuss?',
+              memories: [
+                { role: 'user', content: 'My name is John' },
+                { role: 'assistant', content: 'Nice to meet you, John!' },
+              ],
+            },
+          },
+        },
+      })
+
+      // Toggle back to basic mode
+      toggleBlockAdvancedMode('agent1')
+
+      // Check that prompts are preserved but memories are cleared
+      const subBlockState = useSubBlockStore.getState()
+      expect(subBlockState.workflowValues['test-workflow'].agent1.systemPrompt).toBe(
+        'You are a helpful assistant'
+      )
+      expect(subBlockState.workflowValues['test-workflow'].agent1.userPrompt).toBe(
+        'What did we discuss?'
+      )
+      expect(subBlockState.workflowValues['test-workflow'].agent1.memories).toBeNull()
+    })
+
+    it('should handle mode switching when no subblock values exist', () => {
+      const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
+
+      // Set up a mock active workflow
+      useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
+
+      // Add an agent block
+      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
+
+      // Toggle modes without any subblock values set
+      expect(useWorkflowStore.getState().blocks.agent1?.advancedMode).toBeUndefined()
+      expect(() => toggleBlockAdvancedMode('agent1')).not.toThrow()
+
+      // Verify the mode changed
+      const state = useWorkflowStore.getState()
+      expect(state.blocks.agent1?.advancedMode).toBe(true)
+    })
+
+    it('should not throw when toggling non-existent block', () => {
+      const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
+
+      // Try to toggle a block that doesn't exist
+      expect(() => toggleBlockAdvancedMode('non-existent')).not.toThrow()
     })
   })
 })

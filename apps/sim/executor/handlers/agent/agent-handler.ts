@@ -188,46 +188,86 @@ export class AgentBlockHandler implements BlockHandler {
       )
     }
 
-    // Parse messages if they're in string format
-    let parsedMessages = inputs.messages
-    if (typeof inputs.messages === 'string' && inputs.messages.trim()) {
-      try {
-        // Fast path: try standard JSON.parse first
-        try {
-          parsedMessages = JSON.parse(inputs.messages)
-          logger.info('Successfully parsed messages from JSON format')
-        } catch (_jsonError) {
-          // Fast direct approach for single-quoted JSON
-          // Replace single quotes with double quotes, but keep single quotes inside double quotes
-          // This optimized approach handles the most common cases in one pass
-          const preprocessed = inputs.messages
-            // Ensure we have valid JSON by replacing all single quotes with double quotes,
-            // except those inside existing double quotes
-            .replace(/(['"])(.*?)\1/g, (match, quote, content) => {
-              if (quote === '"') return match // Keep existing double quotes intact
-              return `"${content}"` // Replace single quotes with double quotes
-            })
+    // Initialize parsedMessages - will be built from memories/prompts if provided
+    let parsedMessages: any[] | undefined
 
-          try {
-            parsedMessages = JSON.parse(preprocessed)
-            logger.info('Successfully parsed messages after single-quote preprocessing')
-          } catch (_preprocessError) {
-            // Ultimate fallback: simply replace all single quotes
-            try {
-              parsedMessages = JSON.parse(inputs.messages.replace(/'/g, '"'))
-              logger.info('Successfully parsed messages using direct quote replacement')
-            } catch (finalError) {
-              logger.error('All parsing attempts failed', {
-                original: inputs.messages,
-                error: finalError,
-              })
-              // Keep original value
-            }
+    // Check if we're in advanced mode with the memories field
+    if (inputs.memories || (inputs.systemPrompt && inputs.userPrompt)) {
+      const messages: any[] = []
+
+      if (inputs.memories) {
+        const memories = inputs.memories
+
+        const memoryMessages = processMemories(memories, logger)
+        messages.push(...memoryMessages)
+      }
+
+      // Handle system prompt with clear precedence rules
+      if (inputs.systemPrompt) {
+        // Check for existing system messages in memories
+        const systemMessages = messages.filter((msg) => msg.role === 'system')
+
+        if (systemMessages.length > 1) {
+          logger.warn(
+            `Found ${systemMessages.length} system messages in memories. Explicit systemPrompt will take precedence.`
+          )
+        } else if (systemMessages.length === 1) {
+          logger.info(
+            'Found system message in memories. Explicit systemPrompt will take precedence.'
+          )
+        }
+
+        // Remove any existing system messages and add the explicit one at the beginning
+        messages.splice(0, 0, {
+          role: 'system',
+          content: inputs.systemPrompt,
+        })
+
+        // Remove any other system messages that came from memories
+        for (let i = messages.length - 1; i >= 1; i--) {
+          if (messages[i].role === 'system') {
+            messages.splice(i, 1)
           }
         }
-      } catch (error) {
-        logger.error('Failed to parse messages from string:', { error })
-        // Keep original value if all parsing fails
+
+        logger.info(
+          'Added explicit system prompt as first message, removed any system messages from memories'
+        )
+      } else {
+        // No explicit system prompt provided, check for multiple system messages in memories
+        const systemMessages = messages.filter((msg) => msg.role === 'system')
+
+        if (systemMessages.length > 1) {
+          logger.warn(
+            `Found ${systemMessages.length} system messages in memories with no explicit systemPrompt. Consider providing an explicit systemPrompt for consistent behavior.`
+          )
+        } else if (systemMessages.length === 1) {
+          logger.info('Using system message from memories')
+        }
+      }
+
+      if (inputs.userPrompt) {
+        let userContent = inputs.userPrompt
+        if (typeof userContent === 'object' && userContent.input) {
+          userContent = userContent.input
+        } else if (typeof userContent === 'object') {
+          userContent = JSON.stringify(userContent)
+        }
+
+        messages.push({
+          role: 'user',
+          content: userContent,
+        })
+        logger.info('Added user prompt to messages', { contentType: typeof userContent })
+      }
+
+      if (messages.length > 0) {
+        parsedMessages = messages
+        logger.info('Built messages from advanced mode', {
+          messageCount: messages.length,
+          firstMessage: messages[0],
+          lastMessage: messages[messages.length - 1],
+        })
       }
     }
 
@@ -262,11 +302,13 @@ export class AgentBlockHandler implements BlockHandler {
         ? { messages: parsedMessages }
         : {
             systemPrompt: inputs.systemPrompt,
-            context: Array.isArray(inputs.context)
-              ? JSON.stringify(inputs.context, null, 2)
-              : typeof inputs.context === 'string'
-                ? inputs.context
-                : JSON.stringify(inputs.context, null, 2),
+            context: inputs.userPrompt
+              ? Array.isArray(inputs.userPrompt)
+                ? JSON.stringify(inputs.userPrompt, null, 2)
+                : typeof inputs.userPrompt === 'string'
+                  ? inputs.userPrompt
+                  : JSON.stringify(inputs.userPrompt, null, 2)
+              : undefined,
           }),
       tools: formattedTools.length > 0 ? formattedTools : undefined,
       temperature: inputs.temperature,
@@ -282,7 +324,8 @@ export class AgentBlockHandler implements BlockHandler {
       hasMessages: Array.isArray(parsedMessages) && parsedMessages.length > 0,
       hasSystemPrompt:
         !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.systemPrompt,
-      hasContext: !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.context,
+      hasContext:
+        !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.userPrompt,
       hasTools: !!providerRequest.tools,
       hasApiKey: !!providerRequest.apiKey,
       workflowId: providerRequest.workflowId,
@@ -543,4 +586,55 @@ export class AgentBlockHandler implements BlockHandler {
 
 export function stripCustomToolPrefix(name: string) {
   return name.startsWith('custom_') ? name.replace('custom_', '') : name
+}
+
+/**
+ * Helper function to process memories and convert them to message format
+ */
+function processMemories(memories: any, logger: any): any[] {
+  const messages: any[] = []
+
+  if (!memories) {
+    return messages
+  }
+
+  let memoryArray: any[] = []
+
+  // Handle different memory input formats
+  if (memories?.response?.memories && Array.isArray(memories.response.memories)) {
+    // Memory block output format: { response: { memories: [...] } }
+    memoryArray = memories.response.memories
+  } else if (memories?.memories && Array.isArray(memories.memories)) {
+    // Direct memory output format: { memories: [...] }
+    memoryArray = memories.memories
+  } else if (Array.isArray(memories)) {
+    // Direct array of messages: [{ role, content }, ...]
+    memoryArray = memories
+  } else {
+    logger.warn('Unexpected memories format', { memories })
+    return messages
+  }
+
+  // Process the memory array
+  memoryArray.forEach((memory: any) => {
+    if (memory.data && Array.isArray(memory.data)) {
+      // Memory object with data array: { key, type, data: [{ role, content }, ...] }
+      memory.data.forEach((msg: any) => {
+        if (msg.role && msg.content) {
+          messages.push({
+            role: msg.role,
+            content: msg.content,
+          })
+        }
+      })
+    } else if (memory.role && memory.content) {
+      // Direct message object: { role, content }
+      messages.push({
+        role: memory.role,
+        content: memory.content,
+      })
+    }
+  })
+
+  return messages
 }

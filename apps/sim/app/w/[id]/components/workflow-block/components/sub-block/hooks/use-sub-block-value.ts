@@ -13,7 +13,8 @@ function handleProviderBasedApiKey(
   blockId: string,
   subBlockId: string,
   modelValue: string | null | undefined,
-  storeValue: any
+  storeValue: any,
+  isModelChange = false
 ) {
   // Only proceed if we have a model selected
   if (!modelValue) return
@@ -25,20 +26,25 @@ function handleProviderBasedApiKey(
   if (!provider || provider === 'ollama') return
 
   const subBlockStore = useSubBlockStore.getState()
+  const isAutoFillEnabled = useGeneralStore.getState().isAutoFillEnvVarsEnabled
 
-  // Try to get a saved API key for this provider
-  const savedValue = subBlockStore.resolveToolParamValue(provider, 'apiKey', blockId)
+  // Try to get a saved API key for this provider (only if auto-fill is enabled)
+  const savedValue = isAutoFillEnabled
+    ? subBlockStore.resolveToolParamValue(provider, 'apiKey', blockId)
+    : null
 
-  // If we have a valid API key, use it
-  if (savedValue && savedValue !== '') {
-    // Always update the value when switching models, even if it appears the same
-    // This handles cases where the field shows masked values but needs to update
-    subBlockStore.setValue(blockId, subBlockId, savedValue)
-  } else {
-    // Always clear the field when switching to a model with no API key
-    // Don't wait for user interaction to clear it
+  // If we have a valid saved API key and auto-fill is enabled, use it
+  if (savedValue && savedValue !== '' && isAutoFillEnabled) {
+    // Only update if the current value is different to avoid unnecessary updates
+    if (storeValue !== savedValue) {
+      subBlockStore.setValue(blockId, subBlockId, savedValue)
+    }
+  } else if (isModelChange && (!storeValue || storeValue === '')) {
+    // Only clear the field when switching models AND the field is already empty
+    // Don't clear existing user-entered values on initial load
     subBlockStore.setValue(blockId, subBlockId, '')
   }
+  // If no saved value and this is initial load, preserve existing value
 }
 
 /**
@@ -237,7 +243,7 @@ export function useSubBlockValue<T = any>(
 
     // Handle different block types
     if (isProviderBasedBlock) {
-      handleProviderBasedApiKey(blockId, subBlockId, modelValue, storeValue)
+      handleProviderBasedApiKey(blockId, subBlockId, modelValue, storeValue, false)
     } else {
       // Normal handling for non-provider blocks
       handleStandardBlockApiKey(blockId, subBlockId, blockType, storeValue)
@@ -263,27 +269,12 @@ export function useSubBlockValue<T = any>(
       // Update the previous model reference
       prevModelRef.current = modelValue
 
-      // For provider-based blocks, always clear the field if needed
-      // But only fill with saved values if auto-fill is enabled
+      // Handle API key auto-fill for model changes
       if (modelValue) {
-        const provider = getProviderFromModel(modelValue)
-
-        // Skip if we couldn't determine a provider
-        if (!provider || provider === 'ollama') return
-
-        const subBlockStore = useSubBlockStore.getState()
-
-        // Check if there's a saved value for this provider
-        const savedValue = subBlockStore.resolveToolParamValue(provider, 'apiKey', blockId)
-
-        if (savedValue && savedValue !== '' && isAutoFillEnvVarsEnabled) {
-          // Only auto-fill if the feature is enabled
-          subBlockStore.setValue(blockId, subBlockId, savedValue)
-        } else {
-          // Always clear immediately when switching to a model with no saved key
-          // or when auto-fill is disabled
-          subBlockStore.setValue(blockId, subBlockId, '')
-        }
+        handleProviderBasedApiKey(blockId, subBlockId, modelValue, storeValue, true)
+      } else {
+        // If no model is selected, clear the API key field
+        useSubBlockStore.getState().setValue(blockId, subBlockId, '')
       }
     }
   }, [

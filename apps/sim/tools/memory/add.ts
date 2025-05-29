@@ -4,8 +4,7 @@ import type { MemoryResponse } from './types'
 export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
   id: 'memory_add',
   name: 'Add Memory',
-  description:
-    'Add a new memory to the database or append to existing memory with the same ID. When appending to existing memory, the memory types must match.',
+  description: 'Add a new memory to the database or append to existing memory with the same ID.',
   version: '1.0.0',
   params: {
     id: {
@@ -14,25 +13,15 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
       description:
         'Identifier for the memory. If a memory with this ID already exists, the new data will be appended to it.',
     },
-    type: {
-      type: 'string',
-      required: true,
-      description: 'Type of memory (agent or raw)',
-    },
     role: {
       type: 'string',
-      required: false,
+      required: true,
       description: 'Role for agent memory (user, assistant, or system)',
     },
     content: {
       type: 'string',
-      required: false,
+      required: true,
       description: 'Content for agent memory',
-    },
-    rawData: {
-      type: 'json',
-      required: false,
-      description: 'Raw data to store (JSON format)',
     },
   },
   request: {
@@ -62,66 +51,28 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
 
       const body: Record<string, any> = {
         key: params.id,
-        type: params.type,
+        type: 'agent', // Always agent type
         workflowId,
       }
 
-      // Set data based on type
-      if (params.type === 'agent') {
-        if (!params.role || !params.content) {
-          return {
-            _errorResponse: {
-              status: 400,
-              data: {
-                success: false,
-                error: {
-                  message: 'Role and content are required for agent memory',
-                },
+      // Validate and set data
+      if (!params.role || !params.content) {
+        return {
+          _errorResponse: {
+            status: 400,
+            data: {
+              success: false,
+              error: {
+                message: 'Role and content are required for agent memory',
               },
             },
-          }
+          },
         }
-        body.data = {
-          role: params.role,
-          content: params.content,
-        }
-      } else if (params.type === 'raw') {
-        if (!params.rawData) {
-          return {
-            _errorResponse: {
-              status: 400,
-              data: {
-                success: false,
-                error: {
-                  message: 'Raw data is required for raw memory',
-                },
-              },
-            },
-          }
-        }
+      }
 
-        let parsedRawData
-        if (typeof params.rawData === 'string') {
-          try {
-            parsedRawData = JSON.parse(params.rawData)
-          } catch (_e) {
-            return {
-              _errorResponse: {
-                status: 400,
-                data: {
-                  success: false,
-                  error: {
-                    message: 'Invalid JSON for raw data',
-                  },
-                },
-              },
-            }
-          }
-        } else {
-          parsedRawData = params.rawData
-        }
-
-        body.data = parsedRawData
+      body.data = {
+        role: params.role,
+        content: params.content,
       }
 
       return body
@@ -135,15 +86,8 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
 
       const data = result.data || result
 
-      // Extract the memories from the response based on memory type
-      let memories
-      if (data.type === 'agent') {
-        // For agent memories, return the full array of message objects
-        memories = Array.isArray(data.data) ? data.data : [data.data]
-      } else {
-        // For raw memories, return the raw data object
-        memories = data.data
-      }
+      // For agent memories, return the full array of message objects
+      const memories = Array.isArray(data.data) ? data.data : [data.data]
 
       return {
         success: true,

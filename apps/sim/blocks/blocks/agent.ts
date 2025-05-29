@@ -61,25 +61,22 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       layout: 'full',
       placeholder: 'Enter system prompt...',
       rows: 5,
-      mode: 'basic',
     },
     {
-      id: 'context',
+      id: 'userPrompt',
       title: 'User Prompt',
       type: 'long-input',
       layout: 'full',
       placeholder: 'Enter context or user message...',
       rows: 3,
-      mode: 'basic',
     },
     {
-      id: 'messages',
-      title: 'Messages',
-      type: 'code',
+      id: 'memories',
+      title: 'Memories',
+      type: 'short-input',
       layout: 'full',
+      placeholder: 'Connect memory block output...',
       mode: 'advanced',
-      language: 'javascript',
-      placeholder: '[{"role": "user", "content": "Hello, can you help me with a question?"}]',
     },
     {
       id: 'model',
@@ -236,15 +233,10 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   },
   inputs: {
     systemPrompt: { type: 'string', required: false },
-    context: { type: 'string', required: false },
+    userPrompt: { type: 'string', required: false },
+    memories: { type: 'json', required: false },
     model: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },
-    messages: {
-      type: 'json',
-      required: false,
-      description:
-        'Array of message objects with role and content fields for advanced chat history control.',
-    },
     responseFormat: {
       type: 'json',
       required: false,
