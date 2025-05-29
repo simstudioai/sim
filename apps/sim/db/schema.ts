@@ -98,8 +98,7 @@ export const workflow = pgTable('workflow', {
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
   variables: json('variables').default('{}'),
-  marketplaceData: json('marketplace_data'), // Format: { id: string, status: 'owner' | 'temp' }
-  templatesData: json('templates_data'), // Format: { id: string, status: 'owner' | 'temp' }
+  marketplaceData: json('marketplace_data'),
 
   // These columns are kept for backward compatibility during migration
   // @deprecated - Use marketplaceData instead
@@ -496,14 +495,12 @@ export const document = pgTable(
     knowledgeBaseId: text('knowledge_base_id')
       .notNull()
       .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
-
     // File information
     filename: text('filename').notNull(),
     fileUrl: text('file_url').notNull(),
     fileSize: integer('file_size').notNull(), // Size in bytes
     mimeType: text('mime_type').notNull(), // e.g., 'application/pdf', 'text/plain'
     fileHash: text('file_hash'), // SHA-256 hash for deduplication
-
     // Content statistics
     chunkCount: integer('chunk_count').notNull().default(0),
     tokenCount: integer('token_count').notNull().default(0),
