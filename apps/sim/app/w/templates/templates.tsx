@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
 import { TemplatesHeader } from './components/control-bar/control-bar'
 import { ErrorMessage } from '@/app/w/marketplace/components/error-message'
 import { Section } from '@/app/w/marketplace/components/section'
@@ -11,61 +11,12 @@ import { CATEGORIES, getCategoryLabel } from './constants/categories'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { createLogger } from '@/lib/logs/console-logger'
 import { TemplateDetailPage } from './components/template/components/template'
+import { Workflow, TemplateData, TemplateCollection, getTemplateDescription } from './types'
 
 const logger = createLogger('Templates')
 
-// Types
-export interface Workflow {
-  id: string
-  name: string
-  description: string
-  author: string
-  views: number
-  tags: string[]
-  thumbnail?: string
-  workflowUrl: string
-  workflowState?: {
-    blocks: Record<string, any>
-    edges: Array<{
-      id: string
-      source: string
-      target: string
-      sourceHandle?: string
-      targetHandle?: string
-    }>
-    loops: Record<string, any>
-  }
-}
-
-// Updated interface to match API response format
-export interface TemplateWorkflow {
-  id: string
-  workflowId: string
-  name: string
-  description: string
-  authorName: string
-  views: number
-  category: string
-  createdAt: string
-  updatedAt: string
-  workflowState?: {
-    blocks: Record<string, any>
-    edges: Array<{
-      id: string
-      source: string
-      target: string
-      sourceHandle?: string
-      targetHandle?: string
-    }>
-    loops: Record<string, any>
-  }
-}
-
-export interface TemplateData {
-  popular: TemplateWorkflow[]
-  recent: TemplateWorkflow[]
-  byCategory: Record<string, TemplateWorkflow[]>
-}
+// Alias for backward compatibility
+export type TemplateWorkflow = TemplateData
 
 // The order to display sections in, matching toolbar order
 const SECTION_ORDER = ['popular', 'recent', ...CATEGORIES.map((cat) => cat.value)]
@@ -74,7 +25,7 @@ export default function Templates() {
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [templateData, setTemplateData] = useState<TemplateData>({
+  const [templateData, setTemplateData] = useState<TemplateCollection>({
     popular: [],
     recent: [],
     byCategory: {},
@@ -87,6 +38,10 @@ export default function Templates() {
   // New state for handling template detail view
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'detail'>('list')
+
+  // State for loading when transitioning to detail view
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateData | null>(null)
 
   // Get sidebar state for layout calculations
   const { mode, isExpanded } = useSidebarStore()
@@ -106,35 +61,40 @@ export default function Templates() {
       popular: templateData.popular.map((item) => ({
         id: item.id,
         name: item.name,
-        description: item.description || '',
+        description: getTemplateDescription(item),
         author: item.authorName,
         views: item.views,
-        tags: [item.category],
+        tags: [item.category || 'uncategorized'],
         workflowState: item.workflowState,
         workflowUrl: `/w/${item.workflowId}`,
       })),
       recent: templateData.recent.map((item) => ({
         id: item.id,
         name: item.name,
-        description: item.description || '',
+        description: getTemplateDescription(item),
         author: item.authorName,
         views: item.views,
-        tags: [item.category],
+        tags: [item.category || 'uncategorized'],
         workflowState: item.workflowState,
         workflowUrl: `/w/${item.workflowId}`,
       })),
     }
 
-    // Add entries for each category
+    // Initialize all categories (even empty ones) so they show up in the UI
+    CATEGORIES.forEach(category => {
+      result[category.value] = []
+    })
+
+    // Add entries for each category with actual data
     Object.entries(templateData.byCategory).forEach(([category, items]) => {
       if (items && items.length > 0) {
         result[category] = items.map((item) => ({
           id: item.id,
           name: item.name,
-          description: item.description || '',
+          description: getTemplateDescription(item),
           author: item.authorName,
           views: item.views,
-          tags: [item.category],
+          tags: [item.category || 'uncategorized'],
           workflowState: item.workflowState,
           workflowUrl: `/w/${item.workflowId}`,
         }))
@@ -223,9 +183,9 @@ export default function Templates() {
       try {
         setLoading(true)
 
-        // Fetch ONLY popular and recent initially - no categories, no state
+        // Fetch popular, recent, AND all categories initially with state included for immediate preview rendering
         const response = await fetch(
-          '/api/templates/workflows?section=popular,recent&limit=6'
+          '/api/templates/workflows?section=popular,recent,byCategory&limit=6&includeState=true'
         )
 
         if (!response.ok) {
@@ -234,15 +194,18 @@ export default function Templates() {
 
         const data = await response.json()
 
-        // Set initial loaded sections
-        setLoadedSections(new Set(['popular', 'recent']))
+        // Set all categories as loaded since we fetched them all
+        const allSections = new Set(['popular', 'recent', ...CATEGORIES.map(cat => cat.value)])
+        setLoadedSections(allSections)
 
         logger.info(
-          'Initial template data loaded:',
+          'Initial template data loaded with previews:',
           data.popular?.length || 0,
           'popular,',
           data.recent?.length || 0,
-          'recent'
+          'recent,',
+          data.byCategory ? Object.keys(data.byCategory).length : 0,
+          'categories'
         )
 
         setTemplateData(data)
@@ -270,11 +233,11 @@ export default function Templates() {
     try {
       setLoadedSections((prev) => new Set([...prev, categoryName]))
 
-      logger.info(`Loading category: ${categoryName}`) // Debug
+      logger.info(`Loading category with previews: ${categoryName}`)
 
-      // Load category data WITHOUT state initially for performance
+      // Load category data WITH state for immediate preview rendering
       const response = await fetch(
-        `/api/templates/workflows?category=${categoryName}&limit=6`
+        `/api/templates/workflows?category=${categoryName}&limit=6&includeState=true`
       )
 
       if (!response.ok) {
@@ -285,7 +248,7 @@ export default function Templates() {
 
       // Debug logging
       logger.info(
-        'Category data received:',
+        'Category data received with previews:',
         data.byCategory ? Object.keys(data.byCategory) : 'No byCategory',
         data.byCategory?.[categoryName]?.length || 0
       )
@@ -309,75 +272,6 @@ export default function Templates() {
     } catch (error) {
       logger.error(`Error fetching ${categoryName} category:`, error)
       // We don't set a global error, just log it
-    }
-  }
-
-  // Function to mark a template as needing state and fetch it if not available
-  const ensureWorkflowState = async (workflowId: string) => {
-    try {
-      // Find which section contains this template
-      let foundWorkflow: TemplateWorkflow | undefined
-
-      // Check in popular section
-      foundWorkflow = templateData.popular.find((w) => w.id === workflowId)
-
-      // Check in recent section if not found
-      if (!foundWorkflow) {
-        foundWorkflow = templateData.recent.find((w) => w.id === workflowId)
-      }
-
-      // Check in category sections if not found
-      if (!foundWorkflow) {
-        for (const category of Object.keys(templateData.byCategory)) {
-          foundWorkflow = templateData.byCategory[category].find((w) => w.id === workflowId)
-          if (foundWorkflow) break
-        }
-      }
-
-      // If we have the template but it doesn't have state, fetch it
-      if (foundWorkflow && !foundWorkflow.workflowState) {
-        const response = await fetch(
-          `/api/templates/workflows?templateId=${workflowId}&includeState=true`
-        )
-
-        if (response.ok) {
-          const data = await response.json()
-
-          // Update the template data with the state
-          setTemplateData((prevData) => {
-            const updatedData = { ...prevData }
-
-            // Helper function to update template in a section
-            const updateWorkflowInSection = (workflows: TemplateWorkflow[]) => {
-              return workflows.map((w) =>
-                w.id === workflowId
-                  ? {
-                      ...w,
-                      workflowState: data.workflowState, // Use direct property from API response
-                    }
-                  : w
-              )
-            }
-
-            // Update in popular
-            updatedData.popular = updateWorkflowInSection(updatedData.popular)
-
-            // Update in recent
-            updatedData.recent = updateWorkflowInSection(updatedData.recent)
-
-            // Update in categories
-            Object.keys(updatedData.byCategory).forEach((category) => {
-              updatedData.byCategory[category] = updateWorkflowInSection(
-                updatedData.byCategory[category]
-              )
-            })
-
-            return updatedData
-          })
-        }
-      }
-    } catch (error) {
-      logger.error(`Error ensuring template state for ${workflowId}:`, error)
     }
   }
 
@@ -523,21 +417,68 @@ export default function Templates() {
     }
   }, [initialFetchCompleted.current, loading, filteredWorkflows, loadedSections])
 
-  // Function to handle template selection
+  // Function to handle template selection with immediate loading feedback
   const handleTemplateSelect = (templateId: string) => {
+    // Find the template data we already have
+    let foundTemplate: TemplateData | undefined
+
+    // Search in popular templates
+    foundTemplate = templateData.popular.find((t) => t.id === templateId)
+
+    // Search in recent templates if not found
+    if (!foundTemplate) {
+      foundTemplate = templateData.recent.find((t) => t.id === templateId)
+    }
+
+    // Search in category templates if not found
+    if (!foundTemplate) {
+      for (const category of Object.keys(templateData.byCategory)) {
+        foundTemplate = templateData.byCategory[category].find((t) => t.id === templateId)
+        if (foundTemplate) break
+      }
+    }
+
+    // Set loading state immediately for instant feedback
+    setIsTransitioning(true)
     setSelectedTemplateId(templateId)
-    setViewMode('detail')
+    setSelectedTemplate(foundTemplate || null)
+
+    // Small delay to show loading, then transition to detail view
+    setTimeout(() => {
+      setIsTransitioning(false)
+      setViewMode('detail')
+    }, 150) // Brief loading to show user feedback
   }
 
   // Function to go back to list view
   const handleBackToList = () => {
     setSelectedTemplateId(null)
+    setSelectedTemplate(null)
     setViewMode('list')
+    setIsTransitioning(false)
   }
 
-  // If in detail mode, show the template detail component
+  // Show loading screen during transition
+  if (isTransitioning) {
+    return (
+      <div className={`flex h-[100vh] items-center justify-center transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}>
+        <div className="flex items-center space-x-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-sm text-muted-foreground">Loading template details...</span>
+        </div>
+      </div>
+    )
+  }
+
+  // If in detail mode, show the template detail component with existing data
   if (viewMode === 'detail' && selectedTemplateId) {
-    return <TemplateDetailPage templateId={selectedTemplateId} onBack={handleBackToList} />
+    return (
+      <TemplateDetailPage 
+        templateId={selectedTemplateId} 
+        initialTemplateData={selectedTemplate}
+        onBack={handleBackToList} 
+      />
+    )
   }
 
   return (
@@ -576,8 +517,11 @@ export default function Templates() {
         {!loading && (
           <>
             {sortedFilteredWorkflows.map(
-              ([category, workflows]) =>
-                workflows.length > 0 && (
+              ([category, workflows]) => {
+                // Show sections if they have workflows OR if no search is active (to allow empty sections to trigger loading)
+                const shouldShowSection = workflows.length > 0 || !searchQuery.trim()
+                
+                return shouldShowSection && (
                   <Section
                     key={category}
                     id={category}
@@ -588,19 +532,25 @@ export default function Templates() {
                       }
                     }}
                   >
-                    <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
-                      {workflows.map((workflow, index) => (
-                        <TemplateWorkflowCard
-                          key={workflow.id}
-                          workflow={workflow}
-                          index={index}
-                          onHover={ensureWorkflowState}
-                          onSelect={handleTemplateSelect}
-                        />
-                      ))}
-                    </div>
+                    {workflows.length > 0 ? (
+                      <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
+                        {workflows.map((workflow, index) => (
+                          <TemplateWorkflowCard
+                            key={workflow.id}
+                            workflow={workflow}
+                            index={index}
+                            onSelect={handleTemplateSelect}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className='flex h-32 items-center justify-center text-muted-foreground text-sm'>
+                        No {getCategoryLabel(category).toLowerCase()} templates available
+                      </div>
+                    )}
                   </Section>
                 )
+              }
             )}
 
             {sortedFilteredWorkflows.length === 0 && !loading && (

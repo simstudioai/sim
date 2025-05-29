@@ -5,7 +5,7 @@ import { Eye } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
-import type { Workflow } from '@/app/w/templates/templates'
+import { Workflow } from '../types'
 import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('TemplateWorkflowCard')
@@ -14,13 +14,11 @@ const logger = createLogger('TemplateWorkflowCard')
  * TemplateWorkflowCardProps interface - defines the properties for the TemplateWorkflowCard component
  * @property {Workflow} workflow - The workflow data to display
  * @property {number} index - The index of the workflow in the list
- * @property {Function} onHover - Optional callback function triggered when card is hovered
  * @property {Function} onSelect - Optional callback function triggered when template is selected
  */
 interface TemplateWorkflowCardProps {
   workflow: Workflow
   index: number
-  onHover?: (id: string) => void
   onSelect?: (id: string) => void
 }
 
@@ -29,7 +27,7 @@ interface TemplateWorkflowCardProps {
  * Navigates to template detail page on click instead of directly creating workflows
  * Shows either a workflow preview, thumbnail image, or fallback text
  */
-export function TemplateWorkflowCard({ workflow, onHover, onSelect }: TemplateWorkflowCardProps) {
+export function TemplateWorkflowCard({ workflow, onSelect }: TemplateWorkflowCardProps) {
   const [isPreviewReady, setIsPreviewReady] = useState(!!workflow.workflowState)
   const router = useRouter()
 
@@ -39,16 +37,6 @@ export function TemplateWorkflowCard({ workflow, onHover, onSelect }: TemplateWo
       setIsPreviewReady(true)
     }
   }, [workflow.workflowState, isPreviewReady])
-
-  /**
-   * Handle mouse enter event
-   * Sets hover state and triggers onHover callback to load workflow state if needed
-   */
-  const handleMouseEnter = () => {
-    if (onHover && !workflow.workflowState) {
-      onHover(workflow.id)
-    }
-  }
 
   /**
    * Handle template card click - navigate to template detail page
@@ -84,10 +72,7 @@ export function TemplateWorkflowCard({ workflow, onHover, onSelect }: TemplateWo
       aria-label={`View ${workflow.name} template`}
       onClick={handleClick}
     >
-      <Card
-        className='flex h-full flex-col overflow-hidden transition-all hover:shadow-md hover:border-primary/20'
-        onMouseEnter={handleMouseEnter}
-      >
+      <Card className='flex h-full flex-col overflow-hidden transition-all hover:shadow-md hover:border-primary/20'>
         {/* Workflow preview/thumbnail area */}
         <div className='relative h-40 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900'>
           {isPreviewReady && workflow.workflowState ? (

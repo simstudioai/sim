@@ -8,31 +8,9 @@ import { Badge } from '@/components/ui/badge'
 import { getCategoryLabel, getCategoryColor, getCategoryIcon } from '../../../../constants/categories'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { createLogger } from '@/lib/logs/console-logger'
+import { TemplateData } from '../../../../types'
 
 const logger = createLogger('TemplateHero')
-
-interface TemplateData {
-  id: string
-  workflowId: string
-  name: string
-  description: string
-  authorName: string
-  views: number
-  category: string
-  createdAt: string
-  updatedAt: string
-  workflowState?: {
-    blocks: Record<string, any>
-    edges: Array<{
-      id: string
-      source: string
-      target: string
-      sourceHandle?: string
-      targetHandle?: string
-    }>
-    loops: Record<string, any>
-  }
-}
 
 interface TemplateHeroProps {
   template: TemplateData
@@ -58,7 +36,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
       if (template.workflowState) {
         const newWorkflowId = createWorkflow({
           name: `${template.name} (Copy)`,
-          description: template.description,
+          description: template.short_description || '',
           marketplaceId: template.id,
           marketplaceState: template.workflowState,
         })
@@ -106,8 +84,8 @@ export function TemplateHero({ template }: TemplateHeroProps) {
       .slice(0, 2)
   }
 
-  const categoryColor = getCategoryColor(template.category)
-  const categoryIcon = getCategoryIcon(template.category)
+  const categoryColor = getCategoryColor(template.category || '')
+  const categoryIcon = getCategoryIcon(template.category || '')
 
   return (
     <div className="space-y-6">
@@ -122,18 +100,15 @@ export function TemplateHero({ template }: TemplateHeroProps) {
           }}
         >
           {categoryIcon}
-          {getCategoryLabel(template.category)}
+          {getCategoryLabel(template.category || '')}
         </Badge>
       </div>
 
       {/* Title */}
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">
-          {template.name}
+          {template.name} Template
         </h1>
-        <p className="text-lg text-muted-foreground leading-relaxed">
-          {template.description}
-        </p>
       </div>
 
       {/* Author and Stats */}
@@ -158,6 +133,13 @@ export function TemplateHero({ template }: TemplateHeroProps) {
           <Eye className="h-4 w-4" />
           <span className="text-sm">{template.views.toLocaleString()}</span>
         </div>
+      </div>
+
+      {/* Long Description */}
+      <div className="prose prose-sm max-w-none">
+        <p className="text-muted-foreground">
+          {template.long_description}
+        </p>
       </div>
 
       {/* Action Buttons */}

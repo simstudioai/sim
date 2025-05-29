@@ -8,43 +8,21 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { TemplateHero } from './template-hero/template-hero'
 import { TemplatePreview } from './template-preview/template-preview'
-import { TemplateDescription } from './template-description/template-description'
 import { SimilarTemplates } from './similar-templates/similar-templates'
+import { TemplateData } from '../../../types'
 
 const logger = createLogger('TemplateDetailPage')
 
-interface TemplateData {
-  id: string
-  workflowId: string
-  name: string
-  description: string
-  authorName: string
-  views: number
-  category: string
-  createdAt: string
-  updatedAt: string
-  workflowState?: {
-    blocks: Record<string, any>
-    edges: Array<{
-      id: string
-      source: string
-      target: string
-      sourceHandle?: string
-      targetHandle?: string
-    }>
-    loops: Record<string, any>
-  }
-}
-
 interface TemplateDetailPageProps {
   templateId: string
+  initialTemplateData?: TemplateData | null
   onBack?: () => void
 }
 
-export function TemplateDetailPage({ templateId, onBack }: TemplateDetailPageProps) {
+export function TemplateDetailPage({ templateId, initialTemplateData, onBack }: TemplateDetailPageProps) {
   const router = useRouter()
-  const [template, setTemplate] = useState<TemplateData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [template, setTemplate] = useState<TemplateData | null>(initialTemplateData || null)
+  const [loading, setLoading] = useState(!initialTemplateData) // Only show loading if we don't have initial data
   const [error, setError] = useState<string | null>(null)
   
   // Get sidebar state for layout calculations
@@ -54,10 +32,26 @@ export function TemplateDetailPage({ templateId, onBack }: TemplateDetailPagePro
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
-  // Fetch template data
+  // Fetch template data only if we don't have it or if we need to ensure we have complete data
   useEffect(() => {
     const fetchTemplate = async () => {
       try {
+        // If we have initial data and it includes workflowState, we might not need to fetch
+        if (initialTemplateData?.workflowState) {
+          setTemplate(initialTemplateData)
+          setLoading(false)
+          
+          // Still track the view in the background
+          try {
+            await fetch(`/api/templates/${templateId}/view`, {
+              method: 'POST',
+            })
+          } catch (viewError) {
+            logger.warn('Failed to track template view:', viewError)
+          }
+          return
+        }
+
         setLoading(true)
         setError(null)
 
@@ -98,7 +92,7 @@ export function TemplateDetailPage({ templateId, onBack }: TemplateDetailPagePro
     }
 
     fetchTemplate()
-  }, [templateId])
+  }, [templateId, initialTemplateData])
 
   // Loading state
   if (loading) {
@@ -160,10 +154,9 @@ export function TemplateDetailPage({ templateId, onBack }: TemplateDetailPagePro
       <div className="px-6 py-8">
         {/* Hero and Preview Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-          {/* Left Column - Hero and Description */}
+          {/* Left Column - Hero */}
           <div className="space-y-8">
             <TemplateHero template={template} />
-            <TemplateDescription template={template} />
           </div>
           
           {/* Right Column - Preview */}
@@ -172,7 +165,7 @@ export function TemplateDetailPage({ templateId, onBack }: TemplateDetailPagePro
           </div>
         </div>
 
-        {/* Similar Templates Section */}
+        {/* Similar Templates Section - This loads independently and won't block the main content */}
         <SimilarTemplates currentTemplate={template} />
       </div>
     </div>
