@@ -62,7 +62,9 @@ export function ProjectSelectorInput({
     } else if (provider === 'linear') {
       if (subBlock.id === 'teamId') {
         setValue(blockId, 'teamId', projectId)
-        setValue(blockId, 'projectId', '') // Optionally clear project selection
+        setValue(blockId, 'projectId', '')
+      } else if (subBlock.id === 'projectId') {
+        setValue(blockId, 'projectId', projectId)
       }
     }
 
@@ -121,7 +123,6 @@ export function ProjectSelectorInput({
                   const credential = getValue(blockId, 'credential') as string
                   const teamId = getValue(blockId, 'teamId') as string
                   const isDisabled = disabled || !credential || !teamId
-                  console.log('ProjectSelector:', { credential, teamId, disabled: isDisabled })
                   return (
                     <LinearProjectSelector
                       value={selectedProjectId}
@@ -132,7 +133,6 @@ export function ProjectSelectorInput({
                       teamId={teamId}
                       label={subBlock.placeholder || 'Select Linear project'}
                       disabled={isDisabled}
-                      showPreview={true}
                     />
                   )
                 })()

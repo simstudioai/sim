@@ -805,7 +805,10 @@ export const auth = betterAuth({
               throw new Error('Failed to fetch Linear user info')
             }
 
-            const { data } = await response.json()
+            const data = await response.json()
+            if (data.errors && data.errors.length > 0) {
+              throw new Error(data.errors.map((e: any) => e.message).join('; '))
+            }
             const user = data?.viewer
             if (!user) throw new Error('No user info returned from Linear')
 

@@ -19,7 +19,6 @@ interface LinearProjectSelectorProps {
   teamId: string
   label?: string
   disabled?: boolean
-  showPreview?: boolean
 }
 
 export function LinearProjectSelector({
@@ -36,13 +35,21 @@ export function LinearProjectSelector({
 
   useEffect(() => {
     if (!credential || !teamId) return
+    const controller = new AbortController()
     setLoading(true)
     fetch('/api/tools/linear/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credential, teamId }),
+      signal: controller.signal,
     })
-      .then((res) => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          const errorText = await res.text()
+          throw new Error(`HTTP error! status: ${res.status} - ${errorText}`)
+        }
+        return res.json()
+      })
       .then((data) => {
         if (data.error) {
           setError(data.error)
@@ -52,10 +59,12 @@ export function LinearProjectSelector({
         }
       })
       .catch((err) => {
+        if (err.name === 'AbortError') return
         setError(err.message)
         setProjects([])
       })
       .finally(() => setLoading(false))
+    return () => controller.abort()
   }, [credential, teamId])
 
   return (

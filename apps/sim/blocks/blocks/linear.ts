@@ -20,7 +20,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
       type: 'dropdown',
       layout: 'full',
       options: [
-        { label: 'Read Issues', id: 'read-bulk' },
+        { label: 'Read Issues', id: 'read' },
         { label: 'Create Issue', id: 'write' },
       ],
     },
@@ -95,7 +95,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
     credential: { type: 'string', required: true },
     teamId: { type: 'string', required: true },
     projectId: { type: 'string', required: true },
-    title: { type: 'string', required: true },
+    title: { type: 'string', required: false },
     description: { type: 'string', required: false },
   },
   outputs: {

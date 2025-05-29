@@ -34,11 +34,13 @@ export function LinearTeamSelector({
 
   useEffect(() => {
     if (!credential) return
+    const controller = new AbortController()
     setLoading(true)
     fetch('/api/tools/linear/teams', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credential }),
+      signal: controller.signal,
     })
       .then((res) => res.json())
       .then((data) => {
@@ -50,10 +52,12 @@ export function LinearTeamSelector({
         }
       })
       .catch((err) => {
+        if (err.name === 'AbortError') return
         setError(err.message)
         setTeams([])
       })
       .finally(() => setLoading(false))
+    return () => controller.abort()
   }, [credential])
 
   return (

@@ -1,3 +1,4 @@
+import type { Team } from '@linear/sdk'
 import { LinearClient } from '@linear/sdk'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
 
     const linearClient = new LinearClient({ accessToken })
     const teamsResult = await linearClient.teams()
-    const teams = teamsResult.nodes.map((team: any) => ({
+    const teams = teamsResult.nodes.map((team: Team) => ({
       id: team.id,
       name: team.name,
     }))

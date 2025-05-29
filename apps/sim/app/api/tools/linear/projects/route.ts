@@ -1,3 +1,4 @@
+import type { Project } from '@linear/sdk'
 import { LinearClient } from '@linear/sdk'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
@@ -40,20 +41,12 @@ export async function POST(request: Request) {
     const linearClient = new LinearClient({ accessToken })
     let projects = []
 
-    if (teamId) {
-      const team = await linearClient.team(teamId)
-      const projectsResult = await team.projects()
-      projects = projectsResult.nodes.map((project: any) => ({
-        id: project.id,
-        name: project.name,
-      }))
-    } else {
-      const allProjects = await linearClient.projects()
-      projects = allProjects.nodes.map((project: any) => ({
-        id: project.id,
-        name: project.name,
-      }))
-    }
+    const team = await linearClient.team(teamId)
+    const projectsResult = await team.projects()
+    projects = projectsResult.nodes.map((project: Project) => ({
+      id: project.id,
+      name: project.name,
+    }))
 
     if (projects.length === 0) {
       logger.info('No projects found for team', { teamId })

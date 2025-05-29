@@ -20,12 +20,21 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
     request: {
       url: 'https://api.linear.app/graphql',
       method: 'POST',
-      headers: (params) => ({
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.accessToken || ''}`,
-      }),
-      body: (params) => ({
-        query: `
+      headers: (params) => {
+        if (!params.accessToken) {
+          throw new Error('Missing access token for Linear API request')
+        }
+        return {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${params.accessToken}`,
+        }
+      },
+      body: (params) => {
+        if (!params.title || !params.title.trim()) {
+          throw new Error('Title is required to create a Linear issue')
+        }
+        return {
+          query: `
         mutation CreateIssue($teamId: String!, $projectId: String!, $title: String!, $description: String) {
           issueCreate(
             input: {
@@ -46,54 +55,49 @@ export const linearCreateIssueTool: ToolConfig<LinearCreateIssueParams, LinearCr
           }
         }
       `,
-        variables: {
-          teamId: params.teamId,
-          projectId: params.projectId,
-          title: params.title,
-          description: params.description,
-        },
-      }),
+          variables: {
+            teamId: params.teamId,
+            projectId: params.projectId,
+            title: params.title,
+            description: params.description,
+          },
+        }
+      },
     },
     transformResponse: async (response) => {
       const data = await response.json()
-      if (data.errors) {
-        return {
-          success: false,
-          output: {
-            issue: {
-              id: '',
-              title: '',
-              description: '',
-              state: '',
-              teamId: '',
-              projectId: '',
-            },
-          },
-          error: data.errors[0].message,
-        }
+      const issue = data.data.issueCreate.issue
+      if (!issue) {
+        throw new Error('Failed to create issue: No issue returned from Linear API')
       }
       return {
         success: true,
         output: {
-          issue: data.data.issueCreate.issue
-            ? {
-                id: data.data.issueCreate.issue.id,
-                title: data.data.issueCreate.issue.title,
-                description: data.data.issueCreate.issue.description,
-                state: data.data.issueCreate.issue.state?.name,
-                teamId: data.data.issueCreate.issue.team?.id,
-                projectId: data.data.issueCreate.issue.project?.id,
-              }
-            : {
-                id: '',
-                title: '',
-                description: '',
-                state: '',
-                teamId: '',
-                projectId: '',
-              },
+          issue: {
+            id: issue.id,
+            title: issue.title,
+            description: issue.description,
+            state: issue.state?.name,
+            teamId: issue.team?.id,
+            projectId: issue.project?.id,
+          },
         },
       }
     },
-    transformError: (error) => error.message || 'Failed to create Linear issue',
+    transformError: (error) => {
+      if (error instanceof Error) {
+        return error.message
+      }
+
+      if (typeof error === 'object' && error !== null) {
+        if (error.error) {
+          return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
+        }
+        if (error.message) {
+          return error.message
+        }
+      }
+
+      return 'Failed to create Linear issue'
+    },
   }

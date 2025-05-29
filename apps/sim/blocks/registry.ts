@@ -89,6 +89,7 @@ export const registry: Record<string, BlockConfig> = {
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
   jira: JiraBlock,
+  linear: LinearBlock,
   linkup: LinkupBlock,
   mem0: Mem0Block,
   mistral_parse: MistralParseBlock,
@@ -117,7 +118,6 @@ export const registry: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
-  linear: LinearBlock,
 }
 
 // Helper functions to access the registry
