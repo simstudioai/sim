@@ -161,24 +161,13 @@ describe('AgentBlockHandler', () => {
       const inputs = {
         model: 'gpt-4o',
         systemPrompt: 'You are a helpful assistant.',
-        context: 'User query: Hello!',
+        userPrompt: 'User query: Hello!',
         temperature: 0.7,
         maxTokens: 100,
         apiKey: 'test-api-key', // Add API key for non-hosted env
       }
 
       mockGetProviderFromModel.mockReturnValue('openai')
-
-      const _expectedProviderRequest = {
-        model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        context: 'User query: Hello!',
-        tools: undefined, // No tools in this basic case
-        temperature: 0.7,
-        maxTokens: 100,
-        apiKey: 'test-api-key',
-        responseFormat: undefined,
-      }
 
       const expectedOutput = {
         response: {
@@ -246,7 +235,7 @@ describe('AgentBlockHandler', () => {
 
       const inputs = {
         model: 'gpt-4o',
-        context: 'Test custom tools with different usageControl settings',
+        userPrompt: 'Test custom tools with different usageControl settings',
         apiKey: 'test-api-key',
         tools: [
           {
@@ -331,7 +320,7 @@ describe('AgentBlockHandler', () => {
       expect(typeof autoTool.executeFunction).toBe('function')
       expect(typeof forceTool.executeFunction).toBe('function')
 
-      const _autoResult = await autoTool.executeFunction({ input: 'test input' })
+      await autoTool.executeFunction({ input: 'test input' })
       expect(mockExecuteTool).toHaveBeenCalledWith(
         'function_execute',
         expect.objectContaining({
@@ -340,7 +329,7 @@ describe('AgentBlockHandler', () => {
         })
       )
 
-      const _forceResult = await forceTool.executeFunction({ input: 'another test' })
+      await forceTool.executeFunction({ input: 'another test' })
       expect(mockExecuteTool).toHaveBeenCalledWith(
         'function_execute',
         expect.objectContaining({
@@ -358,7 +347,7 @@ describe('AgentBlockHandler', () => {
     it('should filter out tools with usageControl set to "none"', async () => {
       const inputs = {
         model: 'gpt-4o',
-        context: 'Use the tools provided.',
+        userPrompt: 'Use the tools provided.',
         apiKey: 'test-api-key',
         tools: [
           {
@@ -403,7 +392,7 @@ describe('AgentBlockHandler', () => {
     it('should include usageControl property in transformed tools', async () => {
       const inputs = {
         model: 'gpt-4o',
-        context: 'Use the tools with different usage controls.',
+        userPrompt: 'Use the tools with different usage controls.',
         apiKey: 'test-api-key',
         tools: [
           {
@@ -444,7 +433,7 @@ describe('AgentBlockHandler', () => {
     it('should handle custom tools with usageControl properties', async () => {
       const inputs = {
         model: 'gpt-4o',
-        context: 'Use the custom tools.',
+        userPrompt: 'Use the custom tools.',
         apiKey: 'test-api-key',
         tools: [
           {
@@ -522,23 +511,12 @@ describe('AgentBlockHandler', () => {
       const inputs = {
         model: 'gpt-4o',
         systemPrompt: 'You are a helpful assistant.',
-        context: 'User query: Hello!',
+        userPrompt: 'User query: Hello!',
         temperature: 0.7,
         maxTokens: 100,
       }
 
       mockGetProviderFromModel.mockReturnValue('openai')
-
-      const _expectedProviderRequest = {
-        model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        context: 'User query: Hello!',
-        tools: undefined,
-        temperature: 0.7,
-        maxTokens: 100,
-        apiKey: undefined, // No API key, server will add it
-        responseFormat: undefined,
-      }
 
       await handler.execute(mockBlock, inputs, mockContext)
 
@@ -548,7 +526,7 @@ describe('AgentBlockHandler', () => {
     it('should execute with standard block tools', async () => {
       const inputs = {
         model: 'gpt-4o',
-        context: 'Analyze this data.',
+        userPrompt: 'Analyze this data.',
         apiKey: 'test-api-key', // Add API key for non-hosted env
         tools: [
           {
@@ -568,17 +546,6 @@ describe('AgentBlockHandler', () => {
 
       mockTransformBlockTool.mockReturnValue(mockToolDetails)
       mockGetProviderFromModel.mockReturnValue('openai')
-
-      const _expectedProviderRequest = {
-        model: 'gpt-4o',
-        systemPrompt: undefined,
-        context: 'Analyze this data.',
-        tools: [mockToolDetails],
-        temperature: undefined,
-        maxTokens: undefined,
-        apiKey: 'test-api-key',
-        responseFormat: undefined,
-      }
 
       const expectedOutput = {
         response: {
@@ -604,8 +571,8 @@ describe('AgentBlockHandler', () => {
     it('should execute with custom tools (schema only and with code)', async () => {
       const inputs = {
         model: 'gpt-4o',
-        context: 'Use the custom tools.',
-        apiKey: 'test-api-key', // Add API key for non-hosted env
+        userPrompt: 'Use the custom tools.',
+        apiKey: 'test-api-key',
         tools: [
           {
             type: 'custom-tool',
@@ -674,7 +641,7 @@ describe('AgentBlockHandler', () => {
 
       const inputs = {
         model: 'gpt-4o',
-        context: 'Test context',
+        userPrompt: 'Test context',
         apiKey: 'test-api-key',
         responseFormat:
           '{"type":"object","properties":{"result":{"type":"string"},"score":{"type":"number"}}}',
@@ -715,7 +682,7 @@ describe('AgentBlockHandler', () => {
 
       const inputs = {
         model: 'gpt-4o',
-        context: 'Test context',
+        userPrompt: 'Test context',
         apiKey: 'test-api-key',
         responseFormat: '', // Empty string
       }
@@ -736,7 +703,7 @@ describe('AgentBlockHandler', () => {
     it('should throw an error for invalid JSON in responseFormat', async () => {
       const inputs = {
         model: 'gpt-4o',
-        context: 'Format this output.',
+        userPrompt: 'Format this output.',
         apiKey: 'test-api-key',
         responseFormat: '{invalid-json',
       }
@@ -749,7 +716,7 @@ describe('AgentBlockHandler', () => {
     it('should handle errors from the provider request', async () => {
       const inputs = {
         model: 'gpt-4o',
-        context: 'This will fail.',
+        userPrompt: 'This will fail.',
         apiKey: 'test-api-key', // Add API key for non-hosted env
       }
 
@@ -784,7 +751,7 @@ describe('AgentBlockHandler', () => {
 
       const inputs = {
         model: 'gpt-4o',
-        context: 'Stream this response.',
+        userPrompt: 'Stream this response.',
         apiKey: 'test-api-key',
         stream: true,
       }
@@ -851,7 +818,7 @@ describe('AgentBlockHandler', () => {
 
       const inputs = {
         model: 'gpt-4o',
-        context: 'Stream this response with execution data.',
+        userPrompt: 'Stream this response with execution data.',
         apiKey: 'test-api-key',
         stream: true,
       }
@@ -874,7 +841,7 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should handle combined stream+execution responses', async () => {
-      const _mockStreamObj = new ReadableStream({
+      new ReadableStream({
         start(controller) {
           controller.close()
         },
@@ -910,7 +877,7 @@ describe('AgentBlockHandler', () => {
 
       const inputs = {
         model: 'gpt-4o',
-        context: 'Return a combined response.',
+        userPrompt: 'Return a combined response.',
         apiKey: 'test-api-key',
         stream: true,
       }
@@ -971,7 +938,7 @@ describe('AgentBlockHandler', () => {
 
       // Verify system prompt and context are not included separately
       expect(requestBody.systemPrompt).toBeUndefined()
-      expect(requestBody.context).toBeUndefined()
+      expect(requestBody.userPrompt).toBeUndefined()
     })
 
     it('should handle memory block output format', async () => {
@@ -1077,178 +1044,6 @@ describe('AgentBlockHandler', () => {
 
       expect(requestBody.messages[1].role).toBe('user')
       expect(requestBody.messages[1].content).toBe('What is the weather like?')
-    })
-
-    it('should handle raw memory format with custom key-value data', async () => {
-      const inputs = {
-        model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        userPrompt: 'Use the provided data to answer questions.',
-        memories: {
-          response: {
-            memories: [
-              {
-                key: 'user-profile',
-                type: 'raw',
-                data: {
-                  name: 'John Doe',
-                  age: 30,
-                  occupation: 'Software Engineer',
-                  location: 'San Francisco',
-                },
-              },
-              {
-                key: 'preferences',
-                type: 'Raw', // Test case insensitive
-                data: {
-                  theme: 'dark',
-                  language: 'English',
-                  notifications: 'enabled',
-                },
-              },
-            ],
-          },
-        },
-        apiKey: 'test-api-key',
-      }
-
-      mockGetProviderFromModel.mockReturnValue('openai')
-
-      await handler.execute(mockBlock, inputs, mockContext)
-
-      const fetchCall = mockFetch.mock.calls[0]
-      const requestBody = JSON.parse(fetchCall[1].body)
-
-      // Verify messages were built correctly
-      expect(requestBody.messages).toBeDefined()
-      expect(requestBody.messages.length).toBe(4) // system + 2 raw memories + user prompt
-
-      // Check system prompt is first
-      expect(requestBody.messages[0].role).toBe('system')
-      expect(requestBody.messages[0].content).toBe('You are a helpful assistant.')
-
-      // Check first raw memory was converted to user message
-      expect(requestBody.messages[1].role).toBe('user')
-      expect(requestBody.messages[1].content).toContain('name: John Doe')
-      expect(requestBody.messages[1].content).toContain('age: 30')
-      expect(requestBody.messages[1].content).toContain('occupation: Software Engineer')
-      expect(requestBody.messages[1].content).toContain('location: San Francisco')
-
-      // Check second raw memory was converted to user message
-      expect(requestBody.messages[2].role).toBe('user')
-      expect(requestBody.messages[2].content).toContain('theme: dark')
-      expect(requestBody.messages[2].content).toContain('language: English')
-      expect(requestBody.messages[2].content).toContain('notifications: enabled')
-
-      // Check user prompt is last
-      expect(requestBody.messages[3].role).toBe('user')
-      expect(requestBody.messages[3].content).toBe('Use the provided data to answer questions.')
-    })
-
-    it('should handle raw memory with string data', async () => {
-      const inputs = {
-        model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        memories: [
-          {
-            key: 'user_data',
-            type: 'raw',
-            data: 'This is some raw string data from memory',
-          },
-        ],
-        userPrompt: 'What can you tell me?',
-        apiKey: 'test-api-key',
-      }
-
-      mockGetProviderFromModel.mockReturnValue('openai')
-
-      await handler.execute(mockBlock, inputs, mockContext)
-
-      const fetchCall = mockFetch.mock.calls[0]
-      const requestBody = JSON.parse(fetchCall[1].body)
-
-      // Verify messages were built correctly
-      expect(requestBody.messages).toBeDefined()
-      expect(requestBody.messages.length).toBe(3) // system + raw memory + user prompt
-      expect(requestBody.messages[0].role).toBe('system')
-      expect(requestBody.messages[0].content).toBe('You are a helpful assistant.')
-      expect(requestBody.messages[1].role).toBe('user')
-      expect(requestBody.messages[1].content).toBe('This is some raw string data from memory')
-      expect(requestBody.messages[2].role).toBe('user')
-      expect(requestBody.messages[2].content).toBe('What can you tell me?')
-    })
-
-    it('should handle raw memory with object data', async () => {
-      const inputs = {
-        model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        memories: [
-          {
-            key: 'user_preferences',
-            type: 'Raw',
-            data: {
-              theme: 'dark',
-              language: 'en',
-              notifications: true,
-            },
-          },
-        ],
-        userPrompt: 'What are my preferences?',
-        apiKey: 'test-api-key',
-      }
-
-      mockGetProviderFromModel.mockReturnValue('openai')
-
-      await handler.execute(mockBlock, inputs, mockContext)
-
-      const fetchCall = mockFetch.mock.calls[0]
-      const requestBody = JSON.parse(fetchCall[1].body)
-
-      // Verify messages were built correctly
-      expect(requestBody.messages).toBeDefined()
-      expect(requestBody.messages.length).toBe(3) // system + raw memory + user prompt
-      expect(requestBody.messages[0].role).toBe('system')
-      expect(requestBody.messages[1].role).toBe('user')
-      expect(requestBody.messages[1].content).toContain('theme: dark')
-      expect(requestBody.messages[1].content).toContain('language: en')
-      expect(requestBody.messages[1].content).toContain('notifications: true')
-      expect(requestBody.messages[2].role).toBe('user')
-      expect(requestBody.messages[2].content).toBe('What are my preferences?')
-    })
-
-    it('should handle direct key-value memory format', async () => {
-      const inputs = {
-        model: 'gpt-4o',
-        systemPrompt: 'You are a helpful assistant.',
-        userPrompt: 'Use this context.',
-        memories: [
-          {
-            customerName: 'Alice Smith',
-            orderNumber: 'ORD-12345',
-            status: 'shipped',
-            trackingNumber: 'TRK-98765',
-          },
-        ],
-        apiKey: 'test-api-key',
-      }
-
-      mockGetProviderFromModel.mockReturnValue('openai')
-
-      await handler.execute(mockBlock, inputs, mockContext)
-
-      const fetchCall = mockFetch.mock.calls[0]
-      const requestBody = JSON.parse(fetchCall[1].body)
-
-      // Verify messages were built correctly
-      expect(requestBody.messages).toBeDefined()
-      expect(requestBody.messages.length).toBe(3) // system + direct key-value + user prompt
-
-      // Check direct key-value memory was converted
-      expect(requestBody.messages[1].role).toBe('user')
-      expect(requestBody.messages[1].content).toContain('customerName: Alice Smith')
-      expect(requestBody.messages[1].content).toContain('orderNumber: ORD-12345')
-      expect(requestBody.messages[1].content).toContain('status: shipped')
-      expect(requestBody.messages[1].content).toContain('trackingNumber: TRK-98765')
     })
   })
 })

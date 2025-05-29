@@ -920,11 +920,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           const updatedValues = { ...blockValues }
 
           if (!block.advancedMode) {
-            // Switching TO advanced mode, clear basic mode fields
-            updatedValues.context = null
+            // Switching TO advanced mode
+            // Preserve systemPrompt and userPrompt, memories starts empty
+            // No need to clear anything since advanced mode has all fields
           } else {
-            // Switching TO basic mode, clear advanced mode fields
-            updatedValues.userPrompt = null
+            // Switching TO basic mode
+            // Preserve systemPrompt and userPrompt, but clear memories
             updatedValues.memories = null
           }
 

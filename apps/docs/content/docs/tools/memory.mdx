@@ -43,17 +43,15 @@ Create persistent storage for data that needs to be accessed across multiple wor
 
 ### `memory_add`
 
-Add a new memory to the database or append to existing memory with the same ID. When appending to existing memory, the memory types must match.
+Add a new memory to the database or append to existing memory with the same ID.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `id` | string | Yes | Identifier for the memory. If a memory with this ID already exists, the new data will be appended to it. |
-| `type` | string | Yes | Type of memory \(agent or raw\) |
-| `role` | string | No | Role for agent memory \(user, assistant, or system\) |
-| `content` | string | No | Content for agent memory |
-| `rawData` | json | No | Raw data to store \(JSON format\) |
+| `role` | string | Yes | Role for agent memory \(user, assistant, or system\) |
+| `content` | string | Yes | Content for agent memory |
 
 #### Output
 

@@ -193,18 +193,8 @@ export class AgentBlockHandler implements BlockHandler {
 
     // Check if we're in advanced mode with the memories field
     if (inputs.memories || (inputs.systemPrompt && inputs.userPrompt)) {
-      logger.info('Processing advanced mode with memories or direct prompts', {
-        hasMemories: !!inputs.memories,
-        hasSystemPrompt: !!inputs.systemPrompt,
-        hasUserPrompt: !!inputs.userPrompt,
-        memoriesType: typeof inputs.memories,
-        memoriesIsArray: Array.isArray(inputs.memories),
-      })
-
-      // Build messages array from system prompt, memories, and user prompt
       const messages: any[] = []
 
-      // Process memories if provided
       if (inputs.memories) {
         const memories = inputs.memories
 
@@ -224,14 +214,11 @@ export class AgentBlockHandler implements BlockHandler {
         logger.info('System message already exists in memories, skipping system prompt addition')
       }
 
-      // Add user prompt as the last message if provided
       if (inputs.userPrompt) {
-        // Handle case where userPrompt might be an object with input field
         let userContent = inputs.userPrompt
         if (typeof userContent === 'object' && userContent.input) {
           userContent = userContent.input
         } else if (typeof userContent === 'object') {
-          // If it's an object but doesn't have input field, stringify it
           userContent = JSON.stringify(userContent)
         }
 
@@ -283,11 +270,13 @@ export class AgentBlockHandler implements BlockHandler {
         ? { messages: parsedMessages }
         : {
             systemPrompt: inputs.systemPrompt,
-            context: Array.isArray(inputs.context)
-              ? JSON.stringify(inputs.context, null, 2)
-              : typeof inputs.context === 'string'
-                ? inputs.context
-                : JSON.stringify(inputs.context, null, 2),
+            context: inputs.userPrompt
+              ? Array.isArray(inputs.userPrompt)
+                ? JSON.stringify(inputs.userPrompt, null, 2)
+                : typeof inputs.userPrompt === 'string'
+                  ? inputs.userPrompt
+                  : JSON.stringify(inputs.userPrompt, null, 2)
+              : undefined,
           }),
       tools: formattedTools.length > 0 ? formattedTools : undefined,
       temperature: inputs.temperature,
@@ -303,7 +292,8 @@ export class AgentBlockHandler implements BlockHandler {
       hasMessages: Array.isArray(parsedMessages) && parsedMessages.length > 0,
       hasSystemPrompt:
         !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.systemPrompt,
-      hasContext: !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.context,
+      hasContext:
+        !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.userPrompt,
       hasTools: !!providerRequest.tools,
       hasApiKey: !!providerRequest.apiKey,
       workflowId: providerRequest.workflowId,
@@ -582,15 +572,12 @@ function processMemories(memories: any, logger: any): any[] {
   if (memories?.response?.memories && Array.isArray(memories.response.memories)) {
     // Memory block output format: { response: { memories: [...] } }
     memoryArray = memories.response.memories
-    logger.info('Using memory block response format', { count: memoryArray.length })
   } else if (memories?.memories && Array.isArray(memories.memories)) {
     // Direct memory output format: { memories: [...] }
     memoryArray = memories.memories
-    logger.info('Using direct memories format', { count: memoryArray.length })
   } else if (Array.isArray(memories)) {
     // Direct array of messages: [{ role, content }, ...]
     memoryArray = memories
-    logger.info('Using direct array format', { count: memoryArray.length })
   } else {
     logger.warn('Unexpected memories format', { memories })
     return messages
@@ -608,82 +595,14 @@ function processMemories(memories: any, logger: any): any[] {
           })
         }
       })
-    } else if (
-      memory.data &&
-      (typeof memory.data === 'string' ||
-        (typeof memory.data === 'object' && !Array.isArray(memory.data)))
-    ) {
-      // Raw memory format: { key, type: "raw", data: "string" } or { key, type: "raw", data: { "key": "value", ... } }
-      // Convert raw data to a formatted message
-      if (memory.type === 'raw' || memory.type === 'Raw') {
-        const rawData = memory.data
-        let content = ''
-
-        // Handle different raw data formats
-        if (typeof rawData === 'string') {
-          content = rawData
-        } else if (typeof rawData === 'object') {
-          // Convert object to readable format
-          try {
-            // Try to parse if it's a JSON string
-            const parsedData = typeof rawData === 'string' ? JSON.parse(rawData) : rawData
-
-            // Format as key-value pairs for better readability
-            const formattedEntries = Object.entries(parsedData)
-              .map(([key, value]) => `${key}: ${value}`)
-              .join('\n')
-
-            content = formattedEntries || JSON.stringify(parsedData, null, 2)
-          } catch (error) {
-            // If parsing fails, stringify the raw data
-            content = JSON.stringify(rawData, null, 2)
-          }
-        }
-
-        if (content) {
-          // Add as a user message with the raw data content
-          messages.push({
-            role: 'user',
-            content: content,
-          })
-          logger.info('Processed raw memory data', {
-            key: memory.key,
-            type: memory.type,
-            contentLength: content.length,
-          })
-        }
-      }
     } else if (memory.role && memory.content) {
       // Direct message object: { role, content }
       messages.push({
         role: memory.role,
         content: memory.content,
       })
-    } else if (typeof memory === 'object' && memory !== null) {
-      // Handle other object formats - try to extract meaningful content
-      logger.info('Processing unknown memory format', { memory })
-
-      // If it has a direct key-value structure, convert to content
-      if (!memory.role && !memory.data) {
-        try {
-          const content = Object.entries(memory)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join('\n')
-
-          if (content) {
-            messages.push({
-              role: 'user',
-              content: content,
-            })
-            logger.info('Processed direct key-value memory', { contentLength: content.length })
-          }
-        } catch (error) {
-          logger.warn('Failed to process unknown memory format', { error, memory })
-        }
-      }
     }
   })
 
-  logger.info('Processed memories', { addedMessages: messages.length })
   return messages
 }

@@ -48,19 +48,11 @@ export const MemoryBlock: BlockConfig = {
         }
 
         if (params.operation === 'add') {
-          if (!params.type) {
-            errors.push('Memory type is required for add operation')
-          } else if (params.type === 'agent') {
-            if (!params.role) {
-              errors.push('Role is required for agent memory')
-            }
-            if (!params.content) {
-              errors.push('Content is required for agent memory')
-            }
-          } else if (params.type === 'raw') {
-            if (!params.rawData) {
-              errors.push('Raw data is required for raw memory')
-            }
+          if (!params.role) {
+            errors.push('Role is required for agent memory')
+          }
+          if (!params.content) {
+            errors.push('Content is required for agent memory')
           }
         }
 
@@ -77,14 +69,9 @@ export const MemoryBlock: BlockConfig = {
           const result: Record<string, any> = {
             ...baseResult,
             id: params.id,
-            type: params.type,
-          }
-
-          if (params.type === 'agent') {
-            result.role = params.role
-            result.content = params.content
-          } else if (params.type === 'raw') {
-            result.rawData = params.rawData
+            type: 'agent', // Always agent type
+            role: params.role,
+            content: params.content,
           }
 
           return result
@@ -114,10 +101,8 @@ export const MemoryBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', required: true },
     id: { type: 'string', required: true },
-    type: { type: 'string', required: false },
     role: { type: 'string', required: false },
     content: { type: 'string', required: false },
-    rawData: { type: 'json', required: false },
   },
   outputs: {
     response: {
@@ -175,21 +160,6 @@ export const MemoryBlock: BlockConfig = {
       },
     },
     {
-      id: 'type',
-      title: 'Type',
-      type: 'dropdown',
-      layout: 'full',
-      options: [
-        { label: 'Agent', id: 'agent' },
-        { label: 'Raw', id: 'raw' },
-      ],
-      placeholder: 'Select memory type',
-      condition: {
-        field: 'operation',
-        value: 'add',
-      },
-    },
-    {
       id: 'role',
       title: 'Role',
       type: 'dropdown',
@@ -201,12 +171,8 @@ export const MemoryBlock: BlockConfig = {
       ],
       placeholder: 'Select agent role',
       condition: {
-        field: 'type',
-        value: 'agent',
-        and: {
-          field: 'operation',
-          value: 'add',
-        },
+        field: 'operation',
+        value: 'add',
       },
     },
     {
@@ -216,28 +182,8 @@ export const MemoryBlock: BlockConfig = {
       layout: 'full',
       placeholder: 'Enter message content',
       condition: {
-        field: 'type',
-        value: 'agent',
-        and: {
-          field: 'operation',
-          value: 'add',
-        },
-      },
-    },
-    {
-      id: 'rawData',
-      title: 'Raw Data',
-      type: 'code',
-      layout: 'full',
-      language: 'json',
-      placeholder: '{"key": "value"}',
-      condition: {
-        field: 'type',
-        value: 'raw',
-        and: {
-          field: 'operation',
-          value: 'add',
-        },
+        field: 'operation',
+        value: 'add',
       },
     },
   ],
