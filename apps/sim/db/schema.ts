@@ -84,8 +84,7 @@ export const workflow = pgTable('workflow', {
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
   variables: json('variables').default('{}'),
-  marketplaceData: json('marketplace_data'), // Format: { id: string, status: 'owner' | 'temp' }
-  templatesData: json('templates_data'), // Format: { id: string, status: 'owner' | 'temp' }
+  marketplaceData: json('marketplace_data'),
 
   // These columns are kept for backward compatibility during migration
   // @deprecated - Use marketplaceData instead
@@ -429,4 +428,158 @@ export const memory = pgTable(
       ),
     }
   }
+)
+
+export const knowledgeBase = pgTable(
+  'knowledge_base',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: text('description'),
+    
+    // Token tracking for usage
+    tokenCount: integer('token_count').notNull().default(0),
+    
+    // Embedding configuration
+    embeddingModel: text('embedding_model').notNull().default('text-embedding-3-small'),
+    embeddingDimension: integer('embedding_dimension').notNull().default(1536),
+    
+    // Chunking configuration stored as JSON for flexibility
+    chunkingConfig: json('chunking_config').notNull().default('{"maxSize": 1024, "minSize": 100, "overlap": 200}'),
+    
+    // Soft delete support
+    deletedAt: timestamp('deleted_at'),
+
+    // Metadata and timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access patterns
+    userIdIdx: index('kb_user_id_idx').on(table.userId),
+    workspaceIdIdx: index('kb_workspace_id_idx').on(table.workspaceId),
+    // Composite index for user's workspaces
+    userWorkspaceIdx: index('kb_user_workspace_idx').on(table.userId, table.workspaceId),
+    // Index for soft delete filtering
+    deletedAtIdx: index('kb_deleted_at_idx').on(table.deletedAt),
+  })
+)
+
+export const document = pgTable(
+  'document',
+  {
+    id: text('id').primaryKey(),
+    knowledgeBaseId: text('knowledge_base_id')
+      .notNull()
+      .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
+    
+    // File information
+    filename: text('filename').notNull(),
+    fileUrl: text('file_url').notNull(),
+    fileSize: integer('file_size').notNull(), // Size in bytes
+    mimeType: text('mime_type').notNull(), // e.g., 'application/pdf', 'text/plain'
+    fileHash: text('file_hash'), // SHA-256 hash for deduplication
+    
+    // Content statistics
+    chunkCount: integer('chunk_count').notNull().default(0),
+    tokenCount: integer('token_count').notNull().default(0),
+    characterCount: integer('character_count').notNull().default(0),
+    
+    // Document state
+    enabled: boolean('enabled').notNull().default(true), // Enable/disable from knowledge base
+    deletedAt: timestamp('deleted_at'), // Soft delete
+    
+    // Timestamps
+    uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access pattern - documents by knowledge base
+    knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
+    // File deduplication
+    fileHashIdx: index('doc_file_hash_idx').on(table.fileHash),
+    // Search by filename (for search functionality)
+    filenameIdx: index('doc_filename_idx').on(table.filename),
+    // Order by upload date (for listing documents)
+    kbUploadedAtIdx: index('doc_kb_uploaded_at_idx').on(table.knowledgeBaseId, table.uploadedAt),
+  })
+)
+
+export const embedding = pgTable(
+  'embedding',
+  {
+    id: text('id').primaryKey(),
+    knowledgeBaseId: text('knowledge_base_id')
+      .notNull()
+      .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
+    documentId: text('document_id')
+      .notNull()
+      .references(() => document.id, { onDelete: 'cascade' }),
+
+    // Chunk information
+    chunkIndex: integer('chunk_index').notNull(), // 0-based index within document
+    chunkHash: text('chunk_hash').notNull(), // For deduplication and change detection
+    content: text('content').notNull(), // Raw text content
+    contentLength: integer('content_length').notNull(), // Character count
+    tokenCount: integer('token_count').notNull(), // Token count for this chunk
+
+    // Embedding data - stored as JSON array until pgvector is enabled
+    // In production, this should be migrated to vector(dimension) type
+    embedding: json('embedding').notNull(), // Will be vector(1536) or vector(3072) with pgvector
+    embeddingModel: text('embedding_model').notNull(), // 'text-embedding-3-small' (1536) or 'text-embedding-3-large' (3072)
+
+    // Chunk boundaries and overlap
+    startOffset: integer('start_offset').notNull(), // Character offset in original document
+    endOffset: integer('end_offset').notNull(), // Character offset in original document
+    overlapTokens: integer('overlap_tokens').notNull().default(0), // Number of overlapping tokens
+    
+    // Rich metadata for advanced filtering
+    metadata: json('metadata').notNull().default('{}'), // {page, section, heading, language, etc.}
+    
+    // Search optimization
+    searchRank: decimal('search_rank').default('1.0'), // Boost factor for search results
+    accessCount: integer('access_count').notNull().default(0), // Track usage for optimization
+    lastAccessedAt: timestamp('last_accessed_at'),
+    
+    // Quality metrics
+    qualityScore: decimal('quality_score'), // Optional quality assessment
+    
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary vector search pattern - will be replaced with HNSW/IVFFlat when pgvector is enabled
+    kbIdIdx: index('emb_kb_id_idx').on(table.knowledgeBaseId),
+    
+    // Document-level access
+    docIdIdx: index('emb_doc_id_idx').on(table.documentId),
+    
+    // Chunk ordering within documents
+    docChunkIdx: uniqueIndex('emb_doc_chunk_idx').on(table.documentId, table.chunkIndex),
+    
+    // Model-specific queries for A/B testing or migrations
+    kbModelIdx: index('emb_kb_model_idx').on(table.knowledgeBaseId, table.embeddingModel),
+    
+    // Deduplication
+    chunkHashIdx: index('emb_chunk_hash_idx').on(table.chunkHash),
+    
+    // Access patterns for hot data
+    kbAccessIdx: index('emb_kb_access_idx').on(table.knowledgeBaseId, table.lastAccessedAt),
+    
+    // Search rank optimization
+    kbRankIdx: index('emb_kb_rank_idx').on(table.knowledgeBaseId, table.searchRank),
+    
+    // Note: When pgvector is enabled, add these via migration:
+    // CREATE INDEX embedding_vector_hnsw_small_idx ON embedding 
+    //   USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)
+    //   WHERE embedding_model = 'text-embedding-3-small';
+    // CREATE INDEX embedding_vector_hnsw_large_idx ON embedding 
+    //   USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)
+    //   WHERE embedding_model = 'text-embedding-3-large';
+    // CREATE INDEX embedding_metadata_gin_idx ON embedding USING gin(metadata);
+  })
 )
