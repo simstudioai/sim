@@ -242,7 +242,8 @@ export const templates = pgTable('templates', {
     .references(() => workflow.id, { onDelete: 'cascade' }),
   state: json('state').notNull(),
   name: text('name').notNull(),
-  description: text('description'),
+  short_description: text('short_description'),
+  long_description: text('long_description'),
   authorId: text('author_id')
     .notNull()
     .references(() => user.id),
