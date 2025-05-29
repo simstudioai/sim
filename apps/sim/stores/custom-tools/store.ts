@@ -32,35 +32,40 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
               throw new Error('Invalid response format')
             }
 
-            // Validate each tool object's structure before processing
-            data.forEach((tool, index) => {
+            // Filter and validate tools, skipping invalid ones instead of throwing errors
+            const validTools = data.filter((tool, index) => {
               if (!tool || typeof tool !== 'object') {
-                throw new Error(`Invalid tool format at index ${index}: not an object`)
+                logger.warn(`Skipping invalid tool at index ${index}: not an object`)
+                return false
               }
               if (!tool.id || typeof tool.id !== 'string') {
-                throw new Error(`Invalid tool format at index ${index}: missing or invalid id`)
+                logger.warn(`Skipping invalid tool at index ${index}: missing or invalid id`)
+                return false
               }
               if (!tool.title || typeof tool.title !== 'string') {
-                throw new Error(`Invalid tool format at index ${index}: missing or invalid title`)
+                logger.warn(`Skipping invalid tool at index ${index}: missing or invalid title`)
+                return false
               }
               if (!tool.schema || typeof tool.schema !== 'object') {
-                throw new Error(`Invalid tool format at index ${index}: missing or invalid schema`)
+                logger.warn(`Skipping invalid tool at index ${index}: missing or invalid schema`)
+                return false
               }
+              // Make code field optional - default to empty string if missing
               if (!tool.code || typeof tool.code !== 'string') {
-                throw new Error(`Invalid tool format at index ${index}: missing or invalid code`)
+                logger.warn(`Tool at index ${index} missing code field, defaulting to empty string`)
+                tool.code = ''
               }
+              return true
             })
 
             // Transform to local format and set
-            const transformedTools = data.reduce(
+            const transformedTools = validTools.reduce(
               (acc, tool) => ({
                 ...acc,
                 [tool.id]: tool,
               }),
               {}
             )
-
-            logger.info(`Loaded ${data.length} custom tools from server`)
 
             set({
               tools: transformedTools,
@@ -72,12 +77,6 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
               error: error instanceof Error ? error.message : 'Unknown error',
               isLoading: false,
             })
-
-            // Add a delay before reloading to prevent race conditions
-            setTimeout(() => {
-              // Reload from server to ensure consistency
-              get().loadCustomTools()
-            }, 500)
           }
         },
 
@@ -121,21 +120,12 @@ export const useCustomToolsStore = create<CustomToolsStore>()(
 
             set({ isLoading: false })
             logger.info('Successfully synced custom tools with server')
-
-            // Load from server to ensure consistency even after successful sync
-            get().loadCustomTools()
           } catch (error) {
             logger.error('Error syncing custom tools:', error)
             set({
               error: error instanceof Error ? error.message : 'Unknown error',
               isLoading: false,
             })
-
-            // Add a delay before reloading to prevent race conditions
-            setTimeout(() => {
-              // Reload from server to ensure consistency
-              get().loadCustomTools()
-            }, 500)
           }
         },
 
