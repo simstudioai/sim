@@ -3,11 +3,15 @@ import type { RecursiveChunk } from 'chonkie/types'
 import { env } from '@/lib/env'
 import { isSupportedFileType, parseBuffer, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console-logger'
-import { uploadToS3 } from '@/lib/uploads/s3-client'
-import { S3_CONFIG } from '@/lib/uploads/setup'
+import { type CustomS3Config, getPresignedUrlWithConfig, uploadToS3 } from '@/lib/uploads/s3-client'
 import { mistralParserTool } from '@/tools/mistral/parser'
 
 const logger = createLogger('DocumentProcessor')
+
+const S3_KB_CONFIG: CustomS3Config = {
+  bucket: env.S3_KB_BUCKET_NAME || '',
+  region: env.AWS_REGION || '',
+}
 
 export interface ProcessedDocument {
   content: string
@@ -92,17 +96,17 @@ async function parseDocument(
         const buffer = Buffer.from(await response.arrayBuffer())
 
         // Always upload to S3 for Mistral OCR, even in development
-        if (!S3_CONFIG.bucket || !S3_CONFIG.region) {
+        if (!S3_KB_CONFIG.bucket || !S3_KB_CONFIG.region) {
           throw new Error(
-            'S3 configuration missing: AWS_REGION and S3_BUCKET_NAME environment variables are required for PDF processing with Mistral OCR'
+            'S3 configuration missing: AWS_REGION and S3_KB_BUCKET_NAME environment variables are required for PDF processing with Mistral OCR'
           )
         }
 
         try {
           // Upload to S3
-          const s3Result = await uploadToS3(buffer, filename, mimeType, buffer.length)
-          // Construct the proper S3 HTTPS URL for Mistral OCR
-          httpsUrl = `https://${S3_CONFIG.bucket}.s3.${S3_CONFIG.region}.amazonaws.com/${s3Result.key}`
+          const s3Result = await uploadToS3(buffer, filename, mimeType, S3_KB_CONFIG)
+          // Generate presigned URL with 15 minutes expiration
+          httpsUrl = await getPresignedUrlWithConfig(s3Result.key, S3_KB_CONFIG, 900)
           s3Url = httpsUrl
           logger.info(`Successfully uploaded to S3 for Mistral OCR: ${s3Result.key}`)
         } catch (uploadError) {
