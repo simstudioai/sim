@@ -78,14 +78,12 @@ describe('AgentBlockHandler', () => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
 
-    // Mock window to force browser environment for HTTP testing
     Object.defineProperty(global, 'window', {
       value: {},
       writable: true,
       configurable: true,
     })
 
-    // Save original Promise.all to restore later
     originalPromiseAll = Promise.all
 
     mockBlock = {
@@ -120,7 +118,7 @@ describe('AgentBlockHandler', () => {
         loops: {},
       } as SerializedWorkflow,
     }
-    mockIsHosted.mockReturnValue(false) // Default to non-hosted env for tests
+    mockIsHosted.mockReturnValue(false)
     mockGetProviderFromModel.mockReturnValue('mock-provider')
 
     mockFetch.mockImplementation(() => {
@@ -165,19 +163,15 @@ describe('AgentBlockHandler', () => {
   })
 
   afterEach(() => {
-    // Restore original Promise.all
     Promise.all = originalPromiseAll
 
-    // Clean up window mock safely
     try {
       Object.defineProperty(global, 'window', {
         value: undefined,
         writable: true,
         configurable: true,
       })
-    } catch (e) {
-      // Ignore cleanup errors
-    }
+    } catch (e) {}
   })
 
   describe('canHandle', () => {
@@ -210,7 +204,7 @@ describe('AgentBlockHandler', () => {
         userPrompt: 'User query: Hello!',
         temperature: 0.7,
         maxTokens: 100,
-        apiKey: 'test-api-key', // Add API key for non-hosted env
+        apiKey: 'test-api-key',
       }
 
       mockGetProviderFromModel.mockReturnValue('openai')
@@ -239,7 +233,6 @@ describe('AgentBlockHandler', () => {
       Promise.all = vi.fn().mockImplementation((promises: Promise<any>[]) => {
         const result = originalPromiseAll.call(Promise, promises)
 
-        // When result resolves, capture the tools
         result.then((tools: any[]) => {
           if (tools?.length) {
             capturedTools = tools.filter((t) => t !== null)
@@ -339,7 +332,7 @@ describe('AgentBlockHandler', () => {
                 },
               },
             },
-            usageControl: 'none' as const, // This tool should be filtered out
+            usageControl: 'none' as const,
           },
         ],
       }
@@ -401,21 +394,21 @@ describe('AgentBlockHandler', () => {
             title: 'Tool 1',
             type: 'tool-type-1',
             operation: 'operation1',
-            usageControl: 'auto' as const, // default setting
+            usageControl: 'auto' as const,
           },
           {
             id: 'tool_2',
             title: 'Tool 2',
             type: 'tool-type-2',
             operation: 'operation2',
-            usageControl: 'none' as const, // should be filtered out
+            usageControl: 'none' as const,
           },
           {
             id: 'tool_3',
             title: 'Tool 3',
             type: 'tool-type-3',
             operation: 'operation3',
-            usageControl: 'force' as const, // should be included
+            usageControl: 'force' as const,
           },
         ],
       }
@@ -525,7 +518,7 @@ describe('AgentBlockHandler', () => {
                 },
               },
             },
-            usageControl: 'none' as const, // Should be filtered out
+            usageControl: 'none' as const,
           },
         ],
       }

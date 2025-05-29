@@ -538,18 +538,15 @@ function validateAndResolvePath(inputPath: string): {
   error?: string
 } {
   try {
-    // Extract the filename from API serve paths
     let targetPath = inputPath
     if (inputPath.startsWith('/api/files/serve/')) {
       const filename = inputPath.replace('/api/files/serve/', '')
       targetPath = path.join(UPLOAD_DIR, filename)
     }
 
-    // Resolve the absolute path to handle any .. or . segments
     const resolvedPath = path.resolve(targetPath)
     const resolvedUploadDir = path.resolve(UPLOAD_DIR)
 
-    // Ensure the resolved path is within the upload directory
     if (
       !resolvedPath.startsWith(resolvedUploadDir + path.sep) &&
       resolvedPath !== resolvedUploadDir
@@ -560,7 +557,6 @@ function validateAndResolvePath(inputPath: string): {
       }
     }
 
-    // Additional check for dangerous path segments
     if (inputPath.includes('..') || inputPath.includes('~')) {
       return {
         isValid: false,
@@ -584,7 +580,6 @@ function validateAndResolvePath(inputPath: string): {
  * Handle a local file from the filesystem
  */
 async function handleLocalFile(filePath: string, fileType?: string): Promise<ParseResult> {
-  // Check if this is an S3 path that was incorrectly routed
   if (filePath.includes('/api/files/serve/s3/')) {
     logger.warn(`S3 path detected in handleLocalFile, redirecting to S3 handler: ${filePath}`)
     return handleS3File(filePath, fileType)
@@ -593,7 +588,6 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
   try {
     logger.info(`Handling local file: ${filePath}`)
 
-    // Validate and resolve the file path to prevent directory traversal
     const pathValidation = validateAndResolvePath(filePath)
     if (!pathValidation.isValid) {
       logger.error(`Path validation failed: ${pathValidation.error}`, { filePath })
@@ -607,7 +601,6 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
     const localFilePath = pathValidation.resolvedPath!
     logger.info(`Validated and resolved path: ${localFilePath}`)
 
-    // Make sure the file is actually a file that exists
     try {
       await fsPromises.access(localFilePath, fsPromises.constants.R_OK)
     } catch (error) {
