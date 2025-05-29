@@ -65,13 +65,14 @@ export async function GET(
       })
     }
 
-    // Fetch similar templates from the same category, excluding the current template
+    // Get similar templates in the same category
     const similarTemplates = await db
       .select({
         id: schema.templates.id,
         workflowId: schema.templates.workflowId,
         name: schema.templates.name,
-        description: schema.templates.description,
+        short_description: schema.templates.short_description,
+        long_description: schema.templates.long_description,
         authorName: schema.templates.authorName,
         views: schema.templates.views,
         category: schema.templates.category,
@@ -79,14 +80,10 @@ export async function GET(
         updatedAt: schema.templates.updatedAt,
       })
       .from(schema.templates)
-      .where(
-        and(
-          eq(schema.templates.category, currentTemplate.category || ''),
-          ne(schema.templates.id, templateId)
-        )
-      )
-      .orderBy(desc(schema.templates.views)) // Order by popularity
-      .limit(limit)
+      .where(eq(schema.templates.category, currentTemplate.category))
+      .orderBy(desc(schema.templates.views), desc(schema.templates.createdAt))
+      .limit(limit + 1) // Get one extra to exclude current template
+      .then((rows) => rows.filter((row) => row.id !== currentTemplate.id).slice(0, limit))
 
     logger.info(
       `[${requestId}] Found ${similarTemplates.length} similar templates in category: ${currentTemplate.category}`
