@@ -96,8 +96,8 @@ export async function GET(request: NextRequest) {
  * POST handler for creating new memories
  * Requires:
  * - key: Unique identifier for the memory (within workflow scope)
- * - type: Memory type ('agent' or 'raw')
- * - data: Memory content (varies by type)
+ * - type: Memory type ('agent')
+ * - data: Memory content (agent message with role and content)
  * - workflowId: ID of the workflow this memory belongs to
  */
 export async function POST(request: NextRequest) {
@@ -124,13 +124,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!type || !['agent', 'raw'].includes(type)) {
+    if (!type || type !== 'agent') {
       logger.warn(`[${requestId}] Invalid memory type: ${type}`)
       return NextResponse.json(
         {
           success: false,
           error: {
-            message: 'Valid memory type (agent or raw) is required',
+            message: 'Memory type must be "agent"',
           },
         },
         { status: 400 }
@@ -220,30 +220,20 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Handle appending based on memory type
+      // Handle appending for agent type
       let updatedData
 
-      if (type === 'agent') {
-        // For agent type
-        const newMessage = data
-        const existingData = existingMemory[0].data
+      // For agent type
+      const newMessage = data
+      const existingData = existingMemory[0].data
 
-        // If existing data is an array, append to it
-        if (Array.isArray(existingData)) {
-          updatedData = [...existingData, newMessage]
-        }
-        // If existing data is a single message object, convert to array
-        else {
-          updatedData = [existingData, newMessage]
-        }
-      } else {
-        // For raw type
-        // Merge objects if they're objects, otherwise use the new data
-        if (typeof existingMemory[0].data === 'object' && typeof data === 'object') {
-          updatedData = { ...existingMemory[0].data, ...data }
-        } else {
-          updatedData = data
-        }
+      // If existing data is an array, append to it
+      if (Array.isArray(existingData)) {
+        updatedData = [...existingData, newMessage]
+      }
+      // If existing data is a single message object, convert to array
+      else {
+        updatedData = [existingData, newMessage]
       }
 
       // Update the existing memory with appended data
@@ -263,7 +253,7 @@ export async function POST(request: NextRequest) {
         workflowId,
         key,
         type,
-        data: type === 'agent' ? (Array.isArray(data) ? data : [data]) : data,
+        data: Array.isArray(data) ? data : [data],
         createdAt: new Date(),
         updatedAt: new Date(),
       }

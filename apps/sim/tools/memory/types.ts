@@ -12,15 +12,11 @@ export interface AgentMemoryData {
   content: string
 }
 
-export interface RawMemoryData {
-  [key: string]: any
-}
-
 export interface MemoryRecord {
   id: string
   key: string
-  type: 'agent' | 'raw'
-  data: AgentMemoryData[] | RawMemoryData
+  type: 'agent'
+  data: AgentMemoryData[]
   createdAt: string
   updatedAt: string
   workflowId?: string
