@@ -12,6 +12,7 @@ import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useCodeGeneration } from '@/app/w/[id]/hooks/use-code-generation'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { CodePromptBar } from '../../../../code-prompt-bar/code-prompt-bar'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
 
@@ -68,9 +69,20 @@ export function Code({
   const [cursorPosition, setCursorPosition] = useState(0)
   const [activeSourceBlockId, setActiveSourceBlockId] = useState<string | null>(null)
   const [visualLineHeights, setVisualLineHeights] = useState<number[]>([])
-  const [isCollapsed, setIsCollapsed] = useState(false)
+
+  const collapsedStateKey = `${subBlockId}_collapsed`
+  const isCollapsed =
+    (useSubBlockStore((state) => state.getValue(blockId, collapsedStateKey)) as boolean) ?? false
+  const setCollapsedValue = useSubBlockStore((state) => state.setValue)
+
+  const showCollapseButton = subBlockId === 'responseFormat' && code.split('\n').length > 5
 
   const editorRef = useRef<HTMLDivElement>(null)
+
+  // Function to toggle collapsed state
+  const toggleCollapsed = () => {
+    setCollapsedValue(blockId, collapsedStateKey, !isCollapsed)
+  }
 
   // AI Code Generation Hook
   const handleStreamStart = () => {
@@ -311,11 +323,11 @@ export function Code({
             </Button>
           )}
 
-          {code.split('\n').length > 5 && !isAiStreaming && (
+          {showCollapseButton && !isAiStreaming && (
             <Button
               variant='ghost'
               size='sm'
-              onClick={() => setIsCollapsed(!isCollapsed)}
+              onClick={toggleCollapsed}
               aria-label={isCollapsed ? 'Expand code' : 'Collapse code'}
               className='h-8 px-2 text-muted-foreground hover:text-foreground'
             >
