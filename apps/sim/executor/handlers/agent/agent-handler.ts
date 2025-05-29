@@ -280,19 +280,17 @@ export class AgentBlockHandler implements BlockHandler {
     return {
       provider: providerId,
       model,
-      ...(validMessages
-        ? { messages }
-        : {
-            systemPrompt: inputs.systemPrompt,
-            context: this.formatUserPrompt(inputs.userPrompt),
-          }),
-      tools: formattedTools.length > 0 ? formattedTools : undefined,
+      systemPrompt: validMessages ? undefined : inputs.systemPrompt,
+      context: JSON.stringify(messages),
+      tools: formattedTools,
       temperature: inputs.temperature,
       maxTokens: inputs.maxTokens,
       apiKey: inputs.apiKey,
       responseFormat,
       workflowId: context.workflowId,
       stream: streaming,
+      messages,
+      environmentVariables: context.environmentVariables || {},
     }
   }
 
@@ -310,18 +308,6 @@ export class AgentBlockHandler implements BlockHandler {
             (msg.role === 'assistant' && ('function_call' in msg || 'tool_calls' in msg)))
       )
     )
-  }
-
-  private formatUserPrompt(userPrompt: any): string | undefined {
-    if (!userPrompt) return undefined
-
-    if (Array.isArray(userPrompt)) {
-      return JSON.stringify(userPrompt, null, 2)
-    }
-    if (typeof userPrompt === 'string') {
-      return userPrompt
-    }
-    return JSON.stringify(userPrompt, null, 2)
   }
 
   private logRequestDetails(
@@ -404,6 +390,7 @@ export class AgentBlockHandler implements BlockHandler {
       workflowId: providerRequest.workflowId,
       stream: providerRequest.stream,
       messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
+      environmentVariables: context.environmentVariables || {},
     })
 
     this.logExecutionSuccess(providerId, model, context, block, providerStartTime, response)

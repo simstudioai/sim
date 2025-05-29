@@ -407,21 +407,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   return (
     <div className='fixed inset-0 z-[100] flex flex-col bg-background'>
-      <style jsx>{`
-        @keyframes growShrink {
-          0%,
-          100% {
-            transform: scale(0.9);
-          }
-          50% {
-            transform: scale(1.1);
-          }
-        }
-        .loading-dot {
-          animation: growShrink 1.5s infinite ease-in-out;
-        }
-      `}</style>
-
       {/* Header component */}
       <ChatHeader chatConfig={chatConfig} starCount={starCount} />
 

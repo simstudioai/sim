@@ -368,6 +368,7 @@ export const googleProvider: ProviderConfig = {
                 ...toolArgs, // Arguments from the model's function call
                 ...requiredToolCallParams, // Required parameters from the tool definition (take precedence)
                 ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
+                ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
               }
 
               // For debugging only - don't log actual API keys

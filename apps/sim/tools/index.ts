@@ -495,7 +495,7 @@ function validateClientSideParams(
   }
 
   // Internal parameters that should be excluded from validation
-  const internalParamSet = new Set(['_context', 'workflowId'])
+  const internalParamSet = new Set(['_context', 'workflowId', 'envVars'])
 
   // Check required parameters
   if (schema.required) {
