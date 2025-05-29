@@ -1,6 +1,6 @@
 {
-  "id": "1c60aa01-7b05-44db-af58-47a69eed2071",
-  "prevId": "123c216c-2249-4ea1-845f-4e2b7ddf8b7e",
+  "id": "22fedf1d-672c-40cc-8ff6-9bf2428f2659",
+  "prevId": "1c60aa01-7b05-44db-af58-47a69eed2071",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1620,6 +1620,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "saved_at": {
+          "name": "saved_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -1881,13 +1888,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
-        },
-        "email_preferences": {
-          "name": "email_preferences",
-          "type": "json",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'"
         },
         "general": {
           "name": "general",

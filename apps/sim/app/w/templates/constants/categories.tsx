@@ -10,6 +10,7 @@ import {
   Store,
   TrendingUp,
   Clock,
+  ChartBar,
 } from 'lucide-react'
 
 export interface Category {
@@ -48,6 +49,13 @@ export const CATEGORIES: Category[] = [
     icon: <BotMessageSquare className='mr-2 h-4 w-4' />,
     color: '#8b5cf6', // violet-500
     hoverColor: 'hover:bg-purple-100 dark:hover:bg-purple-950/40',
+  },
+  {
+    value: 'management',
+    label: 'Management',
+    icon: <ChartBar className='mr-2 h-4 w-4' />,
+    color: '#0ea5e9', // sky-500
+    hoverColor: 'hover:bg-sky-100 dark:hover:bg-sky-950/40',
   },
   {
     value: 'research',

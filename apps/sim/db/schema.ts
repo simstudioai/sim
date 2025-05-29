@@ -236,9 +236,6 @@ export const marketplace = pgTable('marketplace', {
 
 export const templates = pgTable('templates', {
   id: text('id').primaryKey(),
-  workflowId: text('workflow_id')
-    .notNull()
-    .references(() => workflow.id, { onDelete: 'cascade' }),
   state: json('state').notNull(),
   name: text('name').notNull(),
   short_description: text('short_description'),
@@ -249,6 +246,8 @@ export const templates = pgTable('templates', {
   authorName: text('author_name').notNull(),
   views: integer('views').notNull().default(0),
   category: text('category'),
+  price: decimal('price').notNull().default('0'),
+  sourceWorkflowId: text('source_workflow_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -628,5 +627,37 @@ export const embedding = pgTable(
 
     // Ensure embedding exists (simplified since we only support one model)
     embeddingNotNullCheck: check('embedding_not_null_check', sql`"embedding" IS NOT NULL`),
+  })
+)
+
+export const savedTemplates = pgTable(
+  'saved_templates',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    templateId: text('template_id')
+      .notNull()
+      .references(() => templates.id, { onDelete: 'cascade' }),
+        
+    // Usage tracking
+    timesUsed: integer('times_used').notNull().default(0),
+    lastUsedAt: timestamp('last_used_at'),
+    savedAt: timestamp('saved_at').notNull().defaultNow(),
+
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Ensure a user can't save the same template twice
+    userTemplateIdx: uniqueIndex('saved_templates_user_template_idx').on(
+      table.userId,
+      table.templateId
+    ),
+    // Fast lookups for user's saved templates
+    userIdIdx: index('saved_templates_user_id_idx').on(table.userId),
+    // Fast lookups for template popularity
+    templateIdIdx: index('saved_templates_template_id_idx').on(table.templateId),
   })
 )
