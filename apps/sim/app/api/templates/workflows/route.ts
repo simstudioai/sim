@@ -51,7 +51,6 @@ export async function GET(request: NextRequest) {
         templateEntry = await db
           .select({
             id: schema.templates.id,
-            workflowId: schema.templates.workflowId,
             name: schema.templates.name,
             short_description: schema.templates.short_description,
             long_description: schema.templates.long_description,
@@ -64,7 +63,7 @@ export async function GET(request: NextRequest) {
             updatedAt: schema.templates.updatedAt,
           })
           .from(schema.templates)
-          .where(eq(schema.templates.workflowId, workflowId))
+          .where(eq(schema.templates.id, workflowId))
           .limit(1)
           .then((rows) => rows[0])
       } else {
@@ -72,7 +71,6 @@ export async function GET(request: NextRequest) {
         templateEntry = await db
           .select({
             id: schema.templates.id,
-            workflowId: schema.templates.workflowId,
             name: schema.templates.name,
             short_description: schema.templates.short_description,
             long_description: schema.templates.long_description,
@@ -84,7 +82,7 @@ export async function GET(request: NextRequest) {
             updatedAt: schema.templates.updatedAt,
           })
           .from(schema.templates)
-          .where(eq(schema.templates.workflowId, workflowId))
+          .where(eq(schema.templates.id, workflowId))
           .limit(1)
           .then((rows) => rows[0])
       }
@@ -117,7 +115,6 @@ export async function GET(request: NextRequest) {
         templateEntry = await db
           .select({
             id: schema.templates.id,
-            workflowId: schema.templates.workflowId,
             name: schema.templates.name,
             short_description: schema.templates.short_description,
             long_description: schema.templates.long_description,
@@ -138,7 +135,6 @@ export async function GET(request: NextRequest) {
         templateEntry = await db
           .select({
             id: schema.templates.id,
-            workflowId: schema.templates.workflowId,
             name: schema.templates.name,
             short_description: schema.templates.short_description,
             long_description: schema.templates.long_description,
@@ -188,7 +184,6 @@ export async function GET(request: NextRequest) {
     // Define common fields to select
     const baseFields = {
       id: schema.templates.id,
-      workflowId: schema.templates.workflowId,
       name: schema.templates.name,
       short_description: schema.templates.short_description,
       long_description: schema.templates.long_description,
