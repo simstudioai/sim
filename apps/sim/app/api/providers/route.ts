@@ -12,7 +12,16 @@ export const dynamic = 'force-dynamic'
  * Server-side proxy for provider requests
  */
 export async function POST(request: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const startTime = Date.now()
+
   try {
+    logger.info(`[${requestId}] Provider API request started`, {
+      timestamp: new Date().toISOString(),
+      userAgent: request.headers.get('User-Agent'),
+      contentType: request.headers.get('Content-Type'),
+    })
+
     const body = await request.json()
     const {
       provider,
@@ -29,16 +38,43 @@ export async function POST(request: NextRequest) {
       messages,
     } = body
 
+    logger.info(`[${requestId}] Provider request details`, {
+      provider,
+      model,
+      hasSystemPrompt: !!systemPrompt,
+      hasContext: !!context,
+      hasTools: !!tools?.length,
+      toolCount: tools?.length || 0,
+      hasApiKey: !!apiKey,
+      hasResponseFormat: !!responseFormat,
+      workflowId,
+      stream: !!stream,
+      hasMessages: !!messages?.length,
+      messageCount: messages?.length || 0,
+    })
+
     let finalApiKey: string
     try {
       finalApiKey = getApiKey(provider, model, apiKey)
     } catch (error) {
-      logger.error('Failed to get API key:', error)
+      logger.error(`[${requestId}] Failed to get API key:`, {
+        provider,
+        model,
+        error: error instanceof Error ? error.message : String(error),
+        hasProvidedApiKey: !!apiKey,
+      })
       return NextResponse.json(
         { error: error instanceof Error ? error.message : 'API key error' },
         { status: 400 }
       )
     }
+
+    logger.info(`[${requestId}] Executing provider request`, {
+      provider,
+      model,
+      workflowId,
+      hasApiKey: !!finalApiKey,
+    })
 
     // Execute provider request directly with the managed key
     const response = await executeProviderRequest(provider, {
@@ -55,6 +91,20 @@ export async function POST(request: NextRequest) {
       messages,
     })
 
+    const executionTime = Date.now() - startTime
+    logger.info(`[${requestId}] Provider request completed successfully`, {
+      provider,
+      model,
+      workflowId,
+      executionTime,
+      responseType:
+        response instanceof ReadableStream
+          ? 'stream'
+          : response && typeof response === 'object' && 'stream' in response
+            ? 'streaming-execution'
+            : 'json',
+    })
+
     // Check if the response is a StreamingExecution
     if (
       response &&
@@ -63,7 +113,7 @@ export async function POST(request: NextRequest) {
       'execution' in response
     ) {
       const streamingExec = response as StreamingExecution
-      logger.info('Received StreamingExecution from provider')
+      logger.info(`[${requestId}] Received StreamingExecution from provider`)
 
       // Extract the stream and execution data
       const stream = streamingExec.stream
@@ -110,7 +160,7 @@ export async function POST(request: NextRequest) {
         }
         executionDataHeader = JSON.stringify(safeExecutionData)
       } catch (error) {
-        logger.error('Failed to serialize execution data:', error)
+        logger.error(`[${requestId}] Failed to serialize execution data:`, error)
         executionDataHeader = JSON.stringify({
           success: executionData.success,
           error: 'Failed to serialize full execution data',
@@ -130,7 +180,7 @@ export async function POST(request: NextRequest) {
 
     // Check if the response is a ReadableStream for streaming
     if (response instanceof ReadableStream) {
-      logger.info('Streaming response from provider')
+      logger.info(`[${requestId}] Streaming response from provider`)
       return new Response(response, {
         headers: {
           'Content-Type': 'text/event-stream',
@@ -143,7 +193,15 @@ export async function POST(request: NextRequest) {
     // Return regular JSON response for non-streaming
     return NextResponse.json(response)
   } catch (error) {
-    logger.error('Provider request failed:', error)
+    const executionTime = Date.now() - startTime
+    logger.error(`[${requestId}] Provider request failed:`, {
+      error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : 'Unknown',
+      errorStack: error instanceof Error ? error.stack : undefined,
+      executionTime,
+      timestamp: new Date().toISOString(),
+    })
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },
       { status: 500 }

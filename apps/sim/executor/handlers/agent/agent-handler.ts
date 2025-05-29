@@ -344,25 +344,58 @@ export class AgentBlockHandler implements BlockHandler {
     const url = new URL('/api/providers', baseUrl)
 
     try {
+      logger.info(`Making provider request to: ${url.toString()}`, {
+        workflowId: context.workflowId,
+        blockId: block.id,
+        provider: providerId,
+        model,
+        timestamp: new Date().toISOString(),
+      })
+
       const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(providerRequest),
+        // Add timeout and signal for better error handling
+        signal: AbortSignal.timeout(120000), // 2 minute timeout
       })
 
       if (!response.ok) {
         // Try to extract a helpful error message
         let errorMessage = `Provider API request failed with status ${response.status}`
+        let errorDetails = null
+
         try {
           const errorData = await response.json()
           if (errorData.error) {
             errorMessage = errorData.error
+            errorDetails = errorData
           }
         } catch (_e) {
-          // If JSON parsing fails, use the original error message
+          // If JSON parsing fails, try to get text response
+          try {
+            const textError = await response.text()
+            if (textError) {
+              errorDetails = { textResponse: textError }
+            }
+          } catch (_textError) {
+            // If text parsing also fails, use the original error message
+          }
         }
+
+        logger.error('Provider API request failed', {
+          workflowId: context.workflowId,
+          blockId: block.id,
+          status: response.status,
+          statusText: response.statusText,
+          url: url.toString(),
+          errorMessage,
+          errorDetails,
+          headers: Object.fromEntries(response.headers.entries()),
+        })
+
         throw new Error(errorMessage)
       }
 
@@ -579,6 +612,50 @@ export class AgentBlockHandler implements BlockHandler {
       }
     } catch (error) {
       logger.error('Error executing provider request:', { error })
+
+      // Enhanced error logging for different error types
+      if (error instanceof Error) {
+        logger.error('Provider request error details', {
+          workflowId: context.workflowId,
+          blockId: block.id,
+          errorName: error.name,
+          errorMessage: error.message,
+          errorStack: error.stack,
+          url: url.toString(),
+          timestamp: new Date().toISOString(),
+        })
+
+        // Check for specific error types
+        if (error.name === 'AbortError') {
+          logger.error('Request timed out after 2 minutes', {
+            workflowId: context.workflowId,
+            blockId: block.id,
+            url: url.toString(),
+          })
+          throw new Error('Provider request timed out - the API took too long to respond')
+        }
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+          logger.error('Network fetch error - possible connectivity issue', {
+            workflowId: context.workflowId,
+            blockId: block.id,
+            url: url.toString(),
+            errorMessage: error.message,
+          })
+          throw new Error(
+            'Network error - unable to connect to provider API. Please check your internet connection.'
+          )
+        }
+        if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
+          logger.error('DNS/Connection error', {
+            workflowId: context.workflowId,
+            blockId: block.id,
+            url: url.toString(),
+            errorMessage: error.message,
+          })
+          throw new Error('Unable to connect to server - DNS or connection issue')
+        }
+      }
+
       throw error
     }
   }
