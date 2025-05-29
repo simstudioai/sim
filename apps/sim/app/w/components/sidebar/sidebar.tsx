@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { HelpCircle, LibraryBig, ScrollText, Send, Settings } from 'lucide-react'
+import { HelpCircle, ScrollText, Send, Settings, Home, Shapes, Store, LibraryBig } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -187,33 +187,6 @@ export function Sidebar() {
         />
       </div>
 
-      {/* Main navigation - Fixed at top below header */}
-      {/* <div className="flex-shrink-0 px-2 pt-0">
-        <NavSection isLoading={isLoading} itemCount={2} isCollapsed={isCollapsed}>
-          <NavSection.Item
-            icon={<Home className="h-[18px] w-[18px]" />}
-            href="/w/1"
-            label="Home"
-            active={pathname === '/w/1'}
-            isCollapsed={isCollapsed}
-          />
-          <NavSection.Item
-            icon={<Shapes className="h-[18px] w-[18px]" />}
-            href="/w/templates"
-            label="Templates"
-            active={pathname === '/w/templates'}
-            isCollapsed={isCollapsed}
-          />
-          <NavSection.Item
-            icon={<Store className="h-[18px] w-[18px]" />}
-            href="/w/marketplace"
-            label="Marketplace"
-            active={pathname === '/w/marketplace'}
-            isCollapsed={isCollapsed}
-          />
-        </NavSection>
-      </div> */}
-
       {/* Scrollable Content Area - Contains Workflows and Logs/Settings */}
       <div className='scrollbar-none flex flex-1 flex-col overflow-auto px-2 py-0'>
         {/* Workflows Section */}
@@ -240,9 +213,9 @@ export function Sidebar() {
           />
         </div>
 
-        {/* Logs and Settings Navigation - Follows workflows */}
+        {/* Logs, Settings, Templates, Marketplace Navigation - Follows workflows */}
         <div className='mt-6 flex-shrink-0'>
-          <NavSection isLoading={isLoading} itemCount={3} isCollapsed={isCollapsed}>
+          <NavSection isLoading={isLoading} itemCount={4} isCollapsed={isCollapsed}>      
             <NavSection.Item
               icon={<ScrollText className='h-[18px] w-[18px]' />}
               href='/w/logs'
@@ -267,6 +240,20 @@ export function Sidebar() {
               label='Settings'
               isCollapsed={isCollapsed}
             />
+            <NavSection.Item
+              icon={<Shapes className="h-[18px] w-[18px]" />}
+              href="/w/templates"
+              label="Templates"
+              active={pathname === '/w/templates'}
+              isCollapsed={isCollapsed}
+            />
+            {/* <NavSection.Item
+              icon={<Store className="h-[18px] w-[18px]" />}
+              href="/w/marketplace"
+              label="Marketplace"
+              active={pathname === '/w/marketplace'}
+              isCollapsed={isCollapsed}
+            /> */}
           </NavSection>
         </div>
 

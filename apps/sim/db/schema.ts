@@ -127,6 +127,10 @@ export const workflow = pgTable('workflow', {
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
   variables: json('variables').default('{}'),
+  templatesData: json('templates_data'), // Format: { id: string, status: 'owner' | 'temp' }
+
+  // These columns are kept for backward compatibility during migration
+  // @deprecated - Use marketplaceData instead
   isPublished: boolean('is_published').notNull().default(false),
   marketplaceData: json('marketplace_data'),
 })
@@ -368,6 +372,24 @@ export const apiKey = pgTable('api_key', {
 })
 
 export const marketplace = pgTable('marketplace', {
+  id: text('id').primaryKey(),
+  workflowId: text('workflow_id')
+    .notNull()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  state: json('state').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  authorId: text('author_id')
+    .notNull()
+    .references(() => user.id),
+  authorName: text('author_name').notNull(),
+  views: integer('views').notNull().default(0),
+  category: text('category'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const templates = pgTable('templates', {
   id: text('id').primaryKey(),
   workflowId: text('workflow_id')
     .notNull()
