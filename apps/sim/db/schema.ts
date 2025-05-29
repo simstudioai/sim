@@ -650,14 +650,12 @@ export const document = pgTable(
     knowledgeBaseId: text('knowledge_base_id')
       .notNull()
       .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
-
     // File information
     filename: text('filename').notNull(),
     fileUrl: text('file_url').notNull(),
     fileSize: integer('file_size').notNull(), // Size in bytes
     mimeType: text('mime_type').notNull(), // e.g., 'application/pdf', 'text/plain'
     fileHash: text('file_hash'), // SHA-256 hash for deduplication
-
     // Content statistics
     chunkCount: integer('chunk_count').notNull().default(0),
     tokenCount: integer('token_count').notNull().default(0),
