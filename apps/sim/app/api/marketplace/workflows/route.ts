@@ -248,7 +248,6 @@ export async function GET(request: NextRequest) {
 
       // Log what we're fetching
       const categoriesToFetch = Array.from(requestedCategories)
-      logger.info(`[${requestId}] Fetching specific categories: ${categoriesToFetch.join(', ')}`)
 
       // Process each requested category
       await Promise.all(
@@ -262,9 +261,6 @@ export async function GET(request: NextRequest) {
 
           // Always add the category to the result, even if empty
           result.byCategory[categoryValue] = categoryItems
-          logger.info(
-            `[${requestId}] Category ${categoryValue}: found ${categoryItems.length} items`
-          )
         })
       )
     }
