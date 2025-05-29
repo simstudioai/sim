@@ -1,4 +1,5 @@
 import path from 'path'
+import { NextRequest } from 'next/server'
 /**
  * Tests for file parse API route
  *
@@ -6,6 +7,7 @@ import path from 'path'
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
+import { POST } from './route'
 
 // Create actual mocks for path functions that we can use instead of using vi.doMock for path
 const mockJoin = vi.fn((...args: string[]): string => {
@@ -231,5 +233,190 @@ describe('File Parse API Route', () => {
     expect(response.status).toBe(200)
     expect(data).toHaveProperty('success')
     expect(data).toHaveProperty('error')
+  })
+})
+
+describe('Files Parse API - Path Traversal Security', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('Path Traversal Prevention', () => {
+    it('should reject path traversal attempts with .. segments', async () => {
+      const maliciousRequests = [
+        '../../../etc/passwd',
+        '/api/files/serve/../../../etc/passwd',
+        '/api/files/serve/../../app.js',
+        '/api/files/serve/../.env',
+        'uploads/../../../etc/hosts',
+      ]
+
+      for (const maliciousPath of maliciousRequests) {
+        const request = new NextRequest('http://localhost:3000/api/files/parse', {
+          method: 'POST',
+          body: JSON.stringify({
+            filePath: maliciousPath,
+          }),
+        })
+
+        const response = await POST(request)
+        const result = await response.json()
+
+        expect(result.success).toBe(false)
+        expect(result.error).toMatch(/Access denied|Invalid path|Path outside allowed directory/)
+      }
+    })
+
+    it('should reject paths with tilde characters', async () => {
+      const maliciousPaths = [
+        '~/../../etc/passwd',
+        '/api/files/serve/~/secret.txt',
+        '~root/.ssh/id_rsa',
+      ]
+
+      for (const maliciousPath of maliciousPaths) {
+        const request = new NextRequest('http://localhost:3000/api/files/parse', {
+          method: 'POST',
+          body: JSON.stringify({
+            filePath: maliciousPath,
+          }),
+        })
+
+        const response = await POST(request)
+        const result = await response.json()
+
+        expect(result.success).toBe(false)
+        expect(result.error).toMatch(/Access denied|Invalid path/)
+      }
+    })
+
+    it('should reject absolute paths outside upload directory', async () => {
+      const maliciousPaths = [
+        '/etc/passwd',
+        '/root/.bashrc',
+        '/app/.env',
+        '/var/log/auth.log',
+        'C:\\Windows\\System32\\drivers\\etc\\hosts', // Windows path
+      ]
+
+      for (const maliciousPath of maliciousPaths) {
+        const request = new NextRequest('http://localhost:3000/api/files/parse', {
+          method: 'POST',
+          body: JSON.stringify({
+            filePath: maliciousPath,
+          }),
+        })
+
+        const response = await POST(request)
+        const result = await response.json()
+
+        expect(result.success).toBe(false)
+        expect(result.error).toMatch(/Access denied|Path outside allowed directory/)
+      }
+    })
+
+    it('should allow valid paths within upload directory', async () => {
+      // Test that valid paths don't trigger path validation errors
+      const validPaths = [
+        '/api/files/serve/document.txt',
+        '/api/files/serve/folder/file.pdf',
+        '/api/files/serve/subfolder/image.png',
+      ]
+
+      for (const validPath of validPaths) {
+        const request = new NextRequest('http://localhost:3000/api/files/parse', {
+          method: 'POST',
+          body: JSON.stringify({
+            filePath: validPath,
+          }),
+        })
+
+        const response = await POST(request)
+        const result = await response.json()
+
+        // Should not fail due to path validation (may fail for other reasons like file not found)
+        if (result.error) {
+          expect(result.error).not.toMatch(
+            /Access denied|Path outside allowed directory|Invalid path/
+          )
+        }
+      }
+    })
+
+    it('should handle encoded path traversal attempts', async () => {
+      const encodedMaliciousPaths = [
+        '/api/files/serve/%2e%2e%2f%2e%2e%2fetc%2fpasswd', // ../../../etc/passwd
+        '/api/files/serve/..%2f..%2f..%2fetc%2fpasswd',
+        '/api/files/serve/%2e%2e/%2e%2e/etc/passwd',
+      ]
+
+      for (const maliciousPath of encodedMaliciousPaths) {
+        const request = new NextRequest('http://localhost:3000/api/files/parse', {
+          method: 'POST',
+          body: JSON.stringify({
+            filePath: decodeURIComponent(maliciousPath), // Simulate URL decoding
+          }),
+        })
+
+        const response = await POST(request)
+        const result = await response.json()
+
+        expect(result.success).toBe(false)
+        expect(result.error).toMatch(/Access denied|Invalid path|Path outside allowed directory/)
+      }
+    })
+
+    it('should handle null byte injection attempts', async () => {
+      const nullBytePaths = [
+        '/api/files/serve/file.txt\0../../etc/passwd',
+        'file.txt\0/etc/passwd',
+        '/api/files/serve/document.pdf\0/var/log/auth.log',
+      ]
+
+      for (const maliciousPath of nullBytePaths) {
+        const request = new NextRequest('http://localhost:3000/api/files/parse', {
+          method: 'POST',
+          body: JSON.stringify({
+            filePath: maliciousPath,
+          }),
+        })
+
+        const response = await POST(request)
+        const result = await response.json()
+
+        expect(result.success).toBe(false)
+        // Should be rejected either by path validation or file system access
+      }
+    })
+  })
+
+  describe('Edge Cases', () => {
+    it('should handle empty file paths', async () => {
+      const request = new NextRequest('http://localhost:3000/api/files/parse', {
+        method: 'POST',
+        body: JSON.stringify({
+          filePath: '',
+        }),
+      })
+
+      const response = await POST(request)
+      const result = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(result.error).toBe('No file path provided')
+    })
+
+    it('should handle missing filePath parameter', async () => {
+      const request = new NextRequest('http://localhost:3000/api/files/parse', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+
+      const response = await POST(request)
+      const result = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(result.error).toBe('No file path provided')
+    })
   })
 })

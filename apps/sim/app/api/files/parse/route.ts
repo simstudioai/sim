@@ -530,6 +530,57 @@ async function parseBufferAsPdf(buffer: Buffer) {
 }
 
 /**
+ * Validate that a file path is safe and within allowed directories
+ */
+function validateAndResolvePath(inputPath: string): {
+  isValid: boolean
+  resolvedPath?: string
+  error?: string
+} {
+  try {
+    // Extract the filename from API serve paths
+    let targetPath = inputPath
+    if (inputPath.startsWith('/api/files/serve/')) {
+      const filename = inputPath.replace('/api/files/serve/', '')
+      targetPath = path.join(UPLOAD_DIR, filename)
+    }
+
+    // Resolve the absolute path to handle any .. or . segments
+    const resolvedPath = path.resolve(targetPath)
+    const resolvedUploadDir = path.resolve(UPLOAD_DIR)
+
+    // Ensure the resolved path is within the upload directory
+    if (
+      !resolvedPath.startsWith(resolvedUploadDir + path.sep) &&
+      resolvedPath !== resolvedUploadDir
+    ) {
+      return {
+        isValid: false,
+        error: `Access denied: Path outside allowed directory`,
+      }
+    }
+
+    // Additional check for dangerous path segments
+    if (inputPath.includes('..') || inputPath.includes('~')) {
+      return {
+        isValid: false,
+        error: `Access denied: Invalid path characters detected`,
+      }
+    }
+
+    return {
+      isValid: true,
+      resolvedPath,
+    }
+  } catch (error) {
+    return {
+      isValid: false,
+      error: `Path validation error: ${(error as Error).message}`,
+    }
+  }
+}
+
+/**
  * Handle a local file from the filesystem
  */
 async function handleLocalFile(filePath: string, fileType?: string): Promise<ParseResult> {
@@ -542,13 +593,19 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
   try {
     logger.info(`Handling local file: ${filePath}`)
 
-    // Extract the filename from the path for API serve paths
-    let localFilePath = filePath
-    if (filePath.startsWith('/api/files/serve/')) {
-      const filename = filePath.replace('/api/files/serve/', '')
-      localFilePath = path.join(UPLOAD_DIR, filename)
-      logger.info(`Resolved API path to local file: ${localFilePath}`)
+    // Validate and resolve the file path to prevent directory traversal
+    const pathValidation = validateAndResolvePath(filePath)
+    if (!pathValidation.isValid) {
+      logger.error(`Path validation failed: ${pathValidation.error}`, { filePath })
+      return {
+        success: false,
+        error: pathValidation.error || 'Invalid file path',
+        filePath,
+      }
     }
+
+    const localFilePath = pathValidation.resolvedPath!
+    logger.info(`Validated and resolved path: ${localFilePath}`)
 
     // Make sure the file is actually a file that exists
     try {
