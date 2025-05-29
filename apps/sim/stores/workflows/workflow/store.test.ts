@@ -282,13 +282,10 @@ describe('workflow store', () => {
     it('should preserve systemPrompt and userPrompt when switching modes', () => {
       const { addBlock, toggleBlockAdvancedMode } = useWorkflowStore.getState()
       const { setState: setSubBlockState } = useSubBlockStore
-
       // Set up a mock active workflow
       useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
-
       // Add an agent block
       addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
-
       // Set initial values in basic mode
       setSubBlockState({
         workflowValues: {
@@ -300,12 +297,20 @@ describe('workflow store', () => {
           },
         },
       })
-
       // Toggle to advanced mode
       toggleBlockAdvancedMode('agent1')
-
-      // Check that prompts are preserved
-      const subBlockState = useSubBlockStore.getState()
+      // Check that prompts are preserved in advanced mode
+      let subBlockState = useSubBlockStore.getState()
+      expect(subBlockState.workflowValues['test-workflow'].agent1.systemPrompt).toBe(
+        'You are a helpful assistant'
+      )
+      expect(subBlockState.workflowValues['test-workflow'].agent1.userPrompt).toBe(
+        'Hello, how are you?'
+      )
+      // Toggle back to basic mode
+      toggleBlockAdvancedMode('agent1')
+      // Check that prompts are still preserved
+      subBlockState = useSubBlockStore.getState()
       expect(subBlockState.workflowValues['test-workflow'].agent1.systemPrompt).toBe(
         'You are a helpful assistant'
       )
@@ -367,6 +372,7 @@ describe('workflow store', () => {
       addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
 
       // Toggle modes without any subblock values set
+      expect(useWorkflowStore.getState().blocks.agent1?.advancedMode).toBeUndefined()
       expect(() => toggleBlockAdvancedMode('agent1')).not.toThrow()
 
       // Verify the mode changed

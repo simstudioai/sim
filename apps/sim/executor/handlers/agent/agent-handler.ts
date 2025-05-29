@@ -202,16 +202,48 @@ export class AgentBlockHandler implements BlockHandler {
         messages.push(...memoryMessages)
       }
 
-      // Add system prompt as first message ONLY if there are no existing messages or no system message exists
-      const hasSystemMessage = messages.some((msg) => msg.role === 'system')
-      if (inputs.systemPrompt && !hasSystemMessage) {
-        messages.unshift({
+      // Handle system prompt with clear precedence rules
+      if (inputs.systemPrompt) {
+        // Check for existing system messages in memories
+        const systemMessages = messages.filter((msg) => msg.role === 'system')
+
+        if (systemMessages.length > 1) {
+          logger.warn(
+            `Found ${systemMessages.length} system messages in memories. Explicit systemPrompt will take precedence.`
+          )
+        } else if (systemMessages.length === 1) {
+          logger.info(
+            'Found system message in memories. Explicit systemPrompt will take precedence.'
+          )
+        }
+
+        // Remove any existing system messages and add the explicit one at the beginning
+        messages.splice(0, 0, {
           role: 'system',
           content: inputs.systemPrompt,
         })
-        logger.info('Added system prompt to beginning of messages')
-      } else if (inputs.systemPrompt && hasSystemMessage) {
-        logger.info('System message already exists in memories, skipping system prompt addition')
+
+        // Remove any other system messages that came from memories
+        for (let i = messages.length - 1; i >= 1; i--) {
+          if (messages[i].role === 'system') {
+            messages.splice(i, 1)
+          }
+        }
+
+        logger.info(
+          'Added explicit system prompt as first message, removed any system messages from memories'
+        )
+      } else {
+        // No explicit system prompt provided, check for multiple system messages in memories
+        const systemMessages = messages.filter((msg) => msg.role === 'system')
+
+        if (systemMessages.length > 1) {
+          logger.warn(
+            `Found ${systemMessages.length} system messages in memories with no explicit systemPrompt. Consider providing an explicit systemPrompt for consistent behavior.`
+          )
+        } else if (systemMessages.length === 1) {
+          logger.info('Using system message from memories')
+        }
       }
 
       if (inputs.userPrompt) {

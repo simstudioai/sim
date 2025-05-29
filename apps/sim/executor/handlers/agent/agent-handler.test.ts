@@ -1019,6 +1019,133 @@ describe('AgentBlockHandler', () => {
       expect(systemMessages[0].content).toBe('You are a helpful assistant.')
     })
 
+    it('should prioritize explicit systemPrompt over system messages in memories', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        systemPrompt: 'You are a helpful assistant.',
+        userPrompt: 'What should I do?',
+        memories: [
+          { role: 'system', content: 'Old system message from memories.' },
+          { role: 'user', content: 'Hello!' },
+          { role: 'assistant', content: 'Hi there!' },
+        ],
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify messages were built correctly
+      expect(requestBody.messages).toBeDefined()
+      expect(requestBody.messages.length).toBe(4) // explicit system + 2 non-system memories + user prompt
+
+      // Check only one system message exists and it's the explicit one
+      const systemMessages = requestBody.messages.filter((msg: any) => msg.role === 'system')
+      expect(systemMessages.length).toBe(1)
+      expect(systemMessages[0].content).toBe('You are a helpful assistant.')
+
+      // Verify the explicit system prompt is first
+      expect(requestBody.messages[0].role).toBe('system')
+      expect(requestBody.messages[0].content).toBe('You are a helpful assistant.')
+
+      // Verify conversation order is preserved
+      expect(requestBody.messages[1].role).toBe('user')
+      expect(requestBody.messages[1].content).toBe('Hello!')
+      expect(requestBody.messages[2].role).toBe('assistant')
+      expect(requestBody.messages[2].content).toBe('Hi there!')
+      expect(requestBody.messages[3].role).toBe('user')
+      expect(requestBody.messages[3].content).toBe('What should I do?')
+    })
+
+    it('should handle multiple system messages in memories with explicit systemPrompt', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        systemPrompt: 'You are a helpful assistant.',
+        userPrompt: 'Continue our conversation.',
+        memories: [
+          { role: 'system', content: 'First system message.' },
+          { role: 'user', content: 'Hello!' },
+          { role: 'system', content: 'Second system message.' },
+          { role: 'assistant', content: 'Hi there!' },
+          { role: 'system', content: 'Third system message.' },
+        ],
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify messages were built correctly
+      expect(requestBody.messages).toBeDefined()
+      expect(requestBody.messages.length).toBe(4) // explicit system + 2 non-system memories + user prompt
+
+      // Check only one system message exists and message order is preserved
+      const systemMessages = requestBody.messages.filter((msg: any) => msg.role === 'system')
+      expect(systemMessages.length).toBe(1)
+      expect(systemMessages[0].content).toBe('You are a helpful assistant.')
+
+      // Verify conversation flow is preserved
+      expect(requestBody.messages[0].role).toBe('system')
+      expect(requestBody.messages[0].content).toBe('You are a helpful assistant.')
+      expect(requestBody.messages[1].role).toBe('user')
+      expect(requestBody.messages[1].content).toBe('Hello!')
+      expect(requestBody.messages[2].role).toBe('assistant')
+      expect(requestBody.messages[2].content).toBe('Hi there!')
+      expect(requestBody.messages[3].role).toBe('user')
+      expect(requestBody.messages[3].content).toBe('Continue our conversation.')
+    })
+
+    it('should preserve multiple system messages when no explicit systemPrompt is provided', async () => {
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'What should I do?',
+        memories: [
+          { role: 'system', content: 'First system message.' },
+          { role: 'user', content: 'Hello!' },
+          { role: 'system', content: 'Second system message.' },
+          { role: 'assistant', content: 'Hi there!' },
+        ],
+        apiKey: 'test-api-key',
+      }
+
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Verify messages were built correctly
+      expect(requestBody.messages).toBeDefined()
+      expect(requestBody.messages.length).toBe(5) // 2 system + 2 non-system memories + user prompt
+
+      // Check that multiple system messages are preserved when no explicit systemPrompt
+      const systemMessages = requestBody.messages.filter((msg: any) => msg.role === 'system')
+      expect(systemMessages.length).toBe(2)
+      expect(systemMessages[0].content).toBe('First system message.')
+      expect(systemMessages[1].content).toBe('Second system message.')
+
+      // Verify original order is preserved
+      expect(requestBody.messages[0].role).toBe('system')
+      expect(requestBody.messages[0].content).toBe('First system message.')
+      expect(requestBody.messages[1].role).toBe('user')
+      expect(requestBody.messages[1].content).toBe('Hello!')
+      expect(requestBody.messages[2].role).toBe('system')
+      expect(requestBody.messages[2].content).toBe('Second system message.')
+      expect(requestBody.messages[3].role).toBe('assistant')
+      expect(requestBody.messages[3].content).toBe('Hi there!')
+      expect(requestBody.messages[4].role).toBe('user')
+      expect(requestBody.messages[4].content).toBe('What should I do?')
+    })
+
     it('should handle user prompt as object with input field', async () => {
       const inputs = {
         model: 'gpt-4o',
@@ -1044,6 +1171,7 @@ describe('AgentBlockHandler', () => {
 
       expect(requestBody.messages[1].role).toBe('user')
       expect(requestBody.messages[1].content).toBe('What is the weather like?')
+      expect(requestBody.messages[1]).not.toHaveProperty('conversationId')
     })
   })
 })
