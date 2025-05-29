@@ -3,6 +3,7 @@ import {
   Atom,
   BotMessageSquare,
   Brain,
+  ChartBar,
   Code,
   Database,
   LineChart,
@@ -22,6 +23,12 @@ export const CATEGORIES: Category[] = [
     value: 'data',
     label: 'Data Analysis',
     icon: <Database className='mr-2 h-4 w-4' />,
+    color: '#0ea5e9', // sky-500
+  },
+  {
+    value: 'management',
+    label: 'Management',
+    icon: <ChartBar className='mr-2 h-4 w-4' />,
     color: '#0ea5e9', // sky-500
   },
   {

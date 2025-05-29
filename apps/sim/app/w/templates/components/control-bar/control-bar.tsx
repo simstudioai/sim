@@ -22,6 +22,8 @@ import {
   getCategoryHoverColor,
   type CategoryGroup 
 } from '../../constants/categories'
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
+import { SavedModal } from './components/saved-modal/saved-modal'
 
 interface TemplatesHeaderProps {
   setSearchQuery: (query: string) => void
@@ -43,6 +45,7 @@ export function TemplatesHeader({
   const [activeNavigation, setActiveNavigation] = useState<NavigationItem>('discover')
   const [visibleCategories, setVisibleCategories] = useState<string[]>([])
   const debouncedSearchQuery = useDebounce(localSearchQuery, 300)
+  const [showSavedModal, setShowSavedModal] = useState(false)
 
   // Update parent component when debounced search query changes
   useEffect(() => {
@@ -146,7 +149,12 @@ export function TemplatesHeader({
           </Button>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setShowSavedModal(true)}
+          >
             <Heart className="h-4 w-4 mr-2" />
             Saved
           </Button>
@@ -183,7 +191,8 @@ export function TemplatesHeader({
       </div>
 
       {/* Category Pills Row */}
-      <div className="px-6 pb-4">
+      <div className="px-6 pb-4 overflow-hidden">
+      <ScrollArea className="h-[50px] whitespace-nowrap"> 
         <div className="flex flex-wrap gap-2">
           {visibleCategories.map((categoryValue) => {
             const isSpecial = categoryValue === 'popular' || categoryValue === 'recent'
@@ -213,15 +222,22 @@ export function TemplatesHeader({
                     : {}
                 }
               >
-                <div className="flex items-center">
-                  {getCategoryIcon(categoryValue)}
-                  {getCategoryLabel(categoryValue)}
-                </div>
+                  <div className="flex items-center">
+                    {getCategoryIcon(categoryValue)}
+                    {getCategoryLabel(categoryValue)}
+                  </div>
               </Button>
             )
           })}
         </div>
+        <ScrollBar orientation="horizontal" />
+        </ScrollArea>
       </div>
+
+      <SavedModal 
+        open={showSavedModal} 
+        onOpenChange={setShowSavedModal} 
+      />
     </div>
   )
 } 

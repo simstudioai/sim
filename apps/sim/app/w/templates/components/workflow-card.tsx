@@ -7,7 +7,7 @@ import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { Workflow } from '@/app/w/templates/templates'
+import { Workflow } from '../types'
 
 const logger = createLogger('WorkflowCard')
 
