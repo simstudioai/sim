@@ -69,7 +69,6 @@ export async function GET(
     const similarTemplates = await db
       .select({
         id: schema.templates.id,
-        workflowId: schema.templates.workflowId,
         name: schema.templates.name,
         short_description: schema.templates.short_description,
         long_description: schema.templates.long_description,

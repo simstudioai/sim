@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Eye, Heart, Share2, Download } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,27 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   const { createWorkflow } = useWorkflowRegistry()
   const [isUsing, setIsUsing] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isLoadingSavedStatus, setIsLoadingSavedStatus] = useState(true)
+
+  // Check initial saved status when component mounts
+  useEffect(() => {
+    const checkSavedStatus = async () => {
+      try {
+        const response = await fetch(`/api/templates/${template.id}/saved-status`)
+        if (response.ok) {
+          const data = await response.json()
+          setIsSaved(data.saved)
+        }
+      } catch (error) {
+        logger.error('Error checking saved status:', error)
+      } finally {
+        setIsLoadingSavedStatus(false)
+      }
+    }
+
+    checkSavedStatus()
+  }, [template.id])
 
   // Handle using the template
   const handleUseTemplate = async () => {
@@ -53,16 +74,37 @@ export function TemplateHero({ template }: TemplateHeroProps) {
     }
   }
 
-  // Handle saving template (placeholder)
-  const handleSaveTemplate = () => {
-    setIsSaved(!isSaved)
-    // TODO: Implement save functionality
+  // Handle saving/unsaving template
+  const handleSaveTemplate = async () => {
+    if (isSaving) return
+
+    setIsSaving(true)
+    try {
+      const method = isSaved ? 'DELETE' : 'POST'
+      const response = await fetch(`/api/templates/${template.id}/save`, {
+        method,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || `Failed to ${isSaved ? 'unsave' : 'save'} template`)
+      }
+
+      const newSavedState = !isSaved
+      setIsSaved(newSavedState)
+
+      logger.info(`Template ${template.id} ${newSavedState ? 'saved' : 'unsaved'} successfully`)
+    } catch (error: any) {
+      logger.error('Error toggling save state:', error)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   // Handle sharing template (placeholder)
   const handleShareTemplate = () => {
     navigator.clipboard.writeText(window.location.href)
-    // TODO: Show toast notification
+    logger.info('Template URL copied to clipboard')
   }
 
   // Format creation date
@@ -166,10 +208,11 @@ export function TemplateHero({ template }: TemplateHeroProps) {
           variant="outline" 
           size="default"
           onClick={handleSaveTemplate}
+          disabled={isSaving || isLoadingSavedStatus}
           className={isSaved ? 'bg-accent' : ''}
         >
           <Heart className={`mr-2 h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
-          {isSaved ? 'Saved' : 'Save'}
+          {isLoadingSavedStatus ? 'Loading...' : isSaving ? 'Saving...' : isSaved ? 'Saved' : 'Save'}
         </Button>
         
         <Button 

@@ -13,20 +13,7 @@ interface TemplatePreviewProps {
 
 export function TemplatePreview({ template }: TemplatePreviewProps) {
   const [showSubBlocks, setShowSubBlocks] = useState(true)
-  const [zoom, setZoom] = useState(1)
   const [isFullscreen, setIsFullscreen] = useState(false)
-
-  const handleZoomIn = () => {
-    setZoom(prev => Math.min(prev + 0.2, 2))
-  }
-
-  const handleZoomOut = () => {
-    setZoom(prev => Math.max(prev - 0.2, 0.5))
-  }
-
-  const handleResetZoom = () => {
-    setZoom(1)
-  }
 
   const handleToggleSubBlocks = () => {
     setShowSubBlocks(prev => !prev)
@@ -93,7 +80,6 @@ export function TemplatePreview({ template }: TemplatePreviewProps) {
               height="100%"
               width="100%"
               isPannable={true}
-              defaultZoom={zoom}
               defaultPosition={{ x: 0, y: 0 }}
             />
           </div>
