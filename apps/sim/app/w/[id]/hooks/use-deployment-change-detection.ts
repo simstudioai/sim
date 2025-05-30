@@ -41,6 +41,11 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
       logger.debug(`Checking for changes in workflow ${requestedWorkflowId}`)
 
       try {
+        // Force immediate sync to ensure database has the latest subBlock values
+        // This is important because subBlock changes have a debounced sync delay
+        const { workflowSync } = await import('@/stores/workflows/sync')
+        await workflowSync.sync()
+
         // Get the deployed state from the API
         const response = await fetch(`/api/workflows/${requestedWorkflowId}/status`)
         if (response.ok) {
@@ -121,31 +126,18 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
     // Subscribe to workflow store changes
     const workflowUnsubscribe = useWorkflowStore.subscribe(debouncedCheck)
 
-    // Also subscribe to subblock store changes
-    const subBlockUnsubscribe = useSubBlockStore.subscribe((state) => {
-      // Only check for the active workflow when it's deployed
-      if (!activeWorkflowId || !isDeployed) return
+    // Subscribe to subBlock store changes to detect subBlock value changes
+    const subBlockUnsubscribe = useSubBlockStore.subscribe(debouncedCheck)
 
-      // Skip if the workflow ID has changed since this effect started
-      if (effectWorkflowId !== activeWorkflowId) {
-        return
-      }
-
-      // Only trigger when there is an update to the current workflow's subblocks
-      const workflowSubBlocks = state.workflowValues[effectWorkflowId]
-      if (workflowSubBlocks && Object.keys(workflowSubBlocks).length > 0) {
-        debouncedCheck()
-      }
-    })
-
+    // Cleanup function
     return () => {
+      workflowUnsubscribe()
+      subBlockUnsubscribe()
       if (debounceTimer) {
         clearTimeout(debounceTimer)
       }
-      workflowUnsubscribe()
-      subBlockUnsubscribe()
     }
-  }, [activeWorkflowId, isDeployed, needsRedeployment])
+  }, [activeWorkflowId, isDeployed])
 
   // Initial check on mount or when active workflow changes
   useEffect(() => {
