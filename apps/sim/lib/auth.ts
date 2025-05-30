@@ -261,7 +261,6 @@ export const auth = betterAuth({
                     ) || emails[0]
                   if (primaryEmail) {
                     profile.email = primaryEmail.email
-                    // Add information about email verification
                     profile.emailVerified = primaryEmail.verified || false
                   }
                 } else {
@@ -785,42 +784,66 @@ export const auth = betterAuth({
           tokenUrl: 'https://api.linear.app/oauth/token',
           scopes: ['read', 'write'],
           responseType: 'code',
-          accessType: 'offline',
-          prompt: 'consent',
-          pkce: false,
           redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/linear`,
+          pkce: true,
+          prompt: 'consent',
+          accessType: 'offline',
           getUserInfo: async (tokens) => {
-            const response = await fetch('https://api.linear.app/graphql', {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${tokens.accessToken}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                query: `\n          query {\n            viewer {\n              id\n              name\n              email\n              avatarUrl\n            }\n          }\n        `,
-              }),
-            })
+            try {
+              const response = await fetch('https://api.linear.app/graphql', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+                body: JSON.stringify({
+                  query: `{
+                    viewer {
+                      id
+                      email
+                      name
+                      avatarUrl
+                    }
+                  }`,
+                }),
+              })
 
-            if (!response.ok) {
-              throw new Error('Failed to fetch Linear user info')
-            }
+              if (!response.ok) {
+                const errorText = await response.text()
+                console.error('Linear API error:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  body: errorText,
+                })
+                throw new Error(`Linear API error: ${response.status} ${response.statusText}`)
+              }
 
-            const data = await response.json()
-            if (data.errors && data.errors.length > 0) {
-              throw new Error(data.errors.map((e: any) => e.message).join('; '))
-            }
-            const user = data?.viewer
-            if (!user) throw new Error('No user info returned from Linear')
+              const { data, errors } = await response.json()
 
-            const now = new Date()
-            return {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              image: user.avatarUrl,
-              emailVerified: true,
-              createdAt: now,
-              updatedAt: now,
+              if (errors) {
+                console.error('GraphQL errors:', errors)
+                throw new Error(`GraphQL errors: ${JSON.stringify(errors)}`)
+              }
+
+              if (!data?.viewer) {
+                console.error('No viewer data in response:', data)
+                throw new Error('No viewer data in response')
+              }
+
+              const viewer = data.viewer
+
+              return {
+                id: viewer.id,
+                email: viewer.email,
+                name: viewer.name,
+                emailVerified: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                image: viewer.avatarUrl || null,
+              }
+            } catch (error) {
+              console.error('Error in getUserInfo:', error)
+              throw error
             }
           },
         },
