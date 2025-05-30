@@ -41,7 +41,6 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
       logger.debug(`Checking for changes in workflow ${requestedWorkflowId}`)
 
       try {
-
         // Get the deployed state from the API
         const response = await fetch(`/api/workflows/${requestedWorkflowId}/status`)
         if (response.ok) {
