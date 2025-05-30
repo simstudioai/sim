@@ -153,9 +153,7 @@ function storeApiKeyValue(
 export function useSubBlockValue<T = any>(
   blockId: string,
   subBlockId: string,
-  triggerWorkflowUpdate = false,
-  isPreview = false,
-  directValue?: T
+  triggerWorkflowUpdate = false
 ): readonly [T | null, (value: T) => void] {
   const blockType = useWorkflowStore(
     useCallback((state) => state.blocks?.[blockId]?.type, [blockId])
