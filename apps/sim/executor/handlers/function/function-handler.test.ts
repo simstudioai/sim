@@ -1,11 +1,22 @@
-import '../../__test-utils__/mock-dependencies'
-
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type { BlockOutput } from '@/blocks/types'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import type { ExecutionContext } from '../../types'
 import { FunctionBlockHandler } from './function-handler'
+
+vi.mock('@/lib/logs/console-logger', () => ({
+  createLogger: vi.fn(() => ({
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  })),
+}))
+
+vi.mock('@/tools', () => ({
+  executeTool: vi.fn(),
+}))
 
 const mockExecuteTool = executeTool as Mock
 
@@ -58,10 +69,14 @@ describe('FunctionBlockHandler', () => {
     const inputs = {
       code: 'console.log("Hello"); return 1 + 1;',
       timeout: 10000,
+      envVars: {},
+      isCustomTool: false,
+      workflowId: undefined,
     }
     const expectedToolParams = {
       code: inputs.code,
       timeout: inputs.timeout,
+      envVars: {},
       _context: { workflowId: mockContext.workflowId },
     }
     const expectedOutput: BlockOutput = { response: { result: 'Success' } }
@@ -76,11 +91,15 @@ describe('FunctionBlockHandler', () => {
     const inputs = {
       code: [{ content: 'const x = 5;' }, { content: 'return x * 2;' }],
       timeout: 5000,
+      envVars: {},
+      isCustomTool: false,
+      workflowId: undefined,
     }
     const expectedCode = 'const x = 5;\nreturn x * 2;'
     const expectedToolParams = {
       code: expectedCode,
       timeout: inputs.timeout,
+      envVars: {},
       _context: { workflowId: mockContext.workflowId },
     }
     const expectedOutput: BlockOutput = { response: { result: 'Success' } }
@@ -96,6 +115,7 @@ describe('FunctionBlockHandler', () => {
     const expectedToolParams = {
       code: inputs.code,
       timeout: 5000, // Default timeout
+      envVars: {},
       _context: { workflowId: mockContext.workflowId },
     }
 

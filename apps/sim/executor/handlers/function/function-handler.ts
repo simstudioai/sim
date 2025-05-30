@@ -28,6 +28,7 @@ export class FunctionBlockHandler implements BlockHandler {
     const result = await executeTool('function_execute', {
       code: codeContent,
       timeout: inputs.timeout || 5000,
+      envVars: context.environmentVariables || {},
       _context: { workflowId: context.workflowId },
     })
 

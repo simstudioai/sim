@@ -30,6 +30,21 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
 }: ChatMessageContainerProps) {
   return (
     <div className='relative flex flex-1 flex-col overflow-hidden bg-white'>
+      <style jsx>{`
+        @keyframes growShrink {
+          0%,
+          100% {
+            transform: scale(0.9);
+          }
+          50% {
+            transform: scale(1.1);
+          }
+        }
+        .loading-dot {
+          animation: growShrink 1.5s infinite ease-in-out;
+        }
+      `}</style>
+
       {/* Scrollable Messages Area */}
       <div
         ref={messagesContainerRef}

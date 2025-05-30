@@ -360,6 +360,7 @@ export const openaiProvider: ProviderConfig = {
               ...tool.params,
               ...toolArgs,
               ...(request.workflowId ? { _context: { workflowId: request.workflowId } } : {}),
+              ...(request.environmentVariables ? { envVars: request.environmentVariables } : {}),
             }
 
             const result = await executeTool(toolName, mergedArgs, true)
