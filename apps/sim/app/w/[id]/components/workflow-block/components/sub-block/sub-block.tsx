@@ -46,7 +46,6 @@ export function SubBlock({
     e.stopPropagation()
   }
 
-  const { getValue } = useSubBlockStore()
 
   const isFieldRequired = () => {
     const blockType = useWorkflowStore.getState().blocks[blockId]?.type
