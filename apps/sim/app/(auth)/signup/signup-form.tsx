@@ -28,6 +28,56 @@ const PASSWORD_VALIDATIONS = {
   },
 }
 
+const NAME_VALIDATIONS = {
+  required: {
+    test: (value: string) => Boolean(value && typeof value === 'string'),
+    message: 'Name is required.',
+  },
+  notEmpty: {
+    test: (value: string) => value.trim().length > 0,
+    message: 'Name cannot be empty.',
+  },
+  validCharacters: {
+    regex: /^[\p{L}\s\-']+$/u,
+    message: 'Name can only contain letters, spaces, hyphens, and apostrophes.',
+  },
+  noConsecutiveSpaces: {
+    regex: /^(?!.*\s\s).*$/,
+    message: 'Name cannot contain consecutive spaces.',
+  },
+  noLeadingTrailingSpaces: {
+    test: (value: string) => value === value.trim(),
+    message: 'Name cannot start or end with spaces.',
+  },
+}
+
+const EMAIL_VALIDATIONS = {
+  required: {
+    test: (value: string) => Boolean(value && typeof value === 'string'),
+    message: 'Email is required.',
+  },
+  notEmpty: {
+    test: (value: string) => value.trim().length > 0,
+    message: 'Email cannot be empty.',
+  },
+  maxLength: {
+    test: (value: string) => value.length <= 254,
+    message: 'Email must be less than 254 characters.',
+  },
+  basicFormat: {
+    regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    message: 'Please enter a valid email address.',
+  },
+  noSpaces: {
+    regex: /^[^\s]*$/,
+    message: 'Email cannot contain spaces.',
+  },
+  validStart: {
+    regex: /^[a-zA-Z0-9]/,
+    message: 'Email must start with a letter or number.',
+  },
+}
+
 function SignupFormContent({
   githubAvailable,
   googleAvailable,
@@ -47,9 +97,16 @@ function SignupFormContent({
   const [showValidationError, setShowValidationError] = useState(false)
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState('')
+  const [emailErrors, setEmailErrors] = useState<string[]>([])
+  const [showEmailValidationError, setShowEmailValidationError] = useState(false)
   const [waitlistToken, setWaitlistToken] = useState('')
   const [redirectUrl, setRedirectUrl] = useState('')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
+
+  // Name validation state
+  const [name, setName] = useState('')
+  const [nameErrors, setNameErrors] = useState<string[]>([])
+  const [showNameValidationError, setShowNameValidationError] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -110,7 +167,6 @@ function SignupFormContent({
   const validatePassword = (passwordValue: string): string[] => {
     const errors: string[] = []
 
-    // Check each validation criteria
     if (!PASSWORD_VALIDATIONS.minLength.regex.test(passwordValue)) {
       errors.push(PASSWORD_VALIDATIONS.minLength.message)
     }
@@ -134,6 +190,68 @@ function SignupFormContent({
     return errors
   }
 
+  // Validate name and return array of error messages
+  const validateName = (nameValue: string): string[] => {
+    const errors: string[] = []
+
+    if (!NAME_VALIDATIONS.required.test(nameValue)) {
+      errors.push(NAME_VALIDATIONS.required.message)
+      return errors // Return early for required field
+    }
+
+    if (!NAME_VALIDATIONS.notEmpty.test(nameValue)) {
+      errors.push(NAME_VALIDATIONS.notEmpty.message)
+      return errors // Return early for empty field
+    }
+
+    if (!NAME_VALIDATIONS.validCharacters.regex.test(nameValue.trim())) {
+      errors.push(NAME_VALIDATIONS.validCharacters.message)
+    }
+
+    if (!NAME_VALIDATIONS.noConsecutiveSpaces.regex.test(nameValue)) {
+      errors.push(NAME_VALIDATIONS.noConsecutiveSpaces.message)
+    }
+
+    if (!NAME_VALIDATIONS.noLeadingTrailingSpaces.test(nameValue)) {
+      errors.push(NAME_VALIDATIONS.noLeadingTrailingSpaces.message)
+    }
+
+    return errors
+  }
+
+  // Validate email and return array of error messages
+  const validateEmail = (emailValue: string): string[] => {
+    const errors: string[] = []
+
+    if (!EMAIL_VALIDATIONS.required.test(emailValue)) {
+      errors.push(EMAIL_VALIDATIONS.required.message)
+      return errors // Return early for required field
+    }
+
+    if (!EMAIL_VALIDATIONS.notEmpty.test(emailValue)) {
+      errors.push(EMAIL_VALIDATIONS.notEmpty.message)
+      return errors // Return early for empty field
+    }
+
+    if (!EMAIL_VALIDATIONS.maxLength.test(emailValue)) {
+      errors.push(EMAIL_VALIDATIONS.maxLength.message)
+    }
+
+    if (!EMAIL_VALIDATIONS.noSpaces.regex.test(emailValue)) {
+      errors.push(EMAIL_VALIDATIONS.noSpaces.message)
+    }
+
+    if (!EMAIL_VALIDATIONS.validStart.regex.test(emailValue)) {
+      errors.push(EMAIL_VALIDATIONS.validStart.message)
+    }
+
+    if (!EMAIL_VALIDATIONS.basicFormat.regex.test(emailValue)) {
+      errors.push(EMAIL_VALIDATIONS.basicFormat.message)
+    }
+
+    return errors
+  }
+
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPassword = e.target.value
     setPassword(newPassword)
@@ -144,9 +262,26 @@ function SignupFormContent({
     setShowValidationError(false)
   }
 
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value
+    setName(newName)
+
+    // Silently validate but don't show errors until submit
+    const errors = validateName(newName)
+    setNameErrors(errors)
+    setShowNameValidationError(false)
+  }
+
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEmail(e.target.value)
-    // Clear any previous email errors when the user starts typing
+    const newEmail = e.target.value
+    setEmail(newEmail)
+
+    // Silently validate but don't show errors until submit
+    const errors = validateEmail(newEmail)
+    setEmailErrors(errors)
+    setShowEmailValidationError(false)
+
+    // Clear any previous server-side email errors when the user starts typing
     if (emailError) {
       setEmailError('')
     }
@@ -161,6 +296,16 @@ function SignupFormContent({
     const passwordValue = formData.get('password') as string
     const name = formData.get('name') as string
 
+    // Validate name on submit
+    const nameValidationErrors = validateName(name)
+    setNameErrors(nameValidationErrors)
+    setShowNameValidationError(nameValidationErrors.length > 0)
+
+    // Validate email on submit
+    const emailValidationErrors = validateEmail(emailValue)
+    setEmailErrors(emailValidationErrors)
+    setShowEmailValidationError(emailValidationErrors.length > 0)
+
     // Validate password on submit
     const errors = validatePassword(passwordValue)
     setPasswordErrors(errors)
@@ -169,19 +314,44 @@ function SignupFormContent({
     setShowValidationError(errors.length > 0)
 
     try {
-      if (errors.length > 0) {
-        // Show first error as notification
-        setPasswordErrors([errors[0]])
-        setShowValidationError(true)
+      if (
+        nameValidationErrors.length > 0 ||
+        emailValidationErrors.length > 0 ||
+        errors.length > 0
+      ) {
+        // Prioritize name errors first, then email errors, then password errors
+        if (nameValidationErrors.length > 0) {
+          setNameErrors([nameValidationErrors[0]])
+          setShowNameValidationError(true)
+        }
+        if (emailValidationErrors.length > 0) {
+          setEmailErrors([emailValidationErrors[0]])
+          setShowEmailValidationError(true)
+        }
+        if (errors.length > 0) {
+          setPasswordErrors([errors[0]])
+          setShowValidationError(true)
+        }
         setIsLoading(false)
         return
       }
+
+      // Check if name will be truncated and warn user
+      const trimmedName = name.trim()
+      if (trimmedName.length > 100) {
+        setNameErrors(['Name will be truncated to 100 characters. Please shorten your name.'])
+        setShowNameValidationError(true)
+        setIsLoading(false)
+        return
+      }
+
+      const sanitizedName = trimmedName
 
       const response = await client.signUp.email(
         {
           email: emailValue,
           password: passwordValue,
-          name,
+          name: sanitizedName,
         },
         {
           onError: (ctx) => {
@@ -311,12 +481,26 @@ function SignupFormContent({
                   id='name'
                   name='name'
                   placeholder='Enter your name'
-                  required
                   type='text'
                   autoCapitalize='words'
                   autoComplete='name'
-                  className='border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60'
+                  title='Name can only contain letters, spaces, hyphens, and apostrophes'
+                  value={name}
+                  onChange={handleNameChange}
+                  className={cn(
+                    'border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60',
+                    showNameValidationError &&
+                      nameErrors.length > 0 &&
+                      'border-red-500 focus-visible:ring-red-500'
+                  )}
                 />
+                {showNameValidationError && nameErrors.length > 0 && (
+                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                    {nameErrors.map((error, index) => (
+                      <p key={index}>{error}</p>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className='space-y-2'>
                 <Label htmlFor='email' className='text-neutral-300'>
@@ -326,8 +510,6 @@ function SignupFormContent({
                   id='email'
                   name='email'
                   placeholder='Enter your email'
-                  required
-                  type='email'
                   autoCapitalize='none'
                   autoComplete='email'
                   autoCorrect='off'
@@ -335,10 +517,18 @@ function SignupFormContent({
                   onChange={handleEmailChange}
                   className={cn(
                     'border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60',
-                    emailError && 'border-red-500 focus-visible:ring-red-500'
+                    (emailError || (showEmailValidationError && emailErrors.length > 0)) &&
+                      'border-red-500 focus-visible:ring-red-500'
                   )}
                 />
-                {emailError && (
+                {showEmailValidationError && emailErrors.length > 0 && (
+                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                    {emailErrors.map((error, index) => (
+                      <p key={index}>{error}</p>
+                    ))}
+                  </div>
+                )}
+                {emailError && !showEmailValidationError && (
                   <div className='mt-1 text-red-400 text-xs'>
                     <p>{emailError}</p>
                   </div>
@@ -352,7 +542,6 @@ function SignupFormContent({
                   <Input
                     id='password'
                     name='password'
-                    required
                     type={showPassword ? 'text' : 'password'}
                     autoCapitalize='none'
                     autoComplete='new-password'
