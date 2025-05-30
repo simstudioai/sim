@@ -34,8 +34,8 @@ import { Toolbar } from './components/toolbar/toolbar'
 import { WorkflowBlock } from './components/workflow-block/workflow-block'
 import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
 import {
-  calculateLoopDimensions,
-  calculateRelativePosition,
+  applyAutoLayoutSmooth,
+  detectHandleOrientation,
   getNodeAbsolutePosition,
   getNodeDepth,
   getNodeHierarchy,
@@ -73,11 +73,10 @@ function WorkflowContent() {
   // Hooks
   const params = useParams()
   const router = useRouter()
-  const { project, getNodes } = useReactFlow()
+  const { project, getNodes, fitView } = useReactFlow()
 
   // Store access
   const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
-  //Removed loops from the store
   const {
     blocks,
     edges,
@@ -98,35 +97,6 @@ function WorkflowContent() {
   const { isDebugModeEnabled } = useGeneralStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
-  // Wrapper functions that use the utilities but provide the getNodes function
-  const getNodeDepthWrapper = useCallback(
-    (nodeId: string): number => {
-      return getNodeDepth(nodeId, getNodes)
-    },
-    [getNodes]
-  )
-
-  const getNodeHierarchyWrapper = useCallback(
-    (nodeId: string): string[] => {
-      return getNodeHierarchy(nodeId, getNodes)
-    },
-    [getNodes]
-  )
-
-  const getNodeAbsolutePositionWrapper = useCallback(
-    (nodeId: string): { x: number; y: number } => {
-      return getNodeAbsolutePosition(nodeId, getNodes)
-    },
-    [getNodes]
-  )
-
-  const calculateRelativePositionWrapper = useCallback(
-    (nodeId: string, newParentId: string): { x: number; y: number } => {
-      return calculateRelativePosition(nodeId, newParentId, getNodes)
-    },
-    [getNodes]
-  )
-
   // Helper function to update a node's parent with proper position calculation
   const updateNodeParent = useCallback(
     (nodeId: string, newParentId: string | null) => {
@@ -136,24 +106,10 @@ function WorkflowContent() {
         getNodes,
         updateBlockPosition,
         updateParentId,
-        resizeLoopNodesWrapper
+        () => resizeLoopNodes(getNodes, updateNodeDimensions)
       )
     },
-    [getNodes, updateBlockPosition, updateParentId]
-  )
-
-  const isPointInLoopNodeWrapper = useCallback(
-    (position: { x: number; y: number }) => {
-      return isPointInLoopNode(position, getNodes)
-    },
-    [getNodes]
-  )
-
-  const calculateLoopDimensionsWrapper = useCallback(
-    (loopId: string): { width: number; height: number } => {
-      return calculateLoopDimensions(loopId, getNodes)
-    },
-    [getNodes]
+    [getNodes, updateBlockPosition, updateParentId, updateNodeDimensions]
   )
 
   // Function to resize all loop nodes with improved hierarchy handling
@@ -161,8 +117,70 @@ function WorkflowContent() {
     return resizeLoopNodes(getNodes, updateNodeDimensions)
   }, [getNodes, updateNodeDimensions])
 
-  // Use direct resizing function instead of debounced version for immediate updates
-  const debouncedResizeLoopNodes = resizeLoopNodesWrapper
+  // Auto-layout handler
+  const handleAutoLayout = useCallback(() => {
+    if (Object.keys(blocks).length === 0) return
+
+    // Detect the predominant handle orientation in the workflow
+    const detectedOrientation = detectHandleOrientation(blocks)
+
+    // Optimize spacing based on handle orientation
+    const orientationConfig =
+      detectedOrientation === 'vertical'
+        ? {
+            // Vertical handles: optimize for top-to-bottom flow
+            horizontalSpacing: 400,
+            verticalSpacing: 300,
+            startX: 200,
+            startY: 200,
+          }
+        : {
+            // Horizontal handles: optimize for left-to-right flow
+            horizontalSpacing: 600,
+            verticalSpacing: 200,
+            startX: 150,
+            startY: 300,
+          }
+
+    applyAutoLayoutSmooth(blocks, edges, updateBlockPosition, fitView, resizeLoopNodesWrapper, {
+      ...orientationConfig,
+      alignByLayer: true,
+      animationDuration: 500, // Smooth 500ms animation
+      isSidebarCollapsed,
+      handleOrientation: detectedOrientation, // Explicitly set the detected orientation
+    })
+
+    const orientationMessage =
+      detectedOrientation === 'vertical'
+        ? 'Auto-layout applied with vertical flow (top-to-bottom)'
+        : 'Auto-layout applied with horizontal flow (left-to-right)'
+
+    logger.info(orientationMessage, {
+      orientation: detectedOrientation,
+      blockCount: Object.keys(blocks).length,
+    })
+  }, [blocks, edges, updateBlockPosition, fitView, isSidebarCollapsed, resizeLoopNodesWrapper])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.shiftKey && event.key === 'L' && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault()
+        handleAutoLayout()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleAutoLayout])
+
+  useEffect(() => {
+    const handleAutoLayoutEvent = () => {
+      handleAutoLayout()
+    }
+
+    window.addEventListener('trigger-auto-layout', handleAutoLayoutEvent)
+    return () => window.removeEventListener('trigger-auto-layout', handleAutoLayoutEvent)
+  }, [handleAutoLayout])
 
   // Initialize workflow
   useEffect(() => {
@@ -353,7 +371,7 @@ function WorkflowContent() {
         })
 
         // Check if dropping inside a container node (loop or parallel)
-        const containerInfo = isPointInLoopNodeWrapper(position)
+        const containerInfo = isPointInLoopNode(position, getNodes)
 
         // Clear any drag-over styling
         document
@@ -434,7 +452,7 @@ function WorkflowContent() {
             }
 
             // Resize the parent container to fit the new child container
-            debouncedResizeLoopNodes()
+            resizeLoopNodesWrapper()
           } else {
             // Add the container node directly to canvas with default dimensions
             addBlock(id, data.type, name, position, {
@@ -495,7 +513,7 @@ function WorkflowContent() {
 
           // Resize the container node to fit the new block
           // Immediate resize without delay
-          debouncedResizeLoopNodes()
+          resizeLoopNodesWrapper()
 
           // Auto-connect logic for blocks inside containers
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
@@ -591,7 +609,7 @@ function WorkflowContent() {
       addEdge,
       findClosestOutput,
       determineSourceHandle,
-      isPointInLoopNodeWrapper,
+      isPointInLoopNode,
       getNodes,
     ]
   )
@@ -612,7 +630,7 @@ function WorkflowContent() {
         })
 
         // Check if hovering over a container node
-        const containerInfo = isPointInLoopNodeWrapper(position)
+        const containerInfo = isPointInLoopNode(position, getNodes)
 
         // Clear any previous highlighting
         document
@@ -641,7 +659,7 @@ function WorkflowContent() {
         logger.error('Error in onDragOver', { err })
       }
     },
-    [project, isPointInLoopNodeWrapper, getNodes]
+    [project, isPointInLoopNode, getNodes]
   )
 
   // Init workflow
@@ -802,11 +820,11 @@ function WorkflowContent() {
     if (nodes.length === 0) return
 
     // Resize all loops to fit their children
-    debouncedResizeLoopNodes()
+    resizeLoopNodesWrapper()
 
     // No need for cleanup with direct function
     return () => {}
-  }, [nodes, debouncedResizeLoopNodes])
+  }, [nodes, resizeLoopNodesWrapper])
 
   // Special effect to handle cleanup after node deletion
   useEffect(() => {
@@ -825,14 +843,14 @@ function WorkflowContent() {
         })
 
         // Fix the node by removing its parent reference and calculating absolute position
-        const absolutePosition = getNodeAbsolutePositionWrapper(id)
+        const absolutePosition = getNodeAbsolutePosition(id, getNodes)
 
         // Update the node to remove parent reference and use absolute position
         updateBlockPosition(id, absolutePosition)
         updateParentId(id, '', 'parent')
       }
     })
-  }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePositionWrapper])
+  }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePosition])
 
   // Update edges
   const onEdgesChange = useCallback(
@@ -949,7 +967,7 @@ function WorkflowContent() {
       }
 
       // Get the node's absolute position to properly calculate intersections
-      const nodeAbsolutePos = getNodeAbsolutePositionWrapper(node.id)
+      const nodeAbsolutePos = getNodeAbsolutePosition(node.id, getNodes)
 
       // Find intersections with container nodes using absolute coordinates
       const intersectingNodes = getNodes()
@@ -963,7 +981,7 @@ function WorkflowContent() {
           // Skip self-nesting: prevent a container from becoming its own descendant
           if (node.type === 'loopNode' || node.type === 'parallelNode') {
             // Get the full hierarchy of the potential parent
-            const hierarchy = getNodeHierarchyWrapper(n.id)
+            const hierarchy = getNodeHierarchy(n.id, getNodes)
 
             // If the dragged node is in the hierarchy, this would create a circular reference
             if (hierarchy.includes(node.id)) {
@@ -972,7 +990,7 @@ function WorkflowContent() {
           }
 
           // Get the container's absolute position
-          const containerAbsolutePos = getNodeAbsolutePositionWrapper(n.id)
+          const containerAbsolutePos = getNodeAbsolutePosition(n.id, getNodes)
 
           // Get dimensions based on node type
           const nodeWidth =
@@ -1015,7 +1033,7 @@ function WorkflowContent() {
         // Add more information for sorting
         .map((n) => ({
           container: n,
-          depth: getNodeDepthWrapper(n.id),
+          depth: getNodeDepth(n.id, getNodes),
           // Calculate size for secondary sorting
           size: (n.data?.width || 500) * (n.data?.height || 300),
         }))
@@ -1036,7 +1054,7 @@ function WorkflowContent() {
         const bestContainerMatch = sortedContainers[0]
 
         // Add a check to see if the bestContainerMatch is a part of the hierarchy of the node being dragged
-        const hierarchy = getNodeHierarchyWrapper(node.id)
+        const hierarchy = getNodeHierarchy(node.id, getNodes)
         if (hierarchy.includes(bestContainerMatch.container.id)) {
           setPotentialParentId(null)
           return
@@ -1069,14 +1087,7 @@ function WorkflowContent() {
         }
       }
     },
-    [
-      getNodes,
-      potentialParentId,
-      blocks,
-      getNodeHierarchyWrapper,
-      getNodeAbsolutePositionWrapper,
-      getNodeDepthWrapper,
-    ]
+    [getNodes, potentialParentId, blocks, getNodeHierarchy, getNodeAbsolutePosition, getNodeDepth]
   )
 
   // Add in a nodeDrag start event to set the dragStartParentId
@@ -1117,7 +1128,7 @@ function WorkflowContent() {
       // If we're dragging a container node, do additional checks to prevent circular references
       if ((node.type === 'loopNode' || node.type === 'parallelNode') && potentialParentId) {
         // Get the hierarchy of the potential parent container
-        const parentHierarchy = getNodeHierarchyWrapper(potentialParentId)
+        const parentHierarchy = getNodeHierarchy(potentialParentId, getNodes)
 
         // If the dragged node is in the parent's hierarchy, it would create a circular reference
         if (parentHierarchy.includes(node.id)) {
@@ -1141,7 +1152,7 @@ function WorkflowContent() {
       setDraggedNodeId(null)
       setPotentialParentId(null)
     },
-    [getNodes, dragStartParentId, potentialParentId, updateNodeParent, getNodeHierarchyWrapper]
+    [getNodes, dragStartParentId, potentialParentId, updateNodeParent, getNodeHierarchy]
   )
 
   // Update onPaneClick to only handle edge selection
