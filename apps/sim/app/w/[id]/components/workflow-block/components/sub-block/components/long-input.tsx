@@ -319,41 +319,41 @@ export function LongInput({
         <ChevronsUpDown className='h-3 w-3 text-muted-foreground/70' />
       </div>
 
-        <EnvVarDropdown
-          visible={showEnvVars}
-          onSelect={(newValue) => {
-            if (onChange) {
-              onChange(newValue)
-            } else if (!isPreview) {
-              setStoreValue(newValue)
-            }
-          }}
-          searchTerm={searchTerm}
-          inputValue={value?.toString() ?? ''}
-          cursorPosition={cursorPosition}
-          onClose={() => {
-            setShowEnvVars(false)
-            setSearchTerm('')
-          }}
-        />
-        <TagDropdown
-          visible={showTags}
-          onSelect={(newValue) => {
-            if (onChange) {
-              onChange(newValue)
-            } else if (!isPreview) {
-              setStoreValue(newValue)
-            }
-          }}
-          blockId={blockId}
-          activeSourceBlockId={activeSourceBlockId}
-          inputValue={value?.toString() ?? ''}
-          cursorPosition={cursorPosition}
-          onClose={() => {
-            setShowTags(false)
-            setActiveSourceBlockId(null)
-          }}
-        />
+      <EnvVarDropdown
+        visible={showEnvVars}
+        onSelect={(newValue) => {
+          if (onChange) {
+            onChange(newValue)
+          } else if (!isPreview) {
+            setStoreValue(newValue)
+          }
+        }}
+        searchTerm={searchTerm}
+        inputValue={value?.toString() ?? ''}
+        cursorPosition={cursorPosition}
+        onClose={() => {
+          setShowEnvVars(false)
+          setSearchTerm('')
+        }}
+      />
+      <TagDropdown
+        visible={showTags}
+        onSelect={(newValue) => {
+          if (onChange) {
+            onChange(newValue)
+          } else if (!isPreview) {
+            setStoreValue(newValue)
+          }
+        }}
+        blockId={blockId}
+        activeSourceBlockId={activeSourceBlockId}
+        inputValue={value?.toString() ?? ''}
+        cursorPosition={cursorPosition}
+        onClose={() => {
+          setShowTags(false)
+          setActiveSourceBlockId(null)
+        }}
+      />
     </div>
   )
 }
