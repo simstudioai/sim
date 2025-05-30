@@ -41,10 +41,6 @@ export function useDeploymentChangeDetection(activeWorkflowId: string | null, is
       logger.debug(`Checking for changes in workflow ${requestedWorkflowId}`)
 
       try {
-        // Force immediate sync to ensure database has the latest subBlock values
-        // This is important because subBlock changes have a debounced sync delay
-        const { workflowSync } = await import('@/stores/workflows/sync')
-        await workflowSync.sync()
 
         // Get the deployed state from the API
         const response = await fetch(`/api/workflows/${requestedWorkflowId}/status`)
