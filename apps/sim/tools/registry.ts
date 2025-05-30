@@ -45,6 +45,7 @@ import { requestTool as httpRequest } from './http'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
+import { linearCreateIssueTool, linearReadIssuesTool } from './linear'
 import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from './mem0'
 import { memoryAddTool, memoryDeleteTool, memoryGetAllTool, memoryGetTool } from './memory'
@@ -187,4 +188,6 @@ export const tools: Record<string, ToolConfig> = {
   outlook_read: outlookReadTool,
   outlook_send: outlookSendTool,
   outlook_draft: outlookDraftTool,
+  linear_read_issues: linearReadIssuesTool,
+  linear_create_issue: linearCreateIssueTool,
 }

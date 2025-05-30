@@ -106,6 +106,8 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'messages.read': 'Read your Discord messages',
   guilds: 'Read your Discord guilds',
   'guilds.members.read': 'Read your Discord guild members',
+  read: 'Read access to your Linear workspace',
+  write: 'Write access to your Linear workspace',
 }
 
 // Convert OAuth scope to user-friendly description

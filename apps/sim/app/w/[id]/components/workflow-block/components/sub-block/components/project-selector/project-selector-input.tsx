@@ -6,6 +6,8 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { type DiscordServerInfo, DiscordServerSelector } from './components/discord-server-selector'
 import { type JiraProjectInfo, JiraProjectSelector } from './components/jira-project-selector'
+import { type LinearProjectInfo, LinearProjectSelector } from './components/linear-project-selector'
+import { type LinearTeamInfo, LinearTeamSelector } from './components/linear-team-selector'
 
 interface ProjectSelectorInputProps {
   blockId: string
@@ -27,6 +29,7 @@ export function ProjectSelectorInput({
   // Get provider-specific values
   const provider = subBlock.provider || 'jira'
   const isDiscord = provider === 'discord'
+  const isLinear = provider === 'linear'
 
   // For Jira, we need the domain
   const domain = !isDiscord ? (getValue(blockId, 'domain') as string) || '' : ''
@@ -41,7 +44,10 @@ export function ProjectSelectorInput({
   }, [blockId, subBlock.id, getValue])
 
   // Handle project selection
-  const handleProjectChange = (projectId: string, info?: JiraProjectInfo | DiscordServerInfo) => {
+  const handleProjectChange = (
+    projectId: string,
+    info?: JiraProjectInfo | DiscordServerInfo | LinearTeamInfo | LinearProjectInfo
+  ) => {
     setSelectedProjectId(projectId)
     setProjectInfo(info || null)
     setValue(blockId, subBlock.id, projectId)
@@ -53,6 +59,13 @@ export function ProjectSelectorInput({
       setValue(blockId, 'issueKey', '')
     } else if (provider === 'discord') {
       setValue(blockId, 'channelId', '')
+    } else if (provider === 'linear') {
+      if (subBlock.id === 'teamId') {
+        setValue(blockId, 'teamId', projectId)
+        setValue(blockId, 'projectId', '')
+      } else if (subBlock.id === 'projectId') {
+        setValue(blockId, 'projectId', projectId)
+      }
     }
 
     onProjectSelect?.(projectId)
@@ -80,6 +93,55 @@ export function ProjectSelectorInput({
           {!botToken && (
             <TooltipContent side='top'>
               <p>Please enter a Bot Token first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  // Render Linear team/project selector if provider is linear
+  if (isLinear) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              {subBlock.id === 'teamId' ? (
+                <LinearTeamSelector
+                  value={selectedProjectId}
+                  onChange={(teamId: string, teamInfo?: LinearTeamInfo) => {
+                    handleProjectChange(teamId, teamInfo)
+                  }}
+                  credential={getValue(blockId, 'credential') as string}
+                  label={subBlock.placeholder || 'Select Linear team'}
+                  disabled={disabled || !getValue(blockId, 'credential')}
+                  showPreview={true}
+                />
+              ) : (
+                (() => {
+                  const credential = getValue(blockId, 'credential') as string
+                  const teamId = getValue(blockId, 'teamId') as string
+                  const isDisabled = disabled || !credential || !teamId
+                  return (
+                    <LinearProjectSelector
+                      value={selectedProjectId}
+                      onChange={(projectId: string, projectInfo?: LinearProjectInfo) => {
+                        handleProjectChange(projectId, projectInfo)
+                      }}
+                      credential={credential}
+                      teamId={teamId}
+                      label={subBlock.placeholder || 'Select Linear project'}
+                      disabled={isDisabled}
+                    />
+                  )
+                })()
+              )}
+            </div>
+          </TooltipTrigger>
+          {!getValue(blockId, 'credential') && (
+            <TooltipContent side='top'>
+              <p>Please select a Linear account first</p>
             </TooltipContent>
           )}
         </Tooltip>

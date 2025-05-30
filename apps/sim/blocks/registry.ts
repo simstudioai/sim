@@ -28,6 +28,7 @@ import { GoogleSheetsBlock } from './blocks/google_sheets'
 import { ImageGeneratorBlock } from './blocks/image_generator'
 import { JinaBlock } from './blocks/jina'
 import { JiraBlock } from './blocks/jira'
+import { LinearBlock } from './blocks/linear'
 import { LinkupBlock } from './blocks/linkup'
 import { Mem0Block } from './blocks/mem0'
 // import { GuestyBlock } from './blocks/guesty'
@@ -88,6 +89,7 @@ export const registry: Record<string, BlockConfig> = {
   image_generator: ImageGeneratorBlock,
   jina: JinaBlock,
   jira: JiraBlock,
+  linear: LinearBlock,
   linkup: LinkupBlock,
   mem0: Mem0Block,
   mistral_parse: MistralParseBlock,

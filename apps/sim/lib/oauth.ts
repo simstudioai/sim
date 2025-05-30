@@ -11,6 +11,7 @@ import {
   GoogleIcon,
   GoogleSheetsIcon,
   JiraIcon,
+  LinearIcon,
   MicrosoftIcon,
   MicrosoftTeamsIcon,
   NotionIcon,
@@ -35,6 +36,7 @@ export type OAuthProvider =
   | 'jira'
   | 'discord'
   | 'microsoft'
+  | 'linear'
   | string
 
 export type OAuthService =
@@ -53,6 +55,7 @@ export type OAuthService =
   | 'discord'
   | 'microsoft-teams'
   | 'outlook'
+  | 'linear'
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -330,6 +333,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'notion',
   },
+  linear: {
+    id: 'linear',
+    name: 'Linear',
+    icon: (props) => LinearIcon(props),
+    services: {
+      linear: {
+        id: 'linear',
+        name: 'Linear',
+        description: 'Manage issues and projects in Linear.',
+        providerId: 'linear',
+        icon: (props) => LinearIcon(props),
+        baseProviderIcon: (props) => LinearIcon(props),
+        scopes: ['read', 'write'],
+      },
+    },
+    defaultService: 'linear',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -394,6 +414,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'notion'
   } else if (provider === 'discord') {
     return 'discord'
+  } else if (provider === 'linear') {
+    return 'linear'
   }
 
   return providerConfig.defaultService

@@ -776,6 +776,54 @@ export const auth = betterAuth({
             }
           },
         },
+
+        {
+          providerId: 'linear',
+          clientId: env.LINEAR_CLIENT_ID as string,
+          clientSecret: env.LINEAR_CLIENT_SECRET as string,
+          authorizationUrl: 'https://linear.app/oauth/authorize',
+          tokenUrl: 'https://api.linear.app/oauth/token',
+          scopes: ['read', 'write'],
+          responseType: 'code',
+          accessType: 'offline',
+          prompt: 'consent',
+          pkce: false,
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/linear`,
+          getUserInfo: async (tokens) => {
+            const response = await fetch('https://api.linear.app/graphql', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${tokens.accessToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                query: `\n          query {\n            viewer {\n              id\n              name\n              email\n              avatarUrl\n            }\n          }\n        `,
+              }),
+            })
+
+            if (!response.ok) {
+              throw new Error('Failed to fetch Linear user info')
+            }
+
+            const data = await response.json()
+            if (data.errors && data.errors.length > 0) {
+              throw new Error(data.errors.map((e: any) => e.message).join('; '))
+            }
+            const user = data?.viewer
+            if (!user) throw new Error('No user info returned from Linear')
+
+            const now = new Date()
+            return {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              image: user.avatarUrl,
+              emailVerified: true,
+              createdAt: now,
+              updatedAt: now,
+            }
+          },
+        },
       ],
     }),
     // Only include the Stripe plugin in production
