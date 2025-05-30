@@ -1,5 +1,5 @@
 import { afterAll, vi } from 'vitest'
-import '@testing-library/jest-dom'
+import '@testing-library/jest-dom/vitest'
 
 // Mock global fetch
 global.fetch = vi.fn(() =>
@@ -35,6 +35,8 @@ vi.mock('@/stores/execution/store', () => ({
   useExecutionStore: {
     getState: vi.fn().mockReturnValue({
       setIsExecuting: vi.fn(),
+      setIsDebugging: vi.fn(),
+      setPendingBlocks: vi.fn(),
       reset: vi.fn(),
       setActiveBlocks: vi.fn(),
     }),

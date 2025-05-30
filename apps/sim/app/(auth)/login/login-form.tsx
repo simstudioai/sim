@@ -10,9 +10,36 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
+import { cn } from '@/lib/utils'
 import { SocialLoginButtons } from '@/app/(auth)/components/social-login-buttons'
 
 const logger = createLogger('LoginForm')
+
+const EMAIL_VALIDATIONS = {
+  required: {
+    test: (value: string) => Boolean(value && typeof value === 'string'),
+    message: 'Email is required.',
+  },
+  notEmpty: {
+    test: (value: string) => value.trim().length > 0,
+    message: 'Email cannot be empty.',
+  },
+  basicFormat: {
+    regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    message: 'Please enter a valid email address.',
+  },
+}
+
+const PASSWORD_VALIDATIONS = {
+  required: {
+    test: (value: string) => Boolean(value && typeof value === 'string'),
+    message: 'Password is required.',
+  },
+  notEmpty: {
+    test: (value: string) => value.trim().length > 0,
+    message: 'Password cannot be empty.',
+  },
+}
 
 // Validate callback URL to prevent open redirect vulnerabilities
 const validateCallbackUrl = (url: string): boolean => {
@@ -33,6 +60,44 @@ const validateCallbackUrl = (url: string): boolean => {
     logger.error('Error validating callback URL:', { error, url })
     return false
   }
+}
+
+// Validate email and return array of error messages
+const validateEmail = (emailValue: string): string[] => {
+  const errors: string[] = []
+
+  if (!EMAIL_VALIDATIONS.required.test(emailValue)) {
+    errors.push(EMAIL_VALIDATIONS.required.message)
+    return errors // Return early for required field
+  }
+
+  if (!EMAIL_VALIDATIONS.notEmpty.test(emailValue)) {
+    errors.push(EMAIL_VALIDATIONS.notEmpty.message)
+    return errors // Return early for empty field
+  }
+
+  if (!EMAIL_VALIDATIONS.basicFormat.regex.test(emailValue)) {
+    errors.push(EMAIL_VALIDATIONS.basicFormat.message)
+  }
+
+  return errors
+}
+
+// Validate password and return array of error messages
+const validatePassword = (passwordValue: string): string[] => {
+  const errors: string[] = []
+
+  if (!PASSWORD_VALIDATIONS.required.test(passwordValue)) {
+    errors.push(PASSWORD_VALIDATIONS.required.message)
+    return errors // Return early for required field
+  }
+
+  if (!PASSWORD_VALIDATIONS.notEmpty.test(passwordValue)) {
+    errors.push(PASSWORD_VALIDATIONS.notEmpty.message)
+    return errors // Return early for empty field
+  }
+
+  return errors
 }
 
 export default function LoginPage({
@@ -65,6 +130,11 @@ export default function LoginPage({
     type: 'success' | 'error' | null
     message: string
   }>({ type: null, message: '' })
+
+  // Email validation state
+  const [email, setEmail] = useState('')
+  const [emailErrors, setEmailErrors] = useState<string[]>([])
+  const [showEmailValidationError, setShowEmailValidationError] = useState(false)
 
   // Extract URL parameters after component mounts to avoid SSR issues
   useEffect(() => {
@@ -101,12 +171,48 @@ export default function LoginPage({
     }
   }, [forgotPasswordEmail, forgotPasswordOpen])
 
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEmail = e.target.value
+    setEmail(newEmail)
+
+    // Silently validate but don't show errors until submit
+    const errors = validateEmail(newEmail)
+    setEmailErrors(errors)
+    setShowEmailValidationError(false)
+  }
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newPassword = e.target.value
+    setPassword(newPassword)
+
+    // Silently validate but don't show errors until submit
+    const errors = validatePassword(newPassword)
+    setPasswordErrors(errors)
+    setShowValidationError(false)
+  }
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setIsLoading(true)
 
     const formData = new FormData(e.currentTarget)
     const email = formData.get('email') as string
+
+    // Validate email on submit
+    const emailValidationErrors = validateEmail(email)
+    setEmailErrors(emailValidationErrors)
+    setShowEmailValidationError(emailValidationErrors.length > 0)
+
+    // Validate password on submit
+    const passwordValidationErrors = validatePassword(password)
+    setPasswordErrors(passwordValidationErrors)
+    setShowValidationError(passwordValidationErrors.length > 0)
+
+    // If there are validation errors, stop submission
+    if (emailValidationErrors.length > 0 || passwordValidationErrors.length > 0) {
+      setIsLoading(false)
+      return
+    }
 
     try {
       // Final validation before submission
@@ -290,12 +396,25 @@ export default function LoginPage({
                   name='email'
                   placeholder='Enter your email'
                   required
-                  type='email'
                   autoCapitalize='none'
                   autoComplete='email'
                   autoCorrect='off'
-                  className='border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60'
+                  value={email}
+                  onChange={handleEmailChange}
+                  className={cn(
+                    'border-neutral-700 bg-neutral-900 text-white placeholder:text-white/60',
+                    showEmailValidationError &&
+                      emailErrors.length > 0 &&
+                      'border-red-500 focus-visible:ring-red-500'
+                  )}
                 />
+                {showEmailValidationError && emailErrors.length > 0 && (
+                  <div className='mt-1 space-y-1 text-red-400 text-xs'>
+                    {emailErrors.map((error, index) => (
+                      <p key={index}>{error}</p>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className='space-y-2'>
                 <div className='flex items-center justify-between'>
@@ -321,14 +440,13 @@ export default function LoginPage({
                     autoCorrect='off'
                     placeholder='Enter your password'
                     value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value)
-                      if (showValidationError) {
-                        setShowValidationError(false)
-                        setPasswordErrors([])
-                      }
-                    }}
-                    className='border-neutral-700 bg-neutral-900 pr-10 text-white placeholder:text-white/60'
+                    onChange={handlePasswordChange}
+                    className={cn(
+                      'border-neutral-700 bg-neutral-900 pr-10 text-white placeholder:text-white/60',
+                      showValidationError &&
+                        passwordErrors.length > 0 &&
+                        'border-red-500 focus-visible:ring-red-500'
+                    )}
                   />
                   <button
                     type='button'
