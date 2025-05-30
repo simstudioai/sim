@@ -71,6 +71,25 @@ export function mergeSubblockState(
         subBlocks: mergedSubBlocks,
       }
 
+      // Add any values that exist in the store but aren't in the block structure
+      // This handles cases where block config has been updated but values still exist
+      Object.entries(blockValues).forEach(([subBlockId, value]) => {
+        if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
+          // Create a minimal subblock structure
+          mergedSubBlocks[subBlockId] = {
+            id: subBlockId,
+            type: 'short-input', // Default type that's safe to use
+            value: value,
+          }
+        }
+      })
+
+      // Update the block with the final merged subBlocks (including orphaned values)
+      acc[id] = {
+        ...block,
+        subBlocks: mergedSubBlocks,
+      }
+
       return acc
     },
     {} as Record<string, BlockState>
@@ -117,7 +136,7 @@ export async function mergeSubblockStateAsync(
           if (workflowId) {
             // Try to get the value from the subblock store for this specific workflow
             const workflowValues = subBlockStore.workflowValues[workflowId]
-            if (workflowValues?.[id]) {
+            if (workflowValues && workflowValues[id]) {
               storedValue = workflowValues[id][subBlockId]
             }
           } else {
@@ -139,6 +158,25 @@ export async function mergeSubblockStateAsync(
 
       // Convert entries back to an object
       const mergedSubBlocks = Object.fromEntries(subBlockEntries) as Record<string, SubBlockState>
+
+      // Add any values that exist in the store but aren't in the block structure
+      // This handles cases where block config has been updated but values still exist
+      if (workflowId) {
+        const workflowValues = subBlockStore.workflowValues[workflowId]
+        if (workflowValues && workflowValues[id]) {
+          const blockValues = workflowValues[id]
+          Object.entries(blockValues).forEach(([subBlockId, value]) => {
+            if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
+              // Create a minimal subblock structure
+              mergedSubBlocks[subBlockId] = {
+                id: subBlockId,
+                type: 'short-input', // Default type that's safe to use
+                value: value,
+              }
+            }
+          })
+        }
+      }
 
       // Return the full block state with updated subBlocks
       return [
