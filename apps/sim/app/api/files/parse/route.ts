@@ -15,7 +15,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FilesParseAPI')
 
-// Constants for URL downloads
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
 const DOWNLOAD_TIMEOUT_MS = 30000 // 30 seconds
 
@@ -70,21 +69,6 @@ const fileTypeMap: Record<string, string> = {
   // Archive formats
   zip: 'application/zip',
 }
-
-// Binary file extensions
-const _binaryExtensions = [
-  'doc',
-  'docx',
-  'xls',
-  'xlsx',
-  'ppt',
-  'pptx',
-  'zip',
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-]
 
 /**
  * Main API route handler
