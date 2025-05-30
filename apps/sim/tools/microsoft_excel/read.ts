@@ -26,18 +26,15 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
   },
   request: {
     url: (params) => {
-      // Ensure spreadsheetId is valid
       const spreadsheetId = params.spreadsheetId?.trim()
       if (!spreadsheetId) {
         throw new Error('Spreadsheet ID is required')
       }
 
-      // Get a collection of worksheet objects
       if (!params.range) {
         return `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}/workbook/worksheets('Sheet1')/range(address='A1:Z1000')`
       }
 
-      // Parse range in the format "Sheet1!A1:B2"
       const rangeInput = params.range.trim()
       const match = rangeInput.match(/^([^!]+)!(.+)$/)
 
@@ -52,7 +49,6 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
     },
     method: 'GET',
     headers: (params) => {
-      // Validate access token
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
@@ -74,18 +70,15 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
 
     const data = await response.json()
 
-    // Extract spreadsheet ID from the URL
     const urlParts = response.url.split('/drive/items/')
     const spreadsheetId = urlParts[1]?.split('/')[0] || ''
 
-    // Create a simple metadata object with just the ID and URL
     const metadata = {
       spreadsheetId,
       properties: {},
       spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`,
     }
 
-    // Process the values response
     const result: MicrosoftExcelReadResponse = {
       success: true,
       output: {
@@ -103,23 +96,18 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
     return result
   },
   transformError: (error) => {
-    // If it's an Error instance with a message, use that
     if (error instanceof Error) {
       return error.message
     }
 
-    // If it's an object with an error or message property
     if (typeof error === 'object' && error !== null) {
-      // Handle Microsoft API error response format
       if (error.error) {
         if (typeof error.error === 'string') {
           return error.error
         }
-        // Microsoft API often returns error objects with error.error.message
         if (typeof error.error === 'object' && error.error.message) {
           return error.error.message
         }
-        // If error.error is an object but doesn't have a message property
         return JSON.stringify(error.error)
       }
 
@@ -127,16 +115,13 @@ export const readTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelReadRe
         return error.message
       }
 
-      // If we have a complex object, stringify it for debugging
       try {
         return `Microsoft Excel API error: ${JSON.stringify(error)}`
       } catch (_e) {
-        // In case the error object can't be stringified (e.g., circular references)
         return 'Microsoft Excel API error: Unable to parse error details'
       }
     }
 
-    // Default fallback message
     return 'An error occurred while reading from Microsoft Excel'
   },
 }

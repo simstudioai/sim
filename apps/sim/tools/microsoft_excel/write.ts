@@ -37,7 +37,6 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
   },
   request: {
     url: (params) => {
-      // If range is not provided, use a default range for the first sheet, second row to preserve headers
       const rangeInput = params.range?.trim()
       const match = rangeInput?.match(/^([^!]+)!(.+)$/)
 
@@ -52,7 +51,6 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
         `https://graph.microsoft.com/v1.0/me/drive/items/${params.spreadsheetId}/workbook/worksheets('${sheetName}')/range(address='${address}')`
       )
 
-      // Default to USER_ENTERED if not specified
       const valueInputOption = params.valueInputOption || 'USER_ENTERED'
       url.searchParams.append('valueInputOption', valueInputOption)
 
@@ -70,16 +68,12 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     body: (params) => {
       let processedValues: any = params.values || []
 
-      // Handle array of objects
       if (
         Array.isArray(processedValues) &&
         processedValues.length > 0 &&
         typeof processedValues[0] === 'object' &&
         !Array.isArray(processedValues[0])
       ) {
-        // It's an array of objects
-
-        // First, extract all unique keys from all objects to create headers
         const allKeys = new Set<string>()
         processedValues.forEach((obj: any) => {
           if (obj && typeof obj === 'object') {
@@ -88,15 +82,12 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
         })
         const headers = Array.from(allKeys)
 
-        // Then create rows with object values in the order of headers
         const rows = processedValues.map((obj: any) => {
           if (!obj || typeof obj !== 'object') {
-            // Handle non-object items by creating an array with empty values
             return Array(headers.length).fill('')
           }
           return headers.map((key) => {
             const value = obj[key]
-            // Handle nested objects/arrays by converting to JSON string
             if (value !== null && typeof value === 'object') {
               return JSON.stringify(value)
             }
@@ -104,7 +95,6 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
           })
         })
 
-        // Add headers as the first row, then add data rows
         processedValues = [headers, ...rows]
       }
 
@@ -113,7 +103,6 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
         values: processedValues,
       }
 
-      // Only include range if it's provided
       if (params.range) {
         body.range = params.range
       }
@@ -129,11 +118,9 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
 
     const data = await response.json()
 
-    // Extract spreadsheet ID from the URL
     const urlParts = response.url.split('/drive/items/')
     const spreadsheetId = urlParts[1]?.split('/')[0] || ''
 
-    // Create a simple metadata object with just the ID and URL
     const metadata = {
       spreadsheetId,
       properties: {},
@@ -157,12 +144,10 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
     return result
   },
   transformError: (error) => {
-    // If it's an Error instance with a message, use that
     if (error instanceof Error) {
       return error.message
     }
 
-    // If it's an object with an error or message property
     if (typeof error === 'object' && error !== null) {
       if (error.error) {
         return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
@@ -172,7 +157,6 @@ export const writeTool: ToolConfig<MicrosoftExcelToolParams, MicrosoftExcelWrite
       }
     }
 
-    // Default fallback message
     return 'An error occurred while writing to Microsoft Excel'
   },
 }

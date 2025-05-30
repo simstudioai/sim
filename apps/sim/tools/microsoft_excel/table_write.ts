@@ -49,15 +49,12 @@ export const tableAddTool: ToolConfig<
     body: (params) => {
       let processedValues: any = params.values || []
 
-      // Handle array of objects - convert to array of arrays
       if (
         Array.isArray(processedValues) &&
         processedValues.length > 0 &&
         typeof processedValues[0] === 'object' &&
         !Array.isArray(processedValues[0])
       ) {
-        // It's an array of objects
-        // Extract all unique keys from all objects to determine column order
         const allKeys = new Set<string>()
         processedValues.forEach((obj: any) => {
           if (obj && typeof obj === 'object') {
@@ -66,14 +63,12 @@ export const tableAddTool: ToolConfig<
         })
         const headers = Array.from(allKeys)
 
-        // Convert objects to arrays based on the header order
         processedValues = processedValues.map((obj: any) => {
           if (!obj || typeof obj !== 'object') {
             return Array(headers.length).fill('')
           }
           return headers.map((key) => {
             const value = obj[key]
-            // Handle nested objects/arrays by converting to JSON string
             if (value !== null && typeof value === 'object') {
               return JSON.stringify(value)
             }
@@ -82,12 +77,10 @@ export const tableAddTool: ToolConfig<
         })
       }
 
-      // Ensure we have a 2D array
       if (!Array.isArray(processedValues) || processedValues.length === 0) {
         throw new Error('Values must be a non-empty array')
       }
 
-      // If it's a 1D array, wrap it in another array
       if (!Array.isArray(processedValues[0])) {
         processedValues = [processedValues]
       }
@@ -105,11 +98,9 @@ export const tableAddTool: ToolConfig<
 
     const data = await response.json()
 
-    // Extract spreadsheet ID from the URL
     const urlParts = response.url.split('/drive/items/')
     const spreadsheetId = urlParts[1]?.split('/')[0] || ''
 
-    // Create metadata object
     const metadata = {
       spreadsheetId,
       spreadsheetUrl: `https://graph.microsoft.com/v1.0/me/drive/items/${spreadsheetId}`,
@@ -130,12 +121,10 @@ export const tableAddTool: ToolConfig<
     return result
   },
   transformError: (error) => {
-    // If it's an Error instance with a message, use that
     if (error instanceof Error) {
       return error.message
     }
 
-    // If it's an object with an error or message property
     if (typeof error === 'object' && error !== null) {
       if (error.error) {
         return typeof error.error === 'string' ? error.error : JSON.stringify(error.error)
@@ -145,7 +134,6 @@ export const tableAddTool: ToolConfig<
       }
     }
 
-    // Default fallback message
     return 'An error occurred while adding rows to Microsoft Excel table'
   },
 }
