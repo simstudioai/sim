@@ -257,23 +257,19 @@ export function ControlBar() {
 
   // Fetch deployed state when workflow ID or deployment status changes
   useEffect(() => {
-    // Clear deployed state immediately when workflow changes to prevent mixup
     if (!activeWorkflowId) {
       setDeployedState(null)
       setIsLoadingDeployedState(false)
       return
     }
 
-    setDeployedState(null)
-    setIsLoadingDeployedState(false)
-
     if (isDeployed) {
-      // When deployment status becomes true, reset the needsRedeployment flag
+      // When deployed - fetch the actual deployed state
       setNeedsRedeployment(false)
       setNeedsRedeploymentFlag(false)
       fetchDeployedState()
     } else {
-      // If workflow is undeployed, ensure deployed state remains cleared
+      // When not deployed - clear the deployed state
       setDeployedState(null)
       setIsLoadingDeployedState(false)
     }
