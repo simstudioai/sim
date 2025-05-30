@@ -199,13 +199,7 @@ export function ControlBar() {
    * This is the single source of truth for deployed workflow state
    */
   const fetchDeployedState = async () => {
-    if (!activeWorkflowId) {
-      setDeployedState(null)
-      return
-    }
-
-    // Skip fetching if not deployed
-    if (!isDeployed) {
+    if (!activeWorkflowId || !isDeployed) {
       setDeployedState(null)
       return
     }

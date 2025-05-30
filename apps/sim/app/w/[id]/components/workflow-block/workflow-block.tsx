@@ -45,7 +45,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     isDisabled?: boolean
     id?: string
   } | null>(null)
-  const [isLoadingWebhookInfo, setIsLoadingWebhookInfo] = useState(false)
   const [webhookInfo, setWebhookInfo] = useState<{
     webhookPath: string
     provider: string
@@ -169,6 +168,14 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       setIsLoadingScheduleInfo(false)
     }
   }
+
+  useEffect(() => {
+    if (type === 'starter') {
+      fetchScheduleInfo()
+    } else {
+      setScheduleInfo(null)
+    }
+  }, [type])
 
   // Get webhook information for the tooltip
   useEffect(() => {
