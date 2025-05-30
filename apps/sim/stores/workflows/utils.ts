@@ -159,25 +159,6 @@ export async function mergeSubblockStateAsync(
       // Convert entries back to an object
       const mergedSubBlocks = Object.fromEntries(subBlockEntries) as Record<string, SubBlockState>
 
-      // Add any values that exist in the store but aren't in the block structure
-      // This handles cases where block config has been updated but values still exist
-      if (workflowId) {
-        const workflowValues = subBlockStore.workflowValues[workflowId]
-        if (workflowValues?.[id]) {
-          const blockValues = workflowValues[id]
-          Object.entries(blockValues).forEach(([subBlockId, value]) => {
-            if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
-              // Create a minimal subblock structure
-              mergedSubBlocks[subBlockId] = {
-                id: subBlockId,
-                type: 'short-input', // Default type that's safe to use
-                value: value,
-              }
-            }
-          })
-        }
-      }
-
       // Return the full block state with updated subBlocks
       return [
         id,
