@@ -41,12 +41,18 @@ describe('Function Execute Tool', () => {
     test('should format single string code correctly', () => {
       const body = tester.getRequestBody({
         code: 'return 42',
+        envVars: {},
+        isCustomTool: false,
         timeout: 5000,
+        workflowId: undefined,
       })
 
       expect(body).toEqual({
         code: 'return 42',
+        envVars: {},
+        isCustomTool: false,
         timeout: 5000,
+        workflowId: undefined,
       })
     })
 
@@ -57,11 +63,18 @@ describe('Function Execute Tool', () => {
           { content: 'const y = 2;', id: 'block2' },
           { content: 'return x + y;', id: 'block3' },
         ],
+        envVars: {},
+        isCustomTool: false,
+        timeout: 10000,
+        workflowId: undefined,
       })
 
       expect(body).toEqual({
         code: 'const x = 40;\nconst y = 2;\nreturn x + y;',
         timeout: 10000,
+        envVars: {},
+        isCustomTool: false,
+        workflowId: undefined,
       })
     })
 
@@ -73,6 +86,9 @@ describe('Function Execute Tool', () => {
       expect(body).toEqual({
         code: 'return 42',
         timeout: 10000,
+        envVars: {},
+        isCustomTool: false,
+        workflowId: undefined,
       })
     })
   })

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { isHosted } from '@/lib/environment'
 import { getAllBlocks } from '@/blocks'
+import { executeProviderRequest } from '@/providers'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
@@ -21,6 +22,21 @@ vi.mock('@/providers/utils', () => ({
   getProviderFromModel: vi.fn().mockReturnValue('mock-provider'),
   transformBlockTool: vi.fn(),
   getBaseModelProviders: vi.fn().mockReturnValue({ openai: {}, anthropic: {} }),
+  getApiKey: vi.fn().mockReturnValue('mock-api-key'),
+  getProvider: vi.fn().mockReturnValue({
+    chat: {
+      completions: {
+        create: vi.fn().mockResolvedValue({
+          content: 'Mocked response content',
+          model: 'mock-model',
+          tokens: { prompt: 10, completion: 20, total: 30 },
+          toolCalls: [],
+          cost: 0.001,
+          timing: { total: 100 },
+        }),
+      },
+    },
+  }),
 }))
 
 vi.mock('@/blocks', () => ({
@@ -31,6 +47,17 @@ vi.mock('@/tools', () => ({
   executeTool: vi.fn(),
 }))
 
+vi.mock('@/providers', () => ({
+  executeProviderRequest: vi.fn().mockResolvedValue({
+    content: 'Mocked response content',
+    model: 'mock-model',
+    tokens: { prompt: 10, completion: 20, total: 30 },
+    toolCalls: [],
+    cost: 0.001,
+    timing: { total: 100 },
+  }),
+}))
+
 global.fetch = Object.assign(vi.fn(), { preconnect: vi.fn() }) as typeof fetch
 
 const mockGetAllBlocks = getAllBlocks as Mock
@@ -39,6 +66,7 @@ const mockIsHosted = isHosted as unknown as Mock
 const mockGetProviderFromModel = getProviderFromModel as Mock
 const mockTransformBlockTool = transformBlockTool as Mock
 const mockFetch = global.fetch as unknown as Mock
+const mockExecuteProviderRequest = executeProviderRequest as Mock
 
 describe('AgentBlockHandler', () => {
   let handler: AgentBlockHandler
@@ -50,7 +78,12 @@ describe('AgentBlockHandler', () => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
 
-    // Save original Promise.all to restore later
+    Object.defineProperty(global, 'window', {
+      value: {},
+      writable: true,
+      configurable: true,
+    })
+
     originalPromiseAll = Promise.all
 
     mockBlock = {
@@ -85,7 +118,7 @@ describe('AgentBlockHandler', () => {
         loops: {},
       } as SerializedWorkflow,
     }
-    mockIsHosted.mockReturnValue(false) // Default to non-hosted env for tests
+    mockIsHosted.mockReturnValue(false)
     mockGetProviderFromModel.mockReturnValue('mock-provider')
 
     mockFetch.mockImplementation(() => {
@@ -130,8 +163,15 @@ describe('AgentBlockHandler', () => {
   })
 
   afterEach(() => {
-    // Restore original Promise.all
     Promise.all = originalPromiseAll
+
+    try {
+      Object.defineProperty(global, 'window', {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      })
+    } catch (e) {}
   })
 
   describe('canHandle', () => {
@@ -164,7 +204,7 @@ describe('AgentBlockHandler', () => {
         userPrompt: 'User query: Hello!',
         temperature: 0.7,
         maxTokens: 100,
-        apiKey: 'test-api-key', // Add API key for non-hosted env
+        apiKey: 'test-api-key',
       }
 
       mockGetProviderFromModel.mockReturnValue('openai')
@@ -193,7 +233,6 @@ describe('AgentBlockHandler', () => {
       Promise.all = vi.fn().mockImplementation((promises: Promise<any>[]) => {
         const result = originalPromiseAll.call(Promise, promises)
 
-        // When result resolves, capture the tools
         result.then((tools: any[]) => {
           if (tools?.length) {
             capturedTools = tools.filter((t) => t !== null)
@@ -255,7 +294,7 @@ describe('AgentBlockHandler', () => {
                 },
               },
             },
-            usageControl: 'auto',
+            usageControl: 'auto' as const,
           },
           {
             type: 'custom-tool',
@@ -274,7 +313,7 @@ describe('AgentBlockHandler', () => {
                 },
               },
             },
-            usageControl: 'force',
+            usageControl: 'force' as const,
           },
           {
             type: 'custom-tool',
@@ -293,7 +332,7 @@ describe('AgentBlockHandler', () => {
                 },
               },
             },
-            usageControl: 'none', // This tool should be filtered out
+            usageControl: 'none' as const,
           },
         ],
       }
@@ -355,21 +394,21 @@ describe('AgentBlockHandler', () => {
             title: 'Tool 1',
             type: 'tool-type-1',
             operation: 'operation1',
-            usageControl: 'auto', // default setting
+            usageControl: 'auto' as const,
           },
           {
             id: 'tool_2',
             title: 'Tool 2',
             type: 'tool-type-2',
             operation: 'operation2',
-            usageControl: 'none', // should be filtered out
+            usageControl: 'none' as const,
           },
           {
             id: 'tool_3',
             title: 'Tool 3',
             type: 'tool-type-3',
             operation: 'operation3',
-            usageControl: 'force', // should be included
+            usageControl: 'force' as const,
           },
         ],
       }
@@ -400,14 +439,14 @@ describe('AgentBlockHandler', () => {
             title: 'Tool 1',
             type: 'tool-type-1',
             operation: 'operation1',
-            usageControl: 'auto',
+            usageControl: 'auto' as const,
           },
           {
             id: 'tool_2',
             title: 'Tool 2',
             type: 'tool-type-2',
             operation: 'operation2',
-            usageControl: 'force',
+            usageControl: 'force' as const,
           },
         ],
       }
@@ -449,7 +488,7 @@ describe('AgentBlockHandler', () => {
                 },
               },
             },
-            usageControl: 'auto',
+            usageControl: 'auto' as const,
           },
           {
             type: 'custom-tool',
@@ -464,7 +503,7 @@ describe('AgentBlockHandler', () => {
                 },
               },
             },
-            usageControl: 'force',
+            usageControl: 'force' as const,
           },
           {
             type: 'custom-tool',
@@ -479,7 +518,7 @@ describe('AgentBlockHandler', () => {
                 },
               },
             },
-            usageControl: 'none', // Should be filtered out
+            usageControl: 'none' as const,
           },
         ],
       }
@@ -635,6 +674,8 @@ describe('AgentBlockHandler', () => {
               model: 'mock-model',
               tokens: { prompt: 10, completion: 20, total: 30 },
               timing: { total: 100 },
+              toolCalls: [],
+              cost: undefined,
             }),
         })
       })
@@ -654,7 +695,9 @@ describe('AgentBlockHandler', () => {
           result: 'Success',
           score: 0.95,
           tokens: { prompt: 10, completion: 20, total: 30 },
+          toolCalls: { list: [], count: 0 },
           providerTiming: { total: 100 },
+          cost: undefined,
         },
       })
     })
@@ -729,23 +772,35 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should handle streaming responses with text/event-stream content type', async () => {
-      const mockStreamBody = {
-        getReader: vi.fn().mockReturnValue({
-          read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
-        }),
-      }
+      const mockStreamBody = new ReadableStream({
+        start(controller) {
+          controller.close()
+        },
+      })
 
       mockFetch.mockImplementationOnce(() => {
         return Promise.resolve({
           ok: true,
           headers: {
             get: (name: string) => {
-              if (name === 'Content-Type') return 'text/event-stream'
+              if (name === 'Content-Type') return 'application/json'
               if (name === 'X-Execution-Data') return null
               return null
             },
           },
-          body: mockStreamBody,
+          json: () =>
+            Promise.resolve({
+              stream: mockStreamBody,
+              execution: {
+                success: true,
+                output: { response: {} },
+                logs: [],
+                metadata: {
+                  duration: 0,
+                  startTime: new Date().toISOString(),
+                },
+              },
+            }),
         })
       })
 
@@ -771,11 +826,11 @@ describe('AgentBlockHandler', () => {
     })
 
     it('should handle streaming responses with execution data in header', async () => {
-      const mockStreamBody = {
-        getReader: vi.fn().mockReturnValue({
-          read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
-        }),
-      }
+      const mockStreamBody = new ReadableStream({
+        start(controller) {
+          controller.close()
+        },
+      })
 
       const mockExecutionData = {
         success: true,
@@ -807,12 +862,16 @@ describe('AgentBlockHandler', () => {
           ok: true,
           headers: {
             get: (name: string) => {
-              if (name === 'Content-Type') return 'text/event-stream'
+              if (name === 'Content-Type') return 'application/json'
               if (name === 'X-Execution-Data') return JSON.stringify(mockExecutionData)
               return null
             },
           },
-          body: mockStreamBody,
+          json: () =>
+            Promise.resolve({
+              stream: mockStreamBody,
+              execution: mockExecutionData,
+            }),
         })
       })
 

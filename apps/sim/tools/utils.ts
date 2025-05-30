@@ -249,8 +249,11 @@ export function createCustomToolRequestBody(
   getStore?: () => any
 ) {
   return (params: Record<string, any>) => {
-    // Get environment variables - empty on server, from store on client
-    const envVars = isClient ? getClientEnvVars(getStore) : {}
+    // Get environment variables - try multiple sources in order of preference:
+    // 1. envVars parameter (passed from provider/agent context)
+    // 2. Client-side store (if running in browser)
+    // 3. Empty object (fallback)
+    const envVars = params.envVars || (isClient ? getClientEnvVars(getStore) : {})
 
     // Include everything needed for execution
     return {

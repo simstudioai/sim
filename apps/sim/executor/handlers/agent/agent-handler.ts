@@ -2,13 +2,20 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getAllBlocks } from '@/blocks'
 import type { BlockOutput } from '@/blocks/types'
-import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
+import { executeProviderRequest } from '@/providers'
+import { getApiKey, getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { getTool, getToolAsync } from '@/tools/utils'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '../../types'
+import type { AgentInputs, Message, StreamingConfig, ToolInput } from './types'
 
 const logger = createLogger('AgentBlockHandler')
+
+const DEFAULT_MODEL = 'gpt-4o'
+const DEFAULT_FUNCTION_TIMEOUT = 5000
+const REQUEST_TIMEOUT = 120000
+const CUSTOM_TOOL_PREFIX = 'custom_'
 
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
@@ -20,263 +27,279 @@ export class AgentBlockHandler implements BlockHandler {
 
   async execute(
     block: SerializedBlock,
-    inputs: Record<string, any>,
+    inputs: AgentInputs,
     context: ExecutionContext
   ): Promise<BlockOutput | StreamingExecution> {
     logger.info(`Executing agent block: ${block.id}`)
 
-    // Parse response format if provided
-    let responseFormat: any
-    if (inputs.responseFormat) {
-      // Handle empty string case - treat it as no response format
-      if (inputs.responseFormat === '') {
-        responseFormat = undefined
-      } else {
-        try {
-          responseFormat =
-            typeof inputs.responseFormat === 'string'
-              ? JSON.parse(inputs.responseFormat)
-              : inputs.responseFormat
+    const responseFormat = this.parseResponseFormat(inputs.responseFormat)
+    const model = inputs.model || DEFAULT_MODEL
+    const providerId = getProviderFromModel(model)
+    const formattedTools = await this.formatTools(inputs.tools || [], context)
+    const streamingConfig = this.getStreamingConfig(block, context)
+    const messages = this.buildMessages(inputs)
 
-          // Ensure the responseFormat is properly structured
-          if (responseFormat && typeof responseFormat === 'object') {
-            // If it's just a raw schema without the expected wrapper properties,
-            // wrap it properly for the provider
-            if (!responseFormat.schema && !responseFormat.name) {
-              responseFormat = {
-                name: 'response_schema',
-                schema: responseFormat,
-                strict: true,
-              }
-            }
-          }
-        } catch (error: any) {
-          logger.error('Failed to parse response format:', { error })
-          throw new Error(`Invalid response format: ${error.message}`)
+    const providerRequest = this.buildProviderRequest({
+      providerId,
+      model,
+      messages,
+      inputs,
+      formattedTools,
+      responseFormat,
+      context,
+      streaming: streamingConfig.shouldUseStreaming ?? false,
+    })
+
+    this.logRequestDetails(providerRequest, messages, streamingConfig)
+
+    return this.executeProviderRequest(providerRequest, block, responseFormat, context)
+  }
+
+  private parseResponseFormat(responseFormat?: string | object): any {
+    if (!responseFormat || responseFormat === '') return undefined
+
+    try {
+      const parsed =
+        typeof responseFormat === 'string' ? JSON.parse(responseFormat) : responseFormat
+
+      if (parsed && typeof parsed === 'object' && !parsed.schema && !parsed.name) {
+        return {
+          name: 'response_schema',
+          schema: parsed,
+          strict: true,
         }
+      }
+      return parsed
+    } catch (error: any) {
+      logger.error('Failed to parse response format:', { error })
+      throw new Error(`Invalid response format: ${error.message}`)
+    }
+  }
+
+  private async formatTools(inputTools: ToolInput[], context: ExecutionContext): Promise<any[]> {
+    if (!Array.isArray(inputTools)) return []
+
+    const tools = await Promise.all(
+      inputTools
+        .filter((tool) => {
+          const usageControl = tool.usageControl || 'auto'
+          return usageControl !== 'none'
+        })
+        .map(async (tool) => {
+          if (tool.type === 'custom-tool' && tool.schema) {
+            return this.createCustomTool(tool, context)
+          }
+          return this.transformBlockTool(tool, context)
+        })
+    )
+
+    return tools.filter(
+      (tool): tool is NonNullable<typeof tool> => tool !== null && tool !== undefined
+    )
+  }
+
+  private createCustomTool(tool: ToolInput, context: ExecutionContext): any {
+    const base: any = {
+      id: `${CUSTOM_TOOL_PREFIX}${tool.title}`,
+      name: tool.schema.function.name,
+      description: tool.schema.function.description || '',
+      params: tool.params || {},
+      parameters: {
+        type: tool.schema.function.parameters.type,
+        properties: tool.schema.function.parameters.properties,
+        required: tool.schema.function.parameters.required || [],
+      },
+      usageControl: tool.usageControl || 'auto',
+    }
+
+    if (tool.code) {
+      base.executeFunction = async (callParams: Record<string, any>) => {
+        const result = await executeTool('function_execute', {
+          code: tool.code,
+          ...tool.params,
+          ...callParams,
+          timeout: tool.timeout ?? DEFAULT_FUNCTION_TIMEOUT,
+          envVars: context.environmentVariables || {},
+          isCustomTool: true,
+          _context: { workflowId: context.workflowId },
+        })
+
+        if (!result.success) {
+          throw new Error(result.error || 'Function execution failed')
+        }
+        return result.output
       }
     }
 
-    const model = inputs.model || 'gpt-4o'
-    const providerId = getProviderFromModel(model)
-    logger.info(`Using provider: ${providerId}, model: ${model}`)
+    return base
+  }
 
-    // Format tools for provider API
-    const formattedTools = Array.isArray(inputs.tools)
-      ? (
-          await Promise.all(
-            // First filter out any tools with usageControl set to 'none'
-            inputs.tools
-              .filter((tool: any) => {
-                const usageControl = tool.usageControl || 'auto'
-                if (usageControl === 'none') {
-                  logger.info(`Filtering out tool set to 'none': ${tool.title || tool.type}`)
-                  return false
-                }
-                return true
-              })
-              .map(async (tool: any) => {
-                // Handle custom tools
-                if (tool.type === 'custom-tool' && tool.schema) {
-                  // Add function execution capability to custom tools with code
-                  if (tool.code) {
-                    // Store the tool's code and make it available for execution
-                    const toolName = tool.schema.function.name
-                    const params = tool.params || {}
+  private async transformBlockTool(tool: ToolInput, context: ExecutionContext) {
+    const transformedTool = await transformBlockTool(tool, {
+      selectedOperation: tool.operation,
+      getAllBlocks,
+      getToolAsync: (toolId: string) => getToolAsync(toolId, context.workflowId),
+      getTool,
+    })
 
-                    // Create a tool that can execute the code
-                    return {
-                      id: `custom_${tool.title}`,
-                      name: toolName,
-                      description: tool.schema.function.description || '',
-                      params: params,
-                      parameters: {
-                        type: tool.schema.function.parameters.type,
-                        properties: tool.schema.function.parameters.properties,
-                        required: tool.schema.function.parameters.required || [],
-                      },
-                      usageControl: tool.usageControl || 'auto',
-                      executeFunction: async (callParams: Record<string, any>) => {
-                        try {
-                          // Execute the code using the function_execute tool
-                          const result = await executeTool('function_execute', {
-                            code: tool.code,
-                            ...params,
-                            ...callParams,
-                            timeout: tool.timeout || 5000,
-                          })
+    if (transformedTool) {
+      transformedTool.usageControl = tool.usageControl || 'auto'
+    }
+    return transformedTool
+  }
 
-                          if (!result.success) {
-                            throw new Error(result.error || 'Function execution failed')
-                          }
-
-                          return result.output
-                        } catch (error: any) {
-                          logger.error(`Error executing custom tool ${toolName}:`, error)
-                          throw new Error(`Error in ${toolName}: ${error.message}`)
-                        }
-                      },
-                    }
-                  }
-
-                  return {
-                    id: `custom_${tool.title}`,
-                    name: tool.schema.function.name,
-                    description: tool.schema.function.description || '',
-                    params: tool.params || {},
-                    parameters: {
-                      type: tool.schema.function.parameters.type,
-                      properties: tool.schema.function.parameters.properties,
-                      required: tool.schema.function.parameters.required || [],
-                    },
-                    usageControl: tool.usageControl || 'auto',
-                  }
-                }
-
-                // Handle regular block tools with operation selection
-                const transformedTool = await transformBlockTool(tool, {
-                  selectedOperation: tool.operation,
-                  getAllBlocks,
-                  getToolAsync: (toolId: string) => getToolAsync(toolId, context.workflowId),
-                  getTool,
-                })
-
-                // Add usageControl to the transformed tool if it exists
-                if (transformedTool) {
-                  transformedTool.usageControl = tool.usageControl || 'auto'
-                }
-
-                return transformedTool
-              })
-          )
-        ).filter((t: any): t is NonNullable<typeof t> => t !== null)
-      : []
-
-    // Check if streaming is requested and this block is selected for streaming
+  private getStreamingConfig(block: SerializedBlock, context: ExecutionContext): StreamingConfig {
     const isBlockSelectedForOutput =
       context.selectedOutputIds?.some((outputId) => {
-        // First check for direct match (if the entire outputId is the blockId)
-        if (outputId === block.id) {
-          logger.info(`Direct match found for block ${block.id} in selected outputs`)
-          return true
-        }
-
-        // Then try parsing the blockId from the blockId_path format
+        if (outputId === block.id) return true
         const firstUnderscoreIndex = outputId.indexOf('_')
-        if (firstUnderscoreIndex !== -1) {
-          const blockId = outputId.substring(0, firstUnderscoreIndex)
-          const isMatch = blockId === block.id
-          if (isMatch) {
-            logger.info(
-              `Path match found for block ${block.id} in selected outputs (from ${outputId})`
-            )
-          }
-          return isMatch
-        }
-        return false
+        return (
+          firstUnderscoreIndex !== -1 && outputId.substring(0, firstUnderscoreIndex) === block.id
+        )
       }) ?? false
 
-    // Check if this block has any outgoing connections
     const hasOutgoingConnections = context.edges?.some((edge) => edge.source === block.id) ?? false
-
-    // Determine if we should use streaming for this block
-    const shouldUseStreaming = context.stream && isBlockSelectedForOutput
+    const shouldUseStreaming = Boolean(context.stream) && isBlockSelectedForOutput
 
     if (shouldUseStreaming) {
-      logger.info(
-        `Block ${block.id} will use streaming response (selected for output with no outgoing connections)`
-      )
+      logger.info(`Block ${block.id} will use streaming response`)
     }
 
-    // Initialize parsedMessages - will be built from memories/prompts if provided
-    let parsedMessages: any[] | undefined
+    return { shouldUseStreaming, isBlockSelectedForOutput, hasOutgoingConnections }
+  }
 
-    // Check if we're in advanced mode with the memories field
-    if (inputs.memories || (inputs.systemPrompt && inputs.userPrompt)) {
-      const messages: any[] = []
+  private buildMessages(inputs: AgentInputs): Message[] | undefined {
+    if (!inputs.memories && !(inputs.systemPrompt && inputs.userPrompt)) {
+      return undefined
+    }
 
-      if (inputs.memories) {
-        const memories = inputs.memories
+    const messages: Message[] = []
 
-        const memoryMessages = processMemories(memories, logger)
-        messages.push(...memoryMessages)
-      }
+    if (inputs.memories) {
+      messages.push(...this.processMemories(inputs.memories))
+    }
 
-      // Handle system prompt with clear precedence rules
-      if (inputs.systemPrompt) {
-        // Check for existing system messages in memories
-        const systemMessages = messages.filter((msg) => msg.role === 'system')
+    if (inputs.systemPrompt) {
+      this.addSystemPrompt(messages, inputs.systemPrompt)
+    }
 
-        if (systemMessages.length > 1) {
-          logger.warn(
-            `Found ${systemMessages.length} system messages in memories. Explicit systemPrompt will take precedence.`
-          )
-        } else if (systemMessages.length === 1) {
-          logger.info(
-            'Found system message in memories. Explicit systemPrompt will take precedence.'
-          )
-        }
+    if (inputs.userPrompt) {
+      this.addUserPrompt(messages, inputs.userPrompt)
+    }
 
-        // Remove any existing system messages and add the explicit one at the beginning
-        messages.splice(0, 0, {
-          role: 'system',
-          content: inputs.systemPrompt,
-        })
+    return messages.length > 0 ? messages : undefined
+  }
 
-        // Remove any other system messages that came from memories
-        for (let i = messages.length - 1; i >= 1; i--) {
-          if (messages[i].role === 'system') {
-            messages.splice(i, 1)
+  private processMemories(memories: any): Message[] {
+    if (!memories) return []
+
+    let memoryArray: any[] = []
+    if (memories?.response?.memories && Array.isArray(memories.response.memories)) {
+      memoryArray = memories.response.memories
+    } else if (memories?.memories && Array.isArray(memories.memories)) {
+      memoryArray = memories.memories
+    } else if (Array.isArray(memories)) {
+      memoryArray = memories
+    }
+
+    const messages: Message[] = []
+    memoryArray.forEach((memory: any) => {
+      if (memory.data && Array.isArray(memory.data)) {
+        memory.data.forEach((msg: any) => {
+          if (msg.role && msg.content && ['system', 'user', 'assistant'].includes(msg.role)) {
+            messages.push({
+              role: msg.role as 'system' | 'user' | 'assistant',
+              content: msg.content,
+            })
           }
-        }
-
-        logger.info(
-          'Added explicit system prompt as first message, removed any system messages from memories'
-        )
-      } else {
-        // No explicit system prompt provided, check for multiple system messages in memories
-        const systemMessages = messages.filter((msg) => msg.role === 'system')
-
-        if (systemMessages.length > 1) {
-          logger.warn(
-            `Found ${systemMessages.length} system messages in memories with no explicit systemPrompt. Consider providing an explicit systemPrompt for consistent behavior.`
-          )
-        } else if (systemMessages.length === 1) {
-          logger.info('Using system message from memories')
-        }
-      }
-
-      if (inputs.userPrompt) {
-        let userContent = inputs.userPrompt
-        if (typeof userContent === 'object' && userContent.input) {
-          userContent = userContent.input
-        } else if (typeof userContent === 'object') {
-          userContent = JSON.stringify(userContent)
-        }
-
+        })
+      } else if (
+        memory.role &&
+        memory.content &&
+        ['system', 'user', 'assistant'].includes(memory.role)
+      ) {
         messages.push({
-          role: 'user',
-          content: userContent,
+          role: memory.role as 'system' | 'user' | 'assistant',
+          content: memory.content,
         })
-        logger.info('Added user prompt to messages', { contentType: typeof userContent })
       }
+    })
 
-      if (messages.length > 0) {
-        parsedMessages = messages
-        logger.info('Built messages from advanced mode', {
-          messageCount: messages.length,
-          firstMessage: messages[0],
-          lastMessage: messages[messages.length - 1],
-        })
+    return messages
+  }
+
+  private addSystemPrompt(messages: Message[], systemPrompt: string) {
+    const systemMessages = messages.filter((msg) => msg.role === 'system')
+
+    if (systemMessages.length > 0) {
+      messages.splice(0, 0, { role: 'system', content: systemPrompt })
+      for (let i = messages.length - 1; i >= 1; i--) {
+        if (messages[i].role === 'system') {
+          messages.splice(i, 1)
+        }
       }
+    } else {
+      messages.splice(0, 0, { role: 'system', content: systemPrompt })
+    }
+  }
+
+  private addUserPrompt(messages: Message[], userPrompt: any) {
+    let content = userPrompt
+    if (typeof userPrompt === 'object' && userPrompt.input) {
+      content = userPrompt.input
+    } else if (typeof userPrompt === 'object') {
+      content = JSON.stringify(userPrompt)
     }
 
-    // Fast validation of parsed messages
-    const validMessages =
-      Array.isArray(parsedMessages) &&
-      parsedMessages.length > 0 &&
-      parsedMessages.every(
-        (msg) =>
+    messages.push({ role: 'user', content })
+  }
+
+  private buildProviderRequest(config: {
+    providerId: string
+    model: string
+    messages: Message[] | undefined
+    inputs: AgentInputs
+    formattedTools: any[]
+    responseFormat: any
+    context: ExecutionContext
+    streaming: boolean
+  }) {
+    const {
+      providerId,
+      model,
+      messages,
+      inputs,
+      formattedTools,
+      responseFormat,
+      context,
+      streaming,
+    } = config
+
+    const validMessages = this.validateMessages(messages)
+
+    return {
+      provider: providerId,
+      model,
+      systemPrompt: validMessages ? undefined : inputs.systemPrompt,
+      context: JSON.stringify(messages),
+      tools: formattedTools,
+      temperature: inputs.temperature,
+      maxTokens: inputs.maxTokens,
+      apiKey: inputs.apiKey,
+      responseFormat,
+      workflowId: context.workflowId,
+      stream: streaming,
+      messages,
+      environmentVariables: context.environmentVariables || {},
+    }
+  }
+
+  private validateMessages(messages: Message[] | undefined): boolean {
+    return (
+      Array.isArray(messages) &&
+      messages.length > 0 &&
+      messages.every(
+        (msg: any) =>
           typeof msg === 'object' &&
           msg !== null &&
           'role' in msg &&
@@ -284,434 +307,396 @@ export class AgentBlockHandler implements BlockHandler {
           ('content' in msg ||
             (msg.role === 'assistant' && ('function_call' in msg || 'tool_calls' in msg)))
       )
+    )
+  }
 
-    if (Array.isArray(parsedMessages) && parsedMessages.length > 0 && !validMessages) {
-      logger.warn('Messages array has invalid format:', {
-        messageCount: parsedMessages.length,
-      })
-    } else if (validMessages) {
-      logger.info('Messages validated successfully')
-    }
-
-    // Debug request before sending to provider
-    const providerRequest = {
-      provider: providerId,
-      model,
-      // If messages are provided (advanced mode), use them exclusively and skip systemPrompt/context
-      ...(validMessages
-        ? { messages: parsedMessages }
-        : {
-            systemPrompt: inputs.systemPrompt,
-            context: inputs.userPrompt
-              ? Array.isArray(inputs.userPrompt)
-                ? JSON.stringify(inputs.userPrompt, null, 2)
-                : typeof inputs.userPrompt === 'string'
-                  ? inputs.userPrompt
-                  : JSON.stringify(inputs.userPrompt, null, 2)
-              : undefined,
-          }),
-      tools: formattedTools.length > 0 ? formattedTools : undefined,
-      temperature: inputs.temperature,
-      maxTokens: inputs.maxTokens,
-      apiKey: inputs.apiKey,
-      responseFormat,
-      workflowId: context.workflowId,
-      stream: shouldUseStreaming,
-    }
-
+  private logRequestDetails(
+    providerRequest: any,
+    messages: Message[] | undefined,
+    streamingConfig: StreamingConfig
+  ) {
     logger.info('Provider request prepared', {
       model: providerRequest.model,
-      hasMessages: Array.isArray(parsedMessages) && parsedMessages.length > 0,
-      hasSystemPrompt:
-        !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.systemPrompt,
-      hasContext:
-        !(Array.isArray(parsedMessages) && parsedMessages.length > 0) && !!inputs.userPrompt,
+      hasMessages: !!messages?.length,
+      hasSystemPrompt: !messages?.length && !!providerRequest.systemPrompt,
+      hasContext: !messages?.length && !!providerRequest.context,
       hasTools: !!providerRequest.tools,
       hasApiKey: !!providerRequest.apiKey,
       workflowId: providerRequest.workflowId,
-      stream: shouldUseStreaming,
-      isBlockSelectedForOutput,
-      hasOutgoingConnections,
-      // Debug info about messages to help diagnose issues
-      messagesProvided: 'messages' in providerRequest,
-      messagesCount:
-        'messages' in providerRequest && Array.isArray(providerRequest.messages)
-          ? providerRequest.messages.length
-          : 0,
+      stream: providerRequest.stream,
+      messagesCount: messages?.length || 0,
     })
+  }
 
-    const baseUrl = env.NEXT_PUBLIC_APP_URL || ''
-    const url = new URL('/api/providers', baseUrl)
+  private async executeProviderRequest(
+    providerRequest: any,
+    block: SerializedBlock,
+    responseFormat: any,
+    context: ExecutionContext
+  ): Promise<BlockOutput | StreamingExecution> {
+    const providerId = providerRequest.provider
+    const model = providerRequest.model
+    const providerStartTime = Date.now()
 
     try {
-      logger.info(`Making provider request to: ${url.toString()}`, {
-        workflowId: context.workflowId,
-        blockId: block.id,
-        provider: providerId,
-        model,
-        timestamp: new Date().toISOString(),
-      })
+      const isBrowser = typeof window !== 'undefined'
 
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(providerRequest),
-        // Add timeout and signal for better error handling
-        signal: AbortSignal.timeout(120000), // 2 minute timeout
-      })
-
-      if (!response.ok) {
-        // Try to extract a helpful error message
-        let errorMessage = `Provider API request failed with status ${response.status}`
-        let errorDetails = null
-
-        try {
-          const errorData = await response.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-            errorDetails = errorData
-          }
-        } catch (_e) {
-          // If JSON parsing fails, try to get text response
-          try {
-            const textError = await response.text()
-            if (textError) {
-              errorDetails = { textResponse: textError }
-            }
-          } catch (_textError) {
-            // If text parsing also fails, use the original error message
-          }
-        }
-
-        logger.error('Provider API request failed', {
-          workflowId: context.workflowId,
-          blockId: block.id,
-          status: response.status,
-          statusText: response.statusText,
-          url: url.toString(),
-          errorMessage,
-          errorDetails,
-          headers: Object.fromEntries(response.headers.entries()),
-        })
-
-        throw new Error(errorMessage)
+      if (!isBrowser) {
+        return this.executeServerSide(
+          providerRequest,
+          providerId,
+          model,
+          block,
+          responseFormat,
+          context,
+          providerStartTime
+        )
       }
-
-      // Check if we're getting a streaming response
-      const contentType = response.headers.get('Content-Type')
-      if (contentType?.includes('text/event-stream')) {
-        logger.info(`Received streaming response for block ${block.id}`)
-
-        // Ensure we have a valid body stream
-        if (!response.body) {
-          throw new Error(`No response body in streaming response for block ${block.id}`)
-        }
-
-        // Check if we have execution data in the header
-        const executionDataHeader = response.headers.get('X-Execution-Data')
-        if (executionDataHeader) {
-          try {
-            // Parse the execution data from the header
-            const executionData = JSON.parse(executionDataHeader)
-
-            // Add block-specific data to the execution logs if needed
-            if (executionData?.logs) {
-              for (const log of executionData.logs) {
-                if (!log.blockId) log.blockId = block.id
-                if (!log.blockName && block.metadata?.name) log.blockName = block.metadata.name
-                if (!log.blockType && block.metadata?.id) log.blockType = block.metadata.id
-              }
-            }
-
-            // Add block metadata to the execution data if missing
-            if (executionData.output?.response) {
-              // Ensure model and block info is set
-              if (block.metadata?.name && !executionData.blockName) {
-                executionData.blockName = block.metadata.name
-              }
-              if (block.metadata?.id && !executionData.blockType) {
-                executionData.blockType = block.metadata.id
-              }
-              if (!executionData.blockId) {
-                executionData.blockId = block.id
-              }
-
-              // Add explicit streaming flag to make it easier to identify streaming executions
-              executionData.isStreaming = true
-            }
-
-            // Return both the stream and the execution data as separate properties
-            const streamingExecution: StreamingExecution = {
-              stream: response.body,
-              execution: executionData,
-            }
-            return streamingExecution
-          } catch (error) {
-            logger.error(`Error parsing execution data header: ${error}`)
-            // Continue with just the stream if there's an error
-          }
-        }
-
-        // No execution data in header, just return the stream
-        // Create a minimal StreamingExecution with empty execution data
-        const minimalExecution: StreamingExecution = {
-          stream: response.body,
-          execution: {
-            success: true,
-            output: { response: {} },
-            logs: [],
-            metadata: {
-              duration: 0,
-              startTime: new Date().toISOString(),
-            },
-          },
-        }
-        return minimalExecution
-      }
-
-      // Check if we have a combined response with both stream and execution data
-      const result = await response.json()
-
-      if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
-        logger.info(`Received combined streaming response for block ${block.id}`)
-
-        // Get the stream as a ReadableStream (need to convert from serialized format)
-        const stream = new ReadableStream({
-          start(controller) {
-            // Since stream was serialized as JSON, we need to reconstruct it
-            // For now, we'll just use a placeholder message
-            const encoder = new TextEncoder()
-            controller.enqueue(
-              encoder.encode(
-                'Stream data cannot be serialized as JSON. You will need to return a proper stream.'
-              )
-            )
-            controller.close()
-          },
-        })
-
-        // Return both in a format the executor can handle
-        const streamingExecution: StreamingExecution = {
-          stream,
-          execution: result.execution,
-        }
-        return streamingExecution
-      }
-
-      logger.info('Provider response received', {
-        contentLength: result.content ? result.content.length : 0,
-        model: result.model,
-        hasTokens: !!result.tokens,
-        hasToolCalls: !!result.toolCalls,
-        toolCallsCount: result.toolCalls?.length || 0,
-      })
-
-      // If structured responses, try to parse the content
-      if (responseFormat) {
-        try {
-          const parsedContent = JSON.parse(result.content)
-
-          const responseResult = {
-            response: {
-              ...parsedContent,
-              tokens: result.tokens || {
-                prompt: 0,
-                completion: 0,
-                total: 0,
-              },
-              toolCalls: result.toolCalls
-                ? {
-                    list: result.toolCalls.map((tc: any) => ({
-                      ...tc,
-                      // Strip the 'custom_' prefix from tool names for display
-                      name: stripCustomToolPrefix(tc.name),
-                      // Preserve timing information if available
-                      startTime: tc.startTime,
-                      endTime: tc.endTime,
-                      duration: tc.duration,
-                      input: tc.arguments || tc.input,
-                      output: tc.result || tc.output,
-                    })),
-                    count: result.toolCalls.length,
-                  }
-                : undefined,
-              providerTiming: result.timing || undefined,
-              cost: result.cost || undefined,
-            },
-          }
-
-          return responseResult
-        } catch (error) {
-          logger.error('Failed to parse response content:', { error })
-          logger.info('Falling back to standard response format')
-
-          // Fall back to standard response if parsing fails
-          return {
-            response: {
-              content: result.content,
-              model: result.model,
-              tokens: result.tokens || {
-                prompt: 0,
-                completion: 0,
-                total: 0,
-              },
-              toolCalls: {
-                list: result.toolCalls
-                  ? result.toolCalls.map((tc: any) => ({
-                      ...tc,
-                      // Strip the 'custom_' prefix from tool names for display
-                      name: stripCustomToolPrefix(tc.name),
-                      // Preserve timing information if available
-                      startTime: tc.startTime,
-                      endTime: tc.endTime,
-                      duration: tc.duration,
-                      input: tc.arguments || tc.input,
-                      output: tc.result || tc.output,
-                    }))
-                  : [],
-                count: result.toolCalls?.length || 0,
-              },
-              providerTiming: result.timing || undefined,
-              cost: result.cost || undefined,
-            },
-          }
-        }
-      }
-
-      // Return standard response if no responseFormat
-      return {
-        response: {
-          content: result.content,
-          model: result.model,
-          tokens: result.tokens || {
-            prompt: 0,
-            completion: 0,
-            total: 0,
-          },
-          toolCalls: {
-            list: result.toolCalls
-              ? result.toolCalls.map((tc: any) => ({
-                  ...tc,
-                  // Strip the 'custom_' prefix from tool names for display
-                  name: stripCustomToolPrefix(tc.name),
-                  // Preserve timing information if available
-                  startTime: tc.startTime,
-                  endTime: tc.endTime,
-                  duration: tc.duration,
-                  input: tc.arguments || tc.input,
-                  output: tc.result || tc.output,
-                }))
-              : [],
-            count: result.toolCalls?.length || 0,
-          },
-          providerTiming: result.timing || undefined,
-          cost: result.cost || undefined,
-        },
-      }
+      return this.executeBrowserSide(
+        providerRequest,
+        block,
+        responseFormat,
+        context,
+        providerStartTime
+      )
     } catch (error) {
-      logger.error('Error executing provider request:', { error })
-
-      // Enhanced error logging for different error types
-      if (error instanceof Error) {
-        logger.error('Provider request error details', {
-          workflowId: context.workflowId,
-          blockId: block.id,
-          errorName: error.name,
-          errorMessage: error.message,
-          errorStack: error.stack,
-          url: url.toString(),
-          timestamp: new Date().toISOString(),
-        })
-
-        // Check for specific error types
-        if (error.name === 'AbortError') {
-          logger.error('Request timed out after 2 minutes', {
-            workflowId: context.workflowId,
-            blockId: block.id,
-            url: url.toString(),
-          })
-          throw new Error('Provider request timed out - the API took too long to respond')
-        }
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-          logger.error('Network fetch error - possible connectivity issue', {
-            workflowId: context.workflowId,
-            blockId: block.id,
-            url: url.toString(),
-            errorMessage: error.message,
-          })
-          throw new Error(
-            'Network error - unable to connect to provider API. Please check your internet connection.'
-          )
-        }
-        if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
-          logger.error('DNS/Connection error', {
-            workflowId: context.workflowId,
-            blockId: block.id,
-            url: url.toString(),
-            errorMessage: error.message,
-          })
-          throw new Error('Unable to connect to server - DNS or connection issue')
-        }
-      }
-
+      this.handleExecutionError(error, providerStartTime, providerId, model, context, block)
       throw error
     }
   }
-}
 
-export function stripCustomToolPrefix(name: string) {
-  return name.startsWith('custom_') ? name.replace('custom_', '') : name
-}
+  private async executeServerSide(
+    providerRequest: any,
+    providerId: string,
+    model: string,
+    block: SerializedBlock,
+    responseFormat: any,
+    context: ExecutionContext,
+    providerStartTime: number
+  ) {
+    logger.info('Using direct provider execution (server environment)')
 
-/**
- * Helper function to process memories and convert them to message format
- */
-function processMemories(memories: any, logger: any): any[] {
-  const messages: any[] = []
+    const finalApiKey = this.getApiKey(providerId, model, providerRequest.apiKey)
 
-  if (!memories) {
-    return messages
+    const response = await executeProviderRequest(providerId, {
+      model,
+      systemPrompt: 'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
+      context: 'context' in providerRequest ? providerRequest.context : undefined,
+      tools: providerRequest.tools,
+      temperature: providerRequest.temperature,
+      maxTokens: providerRequest.maxTokens,
+      apiKey: finalApiKey,
+      responseFormat: providerRequest.responseFormat,
+      workflowId: providerRequest.workflowId,
+      stream: providerRequest.stream,
+      messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
+      environmentVariables: context.environmentVariables || {},
+    })
+
+    this.logExecutionSuccess(providerId, model, context, block, providerStartTime, response)
+    return this.processProviderResponse(response, block, responseFormat)
   }
 
-  let memoryArray: any[] = []
+  private async executeBrowserSide(
+    providerRequest: any,
+    block: SerializedBlock,
+    responseFormat: any,
+    context: ExecutionContext,
+    providerStartTime: number
+  ) {
+    logger.info('Using HTTP provider request (browser environment)')
 
-  // Handle different memory input formats
-  if (memories?.response?.memories && Array.isArray(memories.response.memories)) {
-    // Memory block output format: { response: { memories: [...] } }
-    memoryArray = memories.response.memories
-  } else if (memories?.memories && Array.isArray(memories.memories)) {
-    // Direct memory output format: { memories: [...] }
-    memoryArray = memories.memories
-  } else if (Array.isArray(memories)) {
-    // Direct array of messages: [{ role, content }, ...]
-    memoryArray = memories
-  } else {
-    logger.warn('Unexpected memories format', { memories })
-    return messages
-  }
+    const url = new URL('/api/providers', env.NEXT_PUBLIC_APP_URL || '')
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(providerRequest),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+    })
 
-  // Process the memory array
-  memoryArray.forEach((memory: any) => {
-    if (memory.data && Array.isArray(memory.data)) {
-      // Memory object with data array: { key, type, data: [{ role, content }, ...] }
-      memory.data.forEach((msg: any) => {
-        if (msg.role && msg.content) {
-          messages.push({
-            role: msg.role,
-            content: msg.content,
-          })
-        }
-      })
-    } else if (memory.role && memory.content) {
-      // Direct message object: { role, content }
-      messages.push({
-        role: memory.role,
-        content: memory.content,
-      })
+    if (!response.ok) {
+      const errorMessage = await this.extractErrorMessage(response)
+      throw new Error(errorMessage)
     }
-  })
 
-  return messages
+    this.logExecutionSuccess(
+      providerRequest.provider,
+      providerRequest.model,
+      context,
+      block,
+      providerStartTime,
+      'HTTP response'
+    )
+
+    // Check if this is a streaming response
+    const contentType = response.headers.get('Content-Type')
+    if (contentType?.includes('text/event-stream')) {
+      // Handle streaming response
+      return this.handleStreamingResponse(response, block)
+    }
+
+    // Handle regular JSON response
+    const result = await response.json()
+    return this.processProviderResponse(result, block, responseFormat)
+  }
+
+  private async handleStreamingResponse(
+    response: Response,
+    block: SerializedBlock
+  ): Promise<StreamingExecution> {
+    // Check if we have execution data in headers (from StreamingExecution)
+    const executionDataHeader = response.headers.get('X-Execution-Data')
+
+    if (executionDataHeader) {
+      // Parse execution data from header
+      try {
+        const executionData = JSON.parse(executionDataHeader)
+
+        // Create StreamingExecution object
+        return {
+          stream: response.body!,
+          execution: {
+            success: executionData.success,
+            output: executionData.output || { response: {} },
+            error: executionData.error,
+            logs: [], // Logs are stripped from headers, will be populated by executor
+            metadata: executionData.metadata || {
+              duration: 0,
+              startTime: new Date().toISOString(),
+            },
+            isStreaming: true,
+            blockId: block.id,
+            blockName: block.metadata?.name,
+            blockType: block.metadata?.id,
+          } as any,
+        }
+      } catch (error) {
+        logger.error('Failed to parse execution data from header:', error)
+        // Fall back to minimal streaming execution
+      }
+    }
+
+    // Fallback for plain ReadableStream or when header parsing fails
+    return this.createMinimalStreamingExecution(response.body!)
+  }
+
+  private getApiKey(providerId: string, model: string, inputApiKey: string): string {
+    try {
+      return getApiKey(providerId, model, inputApiKey)
+    } catch (error) {
+      logger.error('Failed to get API key:', {
+        provider: providerId,
+        model,
+        error: error instanceof Error ? error.message : String(error),
+        hasProvidedApiKey: !!inputApiKey,
+      })
+      throw new Error(error instanceof Error ? error.message : 'API key error')
+    }
+  }
+
+  private async extractErrorMessage(response: Response): Promise<string> {
+    let errorMessage = `Provider API request failed with status ${response.status}`
+    try {
+      const errorData = await response.json()
+      if (errorData.error) {
+        errorMessage = errorData.error
+      }
+    } catch (_e) {
+      // Use default message if JSON parsing fails
+    }
+    return errorMessage
+  }
+
+  private logExecutionSuccess(
+    provider: string,
+    model: string,
+    context: ExecutionContext,
+    block: SerializedBlock,
+    startTime: number,
+    response: any
+  ) {
+    const executionTime = Date.now() - startTime
+    const responseType =
+      response instanceof ReadableStream
+        ? 'stream'
+        : response && typeof response === 'object' && 'stream' in response
+          ? 'streaming-execution'
+          : 'json'
+
+    logger.info('Provider request completed successfully', {
+      provider,
+      model,
+      workflowId: context.workflowId,
+      blockId: block.id,
+      executionTime,
+      responseType,
+    })
+  }
+
+  private handleExecutionError(
+    error: any,
+    startTime: number,
+    provider: string,
+    model: string,
+    context: ExecutionContext,
+    block: SerializedBlock
+  ) {
+    const executionTime = Date.now() - startTime
+
+    logger.error('Error executing provider request:', {
+      error,
+      executionTime,
+      provider,
+      model,
+      workflowId: context.workflowId,
+      blockId: block.id,
+    })
+
+    if (!(error instanceof Error)) return
+
+    logger.error('Provider request error details', {
+      workflowId: context.workflowId,
+      blockId: block.id,
+      errorName: error.name,
+      errorMessage: error.message,
+      errorStack: error.stack,
+      timestamp: new Date().toISOString(),
+    })
+
+    if (error.name === 'AbortError') {
+      throw new Error('Provider request timed out - the API took too long to respond')
+    }
+    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      throw new Error(
+        'Network error - unable to connect to provider API. Please check your internet connection.'
+      )
+    }
+    if (error.message.includes('ENOTFOUND') || error.message.includes('ECONNREFUSED')) {
+      throw new Error('Unable to connect to server - DNS or connection issue')
+    }
+  }
+
+  private processProviderResponse(
+    response: any,
+    block: SerializedBlock,
+    responseFormat: any
+  ): BlockOutput | StreamingExecution {
+    if (this.isStreamingExecution(response)) {
+      return this.processStreamingExecution(response, block)
+    }
+
+    if (response instanceof ReadableStream) {
+      return this.createMinimalStreamingExecution(response)
+    }
+
+    return this.processRegularResponse(response, responseFormat)
+  }
+
+  private isStreamingExecution(response: any): boolean {
+    return (
+      response && typeof response === 'object' && 'stream' in response && 'execution' in response
+    )
+  }
+
+  private processStreamingExecution(
+    response: StreamingExecution,
+    block: SerializedBlock
+  ): StreamingExecution {
+    const streamingExec = response as StreamingExecution
+    logger.info(`Received StreamingExecution for block ${block.id}`)
+
+    if (streamingExec.execution.output?.response) {
+      const execution = streamingExec.execution as any
+      if (block.metadata?.name) execution.blockName = block.metadata.name
+      if (block.metadata?.id) execution.blockType = block.metadata.id
+      execution.blockId = block.id
+      execution.isStreaming = true
+    }
+
+    return streamingExec
+  }
+
+  private createMinimalStreamingExecution(stream: ReadableStream): StreamingExecution {
+    return {
+      stream,
+      execution: {
+        success: true,
+        output: { response: {} },
+        logs: [],
+        metadata: {
+          duration: 0,
+          startTime: new Date().toISOString(),
+        },
+      },
+    }
+  }
+
+  private processRegularResponse(result: any, responseFormat: any): BlockOutput {
+    logger.info('Provider response received', {
+      contentLength: result.content ? result.content.length : 0,
+      model: result.model,
+      hasTokens: !!result.tokens,
+      hasToolCalls: !!result.toolCalls,
+      toolCallsCount: result.toolCalls?.length || 0,
+    })
+
+    if (responseFormat) {
+      return this.processStructuredResponse(result, responseFormat)
+    }
+
+    return this.processStandardResponse(result)
+  }
+
+  private processStructuredResponse(result: any, responseFormat: any): BlockOutput {
+    try {
+      const parsedContent = JSON.parse(result.content)
+      return {
+        response: {
+          ...parsedContent,
+          ...this.createResponseMetadata(result),
+        },
+      }
+    } catch (error) {
+      logger.error('Failed to parse response content:', { error })
+      return this.processStandardResponse(result)
+    }
+  }
+
+  private processStandardResponse(result: any): BlockOutput {
+    return {
+      response: {
+        content: result.content,
+        model: result.model,
+        ...this.createResponseMetadata(result),
+      },
+    }
+  }
+
+  private createResponseMetadata(result: any) {
+    return {
+      tokens: result.tokens || { prompt: 0, completion: 0, total: 0 },
+      toolCalls: {
+        list: result.toolCalls ? result.toolCalls.map(this.formatToolCall.bind(this)) : [],
+        count: result.toolCalls?.length || 0,
+      },
+      providerTiming: result.timing,
+      cost: result.cost,
+    }
+  }
+
+  private formatToolCall(tc: any) {
+    return {
+      ...tc,
+      name: this.stripCustomToolPrefix(tc.name),
+      startTime: tc.startTime,
+      endTime: tc.endTime,
+      duration: tc.duration,
+      input: tc.arguments || tc.input,
+      output: tc.result || tc.output,
+    }
+  }
+
+  private stripCustomToolPrefix(name: string): string {
+    return name.startsWith('custom_') ? name.replace('custom_', '') : name
+  }
 }

@@ -15,7 +15,6 @@ export const dynamic = 'force-dynamic'
 
 const logger = createLogger('FilesParseAPI')
 
-// Constants for URL downloads
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB
 const DOWNLOAD_TIMEOUT_MS = 30000 // 30 seconds
 
@@ -70,21 +69,6 @@ const fileTypeMap: Record<string, string> = {
   // Archive formats
   zip: 'application/zip',
 }
-
-// Binary file extensions
-const _binaryExtensions = [
-  'doc',
-  'docx',
-  'xls',
-  'xlsx',
-  'ppt',
-  'pptx',
-  'zip',
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-]
 
 /**
  * Main API route handler
@@ -530,10 +514,56 @@ async function parseBufferAsPdf(buffer: Buffer) {
 }
 
 /**
+ * Validate that a file path is safe and within allowed directories
+ */
+function validateAndResolvePath(inputPath: string): {
+  isValid: boolean
+  resolvedPath?: string
+  error?: string
+} {
+  try {
+    let targetPath = inputPath
+    if (inputPath.startsWith('/api/files/serve/')) {
+      const filename = inputPath.replace('/api/files/serve/', '')
+      targetPath = path.join(UPLOAD_DIR, filename)
+    }
+
+    const resolvedPath = path.resolve(targetPath)
+    const resolvedUploadDir = path.resolve(UPLOAD_DIR)
+
+    if (
+      !resolvedPath.startsWith(resolvedUploadDir + path.sep) &&
+      resolvedPath !== resolvedUploadDir
+    ) {
+      return {
+        isValid: false,
+        error: `Access denied: Path outside allowed directory`,
+      }
+    }
+
+    if (inputPath.includes('..') || inputPath.includes('~')) {
+      return {
+        isValid: false,
+        error: `Access denied: Invalid path characters detected`,
+      }
+    }
+
+    return {
+      isValid: true,
+      resolvedPath,
+    }
+  } catch (error) {
+    return {
+      isValid: false,
+      error: `Path validation error: ${(error as Error).message}`,
+    }
+  }
+}
+
+/**
  * Handle a local file from the filesystem
  */
 async function handleLocalFile(filePath: string, fileType?: string): Promise<ParseResult> {
-  // Check if this is an S3 path that was incorrectly routed
   if (filePath.includes('/api/files/serve/s3/')) {
     logger.warn(`S3 path detected in handleLocalFile, redirecting to S3 handler: ${filePath}`)
     return handleS3File(filePath, fileType)
@@ -542,15 +572,19 @@ async function handleLocalFile(filePath: string, fileType?: string): Promise<Par
   try {
     logger.info(`Handling local file: ${filePath}`)
 
-    // Extract the filename from the path for API serve paths
-    let localFilePath = filePath
-    if (filePath.startsWith('/api/files/serve/')) {
-      const filename = filePath.replace('/api/files/serve/', '')
-      localFilePath = path.join(UPLOAD_DIR, filename)
-      logger.info(`Resolved API path to local file: ${localFilePath}`)
+    const pathValidation = validateAndResolvePath(filePath)
+    if (!pathValidation.isValid) {
+      logger.error(`Path validation failed: ${pathValidation.error}`, { filePath })
+      return {
+        success: false,
+        error: pathValidation.error || 'Invalid file path',
+        filePath,
+      }
     }
 
-    // Make sure the file is actually a file that exists
+    const localFilePath = pathValidation.resolvedPath!
+    logger.info(`Validated and resolved path: ${localFilePath}`)
+
     try {
       await fsPromises.access(localFilePath, fsPromises.constants.R_OK)
     } catch (error) {

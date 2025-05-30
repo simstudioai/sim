@@ -22,6 +22,12 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       description: 'Execution timeout in milliseconds',
       default: DEFAULT_TIMEOUT,
     },
+    envVars: {
+      type: 'object',
+      required: false,
+      description: 'Environment variables to make available during execution',
+      default: {},
+    },
   },
 
   request: {
@@ -38,6 +44,9 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       return {
         code: codeContent,
         timeout: params.timeout || DEFAULT_TIMEOUT,
+        envVars: params.envVars || {},
+        workflowId: params._context?.workflowId,
+        isCustomTool: params.isCustomTool || false,
       }
     },
     isInternalRoute: true,

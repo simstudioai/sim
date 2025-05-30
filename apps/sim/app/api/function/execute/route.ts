@@ -38,7 +38,7 @@ function resolveCodeVariables(
   for (const match of tagMatches) {
     const tagName = match.slice(1, -1).trim()
     const tagValue = params[tagName] || ''
-    resolvedCode = resolvedCode.replace(match, tagValue)
+    resolvedCode = resolvedCode.replace(match, JSON.stringify(tagValue))
   }
 
   return resolvedCode
@@ -60,6 +60,14 @@ export async function POST(req: NextRequest) {
       workflowId,
       isCustomTool = false,
     } = body
+
+    logger.info(`[${requestId}] Function execution request`, {
+      hasCode: !!code,
+      paramsCount: Object.keys(params).length,
+      timeout,
+      workflowId,
+      isCustomTool,
+    })
 
     // Extract internal parameters that shouldn't be passed to the execution context
     const executionParams = { ...params }
@@ -181,7 +189,7 @@ export async function POST(req: NextRequest) {
               const errorMessage = `${args
                 .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
                 .join(' ')}\n`
-              logger.error(`[${requestId}] Code Console Error:`, errorMessage)
+              logger.error(`[${requestId}] Code Console Error: ${errorMessage}`)
               stdout += `ERROR: ${errorMessage}`
             },
           },
@@ -234,7 +242,7 @@ export async function POST(req: NextRequest) {
             const errorMessage = `${args
               .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg) : String(arg)))
               .join(' ')}\n`
-            logger.error(`[${requestId}] Code Console Error:`, errorMessage)
+            logger.error(`[${requestId}] Code Console Error: ${errorMessage}`)
             stdout += `ERROR: ${errorMessage}`
           },
         },

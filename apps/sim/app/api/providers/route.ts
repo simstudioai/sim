@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       workflowId,
       stream,
       messages,
+      environmentVariables,
     } = body
 
     logger.info(`[${requestId}] Provider request details`, {
@@ -51,6 +52,8 @@ export async function POST(request: NextRequest) {
       stream: !!stream,
       hasMessages: !!messages?.length,
       messageCount: messages?.length || 0,
+      hasEnvironmentVariables:
+        !!environmentVariables && Object.keys(environmentVariables).length > 0,
     })
 
     let finalApiKey: string
@@ -89,6 +92,7 @@ export async function POST(request: NextRequest) {
       workflowId,
       stream,
       messages,
+      environmentVariables,
     })
 
     const executionTime = Date.now() - startTime
