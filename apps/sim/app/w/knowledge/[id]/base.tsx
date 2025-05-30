@@ -76,150 +76,6 @@ export function KnowledgeBase({ id }: KnowledgeBaseProps) {
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Fake documents data for development
-  const FAKE_DOCUMENTS: DocumentData[] = [
-    {
-      id: 'doc-1',
-      knowledgeBaseId: id,
-      filename: 'Product Requirements Document.pdf',
-      fileUrl: '/documents/prd.pdf',
-      fileSize: 2456789,
-      mimeType: 'application/pdf',
-      fileHash: 'abc123def456',
-      chunkCount: 45,
-      tokenCount: 12500,
-      characterCount: 87650,
-      enabled: true,
-      uploadedAt: '2024-01-15T10:30:00Z',
-    },
-    {
-      id: 'doc-2',
-      knowledgeBaseId: id,
-      filename: 'API Documentation.docx',
-      fileUrl: '/documents/api-docs.docx',
-      fileSize: 1234567,
-      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      fileHash: 'def456ghi789',
-      chunkCount: 32,
-      tokenCount: 8750,
-      characterCount: 62400,
-      enabled: true,
-      uploadedAt: '2024-01-14T14:22:00Z',
-    },
-    {
-      id: 'doc-3',
-      knowledgeBaseId: id,
-      filename: 'Meeting Notes January.txt',
-      fileUrl: '/documents/meeting-notes-jan.txt',
-      fileSize: 45678,
-      mimeType: 'text/plain',
-      fileHash: 'ghi789jkl012',
-      chunkCount: 8,
-      tokenCount: 2340,
-      characterCount: 16750,
-      enabled: false,
-      uploadedAt: '2024-01-13T09:15:00Z',
-    },
-    {
-      id: 'doc-4',
-      knowledgeBaseId: id,
-      filename: 'Financial Report Q4 2023.xlsx',
-      fileUrl: '/documents/financial-report-q4.xlsx',
-      fileSize: 567890,
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      fileHash: 'jkl012mno345',
-      chunkCount: 18,
-      tokenCount: 4200,
-      characterCount: 28900,
-      enabled: true,
-      uploadedAt: '2024-01-12T16:45:00Z',
-    },
-    {
-      id: 'doc-5',
-      knowledgeBaseId: id,
-      filename: 'User Guide v2.1.pdf',
-      fileUrl: '/documents/user-guide-v21.pdf',
-      fileSize: 3456789,
-      mimeType: 'application/pdf',
-      fileHash: 'mno345pqr678',
-      chunkCount: 67,
-      tokenCount: 18900,
-      characterCount: 135600,
-      enabled: true,
-      uploadedAt: '2024-01-11T11:30:00Z',
-    },
-    {
-      id: 'doc-6',
-      knowledgeBaseId: id,
-      filename: 'Code Style Guidelines.md',
-      fileUrl: '/documents/code-style.md',
-      fileSize: 23456,
-      mimeType: 'text/markdown',
-      fileHash: 'pqr678stu901',
-      chunkCount: 12,
-      tokenCount: 3400,
-      characterCount: 18200,
-      enabled: true,
-      uploadedAt: '2024-01-10T13:20:00Z',
-    },
-    {
-      id: 'doc-7',
-      knowledgeBaseId: id,
-      filename: 'Architecture Overview.pptx',
-      fileUrl: '/documents/architecture-overview.pptx',
-      fileSize: 4567890,
-      mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      fileHash: 'stu901vwx234',
-      chunkCount: 28,
-      tokenCount: 6800,
-      characterCount: 42300,
-      enabled: false,
-      uploadedAt: '2024-01-09T15:10:00Z',
-    },
-    {
-      id: 'doc-8',
-      knowledgeBaseId: id,
-      filename: 'Customer Feedback Analysis.csv',
-      fileUrl: '/documents/customer-feedback.csv',
-      fileSize: 89012,
-      mimeType: 'text/csv',
-      fileHash: 'vwx234yza567',
-      chunkCount: 15,
-      tokenCount: 2890,
-      characterCount: 19400,
-      enabled: true,
-      uploadedAt: '2024-01-08T08:45:00Z',
-    },
-    {
-      id: 'doc-9',
-      knowledgeBaseId: id,
-      filename: 'Project Timeline.png',
-      fileUrl: '/documents/project-timeline.png',
-      fileSize: 234567,
-      mimeType: 'image/png',
-      fileHash: 'yza567bcd890',
-      chunkCount: 5,
-      tokenCount: 890,
-      characterCount: 3200,
-      enabled: true,
-      uploadedAt: '2024-01-07T12:00:00Z',
-    },
-    {
-      id: 'doc-10',
-      knowledgeBaseId: id,
-      filename: 'Database Schema Documentation.pdf',
-      fileUrl: '/documents/db-schema.pdf',
-      fileSize: 1890123,
-      mimeType: 'application/pdf',
-      fileHash: 'bcd890efg123',
-      chunkCount: 38,
-      tokenCount: 9200,
-      characterCount: 64800,
-      enabled: true,
-      uploadedAt: '2024-01-06T17:30:00Z',
-    },
-  ]
-
   // Fetch knowledge base data
   useEffect(() => {
     const fetchKnowledgeBase = async () => {
@@ -262,14 +118,6 @@ export function KnowledgeBase({ id }: KnowledgeBaseProps) {
       try {
         setIsLoadingDocuments(true)
 
-        // Use fake data for development
-        // Comment out the API call and use fake data instead
-        setDocuments(FAKE_DOCUMENTS)
-        setIsLoadingDocuments(false)
-        return
-
-        // Original API call (commented out for fake data)
-        /*
         const response = await fetch(`/api/knowledge/${id}/documents`)
 
         if (!response.ok) {
@@ -283,7 +131,6 @@ export function KnowledgeBase({ id }: KnowledgeBaseProps) {
         } else {
           throw new Error(result.error || 'Failed to fetch documents')
         }
-        */
       } catch (err) {
         console.error('Error fetching documents:', err)
         // Don't set error here since we already have the knowledge base data
