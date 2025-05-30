@@ -49,7 +49,6 @@ interface MicrosoftFileSelectorProps {
   label?: string
   disabled?: boolean
   serviceId?: string
-  mimeTypeFilter?: string
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: MicrosoftFileInfo | null) => void
 }
@@ -62,7 +61,6 @@ export function MicrosoftFileSelector({
   label = 'Select file',
   disabled = false,
   serviceId,
-  mimeTypeFilter,
   showPreview = true,
   onFileInfoChange,
 }: MicrosoftFileSelectorProps) {
@@ -240,31 +238,6 @@ export function MicrosoftFileSelector({
       setSelectedFileId(value)
     }
   }, [value])
-
-  // Fetch the access token for the selected credential
-  const fetchAccessToken = async (): Promise<string | null> => {
-    if (!selectedCredentialId) {
-      logger.error('No credential ID selected for Microsoft File Picker')
-      return null
-    }
-
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/auth/oauth/token?credentialId=${selectedCredentialId}`)
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch access token: ${response.status}`)
-      }
-
-      const data = await response.json()
-      return data.accessToken || null
-    } catch (error) {
-      logger.error('Error fetching access token:', { error })
-      return null
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   // Handle selecting a file from the available files
   const handleFileSelect = (file: MicrosoftFileInfo) => {

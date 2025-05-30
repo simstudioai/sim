@@ -47,7 +47,7 @@ export const tableAddTool: ToolConfig<
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      let processedValues: any = params.values || []
+      let processedValues: MicrosoftExcelTableToolParams['values'] = params.values || []
 
       if (
         Array.isArray(processedValues) &&

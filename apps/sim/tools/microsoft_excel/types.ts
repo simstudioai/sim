@@ -1,10 +1,13 @@
 import type { ToolResponse } from '../types'
 
+// Type for Excel cell values - covers all valid data types that Excel supports
+export type ExcelCellValue = string | number | boolean | null
+
 export interface MicrosoftExcelRange {
   sheetId?: number
   sheetName?: string
   range: string
-  values: any[][]
+  values: ExcelCellValue[][]
 }
 
 export interface MicrosoftExcelMetadata {
@@ -40,7 +43,7 @@ export interface MicrosoftExcelWriteResponse extends ToolResponse {
 export interface MicrosoftExcelTableAddResponse extends ToolResponse {
   output: {
     index: number
-    values: any[][]
+    values: ExcelCellValue[][]
     metadata: MicrosoftExcelMetadata
   }
 }
@@ -49,7 +52,7 @@ export interface MicrosoftExcelToolParams {
   accessToken: string
   spreadsheetId: string
   range?: string
-  values?: any[][]
+  values?: ExcelCellValue[][]
   valueInputOption?: 'RAW' | 'USER_ENTERED'
   insertDataOption?: 'OVERWRITE' | 'INSERT_ROWS'
   includeValuesInResponse?: boolean
@@ -61,6 +64,6 @@ export interface MicrosoftExcelTableToolParams {
   accessToken: string
   spreadsheetId: string
   tableName: string
-  values: any[][]
-  rowIndex?: number // For table updates - 0-based index
+  values: ExcelCellValue[][]
+  rowIndex?: number
 }
