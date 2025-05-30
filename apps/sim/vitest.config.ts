@@ -16,6 +16,7 @@ export default defineConfig({
     environment: 'node',
     include: ['**/*.test.{ts,tsx}'],
     exclude: [...configDefaults.exclude, '**/node_modules/**', '**/dist/**'],
+    setupFiles: ['./vitest.setup.ts'],
     alias: {
       '@': resolve(__dirname, './'),
     },

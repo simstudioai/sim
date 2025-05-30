@@ -1,5 +1,5 @@
 /**
- * @vitest-environment jsdom
+ * @vitest-environment node
  *
  * Executor Class Unit Tests
  *
@@ -22,7 +22,19 @@ import {
 import { Executor } from './index'
 import type { BlockLog } from './types'
 
-// Mock the logger
+vi.mock('@/stores/execution/store', () => ({
+  useExecutionStore: {
+    getState: vi.fn(() => ({
+      setIsExecuting: vi.fn(),
+      setIsDebugging: vi.fn(),
+      setPendingBlocks: vi.fn(),
+      reset: vi.fn(),
+      setActiveBlocks: vi.fn(),
+    })),
+    setState: vi.fn(),
+  },
+}))
+
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: () => ({
     error: vi.fn(),
@@ -35,7 +47,6 @@ vi.mock('@/lib/logs/console-logger', () => ({
 describe('Executor', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // Setup all standard mocks by default
     setupAllMocks()
   })
 
@@ -88,7 +99,6 @@ describe('Executor', () => {
    */
   describe('workflow validation', () => {
     test('should validate workflow on initialization', () => {
-      // Create a spy for the validateWorkflow method
       const validateSpy = vi.spyOn(Executor.prototype as any, 'validateWorkflow')
 
       const workflow = createMinimalWorkflow()
@@ -101,7 +111,6 @@ describe('Executor', () => {
       const workflow = createMinimalWorkflow()
       const executor = new Executor(workflow)
 
-      // Create a spy for the validateWorkflow method and reset the mock
       const validateSpy = vi.spyOn(executor as any, 'validateWorkflow')
       validateSpy.mockClear()
 
