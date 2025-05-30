@@ -14,16 +14,13 @@ const logger = createLogger('MicrosoftFileAPI')
  * Get a single file from Microsoft OneDrive
  */
 export async function GET(request: NextRequest) {
-  const requestId = crypto.randomUUID().slice(0, 8) // Generate a short request ID for correlation
-  logger.info(`[${requestId}] Microsoft OneDrive file request received`)
-
+  const requestId = crypto.randomUUID().slice(0, 8)
   try {
     // Get the session
     const session = await getSession()
 
     // Check if the user is authenticated
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthenticated request rejected`)
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
@@ -33,7 +30,6 @@ export async function GET(request: NextRequest) {
     const fileId = searchParams.get('fileId')
 
     if (!credentialId || !fileId) {
-      logger.warn(`[${requestId}] Missing required parameters`)
       return NextResponse.json({ error: 'Credential ID and File ID are required' }, { status: 400 })
     }
 
@@ -41,7 +37,6 @@ export async function GET(request: NextRequest) {
     const credentials = await db.select().from(account).where(eq(account.id, credentialId)).limit(1)
 
     if (!credentials.length) {
-      logger.warn(`[${requestId}] Credential not found`, { credentialId })
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
     }
 
@@ -49,10 +44,6 @@ export async function GET(request: NextRequest) {
 
     // Check if the credential belongs to the user
     if (credential.userId !== session.user.id) {
-      logger.warn(`[${requestId}] Unauthorized credential access attempt`, {
-        credentialUserId: credential.userId,
-        requestUserId: session.user.id,
-      })
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 

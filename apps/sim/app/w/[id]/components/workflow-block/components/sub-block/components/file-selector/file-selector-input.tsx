@@ -46,8 +46,6 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   const isMicrosoftExcel = provider === 'microsoft-excel'
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
-  const _credentials =
-    isConfluence || isJira ? (getValue(blockId, 'credential') as string) || '' : ''
   // For Discord, we need the bot token and server ID
   const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
   const serverId = isDiscord ? (getValue(blockId, 'serverId') as string) || '' : ''
@@ -189,6 +187,9 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   }
 
   if (isMicrosoftExcel) {
+    // Get credential using the same pattern as other tools
+    const credential = (getValue(blockId, 'credential') as string) || ''
+
     return (
       <TooltipProvider>
         <Tooltip>
@@ -201,11 +202,17 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
                 requiredScopes={subBlock.requiredScopes || []}
                 serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Microsoft Excel file'}
+                disabled={disabled || !credential}
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
               />
             </div>
           </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side='top'>
+              <p>Please select Microsoft Excel credentials first</p>
+            </TooltipContent>
+          )}
         </Tooltip>
       </TooltipProvider>
     )
