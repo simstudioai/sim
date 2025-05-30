@@ -198,14 +198,14 @@ export function ControlBar() {
    * Fetches the deployed state of the workflow from the server
    * This is the single source of truth for deployed workflow state
    */
-  const fetchDeployedState = async (options = { forceRefetch: false }) => {
+  const fetchDeployedState = async () => {
     if (!activeWorkflowId) {
       setDeployedState(null)
       return
     }
 
-    // Skip fetching if not deployed unless forcing a refetch
-    if (!isDeployed && !options.forceRefetch) {
+    // Skip fetching if not deployed
+    if (!isDeployed) {
       setDeployedState(null)
       return
     }
