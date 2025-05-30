@@ -87,7 +87,7 @@ export function ControlBar() {
     showNotification,
     removeNotification,
   } = useNotificationStore()
-  const { history, revertToHistoryState, lastSaved } = useWorkflowStore()
+  const { history, revertToHistoryState, lastSaved, setNeedsRedeploymentFlag } = useWorkflowStore()
   const {
     workflows,
     updateWorkflow,
@@ -255,49 +255,29 @@ export function ControlBar() {
     }
   }
 
-  // Fetch deployed state when the workflow ID changes or deployment status changes
+  // Fetch deployed state when workflow ID or deployment status changes
   useEffect(() => {
-    // Immediately clear deployed state when workflow changes to prevent mixup
-    if (activeWorkflowId) {
-      setDeployedState(null)
-      setIsLoadingDeployedState(false)
-    }
-
-    // Then fetch the new deployed state
-    fetchDeployedState()
-  }, [activeWorkflowId, isDeployed])
-
-  // Listen for deployment status changes
-  useEffect(() => {
-    // Clear deployed state immediately when workflow changes
+    // Clear deployed state immediately when workflow changes to prevent mixup
     if (!activeWorkflowId) {
       setDeployedState(null)
       setIsLoadingDeployedState(false)
       return
     }
 
+    setDeployedState(null)
+    setIsLoadingDeployedState(false)
+
     if (isDeployed) {
       // When deployment status becomes true, reset the needsRedeployment flag
       setNeedsRedeployment(false)
-      useWorkflowStore.getState().setNeedsRedeploymentFlag(false)
-      // Fetch the latest deployed state
+      setNeedsRedeploymentFlag(false)
       fetchDeployedState()
     } else {
-      // If workflow is undeployed, clear the deployed state
+      // If workflow is undeployed, ensure deployed state remains cleared
       setDeployedState(null)
       setIsLoadingDeployedState(false)
     }
-  }, [isDeployed, activeWorkflowId])
-
-  // Add a listener for the needsRedeployment flag in the workflow store
-  useEffect(() => {
-    const unsubscribe = useWorkflowStore.subscribe((state) => {
-      if (state.needsRedeployment !== undefined) {
-        setNeedsRedeployment(state.needsRedeployment)
-      }
-    })
-    return () => unsubscribe()
-  }, [])
+  }, [activeWorkflowId, isDeployed, setNeedsRedeploymentFlag, setNeedsRedeployment])
 
   // Update existing API notifications when needsRedeployment changes
   useEffect(() => {
