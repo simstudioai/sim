@@ -319,7 +319,6 @@ export function LongInput({
         <ChevronsUpDown className='h-3 w-3 text-muted-foreground/70' />
       </div>
 
-      <div>
         <EnvVarDropdown
           visible={showEnvVars}
           onSelect={(newValue) => {
@@ -355,7 +354,6 @@ export function LongInput({
             setActiveSourceBlockId(null)
           }}
         />
-      </div>
     </div>
   )
 }
