@@ -25,13 +25,9 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
 const logger = createLogger('WorkflowPreview')
 
 interface WorkflowPreviewProps {
-  // The workflow state to render
   workflowState: WorkflowState
-  // Whether to show subblocks
   showSubBlocks?: boolean
-  // Optional className for container styling
   className?: string
-  // Optional height/width overrides
   height?: string | number
   width?: string | number
   isPannable?: boolean

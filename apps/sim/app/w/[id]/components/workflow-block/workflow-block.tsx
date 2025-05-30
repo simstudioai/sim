@@ -271,11 +271,17 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       stateToUse = mergedState?.subBlocks || {}
     }
 
-    const isAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
+    const isAdvancedMode = useWorkflowStore.getState().blocks[blockId]?.advancedMode ?? false
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
       if (block.hidden) return false
+
+      // Filter by mode if specified
+      if (block.mode) {
+        if (block.mode === 'basic' && isAdvancedMode) return false
+        if (block.mode === 'advanced' && !isAdvancedMode) return false
+      }
 
       // If there's no condition, the block should be shown
       if (!block.condition) return true
@@ -526,7 +532,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         )}
                       />
                     </div>
-                    Scheduled
+                    {scheduleInfo?.isDisabled ? 'Disabled' : 'Scheduled'}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent side='top' className='max-w-[300px] p-4'>
@@ -591,7 +597,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 </TooltipContent>
               </Tooltip>
             )}
-            {config.longDescription && (
+            {config.subBlocks.some((block) => block.mode) && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button

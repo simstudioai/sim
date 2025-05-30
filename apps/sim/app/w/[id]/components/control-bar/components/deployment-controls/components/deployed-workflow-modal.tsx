@@ -40,15 +40,6 @@ export function DeployedWorkflowModal({
   const { revertToDeployedState } = useWorkflowStore()
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
-  // Add instance ID to track component lifecycle
-  const modalOpenCount = useRef(0)
-
-  useEffect(() => {
-    if (isOpen) {
-      modalOpenCount.current += 1
-    }
-  }, [isOpen])
-
   // Get current workflow state to compare with deployed state
   const currentWorkflowState = useWorkflowStore((state) => ({
     blocks: activeWorkflowId ? mergeSubblockState(state.blocks, activeWorkflowId) : state.blocks,
