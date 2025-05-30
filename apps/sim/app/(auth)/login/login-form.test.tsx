@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { client } from '@/lib/auth-client'
 import LoginPage from './login-form'
 
-// Mock dependencies
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(),
   useSearchParams: vi.fn(),
@@ -105,10 +104,7 @@ describe('LoginPage', () => {
     it('should show loading state during form submission', async () => {
       const mockSignIn = vi.mocked(client.signIn.email)
       mockSignIn.mockImplementation(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(() => resolve({ data: { user: { id: '1' } }, error: null }), 100)
-          )
+        () => new Promise((resolve) => resolve({ data: { user: { id: '1' } }, error: null }))
       )
 
       render(<LoginPage {...defaultProps} />)

@@ -37,12 +37,8 @@ const NAME_VALIDATIONS = {
     test: (value: string) => value.trim().length > 0,
     message: 'Name cannot be empty.',
   },
-  maxLength: {
-    test: (value: string) => value.trim().length <= 100,
-    message: 'Name must be less than 100 characters.',
-  },
   validCharacters: {
-    regex: /^[a-zA-Z\s\-']+$/,
+    regex: /^[\p{L}\s\-']+$/u,
     message: 'Name can only contain letters, spaces, hyphens, and apostrophes.',
   },
   noConsecutiveSpaces: {
@@ -208,10 +204,6 @@ function SignupFormContent({
       return errors // Return early for empty field
     }
 
-    if (!NAME_VALIDATIONS.maxLength.test(nameValue)) {
-      errors.push(NAME_VALIDATIONS.maxLength.message)
-    }
-
     if (!NAME_VALIDATIONS.validCharacters.regex.test(nameValue.trim())) {
       errors.push(NAME_VALIDATIONS.validCharacters.message)
     }
@@ -344,7 +336,16 @@ function SignupFormContent({
         return
       }
 
-      const sanitizedName = name.trim().slice(0, 100)
+      // Check if name will be truncated and warn user
+      const trimmedName = name.trim()
+      if (trimmedName.length > 100) {
+        setNameErrors(['Name will be truncated to 100 characters. Please shorten your name.'])
+        setShowNameValidationError(true)
+        setIsLoading(false)
+        return
+      }
+
+      const sanitizedName = trimmedName
 
       const response = await client.signUp.email(
         {

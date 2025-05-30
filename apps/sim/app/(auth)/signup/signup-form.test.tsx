@@ -8,7 +8,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { client } from '@/lib/auth-client'
 import SignupPage from './signup-form'
 
-// Mock dependencies
 vi.mock('next/navigation', () => ({
   useRouter: vi.fn(),
   useSearchParams: vi.fn(),
@@ -108,10 +107,7 @@ describe('SignupPage', () => {
     it('should show loading state during form submission', async () => {
       const mockSignUp = vi.mocked(client.signUp.email)
       mockSignUp.mockImplementation(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(() => resolve({ data: { user: { id: '1' } }, error: null }), 100)
-          )
+        () => new Promise((resolve) => resolve({ data: { user: { id: '1' } }, error: null }))
       )
 
       render(<SignupPage {...defaultProps} />)
@@ -249,6 +245,102 @@ describe('SignupPage', () => {
 
       fireEvent.change(nameInput, { target: { value: 'John Doe' } })
       fireEvent.change(emailInput, { target: { value: 'existing@example.com' } })
+      fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
+      fireEvent.click(submitButton)
+
+      await waitFor(() => {
+        expect(screen.getByText('Failed to create account')).toBeInTheDocument()
+      })
+    })
+
+    it('should show warning for names that would be truncated (over 100 characters)', async () => {
+      const mockSignUp = vi.mocked(client.signUp.email)
+      const longName = 'a'.repeat(101) // 101 characters
+
+      render(<SignupPage {...defaultProps} />)
+
+      const nameInput = screen.getByPlaceholderText(/enter your name/i)
+      const emailInput = screen.getByPlaceholderText(/enter your email/i)
+      const passwordInput = screen.getByPlaceholderText(/enter your password/i)
+      const submitButton = screen.getByRole('button', { name: /create account/i })
+
+      fireEvent.change(nameInput, { target: { value: longName } })
+      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(passwordInput, { target: { value: 'ValidPass123!' } })
+      fireEvent.click(submitButton)
+
+      await waitFor(() => {
+        expect(screen.getByText(/name will be truncated to 100 characters/i)).toBeInTheDocument()
+      })
+
+      // Ensure signUp was not called
+      expect(mockSignUp).not.toHaveBeenCalled()
+    })
+
+    it('should handle names exactly at 100 characters without warning', async () => {
+      const mockSignUp = vi.mocked(client.signUp.email)
+      mockSignUp.mockImplementation(
+        () => new Promise((resolve) => resolve({ data: { user: { id: '1' } }, error: null }))
+      )
+
+      const exactLengthName = 'a'.repeat(100) // Exactly 100 characters
+
+      render(<SignupPage {...defaultProps} />)
+
+      const nameInput = screen.getByPlaceholderText(/enter your name/i)
+      const emailInput = screen.getByPlaceholderText(/enter your email/i)
+      const passwordInput = screen.getByPlaceholderText(/enter your password/i)
+      const submitButton = screen.getByRole('button', { name: /create account/i })
+
+      fireEvent.change(nameInput, { target: { value: exactLengthName } })
+      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
+      fireEvent.change(passwordInput, { target: { value: 'ValidPass123!' } })
+      fireEvent.click(submitButton)
+
+      // Should not show truncation warning
+      await waitFor(() => {
+        expect(screen.queryByText(/name will be truncated/i)).not.toBeInTheDocument()
+      })
+
+      // Should proceed with form submission
+      await waitFor(() => {
+        expect(mockSignUp).toHaveBeenCalledWith(
+          {
+            email: 'test@example.com',
+            password: 'ValidPass123!',
+            name: exactLengthName,
+          },
+          expect.any(Object)
+        )
+      })
+    })
+
+    it('should handle names exactly at validation errors', async () => {
+      const mockSignUp = vi.mocked(client.signUp.email)
+
+      mockSignUp.mockImplementation((credentials, options) => {
+        if (options?.onError) {
+          options.onError({
+            error: {
+              code: 'NAME_VALIDATION_ERROR',
+              message: 'Name validation error',
+            } as any,
+            response: {} as any,
+            request: {} as any,
+          } as any)
+        }
+        return Promise.resolve({ data: null, error: 'Name validation error' })
+      })
+
+      render(<SignupPage {...defaultProps} />)
+
+      const nameInput = screen.getByPlaceholderText(/enter your name/i)
+      const emailInput = screen.getByPlaceholderText(/enter your email/i)
+      const passwordInput = screen.getByPlaceholderText(/enter your password/i)
+      const submitButton = screen.getByRole('button', { name: /create account/i })
+
+      fireEvent.change(nameInput, { target: { value: 'John Doe' } })
+      fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
       fireEvent.change(passwordInput, { target: { value: 'Password123!' } })
       fireEvent.click(submitButton)
 
