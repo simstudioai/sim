@@ -148,11 +148,11 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
           params
 
         // Parse values from JSON string to array if it exists
-        let parsedValues;
+        let parsedValues
         try {
-          parsedValues = values ? JSON.parse(values as string) : undefined;
+          parsedValues = values ? JSON.parse(values as string) : undefined
         } catch (error) {
-          throw new Error('Invalid JSON format for values');
+          throw new Error('Invalid JSON format for values')
         }
 
         // Use the selected spreadsheet ID or the manually entered one
