@@ -22,7 +22,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   bgColor: '#E0E0E0',
   icon: MicrosoftExcelIcon,
   subBlocks: [
-    // Operation selector
     {
       id: 'operation',
       title: 'Operation',
@@ -34,7 +33,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
         { label: 'Add to Table', id: 'table_add' },
       ],
     },
-    // Microsoft Excel Credentials
     {
       id: 'credential',
       title: 'Microsoft Account',
@@ -45,7 +43,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       requiredScopes: [],
       placeholder: 'Select Microsoft account',
     },
-    // Spreadsheet Selector
     {
       id: 'spreadsheetId',
       title: 'Select Sheet',
@@ -57,7 +54,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       placeholder: 'Select a spreadsheet',
     },
-    // Manual Spreadsheet ID (hidden by default)
     {
       id: 'manualSpreadsheetId',
       title: 'Or Enter Spreadsheet ID Manually',
@@ -66,7 +62,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       placeholder: 'ID of the spreadsheet (from URL)',
       condition: { field: 'spreadsheetId', value: '' },
     },
-    // Range (for worksheet operations)
     {
       id: 'range',
       title: 'Range',
@@ -75,7 +70,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       placeholder: 'Sheet name and cell range (e.g., Sheet1!A1:D10)',
       condition: { field: 'operation', value: ['read', 'write', 'update'] },
     },
-    // Table Name (for table operations)
     {
       id: 'tableName',
       title: 'Table Name',
@@ -84,7 +78,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       placeholder: 'Name of the Excel table',
       condition: { field: 'operation', value: ['table_add'] },
     },
-    // Write-specific Fields
     {
       id: 'values',
       title: 'Values',
@@ -105,7 +98,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       ],
       condition: { field: 'operation', value: 'write' },
     },
-    // Update-specific Fields
     {
       id: 'values',
       title: 'Values',
@@ -126,7 +118,6 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
       ],
       condition: { field: 'operation', value: 'update' },
     },
-    // Table Add Fields
     {
       id: 'values',
       title: 'Values',

@@ -136,7 +136,7 @@ export async function mergeSubblockStateAsync(
           if (workflowId) {
             // Try to get the value from the subblock store for this specific workflow
             const workflowValues = subBlockStore.workflowValues[workflowId]
-            if (workflowValues && workflowValues[id]) {
+            if (workflowValues?.[id]) {
               storedValue = workflowValues[id][subBlockId]
             }
           } else {
@@ -163,7 +163,7 @@ export async function mergeSubblockStateAsync(
       // This handles cases where block config has been updated but values still exist
       if (workflowId) {
         const workflowValues = subBlockStore.workflowValues[workflowId]
-        if (workflowValues && workflowValues[id]) {
+        if (workflowValues?.[id]) {
           const blockValues = workflowValues[id]
           Object.entries(blockValues).forEach(([subBlockId, value]) => {
             if (!mergedSubBlocks[subBlockId] && value !== null && value !== undefined) {
