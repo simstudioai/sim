@@ -14,6 +14,8 @@ import type { FileInfo } from './components/google-drive-picker'
 import { GoogleDrivePicker } from './components/google-drive-picker'
 import type { JiraIssueInfo } from './components/jira-issue-selector'
 import { JiraIssueSelector } from './components/jira-issue-selector'
+import type { MicrosoftFileInfo } from './components/microsoft-file-selector'
+import { MicrosoftFileSelector } from './components/microsoft-file-selector'
 import type { TeamsMessageInfo } from './components/teams-message-selector'
 import { TeamsMessageSelector } from './components/teams-message-selector'
 
@@ -41,11 +43,9 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
   const isJira = provider === 'jira'
   const isDiscord = provider === 'discord'
   const isMicrosoftTeams = provider === 'microsoft-teams'
-
+  const isMicrosoftExcel = provider === 'microsoft-excel'
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
-  const _credentials =
-    isConfluence || isJira ? (getValue(blockId, 'credential') as string) || '' : ''
   // For Discord, we need the bot token and server ID
   const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
   const serverId = isDiscord ? (getValue(blockId, 'serverId') as string) || '' : ''
@@ -179,6 +179,38 @@ export function FileSelectorInput({ blockId, subBlock, disabled = false }: FileS
           {!domain && (
             <TooltipContent side='top'>
               <p>Please enter a Jira domain first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
+
+  if (isMicrosoftExcel) {
+    // Get credential using the same pattern as other tools
+    const credential = (getValue(blockId, 'credential') as string) || ''
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <MicrosoftFileSelector
+                value={selectedFileId}
+                onChange={handleFileChange}
+                provider='microsoft-excel'
+                requiredScopes={subBlock.requiredScopes || []}
+                serviceId={subBlock.serviceId}
+                label={subBlock.placeholder || 'Select Microsoft Excel file'}
+                disabled={disabled || !credential}
+                showPreview={true}
+                onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side='top'>
+              <p>Please select Microsoft Excel credentials first</p>
             </TooltipContent>
           )}
         </Tooltip>

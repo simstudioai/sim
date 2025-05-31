@@ -65,6 +65,12 @@ export function mergeSubblockState(
         {} as Record<string, SubBlockState>
       )
 
+      // Return the full block state with updated subBlocks
+      acc[id] = {
+        ...block,
+        subBlocks: mergedSubBlocks,
+      }
+
       // Add any values that exist in the store but aren't in the block structure
       // This handles cases where block config has been updated but values still exist
       Object.entries(blockValues).forEach(([subBlockId, value]) => {
@@ -78,7 +84,7 @@ export function mergeSubblockState(
         }
       })
 
-      // Return the full block state with updated subBlocks
+      // Update the block with the final merged subBlocks (including orphaned values)
       acc[id] = {
         ...block,
         subBlocks: mergedSubBlocks,
