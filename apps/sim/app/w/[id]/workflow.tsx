@@ -106,16 +106,16 @@ function WorkflowContent() {
         getNodes,
         updateBlockPosition,
         updateParentId,
-        () => resizeLoopNodes(getNodes, updateNodeDimensions)
+        () => resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
       )
     },
-    [getNodes, updateBlockPosition, updateParentId, updateNodeDimensions]
+    [getNodes, updateBlockPosition, updateParentId, updateNodeDimensions, blocks]
   )
 
   // Function to resize all loop nodes with improved hierarchy handling
   const resizeLoopNodesWrapper = useCallback(() => {
-    return resizeLoopNodes(getNodes, updateNodeDimensions)
-  }, [getNodes, updateNodeDimensions])
+    return resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
+  }, [getNodes, updateNodeDimensions, blocks])
 
   // Wrapper functions that use the utilities but provide the getNodes function
   const getNodeDepthWrapper = useCallback(
@@ -190,26 +190,51 @@ function WorkflowContent() {
     })
   }, [blocks, edges, updateBlockPosition, fitView, isSidebarCollapsed, resizeLoopNodesWrapper])
 
+  const debouncedAutoLayout = useCallback(() => {
+    const debounceTimer = setTimeout(() => {
+      handleAutoLayout()
+    }, 250)
+
+    return () => clearTimeout(debounceTimer)
+  }, [handleAutoLayout])
+
   useEffect(() => {
+    let cleanup: (() => void) | null = null
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.shiftKey && event.key === 'L' && !event.ctrlKey && !event.metaKey) {
         event.preventDefault()
-        handleAutoLayout()
+
+        if (cleanup) cleanup()
+
+        cleanup = debouncedAutoLayout()
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleAutoLayout])
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if (cleanup) cleanup()
+    }
+  }, [debouncedAutoLayout])
 
   useEffect(() => {
+    let cleanup: (() => void) | null = null
+
     const handleAutoLayoutEvent = () => {
-      handleAutoLayout()
+      if (cleanup) cleanup()
+
+      cleanup = debouncedAutoLayout()
     }
 
     window.addEventListener('trigger-auto-layout', handleAutoLayoutEvent)
-    return () => window.removeEventListener('trigger-auto-layout', handleAutoLayoutEvent)
-  }, [handleAutoLayout])
+
+    return () => {
+      window.removeEventListener('trigger-auto-layout', handleAutoLayoutEvent)
+      if (cleanup) cleanup()
+    }
+  }, [debouncedAutoLayout])
 
   // Initialize workflow
   useEffect(() => {

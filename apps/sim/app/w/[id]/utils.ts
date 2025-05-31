@@ -381,38 +381,17 @@ export const isPointInLoopNode = (
   return null
 }
 
-const getNodeDimensions = (node: any): { width: number; height: number } => {
-  if (isContainerType(node.type)) {
-    return {
-      width: node.data?.width || DEFAULT_CONTAINER_WIDTH,
-      height: node.data?.height || DEFAULT_CONTAINER_HEIGHT,
-    }
-  }
-
-  if (node.type === 'workflowBlock') {
-    const nodeWidth = node.data?.width || node.width
-    const nodeHeight = node.data?.height || node.height
-
-    if (nodeWidth && nodeHeight) {
-      return { width: nodeWidth, height: nodeHeight }
-    }
-  }
-
-  return {
-    width: node.data?.width || node.width || 200,
-    height: node.data?.height || node.height || 200,
-  }
-}
-
 /**
  * Calculates appropriate dimensions for a loop or parallel node based on its children
  * @param nodeId ID of the container node
  * @param getNodes Function to retrieve all nodes from ReactFlow
+ * @param blocks Block states from workflow store
  * @returns Calculated width and height for the container
  */
 export const calculateLoopDimensions = (
   nodeId: string,
-  getNodes: () => any[]
+  getNodes: () => any[],
+  blocks: Record<string, any>
 ): { width: number; height: number } => {
   const minWidth = DEFAULT_CONTAINER_WIDTH
   const minHeight = DEFAULT_CONTAINER_HEIGHT
@@ -428,7 +407,7 @@ export const calculateLoopDimensions = (
   let maxY = Number.NEGATIVE_INFINITY
 
   childNodes.forEach((node) => {
-    const { width: nodeWidth, height: nodeHeight } = getNodeDimensions(node)
+    const { width: nodeWidth, height: nodeHeight } = getBlockDimensions(blocks, node.id)
 
     minX = Math.min(minX, node.position.x + nodeWidth)
     minY = Math.min(minY, node.position.y + nodeHeight)
@@ -452,10 +431,12 @@ export const calculateLoopDimensions = (
  * Resizes all loop and parallel nodes based on their children
  * @param getNodes Function to retrieve all nodes from ReactFlow
  * @param updateNodeDimensions Function to update the dimensions of a node
+ * @param blocks Block states from workflow store
  */
 export const resizeLoopNodes = (
   getNodes: () => any[],
-  updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void
+  updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => void,
+  blocks: Record<string, any>
 ) => {
   const containerNodes = getNodes()
     .filter((node) => isContainerType(node.type))
@@ -466,7 +447,7 @@ export const resizeLoopNodes = (
     .sort((a, b) => a.depth - b.depth)
 
   containerNodes.forEach((node) => {
-    const dimensions = calculateLoopDimensions(node.id, getNodes)
+    const dimensions = calculateLoopDimensions(node.id, getNodes, blocks)
 
     if (dimensions.width !== node.data?.width || dimensions.height !== node.data?.height) {
       updateNodeDimensions(node.id, dimensions)
@@ -1065,7 +1046,7 @@ export const applyAutoLayoutSmooth = (
   const startTime = Date.now()
   const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3
 
-  const animate = () => {
+  const animate = async () => {
     const elapsed = Date.now() - startTime
     const progress = Math.min(elapsed / animationDuration, 1)
     const easedProgress = easeOutCubic(progress)
@@ -1085,21 +1066,17 @@ export const applyAutoLayoutSmooth = (
     if (progress < 1) {
       requestAnimationFrame(animate)
     } else {
-      setTimeout(() => {
-        resizeLoopNodes()
-      }, 50)
+      await resizeLoopNodes()
 
-      setTimeout(() => {
-        const padding = isSidebarCollapsed ? 0.35 : 0.55
-        fitView({
-          padding,
-          duration: 400,
-        })
-      }, 100)
+      const padding = isSidebarCollapsed ? 0.35 : 0.55
+      await fitView({
+        padding,
+        duration: 400,
+      })
     }
   }
 
-  requestAnimationFrame(animate)
+  animate()
 }
 
 /**
