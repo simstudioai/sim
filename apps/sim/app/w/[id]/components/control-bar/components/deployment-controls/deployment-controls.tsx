@@ -32,11 +32,8 @@ export function DeploymentControls({
   )
   const isDeployed = deploymentStatus?.isDeployed || false
 
-  // Prioritize workflow-specific needsRedeployment flag, but fall back to prop if needed
-  const workflowNeedsRedeployment =
-    deploymentStatus?.needsRedeployment !== undefined
-      ? deploymentStatus.needsRedeployment
-      : needsRedeployment
+  // Trust the parent's change detection - it has the authoritative comparison logic
+  const workflowNeedsRedeployment = needsRedeployment
 
   const [isDeploying, _setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -61,21 +58,6 @@ export function DeploymentControls({
       // Silent error handling
     }
   }
-
-  // Update parent component when workflow-specific status changes
-  useEffect(() => {
-    if (
-      deploymentStatus?.needsRedeployment !== undefined &&
-      deploymentStatus.needsRedeployment !== needsRedeployment
-    ) {
-      setNeedsRedeployment(deploymentStatus.needsRedeployment)
-    }
-  }, [
-    deploymentStatus?.needsRedeployment,
-    needsRedeployment,
-    setNeedsRedeployment,
-    deploymentStatus,
-  ])
 
   return (
     <>

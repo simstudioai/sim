@@ -276,6 +276,7 @@ export function ControlBar() {
 
   // Subscribe to workflow and subblock changes to detect differences from deployed state
   useEffect(() => {
+    console.log('changing subblocks values')
     // Early exit: No workflow or nothing deployed = no changes possible
     if (!activeWorkflowId || !deployedState) {
       setChangeDetected(false)
@@ -292,14 +293,19 @@ export function ControlBar() {
     
     // Compare current state vs deployed state
     const deployedBlocks = deployedState?.blocks
+    console.log('deployedBlocks', deployedBlocks)
+    console.log('currentMergedState', currentMergedState)
     if (!deployedBlocks) {
+      console.log('current state should be same as deployed state')
       setChangeDetected(false)
       return
     }
     
     // Simple JSON comparison - if different, changes detected
     const hasChanges = JSON.stringify(currentMergedState) !== JSON.stringify(deployedBlocks)
+    console.log('hasChanges', hasChanges)
     setChangeDetected(hasChanges)
+    
   }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues, isLoadingDeployedState])
 
   // Check usage limits when component mounts and when user executes a workflow
@@ -619,6 +625,7 @@ export function ControlBar() {
   /**
    * Render deploy button with tooltip
    */
+  console.log('needs redeployment BEOFRE DEPLOYMENT CONTROLS', changeDetected)
   const renderDeployButton = () => (
     <DeploymentControls
       activeWorkflowId={activeWorkflowId}
