@@ -274,9 +274,31 @@ export function ControlBar() {
     activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
   )
 
+  /**
+   * Normalize blocks for semantic comparison - only compare what matters functionally
+   * Ignores: IDs, positions, dimensions, metadata that don't affect workflow logic
+   * Compares: type, name, subBlock values
+   */
+  const normalizeBlocksForComparison = (blocks: Record<string, any>) => {
+    if (!blocks) return []
+    
+    return Object.values(blocks)
+      .map((block: any) => ({
+        type: block.type,
+        name: block.name,
+        subBlocks: block.subBlocks || {},
+      }))
+      .sort((a, b) => {
+        // Sort by type first, then by name for consistent comparison
+        const typeA = a.type || ''
+        const typeB = b.type || ''
+        if (typeA !== typeB) return typeA.localeCompare(typeB)
+        return (a.name || '').localeCompare(b.name || '')
+      })
+  }
+
   // Subscribe to workflow and subblock changes to detect differences from deployed state
   useEffect(() => {
-    console.log('changing subblocks values')
     // Early exit: No workflow or nothing deployed = no changes possible
     if (!activeWorkflowId || !deployedState) {
       setChangeDetected(false)
@@ -293,19 +315,18 @@ export function ControlBar() {
     
     // Compare current state vs deployed state
     const deployedBlocks = deployedState?.blocks
-    console.log('deployedBlocks', deployedBlocks)
-    console.log('currentMergedState', currentMergedState)
     if (!deployedBlocks) {
-      console.log('current state should be same as deployed state')
       setChangeDetected(false)
       return
     }
     
-    // Simple JSON comparison - if different, changes detected
-    const hasChanges = JSON.stringify(currentMergedState) !== JSON.stringify(deployedBlocks)
-    console.log('hasChanges', hasChanges)
-    setChangeDetected(hasChanges)
+    // Normalize blocks for semantic comparison
+    const normalizedCurrentBlocks = normalizeBlocksForComparison(currentMergedState)
+    const normalizedDeployedBlocks = normalizeBlocksForComparison(deployedBlocks)
     
+    // Compare normalized states
+    const hasChanges = JSON.stringify(normalizedCurrentBlocks) !== JSON.stringify(normalizedDeployedBlocks)
+    setChangeDetected(hasChanges)
   }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues, isLoadingDeployedState])
 
   // Check usage limits when component mounts and when user executes a workflow
@@ -625,7 +646,6 @@ export function ControlBar() {
   /**
    * Render deploy button with tooltip
    */
-  console.log('needs redeployment BEOFRE DEPLOYMENT CONTROLS', changeDetected)
   const renderDeployButton = () => (
     <DeploymentControls
       activeWorkflowId={activeWorkflowId}
