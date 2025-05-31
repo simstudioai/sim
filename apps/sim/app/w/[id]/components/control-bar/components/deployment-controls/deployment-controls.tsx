@@ -26,37 +26,30 @@ export function DeploymentControls({
   isLoadingDeployedState,
   refetchDeployedState,
 }: DeploymentControlsProps) {
-  // Use workflow-specific deployment status
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(activeWorkflowId)
   )
   const isDeployed = deploymentStatus?.isDeployed || false
 
-  // Trust the parent's change detection - it has the authoritative comparison logic
   const workflowNeedsRedeployment = needsRedeployment
 
   const [isDeploying, _setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Track the last seen workflow ID
   const lastWorkflowIdRef = useRef<string | null>(null)
 
-  // Update last seen workflow ID
   useEffect(() => {
     if (activeWorkflowId !== lastWorkflowIdRef.current) {
       lastWorkflowIdRef.current = activeWorkflowId
     }
   }, [activeWorkflowId])
 
-  // Refetch deployed state wrapper
   const refetchWithErrorHandling = async () => {
     if (!activeWorkflowId) return
 
     try {
       await refetchDeployedState()
-    } catch (error) {
-      // Silent error handling
-    }
+    } catch (error) {}
   }
 
   return (
