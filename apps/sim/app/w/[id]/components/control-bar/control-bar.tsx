@@ -704,6 +704,10 @@ export function ControlBar() {
    */
   const renderAutoLayoutButton = () => {
     const handleAutoLayoutClick = () => {
+      if (isExecuting || isMultiRunning || isDebugging) {
+        return
+      }
+
       window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
     }
 
@@ -715,6 +719,7 @@ export function ControlBar() {
             size='icon'
             onClick={handleAutoLayoutClick}
             className='hover:text-primary'
+            disabled={isExecuting || isMultiRunning || isDebugging}
           >
             <Layers className='h-5 w-5' />
             <span className='sr-only'>Auto Layout</span>
