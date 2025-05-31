@@ -209,12 +209,16 @@ export function ControlBar() {
     // Store the workflow ID at the start of the request to prevent race conditions
     const requestWorkflowId = activeWorkflowId
 
+    // Helper to get current active workflow ID for race condition checks
+    const getCurrentActiveWorkflowId = () => useWorkflowRegistry.getState().activeWorkflowId
+
     try {
       setIsLoadingDeployedState(true)
 
       const response = await fetch(`/api/workflows/${requestWorkflowId}/deployed`)
 
-      if (requestWorkflowId !== useWorkflowRegistry.getState().activeWorkflowId) {
+      // Check if the workflow ID changed during the request (user navigated away)
+      if (requestWorkflowId !== getCurrentActiveWorkflowId()) {
         logger.debug('Workflow changed during deployed state fetch, ignoring response')
         return
       }
@@ -229,19 +233,18 @@ export function ControlBar() {
 
       const data = await response.json()
 
-      if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
+      if (requestWorkflowId === getCurrentActiveWorkflowId()) {
         setDeployedState(data.deployedState || null)
       } else {
         logger.debug('Workflow changed after deployed state response, ignoring result')
       }
     } catch (error) {
       logger.error('Error fetching deployed state:', { error })
-      // Only set error state if we're still on the same workflow
-      if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
+      if (requestWorkflowId === getCurrentActiveWorkflowId()) {
         setDeployedState(null)
       }
     } finally {
-      if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
+      if (requestWorkflowId === getCurrentActiveWorkflowId()) {
         setIsLoadingDeployedState(false)
       }
     }
