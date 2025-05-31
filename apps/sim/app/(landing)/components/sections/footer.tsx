@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { DiscordIcon, GithubIcon, xIcon as XIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/lib/auth-client'
+import { usePrefetchOnHover } from '../../utils/prefetch'
 import useIsMobile from '../hooks/use-is-mobile'
 
 function Footer() {
@@ -13,6 +14,8 @@ function Footer() {
   const { isMobile, mounted } = useIsMobile()
   const { data: session, isPending } = useSession()
   const isAuthenticated = !isPending && !!session?.user
+
+  const handleContributorsHover = usePrefetchOnHover()
 
   const handleNavigate = () => {
     if (typeof window !== 'undefined') {
@@ -95,10 +98,9 @@ function Footer() {
                     Docs
                   </Link>
                   <Link
-                    href={'https://github.com/simstudioai/sim'}
-                    target='_blank'
-                    rel='noopener noreferrer'
+                    href={'/contributors'}
                     className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
+                    onMouseEnter={handleContributorsHover}
                   >
                     Contributors
                   </Link>
@@ -274,10 +276,9 @@ function Footer() {
                   Docs
                 </Link>
                 <Link
-                  href={'https://github.com/simstudioai/sim'}
-                  target='_blank'
-                  rel='noopener noreferrer'
+                  href={'/contributors'}
                   className='font-light text-[#9E91AA] text-xl transition-all duration-500 hover:text-[#bdaecb] md:text-2xl'
+                  onMouseEnter={handleContributorsHover}
                 >
                   Contributors
                 </Link>

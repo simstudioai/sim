@@ -15,9 +15,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { createLogger } from '@/lib/logs/console-logger'
-
-const _logger = createLogger('NavClient')
+import { usePrefetchOnHover } from '../utils/prefetch'
 
 // --- Framer Motion Variants ---
 const desktopNavContainerVariants = {
@@ -90,8 +88,10 @@ const NavLinks = ({
     ...(currentPath !== '/' ? [{ href: '/', label: 'Home' }] : []),
     { href: 'https://docs.simstudio.ai/', label: 'Docs', external: true },
     // { href: '/', label: 'Blog' },
-    { href: 'https://github.com/simstudioai/sim', label: 'Contributors', external: true },
+    { href: '/contributors', label: 'Contributors' },
   ]
+
+  const handleContributorsHover = usePrefetchOnHover()
 
   // Common CSS class for navigation items
   const navItemClass = `text-white/60 hover:text-white/100 text-base ${
@@ -106,6 +106,7 @@ const NavLinks = ({
             <Link
               href={link.href}
               className={navItemClass}
+              onMouseEnter={link.label === 'Contributors' ? handleContributorsHover : undefined}
               {...(link.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
             >
               {link.label}
