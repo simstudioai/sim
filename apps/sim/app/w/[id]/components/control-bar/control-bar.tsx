@@ -214,7 +214,6 @@ export function ControlBar() {
 
       const response = await fetch(`/api/workflows/${requestWorkflowId}/deployed`)
 
-      // Check if the workflow ID changed during the request (user navigated away)
       if (requestWorkflowId !== useWorkflowRegistry.getState().activeWorkflowId) {
         logger.debug('Workflow changed during deployed state fetch, ignoring response')
         return
@@ -222,7 +221,6 @@ export function ControlBar() {
 
       if (!response.ok) {
         if (response.status === 404) {
-          // No deployed state found
           setDeployedState(null)
           return
         }
@@ -231,7 +229,6 @@ export function ControlBar() {
 
       const data = await response.json()
 
-      // Final check to ensure we're still on the same workflow
       if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
         setDeployedState(data.deployedState || null)
       } else {
@@ -244,14 +241,12 @@ export function ControlBar() {
         setDeployedState(null)
       }
     } finally {
-      // Only clear loading state if we're still on the same workflow
       if (requestWorkflowId === useWorkflowRegistry.getState().activeWorkflowId) {
         setIsLoadingDeployedState(false)
       }
     }
   }
 
-  // Fetch deployed state when workflow ID or deployment status changes
   useEffect(() => {
     if (!activeWorkflowId) {
       setDeployedState(null)
@@ -263,7 +258,6 @@ export function ControlBar() {
       setNeedsRedeploymentFlag(false)
       fetchDeployedState()
     } else {
-      // When not deployed - clear the deployed state
       setDeployedState(null)
       setIsLoadingDeployedState(false)
     }
@@ -290,7 +284,6 @@ export function ControlBar() {
         subBlocks: block.subBlocks || {},
       }))
       .sort((a, b) => {
-        // Sort by type first, then by name for consistent comparison
         const typeA = a.type || ''
         const typeB = b.type || ''
         if (typeA !== typeB) return typeA.localeCompare(typeB)
@@ -298,40 +291,32 @@ export function ControlBar() {
       })
   }
 
-  // Subscribe to workflow and subblock changes to detect differences from deployed state
   useEffect(() => {
-    // Early exit: No workflow or nothing deployed = no changes possible
     if (!activeWorkflowId || !deployedState) {
       setChangeDetected(false)
       return
     }
 
-    // Wait for deployed state to finish loading to avoid race conditions
     if (isLoadingDeployedState) {
       return
     }
 
-    // Get current workflow state merged with user inputs
     const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
 
-    // Compare current state vs deployed state
     const deployedBlocks = deployedState?.blocks
     if (!deployedBlocks) {
       setChangeDetected(false)
       return
     }
 
-    // Normalize blocks for semantic comparison
     const normalizedCurrentBlocks = normalizeBlocksForComparison(currentMergedState)
     const normalizedDeployedBlocks = normalizeBlocksForComparison(deployedBlocks)
 
-    // Compare normalized states
     const hasChanges =
       JSON.stringify(normalizedCurrentBlocks) !== JSON.stringify(normalizedDeployedBlocks)
     setChangeDetected(hasChanges)
   }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues, isLoadingDeployedState])
 
-  // Check usage limits when component mounts and when user executes a workflow
   useEffect(() => {
     if (session?.user?.id) {
       checkUserUsage(session.user.id).then((usage) => {
