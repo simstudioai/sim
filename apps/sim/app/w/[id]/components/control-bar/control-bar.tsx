@@ -282,6 +282,11 @@ export function ControlBar() {
       return
     }
 
+    // Wait for deployed state to finish loading to avoid race conditions
+    if (isLoadingDeployedState) {
+      return
+    }
+
     // Get current workflow state merged with user inputs
     const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
     
@@ -295,7 +300,7 @@ export function ControlBar() {
     // Simple JSON comparison - if different, changes detected
     const hasChanges = JSON.stringify(currentMergedState) !== JSON.stringify(deployedBlocks)
     setChangeDetected(hasChanges)
-  }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues])
+  }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues, isLoadingDeployedState])
 
   // Check usage limits when component mounts and when user executes a workflow
   useEffect(() => {
