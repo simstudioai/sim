@@ -12,8 +12,6 @@ export const WorkflowEdge = ({
   data,
   style,
 }: EdgeProps) => {
-  const isHorizontal = sourcePosition === 'right' || sourcePosition === 'left'
-
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -22,7 +20,7 @@ export const WorkflowEdge = ({
     targetY,
     targetPosition,
     borderRadius: 8,
-    offset: isHorizontal ? 30 : 20,
+    offset: 10,
   })
 
   // Use the directly provided isSelected flag instead of computing it

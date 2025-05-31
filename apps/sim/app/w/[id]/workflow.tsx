@@ -34,8 +34,8 @@ import { Toolbar } from './components/toolbar/toolbar'
 import { WorkflowBlock } from './components/workflow-block/workflow-block'
 import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
 import {
-  calculateLoopDimensions,
-  calculateRelativePosition,
+  applyAutoLayoutSmooth,
+  detectHandleOrientation,
   getNodeAbsolutePosition,
   getNodeDepth,
   getNodeHierarchy,
@@ -73,11 +73,10 @@ function WorkflowContent() {
   // Hooks
   const params = useParams()
   const router = useRouter()
-  const { project, getNodes } = useReactFlow()
+  const { project, getNodes, fitView } = useReactFlow()
 
   // Store access
   const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
-  //Removed loops from the store
   const {
     blocks,
     edges,
@@ -97,6 +96,26 @@ function WorkflowContent() {
   const { activeBlockIds, pendingBlocks } = useExecutionStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
+
+  // Helper function to update a node's parent with proper position calculation
+  const updateNodeParent = useCallback(
+    (nodeId: string, newParentId: string | null) => {
+      return updateNodeParentUtil(
+        nodeId,
+        newParentId,
+        getNodes,
+        updateBlockPosition,
+        updateParentId,
+        () => resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
+      )
+    },
+    [getNodes, updateBlockPosition, updateParentId, updateNodeDimensions, blocks]
+  )
+
+  // Function to resize all loop nodes with improved hierarchy handling
+  const resizeLoopNodesWrapper = useCallback(() => {
+    return resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
+  }, [getNodes, updateNodeDimensions, blocks])
 
   // Wrapper functions that use the utilities but provide the getNodes function
   const getNodeDepthWrapper = useCallback(
@@ -120,28 +139,6 @@ function WorkflowContent() {
     [getNodes]
   )
 
-  const calculateRelativePositionWrapper = useCallback(
-    (nodeId: string, newParentId: string): { x: number; y: number } => {
-      return calculateRelativePosition(nodeId, newParentId, getNodes)
-    },
-    [getNodes]
-  )
-
-  // Helper function to update a node's parent with proper position calculation
-  const updateNodeParent = useCallback(
-    (nodeId: string, newParentId: string | null) => {
-      return updateNodeParentUtil(
-        nodeId,
-        newParentId,
-        getNodes,
-        updateBlockPosition,
-        updateParentId,
-        resizeLoopNodesWrapper
-      )
-    },
-    [getNodes, updateBlockPosition, updateParentId]
-  )
-
   const isPointInLoopNodeWrapper = useCallback(
     (position: { x: number; y: number }) => {
       return isPointInLoopNode(position, getNodes)
@@ -149,20 +146,95 @@ function WorkflowContent() {
     [getNodes]
   )
 
-  const calculateLoopDimensionsWrapper = useCallback(
-    (loopId: string): { width: number; height: number } => {
-      return calculateLoopDimensions(loopId, getNodes)
-    },
-    [getNodes]
-  )
+  // Auto-layout handler
+  const handleAutoLayout = useCallback(() => {
+    if (Object.keys(blocks).length === 0) return
 
-  // Function to resize all loop nodes with improved hierarchy handling
-  const resizeLoopNodesWrapper = useCallback(() => {
-    return resizeLoopNodes(getNodes, updateNodeDimensions)
-  }, [getNodes, updateNodeDimensions])
+    // Detect the predominant handle orientation in the workflow
+    const detectedOrientation = detectHandleOrientation(blocks)
 
-  // Use direct resizing function instead of debounced version for immediate updates
-  const debouncedResizeLoopNodes = resizeLoopNodesWrapper
+    // Optimize spacing based on handle orientation
+    const orientationConfig =
+      detectedOrientation === 'vertical'
+        ? {
+            // Vertical handles: optimize for top-to-bottom flow
+            horizontalSpacing: 400,
+            verticalSpacing: 150,
+            startX: 200,
+            startY: 200,
+          }
+        : {
+            // Horizontal handles: optimize for left-to-right flow
+            horizontalSpacing: 300,
+            verticalSpacing: 200,
+            startX: 150,
+            startY: 300,
+          }
+
+    applyAutoLayoutSmooth(blocks, edges, updateBlockPosition, fitView, resizeLoopNodesWrapper, {
+      ...orientationConfig,
+      alignByLayer: true,
+      animationDuration: 500, // Smooth 500ms animation
+      isSidebarCollapsed,
+      handleOrientation: detectedOrientation, // Explicitly set the detected orientation
+    })
+
+    const orientationMessage =
+      detectedOrientation === 'vertical'
+        ? 'Auto-layout applied with vertical flow (top-to-bottom)'
+        : 'Auto-layout applied with horizontal flow (left-to-right)'
+
+    logger.info(orientationMessage, {
+      orientation: detectedOrientation,
+      blockCount: Object.keys(blocks).length,
+    })
+  }, [blocks, edges, updateBlockPosition, fitView, isSidebarCollapsed, resizeLoopNodesWrapper])
+
+  const debouncedAutoLayout = useCallback(() => {
+    const debounceTimer = setTimeout(() => {
+      handleAutoLayout()
+    }, 250)
+
+    return () => clearTimeout(debounceTimer)
+  }, [handleAutoLayout])
+
+  useEffect(() => {
+    let cleanup: (() => void) | null = null
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.shiftKey && event.key === 'L' && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault()
+
+        if (cleanup) cleanup()
+
+        cleanup = debouncedAutoLayout()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      if (cleanup) cleanup()
+    }
+  }, [debouncedAutoLayout])
+
+  useEffect(() => {
+    let cleanup: (() => void) | null = null
+
+    const handleAutoLayoutEvent = () => {
+      if (cleanup) cleanup()
+
+      cleanup = debouncedAutoLayout()
+    }
+
+    window.addEventListener('trigger-auto-layout', handleAutoLayoutEvent)
+
+    return () => {
+      window.removeEventListener('trigger-auto-layout', handleAutoLayoutEvent)
+      if (cleanup) cleanup()
+    }
+  }, [debouncedAutoLayout])
 
   // Initialize workflow
   useEffect(() => {
@@ -434,7 +506,7 @@ function WorkflowContent() {
             }
 
             // Resize the parent container to fit the new child container
-            debouncedResizeLoopNodes()
+            resizeLoopNodesWrapper()
           } else {
             // Add the container node directly to canvas with default dimensions
             addBlock(id, data.type, name, position, {
@@ -495,7 +567,7 @@ function WorkflowContent() {
 
           // Resize the container node to fit the new block
           // Immediate resize without delay
-          debouncedResizeLoopNodes()
+          resizeLoopNodesWrapper()
 
           // Auto-connect logic for blocks inside containers
           const isAutoConnectEnabled = useGeneralStore.getState().isAutoConnectEnabled
@@ -802,11 +874,11 @@ function WorkflowContent() {
     if (nodes.length === 0) return
 
     // Resize all loops to fit their children
-    debouncedResizeLoopNodes()
+    resizeLoopNodesWrapper()
 
     // No need for cleanup with direct function
     return () => {}
-  }, [nodes, debouncedResizeLoopNodes])
+  }, [nodes, resizeLoopNodesWrapper])
 
   // Special effect to handle cleanup after node deletion
   useEffect(() => {

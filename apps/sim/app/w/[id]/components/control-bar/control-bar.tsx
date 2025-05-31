@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Copy,
   History,
+  Layers,
   Loader2,
   Play,
   SkipForward,
@@ -699,6 +700,37 @@ export function ControlBar() {
   )
 
   /**
+   * Render auto-layout button
+   */
+  const renderAutoLayoutButton = () => {
+    const handleAutoLayoutClick = () => {
+      if (isExecuting || isMultiRunning || isDebugging) {
+        return
+      }
+
+      window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
+    }
+
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant='ghost'
+            size='icon'
+            onClick={handleAutoLayoutClick}
+            className='hover:text-primary'
+            disabled={isExecuting || isMultiRunning || isDebugging}
+          >
+            <Layers className='h-5 w-5' />
+            <span className='sr-only'>Auto Layout</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent command='Shift+L'>Auto Layout</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  /**
    * Render debug mode controls
    */
   const renderDebugControls = () => {
@@ -975,6 +1007,7 @@ export function ControlBar() {
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
         {renderDuplicateButton()}
+        {renderAutoLayoutButton()}
         {renderDebugModeToggle()}
         {/* {renderPublishButton()} */}
         {renderDeployButton()}
