@@ -45,6 +45,8 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
@@ -56,8 +58,6 @@ import { DeploymentControls } from './components/deployment-controls/deployment-
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { mergeSubblockState } from '@/stores/workflows/utils'
 
 const logger = createLogger('ControlBar')
 
@@ -88,7 +88,8 @@ export function ControlBar() {
     showNotification,
     removeNotification,
   } = useNotificationStore()
-  const { history, revertToHistoryState, lastSaved, setNeedsRedeploymentFlag, blocks } = useWorkflowStore()
+  const { history, revertToHistoryState, lastSaved, setNeedsRedeploymentFlag, blocks } =
+    useWorkflowStore()
   const { workflowValues } = useSubBlockStore()
   const {
     workflows,
@@ -270,7 +271,7 @@ export function ControlBar() {
 
   // Get current store state for change detection
   const currentBlocks = useWorkflowStore((state) => state.blocks)
-  const subBlockValues = useSubBlockStore((state) => 
+  const subBlockValues = useSubBlockStore((state) =>
     activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
   )
 
@@ -281,7 +282,7 @@ export function ControlBar() {
    */
   const normalizeBlocksForComparison = (blocks: Record<string, any>) => {
     if (!blocks) return []
-    
+
     return Object.values(blocks)
       .map((block: any) => ({
         type: block.type,
@@ -312,20 +313,21 @@ export function ControlBar() {
 
     // Get current workflow state merged with user inputs
     const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
-    
+
     // Compare current state vs deployed state
     const deployedBlocks = deployedState?.blocks
     if (!deployedBlocks) {
       setChangeDetected(false)
       return
     }
-    
+
     // Normalize blocks for semantic comparison
     const normalizedCurrentBlocks = normalizeBlocksForComparison(currentMergedState)
     const normalizedDeployedBlocks = normalizeBlocksForComparison(deployedBlocks)
-    
+
     // Compare normalized states
-    const hasChanges = JSON.stringify(normalizedCurrentBlocks) !== JSON.stringify(normalizedDeployedBlocks)
+    const hasChanges =
+      JSON.stringify(normalizedCurrentBlocks) !== JSON.stringify(normalizedDeployedBlocks)
     setChangeDetected(hasChanges)
   }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues, isLoadingDeployedState])
 
