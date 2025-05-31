@@ -117,6 +117,35 @@ function WorkflowContent() {
     return resizeLoopNodes(getNodes, updateNodeDimensions)
   }, [getNodes, updateNodeDimensions])
 
+  // Wrapper functions that use the utilities but provide the getNodes function
+  const getNodeDepthWrapper = useCallback(
+    (nodeId: string): number => {
+      return getNodeDepth(nodeId, getNodes)
+    },
+    [getNodes]
+  )
+
+  const getNodeHierarchyWrapper = useCallback(
+    (nodeId: string): string[] => {
+      return getNodeHierarchy(nodeId, getNodes)
+    },
+    [getNodes]
+  )
+
+  const getNodeAbsolutePositionWrapper = useCallback(
+    (nodeId: string): { x: number; y: number } => {
+      return getNodeAbsolutePosition(nodeId, getNodes)
+    },
+    [getNodes]
+  )
+
+  const isPointInLoopNodeWrapper = useCallback(
+    (position: { x: number; y: number }) => {
+      return isPointInLoopNode(position, getNodes)
+    },
+    [getNodes]
+  )
+
   // Auto-layout handler
   const handleAutoLayout = useCallback(() => {
     if (Object.keys(blocks).length === 0) return
@@ -130,13 +159,13 @@ function WorkflowContent() {
         ? {
             // Vertical handles: optimize for top-to-bottom flow
             horizontalSpacing: 400,
-            verticalSpacing: 300,
+            verticalSpacing: 150,
             startX: 200,
             startY: 200,
           }
         : {
             // Horizontal handles: optimize for left-to-right flow
-            horizontalSpacing: 600,
+            horizontalSpacing: 300,
             verticalSpacing: 200,
             startX: 150,
             startY: 300,
@@ -371,7 +400,7 @@ function WorkflowContent() {
         })
 
         // Check if dropping inside a container node (loop or parallel)
-        const containerInfo = isPointInLoopNode(position, getNodes)
+        const containerInfo = isPointInLoopNodeWrapper(position)
 
         // Clear any drag-over styling
         document
@@ -609,7 +638,7 @@ function WorkflowContent() {
       addEdge,
       findClosestOutput,
       determineSourceHandle,
-      isPointInLoopNode,
+      isPointInLoopNodeWrapper,
       getNodes,
     ]
   )
@@ -630,7 +659,7 @@ function WorkflowContent() {
         })
 
         // Check if hovering over a container node
-        const containerInfo = isPointInLoopNode(position, getNodes)
+        const containerInfo = isPointInLoopNodeWrapper(position)
 
         // Clear any previous highlighting
         document
@@ -659,7 +688,7 @@ function WorkflowContent() {
         logger.error('Error in onDragOver', { err })
       }
     },
-    [project, isPointInLoopNode, getNodes]
+    [project, isPointInLoopNodeWrapper, getNodes]
   )
 
   // Init workflow
@@ -843,14 +872,14 @@ function WorkflowContent() {
         })
 
         // Fix the node by removing its parent reference and calculating absolute position
-        const absolutePosition = getNodeAbsolutePosition(id, getNodes)
+        const absolutePosition = getNodeAbsolutePositionWrapper(id)
 
         // Update the node to remove parent reference and use absolute position
         updateBlockPosition(id, absolutePosition)
         updateParentId(id, '', 'parent')
       }
     })
-  }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePosition])
+  }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePositionWrapper])
 
   // Update edges
   const onEdgesChange = useCallback(
@@ -967,7 +996,7 @@ function WorkflowContent() {
       }
 
       // Get the node's absolute position to properly calculate intersections
-      const nodeAbsolutePos = getNodeAbsolutePosition(node.id, getNodes)
+      const nodeAbsolutePos = getNodeAbsolutePositionWrapper(node.id)
 
       // Find intersections with container nodes using absolute coordinates
       const intersectingNodes = getNodes()
@@ -981,7 +1010,7 @@ function WorkflowContent() {
           // Skip self-nesting: prevent a container from becoming its own descendant
           if (node.type === 'loopNode' || node.type === 'parallelNode') {
             // Get the full hierarchy of the potential parent
-            const hierarchy = getNodeHierarchy(n.id, getNodes)
+            const hierarchy = getNodeHierarchyWrapper(n.id)
 
             // If the dragged node is in the hierarchy, this would create a circular reference
             if (hierarchy.includes(node.id)) {
@@ -990,7 +1019,7 @@ function WorkflowContent() {
           }
 
           // Get the container's absolute position
-          const containerAbsolutePos = getNodeAbsolutePosition(n.id, getNodes)
+          const containerAbsolutePos = getNodeAbsolutePositionWrapper(n.id)
 
           // Get dimensions based on node type
           const nodeWidth =
@@ -1033,7 +1062,7 @@ function WorkflowContent() {
         // Add more information for sorting
         .map((n) => ({
           container: n,
-          depth: getNodeDepth(n.id, getNodes),
+          depth: getNodeDepthWrapper(n.id),
           // Calculate size for secondary sorting
           size: (n.data?.width || 500) * (n.data?.height || 300),
         }))
@@ -1054,7 +1083,7 @@ function WorkflowContent() {
         const bestContainerMatch = sortedContainers[0]
 
         // Add a check to see if the bestContainerMatch is a part of the hierarchy of the node being dragged
-        const hierarchy = getNodeHierarchy(node.id, getNodes)
+        const hierarchy = getNodeHierarchyWrapper(node.id)
         if (hierarchy.includes(bestContainerMatch.container.id)) {
           setPotentialParentId(null)
           return
@@ -1087,7 +1116,14 @@ function WorkflowContent() {
         }
       }
     },
-    [getNodes, potentialParentId, blocks, getNodeHierarchy, getNodeAbsolutePosition, getNodeDepth]
+    [
+      getNodes,
+      potentialParentId,
+      blocks,
+      getNodeHierarchyWrapper,
+      getNodeAbsolutePositionWrapper,
+      getNodeDepthWrapper,
+    ]
   )
 
   // Add in a nodeDrag start event to set the dragStartParentId
@@ -1128,7 +1164,7 @@ function WorkflowContent() {
       // If we're dragging a container node, do additional checks to prevent circular references
       if ((node.type === 'loopNode' || node.type === 'parallelNode') && potentialParentId) {
         // Get the hierarchy of the potential parent container
-        const parentHierarchy = getNodeHierarchy(potentialParentId, getNodes)
+        const parentHierarchy = getNodeHierarchyWrapper(potentialParentId)
 
         // If the dragged node is in the parent's hierarchy, it would create a circular reference
         if (parentHierarchy.includes(node.id)) {
@@ -1152,7 +1188,7 @@ function WorkflowContent() {
       setDraggedNodeId(null)
       setPotentialParentId(null)
     },
-    [getNodes, dragStartParentId, potentialParentId, updateNodeParent, getNodeHierarchy]
+    [getNodes, dragStartParentId, potentialParentId, updateNodeParent, getNodeHierarchyWrapper]
   )
 
   // Update onPaneClick to only handle edge selection

@@ -740,13 +740,13 @@ export const calculateAutoLayout = (
 
         const baseSpacing = horizontalSpacing
         const widthAdjustment = Math.max(maxCurrentWidth, maxNextWidth) - 350 // 350 is standard width
-        const connectionTagSpace = 100 // Extra space for connection tags
+        const connectionTagSpace = 50 // Reduced from 100 - Extra space for connection tags
 
         const isOrphanedLayer =
           currentLayer > maxLayer - 2 &&
           (currentLayerGroups.some((group) => group.some((nodeId) => orphanedBlocks.has(nodeId))) ||
             nextLayerGroups.some((group) => group.some((nodeId) => orphanedBlocks.has(nodeId))))
-        const orphanedSpacing = isOrphanedLayer ? 200 : 0
+        const orphanedSpacing = isOrphanedLayer ? 100 : 0
 
         return baseSpacing + widthAdjustment + connectionTagSpace + orphanedSpacing
       }
@@ -856,13 +856,13 @@ export const calculateAutoLayout = (
 
         const baseSpacing = verticalSpacing
         const heightAdjustment = Math.max(maxCurrentHeight, maxNextHeight) - 150 // 150 is standard height
-        const connectionTagSpace = 50 // Extra space for connection tags
+        const connectionTagSpace = 25
 
         const isOrphanedLayer =
           currentLayer > maxLayer - 2 &&
           (currentLayerGroups.some((group) => group.some((nodeId) => orphanedBlocks.has(nodeId))) ||
             nextLayerGroups.some((group) => group.some((nodeId) => orphanedBlocks.has(nodeId))))
-        const orphanedSpacing = isOrphanedLayer ? 150 : 0
+        const orphanedSpacing = isOrphanedLayer ? 75 : 0
 
         return baseSpacing + heightAdjustment + connectionTagSpace + orphanedSpacing
       }
