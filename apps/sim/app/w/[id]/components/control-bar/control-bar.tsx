@@ -51,12 +51,13 @@ import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
 } from '../../../hooks/use-keyboard-shortcuts'
-import { useDeploymentChangeDetection } from '../../hooks/use-deployment-change-detection'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 
 const logger = createLogger('ControlBar')
 
@@ -87,7 +88,8 @@ export function ControlBar() {
     showNotification,
     removeNotification,
   } = useNotificationStore()
-  const { history, revertToHistoryState, lastSaved, setNeedsRedeploymentFlag } = useWorkflowStore()
+  const { history, revertToHistoryState, lastSaved, setNeedsRedeploymentFlag, blocks } = useWorkflowStore()
+  const { workflowValues } = useSubBlockStore()
   const {
     workflows,
     updateWorkflow,
@@ -111,6 +113,9 @@ export function ControlBar() {
   // Deployed state management
   const [deployedState, setDeployedState] = useState<WorkflowState | null>(null)
   const [isLoadingDeployedState, setIsLoadingDeployedState] = useState<boolean>(false)
+
+  // Change detection state
+  const [changeDetected, setChangeDetected] = useState(false)
 
   // Workflow name editing state
   const [isEditing, setIsEditing] = useState(false)
@@ -178,10 +183,6 @@ export function ControlBar() {
     state.getWorkflowDeploymentStatus(activeWorkflowId)
   )
   const isDeployed = deploymentStatus?.isDeployed || false
-
-  // Custom hook for deployment change detection
-  const { needsRedeployment, setNeedsRedeployment, clearNeedsRedeployment } =
-    useDeploymentChangeDetection(activeWorkflowId, isDeployed)
 
   // Client-side only rendering for the timestamp
   useEffect(() => {
@@ -258,8 +259,6 @@ export function ControlBar() {
     }
 
     if (isDeployed) {
-      // When deployed - fetch the actual deployed state
-      setNeedsRedeployment(false)
       setNeedsRedeploymentFlag(false)
       fetchDeployedState()
     } else {
@@ -267,22 +266,47 @@ export function ControlBar() {
       setDeployedState(null)
       setIsLoadingDeployedState(false)
     }
-  }, [activeWorkflowId, isDeployed, setNeedsRedeploymentFlag, setNeedsRedeployment])
+  }, [activeWorkflowId, isDeployed, setNeedsRedeploymentFlag])
 
-  // Update existing API notifications when needsRedeployment changes
+  // Subscribe to workflow and subblock changes to detect differences from deployed state
   useEffect(() => {
-    if (!activeWorkflowId) return
-
-    const apiNotification = notifications.find(
-      (n) => n.type === 'api' && n.workflowId === activeWorkflowId && n.options?.isPersistent
-    )
-
-    if (apiNotification && apiNotification.options?.needsRedeployment !== needsRedeployment) {
-      if (apiNotification.isVisible) {
-        removeNotification(apiNotification.id)
-      }
+    if (!activeWorkflowId || !deployedState) {
+      setChangeDetected(false)
+      return
     }
-  }, [needsRedeployment, activeWorkflowId, notifications, removeNotification])
+
+    const checkForChanges = () => {
+      // Get fresh state each time
+      const currentBlocks = useWorkflowStore.getState().blocks
+      if (!currentBlocks || !deployedState) return
+
+      // Merge current workflow state with subblock values
+      const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
+      
+      // Compare with deployed state
+      const deployedBlocks = (deployedState as any)?.blocks
+      if (!deployedBlocks) return
+      
+      const hasChanges = JSON.stringify(currentMergedState) !== JSON.stringify(deployedBlocks)
+      
+      // Only update if the state actually changed to prevent unnecessary renders
+      setChangeDetected(prev => prev !== hasChanges ? hasChanges : prev)
+    }
+
+    // Check immediately
+    checkForChanges()
+
+    // Subscribe to workflow store changes (blocks structure/content changes)
+    const unsubscribeWorkflow = useWorkflowStore.subscribe(checkForChanges)
+
+    // Subscribe to subblock store changes (subblock values changes)  
+    const unsubscribeSubBlocks = useSubBlockStore.subscribe(checkForChanges)
+
+    return () => {
+      unsubscribeWorkflow()
+      unsubscribeSubBlocks()
+    }
+  }, [activeWorkflowId, deployedState])
 
   // Check usage limits when component mounts and when user executes a workflow
   useEffect(() => {
@@ -604,8 +628,8 @@ export function ControlBar() {
   const renderDeployButton = () => (
     <DeploymentControls
       activeWorkflowId={activeWorkflowId}
-      needsRedeployment={needsRedeployment}
-      setNeedsRedeployment={setNeedsRedeployment}
+      needsRedeployment={changeDetected}
+      setNeedsRedeployment={setChangeDetected}
       deployedState={deployedState}
       isLoadingDeployedState={isLoadingDeployedState}
       refetchDeployedState={fetchDeployedState}
