@@ -159,13 +159,13 @@ function WorkflowContent() {
         ? {
             // Vertical handles: optimize for top-to-bottom flow
             horizontalSpacing: 400,
-            verticalSpacing: 150,
+            verticalSpacing: 300,
             startX: 200,
             startY: 200,
           }
         : {
             // Horizontal handles: optimize for left-to-right flow
-            horizontalSpacing: 300,
+            horizontalSpacing: 600,
             verticalSpacing: 200,
             startX: 150,
             startY: 300,
