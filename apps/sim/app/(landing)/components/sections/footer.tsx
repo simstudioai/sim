@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { DiscordIcon, GithubIcon, xIcon as XIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { useSession } from '@/lib/auth-client'
-import { prefetchContributorsData } from '../../utils/prefetch'
+import { usePrefetchOnHover } from '../../utils/prefetch'
 import useIsMobile from '../hooks/use-is-mobile'
 
 function Footer() {
@@ -15,11 +15,7 @@ function Footer() {
   const { data: session, isPending } = useSession()
   const isAuthenticated = !isPending && !!session?.user
 
-  const handleContributorsHover = () => {
-    prefetchContributorsData().catch((err: unknown) => {
-      console.error('Failed to prefetch contributors data:', err)
-    })
-  }
+  const handleContributorsHover = usePrefetchOnHover()
 
   const handleNavigate = () => {
     if (typeof window !== 'undefined') {

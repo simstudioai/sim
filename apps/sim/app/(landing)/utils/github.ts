@@ -20,20 +20,34 @@ interface ActivityData {
   pullRequests: number
 }
 
+interface CommitData {
+  sha: string
+  commit: {
+    author: {
+      name: string
+      email: string
+      date: string
+    }
+    message: string
+  }
+  html_url: string
+  stats?: {
+    additions: number
+    deletions: number
+  }
+}
+
 /**
  * Generate commit timeline data for the last 30 days using real commit data
  */
-export function generateCommitTimelineData(commitsData: any[]): CommitTimelineData[] {
+export function generateCommitTimelineData(commitsData: CommitData[]): CommitTimelineData[] {
   return Array.from({ length: 30 }, (_, i) => {
     const date = new Date()
     date.setDate(date.getDate() - (29 - i))
     const dateStr = date.toISOString().split('T')[0]
 
-    const dayCommits = commitsData.filter((commit: { commit: { author: { date: string } } }) =>
-      commit.commit.author.date.startsWith(dateStr ?? '')
-    )
+    const dayCommits = commitsData.filter((commit) => commit.commit.author.date.startsWith(dateStr))
 
-    // Calculate actual additions/deletions if available in commit data
     const stats = dayCommits.reduce(
       (acc, commit) => {
         if (commit.stats) {
@@ -58,9 +72,12 @@ export function generateCommitTimelineData(commitsData: any[]): CommitTimelineDa
 }
 
 /**
- * Generate activity data for the last 7 days
+ * Generate activity data for the last 7 days using actual commit data
  */
-export function generateActivityData(commitsData: any[]): ActivityData[] {
+export function generateActivityData(
+  commitsData: CommitData[],
+  repoStats?: RepoStats
+): ActivityData[] {
   return Array.from({ length: 7 }, (_, i) => {
     const date = new Date()
     const today = date.getDay()
@@ -69,17 +86,15 @@ export function generateActivityData(commitsData: any[]): ActivityData[] {
 
     const dateStr = date.toISOString().split('T')[0]
 
-    const dayCommits = commitsData.filter((commit: { commit: { author: { date: string } } }) =>
-      commit.commit.author.date.startsWith(dateStr ?? '')
+    const dayCommits = commitsData.filter((commit) =>
+      commit.commit.author.date.startsWith(dateStr)
     ).length
-
-    const commits = dayCommits || Math.floor(Math.random() * 5) + 1
 
     return {
       date: date.toLocaleDateString('en-US', { weekday: 'short' }),
-      commits,
-      issues: Math.max(1, Math.floor(commits * 0.3)),
-      pullRequests: Math.max(1, Math.floor(commits * 0.2)),
+      commits: dayCommits,
+      issues: repoStats ? Math.floor(repoStats.openIssues / 7) : 0,
+      pullRequests: repoStats ? Math.floor(repoStats.openPRs / 7) : 0,
     }
   })
 }

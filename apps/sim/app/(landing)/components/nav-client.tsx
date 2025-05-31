@@ -15,10 +15,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { createLogger } from '@/lib/logs/console-logger'
-import { prefetchContributorsData } from '../utils/prefetch'
-
-const _logger = createLogger('NavClient')
+import { usePrefetchOnHover } from '../utils/prefetch'
 
 // --- Framer Motion Variants ---
 const desktopNavContainerVariants = {
@@ -94,11 +91,7 @@ const NavLinks = ({
     { href: '/contributors', label: 'Contributors' },
   ]
 
-  const handleContributorsHover = () => {
-    prefetchContributorsData().catch((err) => {
-      console.error('Failed to prefetch contributors data:', err)
-    })
-  }
+  const handleContributorsHover = usePrefetchOnHover()
 
   // Common CSS class for navigation items
   const navItemClass = `text-white/60 hover:text-white/100 text-base ${

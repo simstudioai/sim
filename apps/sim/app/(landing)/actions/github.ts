@@ -1,5 +1,7 @@
 'use server'
 
+import { env } from '@/lib/env'
+
 /**
  * Format a number to a human-readable format (e.g., 1000 -> 1k, 1100 -> 1.1k)
  */
@@ -18,7 +20,7 @@ function formatNumber(num: number): string {
  */
 export async function getFormattedGitHubStars(): Promise<string> {
   try {
-    const token = process.env.GITHUB_TOKEN
+    const token = env.GITHUB_TOKEN
 
     const response = await fetch('https://api.github.com/repos/simstudioai/sim', {
       headers: {
@@ -50,6 +52,19 @@ interface Contributor {
   html_url: string
 }
 
+interface CommitData {
+  sha: string
+  commit: {
+    author: {
+      name: string
+      email: string
+      date: string
+    }
+    message: string
+  }
+  html_url: string
+}
+
 interface RepoStats {
   stars: number
   forks: number
@@ -63,7 +78,7 @@ interface RepoStats {
  */
 export async function getRepositoryStats(): Promise<RepoStats> {
   try {
-    const token = process.env.GITHUB_TOKEN
+    const token = env.GITHUB_TOKEN
 
     const headers = {
       Accept: 'application/vnd.github+json',
@@ -123,7 +138,7 @@ export async function getRepositoryStats(): Promise<RepoStats> {
  */
 export async function getContributors(): Promise<Contributor[]> {
   try {
-    const token = process.env.GITHUB_TOKEN
+    const token = env.GITHUB_TOKEN
 
     const headers = {
       Accept: 'application/vnd.github+json',
@@ -156,9 +171,9 @@ export async function getContributors(): Promise<Contributor[]> {
 /**
  * Server action to fetch recent commits for timeline data
  */
-export async function getCommitsData(): Promise<any[]> {
+export async function getCommitsData(): Promise<CommitData[]> {
   try {
-    const token = process.env.GITHUB_TOKEN
+    const token = env.GITHUB_TOKEN
 
     const headers = {
       Accept: 'application/vnd.github+json',

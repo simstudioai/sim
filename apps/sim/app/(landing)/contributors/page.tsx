@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Star,
 } from 'lucide-react'
+import Image from 'next/image'
 import {
   Area,
   AreaChart,
@@ -59,7 +60,7 @@ interface ActivityData {
   pullRequests: number
 }
 
-const excludedUsernames = ['bot1', 'dependabot[bot]', 'github-actions']
+const excludedUsernames = ['dependabot[bot]', 'github-actions']
 
 const ChartControls = ({
   showAll,
@@ -169,12 +170,12 @@ export default function ContributorsPage() {
       {/* Content */}
       <div className='relative z-10'>
         {/* Hero Section with Integrated Stats */}
-        <section className='px-8 pt-28 pb-16 sm:pt-32 sm:pb-20 md:px-16 md:pt-40 md:pb-24 lg:px-28 xl:px-32'>
+        <section className='px-4 pt-20 pb-12 sm:px-8 sm:pt-28 sm:pb-16 md:px-16 md:pt-40 md:pb-24 lg:px-28 xl:px-32'>
           <div className='mx-auto max-w-6xl'>
             {/* Main Hero Content */}
-            <div className='mb-16 text-center'>
+            <div className='mb-12 text-center sm:mb-16'>
               <motion.h1
-                className='font-medium text-5xl text-white tracking-tight'
+                className='font-medium text-4xl text-white tracking-tight sm:text-5xl'
                 initial={{ opacity: 0, y: 40 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7, ease: 'easeOut' }}
@@ -182,7 +183,7 @@ export default function ContributorsPage() {
                 Contributors
               </motion.h1>
               <motion.p
-                className='mx-auto mt-4 max-w-2xl font-light text-neutral-400 text-xl'
+                className='mx-auto mt-3 max-w-2xl font-light text-lg text-neutral-400 sm:mt-4 sm:text-xl'
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.2 }}
@@ -193,90 +194,101 @@ export default function ContributorsPage() {
 
             {/* Integrated Project Stats */}
             <motion.div
-              className='overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f] p-8 backdrop-blur-sm'
+              className='overflow-hidden rounded-2xl border border-[#606060]/30 bg-[#0f0f0f] p-4 backdrop-blur-sm sm:rounded-3xl sm:p-8'
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={{ duration: 0.7, delay: 0.1 }}
             >
               {/* Project Header */}
-              <div className='mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center'>
+              <div className='mb-6 flex flex-col items-start justify-between gap-3 sm:mb-8 sm:flex-row sm:items-center sm:gap-4'>
                 <div className='space-y-1'>
                   <div className='flex items-center gap-2'>
-                    <div className='relative h-8 w-8'>
-                      <img src='/favicon.ico' alt='Sim Studio Logo' className='object-contain' />
+                    <div className='relative h-6 w-6 sm:h-8 sm:w-8'>
+                      <Image
+                        src='/favicon.ico'
+                        alt='Sim Studio Logo'
+                        className='object-contain'
+                        width={32}
+                        height={32}
+                      />
                     </div>
-                    <h2 className='font-semibold text-white text-xl'>Sim Studio</h2>
+                    <h2 className='font-semibold text-lg text-white sm:text-xl'>Sim Studio</h2>
                   </div>
-                  <p className='text-neutral-400 text-sm'>
+                  <p className='text-neutral-400 text-xs sm:text-sm'>
                     An open source platform for building, testing, and optimizing agentic workflows
                   </p>
                 </div>
-                <div className='flex gap-2'>
+                <div className='flex gap-2 self-end sm:self-auto'>
                   <Button
                     asChild
                     variant='outline'
                     size='sm'
-                    className='gap-2 border-[#606060]/30 bg-[#0f0f0f] text-neutral-300 backdrop-blur-sm hover:bg-neutral-700/50 hover:text-white'
+                    className='gap-1 border-[#606060]/30 bg-[#0f0f0f] text-neutral-300 text-xs backdrop-blur-sm hover:bg-neutral-700/50 hover:text-white sm:gap-2 sm:text-sm'
                   >
                     <a href='https://github.com/simstudioai/sim' target='_blank' rel='noopener'>
-                      <Github className='h-4 w-4' />
-                      View on GitHub
+                      <Github className='h-3 w-3 sm:h-4 sm:w-4' />
+                      <span className='hidden sm:inline'>View on GitHub</span>
+                      <span className='sm:hidden'>GitHub</span>
                     </a>
                   </Button>
                 </div>
               </div>
 
-              {/* Stats Grid */}
-              <div className='mb-8 grid grid-cols-2 gap-4 md:grid-cols-5'>
-                <div className='rounded-xl border border-[#606060]/20 bg-neutral-800/30 p-4 text-center'>
-                  <div className='mb-2 flex items-center justify-center'>
-                    <Star className='h-5 w-5 text-[#701ffc]' />
+              {/* Stats Grid - Mobile: 1 column, Tablet: 2 columns, Desktop: 5 columns */}
+              <div className='mb-6 grid grid-cols-1 gap-3 sm:mb-8 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5'>
+                <div className='rounded-lg border border-[#606060]/20 bg-neutral-800/30 p-3 text-center sm:rounded-xl sm:p-4'>
+                  <div className='mb-1 flex items-center justify-center sm:mb-2'>
+                    <Star className='h-4 w-4 text-[#701ffc] sm:h-5 sm:w-5' />
                   </div>
-                  <div className='font-bold text-white text-xl'>{repoStats.stars}</div>
+                  <div className='font-bold text-lg text-white sm:text-xl'>{repoStats.stars}</div>
                   <div className='text-neutral-400 text-xs'>Stars</div>
                 </div>
 
-                <div className='rounded-xl border border-[#606060]/20 bg-neutral-800/30 p-4 text-center'>
-                  <div className='mb-2 flex items-center justify-center'>
-                    <GitFork className='h-5 w-5 text-[#701ffc]' />
+                <div className='rounded-lg border border-[#606060]/20 bg-neutral-800/30 p-3 text-center sm:rounded-xl sm:p-4'>
+                  <div className='mb-1 flex items-center justify-center sm:mb-2'>
+                    <GitFork className='h-4 w-4 text-[#701ffc] sm:h-5 sm:w-5' />
                   </div>
-                  <div className='font-bold text-white text-xl'>{repoStats.forks}</div>
+                  <div className='font-bold text-lg text-white sm:text-xl'>{repoStats.forks}</div>
                   <div className='text-neutral-400 text-xs'>Forks</div>
                 </div>
 
-                <div className='rounded-xl border border-[#606060]/20 bg-neutral-800/30 p-4 text-center'>
-                  <div className='mb-2 flex items-center justify-center'>
-                    <GitGraph className='h-5 w-5 text-[#701ffc]' />
+                <div className='rounded-lg border border-[#606060]/20 bg-neutral-800/30 p-3 text-center sm:rounded-xl sm:p-4'>
+                  <div className='mb-1 flex items-center justify-center sm:mb-2'>
+                    <GitGraph className='h-4 w-4 text-[#701ffc] sm:h-5 sm:w-5' />
                   </div>
-                  <div className='font-bold text-white text-xl'>
+                  <div className='font-bold text-lg text-white sm:text-xl'>
                     {filteredContributors?.length || 0}
                   </div>
                   <div className='text-neutral-400 text-xs'>Contributors</div>
                 </div>
 
-                <div className='rounded-xl border border-[#606060]/20 bg-neutral-800/30 p-4 text-center'>
-                  <div className='mb-2 flex items-center justify-center'>
-                    <MessageCircle className='h-5 w-5 text-[#701ffc]' />
+                <div className='rounded-lg border border-[#606060]/20 bg-neutral-800/30 p-3 text-center sm:rounded-xl sm:p-4'>
+                  <div className='mb-1 flex items-center justify-center sm:mb-2'>
+                    <MessageCircle className='h-4 w-4 text-[#701ffc] sm:h-5 sm:w-5' />
                   </div>
-                  <div className='font-bold text-white text-xl'>{repoStats.openIssues}</div>
+                  <div className='font-bold text-lg text-white sm:text-xl'>
+                    {repoStats.openIssues}
+                  </div>
                   <div className='text-neutral-400 text-xs'>Open Issues</div>
                 </div>
 
-                <div className='rounded-xl border border-[#606060]/20 bg-neutral-800/30 p-4 text-center'>
-                  <div className='mb-2 flex items-center justify-center'>
-                    <GitPullRequest className='h-5 w-5 text-[#701ffc]' />
+                <div className='rounded-lg border border-[#606060]/20 bg-neutral-800/30 p-3 text-center sm:rounded-xl sm:p-4'>
+                  <div className='mb-1 flex items-center justify-center sm:mb-2'>
+                    <GitPullRequest className='h-4 w-4 text-[#701ffc] sm:h-5 sm:w-5' />
                   </div>
-                  <div className='font-bold text-white text-xl'>{repoStats.openPRs}</div>
+                  <div className='font-bold text-lg text-white sm:text-xl'>{repoStats.openPRs}</div>
                   <div className='text-neutral-400 text-xs'>Pull Requests</div>
                 </div>
               </div>
 
-              {/* Activity Chart - Simplified */}
-              <div className='rounded-2xl border border-[#606060]/30 bg-[#0f0f0f] p-6'>
-                <h3 className='mb-4 font-medium text-lg text-white'>Commit Activity</h3>
-                <ResponsiveContainer width='100%' height={200}>
-                  <AreaChart data={timelineData} className='-mx-5 mt-2'>
+              {/* Activity Chart - Mobile responsive */}
+              <div className='rounded-xl border border-[#606060]/30 bg-[#0f0f0f] p-4 sm:rounded-2xl sm:p-6'>
+                <h3 className='mb-3 font-medium text-base text-white sm:mb-4 sm:text-lg'>
+                  Commit Activity
+                </h3>
+                <ResponsiveContainer width='100%' height={150} className='sm:!h-[200px]'>
+                  <AreaChart data={timelineData} className='-mx-2 sm:-mx-5 mt-1 sm:mt-2'>
                     <defs>
                       <linearGradient id='commits' x1='0' y1='0' x2='0' y2='1'>
                         <stop offset='5%' stopColor='#701ffc' stopOpacity={0.3} />
@@ -286,29 +298,33 @@ export default function ContributorsPage() {
                     <XAxis
                       dataKey='date'
                       stroke='currentColor'
-                      fontSize={12}
+                      fontSize={10}
                       tickLine={false}
                       axisLine={false}
-                      className='text-neutral-400'
+                      className='text-neutral-400 sm:text-xs'
+                      interval={4}
                     />
                     <YAxis
                       stroke='currentColor'
-                      fontSize={12}
+                      fontSize={10}
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={(value) => `${value}`}
-                      className='text-neutral-400'
+                      className='text-neutral-400 sm:text-xs'
+                      width={30}
                     />
                     <Tooltip
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
                           return (
-                            <div className='rounded-lg border border-[#606060]/30 bg-[#0f0f0f] p-3 shadow-lg backdrop-blur-sm'>
-                              <div className='grid gap-2'>
-                                <div className='flex items-center gap-2'>
-                                  <GitGraph className='h-4 w-4 text-[#701ffc]' />
-                                  <span className='text-neutral-400 text-sm'>Commits:</span>
-                                  <span className='font-medium text-white'>
+                            <div className='rounded-lg border border-[#606060]/30 bg-[#0f0f0f] p-2 shadow-lg backdrop-blur-sm sm:p-3'>
+                              <div className='grid gap-1 sm:gap-2'>
+                                <div className='flex items-center gap-1 sm:gap-2'>
+                                  <GitGraph className='h-3 w-3 text-[#701ffc] sm:h-4 sm:w-4' />
+                                  <span className='text-neutral-400 text-xs sm:text-sm'>
+                                    Commits:
+                                  </span>
+                                  <span className='font-medium text-white text-xs sm:text-sm'>
                                     {payload[0]?.value}
                                   </span>
                                 </div>
@@ -334,7 +350,7 @@ export default function ContributorsPage() {
         </section>
 
         {/* Contributors Display */}
-        <section className='px-8 py-16 md:px-16 lg:px-28 xl:px-32'>
+        <section className='px-4 py-12 sm:px-8 sm:py-16 md:px-16 lg:px-28 xl:px-32'>
           <div className='mx-auto max-w-6xl'>
             <motion.div
               initial={{ opacity: 0, y: 40 }}
@@ -343,57 +359,60 @@ export default function ContributorsPage() {
               transition={{ duration: 0.7, delay: 0.2 }}
             >
               <Tabs defaultValue='grid' className='w-full'>
-                <div className='mb-8 flex justify-center'>
-                  <TabsList className='grid h-full w-full grid-cols-2 border border-[#606060]/30 bg-[#0f0f0f] p-1 backdrop-blur-sm sm:w-[200px]'>
+                <div className='mb-6 flex justify-center sm:mb-8'>
+                  <TabsList className='grid h-full w-full max-w-[300px] grid-cols-2 border border-[#606060]/30 bg-[#0f0f0f] p-1 backdrop-blur-sm sm:w-[200px]'>
                     <TabsTrigger
                       value='grid'
-                      className='flex items-center gap-2 text-neutral-400 data-[state=active]:bg-neutral-700/50 data-[state=active]:text-white data-[state=active]:shadow-sm'
+                      className='flex items-center gap-1 text-neutral-400 text-xs data-[state=active]:bg-neutral-700/50 data-[state=active]:text-white data-[state=active]:shadow-sm sm:gap-2 sm:text-sm'
                     >
-                      <LayoutGrid className='h-4 w-4' />
+                      <LayoutGrid className='h-3 w-3 sm:h-4 sm:w-4' />
                       Grid
                     </TabsTrigger>
                     <TabsTrigger
                       value='chart'
-                      className='flex items-center gap-2 text-neutral-400 data-[state=active]:bg-neutral-700/50 data-[state=active]:text-white data-[state=active]:shadow-sm'
+                      className='flex items-center gap-1 text-neutral-400 text-xs data-[state=active]:bg-neutral-700/50 data-[state=active]:text-white data-[state=active]:shadow-sm sm:gap-2 sm:text-sm'
                     >
-                      <ChartAreaIcon className='h-4 w-4' />
+                      <ChartAreaIcon className='h-3 w-3 sm:h-4 sm:w-4' />
                       Chart
                     </TabsTrigger>
                   </TabsList>
                 </div>
 
                 <TabsContent value='grid'>
-                  <div className='grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6'>
+                  {/* Mobile: 2 columns, Small: 3 columns, Large: 4 columns, XL: 6 columns */}
+                  <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-6'>
                     {filteredContributors?.map((contributor, index) => (
                       <motion.a
                         key={contributor.login}
                         href={contributor.html_url}
                         target='_blank'
-                        className='group relative flex flex-col items-center rounded-xl border border-[#606060]/30 bg-[#0f0f0f] p-4 backdrop-blur-sm transition-all hover:bg-neutral-700/50'
+                        className='group relative flex flex-col items-center rounded-lg border border-[#606060]/30 bg-[#0f0f0f] p-3 backdrop-blur-sm transition-all hover:bg-neutral-700/50 sm:rounded-xl sm:p-4'
                         whileHover={{ scale: 1.02, y: -2 }}
                         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         style={{ animationDelay: `${index * 50}ms` }}
                       >
-                        <Avatar className='h-16 w-16 ring-2 ring-[#606060]/30 transition-transform group-hover:scale-105 group-hover:ring-[#701ffc]/60'>
+                        <Avatar className='h-12 w-12 ring-2 ring-[#606060]/30 transition-transform group-hover:scale-105 group-hover:ring-[#701ffc]/60 sm:h-16 sm:w-16'>
                           <AvatarImage
                             src={contributor.avatar_url}
                             alt={contributor.login}
                             className='object-cover'
                           />
-                          <AvatarFallback className='bg-[#0f0f0f] text-xs'>
+                          <AvatarFallback className='bg-[#0f0f0f] text-[10px] sm:text-xs'>
                             {contributor.login.slice(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
 
-                        <div className='mt-3 text-center'>
-                          <span className='block font-medium text-sm text-white transition-colors group-hover:text-[#701ffc]'>
-                            {contributor.login}
+                        <div className='mt-2 text-center sm:mt-3'>
+                          <span className='block font-medium text-white text-xs transition-colors group-hover:text-[#701ffc] sm:text-sm'>
+                            {contributor.login.length > 12
+                              ? `${contributor.login.slice(0, 12)}...`
+                              : contributor.login}
                           </span>
-                          <div className='mt-2 flex items-center justify-center gap-1'>
-                            <GitGraph className='h-3 w-3 text-neutral-400 transition-colors group-hover:text-[#701ffc]' />
-                            <span className='font-medium text-neutral-300 text-sm transition-colors group-hover:text-white'>
+                          <div className='mt-1 flex items-center justify-center gap-1 sm:mt-2'>
+                            <GitGraph className='h-2 w-2 text-neutral-400 transition-colors group-hover:text-[#701ffc] sm:h-3 sm:w-3' />
+                            <span className='font-medium text-neutral-300 text-xs transition-colors group-hover:text-white sm:text-sm'>
                               {contributor.contributions}
                             </span>
                           </div>
@@ -404,17 +423,18 @@ export default function ContributorsPage() {
                 </TabsContent>
 
                 <TabsContent value='chart'>
-                  <div className='rounded-3xl border border-[#606060]/30 bg-[#0f0f0f] p-6 backdrop-blur-sm'>
+                  <div className='rounded-2xl border border-[#606060]/30 bg-[#0f0f0f] p-4 backdrop-blur-sm sm:rounded-3xl sm:p-6'>
                     <ChartControls
                       showAll={showAllContributors}
                       setShowAll={setShowAllContributors}
                       total={filteredContributors?.length || 0}
                     />
 
-                    <ResponsiveContainer width='100%' height={400}>
+                    <ResponsiveContainer width='100%' height={300} className='sm:!h-[400px]'>
                       <BarChart
                         data={filteredContributors?.slice(0, showAllContributors ? undefined : 10)}
-                        margin={{ top: 10, right: 10, bottom: 60, left: 10 }}
+                        margin={{ top: 10, right: 5, bottom: 50, left: 5 }}
+                        className='sm:!mx-2.5 sm:!mb-2.5'
                       >
                         <XAxis
                           dataKey='login'
@@ -427,37 +447,44 @@ export default function ContributorsPage() {
 
                             return (
                               <g transform={`translate(${x},${y})`}>
-                                <foreignObject x='-16' y='8' width='32' height='32'>
-                                  <Avatar className='h-8 w-8 ring-1 ring-[#606060]/30'>
+                                <foreignObject
+                                  x='-12'
+                                  y='6'
+                                  width='24'
+                                  height='24'
+                                  className='sm:!x-[-16] sm:!y-[8] sm:!w-[32] sm:!h-[32]'
+                                >
+                                  <Avatar className='h-6 w-6 ring-1 ring-[#606060]/30 sm:h-8 sm:w-8'>
                                     <AvatarImage src={contributor?.avatar_url} />
-                                    <AvatarFallback className='bg-[#0f0f0f] text-[8px]'>
+                                    <AvatarFallback className='bg-[#0f0f0f] text-[6px] sm:text-[8px]'>
                                       {payload.value.slice(0, 2).toUpperCase()}
                                     </AvatarFallback>
                                   </Avatar>
                                 </foreignObject>
                                 <text
                                   x='0'
-                                  y='50'
+                                  y='40'
                                   textAnchor='middle'
-                                  className='fill-neutral-400 text-xs'
+                                  className='fill-neutral-400 text-[10px] sm:text-xs'
                                 >
-                                  {payload.value.length > 8
-                                    ? `${payload.value.slice(0, 8)}...`
+                                  {payload.value.length > 6
+                                    ? `${payload.value.slice(0, 6)}...`
                                     : payload.value}
                                 </text>
                               </g>
                             )
                           }}
-                          height={80}
-                          className='text-neutral-400'
+                          height={60}
+                          className='sm:!h-[80px] text-neutral-400'
                         />
                         <YAxis
                           stroke='currentColor'
-                          fontSize={12}
+                          fontSize={10}
                           tickLine={false}
                           axisLine={false}
                           tickFormatter={(value) => `${value}`}
-                          className='text-neutral-400'
+                          className='text-neutral-400 sm:text-xs'
+                          width={25}
                         />
                         <Tooltip
                           cursor={{ fill: 'rgb(255 255 255 / 0.05)' }}
@@ -465,20 +492,20 @@ export default function ContributorsPage() {
                             if (active && payload && payload.length) {
                               const data = payload[0]?.payload
                               return (
-                                <div className='rounded-lg border border-[#606060]/30 bg-[#0f0f0f] p-3 shadow-lg backdrop-blur-sm'>
+                                <div className='rounded-lg border border-[#606060]/30 bg-[#0f0f0f] p-2 shadow-lg backdrop-blur-sm sm:p-3'>
                                   <div className='flex items-center gap-2'>
-                                    <Avatar className='h-8 w-8 ring-1 ring-[#606060]/30'>
+                                    <Avatar className='h-6 w-6 ring-1 ring-[#606060]/30 sm:h-8 sm:w-8'>
                                       <AvatarImage src={data.avatar_url} />
-                                      <AvatarFallback className='bg-[#0f0f0f]'>
+                                      <AvatarFallback className='bg-[#0f0f0f] text-[8px] sm:text-xs'>
                                         {data.login.slice(0, 2).toUpperCase()}
                                       </AvatarFallback>
                                     </Avatar>
                                     <div>
-                                      <div className='font-medium text-sm text-white'>
+                                      <div className='font-medium text-white text-xs sm:text-sm'>
                                         {data.login}
                                       </div>
-                                      <div className='flex items-center gap-1 text-neutral-400 text-xs'>
-                                        <GitGraph className='h-3 w-3' />
+                                      <div className='flex items-center gap-1 text-[10px] text-neutral-400 sm:text-xs'>
+                                        <GitGraph className='h-2 w-2 sm:h-3 sm:w-3' />
                                         <span>{data.contributions} commits</span>
                                       </div>
                                     </div>
@@ -492,7 +519,7 @@ export default function ContributorsPage() {
                         <Bar
                           dataKey='contributions'
                           className='fill-[#701ffc]'
-                          radius={[6, 6, 0, 0]}
+                          radius={[4, 4, 0, 0]}
                         />
                       </BarChart>
                     </ResponsiveContainer>
@@ -504,32 +531,32 @@ export default function ContributorsPage() {
         </section>
 
         {/* Call to Action */}
-        <section className='px-8 py-10 sm:py-12 md:px-16 md:py-16 lg:px-28 xl:px-32'>
+        <section className='px-4 py-8 sm:px-8 sm:py-10 md:px-16 md:py-16 lg:px-28 xl:px-32'>
           <div className='mx-auto max-w-6xl'>
             <motion.div
-              className='relative overflow-hidden rounded-3xl border border-[#606060]/30 bg-[#0f0f0f]'
+              className='relative overflow-hidden rounded-2xl border border-[#606060]/30 bg-[#0f0f0f] sm:rounded-3xl'
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
               transition={{ duration: 0.7, delay: 0.3 }}
             >
-              <div className='relative p-8 sm:p-12 md:p-16'>
+              <div className='relative p-6 sm:p-8 md:p-12 lg:p-16'>
                 <div className='text-center'>
-                  <div className='mb-6 inline-flex items-center rounded-full border border-[#701ffc]/20 bg-[#701ffc]/10 px-4 py-2 font-medium text-[#701ffc] text-sm'>
-                    <Github className='mr-2 h-4 w-4' />
+                  <div className='mb-4 inline-flex items-center rounded-full border border-[#701ffc]/20 bg-[#701ffc]/10 px-3 py-1 font-medium text-[#701ffc] text-xs sm:mb-6 sm:px-4 sm:py-2 sm:text-sm'>
+                    <Github className='mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4' />
                     Apache-2.0 Licensed
                   </div>
 
-                  <h3 className='font-medium text-[42px] text-white leading-[1.1] tracking-tight md:text-5xl'>
+                  <h3 className='font-medium text-2xl text-white leading-[1.1] tracking-tight sm:text-[42px] md:text-5xl'>
                     Want to contribute?
                   </h3>
 
-                  <p className='mx-auto mt-4 max-w-2xl font-light text-neutral-400 text-xl'>
+                  <p className='mx-auto mt-3 max-w-2xl font-light text-base text-neutral-400 sm:mt-4 sm:text-xl'>
                     Whether you&apos;re fixing bugs, adding features, or improving documentation,
                     every contribution helps build the future of AI workflows.
                   </p>
 
-                  <div className='mt-8 flex flex-wrap justify-center gap-4'>
+                  <div className='mt-6 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-4'>
                     <Button
                       asChild
                       size='lg'
@@ -540,7 +567,7 @@ export default function ContributorsPage() {
                         target='_blank'
                         rel='noopener'
                       >
-                        <GitGraph className='mr-2 h-5 w-5' />
+                        <GitGraph className='mr-2 h-4 w-4 sm:h-5 sm:w-5' />
                         Start Contributing
                       </a>
                     </Button>
@@ -552,7 +579,7 @@ export default function ContributorsPage() {
                       className='border-[#606060]/30 bg-transparent text-neutral-300 transition-colors duration-500 hover:bg-neutral-700/50 hover:text-white'
                     >
                       <a href='https://github.com/simstudioai/sim' target='_blank' rel='noopener'>
-                        <Github className='mr-2 h-5 w-5' />
+                        <Github className='mr-2 h-4 w-4 sm:h-5 sm:w-5' />
                         View Repository
                       </a>
                     </Button>
@@ -568,7 +595,7 @@ export default function ContributorsPage() {
                         target='_blank'
                         rel='noopener'
                       >
-                        <MessageCircle className='mr-2 h-5 w-5' />
+                        <MessageCircle className='mr-2 h-4 w-4 sm:h-5 sm:w-5' />
                         Open Issues
                       </a>
                     </Button>
