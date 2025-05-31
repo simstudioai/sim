@@ -268,45 +268,34 @@ export function ControlBar() {
     }
   }, [activeWorkflowId, isDeployed, setNeedsRedeploymentFlag])
 
+  // Get current store state for change detection
+  const currentBlocks = useWorkflowStore((state) => state.blocks)
+  const subBlockValues = useSubBlockStore((state) => 
+    activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
+  )
+
   // Subscribe to workflow and subblock changes to detect differences from deployed state
   useEffect(() => {
+    // Early exit: No workflow or nothing deployed = no changes possible
     if (!activeWorkflowId || !deployedState) {
       setChangeDetected(false)
       return
     }
 
-    const checkForChanges = () => {
-      // Get fresh state each time
-      const currentBlocks = useWorkflowStore.getState().blocks
-      if (!currentBlocks || !deployedState) return
-
-      // Merge current workflow state with subblock values
-      const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
-      
-      // Compare with deployed state
-      const deployedBlocks = (deployedState as any)?.blocks
-      if (!deployedBlocks) return
-      
-      const hasChanges = JSON.stringify(currentMergedState) !== JSON.stringify(deployedBlocks)
-      
-      // Only update if the state actually changed to prevent unnecessary renders
-      setChangeDetected(prev => prev !== hasChanges ? hasChanges : prev)
+    // Get current workflow state merged with user inputs
+    const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
+    
+    // Compare current state vs deployed state
+    const deployedBlocks = deployedState?.blocks
+    if (!deployedBlocks) {
+      setChangeDetected(false)
+      return
     }
-
-    // Check immediately
-    checkForChanges()
-
-    // Subscribe to workflow store changes (blocks structure/content changes)
-    const unsubscribeWorkflow = useWorkflowStore.subscribe(checkForChanges)
-
-    // Subscribe to subblock store changes (subblock values changes)  
-    const unsubscribeSubBlocks = useSubBlockStore.subscribe(checkForChanges)
-
-    return () => {
-      unsubscribeWorkflow()
-      unsubscribeSubBlocks()
-    }
-  }, [activeWorkflowId, deployedState])
+    
+    // Simple JSON comparison - if different, changes detected
+    const hasChanges = JSON.stringify(currentMergedState) !== JSON.stringify(deployedBlocks)
+    setChangeDetected(hasChanges)
+  }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues])
 
   // Check usage limits when component mounts and when user executes a workflow
   useEffect(() => {
