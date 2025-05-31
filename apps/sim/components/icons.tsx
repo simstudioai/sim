@@ -2713,22 +2713,22 @@ export function MicrosoftExcelIcon(props: SVGProps<SVGSVGElement>) {
       <path fill='#107C41' d='M532.5,532.5h905.25V1065H532.5V532.5z' />
       <path
         opacity='0.1'
-        enable-background='new    '
+        enableBackground='new'
         d='M1180.393,426H532.5v1331.25h647.893c53.834-0.175,97.432-43.773,97.607-97.607  V523.607C1277.825,469.773,1234.227,426.175,1180.393,426z'
       />
       <path
         opacity='0.2'
-        enable-background='new    '
+        enableBackground='new'
         d='M1127.143,479.25H532.5V1810.5h594.643  c53.834-0.175,97.432-43.773,97.607-97.607V576.857C1224.575,523.023,1180.977,479.425,1127.143,479.25z'
       />
       <path
         opacity='0.2'
-        enable-background='new    '
+        enableBackground='new'
         d='M1127.143,479.25H532.5V1704h594.643c53.834-0.175,97.432-43.773,97.607-97.607  V576.857C1224.575,523.023,1180.977,479.425,1127.143,479.25z'
       />
       <path
         opacity='0.2'
-        enable-background='new    '
+        enableBackground='new'
         d='M1073.893,479.25H532.5V1704h541.393c53.834-0.175,97.432-43.773,97.607-97.607  V576.857C1171.325,523.023,1127.727,479.425,1073.893,479.25z'
       />
       <linearGradient
