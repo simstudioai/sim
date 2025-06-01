@@ -1,6 +1,7 @@
 import { Resend } from 'resend'
 import { createLogger } from '@/lib/logs/console-logger'
 import { env } from './env'
+import { getBaseDomain } from './urls/utils'
 
 interface EmailOptions {
   to: string
@@ -41,7 +42,7 @@ export async function sendEmail({
   from,
 }: EmailOptions): Promise<SendEmailResult> {
   try {
-    const senderEmail = from || 'noreply@simstudio.ai'
+    const senderEmail = from || `noreply@${getBaseDomain()}`
 
     if (!resend) {
       logger.info('Email not sent (Resend not configured):', {
@@ -89,7 +90,7 @@ export async function sendBatchEmails({
   emails,
 }: BatchEmailOptions): Promise<BatchSendEmailResult> {
   try {
-    const senderEmail = 'noreply@simstudio.ai'
+    const senderEmail = `noreply@${getBaseDomain()}`
     const results: SendEmailResult[] = []
 
     if (!resend) {

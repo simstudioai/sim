@@ -3,6 +3,7 @@ import { Resend } from 'resend'
 import { z } from 'zod'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getBaseDomain } from '@/lib/urls/utils'
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
 const logger = createLogger('HelpAPI')
@@ -98,8 +99,8 @@ ${message}
 
     // Send email using Resend
     const { data, error } = await resend.emails.send({
-      from: 'Sim Studio <noreply@simstudio.ai>',
-      to: ['help@simstudio.ai'],
+      from: `Sim Studio <noreply@${getBaseDomain()}>`,
+      to: [`help@${getBaseDomain()}`],
       subject: `[${type.toUpperCase()}] ${subject}`,
       replyTo: email,
       text: emailText,
@@ -121,7 +122,7 @@ ${message}
     // Send confirmation email to the user
     await resend.emails
       .send({
-        from: 'Sim Studio <noreply@simstudio.ai>',
+        from: `Sim Studio <noreply@${getBaseDomain()}>`,
         to: [email],
         subject: `Your ${type} request has been received: ${subject}`,
         text: `
@@ -137,7 +138,7 @@ ${images.length > 0 ? `You attached ${images.length} image(s).` : ''}
 Best regards,
 The Sim Studio Team
       `,
-        replyTo: 'help@simstudio.ai',
+        replyTo: `help@${getBaseDomain()}`,
       })
       .catch((err) => {
         logger.warn(`[${requestId}] Failed to send confirmation email`, err)
