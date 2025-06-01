@@ -37,7 +37,6 @@ export const env = createEnv({
       .regex(/^\d+(\.\d+)?$/)
       .optional(),
     RESEND_API_KEY: z.string().min(1).optional(),
-    EMAIL_DOMAIN: z.string().min(1).optional(),
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_API_KEY_1: z.string().min(1).optional(),
     OPENAI_API_KEY_2: z.string().min(1).optional(),
