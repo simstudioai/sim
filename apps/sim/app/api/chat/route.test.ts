@@ -5,7 +5,6 @@ import { NextRequest } from 'next/server'
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { env } from '@/lib/env'
 
 describe('Chat API Route', () => {
   const mockSelect = vi.fn()
@@ -270,12 +269,21 @@ describe('Chat API Route', () => {
         }),
       }))
 
+      // Mock the env module to ensure NODE_ENV is development
+      vi.doMock('@/lib/env', () => ({
+        env: {
+          NODE_ENV: 'development',
+          NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+        },
+      }))
+
       // Mock environment variables
       vi.stubGlobal('process', {
         ...process,
         env: {
-          ...env,
+          ...process.env,
           NODE_ENV: 'development',
+          NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
         },
       })
 
