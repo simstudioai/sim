@@ -173,12 +173,12 @@ export class ConditionBlockHandler implements BlockHandler {
           selectedCondition = elseCondition
         } else {
           throw new Error(
-            `No path found for condition block ${block.id}, and 'else' connection missing.`
+            `No path found for condition block "${block.metadata?.name}", and 'else' connection missing.`
           )
         }
       } else {
         throw new Error(
-          `No matching path found for condition block ${block.id}, and no 'else' block exists.`
+          `No matching path found for condition block "${block.metadata?.name}", and no 'else' block exists.`
         )
       }
     }

@@ -303,7 +303,7 @@ describe('ConditionBlockHandler', () => {
       .mockReturnValueOnce('context.value === 99')
 
     await expect(handler.execute(mockBlock, inputs, mockContext)).rejects.toThrow(
-      `No matching path found for condition block ${mockBlock.id}, and no 'else' block exists.`
+      `No matching path found for condition block "${mockBlock.metadata?.name}", and no 'else' block exists.`
     )
   })
 

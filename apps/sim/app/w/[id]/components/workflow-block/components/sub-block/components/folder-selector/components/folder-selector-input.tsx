@@ -9,34 +9,46 @@ interface FolderSelectorInputProps {
   blockId: string
   subBlock: SubBlockConfig
   disabled?: boolean
+  isPreview?: boolean
+  previewValue?: any | null
 }
 
 export function FolderSelectorInput({
   blockId,
   subBlock,
   disabled = false,
+  isPreview = false,
+  previewValue,
 }: FolderSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedFolderId, setSelectedFolderId] = useState<string>('')
   const [_folderInfo, setFolderInfo] = useState<FolderInfo | null>(null)
 
-  // Get the current value from the store
+  // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
-    const value = getValue(blockId, subBlock.id)
-    if (value && typeof value === 'string') {
-      setSelectedFolderId(value)
+    if (isPreview && previewValue !== undefined) {
+      setSelectedFolderId(previewValue)
     } else {
-      const defaultValue = 'INBOX'
-      setSelectedFolderId(defaultValue)
-      setValue(blockId, subBlock.id, defaultValue)
+      const value = getValue(blockId, subBlock.id)
+      if (value && typeof value === 'string') {
+        setSelectedFolderId(value)
+      } else {
+        const defaultValue = 'INBOX'
+        setSelectedFolderId(defaultValue)
+        if (!isPreview) {
+          setValue(blockId, subBlock.id, defaultValue)
+        }
+      }
     }
-  }, [blockId, subBlock.id, getValue, setValue])
+  }, [blockId, subBlock.id, getValue, setValue, isPreview, previewValue])
 
   // Handle folder selection
   const handleFolderChange = (folderId: string, info?: FolderInfo) => {
     setSelectedFolderId(folderId)
     setFolderInfo(info || null)
-    setValue(blockId, subBlock.id, folderId)
+    if (!isPreview) {
+      setValue(blockId, subBlock.id, folderId)
+    }
   }
 
   return (

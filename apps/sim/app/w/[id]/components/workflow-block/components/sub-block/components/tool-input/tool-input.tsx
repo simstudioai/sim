@@ -28,11 +28,13 @@ import { ShortInput } from '../short-input'
 import { type CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
 import { ToolCommand } from './components/tool-command/tool-command'
 
-const _logger = createLogger('ToolInput')
+const logger = createLogger('ToolInput')
 
 interface ToolInputProps {
   blockId: string
   subBlockId: string
+  isPreview?: boolean
+  previewValue?: any
 }
 
 interface StoredTool {
@@ -240,8 +242,13 @@ const formatParamId = (paramId: string): string => {
   return paramId.charAt(0).toUpperCase() + paramId.slice(1)
 }
 
-export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
-  const [value, setValue] = useSubBlockValue(blockId, subBlockId)
+export function ToolInput({
+  blockId,
+  subBlockId,
+  isPreview = false,
+  previewValue,
+}: ToolInputProps) {
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const [open, setOpen] = useState(false)
   const [customToolModalOpen, setCustomToolModalOpen] = useState(false)
   const [editingToolIndex, setEditingToolIndex] = useState<number | null>(null)
@@ -258,6 +265,9 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
 
   const toolBlocks = getAllBlocks().filter((block) => block.category === 'tools')
+
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
 
   // Custom filter function for the Command component
   const customFilter = useCallback((value: string, search: string) => {
@@ -283,6 +293,11 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     Array.isArray(value) && value.length > 0 && typeof value[0] === 'object'
       ? (value as unknown as StoredTool[])
       : []
+
+  // Check if a tool is already selected
+  const isToolAlreadySelected = (toolType: string) => {
+    return selectedTools.some((tool) => tool.type === toolType)
+  }
 
   const handleSelectTool = (toolBlock: (typeof toolBlocks)[0]) => {
     const hasOperations = hasMultipleOperations(toolBlock.type)
@@ -312,7 +327,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
 
     // If isWide, keep tools in the same row expanded
     if (isWide) {
-      setValue([
+      setStoreValue([
         ...selectedTools.map((tool, index) => ({
           ...tool,
           // Keep expanded if it's in the same row as the new tool
@@ -322,7 +337,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       ])
     } else {
       // Original behavior for non-wide mode
-      setValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
+      setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
     }
 
     setOpen(false)
@@ -367,7 +382,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
 
     // If isWide, keep tools in the same row expanded
     if (isWide) {
-      setValue([
+      setStoreValue([
         ...selectedTools.map((tool, index) => ({
           ...tool,
           // Keep expanded if it's in the same row as the new tool
@@ -377,7 +392,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       ])
     } else {
       // Original behavior for non-wide mode
-      setValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
+      setStoreValue([...selectedTools.map((tool) => ({ ...tool, isExpanded: false })), newTool])
     }
   }
 
@@ -398,7 +413,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   const handleSaveCustomTool = (customTool: CustomTool) => {
     if (editingToolIndex !== null) {
       // Update existing tool
-      setValue(
+      setStoreValue(
         selectedTools.map((tool, index) =>
           index === editingToolIndex
             ? {
@@ -418,7 +433,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   }
 
   const handleRemoveTool = (toolType: string, toolIndex: number) => {
-    setValue(selectedTools.filter((_, index) => index !== toolIndex))
+    setStoreValue(selectedTools.filter((_, index) => index !== toolIndex))
   }
 
   // New handler for when a custom tool is completely deleted from the store
@@ -442,7 +457,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
 
     // Update the workflow value if any tools were removed
     if (updatedTools.length !== selectedTools.length) {
-      setValue(updatedTools)
+      setStoreValue(updatedTools)
     }
   }
 
@@ -460,7 +475,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
     }
 
     // Update the value in the workflow
-    setValue(
+    setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
           ? {
@@ -489,7 +504,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
       subBlockStore.setValue(blockId, 'parentIssue', '')
     }
 
-    setValue(
+    setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
           ? {
@@ -504,7 +519,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   }
 
   const handleCredentialChange = (toolIndex: number, credentialId: string) => {
-    setValue(
+    setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
           ? {
@@ -520,7 +535,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   }
 
   const handleUsageControlChange = (toolIndex: number, usageControl: string) => {
-    setValue(
+    setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex
           ? {
@@ -533,7 +548,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
   }
 
   const toggleToolExpansion = (toolIndex: number) => {
-    setValue(
+    setStoreValue(
       selectedTools.map((tool, index) =>
         index === toolIndex ? { ...tool, isExpanded: !tool.isExpanded } : tool
       )
@@ -566,10 +581,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                   <ToolCommand.Item
                     value='Create Tool'
                     onSelect={() => {
-                      setOpen(false)
-                      setCustomToolModalOpen(true)
+                      if (!isPreview) {
+                        setCustomToolModalOpen(true)
+                        setOpen(false)
+                      }
                     }}
                     className='mb-1 flex cursor-pointer items-center gap-2'
+                    disabled={isPreview}
                   >
                     <div className='flex h-6 w-6 items-center justify-center rounded border border-muted-foreground/50 border-dashed bg-transparent'>
                       <WrenchIcon className='h-4 w-4 text-muted-foreground' />
@@ -601,7 +619,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                               }
 
                               if (isWide) {
-                                setValue([
+                                setStoreValue([
                                   ...selectedTools.map((tool, index) => ({
                                     ...tool,
                                     isExpanded:
@@ -611,7 +629,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                   newTool,
                                 ])
                               } else {
-                                setValue([
+                                setStoreValue([
                                   ...selectedTools.map((tool) => ({
                                     ...tool,
                                     isExpanded: false,
@@ -962,7 +980,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                 }
 
                                 if (isWide) {
-                                  setValue([
+                                  setStoreValue([
                                     ...selectedTools.map((tool, index) => ({
                                       ...tool,
                                       isExpanded:
@@ -972,7 +990,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                     newTool,
                                   ])
                                 } else {
-                                  setValue([
+                                  setStoreValue([
                                     ...selectedTools.map((tool) => ({
                                       ...tool,
                                       isExpanded: false,

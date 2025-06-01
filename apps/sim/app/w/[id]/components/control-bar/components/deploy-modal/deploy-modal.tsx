@@ -27,6 +27,7 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployModal')
 
@@ -36,6 +37,9 @@ interface DeployModalProps {
   workflowId: string | null
   needsRedeployment: boolean
   setNeedsRedeployment: (value: boolean) => void
+  deployedState: WorkflowState
+  isLoadingDeployedState: boolean
+  refetchDeployedState: () => Promise<void>
 }
 
 interface ApiKey {
@@ -69,6 +73,9 @@ export function DeployModal({
   workflowId,
   needsRedeployment,
   setNeedsRedeployment,
+  deployedState,
+  isLoadingDeployedState,
+  refetchDeployedState,
 }: DeployModalProps) {
   // Store hooks
   const { addNotification } = useNotificationStore()
@@ -306,6 +313,9 @@ export function DeployModal({
 
       setDeploymentInfo(newDeploymentInfo)
 
+      // Fetch the updated deployed state after deployment
+      await refetchDeployedState()
+
       // No notification on successful deploy
     } catch (error: any) {
       logger.error('Error deploying workflow:', { error })
@@ -395,7 +405,9 @@ export function DeployModal({
         useWorkflowRegistry.getState().setWorkflowNeedsRedeployment(workflowId, false)
       }
 
-      // Add a success notification
+      // Fetch the updated deployed state after redeployment
+      await refetchDeployedState()
+
       addNotification('info', 'Workflow successfully redeployed', workflowId)
     } catch (error: any) {
       logger.error('Error redeploying workflow:', { error })
@@ -407,7 +419,6 @@ export function DeployModal({
 
   // Custom close handler to ensure we clean up loading states
   const handleCloseModal = () => {
-    // Reset all loading states
     setIsSubmitting(false)
     setIsChatDeploying(false)
     setChatSubmitting(false)
@@ -505,8 +516,6 @@ export function DeployModal({
           deployedAt ? new Date(deployedAt) : undefined,
           apiKey
         )
-
-        logger.info('Workflow automatically deployed for chat deployment')
       } catch (error: any) {
         logger.error('Error auto-deploying workflow for chat:', { error })
         addNotification('error', `Failed to deploy workflow: ${error.message}`, workflowId)
@@ -606,38 +615,43 @@ export function DeployModal({
 
           <div className='flex-1 overflow-y-auto'>
             <div className='p-6'>
-              {activeTab === 'api' &&
-                (isDeployed ? (
-                  <DeploymentInfo
-                    isLoading={isLoading}
-                    deploymentInfo={deploymentInfo}
-                    onRedeploy={handleRedeploy}
-                    onUndeploy={handleUndeploy}
-                    isSubmitting={isSubmitting}
-                    isUndeploying={isUndeploying}
-                    workflowId={workflowId || undefined}
-                  />
-                ) : (
-                  <>
-                    {apiDeployError && (
-                      <div className='mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
-                        <div className='font-semibold'>API Deployment Error</div>
-                        <div>{apiDeployError}</div>
+              {activeTab === 'api' && (
+                <>
+                  {isDeployed ? (
+                    <DeploymentInfo
+                      isLoading={isLoading}
+                      deploymentInfo={deploymentInfo}
+                      onRedeploy={handleRedeploy}
+                      onUndeploy={handleUndeploy}
+                      isSubmitting={isSubmitting}
+                      isUndeploying={isUndeploying}
+                      workflowId={workflowId}
+                      deployedState={deployedState}
+                      isLoadingDeployedState={isLoadingDeployedState}
+                    />
+                  ) : (
+                    <>
+                      {apiDeployError && (
+                        <div className='mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm'>
+                          <div className='font-semibold'>API Deployment Error</div>
+                          <div>{apiDeployError}</div>
+                        </div>
+                      )}
+                      <div className='-mx-1 px-1'>
+                        <DeployForm
+                          apiKeys={apiKeys}
+                          keysLoaded={keysLoaded}
+                          endpointUrl={`${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
+                          workflowId={workflowId || ''}
+                          onSubmit={onDeploy}
+                          getInputFormatExample={getInputFormatExample}
+                          onApiKeyCreated={fetchApiKeys}
+                        />
                       </div>
-                    )}
-                    <div className='-mx-1 px-1'>
-                      <DeployForm
-                        apiKeys={apiKeys}
-                        keysLoaded={keysLoaded}
-                        endpointUrl={`${env.NEXT_PUBLIC_APP_URL}/api/workflows/${workflowId}/execute`}
-                        workflowId={workflowId || ''}
-                        onSubmit={onDeploy}
-                        getInputFormatExample={getInputFormatExample}
-                        onApiKeyCreated={fetchApiKeys}
-                      />
-                    </div>
-                  </>
-                ))}
+                    </>
+                  )}
+                </>
+              )}
 
               {activeTab === 'chat' && (
                 <ChatDeploy

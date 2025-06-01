@@ -33,6 +33,8 @@ interface ConditionInputProps {
   blockId: string
   subBlockId: string
   isConnecting: boolean
+  isPreview?: boolean
+  previewValue?: string | null
 }
 
 // Generate a stable ID based on the blockId and a suffix
@@ -40,7 +42,13 @@ const generateStableId = (blockId: string, suffix: string): string => {
   return `${blockId}-${suffix}`
 }
 
-export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionInputProps) {
+export function ConditionInput({
+  blockId,
+  subBlockId,
+  isConnecting,
+  isPreview = false,
+  previewValue,
+}: ConditionInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const editorRef = useRef<HTMLDivElement>(null)
   const [visualLineHeights, setVisualLineHeights] = useState<{
@@ -124,15 +132,17 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     // Skip if syncing is already in progress
     if (isSyncingFromStoreRef.current) return
 
-    // Convert storeValue to string if it's not null
-    const storeValueStr = storeValue !== null ? storeValue.toString() : null
+    // Use preview value when in preview mode, otherwise use store value
+    const effectiveValue = isPreview ? previewValue : storeValue
+    // Convert effectiveValue to string if it's not null
+    const effectiveValueStr = effectiveValue !== null ? effectiveValue?.toString() : null
 
     // Set that we're syncing from store to prevent loops
     isSyncingFromStoreRef.current = true
 
     try {
-      // If store value is null, and we've already initialized, keep current state
-      if (storeValueStr === null) {
+      // If effective value is null, and we've already initialized, keep current state
+      if (effectiveValueStr === null) {
         if (hasInitializedRef.current) {
           // We already have blocks, just mark as ready if not already
           if (!isReady) setIsReady(true)
@@ -148,18 +158,18 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
         return
       }
 
-      // Skip if the store value hasn't changed and we're already initialized
-      if (storeValueStr === prevStoreValueRef.current && hasInitializedRef.current) {
+      // Skip if the effective value hasn't changed and we're already initialized
+      if (effectiveValueStr === prevStoreValueRef.current && hasInitializedRef.current) {
         if (!isReady) setIsReady(true)
         isSyncingFromStoreRef.current = false
         return
       }
 
       // Update the previous store value ref
-      prevStoreValueRef.current = storeValueStr
+      prevStoreValueRef.current = effectiveValueStr
 
-      // Parse the store value
-      const parsedBlocks = safeParseJSON(storeValueStr)
+      // Parse the effective value
+      const parsedBlocks = safeParseJSON(effectiveValueStr)
 
       if (parsedBlocks) {
         // Use the parsed blocks, but ensure titles are correct based on position
@@ -183,13 +193,14 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
         isSyncingFromStoreRef.current = false
       }, 0)
     }
-  }, [storeValue, blockId, isReady])
+  }, [storeValue, previewValue, isPreview, blockId, isReady])
 
   // Update store whenever conditional blocks change
   useEffect(() => {
     // Skip if we're currently syncing from store to prevent loops
-    // or if we're not ready yet (still initializing)
-    if (isSyncingFromStoreRef.current || !isReady || conditionalBlocks.length === 0) return
+    // or if we're not ready yet (still initializing) or in preview mode
+    if (isSyncingFromStoreRef.current || !isReady || conditionalBlocks.length === 0 || isPreview)
+      return
 
     const newValue = JSON.stringify(conditionalBlocks)
 
@@ -199,7 +210,15 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       setStoreValue(newValue)
       updateNodeInternals(`${blockId}-${subBlockId}`)
     }
-  }, [conditionalBlocks, blockId, subBlockId, setStoreValue, updateNodeInternals, isReady])
+  }, [
+    conditionalBlocks,
+    blockId,
+    subBlockId,
+    setStoreValue,
+    updateNodeInternals,
+    isReady,
+    isPreview,
+  ])
 
   // Cleanup when component unmounts
   useEffect(() => {
@@ -216,6 +235,8 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
     newValue: string,
     textarea: HTMLTextAreaElement | null
   ) => {
+    if (isPreview) return
+
     try {
       setConditionalBlocks((blocks) =>
         blocks.map((block) => {
@@ -343,6 +364,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
 
   // Handle drops from connection blocks - updated for individual blocks
   const handleDrop = (blockId: string, e: React.DragEvent) => {
+    if (isPreview) return
     e.preventDefault()
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'))
@@ -384,6 +406,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
 
   // Handle tag selection - updated for individual blocks
   const handleTagSelect = (blockId: string, newValue: string) => {
+    if (isPreview) return
     setConditionalBlocks((blocks) =>
       blocks.map((block) =>
         block.id === blockId
@@ -400,6 +423,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
 
   // Handle environment variable selection - updated for individual blocks
   const handleEnvVarSelect = (blockId: string, newValue: string) => {
+    if (isPreview) return
     setConditionalBlocks((blocks) =>
       blocks.map((block) =>
         block.id === blockId
@@ -424,6 +448,8 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
 
   // Update these functions to use updateBlockTitles and stable IDs
   const addBlock = (afterId: string) => {
+    if (isPreview) return
+
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === afterId)
 
     // Generate a stable ID using the blockId and a timestamp
@@ -456,6 +482,8 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   }
 
   const removeBlock = (id: string) => {
+    if (isPreview) return
+
     // Remove any associated edges before removing the block
     edges.forEach((edge) => {
       if (edge.sourceHandle?.startsWith(`condition-${id}`)) {
@@ -468,6 +496,8 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
   }
 
   const moveBlock = (id: string, direction: 'up' | 'down') => {
+    if (isPreview) return
+
     const blockIndex = conditionalBlocks.findIndex((block) => block.id === id)
     if (
       (direction === 'up' && blockIndex === 0) ||
@@ -508,6 +538,9 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
       }
     })
   }, [conditionalBlocks.length])
+
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
 
   // Show loading or empty state if not ready or no blocks
   if (!isReady || conditionalBlocks.length === 0) {
@@ -572,6 +605,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                     variant='ghost'
                     size='sm'
                     onClick={() => addBlock(block.id)}
+                    disabled={isPreview}
                     className='h-8 w-8'
                   >
                     <Plus className='h-4 w-4' />
@@ -588,7 +622,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                       variant='ghost'
                       size='sm'
                       onClick={() => moveBlock(block.id, 'up')}
-                      disabled={index === 0}
+                      disabled={isPreview || index === 0}
                       className='h-8 w-8'
                     >
                       <ChevronUp className='h-4 w-4' />
@@ -604,7 +638,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                       variant='ghost'
                       size='sm'
                       onClick={() => moveBlock(block.id, 'down')}
-                      disabled={index === conditionalBlocks.length - 1}
+                      disabled={isPreview || index === conditionalBlocks.length - 1}
                       className='h-8 w-8'
                     >
                       <ChevronDown className='h-4 w-4' />
@@ -621,7 +655,7 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                     variant='ghost'
                     size='sm'
                     onClick={() => removeBlock(block.id)}
-                    disabled={conditionalBlocks.length === 1}
+                    disabled={isPreview || conditionalBlocks.length === 1}
                     className='h-8 w-8 text-destructive hover:text-destructive'
                   >
                     <Trash className='h-4 w-4' />
@@ -662,10 +696,12 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                 <Editor
                   value={block.value}
                   onValueChange={(newCode) => {
-                    const textarea = editorRef.current?.querySelector(
-                      `[data-block-id="${block.id}"] textarea`
-                    )
-                    updateBlockValue(block.id, newCode, textarea as HTMLTextAreaElement | null)
+                    if (!isPreview) {
+                      const textarea = editorRef.current?.querySelector(
+                        `[data-block-id="${block.id}"] textarea`
+                      )
+                      updateBlockValue(block.id, newCode, textarea as HTMLTextAreaElement | null)
+                    }
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') {
@@ -683,8 +719,11 @@ export function ConditionInput({ blockId, subBlockId, isConnecting }: ConditionI
                     minHeight: '46px',
                     lineHeight: '21px',
                   }}
-                  className='focus:outline-none'
-                  textareaClassName='focus:outline-none focus:ring-0 bg-transparent'
+                  className={cn('focus:outline-none', isPreview && 'cursor-not-allowed opacity-50')}
+                  textareaClassName={cn(
+                    'focus:outline-none focus:ring-0 bg-transparent',
+                    isPreview && 'pointer-events-none'
+                  )}
                 />
 
                 {block.showEnvVars && (

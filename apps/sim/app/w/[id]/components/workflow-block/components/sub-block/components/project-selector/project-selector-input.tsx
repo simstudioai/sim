@@ -14,6 +14,8 @@ interface ProjectSelectorInputProps {
   subBlock: SubBlockConfig
   disabled?: boolean
   onProjectSelect?: (projectId: string) => void
+  isPreview?: boolean
+  previewValue?: any | null
 }
 
 export function ProjectSelectorInput({
@@ -21,6 +23,8 @@ export function ProjectSelectorInput({
   subBlock,
   disabled = false,
   onProjectSelect,
+  isPreview = false,
+  previewValue,
 }: ProjectSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedProjectId, setSelectedProjectId] = useState<string>('')
@@ -35,13 +39,17 @@ export function ProjectSelectorInput({
   const domain = !isDiscord ? (getValue(blockId, 'domain') as string) || '' : ''
   const botToken = isDiscord ? (getValue(blockId, 'botToken') as string) || '' : ''
 
-  // Get the current value from the store
+  // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
-    const value = getValue(blockId, subBlock.id)
-    if (value && typeof value === 'string') {
-      setSelectedProjectId(value)
+    if (isPreview && previewValue !== undefined) {
+      setSelectedProjectId(previewValue)
+    } else {
+      const value = getValue(blockId, subBlock.id)
+      if (value && typeof value === 'string') {
+        setSelectedProjectId(value)
+      }
     }
-  }, [blockId, subBlock.id, getValue])
+  }, [blockId, subBlock.id, getValue, isPreview, previewValue])
 
   // Handle project selection
   const handleProjectChange = (

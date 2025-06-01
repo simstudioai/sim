@@ -15,11 +15,25 @@ interface DropdownProps {
   defaultValue?: string
   blockId: string
   subBlockId: string
+  value?: string
+  isPreview?: boolean
+  previewValue?: string | null
 }
 
-export function Dropdown({ options, defaultValue, blockId, subBlockId }: DropdownProps) {
-  const [value, setValue] = useSubBlockValue<string>(blockId, subBlockId, true)
+export function Dropdown({
+  options,
+  defaultValue,
+  blockId,
+  subBlockId,
+  value: propValue,
+  isPreview = false,
+  previewValue,
+}: DropdownProps) {
+  const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const [storeInitialized, setStoreInitialized] = useState(false)
+
+  // Use preview value when in preview mode, otherwise use store value or prop value
+  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // Evaluate options if it's a function
   const evaluatedOptions = useMemo(() => {
@@ -60,9 +74,9 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
       (value === null || value === undefined) &&
       defaultOptionValue !== undefined
     ) {
-      setValue(defaultOptionValue)
+      setStoreValue(defaultOptionValue)
     }
-  }, [storeInitialized, value, defaultOptionValue, setValue])
+  }, [storeInitialized, value, defaultOptionValue, setStoreValue])
 
   // Calculate the effective value to use in the dropdown
   const effectiveValue = useMemo(() => {
@@ -89,7 +103,13 @@ export function Dropdown({ options, defaultValue, blockId, subBlockId }: Dropdow
   return (
     <Select
       value={isValueInOptions ? effectiveValue : undefined}
-      onValueChange={(newValue) => setValue(newValue)}
+      onValueChange={(newValue) => {
+        // Only update store when not in preview mode
+        if (!isPreview) {
+          setStoreValue(newValue)
+        }
+      }}
+      disabled={isPreview}
     >
       <SelectTrigger className='text-left'>
         <SelectValue placeholder='Select an option' />

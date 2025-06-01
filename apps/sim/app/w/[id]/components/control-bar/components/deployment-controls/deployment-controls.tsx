@@ -1,56 +1,56 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { DeployModal } from '../deploy-modal/deploy-modal'
-
-const _logger = createLogger('DeploymentControls')
 
 interface DeploymentControlsProps {
   activeWorkflowId: string | null
   needsRedeployment: boolean
   setNeedsRedeployment: (value: boolean) => void
+  deployedState: WorkflowState | null
+  isLoadingDeployedState: boolean
+  refetchDeployedState: () => Promise<void>
 }
 
 export function DeploymentControls({
   activeWorkflowId,
   needsRedeployment,
   setNeedsRedeployment,
+  deployedState,
+  isLoadingDeployedState,
+  refetchDeployedState,
 }: DeploymentControlsProps) {
-  // Use workflow-specific deployment status
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(activeWorkflowId)
   )
   const isDeployed = deploymentStatus?.isDeployed || false
 
-  // Prioritize workflow-specific needsRedeployment flag, but fall back to prop if needed
-  const workflowNeedsRedeployment =
-    deploymentStatus?.needsRedeployment !== undefined
-      ? deploymentStatus.needsRedeployment
-      : needsRedeployment
+  const workflowNeedsRedeployment = needsRedeployment
 
   const [isDeploying, _setIsDeploying] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Update parent component when workflow-specific status changes
+  const lastWorkflowIdRef = useRef<string | null>(null)
+
   useEffect(() => {
-    if (
-      deploymentStatus?.needsRedeployment !== undefined &&
-      deploymentStatus.needsRedeployment !== needsRedeployment
-    ) {
-      setNeedsRedeployment(deploymentStatus.needsRedeployment)
+    if (activeWorkflowId !== lastWorkflowIdRef.current) {
+      lastWorkflowIdRef.current = activeWorkflowId
     }
-  }, [
-    deploymentStatus?.needsRedeployment,
-    needsRedeployment,
-    setNeedsRedeployment,
-    deploymentStatus,
-  ])
+  }, [activeWorkflowId])
+
+  const refetchWithErrorHandling = async () => {
+    if (!activeWorkflowId) return
+
+    try {
+      await refetchDeployedState()
+    } catch (error) {}
+  }
 
   return (
     <>
@@ -100,6 +100,9 @@ export function DeploymentControls({
         workflowId={activeWorkflowId}
         needsRedeployment={workflowNeedsRedeployment}
         setNeedsRedeployment={setNeedsRedeployment}
+        deployedState={deployedState as WorkflowState}
+        isLoadingDeployedState={isLoadingDeployedState}
+        refetchDeployedState={refetchWithErrorHandling}
       />
     </>
   )

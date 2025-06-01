@@ -14,25 +14,26 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { DeployedWorkflowCard } from './deployed-workflow-card'
+
+const logger = createLogger('DeployedWorkflowModal')
 
 interface DeployedWorkflowModalProps {
   isOpen: boolean
   onClose: () => void
-  deployedWorkflowState: {
-    blocks: Record<string, any>
-    edges: Array<any>
-    loops: Record<string, any>
-    parallels: Record<string, any>
-  }
+  needsRedeployment: boolean
+  deployedWorkflowState: WorkflowState
 }
 
 export function DeployedWorkflowModal({
   isOpen,
   onClose,
+  needsRedeployment,
   deployedWorkflowState,
 }: DeployedWorkflowModalProps) {
   const [showRevertDialog, setShowRevertDialog] = useState(false)
@@ -48,10 +49,11 @@ export function DeployedWorkflowModal({
   }))
 
   const handleRevert = () => {
-    // Revert to the deployed state
-    revertToDeployedState(deployedWorkflowState)
-    setShowRevertDialog(false)
-    onClose()
+    if (activeWorkflowId) {
+      revertToDeployedState(deployedWorkflowState)
+      setShowRevertDialog(false)
+      onClose()
+    }
   }
 
   return (
@@ -66,38 +68,39 @@ export function DeployedWorkflowModal({
             <DialogTitle>Deployed Workflow</DialogTitle>
           </DialogHeader>
         </div>
-
         <DeployedWorkflowCard
           currentWorkflowState={currentWorkflowState}
           deployedWorkflowState={deployedWorkflowState}
         />
 
         <div className='mt-6 flex justify-between'>
-          <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
-            <AlertDialogTrigger asChild>
-              <Button variant='destructive'>Revert to Deployed</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent style={{ zIndex: 1001 }} className='sm:max-w-[425px]'>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Revert to Deployed Version?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will replace your current workflow with the deployed version. Any unsaved
-                  changes will be lost. This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleRevert}
-                  className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                >
-                  Revert
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {needsRedeployment && (
+            <AlertDialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
+              <AlertDialogTrigger asChild>
+                <Button variant='destructive'>Revert to Deployed</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent style={{ zIndex: 1001 }} className='sm:max-w-[425px]'>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Revert to Deployed Version?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will replace your current workflow with the deployed version. Any unsaved
+                    changes will be lost. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleRevert}
+                    className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                  >
+                    Revert
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
 
-          <Button variant='outline' onClick={onClose}>
+          <Button variant='outline' onClick={onClose} className='ml-auto'>
             Close
           </Button>
         </div>

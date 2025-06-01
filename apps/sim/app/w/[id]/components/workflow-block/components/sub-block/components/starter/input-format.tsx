@@ -22,6 +22,8 @@ interface InputField {
 interface InputFormatProps {
   blockId: string
   subBlockId: string
+  isPreview?: boolean
+  previewValue?: InputField[] | null
 }
 
 // Default values
@@ -32,32 +34,45 @@ const DEFAULT_FIELD: InputField = {
   collapsed: true,
 }
 
-export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
-  // State hooks
-  const [value, setValue] = useSubBlockValue<InputField[]>(blockId, subBlockId)
-  const fields = value || [DEFAULT_FIELD]
+export function InputFormat({
+  blockId,
+  subBlockId,
+  isPreview = false,
+  previewValue,
+}: InputFormatProps) {
+  const [storeValue, setStoreValue] = useSubBlockValue<InputField[]>(blockId, subBlockId)
+
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
+  const fields: InputField[] = value || [DEFAULT_FIELD]
 
   // Field operations
   const addField = () => {
+    if (isPreview) return
+
     const newField: InputField = {
       ...DEFAULT_FIELD,
       id: crypto.randomUUID(),
     }
-    setValue([...fields, newField])
+    setStoreValue([...fields, newField])
   }
 
   const removeField = (id: string) => {
-    if (fields.length === 1) return
-    setValue(fields.filter((field) => field.id !== id))
+    if (isPreview || fields.length === 1) return
+    setStoreValue(fields.filter((field: InputField) => field.id !== id))
   }
 
   // Update handlers
   const updateField = (id: string, field: keyof InputField, value: any) => {
-    setValue(fields.map((f) => (f.id === id ? { ...f, [field]: value } : f)))
+    if (isPreview) return
+    setStoreValue(fields.map((f: InputField) => (f.id === id ? { ...f, [field]: value } : f)))
   }
 
   const toggleCollapse = (id: string) => {
-    setValue(fields.map((f) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f)))
+    if (isPreview) return
+    setStoreValue(
+      fields.map((f: InputField) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f))
+    )
   }
 
   // Field header
@@ -85,7 +100,13 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
           )}
         </div>
         <div className='flex items-center gap-1' onClick={(e) => e.stopPropagation()}>
-          <Button variant='ghost' size='icon' onClick={addField} className='h-6 w-6 rounded-full'>
+          <Button
+            variant='ghost'
+            size='icon'
+            onClick={addField}
+            disabled={isPreview}
+            className='h-6 w-6 rounded-full'
+          >
             <Plus className='h-3.5 w-3.5' />
             <span className='sr-only'>Add Field</span>
           </Button>
@@ -94,7 +115,7 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
             variant='ghost'
             size='icon'
             onClick={() => removeField(field.id)}
-            disabled={fields.length === 1}
+            disabled={isPreview || fields.length === 1}
             className='h-6 w-6 rounded-full text-destructive hover:text-destructive'
           >
             <Trash className='h-3.5 w-3.5' />
@@ -135,6 +156,7 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
                     value={field.name}
                     onChange={(e) => updateField(field.id, 'name', e.target.value)}
                     placeholder='firstName'
+                    disabled={isPreview}
                     className='h-9 placeholder:text-muted-foreground/50'
                   />
                 </div>
@@ -143,7 +165,11 @@ export function InputFormat({ blockId, subBlockId }: InputFormatProps) {
                   <Label className='text-xs'>Type</Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant='outline' className='h-9 w-full justify-between font-normal'>
+                      <Button
+                        variant='outline'
+                        disabled={isPreview}
+                        className='h-9 w-full justify-between font-normal'
+                      >
                         <div className='flex items-center'>
                           <span>{field.type}</span>
                         </div>
