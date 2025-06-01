@@ -24,18 +24,46 @@ export async function middleware(request: NextRequest) {
   const sessionCookie = getSessionCookie(request)
   const hasActiveSession = !!sessionCookie
 
-  // Check if user has previously logged in by checking localStorage value in cookies
-  const _hasPreviouslyLoggedIn = request.cookies.get('has_logged_in_before')?.value === 'true'
-
   const url = request.nextUrl
   const hostname = request.headers.get('host') || ''
 
-  // Extract subdomain
-  const isCustomDomain =
-    hostname !== BASE_DOMAIN &&
-    !hostname.startsWith('www.') &&
-    hostname.includes(isDevelopment ? 'localhost' : 'simstudio.ai')
-  const subdomain = isCustomDomain ? hostname.split('.')[0] : null
+  let isCustomDomain = false
+  let subdomain: string | null = null
+
+  try {
+    const baseDomainUrl = new URL(`http://${BASE_DOMAIN}`)
+    const baseDomainHost = baseDomainUrl.hostname
+    const baseDomainPort = baseDomainUrl.port
+
+    if (hostname !== BASE_DOMAIN && !hostname.startsWith('www.')) {
+      if (isDevelopment && baseDomainHost === 'localhost') {
+        const hostnameParts = hostname.split('.')
+        if (hostnameParts.length >= 2 && hostnameParts[1] === 'localhost') {
+          const lastPart = hostnameParts[hostnameParts.length - 1]
+          const hasPort = lastPart.includes(':')
+          const port = hasPort ? lastPart.split(':')[1] : null
+
+          if (!baseDomainPort || !hasPort || port === baseDomainPort) {
+            isCustomDomain = true
+            subdomain = hostnameParts[0]
+          }
+        }
+      } else if (!isDevelopment && hostname.endsWith('.simstudio.ai')) {
+        const hostnameParts = hostname.split('.')
+        if (hostnameParts.length >= 3) {
+          isCustomDomain = true
+          subdomain = hostnameParts[0]
+        }
+      }
+    }
+  } catch (error) {
+    logger.warn('Error parsing base domain for subdomain detection:', error)
+    isCustomDomain =
+      hostname !== BASE_DOMAIN &&
+      !hostname.startsWith('www.') &&
+      hostname.includes(isDevelopment ? 'localhost' : 'simstudio.ai')
+    subdomain = isCustomDomain ? hostname.split('.')[0] : null
+  }
 
   // Handle chat subdomains
   if (subdomain && isCustomDomain) {

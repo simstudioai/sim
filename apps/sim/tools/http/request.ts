@@ -6,7 +6,6 @@ import type { RequestParams, RequestResponse } from './types'
 
 const logger = createLogger('HTTPRequestTool')
 
-// Function to get the appropriate referer based on environment
 const getReferer = (): string => {
   if (typeof window !== 'undefined') {
     return window.location.origin
@@ -15,7 +14,7 @@ const getReferer = (): string => {
   try {
     return getBaseUrl()
   } catch (_error) {
-    return 'http://localhost:3000'
+    return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   }
 }
 

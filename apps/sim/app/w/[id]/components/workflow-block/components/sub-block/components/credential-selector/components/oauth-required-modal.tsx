@@ -108,6 +108,14 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'guilds.members.read': 'Read your Discord guild members',
   read: 'Read access to your Linear workspace',
   write: 'Write access to your Linear workspace',
+  'channels:read': 'Read your Slack channels',
+  'chat:write': 'Write to your Slack channels',
+  'chat:write.public': 'Write to your Slack channels',
+  'users:read': 'Read your Slack users',
+  'search:read': 'Read your Slack search',
+  'files:read': 'Read your Slack files',
+  'links:read': 'Read your Slack links',
+  'links:write': 'Write to your Slack links',
 }
 
 // Convert OAuth scope to user-friendly description

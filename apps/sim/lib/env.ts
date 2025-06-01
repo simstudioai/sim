@@ -99,6 +99,8 @@ export const env = createEnv({
     DOCKER_BUILD: z.boolean().optional(),
     LINEAR_CLIENT_ID: z.string().optional(),
     LINEAR_CLIENT_SECRET: z.string().optional(),
+    SLACK_CLIENT_ID: z.string().optional(),
+    SLACK_CLIENT_SECRET: z.string().optional(),
   },
 
   client: {
