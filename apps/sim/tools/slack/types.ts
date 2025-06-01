@@ -1,7 +1,7 @@
 import type { ToolResponse } from '../types'
 
 export interface SlackBaseParams {
-  authMethod: string
+  authMethod: 'oauth' | 'bot_token'
   accessToken: string
   botToken: string
 }

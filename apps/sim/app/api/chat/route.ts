@@ -170,14 +170,18 @@ export async function POST(request: NextRequest) {
       // Return successful response with chat URL
       // Check if we're in development or production
       const isDevelopment = env.NODE_ENV === 'development'
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      const baseUrl = env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
       let chatUrl: string
       if (isDevelopment) {
         try {
           const url = new URL(baseUrl)
           chatUrl = `${url.protocol}//${subdomain}.${url.host}`
-        } catch {
+        } catch (error) {
+          logger.warn('Failed to parse baseUrl, falling back to localhost:', {
+            baseUrl,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
           chatUrl = `http://${subdomain}.localhost:3000`
         }
       } else {

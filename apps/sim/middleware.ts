@@ -31,7 +31,7 @@ export async function middleware(request: NextRequest) {
   let subdomain: string | null = null
 
   try {
-    const baseDomainUrl = new URL(`http://${BASE_DOMAIN}`)
+    const baseDomainUrl = new URL(`${request.nextUrl.protocol}//${BASE_DOMAIN}`)
     const baseDomainHost = baseDomainUrl.hostname
     const baseDomainPort = baseDomainUrl.port
 
@@ -43,7 +43,12 @@ export async function middleware(request: NextRequest) {
           const hasPort = lastPart.includes(':')
           const port = hasPort ? lastPart.split(':')[1] : null
 
-          if (!baseDomainPort || !hasPort || port === baseDomainPort) {
+          if (!baseDomainPort && !hasPort) {
+            // Both have no port - valid
+            isCustomDomain = true
+            subdomain = hostnameParts[0]
+          } else if (baseDomainPort && hasPort && port === baseDomainPort) {
+            // Both have matching ports - valid
             isCustomDomain = true
             subdomain = hostnameParts[0]
           }

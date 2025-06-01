@@ -134,8 +134,8 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
     authMethod: { type: 'string', required: true },
     credential: { type: 'string', required: false },
     botToken: { type: 'string', required: false },
-    channel: { type: 'string', required: false },
-    text: { type: 'string', required: false },
+    channel: { type: 'string', required: true },
+    text: { type: 'string', required: true },
   },
   outputs: {
     response: {

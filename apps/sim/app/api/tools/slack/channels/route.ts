@@ -27,14 +27,13 @@ export async function POST(request: Request) {
     }
 
     let accessToken: string
+    let isBotToken = false
 
-    // Check if the credential is a bot token (starts with 'xoxb-')
     if (credential.startsWith('xoxb-')) {
-      // Direct bot token
       accessToken = credential
+      isBotToken = true
       logger.info('Using direct bot token for Slack API')
     } else {
-      // OAuth credential - need to resolve it
       const userId = session?.user?.id || ''
       if (!userId) {
         logger.error('No user ID found in session')
@@ -56,40 +55,37 @@ export async function POST(request: Request) {
       logger.info('Using OAuth token for Slack API')
     }
 
-    // Fetch channels from Slack API
-    const url = new URL('https://slack.com/api/conversations.list')
-    url.searchParams.append('types', 'public_channel,private_channel')
-    url.searchParams.append('exclude_archived', 'true')
-    url.searchParams.append('limit', '200')
-
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      logger.error('Slack API error:', {
-        status: response.status,
-        statusText: response.statusText,
-      })
-      return NextResponse.json(
-        { error: `Slack API error: ${response.status} ${response.statusText}` },
-        { status: response.status }
-      )
-    }
-
-    const data = await response.json()
-
-    if (!data.ok) {
-      logger.error('Slack API returned error:', data.error)
-      return NextResponse.json({ error: data.error || 'Failed to fetch channels' }, { status: 400 })
+    let data
+    try {
+      data = await fetchSlackChannels(accessToken, true)
+      logger.info('Successfully fetched channels including private channels')
+    } catch (error) {
+      if (isBotToken) {
+        logger.warn(
+          'Failed to fetch private channels with bot token, falling back to public channels only:',
+          (error as Error).message
+        )
+        try {
+          data = await fetchSlackChannels(accessToken, false)
+          logger.info('Successfully fetched public channels only')
+        } catch (fallbackError) {
+          logger.error('Failed to fetch channels even with public-only fallback:', fallbackError)
+          return NextResponse.json(
+            { error: `Slack API error: ${(fallbackError as Error).message}` },
+            { status: 400 }
+          )
+        }
+      } else {
+        logger.error('Slack API error with OAuth token:', error)
+        return NextResponse.json(
+          { error: `Slack API error: ${(error as Error).message}` },
+          { status: 400 }
+        )
+      }
     }
 
     // Filter to channels the bot can access and format the response
-    const channels = data.channels
+    const channels = (data.channels || [])
       .filter((channel: SlackChannel) => {
         const canAccess = !channel.is_archived && (channel.is_member || !channel.is_private)
 
@@ -111,6 +107,7 @@ export async function POST(request: Request) {
       total: data.channels?.length || 0,
       private: channels.filter((c: { isPrivate: boolean }) => c.isPrivate).length,
       public: channels.filter((c: { isPrivate: boolean }) => !c.isPrivate).length,
+      tokenType: isBotToken ? 'bot_token' : 'oauth',
     })
     return NextResponse.json({ channels })
   } catch (error) {
@@ -120,4 +117,37 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
+}
+
+async function fetchSlackChannels(accessToken: string, includePrivate = true) {
+  const url = new URL('https://slack.com/api/conversations.list')
+
+  if (includePrivate) {
+    url.searchParams.append('types', 'public_channel,private_channel')
+  } else {
+    url.searchParams.append('types', 'public_channel')
+  }
+
+  url.searchParams.append('exclude_archived', 'true')
+  url.searchParams.append('limit', '200')
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Slack API error: ${response.status} ${response.statusText}`)
+  }
+
+  const data = await response.json()
+
+  if (!data.ok) {
+    throw new Error(data.error || 'Failed to fetch channels')
+  }
+
+  return data
 }

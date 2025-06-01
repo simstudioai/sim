@@ -24,8 +24,6 @@ export function getBaseURL() {
     baseURL = clientEnv.NEXT_PUBLIC_APP_URL || clientEnv.BETTER_AUTH_URL || 'http://localhost:3000'
   }
 
-  console.log('baseURL', baseURL)
-
   return baseURL
 }
 

@@ -869,6 +869,7 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                         'space-y-3 p-3 transition-all duration-200',
                         tool.isExpanded ? 'block' : 'hidden'
                       )}
+                      aria-hidden={!tool.isExpanded}
                       onClick={(e) => {
                         if (e.target === e.currentTarget) {
                           toggleToolExpansion(toolIndex)
@@ -969,7 +970,6 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                                     placeholder:
                                       channelSelectorConfig.placeholder || param.description,
                                   }}
-                                  disabled={false}
                                   credential={credentialForChannelSelector}
                                   onChannelSelect={(channelId) => {
                                     handleParamChange(toolIndex, param.id, channelId)

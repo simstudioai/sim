@@ -24,7 +24,6 @@ interface SlackChannelSelectorProps {
   credential: string
   label?: string
   disabled?: boolean
-  showPreview?: boolean
 }
 
 export function SlackChannelSelector({
@@ -66,12 +65,6 @@ export function SlackChannelSelector({
       } else {
         setChannels(data.channels)
         setInitialFetchDone(true)
-
-        // Find selected channel info if we have a value
-        if (value) {
-          const channelInfo = data.channels.find((c: SlackChannelInfo) => c.id === value)
-          setSelectedChannel(channelInfo || null)
-        }
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
@@ -80,7 +73,7 @@ export function SlackChannelSelector({
     } finally {
       setLoading(false)
     }
-  }, [credential, value])
+  }, [credential])
 
   // Handle dropdown open/close - fetch channels when opening
   const handleOpenChange = (isOpen: boolean) => {
@@ -122,7 +115,7 @@ export function SlackChannelSelector({
   }
 
   const formatChannelName = (channel: SlackChannelInfo) => {
-    return channel.isPrivate ? channel.name : `${channel.name}`
+    return channel.name
   }
 
   return (

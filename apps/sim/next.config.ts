@@ -27,12 +27,18 @@ const nextConfig: NextConfig = {
   },
   ...(env.NODE_ENV === 'development' && {
     allowedDevOrigins: [
-      ...(process.env.NEXT_PUBLIC_APP_URL ? [new URL(process.env.NEXT_PUBLIC_APP_URL).host] : []),
+      ...(process.env.NEXT_PUBLIC_APP_URL
+        ? (() => {
+            try {
+              return [new URL(process.env.NEXT_PUBLIC_APP_URL).host]
+            } catch {
+              return []
+            }
+          })()
+        : []),
       'localhost:3000',
       'localhost:3001',
     ],
-  }),
-  ...(env.NODE_ENV === 'development' && {
     outputFileTracingRoot: path.join(__dirname, '../../'),
   }),
   webpack: (config, { isServer, dev }) => {
@@ -75,7 +81,7 @@ const nextConfig: NextConfig = {
           { key: 'Access-Control-Allow-Credentials', value: 'true' },
           {
             key: 'Access-Control-Allow-Origin',
-            value: process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3001',
+            value: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001',
           },
           {
             key: 'Access-Control-Allow-Methods',
