@@ -100,6 +100,7 @@ export function WorkflowCard({ workflow, onHover }: WorkflowCardProps) {
                   workflowState={{
                     ...workflow.workflowState,
                     parallels: workflow.workflowState.parallels || {},
+                    loops: workflow.workflowState.loops || {},
                   }}
                 />
               </div>

@@ -7,7 +7,6 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock the workflow registry store
 const mockDeploymentStatus = {
   isDeployed: false,
   needsRedeployment: false,
@@ -41,11 +40,9 @@ describe('DeploymentControls Change Detection Logic', () => {
 
   describe('needsRedeployment Priority Logic', () => {
     it('should prioritize parent needsRedeployment over workflow registry', () => {
-      // Simulate the logic from DeploymentControls component
       const parentNeedsRedeployment = true
       const workflowRegistryNeedsRedeployment = false
 
-      // The component logic: Trust the parent's change detection
       const workflowNeedsRedeployment = parentNeedsRedeployment
 
       expect(workflowNeedsRedeployment).toBe(true)
@@ -60,19 +57,16 @@ describe('DeploymentControls Change Detection Logic', () => {
     })
 
     it('should maintain consistency with parent state changes', () => {
-      // Simulate state changes
       let parentNeedsRedeployment = false
       let workflowNeedsRedeployment = parentNeedsRedeployment
 
       expect(workflowNeedsRedeployment).toBe(false)
 
-      // Parent detects changes
       parentNeedsRedeployment = true
       workflowNeedsRedeployment = parentNeedsRedeployment
 
       expect(workflowNeedsRedeployment).toBe(true)
 
-      // Parent clears changes (after redeployment)
       parentNeedsRedeployment = false
       workflowNeedsRedeployment = parentNeedsRedeployment
 
@@ -82,7 +76,6 @@ describe('DeploymentControls Change Detection Logic', () => {
 
   describe('Deployment Status Integration', () => {
     it('should handle deployment status correctly', () => {
-      // Mock deployment status
       mockDeploymentStatus.isDeployed = true
       mockDeploymentStatus.needsRedeployment = false
 
@@ -95,7 +88,6 @@ describe('DeploymentControls Change Detection Logic', () => {
     })
 
     it('should handle missing deployment status', () => {
-      // Create a separate mock for this test case
       const tempMockRegistry = {
         getState: vi.fn(() => ({
           getWorkflowDeploymentStatus: vi.fn(() => null),
@@ -112,7 +104,6 @@ describe('DeploymentControls Change Detection Logic', () => {
 
       expect(deploymentStatus).toBe(null)
 
-      // Restore original mock
       mockWorkflowRegistry.getState = originalMock
     })
 
@@ -125,7 +116,6 @@ describe('DeploymentControls Change Detection Logic', () => {
         .getState()
         .getWorkflowDeploymentStatus('test-id')
 
-      // Should handle undefined properties gracefully
       const isDeployed = deploymentStatus?.isDeployed || false
       expect(isDeployed).toBe(false)
     })
@@ -188,7 +178,6 @@ describe('DeploymentControls Change Detection Logic', () => {
     it('should handle null activeWorkflowId gracefully', () => {
       const deploymentStatus = mockWorkflowRegistry.getState().getWorkflowDeploymentStatus(null)
 
-      // Should return the mocked result without throwing
       expect(deploymentStatus).toBeDefined()
     })
   })
@@ -207,16 +196,13 @@ describe('DeploymentControls Change Detection Logic', () => {
     it('should maintain prop consistency across re-renders', () => {
       let needsRedeployment = false
 
-      // Initial render
       let componentProps = { needsRedeployment }
       expect(componentProps.needsRedeployment).toBe(false)
 
-      // State change
       needsRedeployment = true
       componentProps = { needsRedeployment }
       expect(componentProps.needsRedeployment).toBe(true)
 
-      // State change back
       needsRedeployment = false
       componentProps = { needsRedeployment }
       expect(componentProps.needsRedeployment).toBe(false)
