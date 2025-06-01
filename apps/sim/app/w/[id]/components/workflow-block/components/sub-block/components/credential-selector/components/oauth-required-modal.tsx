@@ -109,6 +109,7 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
   read: 'Read access to your Linear workspace',
   write: 'Write access to your Linear workspace',
   'channels:read': 'Read your Slack channels',
+  'groups:read': 'Read your Slack private channels',
   'chat:write': 'Write to your Slack channels',
   'chat:write.public': 'Write to your Slack channels',
   'users:read': 'Read your Slack users',

@@ -43,6 +43,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       serviceId: 'slack',
       requiredScopes: [
         'channels:read',
+        'groups:read',
         'chat:write',
         'chat:write.public',
         'users:read',

@@ -877,6 +877,7 @@ export const auth = betterAuth({
           scopes: [
             // Bot token scopes only - app acts as a bot user
             'channels:read',
+            'groups:read',
             'chat:write',
             'chat:write.public',
             'files:read',

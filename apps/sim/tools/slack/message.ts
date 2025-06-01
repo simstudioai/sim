@@ -11,7 +11,13 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
   oauth: {
     required: true,
     provider: 'slack',
-    additionalScopes: ['channels:read', 'chat:write', 'chat:write.public', 'users:read'],
+    additionalScopes: [
+      'channels:read',
+      'groups:read',
+      'chat:write',
+      'chat:write.public',
+      'users:read',
+    ],
   },
 
   params: {

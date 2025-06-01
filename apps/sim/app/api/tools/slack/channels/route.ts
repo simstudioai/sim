@@ -57,7 +57,12 @@ export async function POST(request: Request) {
     }
 
     // Fetch channels from Slack API
-    const response = await fetch('https://slack.com/api/conversations.list', {
+    const url = new URL('https://slack.com/api/conversations.list')
+    url.searchParams.append('types', 'public_channel,private_channel')
+    url.searchParams.append('exclude_archived', 'true')
+    url.searchParams.append('limit', '200')
+
+    const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -85,14 +90,28 @@ export async function POST(request: Request) {
 
     // Filter to channels the bot can access and format the response
     const channels = data.channels
-      .filter((channel: SlackChannel) => !channel.is_archived && channel.is_member)
+      .filter((channel: SlackChannel) => {
+        const canAccess = !channel.is_archived && (channel.is_member || !channel.is_private)
+
+        if (!canAccess) {
+          logger.debug(
+            `Filtering out channel: ${channel.name} (archived: ${channel.is_archived}, private: ${channel.is_private}, member: ${channel.is_member})`
+          )
+        }
+
+        return canAccess
+      })
       .map((channel: SlackChannel) => ({
         id: channel.id,
         name: channel.name,
         isPrivate: channel.is_private,
       }))
 
-    logger.info(`Successfully fetched ${channels.length} Slack channels`)
+    logger.info(`Successfully fetched ${channels.length} Slack channels`, {
+      total: data.channels?.length || 0,
+      private: channels.filter((c: { isPrivate: boolean }) => c.isPrivate).length,
+      public: channels.filter((c: { isPrivate: boolean }) => !c.isPrivate).length,
+    })
     return NextResponse.json({ channels })
   } catch (error) {
     logger.error('Error processing Slack channels request:', error)
