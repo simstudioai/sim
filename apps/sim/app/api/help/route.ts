@@ -98,8 +98,8 @@ ${message}
 
     // Send email using Resend
     const { data, error } = await resend.emails.send({
-      from: 'Sim Studio <noreply@simstudio.ai>',
-      to: ['help@simstudio.ai'],
+      from: `Sim Studio <noreply@${env.EMAIL_DOMAIN}>`,
+      to: [`help@${env.EMAIL_DOMAIN}`],
       subject: `[${type.toUpperCase()}] ${subject}`,
       replyTo: email,
       text: emailText,
@@ -121,7 +121,7 @@ ${message}
     // Send confirmation email to the user
     await resend.emails
       .send({
-        from: 'Sim Studio <noreply@simstudio.ai>',
+        from: `Sim Studio <noreply@${env.EMAIL_DOMAIN}>`,
         to: [email],
         subject: `Your ${type} request has been received: ${subject}`,
         text: `
@@ -137,7 +137,7 @@ ${images.length > 0 ? `You attached ${images.length} image(s).` : ''}
 Best regards,
 The Sim Studio Team
       `,
-        replyTo: 'help@simstudio.ai',
+        replyTo: `help@${env.EMAIL_DOMAIN}`,
       })
       .catch((err) => {
         logger.warn(`[${requestId}] Failed to send confirmation email`, err)

@@ -41,7 +41,7 @@ export async function sendEmail({
   from,
 }: EmailOptions): Promise<SendEmailResult> {
   try {
-    const senderEmail = from || 'noreply@simstudio.ai'
+    const senderEmail = from || `noreply@${env.EMAIL_DOMAIN}`
 
     if (!resend) {
       logger.info('Email not sent (Resend not configured):', {
@@ -89,7 +89,7 @@ export async function sendBatchEmails({
   emails,
 }: BatchEmailOptions): Promise<BatchSendEmailResult> {
   try {
-    const senderEmail = 'noreply@simstudio.ai'
+    const senderEmail = `noreply@${env.EMAIL_DOMAIN}`
     const results: SendEmailResult[] = []
 
     if (!resend) {

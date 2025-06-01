@@ -228,7 +228,7 @@ async function sendInvitationEmail({
     }
 
     await resend.emails.send({
-      from: 'noreply@simstudio.ai',
+      from: `noreply@${env.EMAIL_DOMAIN}`,
       to,
       subject: `You've been invited to join "${workspaceName}" on Sim Studio`,
       html: emailHtml,
