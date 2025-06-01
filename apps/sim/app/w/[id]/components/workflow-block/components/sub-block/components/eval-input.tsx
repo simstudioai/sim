@@ -85,24 +85,21 @@ export function EvalInput({
     )
   }
 
-  const updateThreshold = (id: string, value: string) => {
-    if (isPreview) return
-
-    // Allow empty values for clearing
-    const sanitizedValue = value.replace(/[^0-9.-]/g, '')
-    if (sanitizedValue === '') {
-      setStoreValue(
-        metrics.map((metric) => (metric.id === id ? { ...metric, threshold: undefined } : metric))
-      )
-      return
-    }
-
+  // Validation handlers
+  const handleRangeBlur = (id: string, field: 'min' | 'max', value: string) => {
+    const sanitizedValue = value.replace(/[^\d.-]/g, '')
     const numValue = Number.parseFloat(sanitizedValue)
 
     setStoreValue(
       metrics.map((metric) =>
         metric.id === id
-          ? { ...metric, threshold: Number.isNaN(numValue) ? undefined : numValue }
+          ? {
+              ...metric,
+              range: {
+                ...metric.range,
+                [field]: !Number.isNaN(numValue) ? numValue : 0,
+              },
+            }
           : metric
       )
     )
@@ -190,7 +187,7 @@ export function EvalInput({
                   type='text'
                   value={metric.range.min}
                   onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
-                  onBlur={(e) => updateThreshold(metric.id, e.target.value)}
+                  onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
                   disabled={isPreview}
                   className='placeholder:text-muted-foreground/50'
                 />
@@ -201,7 +198,7 @@ export function EvalInput({
                   type='text'
                   value={metric.range.max}
                   onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
-                  onBlur={(e) => updateThreshold(metric.id, e.target.value)}
+                  onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
                   disabled={isPreview}
                   className='placeholder:text-muted-foreground/50'
                 />

@@ -10,7 +10,6 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock the stores
 const mockWorkflowStore = {
   getState: vi.fn(),
   subscribe: vi.fn(),
@@ -52,7 +51,6 @@ vi.mock('@/stores/workflows/utils', () => ({
   mergeSubblockState: vi.fn((blocks) => blocks),
 }))
 
-// Mock other dependencies
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: () => ({
     error: vi.fn(),
@@ -62,8 +60,6 @@ vi.mock('@/lib/logs/console-logger', () => ({
   }),
 }))
 
-// Import the function we want to test
-// Since it's inside a component, we'll extract it for testing
 const normalizeBlocksForComparison = (blocks: Record<string, any>) => {
   if (!blocks) return []
 
@@ -121,13 +117,11 @@ describe('normalizeBlocksForComparison', () => {
 
     expect(result).toHaveLength(2)
 
-    // Should only contain type, name, and subBlocks
     result.forEach((block) => {
       expect(block).toHaveProperty('type')
       expect(block).toHaveProperty('name')
       expect(block).toHaveProperty('subBlocks')
 
-      // Should NOT contain metadata properties
       expect(block).not.toHaveProperty('id')
       expect(block).not.toHaveProperty('position')
       expect(block).not.toHaveProperty('height')
@@ -145,7 +139,6 @@ describe('normalizeBlocksForComparison', () => {
 
     const result = normalizeBlocksForComparison(blocks)
 
-    // Should be sorted: agent blocks first (by name), then api blocks (by name)
     expect(result[0]).toEqual({ type: 'agent', name: 'Agent 1', subBlocks: {} })
     expect(result[1]).toEqual({ type: 'agent', name: 'Agent 2', subBlocks: {} })
     expect(result[2]).toEqual({ type: 'api', name: 'API 1', subBlocks: {} })
@@ -164,7 +157,6 @@ describe('normalizeBlocksForComparison', () => {
       'block-2': {
         type: 'agent',
         name: 'Agent 1',
-        // subBlocks missing
       },
     }
 

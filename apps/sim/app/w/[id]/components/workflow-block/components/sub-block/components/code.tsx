@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Wand2 } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -60,11 +60,10 @@ export function Code({
   previewValue,
 }: CodeProps) {
   // Determine the AI prompt placeholder based on language
-  const aiPromptPlaceholder = useMemo(() => {
-    return language === 'json'
-      ? 'Describe the JSON schema you need...'
-      : 'Describe the function you need...'
-  }, [language])
+  const aiPromptPlaceholder =
+    language === 'json'
+      ? 'Describe the JSON schema to generate...'
+      : 'Describe the JavaScript code to generate...'
 
   // State management
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)

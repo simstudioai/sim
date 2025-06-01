@@ -27,7 +27,6 @@ export function DeployedWorkflowCard({
   const workflowToShow = showingDeployed ? deployedWorkflowState : currentWorkflowState
   const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
 
-  // // Generate a unique key for the workflow preview
   const previewKey = useMemo(() => {
     return `${showingDeployed ? 'deployed' : 'current'}-preview-${activeWorkflowId}}`
   }, [showingDeployed, activeWorkflowId])
