@@ -930,30 +930,6 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                           ? getChannelSelectorConfig(tool.type, param.id)
                           : null
 
-                        // Smart conditional rendering for Slack authentication parameters
-                        if (tool.type === 'slack') {
-                          const botToken =
-                            tool.params.botToken ||
-                            (subBlockStore.getValue(blockId, 'botToken') as string)
-                          const oauthCredential =
-                            tool.params.credential ||
-                            (subBlockStore.getValue(blockId, 'credential') as string)
-
-                          // If this is the credential parameter (OAuth)
-                          if (param.id === 'credential') {
-                            if (botToken?.trim()) {
-                              return null
-                            }
-                          }
-
-                          // If this is the botToken parameter
-                          if (param.id === 'botToken') {
-                            if (oauthCredential?.trim()) {
-                              return null
-                            }
-                          }
-                        }
-
                         // Determine the correct credential to pass for channel selector
                         let credentialForChannelSelector = ''
                         if (useChannelSelector) {
