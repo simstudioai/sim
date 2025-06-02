@@ -433,7 +433,7 @@ export default function ContributorsPage() {
                     <ResponsiveContainer width='100%' height={300} className='sm:!h-[400px]'>
                       <BarChart
                         data={filteredContributors?.slice(0, showAllContributors ? undefined : 10)}
-                        margin={{ top: 10, right: 5, bottom: 50, left: 5 }}
+                        margin={{ top: 10, right: 5, bottom: 45, left: 5 }}
                         className='sm:!mx-2.5 sm:!mb-2.5'
                       >
                         <XAxis
@@ -461,21 +461,11 @@ export default function ContributorsPage() {
                                     </AvatarFallback>
                                   </Avatar>
                                 </foreignObject>
-                                <text
-                                  x='0'
-                                  y='40'
-                                  textAnchor='middle'
-                                  className='fill-neutral-400 text-[10px] sm:text-xs'
-                                >
-                                  {payload.value.length > 6
-                                    ? `${payload.value.slice(0, 6)}...`
-                                    : payload.value}
-                                </text>
                               </g>
                             )
                           }}
-                          height={60}
-                          className='sm:!h-[80px] text-neutral-400'
+                          height={50}
+                          className='sm:!h-[60px] text-neutral-400'
                         />
                         <YAxis
                           stroke='currentColor'

@@ -5,6 +5,7 @@ import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ChannelSelectorInput } from './components/channel-selector/channel-selector-input'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
 import { ConditionInput } from './components/condition-input'
@@ -180,6 +181,8 @@ export function SubBlock({ blockId, config, isConnecting }: SubBlockProps) {
         return <FileSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
       case 'project-selector':
         return <ProjectSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
+      case 'channel-selector':
+        return <ChannelSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
       case 'folder-selector':
         return <FolderSelectorInput blockId={blockId} subBlock={config} disabled={isConnecting} />
       case 'input-format':

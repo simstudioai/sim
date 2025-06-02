@@ -17,6 +17,7 @@ import {
   MicrosoftTeamsIcon,
   NotionIcon,
   OutlookIcon,
+  SlackIcon,
   SupabaseIcon,
   xIcon,
 } from '@/components/icons'
@@ -38,6 +39,7 @@ export type OAuthProvider =
   | 'discord'
   | 'microsoft'
   | 'linear'
+  | 'slack'
   | string
 
 export type OAuthService =
@@ -58,6 +60,8 @@ export type OAuthService =
   | 'microsoft-teams'
   | 'outlook'
   | 'linear'
+  | 'slack'
+
 // Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
@@ -361,6 +365,31 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'linear',
   },
+  slack: {
+    id: 'slack',
+    name: 'Slack',
+    icon: (props) => SlackIcon(props),
+    services: {
+      slack: {
+        id: 'slack',
+        name: 'Slack',
+        description: 'Send messages using a Slack bot.',
+        providerId: 'slack',
+        icon: (props) => SlackIcon(props),
+        baseProviderIcon: (props) => SlackIcon(props),
+        scopes: [
+          'channels:read',
+          'chat:write',
+          'chat:write.public',
+          'users:read',
+          'files:read',
+          'links:read',
+          'links:write',
+        ],
+      },
+    },
+    defaultService: 'slack',
+  },
 }
 
 // Helper function to get a service by provider and service ID
@@ -427,6 +456,8 @@ export function getServiceIdFromScopes(provider: OAuthProvider, scopes: string[]
     return 'discord'
   } else if (provider === 'linear') {
     return 'linear'
+  } else if (provider === 'slack') {
+    return 'slack'
   }
 
   return providerConfig.defaultService
@@ -573,6 +604,17 @@ export async function refreshOAuthToken(
         tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
         clientId = env.MICROSOFT_CLIENT_ID
         clientSecret = env.MICROSOFT_CLIENT_SECRET
+        break
+      case 'linear':
+        tokenEndpoint = 'https://api.linear.app/oauth/token'
+        clientId = env.LINEAR_CLIENT_ID
+        clientSecret = env.LINEAR_CLIENT_SECRET
+        useBasicAuth = true
+        break
+      case 'slack':
+        tokenEndpoint = 'https://slack.com/api/oauth.v2.access'
+        clientId = env.SLACK_CLIENT_ID
+        clientSecret = env.SLACK_CLIENT_SECRET
         break
       default:
         throw new Error(`Unsupported provider: ${provider}`)

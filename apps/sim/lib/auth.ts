@@ -116,6 +116,7 @@ export const auth = betterAuth({
         'x',
         'notion',
         'microsoft',
+        'slack',
       ],
     },
   },
@@ -861,6 +862,71 @@ export const auth = betterAuth({
             } catch (error) {
               console.error('Error in getUserInfo:', error)
               throw error
+            }
+          },
+        },
+
+        // Slack provider
+        {
+          providerId: 'slack',
+          clientId: env.SLACK_CLIENT_ID as string,
+          clientSecret: env.SLACK_CLIENT_SECRET as string,
+          authorizationUrl: 'https://slack.com/oauth/v2/authorize',
+          tokenUrl: 'https://slack.com/api/oauth.v2.access',
+          userInfoUrl: 'https://slack.com/api/users.identity',
+          scopes: [
+            // Bot token scopes only - app acts as a bot user
+            'channels:read',
+            'groups:read',
+            'chat:write',
+            'chat:write.public',
+            'files:read',
+            'links:read',
+            'links:write',
+            'users:read',
+          ],
+          responseType: 'code',
+          accessType: 'offline',
+          prompt: 'consent',
+          redirectURI: `${env.NEXT_PUBLIC_APP_URL}/api/auth/oauth2/callback/slack`,
+          getUserInfo: async (tokens) => {
+            try {
+              logger.info('Creating Slack bot profile from token data')
+
+              // Extract user identifier from tokens if possible
+              let userId = 'slack-bot'
+              if (tokens.idToken) {
+                try {
+                  // Try to decode the JWT to get user information
+                  const decodedToken = JSON.parse(
+                    Buffer.from(tokens.idToken.split('.')[1], 'base64').toString()
+                  )
+                  if (decodedToken.sub) {
+                    userId = decodedToken.sub
+                  }
+                } catch (e) {
+                  logger.warn('Failed to decode Slack ID token', { error: e })
+                }
+              }
+
+              // Generate a unique enough identifier
+              const uniqueId = `${userId}-${Date.now()}`
+
+              const now = new Date()
+
+              // Create a synthetic user profile since we can't fetch one
+              return {
+                id: uniqueId,
+                name: 'Slack Bot',
+                email: `${uniqueId.replace(/[^a-zA-Z0-9]/g, '')}@slack.bot`,
+                image: null,
+                emailVerified: false,
+                createdAt: now,
+                updatedAt: now,
+              }
+            } catch (error) {
+              logger.error('Error creating Slack bot profile:', { error })
+              return null
             }
           },
         },

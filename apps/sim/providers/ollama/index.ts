@@ -19,6 +19,11 @@ export const ollamaProvider: ProviderConfig = {
 
   // Initialize the provider by fetching available models
   async initialize() {
+    if (typeof window !== 'undefined') {
+      logger.info('Skipping Ollama initialization on client side to avoid CORS issues')
+      return
+    }
+
     try {
       const response = await fetch(`${OLLAMA_HOST}/api/tags`)
       if (!response.ok) {

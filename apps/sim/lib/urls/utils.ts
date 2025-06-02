@@ -30,7 +30,12 @@ export function getBaseDomain(): string {
     const url = new URL(getBaseUrl())
     return url.host // host includes port if specified
   } catch (_e) {
-    const isProd = process.env.NODE_ENV === 'production'
-    return isProd ? 'simstudio.ai' : 'localhost:3000'
+    const fallbackUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    try {
+      return new URL(fallbackUrl).host
+    } catch {
+      const isProd = process.env.NODE_ENV === 'production'
+      return isProd ? 'simstudio.ai' : 'localhost:3000'
+    }
   }
 }

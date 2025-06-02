@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/select'
 import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { createLogger } from '@/lib/logs/console-logger'
 import type { OAuthProvider } from '@/lib/oauth'
 import { cn } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
@@ -23,12 +22,11 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { getTool } from '@/tools/utils'
 import { useSubBlockValue } from '../../hooks/use-sub-block-value'
+import { ChannelSelectorInput } from '../channel-selector/channel-selector-input'
 import { CredentialSelector } from '../credential-selector/credential-selector'
 import { ShortInput } from '../short-input'
 import { type CustomTool, CustomToolModal } from './components/custom-tool-modal/custom-tool-modal'
 import { ToolCommand } from './components/tool-command/tool-command'
-
-const _logger = createLogger('ToolInput')
 
 interface ToolInputProps {
   blockId: string
@@ -238,6 +236,38 @@ const formatParamId = (paramId: string): string => {
 
   // Simple case - just capitalize first letter
   return paramId.charAt(0).toUpperCase() + paramId.slice(1)
+}
+
+// Helper function to check if a parameter should use a channel selector
+const shouldUseChannelSelector = (blockType: string, paramId: string): boolean => {
+  const block = getAllBlocks().find((block) => block.type === blockType)
+  if (!block) return false
+
+  // Look for a subBlock with the same ID that has type 'channel-selector'
+  const subBlock = block.subBlocks.find((sb) => sb.id === paramId)
+  return subBlock?.type === 'channel-selector'
+}
+
+// Helper function to get channel selector configuration from block definition
+const getChannelSelectorConfig = (blockType: string, paramId: string) => {
+  const block = getAllBlocks().find((block) => block.type === blockType)
+  if (!block) return null
+
+  const subBlock = block.subBlocks.find((sb) => sb.id === paramId && sb.type === 'channel-selector')
+  return subBlock || null
+}
+
+// Helper function to check if a parameter should be treated as a password field
+const shouldBePasswordField = (blockType: string, paramId: string): boolean => {
+  const block = getAllBlocks().find((block) => block.type === blockType)
+  if (block) {
+    const subBlock = block.subBlocks.find((sb) => sb.id === paramId)
+    if (subBlock?.password) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
@@ -817,9 +847,13 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                     </div>
                   </div>
 
-                  {tool.isExpanded && !isCustomTool && isExpandable && (
+                  {!isCustomTool && isExpandable && (
                     <div
-                      className='space-y-3 p-3'
+                      className={cn(
+                        'space-y-3 p-3 transition-all duration-200',
+                        tool.isExpanded ? 'block' : 'hidden'
+                      )}
+                      aria-hidden={!tool.isExpanded}
                       onClick={(e) => {
                         if (e.target === e.currentTarget) {
                           toggleToolExpansion(toolIndex)
@@ -873,34 +907,80 @@ export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
                         })()}
 
                       {/* Existing parameters */}
-                      {requiredParams.map((param) => (
-                        <div key={param.id} className='relative space-y-1.5'>
-                          <div className='flex items-center font-medium text-muted-foreground text-xs'>
-                            {formatParamId(param.id)}
-                            {param.optionalToolInput && !param.requiredForToolCall && (
-                              <span className='ml-1 text-muted-foreground/60 text-xs'>
-                                (Optional)
-                              </span>
-                            )}
+                      {requiredParams.map((param) => {
+                        // Check if this parameter should use a channel selector
+                        const useChannelSelector =
+                          !isCustomTool && shouldUseChannelSelector(tool.type, param.id)
+                        const channelSelectorConfig = useChannelSelector
+                          ? getChannelSelectorConfig(tool.type, param.id)
+                          : null
+
+                        // Determine the correct credential to pass for channel selector
+                        let credentialForChannelSelector = ''
+                        if (useChannelSelector) {
+                          const botToken =
+                            tool.params.botToken ||
+                            (subBlockStore.getValue(blockId, 'botToken') as string)
+                          const oauthCredential =
+                            tool.params.credential ||
+                            (subBlockStore.getValue(blockId, 'credential') as string)
+
+                          if (botToken?.trim()) {
+                            credentialForChannelSelector = botToken
+                          } else if (oauthCredential?.trim()) {
+                            credentialForChannelSelector = oauthCredential
+                          }
+                        }
+
+                        return (
+                          <div key={param.id} className='relative space-y-1.5'>
+                            <div className='flex items-center font-medium text-muted-foreground text-xs'>
+                              {formatParamId(param.id)}
+                              {param.optionalToolInput && !param.requiredForToolCall && (
+                                <span className='ml-1 text-muted-foreground/60 text-xs'>
+                                  (Optional)
+                                </span>
+                              )}
+                            </div>
+                            <div className='relative'>
+                              {useChannelSelector && channelSelectorConfig ? (
+                                <ChannelSelectorInput
+                                  blockId={blockId}
+                                  subBlock={{
+                                    id: param.id,
+                                    type: 'channel-selector',
+                                    title: channelSelectorConfig.title || formatParamId(param.id),
+                                    provider: channelSelectorConfig.provider,
+                                    placeholder:
+                                      channelSelectorConfig.placeholder || param.description,
+                                  }}
+                                  credential={credentialForChannelSelector}
+                                  onChannelSelect={(channelId) => {
+                                    handleParamChange(toolIndex, param.id, channelId)
+                                  }}
+                                />
+                              ) : (
+                                <ShortInput
+                                  blockId={blockId}
+                                  subBlockId={`${subBlockId}-param`}
+                                  placeholder={param.description}
+                                  password={shouldBePasswordField(tool.type, param.id)}
+                                  isConnecting={false}
+                                  config={{
+                                    id: `${subBlockId}-param`,
+                                    type: 'short-input',
+                                    title: param.id,
+                                  }}
+                                  value={tool.params[param.id] || ''}
+                                  onChange={(value) =>
+                                    handleParamChange(toolIndex, param.id, value)
+                                  }
+                                />
+                              )}
+                            </div>
                           </div>
-                          <div className='relative'>
-                            <ShortInput
-                              blockId={blockId}
-                              subBlockId={`${subBlockId}-param`}
-                              placeholder={param.description}
-                              password={param.id.toLowerCase().replace(/\s+/g, '') === 'apikey'}
-                              isConnecting={false}
-                              config={{
-                                id: `${subBlockId}-param`,
-                                type: 'short-input',
-                                title: param.id,
-                              }}
-                              value={tool.params[param.id] || ''}
-                              onChange={(value) => handleParamChange(toolIndex, param.id, value)}
-                            />
-                          </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>

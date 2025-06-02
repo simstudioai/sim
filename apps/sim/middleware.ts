@@ -24,9 +24,6 @@ export async function middleware(request: NextRequest) {
   const sessionCookie = getSessionCookie(request)
   const hasActiveSession = !!sessionCookie
 
-  // Check if user has previously logged in by checking localStorage value in cookies
-  const _hasPreviouslyLoggedIn = request.cookies.get('has_logged_in_before')?.value === 'true'
-
   const url = request.nextUrl
   const hostname = request.headers.get('host') || ''
 
@@ -39,9 +36,7 @@ export async function middleware(request: NextRequest) {
 
   // Handle chat subdomains
   if (subdomain && isCustomDomain) {
-    // Special case for API requests from the subdomain
     if (url.pathname.startsWith('/api/chat/')) {
-      // Already an API request, let it go through
       return NextResponse.next()
     }
 

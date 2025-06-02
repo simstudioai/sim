@@ -4,9 +4,10 @@ import { createAuthClient } from 'better-auth/react'
 
 const clientEnv = {
   NEXT_PUBLIC_VERCEL_URL: process.env.NEXT_PUBLIC_VERCEL_URL,
+  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   NODE_ENV: process.env.NODE_ENV,
   VERCEL_ENV: process.env.VERCEL_ENV || '',
-  BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
+  BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
 }
 
 export function getBaseURL() {
@@ -17,9 +18,9 @@ export function getBaseURL() {
   } else if (clientEnv.VERCEL_ENV === 'development') {
     baseURL = `https://${clientEnv.NEXT_PUBLIC_VERCEL_URL}`
   } else if (clientEnv.VERCEL_ENV === 'production') {
-    baseURL = clientEnv.BETTER_AUTH_URL
+    baseURL = clientEnv.BETTER_AUTH_URL || clientEnv.NEXT_PUBLIC_APP_URL
   } else if (clientEnv.NODE_ENV === 'development') {
-    baseURL = clientEnv.BETTER_AUTH_URL
+    baseURL = clientEnv.NEXT_PUBLIC_APP_URL || clientEnv.BETTER_AUTH_URL || 'http://localhost:3000'
   }
 
   return baseURL

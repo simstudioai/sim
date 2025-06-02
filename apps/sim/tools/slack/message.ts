@@ -5,15 +5,32 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
   id: 'slack_message',
   name: 'Slack Message',
   description:
-    'Send messages to Slack channels or users through the Slack API. Enables direct communication and notifications with timestamp tracking and channel confirmation.',
+    'Send messages to Slack channels or users through the Slack API. Supports Slack mrkdwn formatting.',
   version: '1.0.0',
 
+  oauth: {
+    required: true,
+    provider: 'slack',
+    additionalScopes: [
+      'channels:read',
+      'groups:read',
+      'chat:write',
+      'chat:write.public',
+      'users:read',
+    ],
+  },
+
   params: {
-    apiKey: {
+    botToken: {
       type: 'string',
-      required: true,
-      requiredForToolCall: true,
-      description: 'Your Slack API token',
+      required: false,
+      optionalToolInput: true,
+      description: 'Bot token for Custom Bot',
+    },
+    accessToken: {
+      type: 'string',
+      required: false,
+      description: 'OAuth access token or bot token for Slack API',
     },
     channel: {
       type: 'string',
@@ -24,7 +41,7 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
     text: {
       type: 'string',
       required: true,
-      description: 'Message text to send',
+      description: 'Message text to send (supports Slack mrkdwn formatting)',
     },
   },
 
@@ -33,12 +50,16 @@ export const slackMessageTool: ToolConfig<SlackMessageParams, SlackMessageRespon
     method: 'POST',
     headers: (params: SlackMessageParams) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
+      Authorization: `Bearer ${params.accessToken || params.botToken}`,
     }),
-    body: (params: SlackMessageParams) => ({
-      channel: params.channel,
-      text: params.text,
-    }),
+    body: (params: SlackMessageParams) => {
+      const body: any = {
+        channel: params.channel,
+        markdown_text: params.text,
+      }
+
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {

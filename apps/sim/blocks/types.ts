@@ -29,6 +29,7 @@ export type SubBlockType =
   | 'schedule-config' // Schedule status and information
   | 'file-selector' // File selector for Google Drive, etc.
   | 'project-selector' // Project selector for Jira, Discord, etc.
+  | 'channel-selector' // Channel selector for Slack, Discord, etc.
   | 'folder-selector' // Folder selector for Gmail, etc.
   | 'input-format' // Input structure format
   | 'file-upload' // File uploader
