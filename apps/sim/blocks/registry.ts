@@ -28,6 +28,7 @@ import { GoogleSheetsBlock } from './blocks/google_sheets'
 import { ImageGeneratorBlock } from './blocks/image_generator'
 import { JinaBlock } from './blocks/jina'
 import { JiraBlock } from './blocks/jira'
+import { KnowledgeBlock } from './blocks/knowledge'
 import { LinearBlock } from './blocks/linear'
 import { LinkupBlock } from './blocks/linkup'
 import { Mem0Block } from './blocks/mem0'
@@ -109,6 +110,7 @@ export const registry: Record<string, BlockConfig> = {
   stagehand_agent: StagehandAgentBlock,
   slack: SlackBlock,
   starter: StarterBlock,
+  knowledge: KnowledgeBlock,
   supabase: SupabaseBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,

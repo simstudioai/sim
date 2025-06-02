@@ -13,37 +13,55 @@ const ParallelNodeStyles: React.FC = () => {
   return (
     <style jsx global>{`
       @keyframes parallel-node-pulse {
-        0% { box-shadow: 0 0 0 0 rgba(254, 225, 43, 0.3); }
-        70% { box-shadow: 0 0 0 6px rgba(254, 225, 43, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(254, 225, 43, 0); }
+        0% {
+          box-shadow: 0 0 0 0 rgba(139, 195, 74, 0.3);
+        }
+        70% {
+          box-shadow: 0 0 0 6px rgba(139, 195, 74, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(139, 195, 74, 0);
+        }
       }
-      
+
       .parallel-node-drag-over {
-        animation: parallel-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        animation: parallel-node-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1)
+          infinite;
         border-style: solid !important;
-        background-color: rgba(254, 225, 43, 0.08) !important;
-        box-shadow: 0 0 0 8px rgba(254, 225, 43, 0.1);
+        background-color: rgba(139, 195, 74, 0.08) !important;
+        box-shadow: 0 0 0 8px rgba(139, 195, 74, 0.1);
       }
-      
+
+      /* Make resizer handles more visible */
+      .react-flow__resize-control {
+        z-index: 10;
+        pointer-events: all !important;
+      }
+
       /* Ensure parent borders are visible when hovering over resize controls */
       .react-flow__node-group:hover,
       .hover-highlight {
         border-color: #1e293b !important;
       }
-      
+
       /* Ensure hover effects work well */
       .group-node-container:hover .react-flow__resize-control.bottom-right {
         opacity: 1 !important;
         visibility: visible !important;
       }
-      
-      
+
+      /* React Flow position transitions within parallel blocks */
+      .react-flow__node[data-parent-node-id] {
+        transition: transform 0.05s ease;
+        pointer-events: all;
+      }
+
       /* Prevent jumpy drag behavior */
       .parallel-drop-container .react-flow__node {
         transform-origin: center;
         position: absolute;
       }
-      
+
       /* Remove default border from React Flow group nodes */
       .react-flow__node-group {
         border: none;
@@ -51,15 +69,15 @@ const ParallelNodeStyles: React.FC = () => {
         outline: none;
         box-shadow: none;
       }
-      
+
       /* Ensure child nodes stay within parent bounds */
       .react-flow__node[data-parent-node-id] .react-flow__handle {
         z-index: 30;
       }
-      
+
       /* Enhanced drag detection */
       .react-flow__node-group.dragging-over {
-        background-color: rgba(254,225,43,0.05);
+        background-color: rgba(139, 195, 74, 0.05);
         transition: all 0.2s ease-in-out;
       }
     `}</style>
@@ -90,7 +108,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   const getNestedStyles = () => {
     // Base styles
     const styles: Record<string, string> = {
-      backgroundColor: data?.state === 'valid' ? 'rgba(254, 225, 43, 0.05)' : 'transparent',
+      backgroundColor: data?.state === 'valid' ? 'rgba(139, 195, 74, 0.05)' : 'transparent',
     }
 
     // Apply nested styles
@@ -117,7 +135,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
             'relative cursor-default select-none',
             'transition-block-bg transition-ring',
             'z-[20]',
-            data?.state === 'valid' && 'bg-[rgba(254,225,43,0.05)] ring-2 ring-[#FEE12B]',
+            data?.state === 'valid' && 'bg-[rgba(139,195,74,0.05)] ring-2 ring-[#8BC34A]',
             nestingLevel > 0 &&
               `border border-[0.5px] ${nestingLevel % 2 === 0 ? 'border-slate-300/60' : 'border-slate-400/60'}`
           )}
@@ -171,7 +189,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
 
             {/* Parallel Start Block */}
             <div
-              className='-translate-y-1/2 absolute top-1/2 left-8 flex h-10 w-10 transform items-center justify-center rounded-md bg-[#FEE12B] p-2'
+              className='-translate-y-1/2 absolute top-1/2 left-8 flex h-10 w-10 transform items-center justify-center rounded-md bg-[#8BC34A] p-2'
               style={{ pointerEvents: 'auto' }}
               data-parent-id={id}
               data-node-role='parallel-start'

@@ -236,7 +236,9 @@ export function ControlBar() {
 
     // Use cache if available and not expired
     if (!forceRefresh && usageDataCache.data && cacheAge < usageDataCache.expirationMs) {
-      logger.info('Using cached usage data', { cacheAge: `${Math.round(cacheAge / 1000)}s` })
+      logger.info('Using cached usage data', {
+        cacheAge: `${Math.round(cacheAge / 1000)}s`,
+      })
       return usageDataCache.data
     }
 
@@ -658,7 +660,7 @@ export function ControlBar() {
   //           size="icon"
   //           onClick={handlePublishWorkflow}
   //           disabled={isPublishing}
-  //           className={cn('hover:text-[#802FFF]', isPublished && 'text-[#802FFF]')}
+  //           className={cn('hover:text-[#701FFC]', isPublished && 'text-[#701FFC]')}
   //         >
   //           {isPublishing ? (
   //             <Loader2 className="h-5 w-5 animate-spin" />
@@ -869,13 +871,13 @@ export function ControlBar() {
             <Button
               className={cn(
                 'gap-2 font-medium',
-                'bg-[#802FFF] hover:bg-[#7028E6]',
-                'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                'bg-[#701FFC] hover:bg-[#6518E6]',
+                'shadow-[0_0_0_0_#701FFC] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                 'text-white transition-all duration-200',
                 (isExecuting || isMultiRunning) &&
                   !isCancelling &&
                   'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
-                'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
+                'disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none',
                 isDebugModeEnabled || isMultiRunning
                   ? 'h-10 rounded px-4 py-2'
                   : 'h-10 rounded-r-none border-r border-r-[#6420cc] px-4 py-2'
@@ -939,13 +941,13 @@ export function ControlBar() {
               <Button
                 className={cn(
                   'px-2 font-medium',
-                  'bg-[#802FFF] hover:bg-[#7028E6]',
-                  'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
+                  'bg-[#701FFC] hover:bg-[#6518E6]',
+                  'shadow-[0_0_0_0_#701FFC] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                   'text-white transition-all duration-200',
                   (isExecuting || isMultiRunning) &&
                     !isCancelling &&
                     'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
-                  'disabled:opacity-50 disabled:hover:bg-[#802FFF] disabled:hover:shadow-none',
+                  'disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none',
                   'h-10 rounded-l-none'
                 )}
                 disabled={isExecuting || isMultiRunning || isCancelling}

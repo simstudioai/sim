@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { HelpCircle, ScrollText, Send, Settings } from 'lucide-react'
+import { HelpCircle, LibraryBig, ScrollText, Send, Settings } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -249,7 +249,7 @@ export function Sidebar() {
 
         {/* Logs and Settings Navigation - Follows workflows */}
         <div className='mt-6 flex-shrink-0'>
-          <NavSection isLoading={isLoading} itemCount={2} isCollapsed={isCollapsed}>
+          <NavSection isLoading={isLoading} itemCount={3} isCollapsed={isCollapsed}>
             <NavSection.Item
               icon={<ScrollText className='h-[18px] w-[18px]' />}
               href='/w/logs'
@@ -257,6 +257,15 @@ export function Sidebar() {
               active={pathname === '/w/logs'}
               isCollapsed={isCollapsed}
               shortcutCommand={getKeyboardShortcutText('L', true, true)}
+              shortcutCommandPosition='below'
+            />
+            <NavSection.Item
+              icon={<LibraryBig className='h-[18px] w-[18px]' />}
+              href='/w/knowledge'
+              label='Knowledge'
+              active={pathname === '/w/knowledge'}
+              isCollapsed={isCollapsed}
+              shortcutCommand={getKeyboardShortcutText('K', true, true)}
               shortcutCommandPosition='below'
             />
             <NavSection.Item
