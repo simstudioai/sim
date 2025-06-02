@@ -20,7 +20,6 @@ export function getBaseURL() {
   } else if (clientEnv.VERCEL_ENV === 'production') {
     baseURL = clientEnv.BETTER_AUTH_URL || clientEnv.NEXT_PUBLIC_APP_URL
   } else if (clientEnv.NODE_ENV === 'development') {
-    // For development, prioritize NEXT_PUBLIC_APP_URL for client-side requests
     baseURL = clientEnv.NEXT_PUBLIC_APP_URL || clientEnv.BETTER_AUTH_URL || 'http://localhost:3000'
   }
 
