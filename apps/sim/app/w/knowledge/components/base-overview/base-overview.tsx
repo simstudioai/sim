@@ -12,8 +12,14 @@ interface BaseOverviewProps {
 }
 
 export function BaseOverview({ id, title, docCount, tokenCount, description }: BaseOverviewProps) {
+  // Create URL with knowledge base name as query parameter
+  const params = new URLSearchParams({
+    kbName: title,
+  })
+  const href = `/w/knowledge/${id || title.toLowerCase().replace(/\s+/g, '-')}?${params.toString()}`
+
   return (
-    <Link href={`/w/knowledge/${id || title.toLowerCase().replace(/\s+/g, '-')}`} prefetch={true}>
+    <Link href={href} prefetch={true}>
       <div className='group flex cursor-pointer flex-col gap-3 rounded-md border bg-background p-4 transition-colors hover:bg-accent/50'>
         <div className='flex items-center gap-2'>
           <LibraryBig className='h-4 w-4 flex-shrink-0 text-muted-foreground' />

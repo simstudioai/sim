@@ -6,6 +6,7 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 import { BaseOverview } from './components/base-overview/base-overview'
 import { CreateModal } from './components/create-modal/create-modal'
 import { EmptyStateCard } from './components/empty-state-card/empty-state-card'
+import { KnowledgeBaseCardSkeletonGrid } from './components/skeletons/knowledge-base-card-skeleton'
 
 interface KnowledgeBase {
   id: string
@@ -25,6 +26,7 @@ export function Knowledge() {
   const { mode, isExpanded } = useSidebarStore()
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
+
   const [searchQuery, setSearchQuery] = useState('')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([])
@@ -97,14 +99,6 @@ export function Knowledge() {
         {/* Main Content */}
         <div className='flex-1 overflow-auto pt-[6px]'>
           <div className='px-6 pb-6'>
-            {/* Info cards */}
-            {/* <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="col-span-2 bg-background border rounded-md p-6 min-h-[280px]">
-              </div>
-              <div className="col-span-1 bg-background border rounded-md p-6 min-h-[280px]">
-              </div>
-            </div> */}
-
             {/* Search and Create Section */}
             <div className='mb-6 flex items-center justify-between'>
               <div className='relative max-w-md flex-1'>
@@ -150,15 +144,10 @@ export function Knowledge() {
               </div>
             )}
 
-            {/* Loading State */}
-            {isLoading && (
-              <div className='flex items-center justify-center py-12'>
-                <div className='text-muted-foreground text-sm'>Loading knowledge bases...</div>
-              </div>
-            )}
-
-            {/* Knowledge Base Cards Grid */}
-            {!isLoading && !error && (
+            {/* Content Area */}
+            {isLoading ? (
+              <KnowledgeBaseCardSkeletonGrid count={8} />
+            ) : (
               <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'>
                 {filteredKnowledgeBases.length === 0 ? (
                   knowledgeBases.length === 0 ? (

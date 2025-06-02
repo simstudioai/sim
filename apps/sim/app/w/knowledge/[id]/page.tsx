@@ -4,9 +4,14 @@ interface PageProps {
   params: Promise<{
     id: string
   }>
+  searchParams: Promise<{
+    kbName?: string
+  }>
 }
 
-export default async function KnowledgeBasePage({ params }: PageProps) {
+export default async function KnowledgeBasePage({ params, searchParams }: PageProps) {
   const { id } = await params
-  return <KnowledgeBase id={id} />
+  const { kbName } = await searchParams
+
+  return <KnowledgeBase id={id} knowledgeBaseName={kbName || 'Knowledge Base'} />
 }

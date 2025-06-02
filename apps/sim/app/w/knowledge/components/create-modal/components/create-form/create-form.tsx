@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { getDocumentIcon } from '@/app/w/knowledge/icons/document-icons'
+import { getDocumentIcon } from '@/app/w/knowledge/components/icons/document-icons'
 
 // Define form schema
 const formSchema = z.object({

@@ -543,6 +543,9 @@ export const embedding = pgTable(
     // Quality metrics
     qualityScore: decimal('quality_score'),
 
+    // Chunk state - enable/disable from knowledge base
+    enabled: boolean('enabled').notNull().default(true),
+
     // Full-text search support - generated tsvector column
     contentTsv: tsvector('content_tsv').generatedAlwaysAs(
       (): SQL => sql`to_tsvector('english', ${embedding.content})`
@@ -573,6 +576,10 @@ export const embedding = pgTable(
 
     // Search rank optimization
     kbRankIdx: index('emb_kb_rank_idx').on(table.knowledgeBaseId, table.searchRank),
+
+    // Enabled state filtering indexes (for chunk enable/disable functionality)
+    kbEnabledIdx: index('emb_kb_enabled_idx').on(table.knowledgeBaseId, table.enabled),
+    docEnabledIdx: index('emb_doc_enabled_idx').on(table.documentId, table.enabled),
 
     // Vector similarity search indexes (HNSW) - optimized for small embeddings
     embeddingVectorHnswIdx: index('embedding_vector_hnsw_idx')
