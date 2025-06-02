@@ -272,8 +272,8 @@ const shouldBePasswordField = (blockType: string, paramId: string): boolean => {
   return false
 }
 
-export function ToolInput({ 
-  blockId, 
+export function ToolInput({
+  blockId,
   subBlockId,
   isPreview = false,
   previewValue,
