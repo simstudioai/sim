@@ -27,6 +27,12 @@ services:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3000']
+      interval: 90s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   migrations:
     build:
@@ -35,12 +41,13 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-simstudio}
     depends_on:
-      - db
-    command: ['bun', 'run', 'db:push']
+      db:
+        condition: service_healthy
+    command: ['bun', 'run', 'db:migrate']
     restart: 'no'
 
   db:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     restart: always
     ports:
       - '5432:5432'

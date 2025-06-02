@@ -10,7 +10,7 @@ COPY apps/sim/package.json ./apps/sim/db/
 
 # Install minimal dependencies in one layer
 RUN bun install --omit dev --ignore-scripts && \
-    bun install --omit dev --ignore-scripts drizzle-kit drizzle-orm postgres next-runtime-env
+    bun install --omit dev --ignore-scripts drizzle-kit drizzle-orm postgres next-runtime-env zod @t3-oss/env-nextjs
 
 # ========================================
 # Runner Stage: Production Environment

@@ -17,13 +17,33 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     ports:
       - "3000:3000"
       - "3001:3001"
     working_dir: /workspace
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3000']
+      interval: 90s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  migrations:
+    build:
+      context: ..
+      dockerfile: docker/db.Dockerfile
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/simstudio
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ['bun', 'run', 'db:migrate']
+    restart: 'no'
 
   db:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql/data
