@@ -347,6 +347,16 @@ describe('validateName', () => {
     const result = validateName('my-workflow@2023!')
     expect(result).toBe('myworkflow2023')
   })
+
+  it('should collapse multiple spaces into single spaces', () => {
+    const result = validateName('test    multiple     spaces')
+    expect(result).toBe('test multiple spaces')
+  })
+
+  it('should handle mixed whitespace and invalid characters', () => {
+    const result = validateName('test@#$  name')
+    expect(result).toBe('test name')
+  })
 })
 
 describe('isValidName', () => {

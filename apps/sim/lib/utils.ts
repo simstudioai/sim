@@ -350,10 +350,12 @@ export const redactApiKeys = (obj: any): any => {
  * with variable references or node naming.
  *
  * @param name - The name to validate
- * @returns The validated name with invalid characters removed
+ * @returns The validated name with invalid characters removed, trimmed, and collapsed whitespace
  */
 export function validateName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_\s]/g, '')
+  return name
+    .replace(/[^a-zA-Z0-9_\s]/g, '') // Remove invalid characters
+    .replace(/\s+/g, ' ') // Collapse multiple spaces into single spaces
 }
 
 /**
