@@ -23,7 +23,7 @@ services:
     working_dir: /workspace
 
   db:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql/data

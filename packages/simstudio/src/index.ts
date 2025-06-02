@@ -101,7 +101,7 @@ async function main() {
   if (options.pull) {
     await pullImage('ghcr.io/simstudioai/simstudio:latest')
     await pullImage('ghcr.io/simstudioai/migrations:latest')
-    await pullImage('postgres:17-alpine')
+    await pullImage('pgvector/pgvector:pg17')
   }
 
   // Ensure Docker network exists
@@ -144,7 +144,7 @@ async function main() {
     `${dataDir}/postgres:/var/lib/postgresql/data`,
     '-p',
     '5432:5432',
-    'postgres:17-alpine',
+    'pgvector/pgvector:pg17',
   ])
 
   if (!dbSuccess) {
