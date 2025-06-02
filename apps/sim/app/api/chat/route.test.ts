@@ -269,7 +269,6 @@ describe('Chat API Route', () => {
         }),
       }))
 
-      // Mock the env module to ensure NODE_ENV is development
       vi.doMock('@/lib/env', () => ({
         env: {
           NODE_ENV: 'development',
@@ -277,7 +276,6 @@ describe('Chat API Route', () => {
         },
       }))
 
-      // Mock environment variables
       vi.stubGlobal('process', {
         ...process,
         env: {

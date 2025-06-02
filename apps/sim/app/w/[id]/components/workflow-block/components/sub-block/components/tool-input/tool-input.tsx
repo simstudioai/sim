@@ -259,7 +259,6 @@ const getChannelSelectorConfig = (blockType: string, paramId: string) => {
 
 // Helper function to check if a parameter should be treated as a password field
 const shouldBePasswordField = (blockType: string, paramId: string): boolean => {
-  // Check if the block configuration explicitly sets password: true for this parameter
   const block = getAllBlocks().find((block) => block.type === blockType)
   if (block) {
     const subBlock = block.subBlocks.find((sb) => sb.id === paramId)
@@ -268,22 +267,7 @@ const shouldBePasswordField = (blockType: string, paramId: string): boolean => {
     }
   }
 
-  // Fallback: check for common password/API key patterns
-  const normalizedId = paramId.toLowerCase().replace(/\s+/g, '')
-  const passwordPatterns = [
-    'apikey',
-    'api_key',
-    'secretkey',
-    'secret_key',
-    'token',
-    'bottoken',
-    'accesstoken',
-    'authtoken',
-    'password',
-    'secret',
-  ]
-
-  return passwordPatterns.some((pattern) => normalizedId.includes(pattern))
+  return false
 }
 
 export function ToolInput({ blockId, subBlockId }: ToolInputProps) {
