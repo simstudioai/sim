@@ -285,24 +285,6 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         })
       })
 
-      // Get any additional subblock values that might not be in the state but are in the store
-      const storedValues = useSubBlockStore.getState().workflowValues[id] || {}
-      Object.entries(storedValues).forEach(([blockId, blockValues]) => {
-        if (!subblockValues[blockId]) {
-          subblockValues[blockId] = {}
-        }
-
-        Object.entries(blockValues).forEach(([subblockId, value]) => {
-          // Only update if not already set or if value is null
-          if (
-            subblockValues[blockId][subblockId] === null ||
-            subblockValues[blockId][subblockId] === undefined
-          ) {
-            subblockValues[blockId][subblockId] = value
-          }
-        })
-      })
-
       // 4. Store the workflow state and subblock values in localStorage
       // This ensures compatibility with existing code that loads from localStorage
       localStorage.setItem(`workflow-${id}`, JSON.stringify(workflowState))

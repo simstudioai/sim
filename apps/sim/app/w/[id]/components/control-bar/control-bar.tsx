@@ -98,6 +98,7 @@ export function ControlBar() {
     removeWorkflow,
     duplicateWorkflow,
     setDeploymentStatus,
+    isLoading: isRegistryLoading,
   } = useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
   const { setActiveTab } = usePanelStore()
@@ -257,6 +258,12 @@ export function ControlBar() {
       return
     }
 
+    if (isRegistryLoading) {
+      setDeployedState(null)
+      setIsLoadingDeployedState(false)
+      return
+    }
+
     if (isDeployed) {
       setNeedsRedeploymentFlag(false)
       fetchDeployedState()
@@ -264,7 +271,7 @@ export function ControlBar() {
       setDeployedState(null)
       setIsLoadingDeployedState(false)
     }
-  }, [activeWorkflowId, isDeployed, setNeedsRedeploymentFlag])
+  }, [activeWorkflowId, isDeployed, setNeedsRedeploymentFlag, isRegistryLoading])
 
   // Get current store state for change detection
   const currentBlocks = useWorkflowStore((state) => state.blocks)
@@ -321,7 +328,7 @@ export function ControlBar() {
   }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues, isLoadingDeployedState])
 
   useEffect(() => {
-    if (session?.user?.id) {
+    if (session?.user?.id && !isRegistryLoading) {
       checkUserUsage(session.user.id).then((usage) => {
         if (usage) {
           setUsageExceeded(usage.isExceeded)
@@ -329,7 +336,7 @@ export function ControlBar() {
         }
       })
     }
-  }, [session?.user?.id, completedRuns])
+  }, [session?.user?.id, completedRuns, isRegistryLoading])
 
   /**
    * Check user usage data with caching to prevent excessive API calls
