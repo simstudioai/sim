@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { validateName } from '@/lib/utils'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable, VariableType } from '@/stores/panel/variables/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -53,6 +54,12 @@ export function Variables({ panelWidth }: VariablesProps) {
 
   // Track which variables are currently being edited
   const [_activeEditors, setActiveEditors] = useState<Record<string, boolean>>({})
+
+  // Handle variable name change with validation
+  const handleVariableNameChange = (variableId: string, newName: string) => {
+    const validatedName = validateName(newName)
+    updateVariable(variableId, { name: validatedName })
+  }
 
   // Auto-save when variables are added/edited
   const handleAddVariable = () => {
@@ -257,7 +264,7 @@ export function Variables({ panelWidth }: VariablesProps) {
                         className='!text-md h-9 max-w-40 border-input bg-background focus-visible:ring-1 focus-visible:ring-ring'
                         placeholder='Variable name'
                         value={variable.name}
-                        onChange={(e) => updateVariable(variable.id, { name: e.target.value })}
+                        onChange={(e) => handleVariableNameChange(variable.id, e.target.value)}
                       />
 
                       <DropdownMenu>

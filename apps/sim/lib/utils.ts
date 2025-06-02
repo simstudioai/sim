@@ -344,3 +344,37 @@ export const redactApiKeys = (obj: any): any => {
 
   return result
 }
+
+/**
+ * Validates a name by removing any characters that could cause issues
+ * with variable references or node naming.
+ *
+ * @param name - The name to validate
+ * @returns The validated name with invalid characters removed, trimmed, and collapsed whitespace
+ */
+export function validateName(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9_\s]/g, '') // Remove invalid characters
+    .replace(/\s+/g, ' ') // Collapse multiple spaces into single spaces
+}
+
+/**
+ * Checks if a name contains invalid characters
+ *
+ * @param name - The name to check
+ * @returns True if the name is valid, false otherwise
+ */
+export function isValidName(name: string): boolean {
+  return /^[a-zA-Z0-9_\s]*$/.test(name)
+}
+
+/**
+ * Gets a list of invalid characters in a name
+ *
+ * @param name - The name to check
+ * @returns Array of invalid characters found
+ */
+export function getInvalidCharacters(name: string): string[] {
+  const invalidChars = name.match(/[^a-zA-Z0-9_\s]/g)
+  return invalidChars ? [...new Set(invalidChars)] : []
+}

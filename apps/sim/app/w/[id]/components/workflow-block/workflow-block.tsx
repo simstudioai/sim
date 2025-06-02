@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
-import { cn, formatDateTime } from '@/lib/utils'
+import { cn, formatDateTime, validateName } from '@/lib/utils'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -50,6 +50,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   // Refs
   const blockRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
   const updateNodeInternals = useUpdateNodeInternals()
 
   // Workflow store selectors
@@ -329,9 +330,23 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const subBlockRows = groupSubBlocks(config.subBlocks, id)
 
   // Name editing handlers
-  const handleNameClick = () => {
+  const handleNameClick = (e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent drag handler from interfering
     setEditedName(name)
     setIsEditing(true)
+  }
+
+  // Auto-focus the input when edit mode is activated
+  useEffect(() => {
+    if (isEditing && nameInputRef.current) {
+      nameInputRef.current.focus()
+    }
+  }, [isEditing])
+
+  // Handle node name change with validation
+  const handleNodeNameChange = (newName: string) => {
+    const validatedName = validateName(newName)
+    setEditedName(validatedName.slice(0, 18))
   }
 
   const handleNameSubmit = () => {
@@ -432,37 +447,43 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
             e.stopPropagation()
           }}
         >
-          <div className='flex items-center gap-3'>
+          <div className='flex min-w-0 flex-1 items-center gap-3'>
             <div
-              className='flex h-7 w-7 items-center justify-center rounded'
+              className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded'
               style={{ backgroundColor: isEnabled ? config.bgColor : 'gray' }}
             >
               <config.icon className='h-5 w-5 text-white' />
             </div>
-            {isEditing ? (
-              <input
-                type='text'
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value.slice(0, 18))}
-                onBlur={handleNameSubmit}
-                onKeyDown={handleNameKeyDown}
-                className='w-[180px] border-none bg-transparent p-0 font-medium text-md outline-none'
-                maxLength={18}
-              />
-            ) : (
-              <span
-                className={cn(
-                  'cursor-text truncate font-medium text-md hover:text-muted-foreground',
-                  !isEnabled ? (isWide ? 'max-w-[200px]' : 'max-w-[100px]') : 'max-w-[180px]'
-                )}
-                onClick={handleNameClick}
-                title={name}
-              >
-                {name}
-              </span>
-            )}
+            <div className='min-w-0'>
+              {isEditing ? (
+                <input
+                  ref={nameInputRef}
+                  type='text'
+                  value={editedName}
+                  onChange={(e) => handleNodeNameChange(e.target.value)}
+                  onBlur={handleNameSubmit}
+                  onKeyDown={handleNameKeyDown}
+                  className='border-none bg-transparent p-0 font-medium text-md outline-none'
+                  maxLength={18}
+                />
+              ) : (
+                <span
+                  className={cn(
+                    'inline-block cursor-text font-medium text-md hover:text-muted-foreground',
+                    !isEnabled && 'text-muted-foreground'
+                  )}
+                  onClick={handleNameClick}
+                  title={name}
+                  style={{
+                    maxWidth: !isEnabled ? (isWide ? '200px' : '140px') : '180px',
+                  }}
+                >
+                  {name}
+                </span>
+              )}
+            </div>
           </div>
-          <div className='flex items-center gap-2'>
+          <div className='flex flex-shrink-0 items-center gap-2'>
             {!isEnabled && (
               <Badge variant='secondary' className='bg-gray-100 text-gray-500 hover:bg-gray-100'>
                 Disabled

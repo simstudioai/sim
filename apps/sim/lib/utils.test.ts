@@ -9,6 +9,11 @@ import {
   formatDuration,
   formatTime,
   generateApiKey,
+  getInvalidCharacters,
+  getTimezoneAbbreviation,
+  isValidName,
+  redactApiKeys,
+  validateName,
 } from './utils'
 
 // Mock crypto module for encryption/decryption tests
@@ -195,5 +200,206 @@ describe('formatDuration', () => {
   it('should format hours, minutes correctly', () => {
     const result = formatDuration(3725000) // 1h 2m 5s
     expect(result).toBe('1h 2m')
+  })
+})
+
+describe('getTimezoneAbbreviation', () => {
+  it('should return UTC for UTC timezone', () => {
+    const result = getTimezoneAbbreviation('UTC')
+    expect(result).toBe('UTC')
+  })
+
+  it('should return PST/PDT for Los Angeles timezone', () => {
+    const winterDate = new Date('2023-01-15') // Standard time
+    const summerDate = new Date('2023-07-15') // Daylight time
+
+    const winterResult = getTimezoneAbbreviation('America/Los_Angeles', winterDate)
+    const summerResult = getTimezoneAbbreviation('America/Los_Angeles', summerDate)
+
+    expect(['PST', 'PDT']).toContain(winterResult)
+    expect(['PST', 'PDT']).toContain(summerResult)
+  })
+
+  it('should return JST for Tokyo timezone (no DST)', () => {
+    const winterDate = new Date('2023-01-15')
+    const summerDate = new Date('2023-07-15')
+
+    const winterResult = getTimezoneAbbreviation('Asia/Tokyo', winterDate)
+    const summerResult = getTimezoneAbbreviation('Asia/Tokyo', summerDate)
+
+    expect(winterResult).toBe('JST')
+    expect(summerResult).toBe('JST')
+  })
+
+  it('should return full timezone name for unknown timezones', () => {
+    const result = getTimezoneAbbreviation('Unknown/Timezone')
+    expect(result).toBe('Unknown/Timezone')
+  })
+})
+
+describe('redactApiKeys', () => {
+  it('should redact API keys in objects', () => {
+    const obj = {
+      apiKey: 'secret-key',
+      api_key: 'another-secret',
+      access_token: 'token-value',
+      secret: 'secret-value',
+      password: 'password-value',
+      normalField: 'normal-value',
+    }
+
+    const result = redactApiKeys(obj)
+
+    expect(result.apiKey).toBe('***REDACTED***')
+    expect(result.api_key).toBe('***REDACTED***')
+    expect(result.access_token).toBe('***REDACTED***')
+    expect(result.secret).toBe('***REDACTED***')
+    expect(result.password).toBe('***REDACTED***')
+    expect(result.normalField).toBe('normal-value')
+  })
+
+  it('should redact API keys in nested objects', () => {
+    const obj = {
+      config: {
+        apiKey: 'secret-key',
+        normalField: 'normal-value',
+      },
+    }
+
+    const result = redactApiKeys(obj)
+
+    expect(result.config.apiKey).toBe('***REDACTED***')
+    expect(result.config.normalField).toBe('normal-value')
+  })
+
+  it('should redact API keys in arrays', () => {
+    const arr = [{ apiKey: 'secret-key-1' }, { apiKey: 'secret-key-2' }]
+
+    const result = redactApiKeys(arr)
+
+    expect(result[0].apiKey).toBe('***REDACTED***')
+    expect(result[1].apiKey).toBe('***REDACTED***')
+  })
+
+  it('should handle primitive values', () => {
+    expect(redactApiKeys('string')).toBe('string')
+    expect(redactApiKeys(123)).toBe(123)
+    expect(redactApiKeys(null)).toBe(null)
+    expect(redactApiKeys(undefined)).toBe(undefined)
+  })
+
+  it('should handle complex nested structures', () => {
+    const obj = {
+      users: [
+        {
+          name: 'John',
+          credentials: {
+            apiKey: 'secret-key',
+            username: 'john_doe',
+          },
+        },
+      ],
+      config: {
+        database: {
+          password: 'db-password',
+          host: 'localhost',
+        },
+      },
+    }
+
+    const result = redactApiKeys(obj)
+
+    expect(result.users[0].name).toBe('John')
+    expect(result.users[0].credentials.apiKey).toBe('***REDACTED***')
+    expect(result.users[0].credentials.username).toBe('john_doe')
+    expect(result.config.database.password).toBe('***REDACTED***')
+    expect(result.config.database.host).toBe('localhost')
+  })
+})
+
+describe('validateName', () => {
+  it('should remove invalid characters', () => {
+    const result = validateName('test@#$%name')
+    expect(result).toBe('testname')
+  })
+
+  it('should keep valid characters', () => {
+    const result = validateName('test_name_123')
+    expect(result).toBe('test_name_123')
+  })
+
+  it('should keep spaces', () => {
+    const result = validateName('test name')
+    expect(result).toBe('test name')
+  })
+
+  it('should handle empty string', () => {
+    const result = validateName('')
+    expect(result).toBe('')
+  })
+
+  it('should handle string with only invalid characters', () => {
+    const result = validateName('@#$%')
+    expect(result).toBe('')
+  })
+
+  it('should handle mixed valid and invalid characters', () => {
+    const result = validateName('my-workflow@2023!')
+    expect(result).toBe('myworkflow2023')
+  })
+
+  it('should collapse multiple spaces into single spaces', () => {
+    const result = validateName('test    multiple     spaces')
+    expect(result).toBe('test multiple spaces')
+  })
+
+  it('should handle mixed whitespace and invalid characters', () => {
+    const result = validateName('test@#$  name')
+    expect(result).toBe('test name')
+  })
+})
+
+describe('isValidName', () => {
+  it('should return true for valid names', () => {
+    expect(isValidName('test_name')).toBe(true)
+    expect(isValidName('test123')).toBe(true)
+    expect(isValidName('test name')).toBe(true)
+    expect(isValidName('TestName')).toBe(true)
+    expect(isValidName('')).toBe(true)
+  })
+
+  it('should return false for invalid names', () => {
+    expect(isValidName('test@name')).toBe(false)
+    expect(isValidName('test-name')).toBe(false)
+    expect(isValidName('test#name')).toBe(false)
+    expect(isValidName('test$name')).toBe(false)
+    expect(isValidName('test%name')).toBe(false)
+  })
+})
+
+describe('getInvalidCharacters', () => {
+  it('should return empty array for valid names', () => {
+    const result = getInvalidCharacters('test_name_123')
+    expect(result).toEqual([])
+  })
+
+  it('should return invalid characters', () => {
+    const result = getInvalidCharacters('test@#$name')
+    expect(result).toEqual(['@', '#', '$'])
+  })
+
+  it('should return unique invalid characters', () => {
+    const result = getInvalidCharacters('test@@##name')
+    expect(result).toEqual(['@', '#'])
+  })
+
+  it('should handle empty string', () => {
+    const result = getInvalidCharacters('')
+    expect(result).toEqual([])
+  })
+
+  it('should handle string with only invalid characters', () => {
+    const result = getInvalidCharacters('@#$%')
+    expect(result).toEqual(['@', '#', '$', '%'])
   })
 })
