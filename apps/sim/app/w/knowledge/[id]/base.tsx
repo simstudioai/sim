@@ -336,10 +336,10 @@ export function KnowledgeBase({
                   </div>
                 </div>
 
-                <button className='flex items-center gap-1 rounded-md bg-[#701FFC] px-3 py-[7px] font-[480] text-primary-foreground text-sm shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'>
+                {/* <button className='flex items-center gap-1 rounded-md bg-[#701FFC] px-3 py-[7px] font-[480] text-primary-foreground text-sm shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'>
                   <Plus className='h-4 w-4 font-[480]' />
                   <span>Add Document</span>
-                </button>
+                </button> */}
               </div>
 
               {/* Error State for documents */}

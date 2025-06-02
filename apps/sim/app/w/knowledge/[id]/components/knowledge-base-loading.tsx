@@ -1,6 +1,6 @@
 'use client'
 
-import { LibraryBig, Plus, Search } from 'lucide-react'
+import { LibraryBig, Search } from 'lucide-react'
 import Link from 'next/link'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { DocumentTableSkeleton } from '../../components/skeletons/table-skeleton'
@@ -51,13 +51,13 @@ export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoading
                   </div>
                 </div>
 
-                <button
+                {/* <button
                   disabled
                   className='flex items-center gap-1 rounded-md bg-[#701FFC] px-3 py-[7px] font-[480] text-primary-foreground text-sm shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50'
                 >
                   <Plus className='h-4 w-4 font-[480]' />
                   <span>Add Document</span>
-                </button>
+                </button> */}
               </div>
 
               {/* Table container */}

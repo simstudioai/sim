@@ -81,7 +81,6 @@ export function Knowledge() {
     id: kb.id,
     title: kb.name,
     docCount: kb.docCount || 0,
-    tokenCount: kb.tokenCount.toLocaleString(),
     description: kb.description || 'No description provided',
   })
 
@@ -172,7 +171,6 @@ export function Knowledge() {
                         id={displayData.id}
                         title={displayData.title}
                         docCount={displayData.docCount}
-                        tokenCount={displayData.tokenCount}
                         description={displayData.description}
                       />
                     )

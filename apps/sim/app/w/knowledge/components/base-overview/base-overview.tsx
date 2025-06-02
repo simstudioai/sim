@@ -1,22 +1,39 @@
 'use client'
 
-import { LibraryBig } from 'lucide-react'
+import { useState } from 'react'
+import { Check, Copy, LibraryBig } from 'lucide-react'
 import Link from 'next/link'
 
 interface BaseOverviewProps {
   id?: string
   title: string
   docCount: number
-  tokenCount: string
   description: string
 }
 
-export function BaseOverview({ id, title, docCount, tokenCount, description }: BaseOverviewProps) {
+export function BaseOverview({ id, title, docCount, description }: BaseOverviewProps) {
+  const [isCopied, setIsCopied] = useState(false)
+
   // Create URL with knowledge base name as query parameter
   const params = new URLSearchParams({
     kbName: title,
   })
   const href = `/w/knowledge/${id || title.toLowerCase().replace(/\s+/g, '-')}?${params.toString()}`
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (id) {
+      try {
+        await navigator.clipboard.writeText(id)
+        setIsCopied(true)
+        setTimeout(() => setIsCopied(false), 2000)
+      } catch (err) {
+        console.error('Failed to copy ID:', err)
+      }
+    }
+  }
 
   return (
     <Link href={href} prefetch={true}>
@@ -32,7 +49,15 @@ export function BaseOverview({ id, title, docCount, tokenCount, description }: B
               {docCount} {docCount === 1 ? 'doc' : 'docs'}
             </span>
             <span>•</span>
-            <span>{tokenCount} tokens</span>
+            <div className='flex items-center gap-2'>
+              <span className='truncate font-mono'>{id?.slice(0, 8)}</span>
+              <button
+                onClick={handleCopy}
+                className='flex h-4 w-4 items-center justify-center rounded text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              >
+                {isCopied ? <Check className='h-3 w-3' /> : <Copy className='h-3 w-3' />}
+              </button>
+            </div>
           </div>
 
           <p className='line-clamp-2 overflow-hidden text-muted-foreground text-xs'>
