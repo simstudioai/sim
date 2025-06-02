@@ -27,54 +27,16 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl
   const hostname = request.headers.get('host') || ''
 
-  let isCustomDomain = false
-  let subdomain: string | null = null
-
-  try {
-    const baseDomainUrl = new URL(`${request.nextUrl.protocol}//${BASE_DOMAIN}`)
-    const baseDomainHost = baseDomainUrl.hostname
-    const baseDomainPort = baseDomainUrl.port
-
-    if (hostname !== BASE_DOMAIN && !hostname.startsWith('www.')) {
-      if (isDevelopment && baseDomainHost === 'localhost') {
-        const hostnameParts = hostname.split('.')
-        if (hostnameParts.length >= 2 && hostnameParts[1] === 'localhost') {
-          const lastPart = hostnameParts[hostnameParts.length - 1]
-          const hasPort = lastPart.includes(':')
-          const port = hasPort ? lastPart.split(':')[1] : null
-
-          if (!baseDomainPort && !hasPort) {
-            // Both have no port - valid
-            isCustomDomain = true
-            subdomain = hostnameParts[0]
-          } else if (baseDomainPort && hasPort && port === baseDomainPort) {
-            // Both have matching ports - valid
-            isCustomDomain = true
-            subdomain = hostnameParts[0]
-          }
-        }
-      } else if (!isDevelopment && hostname.endsWith('.simstudio.ai')) {
-        const hostnameParts = hostname.split('.')
-        if (hostnameParts.length >= 3) {
-          isCustomDomain = true
-          subdomain = hostnameParts[0]
-        }
-      }
-    }
-  } catch (error) {
-    logger.warn('Error parsing base domain for subdomain detection:', error)
-    isCustomDomain =
-      hostname !== BASE_DOMAIN &&
-      !hostname.startsWith('www.') &&
-      hostname.includes(isDevelopment ? 'localhost' : 'simstudio.ai')
-    subdomain = isCustomDomain ? hostname.split('.')[0] : null
-  }
+  // Extract subdomain
+  const isCustomDomain =
+    hostname !== BASE_DOMAIN &&
+    !hostname.startsWith('www.') &&
+    hostname.includes(isDevelopment ? 'localhost' : 'simstudio.ai')
+  const subdomain = isCustomDomain ? hostname.split('.')[0] : null
 
   // Handle chat subdomains
   if (subdomain && isCustomDomain) {
-    // Special case for API requests from the subdomain
     if (url.pathname.startsWith('/api/chat/')) {
-      // Already an API request, let it go through
       return NextResponse.next()
     }
 
