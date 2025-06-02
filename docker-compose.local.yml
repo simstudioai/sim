@@ -27,6 +27,12 @@ services:
         condition: service_healthy
       migrations:
         condition: service_completed_successfully
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://127.0.0.1:3000']
+      interval: 90s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   migrations:
     build:
