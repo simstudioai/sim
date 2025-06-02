@@ -45,12 +45,14 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
   getKeyboardShortcutText,
   useKeyboardShortcuts,
 } from '../../../hooks/use-keyboard-shortcuts'
-import { useDeploymentChangeDetection } from '../../hooks/use-deployment-change-detection'
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
@@ -86,7 +88,9 @@ export function ControlBar() {
     showNotification,
     removeNotification,
   } = useNotificationStore()
-  const { history, revertToHistoryState, lastSaved } = useWorkflowStore()
+  const { history, revertToHistoryState, lastSaved, setNeedsRedeploymentFlag, blocks } =
+    useWorkflowStore()
+  const { workflowValues } = useSubBlockStore()
   const {
     workflows,
     updateWorkflow,
@@ -94,6 +98,7 @@ export function ControlBar() {
     removeWorkflow,
     duplicateWorkflow,
     setDeploymentStatus,
+    isLoading: isRegistryLoading,
   } = useWorkflowRegistry()
   const { isExecuting, handleRunWorkflow } = useWorkflowExecution()
   const { setActiveTab } = usePanelStore()
@@ -106,6 +111,13 @@ export function ControlBar() {
   // Local state
   const [mounted, setMounted] = useState(false)
   const [, forceUpdate] = useState({})
+
+  // Deployed state management
+  const [deployedState, setDeployedState] = useState<WorkflowState | null>(null)
+  const [isLoadingDeployedState, setIsLoadingDeployedState] = useState<boolean>(false)
+
+  // Change detection state
+  const [changeDetected, setChangeDetected] = useState(false)
 
   // Workflow name editing state
   const [isEditing, setIsEditing] = useState(false)
@@ -150,11 +162,6 @@ export function ControlBar() {
     isExecuting || isMultiRunning || isCancelling
   )
 
-  // Get notifications for current workflow
-  // const workflowNotifications = activeWorkflowId
-  //   ? getWorkflowNotifications(activeWorkflowId)
-  //   : notifications // Show all if no workflow is active
-
   // Get the marketplace data from the workflow registry if available
   const getMarketplaceData = () => {
     if (!activeWorkflowId || !workflows[activeWorkflowId]) return null
@@ -179,10 +186,6 @@ export function ControlBar() {
   )
   const isDeployed = deploymentStatus?.isDeployed || false
 
-  // Custom hook for deployment change detection
-  const { needsRedeployment, setNeedsRedeployment, clearNeedsRedeployment } =
-    useDeploymentChangeDetection(activeWorkflowId, isDeployed)
-
   // Client-side only rendering for the timestamp
   useEffect(() => {
     setMounted(true)
@@ -194,27 +197,138 @@ export function ControlBar() {
     return () => clearInterval(interval)
   }, [])
 
-  // Update existing API notifications when needsRedeployment changes
-  useEffect(() => {
-    if (!activeWorkflowId) return
+  /**
+   * Fetches the deployed state of the workflow from the server
+   * This is the single source of truth for deployed workflow state
+   */
+  const fetchDeployedState = async () => {
+    if (!activeWorkflowId || !isDeployed) {
+      setDeployedState(null)
+      return
+    }
 
-    const apiNotification = notifications.find(
-      (n) => n.type === 'api' && n.workflowId === activeWorkflowId && n.options?.isPersistent
-    )
+    // Store the workflow ID at the start of the request to prevent race conditions
+    const requestWorkflowId = activeWorkflowId
 
-    if (apiNotification && apiNotification.options?.needsRedeployment !== needsRedeployment) {
-      // If there's an existing API notification and its state doesn't match, update it
-      if (apiNotification.isVisible) {
-        // Only update if it's currently showing to the user
-        removeNotification(apiNotification.id)
-        // The DeploymentControls component will handle showing the appropriate notification
+    // Helper to get current active workflow ID for race condition checks
+    const getCurrentActiveWorkflowId = () => useWorkflowRegistry.getState().activeWorkflowId
+
+    try {
+      setIsLoadingDeployedState(true)
+
+      const response = await fetch(`/api/workflows/${requestWorkflowId}/deployed`)
+
+      // Check if the workflow ID changed during the request (user navigated away)
+      if (requestWorkflowId !== getCurrentActiveWorkflowId()) {
+        logger.debug('Workflow changed during deployed state fetch, ignoring response')
+        return
+      }
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setDeployedState(null)
+          return
+        }
+        throw new Error(`Failed to fetch deployed state: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (requestWorkflowId === getCurrentActiveWorkflowId()) {
+        setDeployedState(data.deployedState || null)
+      } else {
+        logger.debug('Workflow changed after deployed state response, ignoring result')
+      }
+    } catch (error) {
+      logger.error('Error fetching deployed state:', { error })
+      if (requestWorkflowId === getCurrentActiveWorkflowId()) {
+        setDeployedState(null)
+      }
+    } finally {
+      if (requestWorkflowId === getCurrentActiveWorkflowId()) {
+        setIsLoadingDeployedState(false)
       }
     }
-  }, [needsRedeployment, activeWorkflowId, notifications, removeNotification, addNotification])
+  }
 
-  // Check usage limits when component mounts and when user executes a workflow
   useEffect(() => {
-    if (session?.user?.id) {
+    if (!activeWorkflowId) {
+      setDeployedState(null)
+      setIsLoadingDeployedState(false)
+      return
+    }
+
+    if (isRegistryLoading) {
+      setDeployedState(null)
+      setIsLoadingDeployedState(false)
+      return
+    }
+
+    if (isDeployed) {
+      setNeedsRedeploymentFlag(false)
+      fetchDeployedState()
+    } else {
+      setDeployedState(null)
+      setIsLoadingDeployedState(false)
+    }
+  }, [activeWorkflowId, isDeployed, setNeedsRedeploymentFlag, isRegistryLoading])
+
+  // Get current store state for change detection
+  const currentBlocks = useWorkflowStore((state) => state.blocks)
+  const subBlockValues = useSubBlockStore((state) =>
+    activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
+  )
+
+  /**
+   * Normalize blocks for semantic comparison - only compare what matters functionally
+   * Ignores: IDs, positions, dimensions, metadata that don't affect workflow logic
+   * Compares: type, name, subBlock values
+   */
+  const normalizeBlocksForComparison = (blocks: Record<string, any>) => {
+    if (!blocks) return []
+
+    return Object.values(blocks)
+      .map((block: any) => ({
+        type: block.type,
+        name: block.name,
+        subBlocks: block.subBlocks || {},
+      }))
+      .sort((a, b) => {
+        const typeA = a.type || ''
+        const typeB = b.type || ''
+        if (typeA !== typeB) return typeA.localeCompare(typeB)
+        return (a.name || '').localeCompare(b.name || '')
+      })
+  }
+
+  useEffect(() => {
+    if (!activeWorkflowId || !deployedState) {
+      setChangeDetected(false)
+      return
+    }
+
+    if (isLoadingDeployedState) {
+      return
+    }
+
+    const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
+
+    const deployedBlocks = deployedState?.blocks
+    if (!deployedBlocks) {
+      setChangeDetected(false)
+      return
+    }
+
+    const normalizedCurrentBlocks = normalizeBlocksForComparison(currentMergedState)
+    const normalizedDeployedBlocks = normalizeBlocksForComparison(deployedBlocks)
+
+    const hasChanges =
+      JSON.stringify(normalizedCurrentBlocks) !== JSON.stringify(normalizedDeployedBlocks)
+    setChangeDetected(hasChanges)
+  }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues, isLoadingDeployedState])
+
+  useEffect(() => {
+    if (session?.user?.id && !isRegistryLoading) {
       checkUserUsage(session.user.id).then((usage) => {
         if (usage) {
           setUsageExceeded(usage.isExceeded)
@@ -222,7 +336,7 @@ export function ControlBar() {
         }
       })
     }
-  }, [session?.user?.id, completedRuns])
+  }, [session?.user?.id, completedRuns, isRegistryLoading])
 
   /**
    * Check user usage data with caching to prevent excessive API calls
@@ -532,8 +646,11 @@ export function ControlBar() {
   const renderDeployButton = () => (
     <DeploymentControls
       activeWorkflowId={activeWorkflowId}
-      needsRedeployment={needsRedeployment}
-      setNeedsRedeployment={setNeedsRedeployment}
+      needsRedeployment={changeDetected}
+      setNeedsRedeployment={setChangeDetected}
+      deployedState={deployedState}
+      isLoadingDeployedState={isLoadingDeployedState}
+      refetchDeployedState={fetchDeployedState}
     />
   )
 

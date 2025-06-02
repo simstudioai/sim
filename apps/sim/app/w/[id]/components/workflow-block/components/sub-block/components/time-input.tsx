@@ -12,11 +12,23 @@ interface TimeInputProps {
   blockId: string
   subBlockId: string
   placeholder?: string
+  isPreview?: boolean
+  previewValue?: string | null
   className?: string
 }
 
-export function TimeInput({ blockId, subBlockId, placeholder, className }: TimeInputProps) {
-  const [value, setValue] = useSubBlockValue<string>(blockId, subBlockId, true)
+export function TimeInput({
+  blockId,
+  subBlockId,
+  placeholder,
+  isPreview = false,
+  previewValue,
+  className,
+}: TimeInputProps) {
+  const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
+
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : storeValue
   const [isOpen, setIsOpen] = React.useState(false)
 
   // Convert 24h time string to display format (12h with AM/PM)
@@ -41,10 +53,11 @@ export function TimeInput({ blockId, subBlockId, placeholder, className }: TimeI
 
   // Update the time when any component changes
   const updateTime = (newHour?: string, newMinute?: string, newAmpm?: 'AM' | 'PM') => {
+    if (isPreview) return
     const h = Number.parseInt(newHour ?? hour) || 12
     const m = Number.parseInt(newMinute ?? minute) || 0
     const p = newAmpm ?? ampm
-    setValue(formatStorageTime(h, m, p))
+    setStoreValue(formatStorageTime(h, m, p))
   }
 
   // Initialize from existing value
@@ -78,6 +91,7 @@ export function TimeInput({ blockId, subBlockId, placeholder, className }: TimeI
       <PopoverTrigger asChild>
         <Button
           variant='outline'
+          disabled={isPreview}
           className={cn(
             'w-full justify-start text-left font-normal',
             !value && 'text-muted-foreground',

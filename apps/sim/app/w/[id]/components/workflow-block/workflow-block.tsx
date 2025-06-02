@@ -22,6 +22,8 @@ interface WorkflowBlockProps {
   name: string
   isActive?: boolean
   isPending?: boolean
+  isPreview?: boolean
+  subBlockValues?: Record<string, any>
 }
 
 // Combine both interfaces into a single component
@@ -30,8 +32,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
   // State management
   const [isConnecting, setIsConnecting] = useState(false)
+
   const [isEditing, setIsEditing] = useState(false)
   const [editedName, setEditedName] = useState('')
+  const [isLoadingScheduleInfo, setIsLoadingScheduleInfo] = useState(false)
   const [scheduleInfo, setScheduleInfo] = useState<{
     scheduleTiming: string
     nextRunAt: string | null
@@ -41,7 +45,6 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     isDisabled?: boolean
     id?: string
   } | null>(null)
-  const [isLoadingScheduleInfo, setIsLoadingScheduleInfo] = useState(false)
   const [webhookInfo, setWebhookInfo] = useState<{
     webhookPath: string
     provider: string
@@ -174,6 +177,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }, [type])
 
+  // Get webhook information for the tooltip
   useEffect(() => {
     if (type === 'starter' && hasActiveWebhook) {
       const fetchWebhookInfo = async () => {
@@ -203,6 +207,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }, [type, hasActiveWebhook])
 
+  // Update node internals when handles change
   useEffect(() => {
     updateNodeInternals(id)
   }, [id, horizontalHandles, updateNodeInternals])
@@ -215,6 +220,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
+  // Add effect to observe size changes with debounced updates
   useEffect(() => {
     if (!contentRef.current) return
 
@@ -227,10 +233,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }, 100)
 
     const resizeObserver = new ResizeObserver((entries) => {
+      // Cancel any pending animation frame
       if (rafId) {
         cancelAnimationFrame(rafId)
       }
 
+      // Schedule the update on the next animation frame
       rafId = requestAnimationFrame(() => {
         for (const entry of entries) {
           const height =
@@ -256,10 +264,20 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     let currentRow: SubBlockConfig[] = []
     let currentRowWidth = 0
 
-    // Get merged state for this block
-    const blocks = useWorkflowStore.getState().blocks
-    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
-    const mergedState = mergeSubblockState(blocks, activeWorkflowId, blockId)[blockId]
+    // Get the appropriate state for conditional evaluation
+    let stateToUse: Record<string, any> = {}
+
+    if (data.isPreview && data.subBlockValues) {
+      // In preview mode, use the preview values
+      stateToUse = data.subBlockValues
+    } else {
+      // In normal mode, use merged state
+      const blocks = useWorkflowStore.getState().blocks
+      const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId || undefined
+      const mergedState = mergeSubblockState(blocks, activeWorkflowId, blockId)[blockId]
+      stateToUse = mergedState?.subBlocks || {}
+    }
+
     const isAdvancedMode = useWorkflowStore.getState().blocks[blockId]?.advancedMode ?? false
 
     // Filter visible blocks and those that meet their conditions
@@ -275,10 +293,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
       // If there's no condition, the block should be shown
       if (!block.condition) return true
 
-      // Get the values of the fields this block depends on from merged state
-      const fieldValue = mergedState?.subBlocks[block.condition.field]?.value
+      // Get the values of the fields this block depends on from the appropriate state
+      const fieldValue = stateToUse[block.condition.field]?.value
       const andFieldValue = block.condition.and
-        ? mergedState?.subBlocks[block.condition.and.field]?.value
+        ? stateToUse[block.condition.and.field]?.value
         : undefined
 
       // Check if the condition value is an array
@@ -365,7 +383,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
   }
 
-  // Check if this is a starter block and if we need to show schedule / webhook indicators
+  // Check if this is a starter block and has active schedule or webhook
   const isStarterBlock = type === 'starter'
   const showWebhookIndicator = isStarterBlock && hasActiveWebhook
 
@@ -703,7 +721,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                       key={`${id}-${rowIndex}-${blockIndex}`}
                       className={cn('space-y-1', subBlock.layout === 'half' ? 'flex-1' : 'w-full')}
                     >
-                      <SubBlock blockId={id} config={subBlock} isConnecting={isConnecting} />
+                      <SubBlock
+                        blockId={id}
+                        config={subBlock}
+                        isConnecting={isConnecting}
+                        isPreview={data.isPreview}
+                        subBlockValues={data.subBlockValues}
+                      />
                     </div>
                   ))}
                 </div>

@@ -203,6 +203,17 @@ function WorkflowContent() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.shiftKey && event.key === 'L' && !event.ctrlKey && !event.metaKey) {
+        // Don't trigger if user is typing in an input, textarea, or contenteditable element
+        const activeElement = document.activeElement
+        const isEditableElement =
+          activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement?.hasAttribute('contenteditable')
+
+        if (isEditableElement) {
+          return // Allow normal typing behavior
+        }
+
         event.preventDefault()
 
         if (cleanup) cleanup()

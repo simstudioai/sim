@@ -11,7 +11,9 @@ interface ChannelSelectorInputProps {
   subBlock: SubBlockConfig
   disabled?: boolean
   onChannelSelect?: (channelId: string) => void
-  credential?: string // Optional credential override
+  credential?: string
+  isPreview?: boolean
+  previewValue?: any | null
 }
 
 export function ChannelSelectorInput({
@@ -20,6 +22,8 @@ export function ChannelSelectorInput({
   disabled = false,
   onChannelSelect,
   credential: providedCredential,
+  isPreview = false,
+  previewValue,
 }: ChannelSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
@@ -42,19 +46,31 @@ export function ChannelSelectorInput({
     credential = (getValue(blockId, 'credential') as string) || ''
   }
 
-  // Get the current value from the store
+  // Use preview value when in preview mode, otherwise use store value
+  const value = isPreview ? previewValue : getValue(blockId, subBlock.id)
+
+  // Get the current value from the store or prop value if in preview mode
   useEffect(() => {
-    const value = getValue(blockId, subBlock.id)
-    if (value && typeof value === 'string') {
-      setSelectedChannelId(value)
+    if (isPreview && previewValue !== undefined) {
+      const value = previewValue
+      if (value && typeof value === 'string') {
+        setSelectedChannelId(value)
+      }
+    } else {
+      const value = getValue(blockId, subBlock.id)
+      if (value && typeof value === 'string') {
+        setSelectedChannelId(value)
+      }
     }
-  }, [blockId, subBlock.id, getValue])
+  }, [blockId, subBlock.id, getValue, isPreview, previewValue])
 
   // Handle channel selection
   const handleChannelChange = (channelId: string, info?: SlackChannelInfo) => {
     setSelectedChannelId(channelId)
     setChannelInfo(info || null)
-    setValue(blockId, subBlock.id, channelId)
+    if (!isPreview) {
+      setValue(blockId, subBlock.id, channelId)
+    }
     onChannelSelect?.(channelId)
   }
 

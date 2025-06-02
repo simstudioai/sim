@@ -1,5 +1,6 @@
 import type { Edge } from 'reactflow'
 import type { BlockOutput, SubBlockType } from '@/blocks/types'
+import type { DeploymentStatus } from '../registry/types'
 
 export interface Position {
   x: number
@@ -67,13 +68,6 @@ export interface Parallel {
   id: string
   nodes: string[]
   distribution?: any[] | Record<string, any> | string // Items or expression
-}
-
-export interface DeploymentStatus {
-  isDeployed: boolean
-  deployedAt?: Date
-  apiKey?: string
-  needsRedeployment?: boolean
 }
 
 export interface WorkflowState {

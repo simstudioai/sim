@@ -21,6 +21,7 @@ interface ParallelNodeData {
   parallelType?: 'count' | 'collection'
   count?: number
   collection?: string | any[] | Record<string, any>
+  isPreview?: boolean
   executionState?: {
     currentExecution: number
     isExecuting: boolean
@@ -35,6 +36,9 @@ interface ParallelBadgesProps {
 }
 
 export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
+  // Check if this is preview mode
+  const isPreview = data?.isPreview || false
+
   // State
   const [parallelType, setParallelType] = useState<'count' | 'collection'>(
     data?.parallelType || 'collection'
@@ -56,6 +60,8 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   // Update node data to include parallel type
   const updateNodeData = useCallback(
     (updates: Partial<ParallelNodeData>) => {
+      if (isPreview) return // Don't update in preview mode
+
       useWorkflowStore.setState((state) => ({
         blocks: {
           ...state.blocks,
@@ -69,7 +75,7 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         },
       }))
     },
-    [nodeId]
+    [nodeId, isPreview]
   )
 
   // Initialize state from data when it changes
@@ -94,6 +100,8 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   // Handle parallel type change
   const handleParallelTypeChange = useCallback(
     (newType: 'count' | 'collection') => {
+      if (isPreview) return // Don't allow changes in preview mode
+
       setParallelType(newType)
       updateNodeData({ parallelType: newType })
 
@@ -108,23 +116,38 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
 
       setTypePopoverOpen(false)
     },
-    [nodeId, iterations, editorValue, updateNodeData, updateParallelCount, updateParallelCollection]
+    [
+      nodeId,
+      iterations,
+      editorValue,
+      updateNodeData,
+      updateParallelCount,
+      updateParallelCollection,
+      isPreview,
+    ]
   )
 
   // Handle iterations input change
-  const handleIterationsChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
-    const numValue = Number.parseInt(sanitizedValue)
+  const handleIterationsChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (isPreview) return // Don't allow changes in preview mode
 
-    if (!Number.isNaN(numValue)) {
-      setInputValue(Math.min(20, numValue).toString())
-    } else {
-      setInputValue(sanitizedValue)
-    }
-  }, [])
+      const sanitizedValue = e.target.value.replace(/[^0-9]/g, '')
+      const numValue = Number.parseInt(sanitizedValue)
+
+      if (!Number.isNaN(numValue)) {
+        setInputValue(Math.min(20, numValue).toString())
+      } else {
+        setInputValue(sanitizedValue)
+      }
+    },
+    [isPreview]
+  )
 
   // Handle iterations save
   const handleIterationsSave = useCallback(() => {
+    if (isPreview) return // Don't allow changes in preview mode
+
     const value = Number.parseInt(inputValue)
 
     if (!Number.isNaN(value)) {
@@ -136,11 +159,13 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
       setInputValue(iterations.toString())
     }
     setConfigPopoverOpen(false)
-  }, [inputValue, iterations, nodeId, updateParallelCount])
+  }, [inputValue, iterations, nodeId, updateParallelCount, isPreview])
 
   // Handle editor change and check for tag trigger
   const handleEditorChange = useCallback(
     (value: string) => {
+      if (isPreview) return // Don't allow changes in preview mode
+
       setEditorValue(value)
       updateParallelCollection(nodeId, value)
 
@@ -156,12 +181,14 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         setShowTagDropdown(tagTrigger.show)
       }
     },
-    [nodeId, updateParallelCollection]
+    [nodeId, updateParallelCollection, isPreview]
   )
 
   // Handle tag selection
   const handleTagSelect = useCallback(
     (newValue: string) => {
+      if (isPreview) return // Don't allow changes in preview mode
+
       setEditorValue(newValue)
       updateParallelCollection(nodeId, newValue)
       setShowTagDropdown(false)
@@ -174,7 +201,7 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         }
       }, 0)
     },
-    [nodeId, updateParallelCollection]
+    [nodeId, updateParallelCollection, isPreview]
   )
 
   // Handle key events
@@ -187,141 +214,153 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   return (
     <div className='-top-9 absolute right-0 left-0 z-10 flex justify-between'>
       {/* Parallel Type Badge */}
-      <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
+      <Popover
+        open={!isPreview && typePopoverOpen}
+        onOpenChange={isPreview ? undefined : setTypePopoverOpen}
+      >
         <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
           <Badge
             variant='outline'
             className={cn(
               'border-border bg-background/80 py-0.5 pr-1.5 pl-2.5 font-medium text-foreground text-sm backdrop-blur-sm',
-              'cursor-pointer transition-colors duration-150 hover:bg-accent/50',
+              !isPreview && 'cursor-pointer transition-colors duration-150 hover:bg-accent/50',
               'flex items-center gap-1'
             )}
+            style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
           >
             {parallelType === 'count' ? 'Parallel Count' : 'Parallel Each'}
-            <ChevronDown className='h-3 w-3 text-muted-foreground' />
+            {!isPreview && <ChevronDown className='h-3 w-3 text-muted-foreground' />}
           </Badge>
         </PopoverTrigger>
-        <PopoverContent className='w-48 p-3' align='center' onClick={(e) => e.stopPropagation()}>
-          <div className='space-y-2'>
-            <div className='font-medium text-muted-foreground text-xs'>Parallel Type</div>
-            <div className='space-y-1'>
-              <div
-                className={cn(
-                  'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5',
-                  parallelType === 'count' ? 'bg-accent' : 'hover:bg-accent/50'
-                )}
-                onClick={() => handleParallelTypeChange('count')}
-              >
-                <span className='text-sm'>Parallel Count</span>
-              </div>
-              <div
-                className={cn(
-                  'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5',
-                  parallelType === 'collection' ? 'bg-accent' : 'hover:bg-accent/50'
-                )}
-                onClick={() => handleParallelTypeChange('collection')}
-              >
-                <span className='text-sm'>Parallel Each</span>
+        {!isPreview && (
+          <PopoverContent className='w-48 p-3' align='center' onClick={(e) => e.stopPropagation()}>
+            <div className='space-y-2'>
+              <div className='font-medium text-muted-foreground text-xs'>Parallel Type</div>
+              <div className='space-y-1'>
+                <div
+                  className={cn(
+                    'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5',
+                    parallelType === 'count' ? 'bg-accent' : 'hover:bg-accent/50'
+                  )}
+                  onClick={() => handleParallelTypeChange('count')}
+                >
+                  <span className='text-sm'>Parallel Count</span>
+                </div>
+                <div
+                  className={cn(
+                    'flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5',
+                    parallelType === 'collection' ? 'bg-accent' : 'hover:bg-accent/50'
+                  )}
+                  onClick={() => handleParallelTypeChange('collection')}
+                >
+                  <span className='text-sm'>Parallel Each</span>
+                </div>
               </div>
             </div>
-          </div>
-        </PopoverContent>
+          </PopoverContent>
+        )}
       </Popover>
 
       {/* Iterations/Collection Badge */}
-      <Popover open={configPopoverOpen} onOpenChange={setConfigPopoverOpen}>
+      <Popover
+        open={!isPreview && configPopoverOpen}
+        onOpenChange={isPreview ? undefined : setConfigPopoverOpen}
+      >
         <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
           <Badge
             variant='outline'
             className={cn(
               'border-border bg-background/80 py-0.5 pr-1.5 pl-2.5 font-medium text-foreground text-sm backdrop-blur-sm',
-              'cursor-pointer transition-colors duration-150 hover:bg-accent/50',
+              !isPreview && 'cursor-pointer transition-colors duration-150 hover:bg-accent/50',
               'flex items-center gap-1'
             )}
+            style={{ pointerEvents: isPreview ? 'none' : 'auto' }}
           >
             {parallelType === 'count' ? `Iterations: ${iterations}` : 'Items'}
-            <ChevronDown className='h-3 w-3 text-muted-foreground' />
+            {!isPreview && <ChevronDown className='h-3 w-3 text-muted-foreground' />}
           </Badge>
         </PopoverTrigger>
-        <PopoverContent
-          className={cn('p-3', parallelType !== 'count' ? 'w-72' : 'w-48')}
-          align='center'
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={handleKeyDown}
-        >
-          <div className='space-y-2'>
-            <div className='font-medium text-muted-foreground text-xs'>
-              {parallelType === 'count' ? 'Parallel Iterations' : 'Parallel Items'}
-            </div>
-
-            {parallelType === 'count' ? (
-              // Number input for count-based parallel
-              <div className='flex items-center gap-2'>
-                <Input
-                  type='text'
-                  value={inputValue}
-                  onChange={handleIterationsChange}
-                  onBlur={handleIterationsSave}
-                  onKeyDown={(e) => e.key === 'Enter' && handleIterationsSave()}
-                  className='h-8 text-sm'
-                  autoFocus
-                />
+        {!isPreview && (
+          <PopoverContent
+            className={cn('p-3', parallelType !== 'count' ? 'w-72' : 'w-48')}
+            align='center'
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={handleKeyDown}
+          >
+            <div className='space-y-2'>
+              <div className='font-medium text-muted-foreground text-xs'>
+                {parallelType === 'count' ? 'Parallel Iterations' : 'Parallel Items'}
               </div>
-            ) : (
-              // Code editor for collection-based parallel
-              <div className='relative'>
-                <div
-                  ref={editorContainerRef}
-                  className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'
-                >
-                  {editorValue === '' && (
-                    <div className='pointer-events-none absolute top-[8.5px] left-3 select-none text-muted-foreground/50'>
-                      ['item1', 'item2', 'item3']
-                    </div>
+
+              {parallelType === 'count' ? (
+                // Number input for count-based parallel
+                <div className='flex items-center gap-2'>
+                  <Input
+                    type='text'
+                    value={inputValue}
+                    onChange={handleIterationsChange}
+                    onBlur={handleIterationsSave}
+                    onKeyDown={(e) => e.key === 'Enter' && handleIterationsSave()}
+                    className='h-8 text-sm'
+                    autoFocus
+                  />
+                </div>
+              ) : (
+                // Code editor for collection-based parallel
+                <div className='relative'>
+                  <div
+                    ref={editorContainerRef}
+                    className='relative min-h-[80px] rounded-md border border-input bg-background px-3 pt-2 pb-3 font-mono text-sm'
+                  >
+                    {editorValue === '' && (
+                      <div className='pointer-events-none absolute top-[8.5px] left-3 select-none text-muted-foreground/50'>
+                        ['item1', 'item2', 'item3']
+                      </div>
+                    )}
+                    <Editor
+                      value={editorValue}
+                      onValueChange={handleEditorChange}
+                      highlight={(code) => highlight(code, languages.javascript, 'javascript')}
+                      padding={0}
+                      style={{
+                        fontFamily: 'monospace',
+                        lineHeight: '21px',
+                      }}
+                      className='w-full focus:outline-none'
+                      textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap'
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setShowTagDropdown(false)
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className='mt-2 text-[10px] text-muted-foreground'>
+                    Array or object to use for parallel execution. Type "{'<'}" to reference other
+                    blocks.
+                  </div>
+                  {showTagDropdown && (
+                    <TagDropdown
+                      visible={showTagDropdown}
+                      onSelect={handleTagSelect}
+                      blockId={nodeId}
+                      activeSourceBlockId={null}
+                      inputValue={editorValue}
+                      cursorPosition={cursorPosition}
+                      onClose={() => setShowTagDropdown(false)}
+                    />
                   )}
-                  <Editor
-                    value={editorValue}
-                    onValueChange={handleEditorChange}
-                    highlight={(code) => highlight(code, languages.javascript, 'javascript')}
-                    padding={0}
-                    style={{
-                      fontFamily: 'monospace',
-                      lineHeight: '21px',
-                    }}
-                    className='w-full focus:outline-none'
-                    textareaClassName='focus:outline-none focus:ring-0 bg-transparent resize-none w-full overflow-hidden whitespace-pre-wrap'
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') {
-                        setShowTagDropdown(false)
-                      }
-                    }}
-                  />
                 </div>
-                <div className='mt-2 text-[10px] text-muted-foreground'>
-                  Array or object to use for parallel execution. Type "{'<'}" to reference other
-                  blocks.
-                </div>
-                {showTagDropdown && (
-                  <TagDropdown
-                    visible={showTagDropdown}
-                    onSelect={handleTagSelect}
-                    blockId={nodeId}
-                    activeSourceBlockId={null}
-                    inputValue={editorValue}
-                    cursorPosition={cursorPosition}
-                    onClose={() => setShowTagDropdown(false)}
-                  />
-                )}
-              </div>
-            )}
+              )}
 
-            {parallelType === 'count' && (
-              <div className='text-[10px] text-muted-foreground'>
-                Enter a number between 1 and 20
-              </div>
-            )}
-          </div>
-        </PopoverContent>
+              {parallelType === 'count' && (
+                <div className='text-[10px] text-muted-foreground'>
+                  Enter a number between 1 and 20
+                </div>
+              )}
+            </div>
+          </PopoverContent>
+        )}
       </Popover>
     </div>
   )

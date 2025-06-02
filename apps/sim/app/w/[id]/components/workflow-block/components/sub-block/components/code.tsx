@@ -25,6 +25,9 @@ interface CodeProps {
   placeholder?: string
   language?: 'javascript' | 'json'
   generationType?: 'javascript-function-body' | 'json-schema'
+  value?: string
+  isPreview?: boolean
+  previewValue?: string | null
 }
 
 if (typeof document !== 'undefined') {
@@ -52,6 +55,9 @@ export function Code({
   placeholder = 'Write JavaScript...',
   language = 'javascript',
   generationType = 'javascript-function-body',
+  value: propValue,
+  isPreview = false,
+  previewValue,
 }: CodeProps) {
   // Determine the AI prompt placeholder based on language
   const aiPromptPlaceholder =
@@ -83,6 +89,8 @@ export function Code({
   const toggleCollapsed = () => {
     setCollapsedValue(blockId, collapsedStateKey, !isCollapsed)
   }
+  // Use preview value when in preview mode, otherwise use store value or prop value
+  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   // AI Code Generation Hook
   const handleStreamStart = () => {
@@ -93,14 +101,18 @@ export function Code({
 
   const handleGeneratedContent = (generatedCode: string) => {
     setCode(generatedCode)
-    setStoreValue(generatedCode)
+    if (!isPreview) {
+      setStoreValue(generatedCode)
+    }
   }
 
   // Handle streaming chunks directly into the editor
   const handleStreamChunk = (chunk: string) => {
     setCode((currentCode) => {
       const newCode = currentCode + chunk
-      setStoreValue(newCode)
+      if (!isPreview) {
+        setStoreValue(newCode)
+      }
       return newCode
     })
   }
@@ -126,11 +138,11 @@ export function Code({
 
   // Effects
   useEffect(() => {
-    const valueString = storeValue?.toString() ?? ''
+    const valueString = value?.toString() ?? ''
     if (valueString !== code) {
       setCode(valueString)
     }
-  }, [storeValue])
+  }, [value])
 
   useEffect(() => {
     if (!editorRef.current) return
@@ -201,6 +213,7 @@ export function Code({
 
   // Handlers
   const handleDrop = (e: React.DragEvent) => {
+    if (isPreview) return
     e.preventDefault()
     try {
       const data = JSON.parse(e.dataTransfer.getData('application/json'))
@@ -233,8 +246,10 @@ export function Code({
   }
 
   const handleTagSelect = (newValue: string) => {
-    setCode(newValue)
-    setStoreValue(newValue)
+    if (!isPreview) {
+      setCode(newValue)
+      setStoreValue(newValue)
+    }
     setShowTags(false)
     setActiveSourceBlockId(null)
 
@@ -244,8 +259,10 @@ export function Code({
   }
 
   const handleEnvVarSelect = (newValue: string) => {
-    setCode(newValue)
-    setStoreValue(newValue)
+    if (!isPreview) {
+      setCode(newValue)
+      setStoreValue(newValue)
+    }
     setShowEnvVars(false)
 
     setTimeout(() => {
@@ -310,7 +327,7 @@ export function Code({
         onDrop={handleDrop}
       >
         <div className='absolute top-2 right-3 z-10 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
-          {!isCollapsed && !isAiStreaming && (
+          {!isCollapsed && !isAiStreaming && !isPreview && (
             <Button
               variant='ghost'
               size='icon'
@@ -323,7 +340,7 @@ export function Code({
             </Button>
           )}
 
-          {showCollapseButton && !isAiStreaming && (
+          {showCollapseButton && !isAiStreaming && !isPreview && (
             <Button
               variant='ghost'
               size='sm'
@@ -360,7 +377,7 @@ export function Code({
           <Editor
             value={code}
             onValueChange={(newCode) => {
-              if (!isCollapsed && !isAiStreaming) {
+              if (!isCollapsed && !isAiStreaming && !isPreview) {
                 setCode(newCode)
                 setStoreValue(newCode)
 

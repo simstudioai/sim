@@ -34,6 +34,8 @@ interface CredentialSelectorProps {
   label?: string
   disabled?: boolean
   serviceId?: string
+  isPreview?: boolean
+  previewValue?: any | null
 }
 
 export function CredentialSelector({
@@ -44,12 +46,23 @@ export function CredentialSelector({
   label = 'Select credential',
   disabled = false,
   serviceId,
+  isPreview = false,
+  previewValue,
 }: CredentialSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
-  const [selectedId, setSelectedId] = useState(value)
+  const [selectedId, setSelectedId] = useState('')
+
+  // Initialize selectedId with the effective value
+  useEffect(() => {
+    if (isPreview && previewValue !== undefined) {
+      setSelectedId(previewValue || '')
+    } else {
+      setSelectedId(value)
+    }
+  }, [value, isPreview, previewValue])
 
   // Derive service and provider IDs using useMemo
   const effectiveServiceId = useMemo(() => {
@@ -110,8 +123,9 @@ export function CredentialSelector({
 
   // Update local state when external value changes
   useEffect(() => {
-    setSelectedId(value)
-  }, [value])
+    const currentValue = isPreview ? previewValue : value
+    setSelectedId(currentValue || '')
+  }, [value, isPreview, previewValue])
 
   // Listen for visibility changes to update credentials when user returns from settings
   useEffect(() => {
@@ -143,7 +157,9 @@ export function CredentialSelector({
   // Handle selection
   const handleSelect = (credentialId: string) => {
     setSelectedId(credentialId)
-    onChange(credentialId)
+    if (!isPreview) {
+      onChange(credentialId)
+    }
     setOpen(false)
   }
 
