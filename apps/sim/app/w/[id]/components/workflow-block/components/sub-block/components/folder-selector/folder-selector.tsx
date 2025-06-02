@@ -37,6 +37,8 @@ interface FolderSelectorProps {
   disabled?: boolean
   serviceId?: string
   onFolderInfoChange?: (folderInfo: FolderInfo | null) => void
+  isPreview?: boolean
+  previewValue?: any | null
 }
 
 export function FolderSelector({
@@ -48,17 +50,28 @@ export function FolderSelector({
   disabled = false,
   serviceId,
   onFolderInfoChange,
+  isPreview = false,
+  previewValue,
 }: FolderSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
   const [folders, setFolders] = useState<FolderInfo[]>([])
   const [selectedCredentialId, setSelectedCredentialId] = useState<string>('')
-  const [selectedFolderId, setSelectedFolderId] = useState(value)
+  const [selectedFolderId, setSelectedFolderId] = useState('')
   const [selectedFolder, setSelectedFolder] = useState<FolderInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingSelectedFolder, setIsLoadingSelectedFolder] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const initialFetchRef = useRef(false)
+
+  // Initialize selectedFolderId with the effective value
+  useEffect(() => {
+    if (isPreview && previewValue !== undefined) {
+      setSelectedFolderId(previewValue || '')
+    } else {
+      setSelectedFolderId(value)
+    }
+  }, [value, isPreview, previewValue])
 
   // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
@@ -226,23 +239,35 @@ export function FolderSelector({
 
   // Keep internal selectedFolderId in sync with the value prop
   useEffect(() => {
-    if (value !== selectedFolderId) {
-      setSelectedFolderId(value)
+    const currentValue = isPreview ? previewValue : value
+    if (currentValue !== selectedFolderId) {
+      setSelectedFolderId(currentValue || '')
     }
-  }, [value])
+  }, [value, isPreview, previewValue])
 
   // Fetch the selected folder metadata once credentials are ready (Gmail only)
   useEffect(() => {
-    if (value && selectedCredentialId && !selectedFolder && provider !== 'outlook') {
-      fetchFolderById(value)
+    const currentValue = isPreview ? previewValue : value
+    if (currentValue && selectedCredentialId && !selectedFolder && provider !== 'outlook') {
+      fetchFolderById(currentValue)
     }
-  }, [value, selectedCredentialId, selectedFolder, fetchFolderById, provider])
+  }, [
+    value,
+    selectedCredentialId,
+    selectedFolder,
+    fetchFolderById,
+    provider,
+    isPreview,
+    previewValue,
+  ])
 
   // Handle folder selection
   const handleSelectFolder = (folder: FolderInfo) => {
     setSelectedFolderId(folder.id)
     setSelectedFolder(folder)
-    onChange(folder.id, folder)
+    if (!isPreview) {
+      onChange(folder.id, folder)
+    }
     onFolderInfoChange?.(folder)
     setOpen(false)
   }
