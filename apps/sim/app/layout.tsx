@@ -49,24 +49,35 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: 'Sim Studio',
+  title: {
+    template: '',
+    default: 'Sim Studio',
+  },
   description:
-    'Build agents in seconds with a drag and drop workflow builder. Streamline your automation processes, boost productivity, and create custom workflows.',
+    'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
   applicationName: 'Sim Studio',
-  authors: [{ name: 'Simplicity' }],
+  authors: [{ name: 'Sim Studio' }],
   generator: 'Next.js',
   keywords: [
-    'workflow automation',
-    'drag and drop',
-    'agents',
-    'Simplicity',
-    'workflow builder',
-    'automation tools',
+    'AI agent',
+    'AI agent builder',
+    'AI agent workflow',
+    'AI workflow automation',
+    'visual workflow editor',
+    'AI agents',
+    'workflow canvas',
+    'intelligent automation',
+    'AI tools',
+    'workflow designer',
+    'artificial intelligence',
+    'business automation',
+    'AI agent workflows',
+    'visual programming',
   ],
   referrer: 'origin-when-cross-origin',
-  creator: 'Simplicity',
-  publisher: 'Simplicity',
-  metadataBase: new URL('https://simstudio.ai'), // Replace with your actual domain
+  creator: 'Sim Studio',
+  publisher: 'Sim Studio',
+  metadataBase: new URL('https://simstudio.ai'),
   alternates: {
     canonical: '/',
     languages: {
@@ -88,15 +99,15 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     url: 'https://simstudio.ai',
-    title: 'Sim Studio | Create Workflows with Drag and Drop Agents',
+    title: 'Sim Studio',
     description:
-      'Build agents in seconds with a drag and drop workflow builder. Streamline your automation processes, boost productivity, and create custom workflows.',
+      'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
     siteName: 'Sim Studio',
     images: [
       {
         url: 'https://simstudio.ai/social/facebook.png',
         width: 1200,
-        height: 600,
+        height: 630,
         alt: 'Sim Studio',
       },
     ],
@@ -105,18 +116,26 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Sim Studio',
     description:
-      'Build agents in seconds with a drag and drop workflow builder. Streamline your automation processes, boost productivity, and create custom workflows.',
+      'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
     images: ['https://simstudio.ai/social/twitter.png'],
-    creator: '@simplicity',
-    site: '@simstudio',
+    creator: '@simstudioai',
+    site: '@simstudioai',
   },
   manifest: '/favicon/site.webmanifest',
   icons: {
     icon: [
       { url: '/favicon/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/favicon/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon/favicon-192x192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/favicon/favicon-512x512.png', sizes: '512x512', type: 'image/png' },
+      {
+        url: '/favicon/favicon-192x192.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        url: '/favicon/favicon-512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
       { url: '/sim.png', sizes: 'any', type: 'image/png' },
     ],
     apple: '/favicon/apple-touch-icon.png',
@@ -130,6 +149,7 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  category: 'technology',
   other: {
     'apple-mobile-web-app-capable': 'yes',
     'mobile-web-app-capable': 'yes',
@@ -142,20 +162,63 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang='en' suppressHydrationWarning>
       <head>
-        {/* Additional meta tags for sharing */}
+        {/* Structured Data for SEO */}
+        <script
+          type='application/ld+json'
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'SoftwareApplication',
+              name: 'Sim Studio',
+              description:
+                'Build and deploy AI agents using our Figma-like canvas. Build, write evals, and deploy AI agent workflows that automate workflows and streamline your business processes.',
+              url: 'https://simstudio.ai',
+              applicationCategory: 'BusinessApplication',
+              operatingSystem: 'Web Browser',
+              offers: {
+                '@type': 'Offer',
+                category: 'SaaS',
+              },
+              creator: {
+                '@type': 'Organization',
+                name: 'Sim Studio',
+                url: 'https://simstudio.ai',
+              },
+              featureList: [
+                'Visual AI Agent Builder',
+                'Workflow Canvas Interface',
+                'AI Agent Automation',
+                'Custom AI Workflows',
+              ],
+            }),
+          }}
+        />
+
+        {/* Enhanced meta tags for better SEO */}
+        <meta name='theme-color' content='#ffffff' />
+        <meta name='color-scheme' content='light' />
+        <meta name='format-detection' content='telephone=no' />
+        <meta httpEquiv='x-ua-compatible' content='ie=edge' />
+
+        {/* Additional Open Graph tags */}
         <meta property='og:image:width' content='1200' />
-        <meta property='og:image:height' content='600' />
+        <meta property='og:image:height' content='630' />
+        <meta
+          property='og:image:alt'
+          content='Sim Studio - AI Agent Builder with Visual Canvas Interface'
+        />
+        <meta property='og:site_name' content='Sim Studio' />
+        <meta property='og:locale' content='en_US' />
+
+        {/* Enhanced Twitter Card tags */}
         <meta name='twitter:image:width' content='1200' />
         <meta name='twitter:image:height' content='675' />
-        <meta name='twitter:image:alt' content='Sim Studio' />
-        <meta name='twitter:image' content='https://simstudio.ai/social/twitter.png' />
+        <meta name='twitter:image:alt' content='Sim Studio - AI Agent Builder' />
         <meta name='twitter:url' content='https://simstudio.ai' />
-        <meta property='og:image:alt' content='Sim Studio' />
+        <meta name='twitter:domain' content='simstudio.ai' />
+
+        {/* Additional image sources */}
         <link rel='image_src' href='https://simstudio.ai/social/facebook.png' />
-        {/* Instagram image meta */}
-        <meta property='og:image' content='https://simstudio.ai/social/instagram.png' />
-        <meta property='og:image:width' content='1080' />
-        <meta property='og:image:height' content='1080' />
 
         <PublicEnvScript />
       </head>
