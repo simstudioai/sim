@@ -5,6 +5,7 @@ import { isSupportedFileType, parseBuffer, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console-logger'
 import { type CustomS3Config, getPresignedUrlWithConfig, uploadToS3 } from '@/lib/uploads/s3-client'
 import { mistralParserTool } from '@/tools/mistral/parser'
+import { retryWithExponentialBackoff } from './utils'
 
 const logger = createLogger('DocumentProcessor')
 
@@ -127,16 +128,39 @@ async function parseDocument(
         resultType: 'text',
       })
 
-      // Make the actual API call to Mistral
-      const response = await fetch('https://api.mistral.ai/v1/ocr', {
-        method: mistralParserTool.request.method,
-        headers: mistralParserTool.request.headers({
-          filePath: httpsUrl,
-          apiKey: mistralApiKey,
-          resultType: 'text',
-        }),
-        body: JSON.stringify(requestBody),
-      })
+      // Make the actual API call to Mistral with retry logic
+      const response = await retryWithExponentialBackoff(
+        async () => {
+          logger.info(`Calling Mistral OCR API for "${filename}"`)
+
+          const response = await fetch('https://api.mistral.ai/v1/ocr', {
+            method: mistralParserTool.request.method,
+            headers: mistralParserTool.request.headers({
+              filePath: httpsUrl,
+              apiKey: mistralApiKey,
+              resultType: 'text',
+            }),
+            body: JSON.stringify(requestBody),
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            const error = new Error(
+              `Mistral API error: ${response.status} ${response.statusText} - ${errorText}`
+            )
+            ;(error as any).status = response.status
+            throw error
+          }
+
+          return response
+        },
+        {
+          maxRetries: 5,
+          initialDelayMs: 2000, // Start with 2 seconds for Mistral OCR
+          maxDelayMs: 120000, // Max 2 minutes delay for OCR processing
+          backoffMultiplier: 2,
+        }
+      )
 
       if (!mistralParserTool.transformResponse) {
         throw new Error('Mistral parser transform function not available')
@@ -158,6 +182,7 @@ async function parseDocument(
         s3Url,
       }
     }
+
     // Use file parser for other supported types
     let content: string
 

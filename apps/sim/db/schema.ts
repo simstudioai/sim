@@ -486,6 +486,12 @@ export const document = pgTable(
     tokenCount: integer('token_count').notNull().default(0),
     characterCount: integer('character_count').notNull().default(0),
 
+    // Processing status
+    processingStatus: text('processing_status').notNull().default('pending'), // 'pending', 'processing', 'completed', 'failed'
+    processingStartedAt: timestamp('processing_started_at'),
+    processingCompletedAt: timestamp('processing_completed_at'),
+    processingError: text('processing_error'),
+
     // Document state
     enabled: boolean('enabled').notNull().default(true), // Enable/disable from knowledge base
     deletedAt: timestamp('deleted_at'), // Soft delete
@@ -502,6 +508,11 @@ export const document = pgTable(
     filenameIdx: index('doc_filename_idx').on(table.filename),
     // Order by upload date (for listing documents)
     kbUploadedAtIdx: index('doc_kb_uploaded_at_idx').on(table.knowledgeBaseId, table.uploadedAt),
+    // Processing status filtering
+    processingStatusIdx: index('doc_processing_status_idx').on(
+      table.knowledgeBaseId,
+      table.processingStatus
+    ),
   })
 )
 

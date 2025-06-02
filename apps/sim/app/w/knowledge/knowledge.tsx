@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from 'react'
 import { LibraryBig, Plus, Search, X } from 'lucide-react'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { BaseOverview } from './components/base-overview/base-overview'
 import { CreateModal } from './components/create-modal/create-modal'
 import { EmptyStateCard } from './components/empty-state-card/empty-state-card'
 import { KnowledgeBaseCardSkeletonGrid } from './components/skeletons/knowledge-base-card-skeleton'
+
+const logger = createLogger('Knowledge')
 
 interface KnowledgeBase {
   id: string
@@ -54,7 +57,7 @@ export function Knowledge() {
           throw new Error(result.error || 'Failed to fetch knowledge bases')
         }
       } catch (err) {
-        console.error('Error fetching knowledge bases:', err)
+        logger.error('Error fetching knowledge bases:', err)
         setError(err instanceof Error ? err.message : 'An error occurred')
       } finally {
         setIsLoading(false)

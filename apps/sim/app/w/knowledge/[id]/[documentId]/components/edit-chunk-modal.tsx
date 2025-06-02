@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('EditChunkModal')
 
 interface ChunkData {
   id: string
@@ -96,7 +99,7 @@ export function EditChunkModal({
         onClose()
       }
     } catch (error) {
-      console.error('Error updating chunk:', error)
+      logger.error('Error updating chunk:', error)
     } finally {
       setIsSaving(false)
     }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, CheckCircle2, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -10,9 +10,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { createLogger } from '@/lib/logs/console-logger'
 import { getDocumentIcon } from '@/app/w/knowledge/components/icons/document-icons'
 
-// Define form schema
+const logger = createLogger('CreateForm')
+
 const formSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
   description: z.string().max(500, 'Description must be less than 500 characters').optional(),
@@ -20,7 +22,6 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-// File upload constraints
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 const ACCEPTED_FILE_TYPES = [
   'application/pdf',
@@ -47,6 +48,7 @@ interface KnowledgeBase {
   createdAt: string
   updatedAt: string
   workspaceId?: string
+  docCount: number
 }
 
 interface CreateFormProps {
@@ -62,8 +64,20 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [dragCounter, setDragCounter] = useState(0) // Track drag events to handle nested elements
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
+
+  // Cleanup file preview URLs when component unmounts to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      files.forEach((file) => {
+        if (file.preview) {
+          URL.revokeObjectURL(file.preview)
+        }
+      })
+    }
+  }, [files])
 
   const {
     register,
@@ -117,7 +131,7 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
         setFiles((prev) => [...prev, ...newFiles])
       }
     } catch (error) {
-      console.error('Error processing files:', error)
+      logger.error('Error processing files:', error)
       setFileError('An error occurred while processing files. Please try again.')
     } finally {
       // Reset the input
@@ -137,24 +151,39 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsDragging(true)
+    setDragCounter((prev) => {
+      const newCount = prev + 1
+      if (newCount === 1) {
+        setIsDragging(true)
+      }
+      return newCount
+    })
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsDragging(false)
+    setDragCounter((prev) => {
+      const newCount = prev - 1
+      if (newCount === 0) {
+        setIsDragging(false)
+      }
+      return newCount
+    })
   }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    // Add visual feedback for valid drop zone
+    e.dataTransfer.dropEffect = 'copy'
   }
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragging(false)
+    setDragCounter(0)
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       await processFiles(e.dataTransfer.files)
@@ -214,7 +243,7 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
 
       const newKnowledgeBase = result.data
 
-      // If files are uploaded, process them
+      // If files are uploaded, upload them and start processing
       if (files.length > 0) {
         // First, upload all files to get their URLs
         const uploadedFiles = []
@@ -245,40 +274,29 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
           })
         }
 
-        // Now process the uploaded files
-        const processResponse = await fetch(
-          `/api/knowledge/${newKnowledgeBase.id}/process-documents`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
+        // Start async document processing - don't wait for completion
+        fetch(`/api/knowledge/${newKnowledgeBase.id}/process-documents`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            documents: uploadedFiles,
+            processingOptions: {
+              chunkSize: 1024,
+              minCharactersPerChunk: 24,
+              recipe: 'default',
+              lang: 'en',
             },
-            body: JSON.stringify({
-              documents: uploadedFiles,
-              processingOptions: {
-                chunkSize: 1024,
-                minCharactersPerChunk: 24,
-                recipe: 'default',
-                lang: 'en',
-              },
-            }),
-          }
-        )
+          }),
+        }).catch((error) => {
+          logger.error('Background document processing failed:', error)
+        })
 
-        if (!processResponse.ok) {
-          const errorData = await processResponse.json()
-          throw new Error(errorData.error || 'Failed to process documents')
-        }
+        // Update the knowledge base object with the correct document count
+        newKnowledgeBase.docCount = uploadedFiles.length
 
-        const processResult = await processResponse.json()
-
-        if (!processResult.success) {
-          throw new Error(processResult.error || 'Failed to process documents')
-        }
-
-        console.log(
-          `Processed ${processResult.data.processed}/${processResult.data.total} documents with ${processResult.data.totalChunks} total chunks`
-        )
+        console.log(`Started processing ${uploadedFiles.length} documents in the background`)
       }
 
       setSubmitStatus('success')
@@ -296,9 +314,9 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
       // Close modal after a short delay to show success message
       setTimeout(() => {
         onClose()
-      }, 2000)
+      }, 1500)
     } catch (error) {
-      console.error('Error creating knowledge base:', error)
+      logger.error('Error creating knowledge base:', error)
       setSubmitStatus('error')
       setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred')
     } finally {
@@ -378,10 +396,10 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`relative cursor-pointer rounded-lg border-[1px] border-dashed p-16 text-center transition-colors ${
+                  className={`relative cursor-pointer rounded-lg border-2 border-dashed p-16 text-center transition-all duration-200 ${
                     isDragging
-                      ? 'border-primary bg-primary/5'
-                      : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                      ? 'border-purple-300 bg-purple-50 shadow-sm'
+                      : 'border-muted-foreground/25 hover:border-muted-foreground/40 hover:bg-muted/10'
                   }`}
                 >
                   <input
@@ -392,9 +410,22 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                     className='hidden'
                     multiple
                   />
-                  <div className='flex flex-col items-center gap-2'>
+                  <div className='flex flex-col items-center gap-3'>
+                    <div
+                      className={`text-4xl transition-all duration-200 ${
+                        isDragging ? 'text-purple-500' : 'text-muted-foreground'
+                      }`}
+                    >
+                      📁
+                    </div>
                     <div className='space-y-1'>
-                      <p className='font-medium text-sm'>Drop files here or click to browse</p>
+                      <p
+                        className={`font-medium text-sm transition-colors duration-200 ${
+                          isDragging ? 'text-purple-700' : ''
+                        }`}
+                      >
+                        {isDragging ? 'Drop files here!' : 'Drop files here or click to browse'}
+                      </p>
                       <p className='text-muted-foreground text-xs'>
                         Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 50MB each)
                       </p>
@@ -412,10 +443,10 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
                       onClick={() => fileInputRef.current?.click()}
-                      className={`flex cursor-pointer items-center justify-center rounded-md border border-dashed p-3 transition-colors ${
+                      className={`cursor-pointer rounded-md border border-dashed p-3 text-center transition-all duration-200 ${
                         isDragging
-                          ? 'border-primary bg-primary/5'
-                          : 'border-muted-foreground/25 hover:border-muted-foreground/50'
+                          ? 'border-purple-300 bg-purple-50'
+                          : 'border-muted-foreground/25 hover:border-muted-foreground/40 hover:bg-muted/10'
                       }`}
                     >
                       <input
@@ -426,11 +457,28 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                         className='hidden'
                         multiple
                       />
-                      <div className='text-center'>
-                        <p className='font-medium text-sm'>Drop more files or click to browse</p>
-                        <p className='text-muted-foreground text-xs'>
-                          PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 50MB each)
-                        </p>
+                      <div className='flex items-center justify-center gap-2'>
+                        <div
+                          className={`text-base transition-colors duration-200 ${
+                            isDragging ? 'text-purple-500' : 'text-muted-foreground'
+                          }`}
+                        >
+                          📁
+                        </div>
+                        <div>
+                          <p
+                            className={`font-medium text-sm transition-colors duration-200 ${
+                              isDragging ? 'text-purple-700' : ''
+                            }`}
+                          >
+                            {isDragging
+                              ? 'Drop more files here!'
+                              : 'Drop more files or click to browse'}
+                          </p>
+                          <p className='text-muted-foreground text-xs'>
+                            PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 50MB each)
+                          </p>
+                        </div>
                       </div>
                     </div>
 
@@ -458,7 +506,13 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                   </div>
                 </div>
               )}
-              {fileError && <p className='mt-1 text-red-500 text-sm'>{fileError}</p>}
+              {fileError && (
+                <Alert variant='destructive' className='mt-1'>
+                  <AlertCircle className='h-4 w-4' />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{fileError}</AlertDescription>
+                </Alert>
+              )}
             </div>
           </div>
         </div>

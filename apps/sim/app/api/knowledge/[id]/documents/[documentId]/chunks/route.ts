@@ -1,10 +1,11 @@
-import { and, asc, eq, ilike, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, ilike, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { document, embedding, knowledgeBase } from '@/db/schema'
+import { embedding } from '@/db/schema'
+import { checkDocumentAccess } from '../../../../utils'
 
 const logger = createLogger('DocumentChunksAPI')
 
@@ -15,48 +16,6 @@ const GetChunksQuerySchema = z.object({
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   offset: z.coerce.number().min(0).optional().default(0),
 })
-
-async function checkDocumentAccess(knowledgeBaseId: string, documentId: string, userId: string) {
-  // First check knowledge base access
-  const kb = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-    })
-    .from(knowledgeBase)
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-    .limit(1)
-
-  if (kb.length === 0) {
-    return { hasAccess: false, notFound: true, reason: 'Knowledge base not found' }
-  }
-
-  const kbData = kb[0]
-
-  // Check if user owns the knowledge base
-  if (kbData.userId !== userId) {
-    return { hasAccess: false, reason: 'Unauthorized knowledge base access' }
-  }
-
-  // Now check if document exists and belongs to the knowledge base
-  const doc = await db
-    .select()
-    .from(document)
-    .where(
-      and(
-        eq(document.id, documentId),
-        eq(document.knowledgeBaseId, knowledgeBaseId),
-        isNull(document.deletedAt)
-      )
-    )
-    .limit(1)
-
-  if (doc.length === 0) {
-    return { hasAccess: false, notFound: true, reason: 'Document not found' }
-  }
-
-  return { hasAccess: true, document: doc[0], knowledgeBase: kbData }
-}
 
 export async function GET(
   req: NextRequest,
@@ -74,16 +33,40 @@ export async function GET(
 
     const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, session.user.id)
 
-    if (accessCheck.notFound) {
-      logger.warn(`[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`)
-      return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
-    }
-
     if (!accessCheck.hasAccess) {
+      if (accessCheck.notFound) {
+        logger.warn(
+          `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
+        )
+        return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
+      }
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted unauthorized chunks access: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check if document processing is completed
+    const doc = accessCheck.document
+    if (!doc) {
+      logger.warn(
+        `[${requestId}] Document data not available: KB=${knowledgeBaseId}, Doc=${documentId}`
+      )
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 })
+    }
+
+    if (doc.processingStatus !== 'completed') {
+      logger.warn(
+        `[${requestId}] Document ${documentId} is not ready for chunk access (status: ${doc.processingStatus})`
+      )
+      return NextResponse.json(
+        {
+          error: 'Document is not ready for access',
+          details: `Document status: ${doc.processingStatus}`,
+          retryAfter: doc.processingStatus === 'processing' ? 5 : null,
+        },
+        { status: 400 }
+      )
     }
 
     // Parse query parameters

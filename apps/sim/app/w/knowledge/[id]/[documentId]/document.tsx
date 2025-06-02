@@ -6,9 +6,12 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { DocumentLoading } from './components/document-loading'
 import { EditChunkModal } from './components/edit-chunk-modal'
+
+const logger = createLogger('Document')
 
 interface DocumentProps {
   knowledgeBaseId: string
@@ -28,6 +31,10 @@ interface DocumentData {
   chunkCount: number
   tokenCount: number
   characterCount: number
+  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  processingStartedAt: string | null
+  processingCompletedAt: string | null
+  processingError: string | null
   enabled: boolean
   uploadedAt: string
 }
@@ -125,7 +132,7 @@ export function Document({
           throw new Error(result.error || 'Failed to fetch document')
         }
       } catch (err) {
-        console.error('Error fetching document:', err)
+        logger.error('Error fetching document:', err)
         setError(err instanceof Error ? err.message : 'An error occurred')
       } finally {
         setIsLoadingDocument(false)
@@ -136,6 +143,33 @@ export function Document({
       fetchDocument()
     }
   }, [knowledgeBaseId, documentId])
+
+  // Auto-refresh document when processing
+  useEffect(() => {
+    if (
+      !document ||
+      document.processingStatus === 'completed' ||
+      document.processingStatus === 'failed'
+    ) {
+      return
+    }
+
+    const refreshInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`)
+        if (response.ok) {
+          const result = await response.json()
+          if (result.success) {
+            setDocument(result.data)
+          }
+        }
+      } catch (error) {
+        logger.error('Error refreshing document:', error)
+      }
+    }, 3000) // Refresh every 3 seconds
+
+    return () => clearInterval(refreshInterval)
+  }, [knowledgeBaseId, documentId, document])
 
   // Fetch chunks data
   const fetchChunks = useCallback(
@@ -171,7 +205,7 @@ export function Document({
           throw new Error(result.error || 'Failed to fetch chunks')
         }
       } catch (err) {
-        console.error('Error fetching chunks:', err)
+        logger.error('Error fetching chunks:', err)
         setError(err instanceof Error ? err.message : 'An error occurred')
       } finally {
         setIsLoadingChunks(false)
@@ -182,7 +216,7 @@ export function Document({
 
   // Initial fetch and refetch on filter changes
   useEffect(() => {
-    if (document) {
+    if (document && document.processingStatus === 'completed') {
       fetchChunks(searchQuery, 0)
     }
   }, [document, searchQuery, fetchChunks])
@@ -225,7 +259,7 @@ export function Document({
         setChunks((prev) => prev.map((c) => (c.id === chunkId ? { ...c, enabled: !c.enabled } : c)))
       }
     } catch (err) {
-      console.error('Error updating chunk:', err)
+      logger.error('Error updating chunk:', err)
     }
   }
 
@@ -253,7 +287,7 @@ export function Document({
         })
       }
     } catch (err) {
-      console.error('Error deleting chunk:', err)
+      logger.error('Error deleting chunk:', err)
     }
   }
 
@@ -278,7 +312,6 @@ export function Document({
   }
 
   const isAllSelected = chunks.length > 0 && selectedChunks.size === chunks.length
-  const isIndeterminate = selectedChunks.size > 0 && selectedChunks.size < chunks.length
 
   // Show loading component while data is being fetched
   if (isLoadingDocument || isLoadingChunks) {
@@ -370,10 +403,15 @@ export function Document({
                       type='text'
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder='Search chunks...'
+                      placeholder={
+                        document?.processingStatus === 'completed'
+                          ? 'Search chunks...'
+                          : 'Document processing...'
+                      }
+                      disabled={document?.processingStatus !== 'completed'}
                       className='h-10 w-full rounded-md border bg-background px-9 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:font-medium file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
                     />
-                    {searchQuery && (
+                    {searchQuery && document?.processingStatus === 'completed' && (
                       <button
                         onClick={() => setSearchQuery('')}
                         className='-translate-y-1/2 absolute top-1/2 right-3 transform text-muted-foreground hover:text-foreground'
@@ -411,6 +449,7 @@ export function Document({
                           <Checkbox
                             checked={isAllSelected}
                             onCheckedChange={handleSelectAll}
+                            disabled={document?.processingStatus !== 'completed'}
                             aria-label='Select all chunks'
                             className='h-3.5 w-3.5 border-gray-300 focus-visible:ring-[#701FFC]/20 data-[state=checked]:border-[#701FFC] data-[state=checked]:bg-[#701FFC] [&>*]:h-3 [&>*]:w-3'
                           />
@@ -451,7 +490,39 @@ export function Document({
                       <col className='w-[12%]' />
                     </colgroup>
                     <tbody>
-                      {chunks.length === 0 ? (
+                      {document?.processingStatus !== 'completed' ? (
+                        <tr className='border-b transition-colors'>
+                          <td className='px-4 py-3'>
+                            <div className='h-3.5 w-3.5' />
+                          </td>
+                          <td className='px-4 py-3'>
+                            <div className='text-muted-foreground text-xs'>—</div>
+                          </td>
+                          <td className='px-4 py-3'>
+                            <div className='flex items-center gap-2'>
+                              <FileText className='h-5 w-5 text-muted-foreground' />
+                              <span className='text-muted-foreground text-sm italic'>
+                                {document?.processingStatus === 'pending' &&
+                                  'Document processing pending...'}
+                                {document?.processingStatus === 'processing' &&
+                                  'Document processing in progress...'}
+                                {document?.processingStatus === 'failed' &&
+                                  'Document processing failed'}
+                                {!document?.processingStatus && 'Document not ready'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className='px-4 py-3'>
+                            <div className='text-muted-foreground text-xs'>—</div>
+                          </td>
+                          <td className='px-4 py-3'>
+                            <div className='text-muted-foreground text-xs'>—</div>
+                          </td>
+                          <td className='px-4 py-3'>
+                            <div className='text-muted-foreground text-xs'>—</div>
+                          </td>
+                        </tr>
+                      ) : chunks.length === 0 ? (
                         <tr className='border-b transition-colors hover:bg-accent/30'>
                           <td className='px-4 py-3'>
                             <div className='h-3.5 w-3.5' />

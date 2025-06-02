@@ -4,11 +4,11 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { document, knowledgeBase } from '@/db/schema'
+import { document } from '@/db/schema'
+import { checkKnowledgeBaseAccess } from '../../utils'
 
 const logger = createLogger('DocumentsAPI')
 
-// Schema for document creation
 const CreateDocumentSchema = z.object({
   filename: z.string().min(1, 'Filename is required'),
   fileUrl: z.string().url('File URL must be valid'),
@@ -16,30 +16,6 @@ const CreateDocumentSchema = z.object({
   mimeType: z.string().min(1, 'MIME type is required'),
   fileHash: z.string().optional(),
 })
-
-async function checkKnowledgeBaseAccess(knowledgeBaseId: string, userId: string) {
-  const kb = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-    })
-    .from(knowledgeBase)
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-    .limit(1)
-
-  if (kb.length === 0) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const kbData = kb[0]
-
-  // Check if user owns the knowledge base
-  if (kbData.userId === userId) {
-    return { hasAccess: true, knowledgeBase: kbData }
-  }
-
-  return { hasAccess: false, knowledgeBase: kbData }
-}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -54,12 +30,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
 
-    if (accessCheck.notFound) {
-      logger.warn(`[${requestId}] Knowledge base not found: ${knowledgeBaseId}`)
-      return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-    }
-
     if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${knowledgeBaseId}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted to access unauthorized knowledge base documents ${knowledgeBaseId}`
       )
@@ -92,6 +67,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         chunkCount: document.chunkCount,
         tokenCount: document.tokenCount,
         characterCount: document.characterCount,
+        processingStatus: document.processingStatus,
+        processingStartedAt: document.processingStartedAt,
+        processingCompletedAt: document.processingCompletedAt,
+        processingError: document.processingError,
         enabled: document.enabled,
         uploadedAt: document.uploadedAt,
       })
@@ -126,12 +105,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
 
-    if (accessCheck.notFound) {
-      logger.warn(`[${requestId}] Knowledge base not found: ${knowledgeBaseId}`)
-      return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-    }
-
     if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${knowledgeBaseId}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted to create document in unauthorized knowledge base ${knowledgeBaseId}`
       )
