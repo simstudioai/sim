@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { ChannelSelectorInput } from './components/channel-selector/channel-selector-input'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
 import { ConditionInput } from './components/condition-input'
@@ -14,6 +15,7 @@ import { EvalInput } from './components/eval-input'
 import { FileSelectorInput } from './components/file-selector/file-selector-input'
 import { FileUpload } from './components/file-upload'
 import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
+import { KnowledgeBaseSelectorInput } from './components/knowledge-base-selector/knowledge-base-selector-input'
 import { LongInput } from './components/long-input'
 import { ProjectSelectorInput } from './components/project-selector/project-selector-input'
 import { ScheduleConfig } from './components/schedule/schedule-config'
@@ -309,11 +311,31 @@ export function SubBlock({
             previewValue={previewValue}
           />
         )
+      case 'knowledge-base-selector':
+        return (
+          <KnowledgeBaseSelectorInput
+            blockId={blockId}
+            subBlock={config}
+            disabled={isConnecting || isPreview}
+            isPreview={isPreview}
+            previewValue={previewValue}
+          />
+        )
       case 'input-format':
         return (
           <InputFormat
             blockId={blockId}
             subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue}
+          />
+        )
+      case 'channel-selector':
+        return (
+          <ChannelSelectorInput
+            blockId={blockId}
+            subBlock={config}
+            disabled={isConnecting || isPreview}
             isPreview={isPreview}
             previewValue={previewValue}
           />

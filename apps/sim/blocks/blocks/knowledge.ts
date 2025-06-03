@@ -34,10 +34,10 @@ export const KnowledgeBlock: BlockConfig = {
   subBlocks: [
     {
       id: 'knowledgeBaseId',
-      title: 'Knowledge Base ID',
-      type: 'short-input',
+      title: 'Knowledge Base',
+      type: 'knowledge-base-selector',
       layout: 'full',
-      placeholder: 'Enter knowledge base ID',
+      placeholder: 'Select knowledge base',
     },
     {
       id: 'query',

@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Send a message to Slack
+description: Send messages to Slack
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -56,7 +56,7 @@ In Sim Studio, the Slack integration enables your agents to programmatically sen
 
 ## Usage Instructions
 
-Send messages to any Slack channel using OAuth authentication. Integrate automated notifications and alerts into your workflow to keep your team informed.
+Comprehensive Slack integration with OAuth authentication. Send formatted messages using Slack
 
 
 
@@ -64,15 +64,16 @@ Send messages to any Slack channel using OAuth authentication. Integrate automat
 
 ### `slack_message`
 
-Send messages to Slack channels or users through the Slack API. Enables direct communication and notifications with timestamp tracking and channel confirmation.
+Send messages to Slack channels or users through the Slack API. Supports Slack mrkdwn formatting.
 
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Your Slack API token |
+| `botToken` | string | No | Bot token for Custom Bot |
+| `accessToken` | string | No | OAuth access token or bot token for Slack API |
 | `channel` | string | Yes | Target Slack channel \(e.g., #general\) |
-| `text` | string | Yes | Message text to send |
+| `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
 
 #### Output
 
@@ -89,7 +90,7 @@ Send messages to Slack channels or users through the Slack API. Enables direct c
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
-| `apiKey` | string | Yes | OAuth Token - Enter your Slack OAuth token |
+| `operation` | string | Yes | Operation |
 
 
 
