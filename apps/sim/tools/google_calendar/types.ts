@@ -185,3 +185,79 @@ export interface GoogleCalendarEvent {
     }>
   }
 }
+
+export interface GoogleCalendarEventRequestBody {
+  summary: string
+  description?: string
+  location?: string
+  start: {
+    dateTime: string
+    timeZone?: string
+  }
+  end: {
+    dateTime: string
+    timeZone?: string
+  }
+  attendees?: Array<{
+    email: string
+  }>
+}
+
+export interface GoogleCalendarApiEventResponse {
+  id: string
+  status: string
+  htmlLink: string
+  created?: string
+  updated?: string
+  summary: string
+  description?: string
+  location?: string
+  start: {
+    dateTime?: string
+    date?: string
+    timeZone?: string
+  }
+  end: {
+    dateTime?: string
+    date?: string
+    timeZone?: string
+  }
+  attendees?: Array<{
+    email: string
+    displayName?: string
+    responseStatus: string
+    optional?: boolean
+  }>
+  creator?: {
+    email: string
+    displayName?: string
+  }
+  organizer?: {
+    email: string
+    displayName?: string
+  }
+  reminders?: {
+    useDefault: boolean
+    overrides?: Array<{
+      method: string
+      minutes: number
+    }>
+  }
+}
+
+export interface GoogleCalendarApiListResponse {
+  kind: string
+  etag: string
+  summary: string
+  description?: string
+  updated: string
+  timeZone: string
+  accessRole: string
+  defaultReminders: Array<{
+    method: string
+    minutes: number
+  }>
+  nextPageToken?: string
+  nextSyncToken?: string
+  items: GoogleCalendarApiEventResponse[]
+}

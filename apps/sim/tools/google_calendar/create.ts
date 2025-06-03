@@ -1,12 +1,11 @@
-import { createLogger } from '@/lib/logs/console-logger'
 import type { ToolConfig } from '../types'
 import {
   CALENDAR_API_BASE,
+  type GoogleCalendarApiEventResponse,
   type GoogleCalendarCreateParams,
   type GoogleCalendarCreateResponse,
+  type GoogleCalendarEventRequestBody,
 } from './types'
-
-const logger = createLogger('google_calendar_create')
 
 export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCreateResponse> = {
   id: 'google_calendar_create',
@@ -78,14 +77,9 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       const calendarId = params.calendarId || 'primary'
       const queryParams = new URLSearchParams()
 
-      console.log('Create tool params:', params)
-
       if (params.sendUpdates !== undefined) {
         queryParams.append('sendUpdates', params.sendUpdates)
-        console.log('Added sendUpdates to query:', params.sendUpdates)
       }
-
-      logger.info('queryParams', queryParams)
 
       const queryString = queryParams.toString()
       const finalUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events${queryString ? `?${queryString}` : ''}`
@@ -97,8 +91,8 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params: GoogleCalendarCreateParams): Record<string, any> => {
-      const eventData: any = {
+    body: (params: GoogleCalendarCreateParams): GoogleCalendarEventRequestBody => {
+      const eventData: GoogleCalendarEventRequestBody = {
         summary: params.summary,
         start: {
           dateTime: params.startDateTime,
@@ -145,11 +139,12 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to create calendar event')
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message || 'Failed to create calendar event')
     }
+
+    const data: GoogleCalendarApiEventResponse = await response.json()
 
     return {
       success: true,

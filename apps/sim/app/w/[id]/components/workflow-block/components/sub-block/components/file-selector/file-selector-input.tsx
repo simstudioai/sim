@@ -161,9 +161,6 @@ export function FileSelectorInput({
               <GoogleCalendarSelector
                 value={selectedCalendarId}
                 onChange={handleCalendarChange}
-                provider='google-calendar'
-                requiredScopes={subBlock.requiredScopes || []}
-                serviceId={subBlock.serviceId}
                 label={subBlock.placeholder || 'Select Google Calendar'}
                 disabled={disabled || !credential}
                 showPreview={true}

@@ -30,9 +30,6 @@ export interface GoogleCalendarInfo {
 interface GoogleCalendarSelectorProps {
   value: string
   onChange: (value: string, calendarInfo?: GoogleCalendarInfo) => void
-  provider: string
-  requiredScopes?: string[]
-  serviceId?: string
   label?: string
   disabled?: boolean
   showPreview?: boolean
@@ -43,9 +40,6 @@ interface GoogleCalendarSelectorProps {
 export function GoogleCalendarSelector({
   value,
   onChange,
-  provider,
-  requiredScopes = [],
-  serviceId,
   label = 'Select Google Calendar',
   disabled = false,
   showPreview = true,
@@ -60,36 +54,37 @@ export function GoogleCalendarSelector({
   const [error, setError] = useState<string | null>(null)
   const [initialFetchDone, setInitialFetchDone] = useState(false)
 
-  // Fetch calendars from Google Calendar API
-  const fetchCalendars = useCallback(async () => {
+  const fetchCalendarsFromAPI = useCallback(async (): Promise<GoogleCalendarInfo[]> => {
     if (!credentialId) {
-      setError('Google Calendar account is required')
-      return
+      throw new Error('Google Calendar account is required')
     }
 
+    const queryParams = new URLSearchParams({
+      credentialId: credentialId,
+    })
+
+    const response = await fetch(`/api/tools/google_calendar/calendars?${queryParams.toString()}`)
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to fetch Google Calendar calendars')
+    }
+
+    const data = await response.json()
+    return data.calendars || []
+  }, [credentialId])
+
+  const fetchCalendars = useCallback(async () => {
     setIsLoading(true)
     setError(null)
 
     try {
-      // Construct query parameters
-      const queryParams = new URLSearchParams({
-        credentialId: credentialId,
-      })
+      const calendars = await fetchCalendarsFromAPI()
+      setCalendars(calendars)
 
-      const response = await fetch(`/api/tools/google_calendar/calendars?${queryParams.toString()}`)
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to fetch Google Calendar calendars')
-      }
-
-      const data = await response.json()
-      setCalendars(data.calendars || [])
-
-      // If we have a selected calendar ID, find the calendar info
       const currentSelectedId = selectedCalendarId
       if (currentSelectedId) {
-        const calendarInfo = data.calendars?.find(
+        const calendarInfo = calendars.find(
           (calendar: GoogleCalendarInfo) => calendar.id === currentSelectedId
         )
         if (calendarInfo) {
@@ -105,41 +100,27 @@ export function GoogleCalendarSelector({
       setIsLoading(false)
       setInitialFetchDone(true)
     }
-  }, [credentialId, selectedCalendarId, onCalendarInfoChange])
+  }, [fetchCalendarsFromAPI, selectedCalendarId, onCalendarInfoChange])
 
-  // Handle open change - only fetch calendars when the dropdown is opened
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen)
 
-    // Only fetch calendars when opening the dropdown and if we have valid credential
     if (isOpen && credentialId && (!initialFetchDone || calendars.length === 0)) {
       fetchCalendars()
     }
   }
 
-  // Fetch only the selected calendar info when component mounts or when selectedCalendarId changes
   const fetchSelectedCalendarInfo = useCallback(async () => {
-    if (!credentialId || !selectedCalendarId) return
+    if (!selectedCalendarId) return
 
     setIsLoading(true)
     setError(null)
 
     try {
-      // Construct query parameters
-      const queryParams = new URLSearchParams({
-        credentialId: credentialId,
-      })
+      const calendars = await fetchCalendarsFromAPI()
 
-      const response = await fetch(`/api/tools/google_calendar/calendars?${queryParams.toString()}`)
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to fetch Google Calendar')
-      }
-
-      const data = await response.json()
-      if (data.calendars && data.calendars.length > 0) {
-        const calendarInfo = data.calendars.find(
+      if (calendars.length > 0) {
+        const calendarInfo = calendars.find(
           (calendar: GoogleCalendarInfo) => calendar.id === selectedCalendarId
         )
         if (calendarInfo) {
@@ -153,7 +134,7 @@ export function GoogleCalendarSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [credentialId, selectedCalendarId, onCalendarInfoChange])
+  }, [fetchCalendarsFromAPI, selectedCalendarId, onCalendarInfoChange])
 
   // Fetch selected calendar info when component mounts or dependencies change
   useEffect(() => {

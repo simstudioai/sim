@@ -1,6 +1,7 @@
 import type { ToolConfig } from '../types'
 import {
   CALENDAR_API_BASE,
+  type GoogleCalendarApiEventResponse,
   type GoogleCalendarGetParams,
   type GoogleCalendarGetResponse,
 } from './types'
@@ -48,11 +49,12 @@ export const getTool: ToolConfig<GoogleCalendarGetParams, GoogleCalendarGetRespo
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to get calendar event')
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message || 'Failed to get calendar event')
     }
+
+    const data: GoogleCalendarApiEventResponse = await response.json()
 
     return {
       success: true,

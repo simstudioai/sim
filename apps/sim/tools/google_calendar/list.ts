@@ -1,6 +1,8 @@
 import type { ToolConfig } from '../types'
 import {
   CALENDAR_API_BASE,
+  type GoogleCalendarApiEventResponse,
+  type GoogleCalendarApiListResponse,
   type GoogleCalendarListParams,
   type GoogleCalendarListResponse,
 } from './types'
@@ -73,12 +75,12 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
-
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to list calendar events')
+      const errorData = await response.json()
+      throw new Error(errorData.error?.message || 'Failed to list calendar events')
     }
 
+    const data: GoogleCalendarApiListResponse = await response.json()
     const events = data.items || []
     const eventsCount = events.length
 
@@ -90,7 +92,7 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
           nextPageToken: data.nextPageToken,
           nextSyncToken: data.nextSyncToken,
           timeZone: data.timeZone,
-          events: events.map((event: any) => ({
+          events: events.map((event: GoogleCalendarApiEventResponse) => ({
             id: event.id,
             htmlLink: event.htmlLink,
             status: event.status,

@@ -140,7 +140,7 @@ export const quickAddTool: ToolConfig<
     return {
       success: true,
       output: {
-        content: `Event "${finalEventData.summary}" created successfully ${finalEventData.attendees ? ` with ${finalEventData.attendees.length} attendee(s)` : ''}`,
+        content: `Event "${finalEventData?.summary || 'Untitled'}" created successfully ${finalEventData?.attendees?.length ? ` with ${finalEventData.attendees.length} attendee(s)` : ''}`,
         metadata: {
           id: finalEventData.id,
           htmlLink: finalEventData.htmlLink,

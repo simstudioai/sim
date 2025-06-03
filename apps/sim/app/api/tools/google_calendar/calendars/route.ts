@@ -87,7 +87,8 @@ export async function GET(request: NextRequest) {
 
     if (!calendarResponse.ok) {
       const errorData = await calendarResponse
-        .json()
+        .text()
+        .then((text) => JSON.parse(text))
         .catch(() => ({ error: { message: 'Unknown error' } }))
       logger.error(`[${requestId}] Google Calendar API error`, {
         status: calendarResponse.status,
