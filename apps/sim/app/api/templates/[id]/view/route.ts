@@ -1,9 +1,8 @@
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
-import * as schema from '@/db/schema'
+import { templates } from '@/db/schema'
 
 const logger = createLogger('TemplateViewAPI')
 
@@ -12,54 +11,51 @@ export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/templates/[id]/view
- * 
- * Increments the view count for a specific template
- * Used when users click on templates or view template details
+ * Increments the view count for a template
  */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  const { id: templateId } = await params
-
+  
   try {
-    logger.info(`[${requestId}] Tracking view for template: ${templateId}`)
+    const { id: templateId } = await params
 
-    // Verify the template exists
-    const templateEntry = await db
-      .select({
-        id: schema.templates.id,
-        name: schema.templates.name,
-      })
-      .from(schema.templates)
-      .where(eq(schema.templates.id, templateId))
-      .limit(1)
-      .then((rows) => rows[0])
-
-    if (!templateEntry) {
-      logger.warn(`[${requestId}] Template not found for view tracking: ${templateId}`)
-      return createErrorResponse('Template not found', 404)
+    // Validate template ID format
+    if (!templateId || typeof templateId !== 'string') {
+      logger.warn(`[${requestId}] Invalid template ID: ${templateId}`)
+      return NextResponse.json({ error: 'Invalid template ID' }, { status: 400 })
     }
 
-    // Increment the view count
-    await db
-      .update(schema.templates)
+    // Increment view count atomically
+    const result = await db
+      .update(templates)
       .set({
-        views: sql`${schema.templates.views} + 1`,
+        views: sql`${templates.views} + 1`,
+        updatedAt: new Date(),
       })
-      .where(eq(schema.templates.id, templateId))
+      .where(eq(templates.id, templateId))
+      .returning({ id: templates.id, views: templates.views })
 
-    logger.info(`[${requestId}] Successfully tracked view for template: ${templateEntry.name}`)
+    if (!result.length) {
+      logger.warn(`[${requestId}] Template not found: ${templateId}`)
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+    }
 
-    return createSuccessResponse({
-      success: true,
-      templateId,
-      message: 'View tracked successfully',
+    logger.info(`[${requestId}] Incremented view count for template: ${templateId}`, {
+      newViewCount: result[0].views,
     })
 
+    return NextResponse.json({
+      success: true,
+      views: result[0].views,
+    })
   } catch (error: any) {
-    logger.error(`[${requestId}] Error tracking template view`, error)
-    return createErrorResponse(`Failed to track view: ${error.message}`, 500)
+    logger.error(`[${requestId}] Error incrementing template view count`, error)
+    return NextResponse.json(
+      { error: 'Failed to track view' },
+      { status: 500 }
+    )
   }
-} 
+}
