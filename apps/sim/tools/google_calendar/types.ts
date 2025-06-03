@@ -1,12 +1,10 @@
 import type { ToolResponse } from '../types'
 
-// Base parameters shared by all operations
 interface BaseGoogleCalendarParams {
   accessToken: string
   calendarId?: string // defaults to 'primary' if not provided
 }
 
-// Create Event parameters
 export interface GoogleCalendarCreateParams extends BaseGoogleCalendarParams {
   summary: string
   description?: string
@@ -18,7 +16,6 @@ export interface GoogleCalendarCreateParams extends BaseGoogleCalendarParams {
   sendUpdates?: 'all' | 'externalOnly' | 'none'
 }
 
-// List Events parameters
 export interface GoogleCalendarListParams extends BaseGoogleCalendarParams {
   timeMin?: string // RFC3339 timestamp
   timeMax?: string // RFC3339 timestamp
@@ -28,12 +25,10 @@ export interface GoogleCalendarListParams extends BaseGoogleCalendarParams {
   showDeleted?: boolean
 }
 
-// Get Event parameters
 export interface GoogleCalendarGetParams extends BaseGoogleCalendarParams {
   eventId: string
 }
 
-// Update Event parameters
 export interface GoogleCalendarUpdateParams extends BaseGoogleCalendarParams {
   eventId: string
   summary?: string
@@ -46,19 +41,17 @@ export interface GoogleCalendarUpdateParams extends BaseGoogleCalendarParams {
   sendUpdates?: 'all' | 'externalOnly' | 'none'
 }
 
-// Delete Event parameters
 export interface GoogleCalendarDeleteParams extends BaseGoogleCalendarParams {
   eventId: string
   sendUpdates?: 'all' | 'externalOnly' | 'none'
 }
 
-// Quick Add parameters
 export interface GoogleCalendarQuickAddParams extends BaseGoogleCalendarParams {
   text: string // Natural language text like "Meeting with John tomorrow at 3pm"
+  attendees?: string[] // Array of email addresses (comma-separated string also accepted)
   sendUpdates?: 'all' | 'externalOnly' | 'none'
 }
 
-// Union type for all Google Calendar tool parameters
 export type GoogleCalendarToolParams =
   | GoogleCalendarCreateParams
   | GoogleCalendarListParams
@@ -67,7 +60,6 @@ export type GoogleCalendarToolParams =
   | GoogleCalendarDeleteParams
   | GoogleCalendarQuickAddParams
 
-// Response metadata
 interface EventMetadata {
   id: string
   htmlLink: string
@@ -107,7 +99,6 @@ interface ListMetadata {
   timeZone: string
 }
 
-// Response format
 export interface GoogleCalendarToolResponse extends ToolResponse {
   output: {
     content: string
@@ -115,7 +106,6 @@ export interface GoogleCalendarToolResponse extends ToolResponse {
   }
 }
 
-// Calendar Event Interface (for API responses)
 export interface GoogleCalendarEvent {
   id: string
   status: string

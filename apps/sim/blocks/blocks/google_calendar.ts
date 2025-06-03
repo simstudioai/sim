@@ -192,6 +192,14 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarToolResponse> = {
       placeholder: 'Meeting with John tomorrow at 3pm for 1 hour',
       condition: { field: 'operation', value: 'quick_add' },
     },
+    {
+      id: 'attendees',
+      title: 'Attendees (comma-separated emails)',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: 'john@example.com, jane@example.com',
+      condition: { field: 'operation', value: 'quick_add' },
+    },
 
     // Notification setting (for create, update, quick_add)
     {

@@ -35,6 +35,11 @@ export const googleCalendarQuickAddTool: ToolConfig<
       description:
         'Natural language text describing the event (e.g., "Meeting with John tomorrow at 3pm")',
     },
+    attendees: {
+      type: 'array',
+      required: false,
+      description: 'Array of attendee email addresses (comma-separated string also accepted)',
+    },
     sendUpdates: {
       type: 'string',
       required: false,
@@ -62,29 +67,91 @@ export const googleCalendarQuickAddTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     const data = await response.json()
 
     if (!response.ok) {
       throw new Error(data.error?.message || 'Failed to create calendar event from text')
     }
 
+    // Handle attendees if provided
+    let finalEventData = data
+    if (params?.attendees) {
+      // Process attendees similar to create.ts
+      let attendeeList: string[] = []
+      const attendees = params.attendees as string | string[]
+
+      if (Array.isArray(attendees)) {
+        attendeeList = attendees.filter((email: string) => email && email.trim().length > 0)
+      } else if (typeof attendees === 'string' && attendees.trim().length > 0) {
+        // Convert comma-separated string to array
+        attendeeList = attendees
+          .split(',')
+          .map((email: string) => email.trim())
+          .filter((email: string) => email.length > 0)
+      }
+
+      if (attendeeList.length > 0) {
+        try {
+          // Update the event with attendees
+          const calendarId = params.calendarId || 'primary'
+          const eventId = data.id
+
+          // Prepare update data
+          const updateData = {
+            attendees: attendeeList.map((email: string) => ({ email })),
+          }
+
+          // Build update URL with sendUpdates if specified
+          const updateQueryParams = new URLSearchParams()
+          if (params.sendUpdates !== undefined) {
+            updateQueryParams.append('sendUpdates', params.sendUpdates)
+          }
+
+          const updateUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}${updateQueryParams.toString() ? `?${updateQueryParams.toString()}` : ''}`
+
+          // Make the update request
+          const updateResponse = await fetch(updateUrl, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${params.accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(updateData),
+          })
+
+          if (updateResponse.ok) {
+            finalEventData = await updateResponse.json()
+          } else {
+            // If update fails, we still return the original event but log the error
+            console.warn(
+              'Failed to add attendees to quick-added event:',
+              await updateResponse.text()
+            )
+          }
+        } catch (error) {
+          // If attendee update fails, we still return the original event
+          console.warn('Error adding attendees to quick-added event:', error)
+        }
+      }
+    }
+
     return {
       success: true,
       output: {
-        content: `Event "${data.summary}" created successfully from natural language`,
+        content: `Event "${finalEventData.summary}" created successfully ${finalEventData.attendees ? ` with ${finalEventData.attendees.length} attendee(s)` : ''}`,
         metadata: {
-          id: data.id,
-          htmlLink: data.htmlLink,
-          status: data.status,
-          summary: data.summary,
-          description: data.description,
-          location: data.location,
-          start: data.start,
-          end: data.end,
-          attendees: data.attendees,
-          creator: data.creator,
-          organizer: data.organizer,
+          id: finalEventData.id,
+          htmlLink: finalEventData.htmlLink,
+          status: finalEventData.status,
+          summary: finalEventData.summary,
+          description: finalEventData.description,
+          location: finalEventData.location,
+          start: finalEventData.start,
+          end: finalEventData.end,
+          attendees: finalEventData.attendees,
+          creator: finalEventData.creator,
+          organizer: finalEventData.organizer,
         },
       },
     }
