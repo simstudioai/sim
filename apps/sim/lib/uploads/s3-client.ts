@@ -34,6 +34,27 @@ export function getS3Client(): S3Client {
 }
 
 /**
+ * Sanitize a filename for use in S3 metadata headers
+ * S3 metadata headers must contain only ASCII printable characters (0x20-0x7E)
+ * and cannot contain certain special characters
+ */
+export function sanitizeFilenameForMetadata(filename: string): string {
+  return (
+    filename
+      // Remove non-ASCII characters (keep only printable ASCII 0x20-0x7E)
+      .replace(/[^\x20-\x7E]/g, '')
+      // Remove characters that are problematic in HTTP headers
+      .replace(/["\\]/g, '')
+      // Replace multiple spaces with single space
+      .replace(/\s+/g, ' ')
+      // Trim whitespace
+      .trim() ||
+    // Provide fallback if completely sanitized
+    'file'
+  )
+}
+
+/**
  * File information structure
  */
 export interface FileInfo {
@@ -110,6 +131,12 @@ export async function uploadToS3(
   const safeFileName = fileName.replace(/\s+/g, '-') // Replace spaces with hyphens
   const uniqueKey = `${Date.now()}-${safeFileName}`
 
+  // Sanitize filename for S3 metadata (only allow ASCII printable characters)
+  const sanitizedOriginalName = fileName
+    .replace(/[^\x20-\x7E]/g, '') // Remove non-ASCII characters
+    .replace(/["\\]/g, '') // Remove quotes and backslashes
+    .trim()
+
   const s3Client = getS3Client()
 
   // Upload the file to S3
@@ -119,7 +146,7 @@ export async function uploadToS3(
       Key: uniqueKey,
       Body: file,
       ContentType: contentType,
-      // Add some useful metadata
+      // Add some useful metadata with sanitized values
       Metadata: {
         originalName: encodeURIComponent(fileName), // Encode filename to prevent invalid characters in HTTP headers
         uploadedAt: new Date().toISOString(),
@@ -133,7 +160,7 @@ export async function uploadToS3(
   return {
     path: servePath,
     key: uniqueKey,
-    name: fileName,
+    name: fileName, // Return the actual original filename in the response
     size: fileSize,
     type: contentType,
   }

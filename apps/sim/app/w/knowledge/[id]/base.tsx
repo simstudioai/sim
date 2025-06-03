@@ -650,6 +650,9 @@ export function KnowledgeBase({
                           <span className='text-muted-foreground text-xs leading-none'>Status</span>
                         </th>
                         <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                          <span className='text-muted-foreground text-xs leading-none'>Status</span>
+                        </th>
+                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
                           <span className='text-muted-foreground text-xs leading-none'>
                             Actions
                           </span>
@@ -709,6 +712,11 @@ export function KnowledgeBase({
                           </td>
 
                           {/* Upload Time column */}
+                          <td className='px-4 py-3'>
+                            <div className='text-muted-foreground text-xs'>—</div>
+                          </td>
+
+                          {/* Processing column */}
                           <td className='px-4 py-3'>
                             <div className='text-muted-foreground text-xs'>—</div>
                           </td>

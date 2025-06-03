@@ -47,7 +47,7 @@ export function DocumentLoading({
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-hidden'>
           {/* Main Content */}
-          <div className='flex-1 overflow-auto pt-[4px]'>
+          <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
               {/* Search Section */}
               <div className='mb-4'>

@@ -23,6 +23,8 @@ const HEADER_STYLES = {
   link: 'group flex items-center gap-2 font-medium text-sm transition-colors hover:text-muted-foreground',
   label: 'font-medium text-sm',
   separator: 'text-muted-foreground',
+  // Always reserve consistent space for actions area
+  actionsContainer: 'flex h-8 w-8 items-center justify-center',
 } as const
 
 interface KnowledgeHeaderOptions {
@@ -60,30 +62,32 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
         })}
       </div>
 
-      {/* Actions Menu - only show if onDeleteKnowledgeBase is provided */}
-      {options?.onDeleteKnowledgeBase && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant='ghost'
-              size='sm'
-              className='h-8 w-8 p-0'
-              aria-label='Knowledge base actions menu'
-            >
-              <MoreHorizontal className='h-4 w-4' />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuItem
-              onClick={options.onDeleteKnowledgeBase}
-              className='text-red-600 focus:text-red-600'
-            >
-              <Trash2 className='mr-2 h-4 w-4' />
-              Delete Knowledge Base
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+      {/* Actions Area - always reserve consistent space */}
+      <div className={HEADER_STYLES.actionsContainer}>
+        {options?.onDeleteKnowledgeBase && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-8 w-8 p-0'
+                aria-label='Knowledge base actions menu'
+              >
+                <MoreHorizontal className='h-4 w-4' />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end'>
+              <DropdownMenuItem
+                onClick={options.onDeleteKnowledgeBase}
+                className='text-red-600 focus:text-red-600'
+              >
+                <Trash2 className='mr-2 h-4 w-4' />
+                Delete Knowledge Base
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getS3Client } from '@/lib/uploads/s3-client'
+import { getS3Client, sanitizeFilenameForMetadata } from '@/lib/uploads/s3-client'
 import { S3_CONFIG, USE_S3_STORAGE } from '@/lib/uploads/setup'
 import { createErrorResponse, createOptionsResponse } from '../utils'
 
@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
     // Create a unique key for the file
     const safeFileName = fileName.replace(/\s+/g, '-')
     const uniqueKey = `${Date.now()}-${uuidv4()}-${safeFileName}`
+
+    // Sanitize the original filename for S3 metadata to prevent header errors
+    const sanitizedOriginalName = sanitizeFilenameForMetadata(fileName)
 
     // Create the S3 command
     const command = new PutObjectCommand({
