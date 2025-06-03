@@ -167,13 +167,13 @@ export function NotificationList() {
   const [animatingIds, setAnimatingIds] = useState<Set<string>>(new Set())
 
   // Filter to only show:
-  // 1. Visible notifications for the current workflow
+  // 1. Visible notifications for the current workflow OR global notifications (null workflowId)
   // 2. That are either unread OR marked as persistent
   // 3. And have not been marked for removal
   const visibleNotifications = notifications.filter(
     (n) =>
       n.isVisible &&
-      n.workflowId === activeWorkflowId &&
+      (n.workflowId === activeWorkflowId || n.workflowId === null) &&
       (!n.read || n.options?.isPersistent) &&
       !removedIds.has(n.id)
   )
