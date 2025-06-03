@@ -1,14 +1,14 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { document, knowledgeBase } from '@/db/schema'
+import { document } from '@/db/schema'
+import { checkDocumentAccess } from '../../../utils'
 
 const logger = createLogger('DocumentByIdAPI')
 
-// Schema for document updates
 const UpdateDocumentSchema = z.object({
   filename: z.string().min(1, 'Filename is required').optional(),
   enabled: z.boolean().optional(),
@@ -16,48 +16,6 @@ const UpdateDocumentSchema = z.object({
   tokenCount: z.number().min(0).optional(),
   characterCount: z.number().min(0).optional(),
 })
-
-async function checkDocumentAccess(knowledgeBaseId: string, documentId: string, userId: string) {
-  // First check knowledge base access
-  const kb = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-    })
-    .from(knowledgeBase)
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-    .limit(1)
-
-  if (kb.length === 0) {
-    return { hasAccess: false, notFound: true, reason: 'Knowledge base not found' }
-  }
-
-  const kbData = kb[0]
-
-  // Check if user owns the knowledge base
-  if (kbData.userId !== userId) {
-    return { hasAccess: false, reason: 'Unauthorized knowledge base access' }
-  }
-
-  // Now check if document exists and belongs to the knowledge base
-  const doc = await db
-    .select()
-    .from(document)
-    .where(
-      and(
-        eq(document.id, documentId),
-        eq(document.knowledgeBaseId, knowledgeBaseId),
-        isNull(document.deletedAt)
-      )
-    )
-    .limit(1)
-
-  if (doc.length === 0) {
-    return { hasAccess: false, notFound: true, reason: 'Document not found' }
-  }
-
-  return { hasAccess: true, document: doc[0], knowledgeBase: kbData }
-}
 
 export async function GET(
   req: NextRequest,
@@ -75,12 +33,13 @@ export async function GET(
 
     const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, session.user.id)
 
-    if (accessCheck.notFound) {
-      logger.warn(`[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`)
-      return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
-    }
-
     if (!accessCheck.hasAccess) {
+      if (accessCheck.notFound) {
+        logger.warn(
+          `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
+        )
+        return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
+      }
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted unauthorized document access: ${accessCheck.reason}`
       )
@@ -117,12 +76,13 @@ export async function PUT(
 
     const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, session.user.id)
 
-    if (accessCheck.notFound) {
-      logger.warn(`[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`)
-      return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
-    }
-
     if (!accessCheck.hasAccess) {
+      if (accessCheck.notFound) {
+        logger.warn(
+          `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
+        )
+        return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
+      }
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted unauthorized document update: ${accessCheck.reason}`
       )
@@ -164,6 +124,7 @@ export async function PUT(
       if (validationError instanceof z.ZodError) {
         logger.warn(`[${requestId}] Invalid document update data`, {
           errors: validationError.errors,
+          documentId,
         })
         return NextResponse.json(
           { error: 'Invalid request data', details: validationError.errors },
@@ -173,7 +134,7 @@ export async function PUT(
       throw validationError
     }
   } catch (error) {
-    logger.error(`[${requestId}] Error updating document`, error)
+    logger.error(`[${requestId}] Error updating document ${documentId}`, error)
     return NextResponse.json({ error: 'Failed to update document' }, { status: 500 })
   }
 }
@@ -194,12 +155,13 @@ export async function DELETE(
 
     const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, session.user.id)
 
-    if (accessCheck.notFound) {
-      logger.warn(`[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`)
-      return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
-    }
-
     if (!accessCheck.hasAccess) {
+      if (accessCheck.notFound) {
+        logger.warn(
+          `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
+        )
+        return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
+      }
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted unauthorized document deletion: ${accessCheck.reason}`
       )

@@ -121,7 +121,7 @@ export async function uploadToS3(
       ContentType: contentType,
       // Add some useful metadata
       Metadata: {
-        originalName: fileName,
+        originalName: encodeURIComponent(fileName), // Encode filename to prevent invalid characters in HTTP headers
         uploadedAt: new Date().toISOString(),
       },
     })

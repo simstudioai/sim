@@ -1,291 +1,173 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
-import { type ProcessedDocument, processDocuments } from '@/lib/document-processor'
-import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { document, embedding, knowledgeBase } from '@/db/schema'
+import { document } from '@/db/schema'
+import { checkKnowledgeBaseAccess, processDocumentAsync } from '../../utils'
 
 const logger = createLogger('ProcessDocumentsAPI')
 
-// Schema for document processing request
 const ProcessDocumentsSchema = z.object({
-  documents: z
-    .array(
-      z.object({
-        filename: z.string().min(1, 'Filename is required'),
-        fileUrl: z.string().url('File URL must be valid'),
-        fileSize: z.number().min(1, 'File size must be greater than 0'),
-        mimeType: z.string().min(1, 'MIME type is required'),
-        fileHash: z.string().optional(),
-      })
-    )
-    .min(1, 'At least one document is required'),
-  processingOptions: z
-    .object({
-      chunkSize: z.number().min(100).max(2048).default(512),
-      minCharactersPerChunk: z.number().min(10).max(1000).default(24),
-      recipe: z.string().default('default'),
-      lang: z.string().default('en'),
+  documents: z.array(
+    z.object({
+      filename: z.string().min(1, 'Filename is required'),
+      fileUrl: z.string().url('File URL must be valid'),
+      fileSize: z.number().min(1, 'File size must be greater than 0'),
+      mimeType: z.string().min(1, 'MIME type is required'),
+      fileHash: z.string().optional(),
     })
-    .optional(),
+  ),
+  processingOptions: z.object({
+    chunkSize: z.number(),
+    minCharactersPerChunk: z.number(),
+    recipe: z.string(),
+    lang: z.string(),
+  }),
 })
 
-async function checkKnowledgeBaseAccess(knowledgeBaseId: string, userId: string) {
-  const kb = await db
-    .select({
-      id: knowledgeBase.id,
-      userId: knowledgeBase.userId,
-      chunkingConfig: knowledgeBase.chunkingConfig,
-    })
-    .from(knowledgeBase)
-    .where(and(eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)))
-    .limit(1)
-
-  if (kb.length === 0) {
-    return { hasAccess: false, notFound: true }
-  }
-
-  const kbData = kb[0]
-
-  // Check if user owns the knowledge base
-  if (kbData.userId === userId) {
-    return { hasAccess: true, knowledgeBase: kbData }
-  }
-
-  return { hasAccess: false, knowledgeBase: kbData }
+const PROCESSING_CONFIG = {
+  maxConcurrentDocuments: 3, // Limit concurrent processing to prevent resource exhaustion
+  batchSize: 5, // Process documents in batches
+  delayBetweenBatches: 1000, // 1 second delay between batches
+  delayBetweenDocuments: 500, // 500ms delay between individual documents in a batch
 }
 
-async function generateEmbeddings(
-  texts: string[],
-  embeddingModel = 'text-embedding-3-small'
-): Promise<number[][]> {
-  const openaiApiKey = env.OPENAI_API_KEY
-  if (!openaiApiKey) {
-    throw new Error('OPENAI_API_KEY not configured')
-  }
-
-  try {
-    // Batch process embeddings for efficiency
-    const batchSize = 100 // OpenAI allows up to 2048 inputs per request
-    const allEmbeddings: number[][] = []
-
-    for (let i = 0; i < texts.length; i += batchSize) {
-      const batch = texts.slice(i, i + batchSize)
-
-      logger.info(
-        `Generating embeddings for batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(texts.length / batchSize)} (${batch.length} texts)`
-      )
-
-      // Make direct API call to OpenAI embeddings
-      const response = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${openaiApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          input: batch,
-          model: embeddingModel,
-          encoding_format: 'float',
-        }),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(
-          `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`
-        )
-      }
-
-      const data = await response.json()
-
-      if (!data.data || !Array.isArray(data.data)) {
-        throw new Error('Invalid response format from OpenAI embeddings API')
-      }
-
-      // Extract embeddings from response
-      const batchEmbeddings = data.data.map((item: any) => item.embedding)
-      allEmbeddings.push(...batchEmbeddings)
-    }
-
-    logger.info(`Successfully generated ${allEmbeddings.length} embeddings`)
-    return allEmbeddings
-  } catch (error) {
-    logger.error('Failed to generate embeddings:', error)
-    throw new Error(
-      `Embedding generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
-  }
-}
-
-async function saveProcessedDocuments(
-  knowledgeBaseId: string,
-  processedDocuments: ProcessedDocument[],
-  requestedDocuments: Array<{
+/**
+ * Process documents with concurrency control and batching
+ */
+async function processDocumentsWithConcurrencyControl(
+  createdDocuments: Array<{
+    documentId: string
     filename: string
     fileUrl: string
     fileSize: number
     mimeType: string
     fileHash?: string
-  }>
-) {
-  const now = new Date()
-  const results: Array<{
+  }>,
+  knowledgeBaseId: string,
+  processingOptions: any,
+  requestId: string
+): Promise<void> {
+  const totalDocuments = createdDocuments.length
+  const batches = []
+
+  // Create batches
+  for (let i = 0; i < totalDocuments; i += PROCESSING_CONFIG.batchSize) {
+    batches.push(createdDocuments.slice(i, i + PROCESSING_CONFIG.batchSize))
+  }
+
+  logger.info(`[${requestId}] Processing ${totalDocuments} documents in ${batches.length} batches`)
+
+  for (const [batchIndex, batch] of batches.entries()) {
+    logger.info(
+      `[${requestId}] Starting batch ${batchIndex + 1}/${batches.length} with ${batch.length} documents`
+    )
+
+    // Process batch with limited concurrency
+    await processBatchWithConcurrency(batch, knowledgeBaseId, processingOptions, requestId)
+
+    // Add delay between batches (except for the last batch)
+    if (batchIndex < batches.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, PROCESSING_CONFIG.delayBetweenBatches))
+    }
+  }
+
+  logger.info(`[${requestId}] Completed processing initiation for all ${totalDocuments} documents`)
+}
+
+/**
+ * Process a batch of documents with controlled concurrency
+ */
+async function processBatchWithConcurrency(
+  batch: Array<{
     documentId: string
-    chunkCount: number
-    success: boolean
-    error?: string
-  }> = []
+    filename: string
+    fileUrl: string
+    fileSize: number
+    mimeType: string
+    fileHash?: string
+  }>,
+  knowledgeBaseId: string,
+  processingOptions: any,
+  requestId: string
+): Promise<void> {
+  const semaphore = new Array(PROCESSING_CONFIG.maxConcurrentDocuments).fill(0)
+  const processingPromises = batch.map(async (doc, index) => {
+    // Add staggered delay to prevent overwhelming the system
+    if (index > 0) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, index * PROCESSING_CONFIG.delayBetweenDocuments)
+      )
+    }
 
-  // Collect all chunk texts for batch embedding generation
-  const allChunkTexts: string[] = []
-  const chunkMapping: Array<{ docIndex: number; chunkIndex: number }> = []
-
-  processedDocuments.forEach((processed, docIndex) => {
-    processed.chunks.forEach((chunk, chunkIndex) => {
-      allChunkTexts.push(chunk.text)
-      chunkMapping.push({ docIndex, chunkIndex })
+    // Wait for available slot
+    await new Promise<void>((resolve) => {
+      const checkSlot = () => {
+        const availableIndex = semaphore.findIndex((slot) => slot === 0)
+        if (availableIndex !== -1) {
+          semaphore[availableIndex] = 1
+          resolve()
+        } else {
+          setTimeout(checkSlot, 100)
+        }
+      }
+      checkSlot()
     })
+
+    try {
+      logger.info(`[${requestId}] Starting processing for document: ${doc.filename}`)
+
+      await processDocumentAsync(
+        knowledgeBaseId,
+        doc.documentId,
+        {
+          filename: doc.filename,
+          fileUrl: doc.fileUrl,
+          fileSize: doc.fileSize,
+          mimeType: doc.mimeType,
+          fileHash: doc.fileHash,
+        },
+        processingOptions
+      )
+
+      logger.info(`[${requestId}] Successfully initiated processing for document: ${doc.filename}`)
+    } catch (error: unknown) {
+      logger.error(`[${requestId}] Failed to process document: ${doc.filename}`, {
+        documentId: doc.documentId,
+        filename: doc.filename,
+        fileSize: doc.fileSize,
+        mimeType: doc.mimeType,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+      })
+
+      try {
+        await db
+          .update(document)
+          .set({
+            processingStatus: 'failed',
+            processingError:
+              error instanceof Error ? error.message : 'Failed to initiate processing',
+            processingCompletedAt: new Date(),
+          })
+          .where(eq(document.id, doc.documentId))
+      } catch (dbError: unknown) {
+        logger.error(
+          `[${requestId}] Failed to update document status for failed document: ${doc.documentId}`,
+          dbError
+        )
+      }
+    } finally {
+      const slotIndex = semaphore.findIndex((slot) => slot === 1)
+      if (slotIndex !== -1) {
+        semaphore[slotIndex] = 0
+      }
+    }
   })
 
-  // Generate embeddings for all chunks at once
-  let allEmbeddings: number[][] = []
-  if (allChunkTexts.length > 0) {
-    try {
-      logger.info(
-        `Generating embeddings for ${allChunkTexts.length} chunks across ${processedDocuments.length} documents`
-      )
-      allEmbeddings = await generateEmbeddings(allChunkTexts, 'text-embedding-3-small')
-      logger.info(`Successfully generated ${allEmbeddings.length} embeddings`)
-    } catch (error) {
-      logger.error('Failed to generate embeddings for chunks:', error)
-      // Continue without embeddings rather than failing completely
-      allEmbeddings = []
-    }
-  }
-
-  for (let i = 0; i < processedDocuments.length; i++) {
-    const processed = processedDocuments[i]
-    const original = requestedDocuments.find((doc) => doc.filename === processed.metadata.filename)
-
-    if (!original) {
-      results.push({
-        documentId: '',
-        chunkCount: 0,
-        success: false,
-        error: `Original document data not found for ${processed.metadata.filename}`,
-      })
-      continue
-    }
-
-    try {
-      // Check for duplicate file hash if provided
-      if (original.fileHash) {
-        const existingDocument = await db
-          .select({ id: document.id })
-          .from(document)
-          .where(
-            and(
-              eq(document.knowledgeBaseId, knowledgeBaseId),
-              eq(document.fileHash, original.fileHash),
-              isNull(document.deletedAt)
-            )
-          )
-          .limit(1)
-
-        if (existingDocument.length > 0) {
-          results.push({
-            documentId: existingDocument[0].id,
-            chunkCount: 0,
-            success: false,
-            error: 'Document with this file hash already exists',
-          })
-          continue
-        }
-      }
-
-      // Insert document record
-      const documentId = crypto.randomUUID()
-      const newDocument = {
-        id: documentId,
-        knowledgeBaseId,
-        filename: original.filename,
-        fileUrl: processed.metadata.s3Url || original.fileUrl,
-        fileSize: original.fileSize,
-        mimeType: original.mimeType,
-        fileHash: original.fileHash || null,
-        chunkCount: processed.metadata.chunkCount,
-        tokenCount: processed.metadata.tokenCount,
-        characterCount: processed.metadata.characterCount,
-        enabled: true,
-        uploadedAt: now,
-      }
-
-      await db.insert(document).values(newDocument)
-
-      // Insert embedding records for chunks with generated embeddings
-      const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => {
-        // Find the corresponding embedding for this chunk
-        const globalChunkIndex = chunkMapping.findIndex(
-          (mapping) => mapping.docIndex === i && mapping.chunkIndex === chunkIndex
-        )
-        const embedding =
-          globalChunkIndex >= 0 && globalChunkIndex < allEmbeddings.length
-            ? allEmbeddings[globalChunkIndex]
-            : null
-
-        return {
-          id: crypto.randomUUID(),
-          knowledgeBaseId,
-          documentId,
-          chunkIndex: chunkIndex,
-          chunkHash: crypto.randomUUID(), // Generate a hash for the chunk
-          content: chunk.text,
-          contentLength: chunk.text.length,
-          tokenCount: Math.ceil(chunk.text.length / 4), // Rough token estimation
-          embedding: embedding, // Store the generated OpenAI embedding
-          embeddingModel: 'text-embedding-3-small',
-          startOffset: chunk.startIndex || 0,
-          endOffset: chunk.endIndex || chunk.text.length,
-          overlapTokens: 0,
-          metadata: {},
-          searchRank: '1.0',
-          accessCount: 0,
-          lastAccessedAt: null,
-          qualityScore: null,
-          createdAt: now,
-          updatedAt: now,
-        }
-      })
-
-      if (embeddingRecords.length > 0) {
-        await db.insert(embedding).values(embeddingRecords)
-      }
-
-      results.push({
-        documentId,
-        chunkCount: processed.metadata.chunkCount,
-        success: true,
-      })
-
-      logger.info(
-        `Document processed and saved: ${documentId} with ${processed.metadata.chunkCount} chunks and ${embeddingRecords.filter((r) => r.embedding).length} embeddings`
-      )
-    } catch (error) {
-      logger.error(`Failed to save processed document ${processed.metadata.filename}:`, error)
-      results.push({
-        documentId: '',
-        chunkCount: 0,
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error during save',
-      })
-    }
-  }
-
-  return results
+  await Promise.allSettled(processingPromises)
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -301,12 +183,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
 
-    if (accessCheck.notFound) {
-      logger.warn(`[${requestId}] Knowledge base not found: ${knowledgeBaseId}`)
-      return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
-    }
-
     if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${knowledgeBaseId}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
       logger.warn(
         `[${requestId}] User ${session.user.id} attempted to process documents in unauthorized knowledge base ${knowledgeBaseId}`
       )
@@ -318,58 +199,67 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     try {
       const validatedData = ProcessDocumentsSchema.parse(body)
 
-      logger.info(
-        `[${requestId}] Starting processing of ${validatedData.documents.length} documents`
-      )
+      const createdDocuments = await db.transaction(async (tx) => {
+        const documentPromises = validatedData.documents.map(async (docData) => {
+          const documentId = crypto.randomUUID()
+          const now = new Date()
 
-      // Get chunking config from knowledge base or use defaults
-      const kbChunkingConfig = accessCheck.knowledgeBase?.chunkingConfig as any
-      const processingOptions = {
-        knowledgeBaseId,
-        chunkSize: validatedData.processingOptions?.chunkSize || kbChunkingConfig?.maxSize || 512,
-        minCharactersPerChunk:
-          validatedData.processingOptions?.minCharactersPerChunk || kbChunkingConfig?.minSize || 24,
-        recipe: validatedData.processingOptions?.recipe || 'default',
-        lang: validatedData.processingOptions?.lang || 'en',
-      }
+          const newDocument = {
+            id: documentId,
+            knowledgeBaseId,
+            filename: docData.filename,
+            fileUrl: docData.fileUrl,
+            fileSize: docData.fileSize,
+            mimeType: docData.mimeType,
+            fileHash: docData.fileHash || null,
+            chunkCount: 0,
+            tokenCount: 0,
+            characterCount: 0,
+            processingStatus: 'pending' as const,
+            enabled: true,
+            uploadedAt: now,
+          }
 
-      // Process documents (parsing + chunking)
-      const processedDocuments = await processDocuments(
-        validatedData.documents.map((doc) => ({
-          fileUrl: doc.fileUrl,
-          filename: doc.filename,
-          mimeType: doc.mimeType,
-          fileSize: doc.fileSize,
-        })),
-        processingOptions
-      )
+          await tx.insert(document).values(newDocument)
+          return { documentId, ...docData }
+        })
 
-      // Save processed documents and chunks to database
-      const saveResults = await saveProcessedDocuments(
-        knowledgeBaseId,
-        processedDocuments,
-        validatedData.documents
-      )
-
-      const successfulCount = saveResults.filter((r) => r.success).length
-      const totalChunks = saveResults.reduce((sum, r) => sum + r.chunkCount, 0)
+        return await Promise.all(documentPromises)
+      })
 
       logger.info(
-        `[${requestId}] Document processing completed: ${successfulCount}/${validatedData.documents.length} documents, ${totalChunks} total chunks`
+        `[${requestId}] Starting controlled async processing of ${createdDocuments.length} documents`
       )
+
+      processDocumentsWithConcurrencyControl(
+        createdDocuments,
+        knowledgeBaseId,
+        validatedData.processingOptions,
+        requestId
+      ).catch((error: unknown) => {
+        logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
+      })
 
       return NextResponse.json({
         success: true,
         data: {
-          processed: successfulCount,
-          total: validatedData.documents.length,
-          totalChunks,
-          results: saveResults,
+          total: createdDocuments.length,
+          documentsCreated: createdDocuments.map((doc) => ({
+            documentId: doc.documentId,
+            filename: doc.filename,
+            status: 'pending',
+          })),
+          processingMethod: 'background',
+          processingConfig: {
+            maxConcurrentDocuments: PROCESSING_CONFIG.maxConcurrentDocuments,
+            batchSize: PROCESSING_CONFIG.batchSize,
+            totalBatches: Math.ceil(createdDocuments.length / PROCESSING_CONFIG.batchSize),
+          },
         },
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid document processing data`, {
+        logger.warn(`[${requestId}] Invalid processing request data`, {
           errors: validationError.errors,
         })
         return NextResponse.json(
@@ -381,12 +271,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   } catch (error) {
     logger.error(`[${requestId}] Error processing documents`, error)
-    return NextResponse.json(
-      {
-        error: 'Failed to process documents',
-        details: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to process documents' }, { status: 500 })
   }
 }

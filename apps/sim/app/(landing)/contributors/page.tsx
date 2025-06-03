@@ -433,7 +433,7 @@ export default function ContributorsPage() {
                     <ResponsiveContainer width='100%' height={300} className='sm:!h-[400px]'>
                       <BarChart
                         data={filteredContributors?.slice(0, showAllContributors ? undefined : 10)}
-                        margin={{ top: 10, right: 5, bottom: 45, left: 5 }}
+                        margin={{ top: 10, right: 10, bottom: 60, left: 10 }}
                         className='sm:!mx-2.5 sm:!mb-2.5'
                       >
                         <XAxis
@@ -448,11 +448,11 @@ export default function ContributorsPage() {
                             return (
                               <g transform={`translate(${x},${y})`}>
                                 <foreignObject
-                                  x='-12'
-                                  y='6'
-                                  width='24'
-                                  height='24'
-                                  className='sm:!x-[-16] sm:!y-[8] sm:!w-[32] sm:!h-[32]'
+                                  x='-16'
+                                  y='8'
+                                  width='32'
+                                  height='32'
+                                  style={{ overflow: 'visible' }}
                                 >
                                   <Avatar className='h-6 w-6 ring-1 ring-[#606060]/30 sm:h-8 sm:w-8'>
                                     <AvatarImage src={contributor?.avatar_url} />
@@ -464,8 +464,8 @@ export default function ContributorsPage() {
                               </g>
                             )
                           }}
-                          height={50}
-                          className='sm:!h-[60px] text-neutral-400'
+                          height={60}
+                          className='text-neutral-400'
                         />
                         <YAxis
                           stroke='currentColor'

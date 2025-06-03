@@ -2,12 +2,23 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
+import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { embedding, knowledgeBase } from '@/db/schema'
 
 const logger = createLogger('VectorSearchAPI')
+
+class APIError extends Error {
+  public status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'APIError'
+    this.status = status
+  }
+}
 
 // Schema for vector search request
 const VectorSearchSchema = z.object({
@@ -23,31 +34,45 @@ async function generateSearchEmbedding(query: string): Promise<number[]> {
   }
 
   try {
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
+    return await retryWithExponentialBackoff(
+      async () => {
+        const response = await fetch('https://api.openai.com/v1/embeddings', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            input: query,
+            model: 'text-embedding-3-small',
+            encoding_format: 'float',
+          }),
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          const error = new APIError(
+            `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
+            response.status
+          )
+          throw error
+        }
+
+        const data = await response.json()
+
+        if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
+          throw new Error('Invalid response format from OpenAI embeddings API')
+        }
+
+        return data.data[0].embedding
       },
-      body: JSON.stringify({
-        input: query,
-        model: 'text-embedding-3-small',
-        encoding_format: 'float',
-      }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`)
-    }
-
-    const data = await response.json()
-
-    if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
-      throw new Error('Invalid response format from OpenAI embeddings API')
-    }
-
-    return data.data[0].embedding
+      {
+        maxRetries: 5,
+        initialDelayMs: 1000,
+        maxDelayMs: 30000, // Max 30 seconds delay for search queries
+        backoffMultiplier: 2,
+      }
+    )
   } catch (error) {
     logger.error('Failed to generate search embedding:', error)
     throw new Error(

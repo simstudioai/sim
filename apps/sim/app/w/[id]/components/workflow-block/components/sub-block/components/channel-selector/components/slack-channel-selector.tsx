@@ -44,7 +44,6 @@ export function SlackChannelSelector({
   const fetchChannels = useCallback(async () => {
     if (!credential) return
 
-    const controller = new AbortController()
     setLoading(true)
     setError(null)
 
@@ -53,7 +52,6 @@ export function SlackChannelSelector({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential }),
-        signal: controller.signal,
       })
 
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
