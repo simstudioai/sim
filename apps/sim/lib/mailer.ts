@@ -1,7 +1,7 @@
 import { Resend } from 'resend'
 import { createLogger } from '@/lib/logs/console-logger'
 import { env } from './env'
-import { getBaseDomain } from './urls/utils'
+import { getEmailDomain } from './urls/utils'
 
 interface EmailOptions {
   to: string
@@ -42,7 +42,7 @@ export async function sendEmail({
   from,
 }: EmailOptions): Promise<SendEmailResult> {
   try {
-    const senderEmail = from || `noreply@${getBaseDomain()}`
+    const senderEmail = from || `noreply@${getEmailDomain()}`
 
     if (!resend) {
       logger.info('Email not sent (Resend not configured):', {
@@ -90,7 +90,7 @@ export async function sendBatchEmails({
   emails,
 }: BatchEmailOptions): Promise<BatchSendEmailResult> {
   try {
-    const senderEmail = `noreply@${getBaseDomain()}`
+    const senderEmail = `noreply@${getEmailDomain()}`
     const results: SendEmailResult[] = []
 
     if (!resend) {
@@ -98,7 +98,6 @@ export async function sendBatchEmails({
         emailCount: emails.length,
       })
 
-      // Create mock results for each email
       emails.forEach(() => {
         results.push({
           success: true,
@@ -115,7 +114,6 @@ export async function sendBatchEmails({
       }
     }
 
-    // Prepare emails for batch sending
     const batchEmails = emails.map((email) => ({
       from: `Sim Studio <${email.from || senderEmail}>`,
       to: email.to,
@@ -123,8 +121,6 @@ export async function sendBatchEmails({
       html: email.html,
     }))
 
-    // Send batch emails (maximum 100 per batch as per Resend API limits)
-    // Process in chunks of 50 to be safe
     const BATCH_SIZE = 50
     let allSuccessful = true
 

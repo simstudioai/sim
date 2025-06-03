@@ -17,7 +17,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 import { env } from './env'
-import { getBaseDomain } from './urls/utils'
+import { getEmailDomain } from './urls/utils'
 
 const logger = createLogger('Auth')
 
@@ -147,7 +147,7 @@ export const auth = betterAuth({
       const html = await renderPasswordResetEmail(username, url)
 
       const result = await resend.emails.send({
-        from: `Sim Studio <team@${getBaseDomain()}>`,
+        from: `Sim Studio <team@${getEmailDomain()}>`,
         to: user.email,
         subject: getEmailSubject('reset-password'),
         html,
@@ -189,7 +189,7 @@ export const auth = betterAuth({
 
           // In production, send an actual email
           const result = await resend.emails.send({
-            from: `Sim Studio <onboarding@${getBaseDomain()}>`,
+            from: `Sim Studio <onboarding@${getEmailDomain()}>`,
             to: data.email,
             subject: getEmailSubject(data.type),
             html,
@@ -1144,7 +1144,7 @@ export const auth = betterAuth({
                 )
 
                 await resend.emails.send({
-                  from: `Sim Studio <team@${getBaseDomain()}>`,
+                  from: `Sim Studio <team@${getEmailDomain()}>`,
                   to: invitation.email,
                   subject: `${inviterName} has invited you to join ${organization.name} on Sim Studio`,
                   html,

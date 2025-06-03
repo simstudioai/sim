@@ -7,7 +7,7 @@ import { WorkspaceInvitationEmail } from '@/components/emails/workspace-invitati
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getBaseDomain } from '@/lib/urls/utils'
+import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
 import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
 
@@ -229,7 +229,7 @@ async function sendInvitationEmail({
     }
 
     await resend.emails.send({
-      from: `noreply@${getBaseDomain()}`,
+      from: `noreply@${getEmailDomain()}`,
       to,
       subject: `You've been invited to join "${workspaceName}" on Sim Studio`,
       html: emailHtml,

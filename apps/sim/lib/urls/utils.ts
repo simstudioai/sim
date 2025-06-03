@@ -39,3 +39,17 @@ export function getBaseDomain(): string {
     }
   }
 }
+
+/**
+ * Returns the domain for email addresses, stripping www subdomain for Resend compatibility
+ * @returns The email domain (e.g., 'simstudio.ai' instead of 'www.simstudio.ai')
+ */
+export function getEmailDomain(): string {
+  try {
+    const baseDomain = getBaseDomain()
+    return baseDomain.startsWith('www.') ? baseDomain.substring(4) : baseDomain
+  } catch (_e) {
+    const isProd = process.env.NODE_ENV === 'production'
+    return isProd ? 'simstudio.ai' : 'localhost:3000'
+  }
+}

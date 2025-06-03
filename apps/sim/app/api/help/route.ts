@@ -3,12 +3,11 @@ import { Resend } from 'resend'
 import { z } from 'zod'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getBaseDomain } from '@/lib/urls/utils'
+import { getEmailDomain } from '@/lib/urls/utils'
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
 const logger = createLogger('HelpAPI')
 
-// Define schema for validation
 const helpFormSchema = z.object({
   email: z.string().email('Invalid email address'),
   subject: z.string().min(1, 'Subject is required'),
@@ -99,8 +98,8 @@ ${message}
 
     // Send email using Resend
     const { data, error } = await resend.emails.send({
-      from: `Sim Studio <noreply@${getBaseDomain()}>`,
-      to: [`help@${getBaseDomain()}`],
+      from: `Sim Studio <noreply@${getEmailDomain()}>`,
+      to: [`help@${getEmailDomain()}`],
       subject: `[${type.toUpperCase()}] ${subject}`,
       replyTo: email,
       text: emailText,
@@ -122,7 +121,7 @@ ${message}
     // Send confirmation email to the user
     await resend.emails
       .send({
-        from: `Sim Studio <noreply@${getBaseDomain()}>`,
+        from: `Sim Studio <noreply@${getEmailDomain()}>`,
         to: [email],
         subject: `Your ${type} request has been received: ${subject}`,
         text: `
@@ -137,8 +136,8 @@ ${images.length > 0 ? `You attached ${images.length} image(s).` : ''}
 
 Best regards,
 The Sim Studio Team
-      `,
-        replyTo: `help@${getBaseDomain()}`,
+        `,
+        replyTo: `help@${getEmailDomain()}`,
       })
       .catch((err) => {
         logger.warn(`[${requestId}] Failed to send confirmation email`, err)
