@@ -10,6 +10,8 @@ import type { ConfluenceFileInfo } from './components/confluence-file-selector'
 import { ConfluenceFileSelector } from './components/confluence-file-selector'
 import type { DiscordChannelInfo } from './components/discord-channel-selector'
 import { DiscordChannelSelector } from './components/discord-channel-selector'
+import type { GoogleCalendarInfo } from './components/google-calendar-selector'
+import { GoogleCalendarSelector } from './components/google-calendar-selector'
 import type { FileInfo } from './components/google-drive-picker'
 import { GoogleDrivePicker } from './components/google-drive-picker'
 import type { JiraIssueInfo } from './components/jira-issue-selector'
@@ -44,6 +46,8 @@ export function FileSelectorInput({
   const [channelInfo, setChannelInfo] = useState<DiscordChannelInfo | null>(null)
   const [selectedMessageId, setSelectedMessageId] = useState<string>('')
   const [messageInfo, setMessageInfo] = useState<TeamsMessageInfo | null>(null)
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>('')
+  const [calendarInfo, setCalendarInfo] = useState<GoogleCalendarInfo | null>(null)
 
   // Get provider-specific values
   const provider = subBlock.provider || 'google-drive'
@@ -52,6 +56,7 @@ export function FileSelectorInput({
   const isDiscord = provider === 'discord'
   const isMicrosoftTeams = provider === 'microsoft-teams'
   const isMicrosoftExcel = provider === 'microsoft-excel'
+  const isGoogleCalendar = subBlock.provider || 'google-calendar'
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
   // For Discord, we need the bot token and server ID
@@ -72,6 +77,8 @@ export function FileSelectorInput({
           setSelectedChannelId(value)
         } else if (isMicrosoftTeams) {
           setSelectedMessageId(value)
+        } else if (isGoogleCalendar) {
+          setSelectedCalendarId(value)
         } else {
           setSelectedFileId(value)
         }
@@ -85,12 +92,24 @@ export function FileSelectorInput({
           setSelectedChannelId(value)
         } else if (isMicrosoftTeams) {
           setSelectedMessageId(value)
+        } else if (isGoogleCalendar) {
+          setSelectedCalendarId(value)
         } else {
           setSelectedFileId(value)
         }
       }
     }
-  }, [blockId, subBlock.id, getValue, isJira, isDiscord, isMicrosoftTeams, isPreview, previewValue])
+  }, [
+    blockId,
+    subBlock.id,
+    getValue,
+    isJira,
+    isDiscord,
+    isMicrosoftTeams,
+    isGoogleCalendar,
+    isPreview,
+    previewValue,
+  ])
 
   // Handle file selection
   const handleFileChange = (fileId: string, info?: any) => {
@@ -119,9 +138,46 @@ export function FileSelectorInput({
     setValue(blockId, subBlock.id, channelId)
   }
 
+  // Handle calendar selection
+  const handleCalendarChange = (calendarId: string, info?: GoogleCalendarInfo) => {
+    setSelectedCalendarId(calendarId)
+    setCalendarInfo(info || null)
+    setValue(blockId, subBlock.id, calendarId)
+  }
+
   // For Google Drive
   const clientId = env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
   const apiKey = env.NEXT_PUBLIC_GOOGLE_API_KEY || ''
+
+  // Render Google Calendar selector
+  if (isGoogleCalendar) {
+    const credential = (getValue(blockId, 'credential') as string) || ''
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='w-full'>
+              <GoogleCalendarSelector
+                value={selectedCalendarId}
+                onChange={handleCalendarChange}
+                label={subBlock.placeholder || 'Select Google Calendar'}
+                disabled={disabled || !credential}
+                showPreview={true}
+                onCalendarInfoChange={setCalendarInfo}
+                credentialId={credential}
+              />
+            </div>
+          </TooltipTrigger>
+          {!credential && (
+            <TooltipContent side='top'>
+              <p>Please select Google Calendar credentials first</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
 
   // Render Discord channel selector
   if (isDiscord) {

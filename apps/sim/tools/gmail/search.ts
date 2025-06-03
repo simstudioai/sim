@@ -75,7 +75,6 @@ export const gmailSearchTool: ToolConfig<GmailSearchParams, GmailToolResponse> =
   },
 
   transformError: (error) => {
-    // Handle Google API error format
     if (error.error?.message) {
       if (error.error.message.includes('invalid authentication credentials')) {
         return 'Invalid or expired access token. Please reauthenticate.'

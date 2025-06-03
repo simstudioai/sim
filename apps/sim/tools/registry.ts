@@ -27,6 +27,12 @@ import {
 } from './github'
 import { gmailReadTool, gmailSearchTool, gmailSendTool } from './gmail'
 import { searchTool as googleSearchTool } from './google'
+import {
+  googleCalendarCreateTool,
+  googleCalendarGetTool,
+  googleCalendarListTool,
+  googleCalendarQuickAddTool,
+} from './google_calendar'
 import { googleDocsCreateTool, googleDocsReadTool, googleDocsWriteTool } from './google_docs'
 import {
   googleDriveCreateFolderTool,
@@ -200,4 +206,8 @@ export const tools: Record<string, ToolConfig> = {
   microsoft_excel_read: microsoftExcelReadTool,
   microsoft_excel_write: microsoftExcelWriteTool,
   microsoft_excel_table_add: microsoftExcelTableAddTool,
+  google_calendar_create: googleCalendarCreateTool,
+  google_calendar_get: googleCalendarGetTool,
+  google_calendar_list: googleCalendarListTool,
+  google_calendar_quick_add: googleCalendarQuickAddTool,
 }
