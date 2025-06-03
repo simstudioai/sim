@@ -21,6 +21,7 @@ import { FunctionBlock } from './blocks/function'
 import { GitHubBlock } from './blocks/github'
 import { GmailBlock } from './blocks/gmail'
 import { GoogleSearchBlock } from './blocks/google'
+import { GoogleCalendarBlock } from './blocks/google_calendar'
 import { GoogleDocsBlock } from './blocks/google_docs'
 import { GoogleDriveBlock } from './blocks/google_drive'
 import { GoogleSheetsBlock } from './blocks/google_sheets'
@@ -82,6 +83,7 @@ export const registry: Record<string, BlockConfig> = {
   function: FunctionBlock,
   github: GitHubBlock,
   gmail: GmailBlock,
+  google_calendar: GoogleCalendarBlock,
   google_docs: GoogleDocsBlock,
   google_drive: GoogleDriveBlock,
   google_search: GoogleSearchBlock,

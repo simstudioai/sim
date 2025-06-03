@@ -26,7 +26,6 @@ import { env } from './env'
 
 const logger = createLogger('OAuth')
 
-// Define the base OAuth provider type
 export type OAuthProvider =
   | 'google'
   | 'github'
@@ -48,6 +47,7 @@ export type OAuthService =
   | 'google-drive'
   | 'google-docs'
   | 'google-sheets'
+  | 'google-calendar'
   | 'github'
   | 'x'
   | 'supabase'
@@ -62,7 +62,6 @@ export type OAuthService =
   | 'linear'
   | 'slack'
 
-// Define the interface for OAuth provider configuration
 export interface OAuthProviderConfig {
   id: OAuthProvider
   name: string
@@ -71,7 +70,6 @@ export interface OAuthProviderConfig {
   defaultService: string
 }
 
-// Define the interface for OAuth service configuration
 export interface OAuthServiceConfig {
   id: string
   name: string
@@ -82,7 +80,6 @@ export interface OAuthServiceConfig {
   scopes: string[]
 }
 
-// Define the available OAuth providers
 export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
   google: {
     id: 'google',
