@@ -31,7 +31,6 @@ export default function Templates() {
   })
   const [activeSection, setActiveSection] = useState<string | null>(null)
   const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(['popular', 'recent']))
-  const [_visibleSections, setVisibleSections] = useState<Set<string>>(new Set(['popular']))
   const [categoryFilter, setCategoryFilter] = useState<string[] | null>(null)
 
   // Get sidebar state for layout calculations
@@ -48,51 +47,28 @@ export default function Templates() {
 
   // Convert template data to the format expected by components
   const workflowData = useMemo(() => {
+    // Reusable function to convert template items to workflow format
+    const convertTemplateItems = (items: any[]) => 
+      items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        description: getTemplateDescription(item),
+        author: item.authorName,
+        views: item.views,
+        tags: [item.category || 'uncategorized'],
+        workflowState: item.workflowState,
+        workflowUrl: `/w/${item.workflowId}`,
+        price: item.price || 'Free',
+      }))
+
     const result: Record<string, Workflow[]> = {
-      popular: templateData.popular.map((item) => ({
-        id: item.id,
-        name: item.name,
-        description: getTemplateDescription(item),
-        author: item.authorName,
-        views: item.views,
-        tags: [item.category || 'uncategorized'],
-        workflowState: item.workflowState,
-        workflowUrl: `/w/${item.workflowId}`,
-        price: item.price || 'Free',
-      })),
-      recent: templateData.recent.map((item) => ({
-        id: item.id,
-        name: item.name,
-        description: getTemplateDescription(item),
-        author: item.authorName,
-        views: item.views,
-        tags: [item.category || 'uncategorized'],
-        workflowState: item.workflowState,
-        workflowUrl: `/w/${item.workflowId}`,
-        price: item.price || 'Free',
-      })),
+      popular: convertTemplateItems(templateData.popular),
+      recent: convertTemplateItems(templateData.recent),
     }
 
-    // Initialize all categories (even empty ones) so they show up in the UI
-    CATEGORIES.forEach(category => {
-      result[category.value] = []
-    })
-
-    // Add entries for each category with actual data
+    // Add categories that have been loaded
     Object.entries(templateData.byCategory).forEach(([category, items]) => {
-      if (items && items.length > 0) {
-        result[category] = items.map((item) => ({
-          id: item.id,
-          name: item.name,
-          description: getTemplateDescription(item),
-          author: item.authorName,
-          views: item.views,
-          tags: [item.category || 'uncategorized'],
-          workflowState: item.workflowState,
-          workflowUrl: `/w/${item.workflowId}`,
-          price: item.price || 'Free',
-        }))
-      }
+      result[category] = convertTemplateItems(items || [])
     })
 
     return result
@@ -171,16 +147,13 @@ export default function Templates() {
     return entries
   }, [filteredWorkflows])
 
-  // Fetch templates on component mount - improved to include state initially
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
         setLoading(true)
 
-        // Fetch popular, recent, AND all categories initially WITHOUT state for faster loading
-        const response = await fetch(
-          '/api/templates/workflows?section=popular,recent,byCategory&limit=6&includeState=false'
-        )
+        // Load all templates upfront - popular, recent, and all categories
+        const response = await fetch('/api/templates/workflows?section=popular,recent,byCategory')
 
         if (!response.ok) {
           throw new Error('Failed to fetch template data')
@@ -188,10 +161,9 @@ export default function Templates() {
 
         const data = await response.json()
 
-        // Set all categories as loaded since we fetched them all
+        // Mark all sections as loaded
         const allSections = new Set(['popular', 'recent', ...CATEGORIES.map(cat => cat.value)])
         setLoadedSections(allSections)
-
 
         setTemplateData(data)
         initialFetchCompleted.current = true
@@ -209,65 +181,9 @@ export default function Templates() {
     fetchInitialData()
   }, [])
 
-  // Lazy load category data when sections become visible
-  const loadCategoryData = async (categoryName: string) => {
-    if (loadedSections.has(categoryName)) {
-      return // Already loaded, no need to fetch again
-    }
-
-    try {
-      setLoadedSections((prev) => new Set([...prev, categoryName]))
-
-      logger.info(`Loading category: ${categoryName}`)
-
-      // Load category data WITHOUT state initially for faster loading
-      const response = await fetch(
-        `/api/templates/workflows?category=${categoryName}&limit=6&includeState=false`
-      )
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ${categoryName} category data`)
-      }
-
-      const data = await response.json()
-
-      // Debug logging
-      logger.info(
-        'Category data received:',
-        data.byCategory ? Object.keys(data.byCategory) : 'No byCategory',
-        data.byCategory?.[categoryName]?.length || 0
-      )
-
-      // Check if we received any data in the category
-      if (
-        !data.byCategory ||
-        !data.byCategory[categoryName] ||
-        data.byCategory[categoryName].length === 0
-      ) {
-        logger.warn(`No items found for category: ${categoryName}`)
-      }
-
-      setTemplateData((prev) => ({
-        ...prev,
-        byCategory: {
-          ...prev.byCategory,
-          [categoryName]: data.byCategory?.[categoryName] || [],
-        },
-      }))
-    } catch (error) {
-      logger.error(`Error fetching ${categoryName} category:`, error)
-      // We don't set a global error, just log it
-    }
-  }
-
-  // Function to scroll to a specific section
+  // Simplify scrollToSection
   const scrollToSection = (sectionId: string) => {
     if (sectionRefs.current[sectionId]) {
-      // Load the section data if not already loaded
-      if (!loadedSections.has(sectionId) && sectionId !== 'popular' && sectionId !== 'recent') {
-        loadCategoryData(sectionId)
-      }
-
       sectionRefs.current[sectionId]?.scrollIntoView({
         behavior: 'smooth',
         block: 'start',
@@ -275,132 +191,36 @@ export default function Templates() {
     }
   }
 
-  // Setup intersection observer to track active section and load sections as they become visible
+  // Simplified intersection observer just for tracking active section
   useEffect(() => {
     if (!initialFetchCompleted.current) return
 
-    // Function to get current section IDs in their display order
-    const getCurrentSectionIds = () => {
-      return Object.keys(filteredWorkflows).filter(
-        (key) => filteredWorkflows[key] && filteredWorkflows[key].length > 0
-      )
-    }
-
-    // Create intersection observer to detect when sections enter viewport
-    const observeSections = () => {
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            const sectionId = entry.target.id
-
-            // Update visibility tracking
-            if (entry.isIntersecting) {
-              setVisibleSections((prev) => {
-                const updated = new Set(prev)
-                updated.add(sectionId)
-                return updated
-              })
-
-              // Load category data if section is visible and not loaded yet
-              if (
-                !loadedSections.has(sectionId) &&
-                sectionId !== 'popular' &&
-                sectionId !== 'recent'
-              ) {
-                loadCategoryData(sectionId)
-              }
-            } else {
-              setVisibleSections((prev) => {
-                const updated = new Set(prev)
-                updated.delete(sectionId)
-                return updated
-              })
-            }
-          })
-        },
-        {
-          root: contentRef.current,
-          rootMargin: '200px 0px', // Load sections slightly before they become visible
-          threshold: 0.1,
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Find the first intersecting section and set it as active
+        const intersectingEntry = entries.find(entry => entry.isIntersecting)
+        if (intersectingEntry) {
+          setActiveSection(intersectingEntry.target.id)
         }
-      )
-
-      // Observe all sections
-      Object.entries(sectionRefs.current).forEach(([id, ref]) => {
-        if (ref) {
-          observer.observe(ref)
-        }
-      })
-
-      return observer
-    }
-
-    const observer = observeSections()
-
-    // Use a single source of truth for determining the active section
-    const determineActiveSection = () => {
-      if (!contentRef.current) return
-
-      const { scrollTop, scrollHeight, clientHeight } = contentRef.current
-      const viewportTop = scrollTop
-      const viewportMiddle = viewportTop + clientHeight / 2
-      const viewportBottom = scrollTop + clientHeight
-      const isAtBottom = viewportBottom >= scrollHeight - 50
-      const isAtTop = viewportTop <= 20
-
-      const currentSectionIds = getCurrentSectionIds()
-
-      // Handle edge cases first
-      if (isAtTop && currentSectionIds.length > 0) {
-        setActiveSection(currentSectionIds[0])
-        return
+      },
+      {
+        root: contentRef.current,
+        rootMargin: '-20% 0px -60% 0px', // Only consider section active when it's prominently visible
+        threshold: 0.1,
       }
+    )
 
-      if (isAtBottom && currentSectionIds.length > 0) {
-        setActiveSection(currentSectionIds[currentSectionIds.length - 1])
-        return
+    // Observe all sections
+    Object.entries(sectionRefs.current).forEach(([id, ref]) => {
+      if (ref) {
+        observer.observe(ref)
       }
-
-      // Find section whose position is closest to middle of viewport
-      // This creates smoother transitions as we scroll
-      let closestSection = null
-      let closestDistance = Number.POSITIVE_INFINITY
-
-      Object.entries(sectionRefs.current).forEach(([id, ref]) => {
-        if (!ref || !currentSectionIds.includes(id)) return
-
-        const rect = ref.getBoundingClientRect()
-        const sectionTop =
-          rect.top + scrollTop - (contentRef.current?.getBoundingClientRect().top || 0)
-        const sectionMiddle = sectionTop + rect.height / 2
-        const distance = Math.abs(viewportMiddle - sectionMiddle)
-
-        if (distance < closestDistance) {
-          closestDistance = distance
-          closestSection = id
-        }
-      })
-
-      if (closestSection) {
-        setActiveSection(closestSection)
-      }
-    }
-
-    // Use a passive scroll listener for smooth transitions
-    const handleScroll = () => {
-      // Using requestAnimationFrame ensures we only calculate
-      // section positions during a paint frame, reducing jank
-      window.requestAnimationFrame(determineActiveSection)
-    }
-
-    const contentElement = contentRef.current
-    contentElement?.addEventListener('scroll', handleScroll, { passive: true })
+    })
 
     return () => {
       observer.disconnect()
-      contentElement?.removeEventListener('scroll', handleScroll)
     }
-  }, [initialFetchCompleted.current, loading, filteredWorkflows, loadedSections])
+  }, [initialFetchCompleted.current])
 
 
   return (

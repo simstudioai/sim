@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
+import { NotificationList } from '../../../[id]/components/notifications/notifications'
 import { TemplateHero } from './components/template-hero/template-hero'
 import { TemplatePreview } from './components/template-preview/template-preview'
 import { SimilarTemplates } from './components/similar-templates/similar-templates'
@@ -165,6 +166,9 @@ export function TemplateDetailPage({ templateId, initialTemplateData, onBack }: 
         {/* Similar Templates Section - This loads independently and won't block the main content */}
         <SimilarTemplates currentTemplate={template} />
       </div>
+      
+      {/* Notifications */}
+      <NotificationList />
     </div>
   )
 } 
