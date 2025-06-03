@@ -108,7 +108,6 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
         },
       }
 
-      // Add optional fields
       if (params.description) {
         eventData.description = params.description
       }

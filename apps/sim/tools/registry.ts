@@ -32,7 +32,6 @@ import {
   googleCalendarGetTool,
   googleCalendarListTool,
   googleCalendarQuickAddTool,
-  //   googleCalendarUpdateTool,
 } from './google_calendar'
 import { googleDocsCreateTool, googleDocsReadTool, googleDocsWriteTool } from './google_docs'
 import {
@@ -211,5 +210,4 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_get: googleCalendarGetTool,
   google_calendar_list: googleCalendarListTool,
   google_calendar_quick_add: googleCalendarQuickAddTool,
-  //   google_calendar_update: googleCalendarUpdateTool,
 }

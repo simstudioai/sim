@@ -246,8 +246,6 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
             return 'google_calendar_list'
           case 'get':
             return 'google_calendar_get'
-          // case 'update':
-          //   return 'google_calendar_update'
           case 'quick_add':
             return 'google_calendar_quick_add'
           default:
