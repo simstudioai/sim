@@ -50,7 +50,7 @@ interface KnowledgeBaseProps {
 
 function getFileIcon(mimeType: string, filename: string) {
   const IconComponent = getDocumentIcon(mimeType, filename)
-  return <IconComponent className='h-6 w-5' />
+  return <IconComponent className='h-6 w-5 flex-shrink-0' />
 }
 
 function formatFileSize(bytes: number): string {
