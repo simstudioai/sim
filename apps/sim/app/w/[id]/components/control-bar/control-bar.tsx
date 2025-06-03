@@ -15,6 +15,7 @@ import {
   StepForward,
   Trash2,
   X,
+  Store,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
@@ -129,6 +130,8 @@ export function ControlBar() {
 
   // Marketplace modal state
   const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false)
+
 
   // Multiple runs state
   const [runCount, setRunCount] = useState(1)
@@ -175,10 +178,10 @@ export function ControlBar() {
   }
 
   // // Check if the current user is the owner of the published workflow
-  // const isWorkflowOwner = () => {
-  //   const marketplaceData = getMarketplaceData()
-  //   return marketplaceData?.status === 'owner'
-  // }
+  const isWorkflowOwner = () => {
+    const marketplaceData = getMarketplaceData()
+    return marketplaceData?.status === 'owner'
+  }
 
   // Get deployment status from registry
   const deploymentStatus = useWorkflowRegistry((state) =>
@@ -433,19 +436,19 @@ export function ControlBar() {
   // /**
   //  * Handle opening marketplace modal or showing published status
   //  */
-  // const handlePublishWorkflow = async () => {
-  //   if (!activeWorkflowId) return
+  const handlePublishWorkflow = async () => {
+    if (!activeWorkflowId) return
 
-  //   // If already published, show marketplace modal with info instead of notifications
-  //   const isPublished = isPublishedToMarketplace()
-  //   if (isPublished) {
-  //     setIsMarketplaceModalOpen(true)
-  //     return
-  //   }
+    // If already published, show marketplace modal with info instead of notifications
+    const isPublished = _isPublishedToMarketplace()
+    if (isPublished) {
+      setIsMarketplaceModalOpen(true)
+      return
+    }
 
-  //   // If not published, open the modal to start the publishing process
-  //   setIsMarketplaceModalOpen(true)
-  // }
+    // If not published, open the modal to start the publishing process
+    setIsMarketplaceModalOpen(true)
+  }
 
   /**
    * Handle multiple workflow runs
@@ -770,37 +773,37 @@ export function ControlBar() {
   /**
    * Render publish button
    */
-  // const renderPublishButton = () => {
-  //   const isPublished = isPublishedToMarketplace()
+  const renderPublishButton = () => {
+    const isPublished = _isPublishedToMarketplace()
 
-  //   return (
-  //     <Tooltip>
-  //       <TooltipTrigger asChild>
-  //         <Button
-  //           variant="ghost"
-  //           size="icon"
-  //           onClick={handlePublishWorkflow}
-  //           disabled={isPublishing}
-  //           className={cn('hover:text-[#701FFC]', isPublished && 'text-[#701FFC]')}
-  //         >
-  //           {isPublishing ? (
-  //             <Loader2 className="h-5 w-5 animate-spin" />
-  //           ) : (
-  //             <Store className="h-5 w-5" />
-  //           )}
-  //           <span className="sr-only">Publish to Marketplace</span>
-  //         </Button>
-  //       </TooltipTrigger>
-  //       <TooltipContent>
-  //         {isPublishing
-  //           ? 'Publishing...'
-  //           : isPublished
-  //             ? 'Published to Marketplace'
-  //             : 'Publish to Marketplace'}
-  //       </TooltipContent>
-  //     </Tooltip>
-  //   )
-  // }
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handlePublishWorkflow}
+            disabled={isPublishing}
+            className={cn('hover:text-[#701FFC]', isPublished && 'text-[#701FFC]')}
+          >
+            {isPublishing ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Store className="h-5 w-5" />
+            )}
+            <span className="sr-only">Publish to Marketplace</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isPublishing
+            ? 'Publishing...'
+            : isPublished
+              ? 'Published to Marketplace'
+              : 'Publish to Marketplace'}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
 
   /**
    * Render workflow duplicate button
@@ -1132,7 +1135,7 @@ export function ControlBar() {
         {renderDuplicateButton()}
         {renderAutoLayoutButton()}
         {renderDebugModeToggle()}
-        {/* {renderPublishButton()} */}
+        {renderPublishButton()}
         {renderDeployButton()}
         {renderRunButton()}
 

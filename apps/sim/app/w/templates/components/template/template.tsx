@@ -6,10 +6,10 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { TemplateHero } from './template-hero/template-hero'
-import { TemplatePreview } from './template-preview/template-preview'
-import { SimilarTemplates } from './similar-templates/similar-templates'
-import { TemplateData } from '../../../types'
+import { TemplateHero } from './components/template-hero/template-hero'
+import { TemplatePreview } from './components/template-preview/template-preview'
+import { SimilarTemplates } from './components/similar-templates/similar-templates'
+import { TemplateData } from '../../types'
 
 const logger = createLogger('TemplateDetailPage')
 
@@ -40,15 +40,7 @@ export function TemplateDetailPage({ templateId, initialTemplateData, onBack }: 
         if (initialTemplateData?.workflowState) {
           setTemplate(initialTemplateData)
           setLoading(false)
-          
-          // Still track the view in the background
-          try {
-            await fetch(`/api/templates/${templateId}/view`, {
-              method: 'POST',
-            })
-          } catch (viewError) {
-            logger.warn('Failed to track template view:', viewError)
-          }
+          trackView(templateId)
           return
         }
 
@@ -72,17 +64,9 @@ export function TemplateDetailPage({ templateId, initialTemplateData, onBack }: 
         const data = await response.json()
         setTemplate(data)
         
-        logger.info(`Loaded template: ${data.name}`)
-
-        // Track the view using the new view endpoint
-        try {
-          await fetch(`/api/templates/${templateId}/view`, {
-            method: 'POST',
-          })
-        } catch (viewError) {
-          // Don't fail the page load if view tracking fails
-          logger.warn('Failed to track template view:', viewError)
-        }
+        // Track view after successful load
+        trackView(templateId)
+                
       } catch (err) {
         logger.error('Error fetching template:', err)
         setError('Failed to load template')
@@ -93,6 +77,19 @@ export function TemplateDetailPage({ templateId, initialTemplateData, onBack }: 
 
     fetchTemplate()
   }, [templateId, initialTemplateData])
+
+  // Track template view - non-blocking and handles errors gracefully
+  const trackView = async (id: string) => {
+    try {
+      await fetch(`/api/templates/${id}/view`, {
+        method: 'POST',
+      })
+      logger.info(`Tracked view for template: ${id}`)
+    } catch (error) {
+      // Don't let view tracking errors affect the user experience
+      logger.warn('Failed to track template view:', error)
+    }
+  }
 
   // Loading state
   if (loading) {

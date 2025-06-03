@@ -371,23 +371,23 @@ export const apiKey = pgTable('api_key', {
   expiresAt: timestamp('expires_at'),
 })
 
-export const marketplace = pgTable('marketplace', {
-  id: text('id').primaryKey(),
-  workflowId: text('workflow_id')
-    .notNull()
-    .references(() => workflow.id, { onDelete: 'cascade' }),
-  state: json('state').notNull(),
-  name: text('name').notNull(),
-  description: text('description'),
-  authorId: text('author_id')
-    .notNull()
-    .references(() => user.id),
-  authorName: text('author_name').notNull(),
-  views: integer('views').notNull().default(0),
-  category: text('category'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+// export const marketplace = pgTable('marketplace', {
+//   id: text('id').primaryKey(),
+//   workflowId: text('workflow_id')
+//     .notNull()
+//     .references(() => workflow.id, { onDelete: 'cascade' }),
+//   state: json('state').notNull(),
+//   name: text('name').notNull(),
+//   description: text('description'),
+//   authorId: text('author_id')
+//     .notNull()
+//     .references(() => user.id),
+//   authorName: text('author_name').notNull(),
+//   views: integer('views').notNull().default(0),
+//   category: text('category'),
+//   createdAt: timestamp('created_at').notNull().defaultNow(),
+//   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+// })
 
 export const templates = pgTable('templates', {
   id: text('id').primaryKey(),
@@ -401,8 +401,8 @@ export const templates = pgTable('templates', {
   authorName: text('author_name').notNull(),
   views: integer('views').notNull().default(0),
   category: text('category'),
-  price: decimal('price').notNull().default('0'),
-  sourceWorkflowId: text('source_workflow_id'),
+  price: text('price').notNull().default('Free'),
+  workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -672,6 +672,11 @@ export const document = pgTable(
 
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
+
+    processingStatus: text('processing_status'),
+    processingStartedAt: timestamp('processing_started_at'),
+    processingCompletedAt: timestamp('processing_completed_at'),
+    processingError: text('processing_error')
   },
   (table) => ({
     // Primary access pattern - documents by knowledge base
@@ -816,3 +821,4 @@ export const savedTemplates = pgTable(
     templateIdIdx: index('saved_templates_template_id_idx').on(table.templateId),
   })
 )
+

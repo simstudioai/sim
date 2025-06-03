@@ -18,7 +18,8 @@ export const revalidate = 0
 const PublishRequestSchema = z.object({
   workflowId: z.string().uuid(),
   name: z.string().min(3).max(50).optional(),
-  description: z.string().min(10).max(500).optional(),
+  shortDescription: z.string().min(10).max(200).optional(),
+  longDescription: z.string().min(20).max(1000).optional(),
   category: z.string().min(1).optional(),
   authorName: z.string().min(2).max(50).optional(),
   workflowState: z.record(z.any()).optional(),
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     try {
       // Parse request body
       const body = await request.json()
-      const { workflowId, name, description, category, authorName, workflowState } =
+      const { workflowId, name, shortDescription, longDescription, category, authorName, workflowState } =
         PublishRequestSchema.parse(body)
 
       // Check if the workflow belongs to the user
@@ -88,13 +89,15 @@ export async function POST(request: NextRequest) {
       // Prepare the templates entry
       const templatesEntry = {
         id: templatesId,
-        workflowId,
+        workflowId: workflowId,
         state: workflowState,
         name: name || userWorkflow[0].name,
-        description: description || userWorkflow[0].description || '',
+        short_description: shortDescription || userWorkflow[0].description || '',
+        long_description: longDescription || '',
         authorId: userId,
         authorName: authorName || userData[0].name,
         category: category || null,
+        price: 'Free', // Default price to Free
         updatedAt: new Date(),
       }
 
@@ -106,7 +109,7 @@ export async function POST(request: NextRequest) {
           .where(eq(templates.id, templatesId))
           .returning()
       } else {
-        // Create new entry with createdAt
+        // Create new entry with createdAt and views
         result = await db
           .insert(templates)
           .values({

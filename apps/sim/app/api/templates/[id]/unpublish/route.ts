@@ -49,12 +49,6 @@ export async function POST(
       return createErrorResponse('Template not found', 404)
     }
 
-    // TODO: Add authorization check here
-    // Ensure the user has permission to unpublish this template
-    // This would typically check if the user is the author or has admin rights
-
-    // For now, we'll implement this as a deletion from the templates table
-    // In a production system, you might want to add a "published" flag instead
     await db
       .delete(schema.templates)
       .where(eq(schema.templates.id, templateId))

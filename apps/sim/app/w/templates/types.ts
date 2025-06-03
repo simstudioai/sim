@@ -16,6 +16,7 @@ export interface WorkflowState {
     targetHandle?: string
   }>
   loops: Record<string, any>
+  parallels: Record<string, any>
 }
 
 // Template data interface that supports both current API responses and database schema
@@ -31,6 +32,7 @@ export interface TemplateData {
   authorName: string
   views: number
   category: string | null
+  price: string
   createdAt: string
   updatedAt: string
   workflowState?: WorkflowState
@@ -47,6 +49,7 @@ export interface Workflow {
   thumbnail?: string
   workflowUrl: string
   workflowState?: WorkflowState
+  price: string
 }
 
 // API response format for template collections
