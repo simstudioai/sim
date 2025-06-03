@@ -9,6 +9,7 @@ import { getCategoryLabel, getCategoryColor, getCategoryIcon } from '../../../..
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { createLogger } from '@/lib/logs/console-logger'
 import { TemplateData } from '../../../../types'
+import { useNotificationStore } from '@/stores/notifications/store'
 
 const logger = createLogger('TemplateHero')
 
@@ -23,6 +24,19 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   const [isSaved, setIsSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoadingSavedStatus, setIsLoadingSavedStatus] = useState(true)
+  const { addNotification } = useNotificationStore()
+
+  // Clear any existing share notifications when component mounts
+  useEffect(() => {
+    const { notifications, removeNotification } = useNotificationStore.getState()
+    
+    // Remove any existing global info notifications to prevent stale notifications
+    notifications.forEach(notification => {
+      if (notification.type === 'info' && notification.workflowId === null) {
+        removeNotification(notification.id)
+      }
+    })
+  }, [])
 
   // Check initial saved status when component mounts
   useEffect(() => {
@@ -96,10 +110,53 @@ export function TemplateHero({ template }: TemplateHeroProps) {
     }
   }
 
-  // Handle sharing template (placeholder)
-  const handleShareTemplate = () => {
-    navigator.clipboard.writeText(window.location.href)
-    logger.info('Template URL copied to clipboard')
+  // Handle sharing template
+  const handleShareTemplate = async () => {
+    try {
+      // Create the share message with URL
+      const templateUrl = `https://simstudio.ai/w/templates/${template.id}`
+      const shareText = `Check this template out on Sim Studio! ${templateUrl}`
+      
+      // Copy both message and URL to clipboard
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(shareText)
+      } else {
+        // Fallback for older browsers or non-secure contexts
+        const textArea = document.createElement('textarea')
+        textArea.value = shareText
+        textArea.style.position = 'fixed'
+        textArea.style.opacity = '0'
+        textArea.style.pointerEvents = 'none'
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+      }
+      
+      // Show success notification (use null for workflowId since template pages don't have one)
+      addNotification(
+        'info',
+        'Template link copied!',
+        null,
+        { 
+          isPersistent: false,
+        }
+      )
+      
+      logger.info('Template share text copied to clipboard:', shareText)
+    } catch (error) {
+      logger.error('Failed to copy template share text:', error)
+      
+      // Show error notification
+      addNotification(
+        'error',
+        'Failed to copy link',
+        null,
+        { 
+          isPersistent: false,
+        }
+      )
+    }
   }
 
   // Format creation date
