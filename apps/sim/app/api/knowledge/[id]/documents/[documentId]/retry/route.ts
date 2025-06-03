@@ -78,11 +78,13 @@ export async function POST(
       fileHash: doc.fileHash,
     }
 
-    processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions).catch(
-      (error: any) => {
-        logger.error(`[${requestId}] Background retry processing error:`, error)
-      }
-    )
+    setTimeout(() => {
+      processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions).catch(
+        (error: any) => {
+          logger.error(`[${requestId}] Background retry processing error:`, error)
+        }
+      )
+    }, 100)
 
     logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
 

@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       Key: uniqueKey,
       ContentType: contentType,
       Metadata: {
-        originalName: fileName,
+        originalName: encodeURIComponent(fileName),
         uploadedAt: new Date().toISOString(),
       },
     })

@@ -8,7 +8,6 @@ import { document, embedding, knowledgeBase } from '@/db/schema'
 
 const logger = createLogger('KnowledgeUtils')
 
-// Type definitions for access checks
 export interface KnowledgeBaseAccessResult {
   hasAccess: true
   knowledgeBase: any
@@ -281,16 +280,21 @@ export async function processDocumentAsync(
     lang?: string
   }
 ): Promise<void> {
+  const startTime = Date.now()
   try {
-    logger.info(`Processing document ${documentId}: ${docData.filename}`)
+    logger.info(`[${documentId}] Starting document processing: ${docData.filename}`)
 
+    // Set status to processing
     await db
       .update(document)
       .set({
         processingStatus: 'processing',
         processingStartedAt: new Date(),
+        processingError: null, // Clear any previous error
       })
       .where(eq(document.id, documentId))
+
+    logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
     const processedDocuments = await processDocuments(
       [
@@ -314,8 +318,14 @@ export async function processDocumentAsync(
     const processed = processedDocuments[0]
     const now = new Date()
 
+    logger.info(
+      `[${documentId}] Document parsed successfully, generating embeddings for ${processed.chunks.length} chunks`
+    )
+
     const chunkTexts = processed.chunks.map((chunk) => chunk.text)
     const embeddings = chunkTexts.length > 0 ? await generateEmbeddings(chunkTexts) : []
+
+    logger.info(`[${documentId}] Embeddings generated, updating document record`)
 
     await db
       .update(document)
@@ -325,6 +335,7 @@ export async function processDocumentAsync(
         characterCount: processed.metadata.characterCount,
         processingStatus: 'completed',
         processingCompletedAt: now,
+        processingError: null,
       })
       .where(eq(document.id, documentId))
 
@@ -363,11 +374,19 @@ export async function processDocumentAsync(
       })
       .where(eq(knowledgeBase.id, knowledgeBaseId))
 
+    const processingTime = Date.now() - startTime
     logger.info(
-      `Successfully processed document ${documentId} with ${processed.metadata.chunkCount} chunks`
+      `[${documentId}] Successfully processed document with ${processed.metadata.chunkCount} chunks in ${processingTime}ms`
     )
   } catch (error) {
-    logger.error(`Failed to process document ${documentId}:`, error)
+    const processingTime = Date.now() - startTime
+    logger.error(`[${documentId}] Failed to process document after ${processingTime}ms:`, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      filename: docData.filename,
+      fileUrl: docData.fileUrl,
+      mimeType: docData.mimeType,
+    })
 
     await db
       .update(document)

@@ -91,7 +91,7 @@ describe('S3 Client', () => {
         Body: testFile,
         ContentType: contentType,
         Metadata: {
-          originalName: fileName,
+          originalName: encodeURIComponent(fileName),
           uploadedAt: expect.any(String),
         },
       })

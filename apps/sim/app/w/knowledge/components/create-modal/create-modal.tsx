@@ -3,25 +3,13 @@
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import type { KnowledgeBaseData } from '@/stores/knowledge/knowledge'
 import { CreateForm } from './components/create-form/create-form'
-
-interface KnowledgeBase {
-  id: string
-  name: string
-  description?: string
-  tokenCount: number
-  embeddingModel: string
-  embeddingDimension: number
-  chunkingConfig: any
-  createdAt: string
-  updatedAt: string
-  workspaceId?: string
-}
 
 interface CreateModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onKnowledgeBaseCreated?: (knowledgeBase: KnowledgeBase) => void
+  onKnowledgeBaseCreated?: (knowledgeBase: KnowledgeBaseData) => void
 }
 
 export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: CreateModalProps) {

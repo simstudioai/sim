@@ -1,13 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Circle, CircleOff, FileText, LibraryBig, Search, Trash2, X } from 'lucide-react'
-import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { Circle, CircleOff, FileText, Search, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useDocumentChunks } from '@/hooks/use-knowledge'
+import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/knowledge'
 import { useSidebarStore } from '@/stores/sidebar/store'
+import { KnowledgeHeader } from '../../components/knowledge-header/knowledge-header'
 import { DocumentLoading } from './components/document-loading'
 import { EditChunkModal } from './components/edit-chunk-modal'
 
@@ -16,66 +18,16 @@ const logger = createLogger('Document')
 interface DocumentProps {
   knowledgeBaseId: string
   documentId: string
-  knowledgeBaseName: string
-  documentName: string
+  knowledgeBaseName?: string
+  documentName?: string
 }
 
-interface DocumentData {
-  id: string
-  knowledgeBaseId: string
-  filename: string
-  fileUrl: string
-  fileSize: number
-  mimeType: string
-  fileHash?: string
-  chunkCount: number
-  tokenCount: number
-  characterCount: number
-  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
-  processingStartedAt: string | null
-  processingCompletedAt: string | null
-  processingError: string | null
-  enabled: boolean
-  uploadedAt: string
-}
-
-interface ChunkData {
-  id: string
-  chunkIndex: number
-  content: string
-  contentLength: number
-  tokenCount: number
-  enabled: boolean
-  startOffset: number
-  endOffset: number
-  overlapTokens: number
-  metadata: any
-  searchRank: string
-  qualityScore: string | null
-  createdAt: string
-  updatedAt: string
-}
-
-interface ChunksResponse {
-  success: boolean
-  data: ChunkData[]
-  error?: string
-  pagination: {
-    total: number
-    limit: number
-    offset: number
-    hasMore: boolean
-  }
-}
-
-// Helper function to get status badge styles
 function getStatusBadgeStyles(enabled: boolean) {
   return enabled
-    ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400'
-    : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-400'
+    ? 'inline-flex items-center rounded-md bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+    : 'inline-flex items-center rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
 }
 
-// Helper function to truncate content for display
 function truncateContent(content: string, maxLength = 150): string {
   if (content.length <= maxLength) return content
   return `${content.substring(0, maxLength)}...`
@@ -88,6 +40,8 @@ export function Document({
   documentName,
 }: DocumentProps) {
   const { mode, isExpanded } = useSidebarStore()
+  const { getCachedKnowledgeBase, getCachedDocuments } = useKnowledgeStore()
+
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
@@ -97,24 +51,39 @@ export function Document({
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const [document, setDocument] = useState<DocumentData | null>(null)
-  const [chunks, setChunks] = useState<ChunkData[]>([])
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
-  const [isLoadingChunks, setIsLoadingChunks] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [pagination, setPagination] = useState({
-    total: 0,
-    limit: 50,
-    offset: 0,
-    hasMore: false,
-  })
 
-  // Fetch document data
+  // Use the new chunks hook
+  const {
+    chunks,
+    isLoading: isLoadingChunks,
+    error: chunksError,
+    refreshChunks,
+    updateChunk,
+  } = useDocumentChunks(knowledgeBaseId, documentId)
+
+  // Combine errors
+  const combinedError = error || chunksError
+
+  // Try to get document from store cache first, then fetch if needed
   useEffect(() => {
     const fetchDocument = async () => {
       try {
         setIsLoadingDocument(true)
         setError(null)
 
+        // First try to get from cached documents in the store
+        const cachedDocuments = getCachedDocuments(knowledgeBaseId)
+        const cachedDoc = cachedDocuments?.find((d) => d.id === documentId)
+
+        if (cachedDoc) {
+          setDocument(cachedDoc)
+          setIsLoadingDocument(false)
+          return
+        }
+
+        // If not in cache, fetch from API
         const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`)
 
         if (!response.ok) {
@@ -142,84 +111,17 @@ export function Document({
     if (knowledgeBaseId && documentId) {
       fetchDocument()
     }
-  }, [knowledgeBaseId, documentId])
+  }, [knowledgeBaseId, documentId, getCachedDocuments])
 
-  // Auto-refresh document when processing
-  useEffect(() => {
-    if (
-      !document ||
-      document.processingStatus === 'completed' ||
-      document.processingStatus === 'failed'
-    ) {
-      return
-    }
+  const knowledgeBase = getCachedKnowledgeBase(knowledgeBaseId)
+  const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
+  const effectiveDocumentName = document?.filename || documentName || 'Document'
 
-    const refreshInterval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}`)
-        if (response.ok) {
-          const result = await response.json()
-          if (result.success) {
-            setDocument(result.data)
-          }
-        }
-      } catch (error) {
-        logger.error('Error refreshing document:', error)
-      }
-    }, 3000) // Refresh every 3 seconds
-
-    return () => clearInterval(refreshInterval)
-  }, [knowledgeBaseId, documentId, document])
-
-  // Fetch chunks data
-  const fetchChunks = useCallback(
-    async (search?: string, offset = 0) => {
-      try {
-        setIsLoadingChunks(true)
-
-        const params = new URLSearchParams({
-          limit: pagination.limit.toString(),
-          offset: offset.toString(),
-        })
-
-        if (search) params.append('search', search)
-
-        const response = await fetch(
-          `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks?${params}`
-        )
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch chunks: ${response.statusText}`)
-        }
-
-        const result: ChunksResponse = await response.json()
-
-        if (result.success) {
-          if (offset === 0) {
-            setChunks(result.data)
-          } else {
-            setChunks((prev) => [...prev, ...result.data])
-          }
-          setPagination(result.pagination)
-        } else {
-          throw new Error(result.error || 'Failed to fetch chunks')
-        }
-      } catch (err) {
-        logger.error('Error fetching chunks:', err)
-        setError(err instanceof Error ? err.message : 'An error occurred')
-      } finally {
-        setIsLoadingChunks(false)
-      }
-    },
-    [knowledgeBaseId, documentId, pagination.limit]
-  )
-
-  // Initial fetch and refetch on filter changes
-  useEffect(() => {
-    if (document && document.processingStatus === 'completed') {
-      fetchChunks(searchQuery, 0)
-    }
-  }, [document, searchQuery, fetchChunks])
+  const breadcrumbs = [
+    { label: 'Knowledge', href: '/w/knowledge' },
+    { label: effectiveKnowledgeBaseName, href: `/w/knowledge/${knowledgeBaseId}` },
+    { label: effectiveDocumentName },
+  ]
 
   const handleChunkClick = (chunk: ChunkData) => {
     setSelectedChunk(chunk)
@@ -256,7 +158,7 @@ export function Document({
       const result = await response.json()
 
       if (result.success) {
-        setChunks((prev) => prev.map((c) => (c.id === chunkId ? { ...c, enabled: !c.enabled } : c)))
+        updateChunk(chunkId, { enabled: !chunk.enabled })
       }
     } catch (err) {
       logger.error('Error updating chunk:', err)
@@ -279,7 +181,7 @@ export function Document({
       const result = await response.json()
 
       if (result.success) {
-        setChunks((prev) => prev.filter((c) => c.id !== chunkId))
+        await refreshChunks()
         setSelectedChunks((prev) => {
           const newSet = new Set(prev)
           newSet.delete(chunkId)
@@ -313,45 +215,31 @@ export function Document({
 
   const isAllSelected = chunks.length > 0 && selectedChunks.size === chunks.length
 
-  // Show loading component while data is being fetched
   if (isLoadingDocument || isLoadingChunks) {
     return (
       <DocumentLoading
         knowledgeBaseId={knowledgeBaseId}
-        knowledgeBaseName={knowledgeBaseName}
-        documentName={documentName}
+        knowledgeBaseName={effectiveKnowledgeBaseName}
+        documentName={effectiveDocumentName}
       />
     )
   }
 
-  // Show error state for document fetch
-  if (error && isLoadingDocument) {
+  if (combinedError && isLoadingDocument) {
+    const errorBreadcrumbs = [
+      { label: 'Knowledge', href: '/w/knowledge' },
+      { label: effectiveKnowledgeBaseName, href: `/w/knowledge/${knowledgeBaseId}` },
+      { label: 'Error' },
+    ]
+
     return (
       <div
         className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
       >
-        <div className='flex items-center gap-2 px-6 pt-[14px] pb-6'>
-          <Link
-            href='/w/knowledge'
-            prefetch={true}
-            className='group flex items-center gap-2 font-medium text-sm transition-colors hover:text-muted-foreground'
-          >
-            <LibraryBig className='h-[18px] w-[18px] text-muted-foreground transition-colors group-hover:text-muted-foreground/70' />
-            <span>Knowledge</span>
-          </Link>
-          <span className='text-muted-foreground'>/</span>
-          <Link
-            href={`/w/knowledge/${knowledgeBaseId}`}
-            className='font-medium text-sm transition-colors hover:text-muted-foreground'
-          >
-            {knowledgeBaseName}
-          </Link>
-          <span className='text-muted-foreground'>/</span>
-          <span className='font-medium text-sm'>Error</span>
-        </div>
+        <KnowledgeHeader breadcrumbs={errorBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center'>
           <div className='text-center'>
-            <p className='mb-2 text-red-600 text-sm'>Error: {error}</p>
+            <p className='mb-2 text-red-600 text-sm'>Error: {combinedError}</p>
             <button
               onClick={() => window.location.reload()}
               className='text-blue-600 text-sm underline hover:text-blue-800'
@@ -369,33 +257,15 @@ export function Document({
       className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
     >
       {/* Fixed Header with Breadcrumbs */}
-      <div className='flex items-center gap-2 px-6 pt-[14px] pb-6'>
-        <Link
-          href='/w/knowledge'
-          prefetch={true}
-          className='group flex items-center gap-2 font-medium text-sm transition-colors hover:text-muted-foreground'
-        >
-          <LibraryBig className='h-[18px] w-[18px] text-muted-foreground transition-colors group-hover:text-muted-foreground/70' />
-          <span>Knowledge</span>
-        </Link>
-        <span className='text-muted-foreground'>/</span>
-        <Link
-          href={`/w/knowledge/${knowledgeBaseId}`}
-          className='font-medium text-sm transition-colors hover:text-muted-foreground'
-        >
-          {knowledgeBaseName}
-        </Link>
-        <span className='text-muted-foreground'>/</span>
-        <span className='font-medium text-sm'>{documentName}</span>
-      </div>
+      <KnowledgeHeader breadcrumbs={breadcrumbs} />
 
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-hidden'>
           {/* Main Content */}
-          <div className='flex-1 overflow-auto pt-[4px]'>
+          <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
               {/* Search Section */}
-              <div className='mb-4'>
+              <div className='mb-4 flex items-center justify-between'>
                 <div className='relative max-w-md'>
                   <div className='relative flex items-center'>
                     <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
@@ -424,9 +294,9 @@ export function Document({
               </div>
 
               {/* Error State for chunks */}
-              {error && !isLoadingDocument && (
+              {combinedError && !isLoadingDocument && (
                 <div className='mb-4 rounded-md border border-red-200 bg-red-50 p-4'>
-                  <p className='text-red-800 text-sm'>Error loading chunks: {error}</p>
+                  <p className='text-red-800 text-sm'>Error loading chunks: {combinedError}</p>
                 </div>
               )}
 
@@ -591,9 +461,7 @@ export function Document({
 
                             {/* Status column */}
                             <td className='px-4 py-3'>
-                              <div
-                                className={`inline-flex items-center justify-center rounded-md px-2 py-1 text-xs ${getStatusBadgeStyles(chunk.enabled)}`}
-                              >
+                              <div className={getStatusBadgeStyles(chunk.enabled)}>
                                 <span className='font-medium'>
                                   {chunk.enabled ? 'Enabled' : 'Disabled'}
                                 </span>
@@ -664,7 +532,7 @@ export function Document({
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onChunkUpdate={(updatedChunk: ChunkData) => {
-          setChunks((prev) => prev.map((c) => (c.id === updatedChunk.id ? updatedChunk : c)))
+          updateChunk(updatedChunk.id, updatedChunk)
           setSelectedChunk(updatedChunk)
         }}
       />

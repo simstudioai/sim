@@ -6,16 +6,13 @@ import {
   Circle,
   CircleOff,
   FileText,
-  LibraryBig,
   Loader2,
-  MoreHorizontal,
   Plus,
   RotateCcw,
   Search,
   Trash2,
   X,
 } from 'lucide-react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   AlertDialog,
@@ -29,16 +26,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getDocumentIcon } from '@/app/w/knowledge/components/icons/document-icons'
+import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
+import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/knowledge'
 import { useSidebarStore } from '@/stores/sidebar/store'
+import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
 import { KnowledgeBaseLoading } from './components/knowledge-base-loading'
 
 const logger = createLogger('KnowledgeBase')
@@ -48,45 +42,11 @@ interface KnowledgeBaseProps {
   knowledgeBaseName?: string
 }
 
-interface KnowledgeBaseData {
-  id: string
-  name: string
-  description?: string
-  tokenCount: number
-  embeddingModel: string
-  embeddingDimension: number
-  chunkingConfig: any
-  createdAt: string
-  updatedAt: string
-  workspaceId?: string
-}
-
-interface DocumentData {
-  id: string
-  knowledgeBaseId: string
-  filename: string
-  fileUrl: string
-  fileSize: number
-  mimeType: string
-  fileHash: string | null
-  chunkCount: number
-  tokenCount: number
-  characterCount: number
-  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
-  processingStartedAt: string | null
-  processingCompletedAt: string | null
-  processingError: string | null
-  enabled: boolean
-  uploadedAt: string
-}
-
-// Helper function to get file icon based on mime type
 function getFileIcon(mimeType: string, filename: string) {
   const IconComponent = getDocumentIcon(mimeType, filename)
   return <IconComponent className='h-6 w-5' />
 }
 
-// Helper function to format file size
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes'
   const k = 1024
@@ -96,38 +56,64 @@ function formatFileSize(bytes: number): string {
 }
 
 const getStatusDisplay = (doc: DocumentData) => {
-  switch (doc.processingStatus) {
-    case 'pending':
-      return {
-        text: 'Pending',
-        className:
-          'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-      }
-    case 'processing':
-      return {
-        text: 'Processing',
-        className:
-          'inline-flex items-center rounded-md bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-      }
-    case 'completed':
-      return {
-        text: 'Completed',
-        className:
-          'inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400',
-      }
-    case 'failed':
-      return {
-        text: 'Failed',
-        className:
-          'inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300',
-      }
-    default:
-      return {
-        text: 'Unknown',
-        className:
-          'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-      }
-  }
+  const processingStatus = (() => {
+    switch (doc.processingStatus) {
+      case 'pending':
+        return {
+          text: 'Pending',
+          className:
+            'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+        }
+      case 'processing':
+        return {
+          text: (
+            <>
+              <Loader2 className='mr-1.5 h-3 w-3 animate-spin' />
+              Processing
+            </>
+          ),
+          className:
+            'inline-flex items-center rounded-md bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+        }
+      case 'completed':
+        return {
+          text: 'Completed',
+          className:
+            'inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400',
+        }
+      case 'failed':
+        return {
+          text: 'Failed',
+          className:
+            'inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300',
+        }
+      default:
+        return {
+          text: 'Unknown',
+          className:
+            'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+        }
+    }
+  })()
+
+  const activeStatus = (() => {
+    if (doc.processingStatus === 'completed') {
+      return doc.enabled
+        ? {
+            text: 'Enabled',
+            className:
+              'inline-flex items-center rounded-md bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+          }
+        : {
+            text: 'Disabled',
+            className:
+              'inline-flex items-center rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+          }
+    }
+    return null
+  })()
+
+  return { processingStatus, activeStatus }
 }
 
 const getProcessingTime = (doc: DocumentData) => {
@@ -154,96 +140,33 @@ export function KnowledgeBase({
   knowledgeBaseName: passedKnowledgeBaseName,
 }: KnowledgeBaseProps) {
   const { mode, isExpanded } = useSidebarStore()
+  const { removeKnowledgeBase } = useKnowledgeStore()
+  const {
+    knowledgeBase,
+    isLoading: isLoadingKnowledgeBase,
+    error: knowledgeBaseError,
+  } = useKnowledgeBase(id)
+  const {
+    documents,
+    isLoading: isLoadingDocuments,
+    error: documentsError,
+    updateDocument,
+    refreshDocuments,
+  } = useKnowledgeBaseDocuments(id)
+
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
-  const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeBaseData | null>(null)
-  const [documents, setDocuments] = useState<DocumentData[]>([])
-  const [isLoadingKnowledgeBase, setIsLoadingKnowledgeBase] = useState(true)
-  const [isLoadingDocuments, setIsLoadingDocuments] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Get the knowledge base name for navigation - use passed name first, then fetched name
   const knowledgeBaseName = knowledgeBase?.name || passedKnowledgeBaseName || 'Knowledge Base'
-
-  // Fetch knowledge base data
-  useEffect(() => {
-    const fetchKnowledgeBase = async () => {
-      try {
-        setIsLoadingKnowledgeBase(true)
-        setError(null)
-
-        const response = await fetch(`/api/knowledge/${id}`)
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Knowledge base not found')
-          }
-          throw new Error(`Failed to fetch knowledge base: ${response.statusText}`)
-        }
-
-        const result = await response.json()
-
-        if (result.success) {
-          setKnowledgeBase(result.data)
-        } else {
-          throw new Error(result.error || 'Failed to fetch knowledge base')
-        }
-      } catch (err) {
-        logger.error('Error fetching knowledge base:', err)
-        setError(err instanceof Error ? err.message : 'An error occurred')
-      } finally {
-        setIsLoadingKnowledgeBase(false)
-      }
-    }
-
-    if (id) {
-      fetchKnowledgeBase()
-    }
-  }, [id])
-
-  // Fetch documents on component mount and when dependencies change
-  useEffect(() => {
-    const fetchDocuments = async () => {
-      try {
-        setIsLoadingDocuments(true)
-        setError(null)
-
-        const response = await fetch(`/api/knowledge/${id}/documents`)
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error('Knowledge base not found')
-          }
-          throw new Error(`Failed to fetch documents: ${response.statusText}`)
-        }
-
-        const result = await response.json()
-
-        if (result.success) {
-          setDocuments(result.data)
-        } else {
-          throw new Error(result.error || 'Failed to fetch documents')
-        }
-      } catch (err) {
-        logger.error('Error fetching documents:', err)
-        setError(err instanceof Error ? err.message : 'An error occurred')
-      } finally {
-        setIsLoadingDocuments(false)
-      }
-    }
-
-    if (id) {
-      fetchDocuments()
-    }
-  }, [id])
+  const error = knowledgeBaseError || documentsError
 
   // Auto-refresh documents when there are processing documents
   useEffect(() => {
@@ -255,12 +178,9 @@ export function KnowledgeBase({
 
     const refreshInterval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/knowledge/${id}/documents`)
-        if (response.ok) {
-          const result = await response.json()
-          if (result.success) {
-            setDocuments(result.data)
-          }
+        // Only refresh if we're not in the middle of other operations
+        if (!isUploading && !isDeleting) {
+          await refreshDocuments()
         }
       } catch (error) {
         logger.error('Error refreshing documents:', error)
@@ -268,7 +188,7 @@ export function KnowledgeBase({
     }, 3000) // Refresh every 3 seconds
 
     return () => clearInterval(refreshInterval)
-  }, [id, documents])
+  }, [documents, refreshDocuments, isUploading, isDeleting])
 
   // Filter documents based on search query
   const filteredDocuments = documents.filter((doc) =>
@@ -297,12 +217,57 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (result.success) {
-        setDocuments((prev) =>
-          prev.map((doc) => (doc.id === docId ? { ...doc, enabled: !doc.enabled } : doc))
-        )
+        // Update the document in the store
+        updateDocument(docId, { enabled: !document.enabled })
       }
     } catch (err) {
       logger.error('Error updating document:', err)
+    }
+  }
+
+  const handleRetryDocument = async (docId: string) => {
+    try {
+      // Optimistically update the document status
+      updateDocument(docId, {
+        processingStatus: 'pending',
+        processingError: null,
+        processingStartedAt: null,
+        processingCompletedAt: null,
+      })
+
+      const response = await fetch(`/api/knowledge/${id}/documents/${docId}/retry`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to retry document processing')
+      }
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to retry document processing')
+      }
+
+      // Force a refresh after a short delay to allow processing to start
+      setTimeout(async () => {
+        try {
+          await refreshDocuments()
+        } catch (error) {
+          logger.error('Error refreshing documents after retry:', error)
+        }
+      }, 1000) // Wait 1 second before first refresh
+    } catch (err) {
+      logger.error('Error retrying document:', err)
+      // Revert the status change on error - get the current document first to avoid overwriting other fields
+      const currentDoc = documents.find((doc) => doc.id === docId)
+      if (currentDoc) {
+        updateDocument(docId, {
+          processingStatus: 'failed',
+          processingError:
+            err instanceof Error ? err.message : 'Failed to retry document processing',
+        })
+      }
     }
   }
 
@@ -319,7 +284,10 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (result.success) {
-        setDocuments((prev) => prev.filter((doc) => doc.id !== docId))
+        // Invalidate and refresh documents to update the list
+        refreshDocuments()
+
+        // Clear selected documents
         setSelectedDocuments((prev) => {
           const newSet = new Set(prev)
           newSet.delete(docId)
@@ -328,49 +296,6 @@ export function KnowledgeBase({
       }
     } catch (err) {
       logger.error('Error deleting document:', err)
-    }
-  }
-
-  const handleRetryDocument = async (docId: string) => {
-    const document = documents.find((doc) => doc.id === docId)
-    if (!document) return
-
-    try {
-      // Update document status to processing immediately for UI feedback
-      setDocuments((prev) =>
-        prev.map((doc) =>
-          doc.id === docId
-            ? { ...doc, processingStatus: 'processing' as const, processingError: null }
-            : doc
-        )
-      )
-
-      const response = await fetch(`/api/knowledge/${id}/documents/${docId}/retry`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to retry document processing')
-      }
-
-      const result = await response.json()
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to retry document processing')
-      }
-
-      // The document status will be updated by the auto-refresh mechanism
-    } catch (err) {
-      logger.error('Error retrying document:', err)
-      // Revert the status change on error
-      setDocuments((prev) =>
-        prev.map((doc) =>
-          doc.id === docId ? { ...doc, processingStatus: 'failed' as const } : doc
-        )
-      )
     }
   }
 
@@ -424,7 +349,8 @@ export function KnowledgeBase({
       const result = await response.json()
 
       if (result.success) {
-        // Redirect to knowledge bases list
+        // Remove from store and redirect to knowledge bases list
+        removeKnowledgeBase(id)
         router.push('/w/knowledge')
       } else {
         throw new Error(result.error || 'Failed to delete knowledge base')
@@ -443,11 +369,19 @@ export function KnowledgeBase({
     const files = e.target.files
     if (!files || files.length === 0) return
 
+    interface UploadedFile {
+      filename: string
+      fileUrl: string
+      fileSize: number
+      mimeType: string
+      fileHash: string | undefined
+    }
+
     try {
       setIsUploading(true)
 
       // Upload all files and start processing
-      const uploadedFiles = []
+      const uploadedFiles: UploadedFile[] = []
 
       for (const file of Array.from(files)) {
         const formData = new FormData()
@@ -496,13 +430,33 @@ export function KnowledgeBase({
         throw new Error('Failed to start document processing')
       }
 
-      // Refresh documents list to show new uploads
-      const documentsResponse = await fetch(`/api/knowledge/${id}/documents`)
-      if (documentsResponse.ok) {
-        const result = await documentsResponse.json()
-        if (result.success) {
-          setDocuments(result.data)
-        }
+      const processResult = await processResponse.json()
+
+      // Create pending document objects and add them to the store immediately
+      if (processResult.success && processResult.data.documentsCreated) {
+        const pendingDocuments: DocumentData[] = processResult.data.documentsCreated.map(
+          (doc: any, index: number) => ({
+            id: doc.documentId,
+            knowledgeBaseId: id,
+            filename: doc.filename,
+            fileUrl: uploadedFiles[index].fileUrl,
+            fileSize: uploadedFiles[index].fileSize,
+            mimeType: uploadedFiles[index].mimeType,
+            fileHash: uploadedFiles[index].fileHash || null,
+            chunkCount: 0,
+            tokenCount: 0,
+            characterCount: 0,
+            processingStatus: 'pending' as const,
+            processingStartedAt: null,
+            processingCompletedAt: null,
+            processingError: null,
+            enabled: true,
+            uploadedAt: new Date().toISOString(),
+          })
+        )
+
+        // Add pending documents to store for immediate UI update
+        useKnowledgeStore.getState().addPendingDocuments(id, pendingDocuments)
       }
 
       logger.info(`Started processing ${uploadedFiles.length} documents`)
@@ -517,29 +471,23 @@ export function KnowledgeBase({
     }
   }
 
-  // Show loading component while data is being fetched
-  if (isLoadingKnowledgeBase || isLoadingDocuments) {
+  // Breadcrumbs for the knowledge base page
+  const breadcrumbs = [{ label: 'Knowledge', href: '/w/knowledge' }, { label: knowledgeBaseName }]
+
+  // Show loading component while data is being fetched initially
+  if ((isLoadingKnowledgeBase || isLoadingDocuments) && !knowledgeBase && documents.length === 0) {
     return <KnowledgeBaseLoading knowledgeBaseName={knowledgeBaseName} />
   }
 
   // Show error state for knowledge base fetch
-  if (error && isLoadingKnowledgeBase) {
+  if (error && !knowledgeBase) {
+    const errorBreadcrumbs = [{ label: 'Knowledge', href: '/w/knowledge' }, { label: 'Error' }]
+
     return (
       <div
         className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
       >
-        <div className='flex items-center gap-2 px-6 pt-[14px] pb-6'>
-          <Link
-            href='/w/knowledge'
-            prefetch={true}
-            className='group flex items-center gap-2 font-medium text-sm transition-colors hover:text-muted-foreground'
-          >
-            <LibraryBig className='h-[18px] w-[18px] text-muted-foreground transition-colors group-hover:text-muted-foreground/70' />
-            <span>Knowledge</span>
-          </Link>
-          <span className='text-muted-foreground'>/</span>
-          <span className='font-medium text-sm'>Error</span>
-        </div>
+        <KnowledgeHeader breadcrumbs={errorBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center'>
           <div className='text-center'>
             <p className='mb-2 text-red-600 text-sm'>Error: {error}</p>
@@ -560,44 +508,26 @@ export function KnowledgeBase({
       className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
     >
       {/* Fixed Header with Breadcrumbs */}
-      <div className='flex items-center justify-between px-6 pt-[14px] pb-6'>
-        <div className='flex items-center gap-2'>
-          <Link
-            href='/w/knowledge'
-            prefetch={true}
-            className='group flex items-center gap-2 font-medium text-sm transition-colors hover:text-muted-foreground'
-          >
-            <LibraryBig className='h-[18px] w-[18px] text-muted-foreground transition-colors group-hover:text-muted-foreground/70' />
-            <span>Knowledge</span>
-          </Link>
-          <span className='text-muted-foreground'>/</span>
-          <span className='font-medium text-sm'>{knowledgeBaseName}</span>
-        </div>
-
-        {/* Actions Menu */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant='ghost' size='sm' className='h-8 w-8 p-0'>
-              <MoreHorizontal className='h-4 w-4' />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            <DropdownMenuItem
-              onClick={() => setShowDeleteDialog(true)}
-              className='text-red-600 focus:text-red-600'
-            >
-              <Trash2 className='mr-2 h-4 w-4' />
-              Delete Knowledge Base
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      <KnowledgeHeader
+        breadcrumbs={breadcrumbs}
+        onDeleteKnowledgeBase={() => setShowDeleteDialog(true)}
+      />
 
       <div className='flex flex-1 overflow-hidden'>
         <div className='flex flex-1 flex-col overflow-hidden'>
           {/* Main Content */}
-          <div className='flex-1 overflow-auto pt-[4px]'>
+          <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
+              {/* Hidden file input for document upload */}
+              <input
+                ref={fileInputRef}
+                type='file'
+                accept='.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx'
+                onChange={handleFileUpload}
+                className='hidden'
+                multiple
+              />
+
               {/* Search and Create Section */}
               <div className='mb-4 flex items-center justify-between'>
                 <div className='relative max-w-md flex-1'>
@@ -621,25 +551,18 @@ export function KnowledgeBase({
                   </div>
                 </div>
 
-                {/* Processing Status Badge */}
-                {(() => {
-                  const processingDocs = documents.filter(
-                    (doc) =>
-                      doc.processingStatus === 'pending' || doc.processingStatus === 'processing'
-                  )
-
-                  if (processingDocs.length > 0) {
-                    return (
-                      <div className='flex items-center gap-2'>
-                        <div className='inline-flex items-center rounded-md bg-blue-100 px-2 py-1 font-medium text-blue-700 text-xs dark:bg-blue-900/30 dark:text-blue-300'>
-                          <Loader2 className='mr-1.5 h-3 w-3 animate-spin' />
-                          Processing {processingDocs.length}/{documents.length}
-                        </div>
-                      </div>
-                    )
-                  }
-                  return null
-                })()}
+                <div className='flex items-center gap-3'>
+                  {/* Add Documents Button */}
+                  <Button
+                    onClick={handleAddDocuments}
+                    disabled={isUploading}
+                    size='sm'
+                    className='mt-1 mr-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_3px_rgba(127,47,255,0.12)]'
+                  >
+                    <Plus className='mr-1.5 h-3.5 w-3.5' />
+                    {isUploading ? 'Uploading...' : 'Add Documents'}
+                  </Button>
+                </div>
               </div>
 
               {/* Error State for documents */}
@@ -652,17 +575,18 @@ export function KnowledgeBase({
               {/* Table container */}
               <div className='flex flex-1 flex-col overflow-hidden'>
                 {/* Table header - fixed */}
-                <div className='sticky top-0 z-10 border-b bg-background'>
-                  <table className='w-full table-fixed'>
+                <div className='sticky top-0 z-10 overflow-x-auto border-b bg-background'>
+                  <table className='w-full min-w-[800px] table-fixed'>
                     <colgroup>
-                      <col className='w-[5%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[18%]'}`} />
+                      <col className='w-[4%]' />
+                      <col className={`${isSidebarCollapsed ? 'w-[20%]' : 'w-[22%]'}`} />
                       <col className='w-[8%]' />
                       <col className='w-[8%]' />
                       <col className='hidden w-[8%] lg:table-column' />
-                      <col className={`${isSidebarCollapsed ? 'w-[20%]' : 'w-[18%]'}`} />
+                      <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[14%]'}`} />
+                      <col className='w-[10%]' />
+                      <col className='w-[10%]' />
                       <col className='w-[12%]' />
-                      <col className='w-[16%]' />
                     </colgroup>
                     <thead>
                       <tr>
@@ -697,6 +621,9 @@ export function KnowledgeBase({
                           </span>
                         </th>
                         <th className='px-4 pt-2 pb-3 text-left font-medium'>
+                          <span className='text-muted-foreground text-xs leading-none'>Status</span>
+                        </th>
+                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
                           <span className='text-muted-foreground text-xs leading-none'>
                             Actions
                           </span>
@@ -708,16 +635,17 @@ export function KnowledgeBase({
 
                 {/* Table body - scrollable */}
                 <div className='flex-1 overflow-auto'>
-                  <table className='w-full table-fixed'>
+                  <table className='w-full min-w-[800px] table-fixed'>
                     <colgroup>
-                      <col className='w-[5%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[18%]'}`} />
+                      <col className='w-[4%]' />
+                      <col className={`${isSidebarCollapsed ? 'w-[20%]' : 'w-[22%]'}`} />
                       <col className='w-[8%]' />
                       <col className='w-[8%]' />
                       <col className='hidden w-[8%] lg:table-column' />
-                      <col className={`${isSidebarCollapsed ? 'w-[20%]' : 'w-[18%]'}`} />
+                      <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[14%]'}`} />
+                      <col className='w-[10%]' />
+                      <col className='w-[10%]' />
                       <col className='w-[12%]' />
-                      <col className='w-[16%]' />
                     </colgroup>
                     <tbody>
                       {filteredDocuments.length === 0 ? (
@@ -759,6 +687,11 @@ export function KnowledgeBase({
                             <div className='text-muted-foreground text-xs'>—</div>
                           </td>
 
+                          {/* Processing column */}
+                          <td className='px-4 py-3'>
+                            <div className='text-muted-foreground text-xs'>—</div>
+                          </td>
+
                           {/* Status column */}
                           <td className='px-4 py-3'>
                             <div className='text-muted-foreground text-xs'>—</div>
@@ -766,26 +699,7 @@ export function KnowledgeBase({
 
                           {/* Actions column */}
                           <td className='px-4 py-3'>
-                            {documents.length === 0 && (
-                              <>
-                                <input
-                                  ref={fileInputRef}
-                                  type='file'
-                                  accept='.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx'
-                                  onChange={handleFileUpload}
-                                  className='hidden'
-                                  multiple
-                                />
-                                <button
-                                  onClick={handleAddDocuments}
-                                  disabled={isUploading}
-                                  className='inline-flex items-center gap-1 rounded-md bg-[#701FFC] px-2 py-1 font-medium text-primary-foreground text-xs transition-colors hover:bg-[#6518E6] disabled:opacity-50'
-                                >
-                                  <Plus className='h-3 w-3' />
-                                  <span>{isUploading ? 'Uploading...' : 'Add Document'}</span>
-                                </button>
-                              </>
-                            )}
+                            <div className='text-muted-foreground text-xs'>—</div>
                           </td>
                         </tr>
                       ) : (
@@ -887,13 +801,22 @@ export function KnowledgeBase({
                                 </div>
                               </td>
 
+                              {/* Processing column */}
+                              <td className='px-4 py-3'>
+                                <div className={statusDisplay.processingStatus.className}>
+                                  {statusDisplay.processingStatus.text}
+                                </div>
+                              </td>
+
                               {/* Status column */}
                               <td className='px-4 py-3'>
-                                <div className='flex items-center gap-2'>
-                                  <div className={statusDisplay.className}>
-                                    {statusDisplay.text}
+                                {statusDisplay.activeStatus ? (
+                                  <div className={statusDisplay.activeStatus.className}>
+                                    {statusDisplay.activeStatus.text}
                                   </div>
-                                </div>
+                                ) : (
+                                  <div className='text-muted-foreground text-xs'>—</div>
+                                )}
                               </td>
 
                               {/* Actions column */}

@@ -12,15 +12,9 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getDocumentIcon } from '@/app/w/knowledge/components/icons/document-icons'
+import type { DocumentData, KnowledgeBaseData } from '@/stores/knowledge/knowledge'
 
 const logger = createLogger('CreateForm')
-
-const formSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be less than 100 characters'),
-  description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-})
-
-type FormValues = z.infer<typeof formSchema>
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 const ACCEPTED_FILE_TYPES = [
@@ -37,30 +31,31 @@ interface FileWithPreview extends File {
   preview: string
 }
 
-interface KnowledgeBase {
-  id: string
-  name: string
-  description?: string
-  tokenCount: number
-  embeddingModel: string
-  embeddingDimension: number
-  chunkingConfig: any
-  createdAt: string
-  updatedAt: string
-  workspaceId?: string
-  docCount: number
-}
-
 interface CreateFormProps {
   onClose: () => void
-  onKnowledgeBaseCreated?: (knowledgeBase: KnowledgeBase) => void
+  onKnowledgeBaseCreated?: (knowledgeBase: KnowledgeBaseData) => void
+}
+
+const FormSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'Name is required')
+    .max(100, 'Name must be less than 100 characters')
+    .refine((value) => value.trim().length > 0, 'Name cannot be empty'),
+  description: z.string().max(500, 'Description must be less than 500 characters').optional(),
+})
+
+type FormValues = z.infer<typeof FormSchema>
+
+interface SubmitStatus {
+  type: 'success' | 'error'
+  message: string
 }
 
 export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitStatus, setSubmitStatus] = useState<'success' | 'error' | null>(null)
-  const [errorMessage, setErrorMessage] = useState('')
+  const [submitStatus, setSubmitStatus] = useState<SubmitStatus | null>(null)
   const [files, setFiles] = useState<FileWithPreview[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -85,7 +80,7 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
     reset,
     formState: { errors },
   } = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(FormSchema),
     defaultValues: {
       name: '',
       description: '',
@@ -246,7 +241,15 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
       // If files are uploaded, upload them and start processing
       if (files.length > 0) {
         // First, upload all files to get their URLs
-        const uploadedFiles = []
+        interface UploadedFile {
+          filename: string
+          fileUrl: string
+          fileSize: number
+          mimeType: string
+          fileHash: string | undefined
+        }
+
+        const uploadedFiles: UploadedFile[] = []
 
         for (const file of files) {
           const formData = new FormData()
@@ -274,24 +277,60 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
           })
         }
 
-        // Start async document processing - don't wait for completion
-        fetch(`/api/knowledge/${newKnowledgeBase.id}/process-documents`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            documents: uploadedFiles,
-            processingOptions: {
-              chunkSize: 1024,
-              minCharactersPerChunk: 24,
-              recipe: 'default',
-              lang: 'en',
+        // Start async document processing
+        const processResponse = await fetch(
+          `/api/knowledge/${newKnowledgeBase.id}/process-documents`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
             },
-          }),
-        }).catch((error) => {
-          logger.error('Background document processing failed:', error)
-        })
+            body: JSON.stringify({
+              documents: uploadedFiles,
+              processingOptions: {
+                chunkSize: 1024,
+                minCharactersPerChunk: 24,
+                recipe: 'default',
+                lang: 'en',
+              },
+            }),
+          }
+        )
+
+        if (!processResponse.ok) {
+          throw new Error('Failed to start document processing')
+        }
+
+        const processResult = await processResponse.json()
+
+        // Create pending document objects and add them to the store immediately
+        if (processResult.success && processResult.data.documentsCreated) {
+          const { useKnowledgeStore } = await import('@/stores/knowledge/knowledge')
+
+          const pendingDocuments: DocumentData[] = processResult.data.documentsCreated.map(
+            (doc: any, index: number) => ({
+              id: doc.documentId,
+              knowledgeBaseId: newKnowledgeBase.id,
+              filename: doc.filename,
+              fileUrl: uploadedFiles[index].fileUrl,
+              fileSize: uploadedFiles[index].fileSize,
+              mimeType: uploadedFiles[index].mimeType,
+              fileHash: uploadedFiles[index].fileHash || null,
+              chunkCount: 0,
+              tokenCount: 0,
+              characterCount: 0,
+              processingStatus: 'pending' as const,
+              processingStartedAt: null,
+              processingCompletedAt: null,
+              processingError: null,
+              enabled: true,
+              uploadedAt: new Date().toISOString(),
+            })
+          )
+
+          // Add pending documents to store for immediate UI update
+          useKnowledgeStore.getState().addPendingDocuments(newKnowledgeBase.id, pendingDocuments)
+        }
 
         // Update the knowledge base object with the correct document count
         newKnowledgeBase.docCount = uploadedFiles.length
@@ -299,7 +338,10 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
         console.log(`Started processing ${uploadedFiles.length} documents in the background`)
       }
 
-      setSubmitStatus('success')
+      setSubmitStatus({
+        type: 'success',
+        message: 'Your knowledge base has been created successfully!',
+      })
       reset()
 
       // Clean up file previews
@@ -317,8 +359,10 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
       }, 1500)
     } catch (error) {
       logger.error('Error creating knowledge base:', error)
-      setSubmitStatus('error')
-      setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred')
+      setSubmitStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'An unknown error occurred',
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -332,7 +376,7 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
         className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'
       >
         <div className='py-4'>
-          {submitStatus === 'success' ? (
+          {submitStatus && submitStatus.type === 'success' ? (
             <Alert className='mb-6 border-border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30'>
               <div className='flex items-start gap-4 py-1'>
                 <div className='mt-[-1.5px] flex-shrink-0'>
@@ -343,19 +387,16 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                     <span className='font-medium text-green-600 dark:text-green-400'>Success</span>
                   </AlertTitle>
                   <AlertDescription className='text-green-600 dark:text-green-400'>
-                    Your knowledge base has been created successfully!
+                    {submitStatus.message}
                   </AlertDescription>
                 </div>
               </div>
             </Alert>
-          ) : submitStatus === 'error' ? (
+          ) : submitStatus && submitStatus.type === 'error' ? (
             <Alert variant='destructive' className='mb-6'>
               <AlertCircle className='h-4 w-4' />
               <AlertTitle>Error</AlertTitle>
-              <AlertDescription>
-                {errorMessage ||
-                  'There was an error creating your knowledge base. Please try again.'}
-              </AlertDescription>
+              <AlertDescription>{submitStatus.message}</AlertDescription>
             </Alert>
           ) : null}
 
@@ -518,7 +559,7 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
         </div>
       </div>
 
-      {/* Fixed Footer */}
+      {/* Footer */}
       <div className='mt-auto border-t px-6 pt-4 pb-6'>
         <div className='flex justify-between'>
           <Button variant='outline' onClick={onClose} type='button'>
