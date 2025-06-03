@@ -13,25 +13,22 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { type KnowledgeBaseData, useKnowledgeStore } from '@/stores/knowledge/knowledge'
 
-export interface KnowledgeBaseInfo {
-  id: string
-  name: string
-  description?: string
-  docCount?: number
-}
-
 interface KnowledgeBaseSelectorProps {
   value: string
-  onChange: (knowledgeBaseId: string, knowledgeBaseInfo?: KnowledgeBaseInfo) => void
+  onChange: (knowledgeBaseId: string, knowledgeBaseInfo?: KnowledgeBaseData) => void
   label?: string
   disabled?: boolean
+  isPreview?: boolean
+  previewValue?: string | null
 }
 
 export function KnowledgeBaseSelector({
-  value,
+  value: propValue,
   onChange,
   label = 'Select knowledge base',
   disabled = false,
+  isPreview = false,
+  previewValue,
 }: KnowledgeBaseSelectorProps) {
   const { getKnowledgeBasesList, knowledgeBasesList, loadingKnowledgeBasesList } =
     useKnowledgeStore()
@@ -39,8 +36,11 @@ export function KnowledgeBaseSelector({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBaseInfo | null>(null)
+  const [selectedKnowledgeBase, setSelectedKnowledgeBase] = useState<KnowledgeBaseData | null>(null)
   const [initialFetchDone, setInitialFetchDone] = useState(false)
+
+  // Use preview value when in preview mode, otherwise use prop value
+  const value = isPreview ? previewValue : propValue
 
   // Fetch knowledge bases
   const fetchKnowledgeBases = useCallback(async () => {
@@ -63,6 +63,8 @@ export function KnowledgeBaseSelector({
 
   // Handle dropdown open/close - fetch knowledge bases when opening
   const handleOpenChange = (isOpen: boolean) => {
+    if (isPreview) return
+
     setOpen(isOpen)
 
     // Only fetch knowledge bases when opening the dropdown if we haven't fetched yet
@@ -76,13 +78,7 @@ export function KnowledgeBaseSelector({
     if (value && knowledgeBases.length > 0) {
       const kbInfo = knowledgeBases.find((kb) => kb.id === value)
       if (kbInfo) {
-        const knowledgeBaseInfo: KnowledgeBaseInfo = {
-          id: kbInfo.id,
-          name: kbInfo.name,
-          description: kbInfo.description,
-          docCount: (kbInfo as any).docCount,
-        }
-        setSelectedKnowledgeBase(knowledgeBaseInfo)
+        setSelectedKnowledgeBase(kbInfo)
       }
     } else if (!value) {
       setSelectedKnowledgeBase(null)
@@ -99,20 +95,16 @@ export function KnowledgeBaseSelector({
 
   // If we have a value but no knowledge base info and haven't fetched yet, fetch
   useEffect(() => {
-    if (value && !selectedKnowledgeBase && !loading && !initialFetchDone) {
+    if (value && !selectedKnowledgeBase && !loading && !initialFetchDone && !isPreview) {
       fetchKnowledgeBases()
     }
-  }, [value, selectedKnowledgeBase, loading, initialFetchDone, fetchKnowledgeBases])
+  }, [value, selectedKnowledgeBase, loading, initialFetchDone, fetchKnowledgeBases, isPreview])
 
   const handleSelectKnowledgeBase = (knowledgeBase: KnowledgeBaseData) => {
-    const knowledgeBaseInfo: KnowledgeBaseInfo = {
-      id: knowledgeBase.id,
-      name: knowledgeBase.name,
-      description: knowledgeBase.description,
-      docCount: (knowledgeBase as any).docCount,
-    }
-    setSelectedKnowledgeBase(knowledgeBaseInfo)
-    onChange(knowledgeBase.id, knowledgeBaseInfo)
+    if (isPreview) return
+
+    setSelectedKnowledgeBase(knowledgeBase)
+    onChange(knowledgeBase.id, knowledgeBase)
     setOpen(false)
   }
 
@@ -136,7 +128,7 @@ export function KnowledgeBaseSelector({
           role='combobox'
           aria-expanded={open}
           className='relative w-full justify-between'
-          disabled={disabled}
+          disabled={disabled || isPreview}
         >
           <div className='flex max-w-[calc(100%-20px)] items-center gap-2 overflow-hidden'>
             <PackageSearchIcon className='h-4 w-4 text-[#00B0B0]' />

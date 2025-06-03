@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { SubBlockConfig } from '@/blocks/types'
+import type { KnowledgeBaseData } from '@/stores/knowledge/knowledge'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { type KnowledgeBaseInfo, KnowledgeBaseSelector } from './components/knowledge-base-selector'
+import { KnowledgeBaseSelector } from './components/knowledge-base-selector'
 
 interface KnowledgeBaseSelectorInputProps {
   blockId: string
@@ -24,30 +25,13 @@ export function KnowledgeBaseSelectorInput({
   previewValue,
 }: KnowledgeBaseSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
-  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState<string>('')
-  const [_knowledgeBaseInfo, setKnowledgeBaseInfo] = useState<KnowledgeBaseInfo | null>(null)
+  const [_knowledgeBaseInfo, setKnowledgeBaseInfo] = useState<KnowledgeBaseData | null>(null)
 
-  // Use preview value when in preview mode, otherwise use store value
-  const value = isPreview ? previewValue : getValue(blockId, subBlock.id)
-
-  // Get the current value from the store or prop value if in preview mode
-  useEffect(() => {
-    if (isPreview && previewValue !== undefined) {
-      const value = previewValue
-      if (value && typeof value === 'string') {
-        setSelectedKnowledgeBaseId(value)
-      }
-    } else {
-      const value = getValue(blockId, subBlock.id)
-      if (value && typeof value === 'string') {
-        setSelectedKnowledgeBaseId(value)
-      }
-    }
-  }, [blockId, subBlock.id, getValue, isPreview, previewValue])
+  // Get the current value from the store
+  const storeValue = getValue(blockId, subBlock.id)
 
   // Handle knowledge base selection
-  const handleKnowledgeBaseChange = (knowledgeBaseId: string, info?: KnowledgeBaseInfo) => {
-    setSelectedKnowledgeBaseId(knowledgeBaseId)
+  const handleKnowledgeBaseChange = (knowledgeBaseId: string, info?: KnowledgeBaseData) => {
     setKnowledgeBaseInfo(info || null)
     if (!isPreview) {
       setValue(blockId, subBlock.id, knowledgeBaseId)
@@ -61,12 +45,14 @@ export function KnowledgeBaseSelectorInput({
         <TooltipTrigger asChild>
           <div className='w-full'>
             <KnowledgeBaseSelector
-              value={selectedKnowledgeBaseId}
-              onChange={(knowledgeBaseId: string, knowledgeBaseInfo?: KnowledgeBaseInfo) => {
+              value={storeValue}
+              onChange={(knowledgeBaseId: string, knowledgeBaseInfo?: KnowledgeBaseData) => {
                 handleKnowledgeBaseChange(knowledgeBaseId, knowledgeBaseInfo)
               }}
               label={subBlock.placeholder || 'Select knowledge base'}
               disabled={disabled}
+              isPreview={isPreview}
+              previewValue={previewValue}
             />
           </div>
         </TooltipTrigger>
