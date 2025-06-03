@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { processDocuments } from '@/lib/documents/document-processor'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
@@ -8,9 +9,90 @@ import { document, embedding, knowledgeBase } from '@/db/schema'
 
 const logger = createLogger('KnowledgeUtils')
 
+class APIError extends Error {
+  public status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'APIError'
+    this.status = status
+  }
+}
+
+export interface KnowledgeBaseData {
+  id: string
+  userId: string
+  workspaceId?: string | null
+  name: string
+  description?: string | null
+  tokenCount: number
+  embeddingModel: string
+  embeddingDimension: number
+  chunkingConfig: unknown
+  deletedAt?: Date | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface DocumentData {
+  id: string
+  knowledgeBaseId: string
+  filename: string
+  fileUrl: string
+  fileSize: number
+  mimeType: string
+  fileHash?: string | null
+  chunkCount: number
+  tokenCount: number
+  characterCount: number
+  processingStatus: string
+  processingStartedAt?: Date | null
+  processingCompletedAt?: Date | null
+  processingError?: string | null
+  enabled: boolean
+  deletedAt?: Date | null
+  uploadedAt: Date
+}
+
+export interface EmbeddingData {
+  id: string
+  knowledgeBaseId: string
+  documentId: string
+  chunkIndex: number
+  chunkHash: string
+  content: string
+  contentLength: number
+  tokenCount: number
+  embedding?: number[] | null
+  embeddingModel: string
+  startOffset: number
+  endOffset: number
+  overlapTokens: number
+  metadata: unknown
+  searchRank?: string | null
+  accessCount: number
+  lastAccessedAt?: Date | null
+  qualityScore?: string | null
+  enabled: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+interface OpenAIEmbeddingResponse {
+  data: Array<{
+    embedding: number[]
+    index: number
+  }>
+  model: string
+  usage: {
+    prompt_tokens: number
+    total_tokens: number
+  }
+}
+
 export interface KnowledgeBaseAccessResult {
   hasAccess: true
-  knowledgeBase: any
+  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId'>
 }
 
 export interface KnowledgeBaseAccessDenied {
@@ -23,8 +105,8 @@ export type KnowledgeBaseAccessCheck = KnowledgeBaseAccessResult | KnowledgeBase
 
 export interface DocumentAccessResult {
   hasAccess: true
-  document: any
-  knowledgeBase: any
+  document: DocumentData
+  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId'>
 }
 
 export interface DocumentAccessDenied {
@@ -37,9 +119,9 @@ export type DocumentAccessCheck = DocumentAccessResult | DocumentAccessDenied
 
 export interface ChunkAccessResult {
   hasAccess: true
-  chunk: any
-  document: any
-  knowledgeBase: any
+  chunk: EmbeddingData
+  document: DocumentData
+  knowledgeBase: Pick<KnowledgeBaseData, 'id' | 'userId'>
 }
 
 export interface ChunkAccessDenied {
@@ -122,7 +204,7 @@ export async function checkDocumentAccess(
     return { hasAccess: false, notFound: true, reason: 'Document not found' }
   }
 
-  return { hasAccess: true, document: doc[0], knowledgeBase: kbData }
+  return { hasAccess: true, document: doc[0] as DocumentData, knowledgeBase: kbData }
 }
 
 /**
@@ -169,7 +251,7 @@ export async function checkChunkAccess(
     return { hasAccess: false, notFound: true, reason: 'Document not found' }
   }
 
-  const docData = doc[0]
+  const docData = doc[0] as DocumentData
 
   // Check if document processing is completed
   if (docData.processingStatus !== 'completed') {
@@ -189,7 +271,12 @@ export async function checkChunkAccess(
     return { hasAccess: false, notFound: true, reason: 'Chunk not found' }
   }
 
-  return { hasAccess: true, chunk: chunk[0], document: docData, knowledgeBase: kbData }
+  return {
+    hasAccess: true,
+    chunk: chunk[0] as EmbeddingData,
+    document: docData,
+    knowledgeBase: kbData,
+  }
 }
 
 /**
@@ -232,15 +319,15 @@ export async function generateEmbeddings(
 
           if (!response.ok) {
             const errorText = await response.text()
-            const error = new Error(
-              `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`
+            const error = new APIError(
+              `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
+              response.status
             )
-            ;(error as any).status = response.status
             throw error
           }
 
-          const data = await response.json()
-          return data.data.map((item: any) => item.embedding)
+          const data: OpenAIEmbeddingResponse = await response.json()
+          return data.data.map((item) => item.embedding)
         },
         {
           maxRetries: 5,
@@ -344,7 +431,7 @@ export async function processDocumentAsync(
       knowledgeBaseId,
       documentId,
       chunkIndex,
-      chunkHash: crypto.randomUUID(),
+      chunkHash: crypto.createHash('sha256').update(chunk.text).digest('hex'),
       content: chunk.text,
       contentLength: chunk.text.length,
       tokenCount: Math.ceil(chunk.text.length / 4),

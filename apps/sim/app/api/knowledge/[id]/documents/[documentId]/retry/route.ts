@@ -46,22 +46,22 @@ export async function POST(
       return NextResponse.json({ error: 'Document is not in failed state' }, { status: 400 })
     }
 
-    // Clear any existing embeddings for this document
-    await db.delete(embedding).where(eq(embedding.documentId, documentId))
+    await db.transaction(async (tx) => {
+      await tx.delete(embedding).where(eq(embedding.documentId, documentId))
 
-    // Reset document processing status
-    await db
-      .update(document)
-      .set({
-        processingStatus: 'pending',
-        processingStartedAt: null,
-        processingCompletedAt: null,
-        processingError: null,
-        chunkCount: 0,
-        tokenCount: 0,
-        characterCount: 0,
-      })
-      .where(eq(document.id, documentId))
+      await tx
+        .update(document)
+        .set({
+          processingStatus: 'pending',
+          processingStartedAt: null,
+          processingCompletedAt: null,
+          processingError: null,
+          chunkCount: 0,
+          tokenCount: 0,
+          characterCount: 0,
+        })
+        .where(eq(document.id, documentId))
+    })
 
     const processingOptions = {
       chunkSize: 1024,
@@ -78,13 +78,11 @@ export async function POST(
       fileHash: doc.fileHash,
     }
 
-    setTimeout(() => {
-      processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions).catch(
-        (error: any) => {
-          logger.error(`[${requestId}] Background retry processing error:`, error)
-        }
-      )
-    }, 100)
+    processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions).catch(
+      (error: unknown) => {
+        logger.error(`[${requestId}] Background retry processing error:`, error)
+      }
+    )
 
     logger.info(`[${requestId}] Document retry initiated: ${documentId}`)
 

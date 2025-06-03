@@ -225,7 +225,7 @@ export function Document({
     )
   }
 
-  if (combinedError && isLoadingDocument) {
+  if (combinedError && !isLoadingChunks) {
     const errorBreadcrumbs = [
       { label: 'Knowledge', href: '/w/knowledge' },
       { label: effectiveKnowledgeBaseName, href: `/w/knowledge/${knowledgeBaseId}` },
@@ -294,7 +294,7 @@ export function Document({
               </div>
 
               {/* Error State for chunks */}
-              {combinedError && !isLoadingDocument && (
+              {combinedError && !isLoadingChunks && (
                 <div className='mb-4 rounded-md border border-red-200 bg-red-50 p-4'>
                   <p className='text-red-800 text-sm'>Error loading chunks: {combinedError}</p>
                 </div>
@@ -392,7 +392,7 @@ export function Document({
                             <div className='text-muted-foreground text-xs'>—</div>
                           </td>
                         </tr>
-                      ) : chunks.length === 0 ? (
+                      ) : chunks.length === 0 && !isLoadingChunks ? (
                         <tr className='border-b transition-colors hover:bg-accent/30'>
                           <td className='px-4 py-3'>
                             <div className='h-3.5 w-3.5' />
@@ -404,7 +404,9 @@ export function Document({
                             <div className='flex items-center gap-2'>
                               <FileText className='h-5 w-5 text-muted-foreground' />
                               <span className='text-muted-foreground text-sm italic'>
-                                No chunks found
+                                {document?.processingStatus === 'completed'
+                                  ? 'No chunks found'
+                                  : 'Document is still processing...'}
                               </span>
                             </div>
                           </td>
@@ -418,6 +420,30 @@ export function Document({
                             <div className='text-muted-foreground text-xs'>—</div>
                           </td>
                         </tr>
+                      ) : isLoadingChunks ? (
+                        // Show loading skeleton rows when chunks are loading
+                        Array.from({ length: 5 }).map((_, index) => (
+                          <tr key={`loading-${index}`} className='border-b transition-colors'>
+                            <td className='px-4 py-3'>
+                              <div className='h-3.5 w-3.5 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-8 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-full animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-12 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-12 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-16 animate-pulse rounded bg-muted' />
+                            </td>
+                          </tr>
+                        ))
                       ) : (
                         chunks.map((chunk) => (
                           <tr

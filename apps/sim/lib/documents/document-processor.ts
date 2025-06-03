@@ -14,6 +14,16 @@ const S3_KB_CONFIG: CustomS3Config = {
   region: env.AWS_REGION || '',
 }
 
+class APIError extends Error {
+  public status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'APIError'
+    this.status = status
+  }
+}
+
 export interface ProcessedDocument {
   content: string
   chunks: RecursiveChunk[]
@@ -145,10 +155,10 @@ async function parseDocument(
 
           if (!response.ok) {
             const errorText = await response.text()
-            const error = new Error(
-              `Mistral API error: ${response.status} ${response.statusText} - ${errorText}`
+            const error = new APIError(
+              `Mistral API error: ${response.status} ${response.statusText} - ${errorText}`,
+              response.status
             )
-            ;(error as any).status = response.status
             throw error
           }
 

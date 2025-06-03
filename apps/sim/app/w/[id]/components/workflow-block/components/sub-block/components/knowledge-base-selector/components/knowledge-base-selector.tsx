@@ -44,7 +44,6 @@ export function KnowledgeBaseSelector({
 
   // Fetch knowledge bases
   const fetchKnowledgeBases = useCallback(async () => {
-    const controller = new AbortController()
     setLoading(true)
     setError(null)
 
@@ -79,6 +78,8 @@ export function KnowledgeBaseSelector({
       const kbInfo = knowledgeBases.find((kb) => kb.id === value)
       if (kbInfo) {
         setSelectedKnowledgeBase(kbInfo)
+      } else {
+        setSelectedKnowledgeBase(null)
       }
     } else if (!value) {
       setSelectedKnowledgeBase(null)

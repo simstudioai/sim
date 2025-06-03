@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getDocumentIcon } from '@/app/w/knowledge/components/icons/document-icons'
 import type { DocumentData, KnowledgeBaseData } from '@/stores/knowledge/knowledge'
+import { useKnowledgeStore } from '@/stores/knowledge/knowledge'
 
 const logger = createLogger('CreateForm')
 
@@ -26,6 +27,12 @@ const ACCEPTED_FILE_TYPES = [
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]
+
+interface ProcessedDocumentResponse {
+  documentId: string
+  filename: string
+  status: string
+}
 
 interface FileWithPreview extends File {
   preview: string
@@ -305,10 +312,8 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
 
         // Create pending document objects and add them to the store immediately
         if (processResult.success && processResult.data.documentsCreated) {
-          const { useKnowledgeStore } = await import('@/stores/knowledge/knowledge')
-
           const pendingDocuments: DocumentData[] = processResult.data.documentsCreated.map(
-            (doc: any, index: number) => ({
+            (doc: ProcessedDocumentResponse, index: number) => ({
               id: doc.documentId,
               knowledgeBaseId: newKnowledgeBase.id,
               filename: doc.filename,
@@ -335,7 +340,7 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
         // Update the knowledge base object with the correct document count
         newKnowledgeBase.docCount = uploadedFiles.length
 
-        console.log(`Started processing ${uploadedFiles.length} documents in the background`)
+        logger.info(`Started processing ${uploadedFiles.length} documents in the background`)
       }
 
       setSubmitStatus({

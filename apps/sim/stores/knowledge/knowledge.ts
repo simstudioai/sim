@@ -3,6 +3,16 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('KnowledgeStore')
 
+export interface ChunkingConfig {
+  chunkSize?: number
+  minCharactersPerChunk?: number
+  recipe?: string
+  lang?: string
+  overlapTokens?: number
+  strategy?: 'recursive' | 'semantic' | 'sentence' | 'paragraph'
+  [key: string]: unknown
+}
+
 export interface KnowledgeBaseData {
   id: string
   name: string
@@ -10,7 +20,7 @@ export interface KnowledgeBaseData {
   tokenCount: number
   embeddingModel: string
   embeddingDimension: number
-  chunkingConfig: any
+  chunkingConfig: ChunkingConfig
   createdAt: string
   updatedAt: string
   workspaceId?: string
@@ -45,7 +55,7 @@ export interface ChunkData {
   startOffset: number
   endOffset: number
   overlapTokens: number
-  metadata: any
+  metadata: Record<string, unknown>
   searchRank: string
   qualityScore: string | null
   createdAt: string
@@ -112,6 +122,11 @@ interface KnowledgeStore {
   getCachedKnowledgeBase: (id: string) => KnowledgeBaseData | null
   getCachedDocuments: (knowledgeBaseId: string) => DocumentData[] | null
   getCachedChunks: (documentId: string, options?: { search?: string }) => ChunksCache | null
+
+  // Loading state getters
+  isKnowledgeBaseLoading: (id: string) => boolean
+  isDocumentsLoading: (knowledgeBaseId: string) => boolean
+  isChunksLoading: (documentId: string) => boolean
 }
 
 export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
@@ -134,6 +149,18 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
 
   getCachedChunks: (documentId: string, options?: { search?: string }) => {
     return get().chunks[documentId] || null
+  },
+
+  isKnowledgeBaseLoading: (id: string) => {
+    return get().loadingKnowledgeBases.has(id)
+  },
+
+  isDocumentsLoading: (knowledgeBaseId: string) => {
+    return get().loadingDocuments.has(knowledgeBaseId)
+  },
+
+  isChunksLoading: (documentId: string) => {
+    return get().loadingChunks.has(documentId)
   },
 
   getKnowledgeBase: async (id: string) => {
@@ -440,17 +467,12 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
             }
           }
 
-          // If the server document has more recent processing timestamps, use it
-          const existingProcessingTime =
+          const existingHasTimestamps =
             existingDoc.processingStartedAt || existingDoc.processingCompletedAt
-          const fetchedProcessingTime =
+          const fetchedHasTimestamps =
             fetchedDoc.processingStartedAt || fetchedDoc.processingCompletedAt
 
-          if (
-            fetchedProcessingTime &&
-            (!existingProcessingTime ||
-              new Date(fetchedProcessingTime) > new Date(existingProcessingTime))
-          ) {
+          if (fetchedHasTimestamps && !existingHasTimestamps) {
             return fetchedDoc
           }
 
@@ -553,11 +575,19 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
             return fetchedChunk
           }
 
-          // If the server chunk has more recent updates, use it
-          const serverUpdatedAt = new Date(fetchedChunk.updatedAt).getTime()
-          const localUpdatedAt = new Date(existingChunk.updatedAt).getTime()
+          // If server chunk has different content or metadata, prefer it (indicates server update)
+          if (
+            fetchedChunk.content !== existingChunk.content ||
+            JSON.stringify(fetchedChunk.metadata) !== JSON.stringify(existingChunk.metadata)
+          ) {
+            return fetchedChunk
+          }
 
-          if (serverUpdatedAt > localUpdatedAt) {
+          // If server chunk has different enabled status, quality score, or other properties, prefer it
+          if (
+            fetchedChunk.enabled !== existingChunk.enabled ||
+            fetchedChunk.qualityScore !== existingChunk.qualityScore
+          ) {
             return fetchedChunk
           }
 

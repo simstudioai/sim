@@ -2,12 +2,19 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('RetryUtils')
 
+interface HTTPError extends Error {
+  status?: number
+  statusText?: string
+}
+
+type RetryableError = HTTPError | Error | { status?: number; message?: string }
+
 export interface RetryOptions {
   maxRetries?: number
   initialDelayMs?: number
   maxDelayMs?: number
   backoffMultiplier?: number
-  retryCondition?: (error: any) => boolean
+  retryCondition?: (error: RetryableError) => boolean
 }
 
 export interface RetryResult<T> {
@@ -17,18 +24,22 @@ export interface RetryResult<T> {
   attemptCount: number
 }
 
+function hasStatus(
+  error: RetryableError
+): error is HTTPError | { status?: number; message?: string } {
+  return typeof error === 'object' && error !== null && 'status' in error
+}
+
 /**
  * Default retry condition for rate limiting errors
  */
-export function isRetryableError(error: any): boolean {
+export function isRetryableError(error: RetryableError): boolean {
   if (!error) return false
 
   // Check for rate limiting status codes
   if (
-    error.status === 429 ||
-    error.status === 502 ||
-    error.status === 503 ||
-    error.status === 504
+    hasStatus(error) &&
+    (error.status === 429 || error.status === 502 || error.status === 503 || error.status === 504)
   ) {
     return true
   }
@@ -64,7 +75,7 @@ export async function retryWithExponentialBackoff<T>(
     retryCondition = isRetryableError,
   } = options
 
-  let lastError: any
+  let lastError: Error | undefined
   let delay = initialDelayMs
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -78,19 +89,19 @@ export async function retryWithExponentialBackoff<T>(
 
       return result
     } catch (error) {
-      lastError = error
+      lastError = error instanceof Error ? error : new Error(String(error))
       logger.warn(`Operation failed on attempt ${attempt + 1}`, { error })
 
       // If this is the last attempt, throw the error
       if (attempt === maxRetries) {
         logger.error(`Operation failed after ${maxRetries + 1} attempts`, { error })
-        throw error
+        throw lastError
       }
 
       // Check if error is retryable
-      if (!retryCondition(error)) {
+      if (!retryCondition(error as RetryableError)) {
         logger.warn('Error is not retryable, throwing immediately', { error })
-        throw error
+        throw lastError
       }
 
       // Add jitter to prevent thundering herd
@@ -108,7 +119,7 @@ export async function retryWithExponentialBackoff<T>(
     }
   }
 
-  throw lastError
+  throw lastError || new Error('Retry operation failed')
 }
 
 /**
@@ -125,8 +136,11 @@ export async function fetchWithRetry(
     // If response is not ok and status indicates rate limiting, throw an error
     if (!response.ok && isRetryableError({ status: response.status })) {
       const errorText = await response.text()
-      const error = new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`)
-      ;(error as any).status = response.status
+      const error: HTTPError = new Error(
+        `HTTP ${response.status}: ${response.statusText} - ${errorText}`
+      )
+      error.status = response.status
+      error.statusText = response.statusText
       throw error
     }
 

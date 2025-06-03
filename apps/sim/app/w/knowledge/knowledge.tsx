@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { LibraryBig, Plus, Search, X } from 'lucide-react'
 import { useKnowledgeBasesList } from '@/hooks/use-knowledge'
 import type { KnowledgeBaseData } from '@/stores/knowledge/knowledge'
@@ -11,9 +11,14 @@ import { EmptyStateCard } from './components/empty-state-card/empty-state-card'
 import { KnowledgeHeader } from './components/knowledge-header/knowledge-header'
 import { KnowledgeBaseCardSkeletonGrid } from './components/skeletons/knowledge-base-card-skeleton'
 
+interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
+  docCount?: number
+}
+
 export function Knowledge() {
   const { mode, isExpanded } = useSidebarStore()
-  const { knowledgeBases, isLoading, error, addKnowledgeBase } = useKnowledgeBasesList()
+  const { knowledgeBases, isLoading, error, addKnowledgeBase, refreshList } =
+    useKnowledgeBasesList()
 
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
@@ -25,25 +30,32 @@ export function Knowledge() {
     addKnowledgeBase(newKnowledgeBase)
   }
 
-  const filteredKnowledgeBases = knowledgeBases.filter(
-    (kb) =>
-      kb.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      kb.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const handleRetry = () => {
+    refreshList()
+  }
 
-  const formatKnowledgeBaseForDisplay = (kb: KnowledgeBaseData) => ({
+  const filteredKnowledgeBases = useMemo(() => {
+    if (!searchQuery.trim()) return knowledgeBases
+
+    const query = searchQuery.toLowerCase()
+    return knowledgeBases.filter(
+      (kb) => kb.name.toLowerCase().includes(query) || kb.description?.toLowerCase().includes(query)
+    )
+  }, [knowledgeBases, searchQuery])
+
+  const formatKnowledgeBaseForDisplay = (kb: KnowledgeBaseWithDocCount) => ({
     id: kb.id,
     title: kb.name,
-    docCount: (kb as any).docCount || 0, // Cast since the API might return docCount
+    docCount: kb.docCount || 0,
     description: kb.description || 'No description provided',
   })
 
-  const breadcrumbs = [{ label: 'Knowledge' }]
+  const breadcrumbs = [{ id: 'knowledge', label: 'Knowledge' }]
 
   return (
     <>
       <div
-        className={`flex h-[100vh] flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+        className={`flex h-screen flex-col transition-padding duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
       >
         {/* Header */}
         <KnowledgeHeader breadcrumbs={breadcrumbs} />
@@ -90,7 +102,7 @@ export function Knowledge() {
                   <div className='mb-4 rounded-md border border-red-200 bg-red-50 p-4'>
                     <p className='text-red-800 text-sm'>Error loading knowledge bases: {error}</p>
                     <button
-                      onClick={() => window.location.reload()}
+                      onClick={handleRetry}
                       className='mt-2 text-red-600 text-sm underline hover:text-red-800'
                     >
                       Try again
@@ -121,7 +133,9 @@ export function Knowledge() {
                       )
                     ) : (
                       filteredKnowledgeBases.map((kb) => {
-                        const displayData = formatKnowledgeBaseForDisplay(kb)
+                        const displayData = formatKnowledgeBaseForDisplay(
+                          kb as KnowledgeBaseWithDocCount
+                        )
                         return (
                           <BaseOverview
                             key={kb.id}

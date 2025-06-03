@@ -55,7 +55,7 @@ export function EditChunkModal({
   onClose,
   onChunkUpdate,
 }: EditChunkModalProps) {
-  const [editedContent, setEditedContent] = useState('')
+  const [editedContent, setEditedContent] = useState(chunk?.content || '')
   const [isSaving, setIsSaving] = useState(false)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
 
@@ -106,8 +106,8 @@ export function EditChunkModal({
   }
 
   const handleCloseModal = () => {
-    setEditedContent('')
     onClose()
+    setEditedContent('')
   }
 
   const handleCloseAttempt = () => {

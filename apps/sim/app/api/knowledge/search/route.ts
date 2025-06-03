@@ -10,6 +10,16 @@ import { embedding, knowledgeBase } from '@/db/schema'
 
 const logger = createLogger('VectorSearchAPI')
 
+class APIError extends Error {
+  public status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'APIError'
+    this.status = status
+  }
+}
+
 // Schema for vector search request
 const VectorSearchSchema = z.object({
   knowledgeBaseId: z.string().min(1, 'Knowledge base ID is required'),
@@ -41,10 +51,10 @@ async function generateSearchEmbedding(query: string): Promise<number[]> {
 
         if (!response.ok) {
           const errorText = await response.text()
-          const error = new Error(
-            `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`
+          const error = new APIError(
+            `OpenAI API error: ${response.status} ${response.statusText} - ${errorText}`,
+            response.status
           )
-          ;(error as any).status = response.status
           throw error
         }
 

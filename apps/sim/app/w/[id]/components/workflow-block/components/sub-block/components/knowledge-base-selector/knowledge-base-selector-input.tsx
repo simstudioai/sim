@@ -13,7 +13,7 @@ interface KnowledgeBaseSelectorInputProps {
   disabled?: boolean
   onKnowledgeBaseSelect?: (knowledgeBaseId: string) => void
   isPreview?: boolean
-  previewValue?: any | null
+  previewValue?: string | null
 }
 
 export function KnowledgeBaseSelectorInput({
@@ -25,7 +25,7 @@ export function KnowledgeBaseSelectorInput({
   previewValue,
 }: KnowledgeBaseSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
-  const [_knowledgeBaseInfo, setKnowledgeBaseInfo] = useState<KnowledgeBaseData | null>(null)
+  const [knowledgeBaseInfo, setKnowledgeBaseInfo] = useState<KnowledgeBaseData | null>(null)
 
   // Get the current value from the store
   const storeValue = getValue(blockId, subBlock.id)

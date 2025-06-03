@@ -128,7 +128,7 @@ export function useKnowledgeBasesList() {
  * Hook to manage chunks for a specific document
  */
 export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
-  const { getChunks, refreshChunks, updateChunk, getCachedChunks, clearChunks } =
+  const { getChunks, refreshChunks, updateChunk, getCachedChunks, clearChunks, isChunksLoading } =
     useKnowledgeStore()
 
   const [chunks, setChunks] = useState<ChunkData[]>([])
@@ -140,6 +140,20 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     offset: 0,
     hasMore: false,
   })
+
+  const isStoreLoading = isChunksLoading(documentId)
+  const combinedIsLoading = isLoading || isStoreLoading
+
+  useEffect(() => {
+    if (!knowledgeBaseId || !documentId) return
+
+    const cached = getCachedChunks(documentId)
+    if (cached) {
+      setChunks(cached.chunks)
+      setPagination(cached.pagination)
+      setIsLoading(false)
+    }
+  }, [knowledgeBaseId, documentId, getCachedChunks])
 
   // Initial load
   useEffect(() => {
@@ -182,7 +196,7 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     loadChunks()
   }, [knowledgeBaseId, documentId, getChunks, getCachedChunks])
 
-  // Sync with store state
+  // Sync with store state changes
   useEffect(() => {
     const cached = getCachedChunks(documentId)
     if (cached) {
@@ -190,6 +204,15 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
       setPagination(cached.pagination)
     }
   }, [documentId, getCachedChunks])
+
+  useEffect(() => {
+    if (!isStoreLoading && isLoading) {
+      const cached = getCachedChunks(documentId)
+      if (cached) {
+        setIsLoading(false)
+      }
+    }
+  }, [isStoreLoading, isLoading, documentId, getCachedChunks])
 
   const refreshChunksData = async (options?: {
     search?: string
@@ -245,39 +268,19 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     }
   }
 
-  const loadMoreChunks = async () => {
-    if (!pagination.hasMore) return
-
-    try {
-      const nextOffset = pagination.offset + pagination.limit
-
-      await getChunks(knowledgeBaseId, documentId, {
-        limit: pagination.limit,
-        offset: nextOffset,
-      })
-
-      // Update from cache
-      const cached = getCachedChunks(documentId)
-      if (cached) {
-        setChunks(cached.chunks)
-        setPagination(cached.pagination)
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load more chunks')
-      throw err
-    }
-  }
-
   return {
     chunks,
-    isLoading,
+    isLoading: combinedIsLoading,
     error,
     pagination,
     refreshChunks: refreshChunksData,
     searchChunks,
-    loadMoreChunks,
-    updateChunk: (chunkId: string, updates: Partial<ChunkData>) =>
-      updateChunk(documentId, chunkId, updates),
+    updateChunk: (chunkId: string, updates: Partial<ChunkData>) => {
+      updateChunk(documentId, chunkId, updates)
+      setChunks((prevChunks) =>
+        prevChunks.map((chunk) => (chunk.id === chunkId ? { ...chunk, ...updates } : chunk))
+      )
+    },
     clearChunks: () => clearChunks(documentId),
   }
 }

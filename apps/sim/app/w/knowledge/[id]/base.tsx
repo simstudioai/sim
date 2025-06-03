@@ -37,6 +37,12 @@ import { KnowledgeBaseLoading } from './components/knowledge-base-loading'
 
 const logger = createLogger('KnowledgeBase')
 
+interface ProcessedDocumentResponse {
+  documentId: string
+  filename: string
+  status: string
+}
+
 interface KnowledgeBaseProps {
   id: string
   knowledgeBaseName?: string
@@ -435,7 +441,7 @@ export function KnowledgeBase({
       // Create pending document objects and add them to the store immediately
       if (processResult.success && processResult.data.documentsCreated) {
         const pendingDocuments: DocumentData[] = processResult.data.documentsCreated.map(
-          (doc: any, index: number) => ({
+          (doc: ProcessedDocumentResponse, index: number) => ({
             id: doc.documentId,
             knowledgeBaseId: id,
             filename: doc.filename,
@@ -472,7 +478,17 @@ export function KnowledgeBase({
   }
 
   // Breadcrumbs for the knowledge base page
-  const breadcrumbs = [{ label: 'Knowledge', href: '/w/knowledge' }, { label: knowledgeBaseName }]
+  const breadcrumbs = [
+    {
+      id: 'knowledge-root',
+      label: 'Knowledge',
+      href: '/w/knowledge',
+    },
+    {
+      id: `knowledge-base-${id}`,
+      label: knowledgeBaseName,
+    },
+  ]
 
   // Show loading component while data is being fetched initially
   if ((isLoadingKnowledgeBase || isLoadingDocuments) && !knowledgeBase && documents.length === 0) {
@@ -481,7 +497,17 @@ export function KnowledgeBase({
 
   // Show error state for knowledge base fetch
   if (error && !knowledgeBase) {
-    const errorBreadcrumbs = [{ label: 'Knowledge', href: '/w/knowledge' }, { label: 'Error' }]
+    const errorBreadcrumbs = [
+      {
+        id: 'knowledge-root',
+        label: 'Knowledge',
+        href: '/w/knowledge',
+      },
+      {
+        id: 'error',
+        label: 'Error',
+      },
+    ]
 
     return (
       <div
@@ -510,7 +536,7 @@ export function KnowledgeBase({
       {/* Fixed Header with Breadcrumbs */}
       <KnowledgeHeader
         breadcrumbs={breadcrumbs}
-        onDeleteKnowledgeBase={() => setShowDeleteDialog(true)}
+        options={{ onDeleteKnowledgeBase: () => setShowDeleteDialog(true) }}
       />
 
       <div className='flex flex-1 overflow-hidden'>
@@ -648,7 +674,7 @@ export function KnowledgeBase({
                       <col className='w-[12%]' />
                     </colgroup>
                     <tbody>
-                      {filteredDocuments.length === 0 ? (
+                      {filteredDocuments.length === 0 && !isLoadingDocuments ? (
                         <tr className='border-b transition-colors hover:bg-accent/30'>
                           {/* Select column */}
                           <td className='px-4 py-3'>
@@ -702,6 +728,38 @@ export function KnowledgeBase({
                             <div className='text-muted-foreground text-xs'>—</div>
                           </td>
                         </tr>
+                      ) : isLoadingDocuments && documents.length === 0 ? (
+                        Array.from({ length: 5 }).map((_, index) => (
+                          <tr key={`loading-${index}`} className='border-b transition-colors'>
+                            <td className='px-4 py-3'>
+                              <div className='h-3.5 w-3.5 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-32 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-16 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-12 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='hidden px-4 py-3 lg:table-cell'>
+                              <div className='h-4 w-12 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-20 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-16 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-12 animate-pulse rounded bg-muted' />
+                            </td>
+                            <td className='px-4 py-3'>
+                              <div className='h-4 w-20 animate-pulse rounded bg-muted' />
+                            </td>
+                          </tr>
+                        ))
                       ) : (
                         filteredDocuments.map((doc, index) => {
                           const isSelected = selectedDocuments.has(doc.id)
