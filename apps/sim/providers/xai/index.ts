@@ -44,13 +44,11 @@ export const xAIProvider: ProviderConfig = {
       throw new Error('API key is required for xAI')
     }
 
-    // Initialize OpenAI client for xAI
     const xai = new OpenAI({
       apiKey: request.apiKey,
       baseURL: 'https://api.x.ai/v1',
     })
 
-    // Log the initial request configuration
     logger.info('XAI Provider - Initial request configuration:', {
       hasTools: !!request.tools?.length,
       toolCount: request.tools?.length || 0,
@@ -59,7 +57,6 @@ export const xAIProvider: ProviderConfig = {
       streaming: !!request.stream,
     })
 
-    // Prepare messages
     const allMessages: any[] = []
 
     if (request.systemPrompt) {
@@ -391,7 +388,7 @@ export const xAIProvider: ProviderConfig = {
           const thisToolsTime = Date.now() - toolsStartTime
           toolsTime += thisToolsTime
 
-          // CRITICAL FIX: After tool calls, create next payload based on whether we need more tools or final response
+          // After tool calls, create next payload based on whether we need more tools or final response
           let nextPayload: any
 
           // Update tool_choice based on which forced tools have been used
@@ -488,7 +485,7 @@ export const xAIProvider: ProviderConfig = {
 
       // After all tool processing complete, if streaming was requested and we have messages, use streaming for the final response
       if (request.stream && iterationCount > 0) {
-        // CRITICAL FIX: For final streaming response, choose between tools (auto) or response_format (never both)
+        // For final streaming response, choose between tools (auto) or response_format (never both)
         let finalStreamingPayload: any
 
         if (request.responseFormat) {
