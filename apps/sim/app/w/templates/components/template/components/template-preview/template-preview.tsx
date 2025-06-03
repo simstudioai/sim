@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { ZoomIn, ZoomOut, Maximize2, Eye, EyeOff } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { WorkflowPreview } from '@/app/w/components/workflow-preview/generic-workflow-preview'
+import { WorkflowPreview } from '@/app/w/components/workflow-preview/workflow-preview'
 import { TemplateData } from '../../../../types'
 
 interface TemplatePreviewProps {

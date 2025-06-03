@@ -75,6 +75,7 @@ export async function GET(
         authorName: schema.templates.authorName,
         views: schema.templates.views,
         category: schema.templates.category,
+        price: schema.templates.price,
         createdAt: schema.templates.createdAt,
         updatedAt: schema.templates.updatedAt,
       })

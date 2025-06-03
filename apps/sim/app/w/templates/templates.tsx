@@ -3,14 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import { TemplatesHeader } from './components/control-bar/control-bar'
-import { ErrorMessage } from '@/app/w/marketplace/components/error-message'
-import { Section } from '@/app/w/marketplace/components/section'
+import { ErrorMessage } from './components/error-message'
+import { Section } from './components/section'
 import { TemplateWorkflowCard } from './components/template-workflow-card'
-import { WorkflowCardSkeleton } from '@/app/w/marketplace/components/workflow-card-skeleton'
+import { WorkflowCardSkeleton } from './components/workflow-card-skeleton'
 import { CATEGORIES, getCategoryLabel } from './constants/categories'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { createLogger } from '@/lib/logs/console-logger'
-import { TemplateDetailPage } from './components/template/components/template'
 import { Workflow, TemplateData, TemplateCollection, getTemplateDescription } from './types'
 
 const logger = createLogger('Templates')
@@ -34,14 +33,6 @@ export default function Templates() {
   const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(['popular', 'recent']))
   const [_visibleSections, setVisibleSections] = useState<Set<string>>(new Set(['popular']))
   const [categoryFilter, setCategoryFilter] = useState<string[] | null>(null)
-  
-  // New state for handling template detail view
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'list' | 'detail'>('list')
-
-  // State for loading when transitioning to detail view
-  const [isTransitioning, setIsTransitioning] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateData | null>(null)
 
   // Get sidebar state for layout calculations
   const { mode, isExpanded } = useSidebarStore()
@@ -67,6 +58,7 @@ export default function Templates() {
         tags: [item.category || 'uncategorized'],
         workflowState: item.workflowState,
         workflowUrl: `/w/${item.workflowId}`,
+        price: item.price || 'Free',
       })),
       recent: templateData.recent.map((item) => ({
         id: item.id,
@@ -77,6 +69,7 @@ export default function Templates() {
         tags: [item.category || 'uncategorized'],
         workflowState: item.workflowState,
         workflowUrl: `/w/${item.workflowId}`,
+        price: item.price || 'Free',
       })),
     }
 
@@ -97,6 +90,7 @@ export default function Templates() {
           tags: [item.category || 'uncategorized'],
           workflowState: item.workflowState,
           workflowUrl: `/w/${item.workflowId}`,
+          price: item.price || 'Free',
         }))
       }
     })
@@ -183,9 +177,9 @@ export default function Templates() {
       try {
         setLoading(true)
 
-        // Fetch popular, recent, AND all categories initially with state included for immediate preview rendering
+        // Fetch popular, recent, AND all categories initially WITHOUT state for faster loading
         const response = await fetch(
-          '/api/templates/workflows?section=popular,recent,byCategory&limit=6&includeState=true'
+          '/api/templates/workflows?section=popular,recent,byCategory&limit=6&includeState=false'
         )
 
         if (!response.ok) {
@@ -198,15 +192,6 @@ export default function Templates() {
         const allSections = new Set(['popular', 'recent', ...CATEGORIES.map(cat => cat.value)])
         setLoadedSections(allSections)
 
-        logger.info(
-          'Initial template data loaded with previews:',
-          data.popular?.length || 0,
-          'popular,',
-          data.recent?.length || 0,
-          'recent,',
-          data.byCategory ? Object.keys(data.byCategory).length : 0,
-          'categories'
-        )
 
         setTemplateData(data)
         initialFetchCompleted.current = true
@@ -233,11 +218,11 @@ export default function Templates() {
     try {
       setLoadedSections((prev) => new Set([...prev, categoryName]))
 
-      logger.info(`Loading category with previews: ${categoryName}`)
+      logger.info(`Loading category: ${categoryName}`)
 
-      // Load category data WITH state for immediate preview rendering
+      // Load category data WITHOUT state initially for faster loading
       const response = await fetch(
-        `/api/templates/workflows?category=${categoryName}&limit=6&includeState=true`
+        `/api/templates/workflows?category=${categoryName}&limit=6&includeState=false`
       )
 
       if (!response.ok) {
@@ -248,7 +233,7 @@ export default function Templates() {
 
       // Debug logging
       logger.info(
-        'Category data received with previews:',
+        'Category data received:',
         data.byCategory ? Object.keys(data.byCategory) : 'No byCategory',
         data.byCategory?.[categoryName]?.length || 0
       )
@@ -417,69 +402,6 @@ export default function Templates() {
     }
   }, [initialFetchCompleted.current, loading, filteredWorkflows, loadedSections])
 
-  // Function to handle template selection with immediate loading feedback
-  const handleTemplateSelect = (templateId: string) => {
-    // Find the template data we already have
-    let foundTemplate: TemplateData | undefined
-
-    // Search in popular templates
-    foundTemplate = templateData.popular.find((t) => t.id === templateId)
-
-    // Search in recent templates if not found
-    if (!foundTemplate) {
-      foundTemplate = templateData.recent.find((t) => t.id === templateId)
-    }
-
-    // Search in category templates if not found
-    if (!foundTemplate) {
-      for (const category of Object.keys(templateData.byCategory)) {
-        foundTemplate = templateData.byCategory[category].find((t) => t.id === templateId)
-        if (foundTemplate) break
-      }
-    }
-
-    // Set loading state immediately for instant feedback
-    setIsTransitioning(true)
-    setSelectedTemplateId(templateId)
-    setSelectedTemplate(foundTemplate || null)
-
-    // Small delay to show loading, then transition to detail view
-    setTimeout(() => {
-      setIsTransitioning(false)
-      setViewMode('detail')
-    }, 150) // Brief loading to show user feedback
-  }
-
-  // Function to go back to list view
-  const handleBackToList = () => {
-    setSelectedTemplateId(null)
-    setSelectedTemplate(null)
-    setViewMode('list')
-    setIsTransitioning(false)
-  }
-
-  // Show loading screen during transition
-  if (isTransitioning) {
-    return (
-      <div className={`flex h-[100vh] items-center justify-center transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}>
-        <div className="flex items-center space-x-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm text-muted-foreground">Loading template details...</span>
-        </div>
-      </div>
-    )
-  }
-
-  // If in detail mode, show the template detail component with existing data
-  if (viewMode === 'detail' && selectedTemplateId) {
-    return (
-      <TemplateDetailPage 
-        templateId={selectedTemplateId} 
-        initialTemplateData={selectedTemplate}
-        onBack={handleBackToList} 
-      />
-    )
-  }
 
   return (
     <div className={`flex h-[100vh] flex-col transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}>
@@ -539,7 +461,6 @@ export default function Templates() {
                             key={workflow.id}
                             workflow={workflow}
                             index={index}
-                            onSelect={handleTemplateSelect}
                           />
                         ))}
                       </div>

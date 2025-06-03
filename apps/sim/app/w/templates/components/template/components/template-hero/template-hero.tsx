@@ -48,11 +48,6 @@ export function TemplateHero({ template }: TemplateHeroProps) {
     try {
       setIsUsing(true)
 
-      // Track view using the correct template view endpoint
-      await fetch(`/api/templates/${template.id}/view`, {
-        method: 'POST',
-      })
-
       // Create a local copy of the template workflow
       if (template.workflowState) {
         const newWorkflowId = createWorkflow({

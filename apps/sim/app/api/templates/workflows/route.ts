@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
             authorId: schema.templates.authorId,
             authorName: schema.templates.authorName,
             state: schema.templates.state,
-            views: schema.templates.views,
             category: schema.templates.category,
             createdAt: schema.templates.createdAt,
             updatedAt: schema.templates.updatedAt,
@@ -76,7 +75,6 @@ export async function GET(request: NextRequest) {
             long_description: schema.templates.long_description,
             authorId: schema.templates.authorId,
             authorName: schema.templates.authorName,
-            views: schema.templates.views,
             category: schema.templates.category,
             createdAt: schema.templates.createdAt,
             updatedAt: schema.templates.updatedAt,
@@ -121,7 +119,6 @@ export async function GET(request: NextRequest) {
             authorId: schema.templates.authorId,
             authorName: schema.templates.authorName,
             state: schema.templates.state,
-            views: schema.templates.views,
             category: schema.templates.category,
             createdAt: schema.templates.createdAt,
             updatedAt: schema.templates.updatedAt,
@@ -140,7 +137,6 @@ export async function GET(request: NextRequest) {
             long_description: schema.templates.long_description,
             authorId: schema.templates.authorId,
             authorName: schema.templates.authorName,
-            views: schema.templates.views,
             category: schema.templates.category,
             createdAt: schema.templates.createdAt,
             updatedAt: schema.templates.updatedAt,
@@ -190,6 +186,7 @@ export async function GET(request: NextRequest) {
       authorName: schema.templates.authorName,
       views: schema.templates.views,
       category: schema.templates.category,
+      price: schema.templates.price,
       createdAt: schema.templates.createdAt,
       updatedAt: schema.templates.updatedAt,
     }
@@ -209,7 +206,6 @@ export async function GET(request: NextRequest) {
         result.popular = await db
           .select(selectFields)
           .from(schema.templates)
-          .orderBy(desc(schema.templates.views))
           .limit(limit)
       }
 
@@ -217,7 +213,6 @@ export async function GET(request: NextRequest) {
         result.recent = await db
           .select(selectFields)
           .from(schema.templates)
-          .orderBy(desc(schema.templates.createdAt))
           .limit(limit)
       }
 
@@ -262,7 +257,6 @@ export async function GET(request: NextRequest) {
             .select(selectFields)
             .from(schema.templates)
             .where(eq(schema.templates.category, categoryValue))
-            .orderBy(desc(schema.templates.views))
             .limit(limit)
 
           // Always add the category to the result, even if empty
@@ -279,7 +273,6 @@ export async function GET(request: NextRequest) {
       result.popular = await db
         .select(selectFields)
         .from(schema.templates)
-        .orderBy(desc(schema.templates.views))
         .limit(limit)
     }
 

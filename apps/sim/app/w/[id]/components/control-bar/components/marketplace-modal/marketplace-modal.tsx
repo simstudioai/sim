@@ -35,7 +35,7 @@ import {
   getCategoryColor,
   getCategoryIcon,
   getCategoryLabel,
-} from '@/app/w/marketplace/constants/categories'
+} from '@/app/w/templates/constants/categories'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -86,10 +86,14 @@ const marketplaceFormSchema = z.object({
     .string()
     .min(3, 'Name must be at least 3 characters')
     .max(50, 'Name cannot exceed 50 characters'),
-  description: z
+  shortDescription: z
     .string()
-    .min(10, 'Description must be at least 10 characters')
-    .max(500, 'Description cannot exceed 500 characters'),
+    .min(10, 'Short description must be at least 10 characters')
+    .max(60, 'Short description cannot exceed 60 characters'),
+  longDescription: z
+    .string()
+    .min(20, 'Long description must be at least 20 characters')
+    .max(300, 'Long description cannot exceed 300 characters'),
   category: z.string().min(1, 'Please select a category'),
   authorName: z
     .string()
@@ -103,12 +107,15 @@ type MarketplaceFormValues = z.infer<typeof marketplaceFormSchema>
 const TOOLTIPS = {
   category: 'Categorizing your workflow helps users find it more easily.',
   authorName: 'The name you want to publish under (defaults to your account name if left empty).',
+  shortDescription: 'A brief summary that appears in search results and workflow cards.',
+  longDescription: 'A detailed description explaining what your workflow does, how it works, and how it can help users.',
 }
 
 interface MarketplaceInfo {
   id: string
   name: string
-  description: string
+  short_description: string
+  long_description: string
   category: string
   authorName: string
   views: number
@@ -146,7 +153,8 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     resolver: zodResolver(marketplaceFormSchema),
     defaultValues: {
       name: '',
-      description: '',
+      shortDescription: '',
+      longDescription: '',
       category: 'marketing',
       authorName: '',
     },
@@ -171,7 +179,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
         // Use the marketplace ID to fetch details instead of workflow ID
         const response = await fetch(
-          `/api/marketplace/workflows?marketplaceId=${marketplaceData.id}`
+          `/api/templates/workflows?templateId=${marketplaceData.id}`
         )
 
         if (!response.ok) {
@@ -197,7 +205,8 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     if (open && activeWorkflowId && workflows[activeWorkflowId] && !isPublished()) {
       const workflow = workflows[activeWorkflowId]
       form.setValue('name', workflow.name)
-      form.setValue('description', workflow.description || '')
+      form.setValue('shortDescription', workflow.description || '')
+      form.setValue('longDescription', '')
     }
   }, [open, activeWorkflowId, workflows, form])
 
@@ -240,7 +249,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         category: data.category,
       })
 
-      const response = await fetch('/api/marketplace/publish', {
+      const response = await fetch('/api/templates/publish', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -248,7 +257,8 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         body: JSON.stringify({
           workflowId: activeWorkflowId,
           name: data.name,
-          description: data.description,
+          shortDescription: data.shortDescription,
+          longDescription: data.longDescription,
           category: data.category,
           authorName: data.authorName,
           workflowState: sanitizedWorkflowData.state,
@@ -307,7 +317,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         status: marketplaceData.status,
       })
 
-      const response = await fetch(`/api/marketplace/${marketplaceData.id}/unpublish`, {
+      const response = await fetch(`/api/templates/${marketplaceData.id}/unpublish`, {
         method: 'POST',
       })
 
@@ -393,7 +403,15 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
               </div>
             </div>
           </div>
-          <p className='text-muted-foreground text-sm'>{marketplaceInfo.description}</p>
+          <p className='text-muted-foreground text-sm'>{marketplaceInfo.short_description}</p>
+          {marketplaceInfo.long_description && (
+            <div className='space-y-1.5'>
+              <Label className='text-muted-foreground text-xs'>Detailed Description</Label>
+              <p className='text-foreground text-sm leading-relaxed'>
+                {marketplaceInfo.long_description}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Category and Author Info */}
@@ -468,18 +486,48 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
         <FormField
           control={form.control}
-          name='description'
+          name='shortDescription'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Description</FormLabel>
+              <LabelWithTooltip name='Short Description' tooltip={TOOLTIPS.shortDescription} />
               <FormControl>
                 <Textarea
-                  placeholder='Describe what your workflow does and how it can help others'
+                  placeholder='Enter a brief summary of your workflow'
                   className='min-h-24'
+                  maxLength={60}
                   {...field}
                 />
               </FormControl>
-              <FormMessage />
+              <div className='flex justify-between items-center text-xs'>
+                <FormMessage />
+                <span className={`${field.value?.length >= 60 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  {field.value?.length || 0}/60 characters
+                </span>
+              </div>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name='longDescription'
+          render={({ field }) => (
+            <FormItem>
+              <LabelWithTooltip name='Long Description' tooltip={TOOLTIPS.longDescription} />
+              <FormControl>
+                <Textarea
+                  placeholder='Enter a detailed description of your workflow'
+                  className='min-h-24'
+                  maxLength={300}
+                  {...field}
+                />
+              </FormControl>
+              <div className='flex justify-between items-center text-xs'>
+                <FormMessage />
+                <span className={`${field.value?.length >= 300 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  {field.value?.length || 0}/300 characters
+                </span>
+              </div>
             </FormItem>
           )}
         />

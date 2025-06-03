@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { TemplateWorkflowCard } from '../../../../components/template-workflow-card'
-import { WorkflowCardSkeleton } from '@/app/w/marketplace/components/workflow-card-skeleton'
+import { WorkflowCardSkeleton } from '@/app/w/templates/components/workflow-card-skeleton'
 import { createLogger } from '@/lib/logs/console-logger'
 import { TemplateData, getTemplateDescription } from '../../../../types'
 
@@ -66,6 +66,7 @@ export function SimilarTemplates({ currentTemplate }: SimilarTemplatesProps) {
     tags: [template.category || 'uncategorized'],
     workflowState: template.workflowState,
     workflowUrl: `/w/templates/${template.id}`, // Navigate to template detail page
+    price: template.price || 'Free',
   })
 
   if (loading) {

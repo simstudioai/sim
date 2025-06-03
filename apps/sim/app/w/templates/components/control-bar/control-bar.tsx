@@ -23,7 +23,7 @@ import {
   type CategoryGroup 
 } from '../../constants/categories'
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
-import { SavedModal } from './components/saved-modal/saved-modal'
+import { SavedModal } from './components/saved-modal'
 
 interface TemplatesHeaderProps {
   setSearchQuery: (query: string) => void
