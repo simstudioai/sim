@@ -1,15 +1,14 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { ToolConfig } from '../types'
-import type { GoogleCalendarCreateParams, GoogleCalendarToolResponse } from './types'
-
-const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3'
+import {
+  CALENDAR_API_BASE,
+  type GoogleCalendarCreateParams,
+  type GoogleCalendarCreateResponse,
+} from './types'
 
 const logger = createLogger('google_calendar_create')
 
-export const googleCalendarCreateTool: ToolConfig<
-  GoogleCalendarCreateParams,
-  GoogleCalendarToolResponse
-> = {
+export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCreateResponse> = {
   id: 'google_calendar_create',
   name: 'Google Calendar Create Event',
   description: 'Create a new event in Google Calendar',
@@ -146,7 +145,7 @@ export const googleCalendarCreateTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {
@@ -175,7 +174,6 @@ export const googleCalendarCreateTool: ToolConfig<
   },
 
   transformError: (error) => {
-    // Handle Google API error format
     if (error.error?.message) {
       if (error.error.message.includes('invalid authentication credentials')) {
         return 'Invalid or expired access token. Please reauthenticate.'

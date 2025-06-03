@@ -1,13 +1,11 @@
-import { googleCalendarCreateTool } from './create'
-import { googleCalendarGetTool } from './get'
-import { googleCalendarListTool } from './list'
-import { googleCalendarQuickAddTool } from './quick_add'
+import { createTool } from './create'
+import { getTool } from './get'
+import { listTool } from './list'
+import { quickAddTool } from './quick_add'
 // import { googleCalendarUpdateTool } from './update'
 
-export {
-  googleCalendarCreateTool,
-  googleCalendarGetTool,
-  googleCalendarListTool,
-  googleCalendarQuickAddTool,
-  //   googleCalendarUpdateTool,
-}
+export const googleCalendarCreateTool = createTool
+export const googleCalendarGetTool = getTool
+export const googleCalendarListTool = listTool
+export const googleCalendarQuickAddTool = quickAddTool
+// export const googleCalendarUpdateTool = updateTool

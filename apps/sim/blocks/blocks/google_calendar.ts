@@ -1,8 +1,21 @@
 import { GoogleCalendarIcon } from '@/components/icons'
-import type { GoogleCalendarToolResponse } from '@/tools/google_calendar/types'
+import type {
+  GoogleCalendarCreateResponse,
+  GoogleCalendarGetResponse,
+  GoogleCalendarListResponse,
+  GoogleCalendarQuickAddResponse,
+  GoogleCalendarUpdateResponse,
+} from '@/tools/google_calendar/types'
 import type { BlockConfig } from '../types'
 
-export const GoogleCalendarBlock: BlockConfig<GoogleCalendarToolResponse> = {
+type GoogleCalendarResponse =
+  | GoogleCalendarCreateResponse
+  | GoogleCalendarListResponse
+  | GoogleCalendarGetResponse
+  | GoogleCalendarQuickAddResponse
+  | GoogleCalendarUpdateResponse
+
+export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   type: 'google_calendar',
   name: 'Google Calendar',
   description: 'Manage Google Calendar events',
@@ -22,7 +35,6 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarToolResponse> = {
         { label: 'Create Event', id: 'create' },
         { label: 'List Events', id: 'list' },
         { label: 'Get Event', id: 'get' },
-        // { label: 'Update Event', id: 'update' },
         { label: 'Quick Add (Natural Language)', id: 'quick_add' },
       ],
     },
@@ -223,7 +235,6 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarToolResponse> = {
       'google_calendar_create',
       'google_calendar_list',
       'google_calendar_get',
-      // 'google_calendar_update',
       'google_calendar_quick_add',
     ],
     config: {

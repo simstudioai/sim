@@ -1,11 +1,13 @@
 import type { ToolConfig } from '../types'
-import type { GoogleCalendarQuickAddParams, GoogleCalendarToolResponse } from './types'
+import {
+  CALENDAR_API_BASE,
+  type GoogleCalendarQuickAddParams,
+  type GoogleCalendarQuickAddResponse,
+} from './types'
 
-const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3'
-
-export const googleCalendarQuickAddTool: ToolConfig<
+export const quickAddTool: ToolConfig<
   GoogleCalendarQuickAddParams,
-  GoogleCalendarToolResponse
+  GoogleCalendarQuickAddResponse
 > = {
   id: 'google_calendar_quick_add',
   name: 'Google Calendar Quick Add',
@@ -67,7 +69,7 @@ export const googleCalendarQuickAddTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, params) => {
+  transformResponse: async (response: Response, params) => {
     const data = await response.json()
 
     if (!response.ok) {

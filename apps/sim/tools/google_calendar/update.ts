@@ -1,12 +1,11 @@
 import type { ToolConfig } from '../types'
-import type { GoogleCalendarToolResponse, GoogleCalendarUpdateParams } from './types'
+import {
+  CALENDAR_API_BASE,
+  type GoogleCalendarToolResponse,
+  type GoogleCalendarUpdateParams,
+} from './types'
 
-const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3'
-
-export const googleCalendarUpdateTool: ToolConfig<
-  GoogleCalendarUpdateParams,
-  GoogleCalendarToolResponse
-> = {
+export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarToolResponse> = {
   id: 'google_calendar_update',
   name: 'Google Calendar Update Event',
   description: 'Update an existing event in Google Calendar',
@@ -166,7 +165,7 @@ export const googleCalendarUpdateTool: ToolConfig<
     },
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {

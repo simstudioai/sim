@@ -1,12 +1,11 @@
 import type { ToolConfig } from '../types'
-import type { GoogleCalendarListParams, GoogleCalendarToolResponse } from './types'
+import {
+  CALENDAR_API_BASE,
+  type GoogleCalendarListParams,
+  type GoogleCalendarListResponse,
+} from './types'
 
-const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3'
-
-export const googleCalendarListTool: ToolConfig<
-  GoogleCalendarListParams,
-  GoogleCalendarToolResponse
-> = {
+export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListResponse> = {
   id: 'google_calendar_list',
   name: 'Google Calendar List Events',
   description: 'List events from Google Calendar',
@@ -73,7 +72,7 @@ export const googleCalendarListTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response: Response) => {
     const data = await response.json()
 
     if (!response.ok) {
@@ -110,7 +109,6 @@ export const googleCalendarListTool: ToolConfig<
   },
 
   transformError: (error) => {
-    // Handle Google API error format
     if (error.error?.message) {
       if (error.error.message.includes('invalid authentication credentials')) {
         return 'Invalid or expired access token. Please reauthenticate.'

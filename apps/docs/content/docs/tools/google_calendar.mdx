@@ -94,6 +94,92 @@ Integrate Google Calendar functionality to create, read, update, and list calend
 
 
 
+## Tools
+
+### `google_calendar_create`
+
+Create a new event in Google Calendar
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Access token for Google Calendar API |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `summary` | string | Yes | Event title/summary |
+| `description` | string | No | Event description |
+| `location` | string | No | Event location |
+| `startDateTime` | string | Yes | Start date and time \(RFC3339 format, e.g., 2025-06-03T10:00:00-08:00\) |
+| `endDateTime` | string | Yes | End date and time \(RFC3339 format, e.g., 2025-06-03T11:00:00-08:00\) |
+| `timeZone` | string | No | Time zone \(e.g., America/Los_Angeles\) |
+| `attendees` | array | No | Array of attendee email addresses |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `content` | string |
+
+### `google_calendar_list`
+
+List events from Google Calendar
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Access token for Google Calendar API |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `timeMin` | string | No | Lower bound for events \(RFC3339 timestamp, e.g., 2025-06-03T00:00:00Z\) |
+| `timeMax` | string | No | Upper bound for events \(RFC3339 timestamp, e.g., 2025-06-04T00:00:00Z\) |
+| `orderBy` | string | No | Order of events returned \(startTime or updated\) |
+| `showDeleted` | boolean | No | Include deleted events |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `content` | string |
+
+### `google_calendar_get`
+
+Get a specific event from Google Calendar
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Access token for Google Calendar API |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `eventId` | string | Yes | Event ID to retrieve |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `content` | string |
+
+### `google_calendar_quick_add`
+
+Create events from natural language text
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `accessToken` | string | Yes | Access token for Google Calendar API |
+| `calendarId` | string | No | Calendar ID \(defaults to primary\) |
+| `text` | string | Yes | Natural language text describing the event \(e.g.,  |
+| `attendees` | array | No | Array of attendee email addresses \(comma-separated string also accepted\) |
+| `sendUpdates` | string | No | How to send updates to attendees: all, externalOnly, or none |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `content` | string |
+
 
 
 ## Block Configuration

@@ -1,5 +1,7 @@
 import type { ToolResponse } from '../types'
 
+export const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3'
+
 interface BaseGoogleCalendarParams {
   accessToken: string
   calendarId?: string // defaults to 'primary' if not provided
@@ -103,6 +105,42 @@ export interface GoogleCalendarToolResponse extends ToolResponse {
   output: {
     content: string
     metadata: EventMetadata | ListMetadata
+  }
+}
+
+// Specific response types for each operation
+export interface GoogleCalendarCreateResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: EventMetadata
+  }
+}
+
+export interface GoogleCalendarListResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: ListMetadata
+  }
+}
+
+export interface GoogleCalendarGetResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: EventMetadata
+  }
+}
+
+export interface GoogleCalendarQuickAddResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: EventMetadata
+  }
+}
+
+export interface GoogleCalendarUpdateResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: EventMetadata
   }
 }
 
