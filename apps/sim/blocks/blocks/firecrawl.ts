@@ -22,6 +22,7 @@ export const FirecrawlBlock: BlockConfig<ScrapeResponse | SearchResponse> = {
         { label: 'Scrape', id: 'scrape' },
         { label: 'Search', id: 'search' },
       ],
+      value: () => 'scrape',
     },
     {
       id: 'url',
