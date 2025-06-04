@@ -594,7 +594,6 @@ export function WebhookConfig({
             onSave={handleSaveWebhook}
             onDelete={handleDeleteWebhook}
             webhookId={webhookId || undefined}
-            isPreview={isPreview}
           />
         )}
       </div>
@@ -647,7 +646,6 @@ export function WebhookConfig({
           onSave={handleSaveWebhook}
           onDelete={handleDeleteWebhook}
           webhookId={webhookId || undefined}
-          isPreview={isPreview}
         />
       )}
     </div>

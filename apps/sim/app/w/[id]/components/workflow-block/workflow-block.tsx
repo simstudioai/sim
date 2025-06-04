@@ -170,16 +170,16 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   }
 
   useEffect(() => {
-    if (type === 'starter' && !data.isPreview) {
+    if (type === 'starter') {
       fetchScheduleInfo()
     } else {
       setScheduleInfo(null)
     }
-  }, [type, data.isPreview])
+  }, [type])
 
   // Get webhook information for the tooltip
   useEffect(() => {
-    if (type === 'starter' && hasActiveWebhook && !data.isPreview) {
+    if (type === 'starter' && hasActiveWebhook) {
       const fetchWebhookInfo = async () => {
         try {
           const workflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -205,7 +205,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     } else if (!hasActiveWebhook) {
       setWebhookInfo(null)
     }
-  }, [type, hasActiveWebhook, data.isPreview])
+  }, [type, hasActiveWebhook])
 
   // Update node internals when handles change
   useEffect(() => {

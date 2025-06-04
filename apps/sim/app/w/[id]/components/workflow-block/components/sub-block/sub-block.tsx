@@ -4,7 +4,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { getBlock } from '@/blocks/index'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { ChannelSelectorInput } from './components/channel-selector/channel-selector-input'
 import { CheckboxList } from './components/checkbox-list'
 import { Code } from './components/code'
 import { ConditionInput } from './components/condition-input'
@@ -280,8 +279,6 @@ export function SubBlock({
             label={config.placeholder || 'Select a credential'}
             serviceId={config.serviceId}
             disabled={isPreview}
-            isPreview={isPreview}
-            previewValue={previewValue}
           />
         )
       case 'file-selector':
@@ -339,16 +336,6 @@ export function SubBlock({
           <InputFormat
             blockId={blockId}
             subBlockId={config.id}
-            isPreview={isPreview}
-            previewValue={previewValue}
-          />
-        )
-      case 'channel-selector':
-        return (
-          <ChannelSelectorInput
-            blockId={blockId}
-            subBlock={config}
-            disabled={isConnecting || isPreview}
             isPreview={isPreview}
             previewValue={previewValue}
           />

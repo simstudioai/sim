@@ -61,8 +61,6 @@ export function FolderSelectorInput({
       disabled={disabled}
       serviceId={subBlock.serviceId}
       onFolderInfoChange={setFolderInfo}
-      isPreview={isPreview}
-      previewValue={previewValue}
     />
   )
 }
