@@ -87,7 +87,6 @@ export function SavedModal({ open, onOpenChange }: SavedModalProps) {
   })
 
   const handleViewTemplate = (templateId: string) => {
-    onOpenChange(false)
     router.push(`/w/templates/${templateId}`)
   }
 

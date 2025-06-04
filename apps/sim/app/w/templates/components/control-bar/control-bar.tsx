@@ -167,26 +167,22 @@ export function TemplatesHeader({
       {/* Top Row - Action Icons */}
       <div className='flex justify-between px-6 py-3'>
         <div className='flex items-center gap-2'>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='text-muted-foreground hover:text-foreground'
+          <span
+            className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
             onClick={() => router.push('/w/templates')}
           >
-            <Shapes className='mr-2 h-4 w-4' />
-            Marketplace
-          </Button>
+            <Shapes className='mr-2 inline h-4 w-4' />
+            Templates
+          </span>
         </div>
         <div className='flex items-center gap-3'>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='text-muted-foreground hover:text-foreground'
+          <span
+            className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
             onClick={() => setShowSavedModal(true)}
           >
-            <Heart className='mr-2 h-4 w-4' />
+            <Heart className='mr-2 inline h-4 w-4' />
             Saved
-          </Button>
+          </span>
         </div>
       </div>
 
