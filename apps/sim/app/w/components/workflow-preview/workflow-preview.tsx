@@ -33,6 +33,7 @@ interface WorkflowPreviewProps {
   isPannable?: boolean
   defaultPosition?: { x: number; y: number }
   defaultZoom?: number
+  zoomable?: boolean
 }
 
 // Define node types - the components now handle preview mode internally
@@ -55,6 +56,7 @@ export function WorkflowPreview({
   isPannable = false,
   defaultPosition,
   defaultZoom,
+  zoomable = true,
 }: WorkflowPreviewProps) {
   const blocksStructure = useMemo(
     () => ({
@@ -243,19 +245,16 @@ export function WorkflowPreview({
           fitView
           panOnScroll={false}
           panOnDrag={isPannable}
-          zoomOnScroll={false}
-          draggable={false}
-          defaultViewport={{
-            x: defaultPosition?.x ?? 0,
-            y: defaultPosition?.y ?? 0,
-            zoom: defaultZoom ?? 1,
-          }}
-          minZoom={0.1}
-          maxZoom={2}
+          zoomOnScroll={zoomable}
+          zoomOnPinch={zoomable}
+          zoomOnDoubleClick={zoomable}
+          preventScrolling={zoomable}
           proOptions={{ hideAttribution: true }}
           elementsSelectable={false}
           nodesDraggable={false}
           nodesConnectable={false}
+          minZoom={0.1}
+          maxZoom={zoomable ? 2 : 0.5}
         >
           <Background />
         </ReactFlow>
