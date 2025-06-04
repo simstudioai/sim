@@ -166,15 +166,7 @@ export default function OperationsPage() {
       mainCategory="operations"
     >
       {loading ? (
-        <Section
-          id='loading'
-          title='Operations Templates'
-          ref={(el) => {
-            sectionRefs.current.loading = el
-          }}
-        >
-          <TemplateGrid isLoading={true} skeletonCount={6} />
-        </Section>
+        <TemplateGrid isLoading={true} skeletonCount={6} />
       ) : (
         <>
           {Object.entries(filteredWorkflows).map(([category, workflows]) => (
