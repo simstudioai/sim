@@ -2,12 +2,14 @@ import { FirecrawlIcon } from '@/components/icons'
 import type { ScrapeResponse, SearchResponse } from '@/tools/firecrawl/types'
 import type { BlockConfig } from '../types'
 
-export const FirecrawlBlock: BlockConfig<ScrapeResponse | SearchResponse> = {
+type FirecrawlResponse = ScrapeResponse | SearchResponse
+
+export const FirecrawlBlock: BlockConfig<FirecrawlResponse> = {
   type: 'firecrawl',
   name: 'Firecrawl',
-  description: 'Scrape website content or search the web',
+  description: 'Scrape or search the web',
   longDescription:
-    'Extract content from any website with advanced web scraping capabilities or search the web for information. Retrieve clean, structured data from web pages with options to focus on main content, or search for information across the web.',
+    'Extract content from any website with advanced web scraping or search the web for information. Retrieve clean, structured data from web pages with options to focus on main content, or intelligently search for information across the web.',
   docsLink: 'https://docs.simstudio.ai/tools/firecrawl',
   category: 'tools',
   bgColor: '#181C1E',
