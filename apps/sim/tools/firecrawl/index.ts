@@ -1,3 +1,4 @@
 import { scrapeTool } from './scrape'
+import { searchTool } from './search'
 
-export { scrapeTool }
+export { scrapeTool, searchTool }
