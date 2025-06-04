@@ -371,41 +371,38 @@ export const apiKey = pgTable('api_key', {
   expiresAt: timestamp('expires_at'),
 })
 
-// export const marketplace = pgTable('marketplace', {
-//   id: text('id').primaryKey(),
-//   workflowId: text('workflow_id')
-//     .notNull()
-//     .references(() => workflow.id, { onDelete: 'cascade' }),
-//   state: json('state').notNull(),
-//   name: text('name').notNull(),
-//   description: text('description'),
-//   authorId: text('author_id')
-//     .notNull()
-//     .references(() => user.id),
-//   authorName: text('author_name').notNull(),
-//   views: integer('views').notNull().default(0),
-//   category: text('category'),
-//   createdAt: timestamp('created_at').notNull().defaultNow(),
-//   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-// })
 
-export const templates = pgTable('templates', {
-  id: text('id').primaryKey(),
-  state: json('state').notNull(),
-  name: text('name').notNull(),
-  short_description: text('short_description'),
-  long_description: text('long_description'),
-  authorId: text('author_id')
-    .notNull()
-    .references(() => user.id),
-  authorName: text('author_name').notNull(),
-  views: integer('views').notNull().default(0),
-  category: text('category'),
-  price: text('price').notNull().default('Free'),
-  workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
+export const templates = pgTable(
+  'templates',
+  {
+    id: text('id').primaryKey(),
+    state: json('state').notNull(),
+    name: text('name').notNull(),
+    short_description: text('short_description'),
+    long_description: text('long_description'),
+    authorId: text('author_id')
+      .notNull()
+      .references(() => user.id),
+    authorName: text('author_name').notNull(),
+    views: integer('views').notNull().default(0),
+    category: text('category'),
+    price: text('price').notNull().default('Free'),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Critical performance indexes
+    categoryIdx: index('templates_category_idx').on(table.category),
+    viewsIdx: index('templates_views_idx').on(table.views),
+    createdAtIdx: index('templates_created_at_idx').on(table.createdAt),
+    authorIdIdx: index('templates_author_id_idx').on(table.authorId),
+    
+    // Composite indexes for common query patterns
+    categoryViewsIdx: index('templates_category_views_idx').on(table.category, table.views),
+    categoryCreatedAtIdx: index('templates_category_created_at_idx').on(table.category, table.createdAt),
+  })
+)
 
 export const userStats = pgTable('user_stats', {
   id: text('id').primaryKey(),
@@ -672,11 +669,6 @@ export const document = pgTable(
 
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
-
-    processingStatus: text('processing_status'),
-    processingStartedAt: timestamp('processing_started_at'),
-    processingCompletedAt: timestamp('processing_completed_at'),
-    processingError: text('processing_error'),
   },
   (table) => ({
     // Primary access pattern - documents by knowledge base
