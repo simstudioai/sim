@@ -55,7 +55,6 @@ export interface Workflow {
 // API response format for template collections
 export interface TemplateCollection {
   popular: TemplateData[]
-  recent: TemplateData[]
   byCategory: Record<string, TemplateData[]>
 }
 
@@ -73,4 +72,13 @@ export interface TemplateCardProps extends TemplateComponentProps {
 // Helper function to get description from template data
 export function getTemplateDescription(template: TemplateData): string {
   return template.short_description || template.long_description || ''
+}
+
+// Navigation types for hierarchical template browsing
+export type NavigationContext = 'discover' | 'operations' | 'personal' | 'technical'
+
+export interface NavigationState {
+  context: NavigationContext
+  activeSection: string | null
+  subcategory?: string | null
 } 

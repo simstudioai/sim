@@ -133,7 +133,6 @@ export function TemplateDetailPage({ templateId, initialTemplateData, onBack }: 
 
   return (
     <div className={`min-h-screen transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}>
-      {/* Header with back button */}
       <div className="border-b bg-background">
         <div className="px-6 py-4">
           <Button 
@@ -148,22 +147,17 @@ export function TemplateDetailPage({ templateId, initialTemplateData, onBack }: 
         </div>
       </div>
 
-      {/* Main content */}
       <div className="px-6 py-8">
-        {/* Hero and Preview Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-          {/* Left Column - Hero */}
           <div className="space-y-8">
             <TemplateHero template={template} />
           </div>
           
-          {/* Right Column - Preview */}
           <div>
             <TemplatePreview template={template} />
           </div>
         </div>
 
-        {/* Similar Templates Section - This loads independently and won't block the main content */}
         <SimilarTemplates currentTemplate={template} />
       </div>
       

@@ -7,7 +7,8 @@ import { ErrorMessage } from './components/error-message'
 import { Section } from './components/section'
 import { TemplateWorkflowCard } from './components/template-workflow-card'
 import { WorkflowCardSkeleton } from './components/workflow-card-skeleton'
-import { CATEGORIES, getCategoryLabel } from './constants/categories'
+import { TemplateGrid } from './components/shared/template-grid'
+import { CATEGORIES, getCategoryLabel, CATEGORY_GROUPS } from './constants/categories'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { createLogger } from '@/lib/logs/console-logger'
 import { Workflow, TemplateData, TemplateCollection, getTemplateDescription } from './types'
@@ -18,7 +19,7 @@ const logger = createLogger('Templates')
 export type TemplateWorkflow = TemplateData
 
 // The order to display sections in, matching toolbar order
-const SECTION_ORDER = ['popular', 'recent', ...CATEGORIES.map((cat) => cat.value)]
+const SECTION_ORDER = ['popular', ...CATEGORIES.map((cat) => cat.value)]
 
 export default function Templates() {
   const [searchQuery, setSearchQuery] = useState('')
@@ -26,11 +27,10 @@ export default function Templates() {
   const [error, setError] = useState<string | null>(null)
   const [templateData, setTemplateData] = useState<TemplateCollection>({
     popular: [],
-    recent: [],
     byCategory: {},
   })
   const [activeSection, setActiveSection] = useState<string | null>(null)
-  const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(['popular', 'recent']))
+  const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(['popular']))
   const [categoryFilter, setCategoryFilter] = useState<string[] | null>(null)
 
   // Get sidebar state for layout calculations
@@ -63,7 +63,6 @@ export default function Templates() {
 
     const result: Record<string, Workflow[]> = {
       popular: convertTemplateItems(templateData.popular),
-      recent: convertTemplateItems(templateData.recent),
     }
 
     // Add categories that have been loaded
@@ -82,9 +81,8 @@ export default function Templates() {
     if (categoryFilter && categoryFilter.length > 0) {
       const filtered: Record<string, Workflow[]> = {}
       
-      // Always include popular and recent if they exist
+      // Always include popular if it exists
       if (dataToFilter.popular) filtered.popular = dataToFilter.popular
-      if (dataToFilter.recent) filtered.recent = dataToFilter.recent
       
       // Add filtered categories
       categoryFilter.forEach(category => {
@@ -152,8 +150,8 @@ export default function Templates() {
       try {
         setLoading(true)
 
-        // Load all templates upfront - popular, recent, and all categories
-        const response = await fetch('/api/templates/workflows?section=popular,recent,byCategory')
+        // Load limited templates for discover page - 9 for popular, 6 for categories
+        const response = await fetch('/api/templates/workflows?section=popular,byCategory&limit=6&popularLimit=9')
 
         if (!response.ok) {
           throw new Error('Failed to fetch template data')
@@ -162,7 +160,7 @@ export default function Templates() {
         const data = await response.json()
 
         // Mark all sections as loaded
-        const allSections = new Set(['popular', 'recent', ...CATEGORIES.map(cat => cat.value)])
+        const allSections = new Set(['popular', ...CATEGORIES.map(cat => cat.value)])
         setLoadedSections(allSections)
 
         setTemplateData(data)
@@ -247,11 +245,7 @@ export default function Templates() {
               sectionRefs.current.loading = el
             }}
           >
-            <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
-              {Array.from({ length: 6 }).map((_, index) => (
-                <WorkflowCardSkeleton key={`skeleton-${index}`} />
-              ))}
-            </div>
+            <TemplateGrid isLoading={true} skeletonCount={6} />
           </Section>
         )}
 
@@ -260,6 +254,11 @@ export default function Templates() {
           <>
             {sortedFilteredWorkflows.map(
               ([category, workflows]) => {
+                // Determine if we should show Browse All button
+                // Popular should never show Browse All
+                // Other categories should show Browse All with their specific category name
+                const showBrowseAll = category !== 'popular' && !searchQuery.trim()
+                
                 // Show sections if they have workflows OR if no search is active (to allow empty sections to trigger loading)
                 const shouldShowSection = workflows.length > 0 || !searchQuery.trim()
                 
@@ -268,27 +267,18 @@ export default function Templates() {
                     key={category}
                     id={category}
                     title={getCategoryLabel(category)}
+                    showBrowseAll={showBrowseAll}
+                    browseAllCategory={category}
                     ref={(el) => {
                       if (el) {
                         sectionRefs.current[category] = el
                       }
                     }}
                   >
-                    {workflows.length > 0 ? (
-                      <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
-                        {workflows.map((workflow, index) => (
-                          <TemplateWorkflowCard
-                            key={workflow.id}
-                            workflow={workflow}
-                            index={index}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className='flex h-32 items-center justify-center text-muted-foreground text-sm'>
-                        No {getCategoryLabel(category).toLowerCase()} templates available
-                      </div>
-                    )}
+                    <TemplateGrid 
+                      workflows={workflows}
+                      emptyMessage={`No ${getCategoryLabel(category).toLowerCase()} templates available`}
+                    />
                   </Section>
                 )
               }
