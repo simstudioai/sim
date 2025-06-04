@@ -83,7 +83,7 @@ export function TemplateWorkflowCard({ workflow, onHover }: TemplateWorkflowCard
                     width='100%'
                     isPannable={false}
                     showSubBlocks={false}
-                    defaultZoom={0.6}
+                    zoomable={false}
                   />
                 </div>
               </div>
