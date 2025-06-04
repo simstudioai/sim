@@ -187,7 +187,6 @@ export const inviteTool: ToolConfig<GoogleCalendarInviteParams, GoogleCalendarIn
     const totalAttendees = data.attendees?.length || 0
 
     // Calculate how many new attendees were actually added
-    const existingAttendeesCount = existingAttendees.length
     let newAttendeesAdded = 0
 
     if (shouldReplace) {

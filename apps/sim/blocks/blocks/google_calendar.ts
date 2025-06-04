@@ -134,19 +134,11 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       title: 'Event ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Event ID to retrieve',
-      condition: { field: 'operation', value: 'get' },
+      placeholder: 'Event ID',
+      condition: { field: 'operation', value: ['get', 'invite'] },
     },
 
     // Invite Attendees Fields
-    {
-      id: 'eventId',
-      title: 'Event ID',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Event ID to invite attendees to',
-      condition: { field: 'operation', value: 'invite' },
-    },
     {
       id: 'attendees',
       title: 'Attendees (comma-separated emails)',
@@ -230,8 +222,6 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       params: (params) => {
         const { credential, operation, attendees, replaceExisting, ...rest } = params
 
-        console.log('Block params processing:', { operation, attendees, type: typeof attendees })
-
         const processedParams = { ...rest }
 
         // Convert comma-separated attendees string to array, only if it has content
@@ -241,19 +231,10 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
             .map((email) => email.trim())
             .filter((email) => email.length > 0)
 
-          console.log('Processed attendee list:', attendeeList)
-
           // Only add attendees if we have valid entries
           if (attendeeList.length > 0) {
             processedParams.attendees = attendeeList
           }
-        } else {
-          console.log('Attendees validation failed:', {
-            attendees,
-            hasValue: !!attendees,
-            isString: typeof attendees === 'string',
-            trimLength: attendees ? attendees.trim().length : 'N/A',
-          })
         }
 
         // Convert replaceExisting string to boolean for invite operation
@@ -265,8 +246,6 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         if (['create', 'quick_add', 'invite'].includes(operation) && !processedParams.sendUpdates) {
           processedParams.sendUpdates = 'all'
         }
-
-        console.log('Final processed params:', processedParams)
 
         return {
           accessToken: credential,

@@ -2,6 +2,20 @@ import type { ToolResponse } from '../types'
 
 export const CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3'
 
+// Shared attendee interface that matches Google Calendar API specification
+export interface CalendarAttendee {
+  id?: string
+  email: string
+  displayName?: string
+  organizer?: boolean
+  self?: boolean
+  resource?: boolean
+  optional?: boolean
+  responseStatus: string
+  comment?: string
+  additionalGuests?: number
+}
+
 interface BaseGoogleCalendarParams {
   accessToken: string
   calendarId?: string // defaults to 'primary' if not provided
@@ -87,18 +101,7 @@ interface EventMetadata {
     date?: string
     timeZone?: string
   }
-  attendees?: Array<{
-    id?: string
-    email: string
-    displayName?: string
-    organizer?: boolean
-    self?: boolean
-    resource?: boolean
-    optional?: boolean
-    responseStatus: string
-    comment?: string
-    additionalGuests?: number
-  }>
+  attendees?: CalendarAttendee[]
   creator?: {
     email: string
     displayName?: string
@@ -185,12 +188,7 @@ export interface GoogleCalendarEvent {
     date?: string
     timeZone?: string
   }
-  attendees?: Array<{
-    email: string
-    displayName?: string
-    responseStatus: string
-    optional?: boolean
-  }>
+  attendees?: CalendarAttendee[]
   creator?: {
     email: string
     displayName?: string
@@ -244,12 +242,7 @@ export interface GoogleCalendarApiEventResponse {
     date?: string
     timeZone?: string
   }
-  attendees?: Array<{
-    email: string
-    displayName?: string
-    responseStatus: string
-    optional?: boolean
-  }>
+  attendees?: CalendarAttendee[]
   creator?: {
     email: string
     displayName?: string
