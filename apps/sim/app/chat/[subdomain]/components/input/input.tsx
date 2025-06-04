@@ -4,6 +4,7 @@ import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Send, Square } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VoiceInput } from './voice-input'
 
 const PLACEHOLDER = 'Enter a message or click the mic to speak'
@@ -125,10 +126,10 @@ export const ChatInput: React.FC<{
     }, 100)
   }
 
-  // Handle voice start
+  // Handle voice start with smooth transition to voice-first mode
   const handleVoiceStart = () => {
     setIsActive(true)
-    onVoiceStart?.() // Call the callback when voice starts
+    onVoiceStart?.() // This will trigger the voice-first mode transition
   }
 
   // Handle voice end
@@ -145,16 +146,27 @@ export const ChatInput: React.FC<{
       <div className='flex items-center justify-center'>
         {/* Voice Input Only */}
         {isSttAvailable && (
-          <VoiceInput
-            onTranscript={handleVoiceTranscript}
-            onVoiceStart={handleVoiceStart}
-            onVoiceEnd={handleVoiceEnd}
-            isListening={isListening}
-            setIsListening={setIsListening}
-            disabled={isStreaming}
-            onInterrupt={onInterrupt}
-            large={true}
-          />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <VoiceInput
+                    onTranscript={handleVoiceTranscript}
+                    onVoiceStart={handleVoiceStart}
+                    onVoiceEnd={handleVoiceEnd}
+                    isListening={isListening}
+                    setIsListening={setIsListening}
+                    disabled={isStreaming}
+                    onInterrupt={onInterrupt}
+                    large={true}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side='top' className='border border-gray-200 bg-white text-gray-900'>
+                <p>{isListening ? 'Stop listening' : 'Start voice input'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
     )
@@ -180,18 +192,30 @@ export const ChatInput: React.FC<{
           onClick={handleActivate}
         >
           <div className='flex h-full w-full items-center rounded-full p-2'>
-            {/* Voice Input */}
+            {/* Voice Input with Tooltip */}
             {isSttAvailable && (
               <div className='mr-2'>
-                <VoiceInput
-                  onTranscript={handleVoiceTranscript}
-                  onVoiceStart={handleVoiceStart}
-                  onVoiceEnd={handleVoiceEnd}
-                  isListening={isListening}
-                  setIsListening={setIsListening}
-                  disabled={isStreaming}
-                  onInterrupt={onInterrupt}
-                />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <VoiceInput
+                          onTranscript={handleVoiceTranscript}
+                          onVoiceStart={handleVoiceStart}
+                          onVoiceEnd={handleVoiceEnd}
+                          isListening={isListening}
+                          setIsListening={setIsListening}
+                          disabled={isStreaming}
+                          onInterrupt={onInterrupt}
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side='top'>
+                      <p>{isListening ? 'Stop listening' : 'Start voice input'}</p>
+                      <span className='text-gray-500 text-xs'>Click to enter voice mode</span>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             )}
 

@@ -87,6 +87,14 @@ export function useChatStreaming() {
       streamingOptions?.voiceSettings?.autoPlayResponses &&
       streamingOptions?.audioStreamHandler
 
+    console.log('🎵 Streaming handler audio conditions:', {
+      isVoiceEnabled: streamingOptions?.voiceSettings?.isVoiceEnabled,
+      autoPlayResponses: streamingOptions?.voiceSettings?.autoPlayResponses,
+      hasAudioStreamHandler: !!streamingOptions?.audioStreamHandler,
+      shouldStreamAudio,
+      voiceFirstMode: streamingOptions?.voiceSettings?.voiceFirstMode,
+    })
+
     // Get voice-first mode settings
     const voiceFirstMode = streamingOptions?.voiceSettings?.voiceFirstMode
     const textStreamingMode = streamingOptions?.voiceSettings?.textStreamingInVoiceMode || 'normal'

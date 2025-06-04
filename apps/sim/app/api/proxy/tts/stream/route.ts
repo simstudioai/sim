@@ -17,7 +17,15 @@ export async function POST(request: NextRequest) {
     const apiKey = env.ELEVENLABS_API_KEY
     if (!apiKey) {
       logger.error('ELEVENLABS_API_KEY not configured on server')
-      return new Response('ElevenLabs service not configured', { status: 503 })
+      logger.error(
+        'Available env vars:',
+        Object.keys(process.env).filter((key) => key.includes('ELEVEN'))
+      )
+      logger.error('env.ELEVENLABS_API_KEY:', env.ELEVENLABS_API_KEY)
+      return new Response(
+        'ElevenLabs service not configured. Please ensure ELEVENLABS_API_KEY is set in your environment.',
+        { status: 503 }
+      )
     }
 
     logger.info('Starting streaming TTS request for voice:', voiceId)

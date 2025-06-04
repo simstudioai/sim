@@ -207,14 +207,27 @@ export function useAudioStreaming() {
         useOptimizedStreaming = false,
       } = options
 
+      console.log('📢 streamTextToAudio called:', {
+        textLength: text.length,
+        textPreview: `${text.substring(0, 50)}...`,
+        voiceId,
+        modelId,
+        useOptimizedStreaming,
+      })
+
       // Skip empty text
-      if (!text.trim()) return
+      if (!text.trim()) {
+        console.log('⚠️ Skipping empty text')
+        return
+      }
 
       try {
         // Initialize MediaSource if this is the first chunk
         if (!isInitializedRef.current) {
+          console.log('🎵 Initializing MediaSource...')
           const initialized = await initializeMediaSource(options)
           if (!initialized) {
+            console.log('⚠️ MediaSource initialization failed, falling back to simple audio')
             // Fallback to simple audio playback
             return fallbackAudioPlayback(text, options)
           }
@@ -249,6 +262,12 @@ export function useAudioStreaming() {
       // Choose endpoint based on optimization preference
       const endpoint = useOptimizedStreaming ? '/api/proxy/tts/websocket' : '/api/proxy/tts/stream'
 
+      console.log('🌐 Making TTS request to:', endpoint, {
+        textLength: text.length,
+        voiceId,
+        modelId,
+      })
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -262,11 +281,20 @@ export function useAudioStreaming() {
         signal: abortControllerRef.current?.signal,
       })
 
+      console.log('📡 TTS response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
+      })
+
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error('TTS authentication failed (401). Please check server configuration.')
         }
-        throw new Error(`TTS request failed: ${response.statusText}`)
+        const errorText = await response.text()
+        console.error('TTS error response:', errorText)
+        throw new Error(`TTS request failed: ${response.statusText} - ${errorText}`)
       }
 
       if (!response.body) {
@@ -276,14 +304,17 @@ export function useAudioStreaming() {
       const reader = response.body.getReader()
 
       try {
+        let bytesReceived = 0
         while (true) {
           const { done, value } = await reader.read()
 
           if (done) {
+            console.log('✅ TTS streaming complete, total bytes:', bytesReceived)
             break
           }
 
           if (value && value.length > 0) {
+            bytesReceived += value.length
             // Add chunk to queue
             audioChunksRef.current.push(value.buffer.slice(0))
 

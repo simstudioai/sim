@@ -72,6 +72,7 @@ export function VoiceInput({
   const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'prompt'>(
     'prompt'
   )
+  const [isHovered, setIsHovered] = useState(false)
 
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -427,7 +428,7 @@ export function VoiceInput({
       // Set listening state after audio is ready
       setIsListening(true)
 
-      // Try to start speech recognition immediately
+      // Try to start speech recognition with error handling
       try {
         console.log('🎯 Attempting to start speech recognition...')
         recognitionRef.current.start()
@@ -443,17 +444,36 @@ export function VoiceInput({
             console.log('   • Make sure no other apps are using the microphone')
           }
         }, 3000)
-      } catch (startError) {
+      } catch (startError: any) {
         console.error('❌ Error calling recognition.start():', startError)
-        setIsListening(false)
-        cleanupAudio()
+
+        // Handle specific error cases
+        if (
+          startError.message?.includes('already started') ||
+          startError.name === 'InvalidStateError'
+        ) {
+          console.log('🔄 Recognition already started, continuing...')
+          // Don't treat this as an error, just continue
+        } else {
+          setIsListening(false)
+          cleanupAudio()
+        }
       }
     } catch (error) {
       console.error('❌ Error in startListening:', error)
       setIsListening(false)
       cleanupAudio()
     }
-  }, [isListening, disabled, isSupported, setupAudioVisualization, cleanupAudio, onInterrupt])
+  }, [
+    isListening,
+    disabled,
+    isSupported,
+    setupAudioVisualization,
+    cleanupAudio,
+    onInterrupt,
+    transcript,
+    interimTranscript,
+  ])
 
   const stopListening = useCallback(() => {
     console.log('Stopping voice input...')
@@ -523,11 +543,11 @@ export function VoiceInput({
               exit={{ opacity: 0, scale: 0.8 }}
               className='mb-4 flex items-center space-x-2'
             >
-              {/* Real-time audio bars with enhanced styling for dark mode */}
+              {/* Real-time audio bars with enhanced styling for light mode */}
               {audioLevels.map((level, i) => (
                 <motion.div
                   key={i}
-                  className='w-2 rounded-full bg-blue-400'
+                  className='w-2 rounded-full bg-blue-500'
                   style={{
                     height: Math.max(8, (level / 100) * 32),
                   }}
@@ -542,15 +562,19 @@ export function VoiceInput({
         </AnimatePresence>
 
         {/* Large Voice Button */}
-        <button
+        <motion.button
           type='button'
           onClick={toggleListening}
           disabled={disabled}
+          onHoverStart={() => setIsHovered(true)}
+          onHoverEnd={() => setIsHovered(false)}
           className={`flex items-center justify-center rounded-full border-2 p-6 transition-all duration-200 ${
             isListening
-              ? 'border-red-400 bg-red-500/20 text-red-300 hover:bg-red-500/30'
-              : 'border-white/30 bg-white/10 text-white hover:bg-white/20'
+              ? 'border-red-400 bg-red-500/20 text-red-600 hover:bg-red-500/30'
+              : 'border-blue-300 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20'
           } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} `}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           title={
             permissionStatus === 'denied'
               ? 'Microphone access denied'
@@ -560,7 +584,7 @@ export function VoiceInput({
           }
         >
           {isListening ? <MicOff size={32} /> : <Mic size={32} />}
-        </button>
+        </motion.button>
 
         {/* Live Transcript Display for large mode */}
         <AnimatePresence>
@@ -569,10 +593,10 @@ export function VoiceInput({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              className='mt-4 max-w-md rounded-lg bg-white/10 px-4 py-2 text-center text-white backdrop-blur-sm'
+              className='mt-4 max-w-md rounded-lg bg-gray-50 px-4 py-2 text-center text-gray-900 backdrop-blur-sm'
             >
               {transcript}
-              <span className='text-white/60'>{interimTranscript}</span>
+              <span className='text-gray-500'>{interimTranscript}</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -596,7 +620,7 @@ export function VoiceInput({
             {audioLevels.map((level, i) => (
               <motion.div
                 key={i}
-                className='w-1 rounded-full bg-red-500'
+                className='w-1 rounded-full bg-blue-500'
                 style={{
                   height: Math.max(4, (level / 100) * 16),
                 }}
@@ -611,15 +635,19 @@ export function VoiceInput({
       </AnimatePresence>
 
       {/* Voice Button */}
-      <button
+      <motion.button
         type='button'
         onClick={toggleListening}
         disabled={disabled}
+        onHoverStart={() => setIsHovered(true)}
+        onHoverEnd={() => setIsHovered(false)}
         className={`flex items-center justify-center rounded-full p-2 transition-all duration-200 ${
           isListening
             ? 'bg-red-500 text-white hover:bg-red-600'
             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
         } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} `}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
         title={
           permissionStatus === 'denied'
             ? 'Microphone access denied'
@@ -629,7 +657,7 @@ export function VoiceInput({
         }
       >
         {isListening ? <MicOff size={16} /> : <Mic size={16} />}
-      </button>
+      </motion.button>
 
       {/* Live Transcript Display */}
       <AnimatePresence>
