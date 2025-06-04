@@ -10,19 +10,27 @@ export function useKnowledgeBase(id: string) {
   const isLoading = loadingKnowledgeBases.has(id)
 
   useEffect(() => {
+    if (!id || knowledgeBase || isLoading) return
+
+    let isMounted = true
+
     const loadData = async () => {
       try {
         setError(null)
         await getKnowledgeBase(id)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load knowledge base')
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to load knowledge base')
+        }
       }
     }
 
-    if (id && !knowledgeBase && !isLoading) {
-      loadData()
+    loadData()
+
+    return () => {
+      isMounted = false
     }
-  }, [id, knowledgeBase, isLoading, getKnowledgeBase])
+  }, [id, knowledgeBase, isLoading]) // Removed getKnowledgeBase from dependencies
 
   return {
     knowledgeBase,
@@ -41,19 +49,27 @@ export function useKnowledgeBaseDocuments(knowledgeBaseId: string) {
   const isLoading = loadingDocuments.has(knowledgeBaseId)
 
   useEffect(() => {
+    if (!knowledgeBaseId || documents.length > 0 || isLoading) return
+
+    let isMounted = true
+
     const loadData = async () => {
       try {
         setError(null)
         await getDocuments(knowledgeBaseId)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load documents')
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to load documents')
+        }
       }
     }
 
-    if (knowledgeBaseId && documents.length === 0 && !isLoading) {
-      loadData()
+    loadData()
+
+    return () => {
+      isMounted = false
     }
-  }, [knowledgeBaseId, documents.length, isLoading, getDocuments])
+  }, [knowledgeBaseId, documents.length, isLoading]) // Removed getDocuments from dependencies
 
   const refreshDocumentsData = async () => {
     try {
@@ -88,29 +104,95 @@ export function useKnowledgeBasesList() {
   } = useKnowledgeStore()
 
   const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const maxRetries = 3
 
   useEffect(() => {
-    const loadData = async () => {
+    if (knowledgeBasesList.length > 0 || loadingKnowledgeBasesList) return
+
+    let isMounted = true
+    let retryTimeoutId: NodeJS.Timeout | null = null
+
+    const loadData = async (attempt = 0) => {
+      // Don't proceed if component is unmounted
+      if (!isMounted) return
+
       try {
         setError(null)
         await getKnowledgeBasesList()
+
+        // Reset retry count on success
+        if (isMounted) {
+          setRetryCount(0)
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load knowledge bases')
+        if (!isMounted) return
+
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load knowledge bases'
+
+        // Only set error and retry if we haven't exceeded max retries
+        if (attempt < maxRetries) {
+          console.warn(`Knowledge bases load attempt ${attempt + 1} failed, retrying...`, err)
+          setRetryCount(attempt + 1)
+
+          // Exponential backoff: 1s, 2s, 4s
+          const delay = 2 ** attempt * 1000
+          retryTimeoutId = setTimeout(() => {
+            if (isMounted) {
+              loadData(attempt + 1)
+            }
+          }, delay)
+        } else {
+          console.error('All retry attempts failed for knowledge bases list:', err)
+          setError(errorMessage)
+          setRetryCount(maxRetries)
+        }
       }
     }
 
-    if (knowledgeBasesList.length === 0 && !loadingKnowledgeBasesList) {
-      loadData()
+    // Always start from attempt 0
+    loadData(0)
+
+    // Cleanup function
+    return () => {
+      isMounted = false
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId)
+      }
     }
-  }, [knowledgeBasesList.length, loadingKnowledgeBasesList, getKnowledgeBasesList])
+  }, [knowledgeBasesList.length, loadingKnowledgeBasesList]) // Removed getKnowledgeBasesList from dependencies
 
   const refreshList = async () => {
     try {
       setError(null)
+      setRetryCount(0)
       clearKnowledgeBasesList()
       await getKnowledgeBasesList()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to refresh knowledge bases')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to refresh knowledge bases'
+      setError(errorMessage)
+      console.error('Error refreshing knowledge bases list:', err)
+    }
+  }
+
+  // Force refresh function that bypasses cache and resets everything
+  const forceRefresh = async () => {
+    setError(null)
+    setRetryCount(0)
+    clearKnowledgeBasesList()
+
+    // Force reload by clearing cache and loading state
+    useKnowledgeStore.setState({
+      knowledgeBasesList: [],
+      loadingKnowledgeBasesList: false,
+    })
+
+    try {
+      await getKnowledgeBasesList()
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to refresh knowledge bases'
+      setError(errorMessage)
+      console.error('Error force refreshing knowledge bases list:', err)
     }
   }
 
@@ -119,8 +201,11 @@ export function useKnowledgeBasesList() {
     isLoading: loadingKnowledgeBasesList,
     error,
     refreshList,
+    forceRefresh,
     addKnowledgeBase,
     removeKnowledgeBase,
+    retryCount,
+    maxRetries,
   }
 }
 
@@ -140,79 +225,86 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     offset: 0,
     hasMore: false,
   })
+  const [initialLoadDone, setInitialLoadDone] = useState(false)
 
   const isStoreLoading = isChunksLoading(documentId)
   const combinedIsLoading = isLoading || isStoreLoading
 
+  // Single effect to handle all data loading and syncing
   useEffect(() => {
     if (!knowledgeBaseId || !documentId) return
 
-    const cached = getCachedChunks(documentId)
-    if (cached) {
-      setChunks(cached.chunks)
-      setPagination(cached.pagination)
-      setIsLoading(false)
-    }
-  }, [knowledgeBaseId, documentId, getCachedChunks])
+    let isMounted = true
 
-  // Initial load
-  useEffect(() => {
-    if (!knowledgeBaseId || !documentId) return
-
-    const loadChunks = async () => {
+    const loadAndSyncData = async () => {
       try {
-        setIsLoading(true)
-        setError(null)
-
-        // Try to get cached chunks first
+        // Check cache first
         const cached = getCachedChunks(documentId)
         if (cached) {
-          setChunks(cached.chunks)
-          setPagination(cached.pagination)
-          setIsLoading(false)
+          if (isMounted) {
+            setChunks(cached.chunks)
+            setPagination(cached.pagination)
+            setIsLoading(false)
+            setInitialLoadDone(true)
+          }
           return
         }
 
-        // If not cached, fetch from API
-        const fetchedChunks = await getChunks(knowledgeBaseId, documentId, {
-          limit: pagination.limit,
-          offset: pagination.offset,
-        })
+        // If not cached and we haven't done initial load, fetch from API
+        if (!initialLoadDone && !isStoreLoading) {
+          setIsLoading(true)
+          setError(null)
 
-        setChunks(fetchedChunks)
+          const fetchedChunks = await getChunks(knowledgeBaseId, documentId, {
+            limit: 50, // Use fixed initial values to avoid dependency issues
+            offset: 0,
+          })
 
-        // Update pagination from cache after fetch
-        const updatedCache = getCachedChunks(documentId)
-        if (updatedCache) {
-          setPagination(updatedCache.pagination)
+          if (isMounted) {
+            setChunks(fetchedChunks)
+
+            // Update pagination from cache after fetch
+            const updatedCache = getCachedChunks(documentId)
+            if (updatedCache) {
+              setPagination(updatedCache.pagination)
+            }
+
+            setInitialLoadDone(true)
+          }
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load chunks')
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to load chunks')
+        }
       } finally {
-        setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
-    loadChunks()
-  }, [knowledgeBaseId, documentId, getChunks, getCachedChunks])
+    loadAndSyncData()
 
-  // Sync with store state changes
+    return () => {
+      isMounted = false
+    }
+  }, [knowledgeBaseId, documentId, isStoreLoading, initialLoadDone]) // Removed getCachedChunks and getChunks from dependencies
+
+  // Separate effect to sync with store state changes (no API calls)
   useEffect(() => {
+    if (!documentId || !initialLoadDone) return
+
     const cached = getCachedChunks(documentId)
     if (cached) {
       setChunks(cached.chunks)
       setPagination(cached.pagination)
     }
-  }, [documentId, getCachedChunks])
 
-  useEffect(() => {
+    // Update loading state based on store
     if (!isStoreLoading && isLoading) {
-      const cached = getCachedChunks(documentId)
-      if (cached) {
-        setIsLoading(false)
-      }
+      setIsLoading(false)
     }
-  }, [isStoreLoading, isLoading, documentId, getCachedChunks])
+  }, [documentId, isStoreLoading, isLoading, initialLoadDone]) // Removed getCachedChunks from dependencies
 
   const refreshChunksData = async (options?: {
     search?: string

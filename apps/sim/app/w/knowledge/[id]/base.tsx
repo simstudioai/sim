@@ -62,64 +62,50 @@ function formatFileSize(bytes: number): string {
 }
 
 const getStatusDisplay = (doc: DocumentData) => {
-  const processingStatus = (() => {
-    switch (doc.processingStatus) {
-      case 'pending':
-        return {
-          text: 'Pending',
-          className:
-            'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-        }
-      case 'processing':
-        return {
-          text: (
-            <>
-              <Loader2 className='mr-1.5 h-3 w-3 animate-spin' />
-              Processing
-            </>
-          ),
-          className:
-            'inline-flex items-center rounded-md bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-        }
-      case 'completed':
-        return {
-          text: 'Completed',
-          className:
-            'inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400',
-        }
-      case 'failed':
-        return {
-          text: 'Failed',
-          className:
-            'inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300',
-        }
-      default:
-        return {
-          text: 'Unknown',
-          className:
-            'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-        }
-    }
-  })()
-
-  const activeStatus = (() => {
-    if (doc.processingStatus === 'completed') {
+  // Consolidated status: show processing status when not completed, otherwise show enabled/disabled
+  switch (doc.processingStatus) {
+    case 'pending':
+      return {
+        text: 'Pending',
+        className:
+          'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+      }
+    case 'processing':
+      return {
+        text: (
+          <>
+            <Loader2 className='mr-1.5 h-3 w-3 animate-spin' />
+            Processing
+          </>
+        ),
+        className:
+          'inline-flex items-center rounded-md bg-[#701FFC]/10 px-2 py-1 text-xs font-medium text-[#701FFC] dark:bg-[#701FFC]/20 dark:text-[#8B5FFF]',
+      }
+    case 'failed':
+      return {
+        text: 'Failed',
+        className:
+          'inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300',
+      }
+    case 'completed':
       return doc.enabled
         ? {
             text: 'Enabled',
             className:
-              'inline-flex items-center rounded-md bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+              'inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400',
           }
         : {
             text: 'Disabled',
             className:
               'inline-flex items-center rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
           }
-    }
-    return null
-  })()
-
-  return { processingStatus, activeStatus }
+    default:
+      return {
+        text: 'Unknown',
+        className:
+          'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+      }
+  }
 }
 
 const getProcessingTime = (doc: DocumentData) => {
@@ -583,9 +569,9 @@ export function KnowledgeBase({
                     onClick={handleAddDocuments}
                     disabled={isUploading}
                     size='sm'
-                    className='mt-1 mr-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_3px_rgba(127,47,255,0.12)]'
+                    className='flex items-center gap-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_3px_rgba(127,47,255,0.12)]'
                   >
-                    <Plus className='mr-1.5 h-3.5 w-3.5' />
+                    <Plus className='h-3.5 w-3.5' />
                     {isUploading ? 'Uploading...' : 'Add Documents'}
                   </Button>
                 </div>
@@ -602,17 +588,16 @@ export function KnowledgeBase({
               <div className='flex flex-1 flex-col overflow-hidden'>
                 {/* Table header - fixed */}
                 <div className='sticky top-0 z-10 overflow-x-auto border-b bg-background'>
-                  <table className='w-full min-w-[800px] table-fixed'>
+                  <table className='w-full min-w-[700px] table-fixed'>
                     <colgroup>
                       <col className='w-[4%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[20%]' : 'w-[22%]'}`} />
+                      <col className={`${isSidebarCollapsed ? 'w-[22%]' : 'w-[24%]'}`} />
                       <col className='w-[8%]' />
                       <col className='w-[8%]' />
                       <col className='hidden w-[8%] lg:table-column' />
-                      <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[14%]'}`} />
-                      <col className='w-[10%]' />
-                      <col className='w-[10%]' />
+                      <col className={`${isSidebarCollapsed ? 'w-[18%]' : 'w-[16%]'}`} />
                       <col className='w-[12%]' />
+                      <col className='w-[14%]' />
                     </colgroup>
                     <thead>
                       <tr>
@@ -642,11 +627,6 @@ export function KnowledgeBase({
                           </span>
                         </th>
                         <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                          <span className='text-muted-foreground text-xs leading-none'>
-                            Processing
-                          </span>
-                        </th>
-                        <th className='px-4 pt-2 pb-3 text-left font-medium'>
                           <span className='text-muted-foreground text-xs leading-none'>Status</span>
                         </th>
                         <th className='px-4 pt-2 pb-3 text-left font-medium'>
@@ -661,17 +641,16 @@ export function KnowledgeBase({
 
                 {/* Table body - scrollable */}
                 <div className='flex-1 overflow-auto'>
-                  <table className='w-full min-w-[800px] table-fixed'>
+                  <table className='w-full min-w-[700px] table-fixed'>
                     <colgroup>
                       <col className='w-[4%]' />
-                      <col className={`${isSidebarCollapsed ? 'w-[20%]' : 'w-[22%]'}`} />
+                      <col className={`${isSidebarCollapsed ? 'w-[22%]' : 'w-[24%]'}`} />
                       <col className='w-[8%]' />
                       <col className='w-[8%]' />
                       <col className='hidden w-[8%] lg:table-column' />
-                      <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[14%]'}`} />
-                      <col className='w-[10%]' />
-                      <col className='w-[10%]' />
+                      <col className={`${isSidebarCollapsed ? 'w-[18%]' : 'w-[16%]'}`} />
                       <col className='w-[12%]' />
+                      <col className='w-[14%]' />
                     </colgroup>
                     <tbody>
                       {filteredDocuments.length === 0 && !isLoadingDocuments ? (
@@ -713,11 +692,6 @@ export function KnowledgeBase({
                             <div className='text-muted-foreground text-xs'>—</div>
                           </td>
 
-                          {/* Processing column */}
-                          <td className='px-4 py-3'>
-                            <div className='text-muted-foreground text-xs'>—</div>
-                          </td>
-
                           {/* Status column */}
                           <td className='px-4 py-3'>
                             <div className='text-muted-foreground text-xs'>—</div>
@@ -753,9 +727,6 @@ export function KnowledgeBase({
                               <div className='h-4 w-16 animate-pulse rounded bg-muted' />
                             </td>
                             <td className='px-4 py-3'>
-                              <div className='h-4 w-12 animate-pulse rounded bg-muted' />
-                            </td>
-                            <td className='px-4 py-3'>
                               <div className='h-4 w-20 animate-pulse rounded bg-muted' />
                             </td>
                           </tr>
@@ -764,7 +735,7 @@ export function KnowledgeBase({
                         filteredDocuments.map((doc, index) => {
                           const isSelected = selectedDocuments.has(doc.id)
                           const statusDisplay = getStatusDisplay(doc)
-                          const processingTime = getProcessingTime(doc)
+                          // const processingTime = getProcessingTime(doc)
 
                           return (
                             <tr
@@ -859,22 +830,9 @@ export function KnowledgeBase({
                                 </div>
                               </td>
 
-                              {/* Processing column */}
-                              <td className='px-4 py-3'>
-                                <div className={statusDisplay.processingStatus.className}>
-                                  {statusDisplay.processingStatus.text}
-                                </div>
-                              </td>
-
                               {/* Status column */}
                               <td className='px-4 py-3'>
-                                {statusDisplay.activeStatus ? (
-                                  <div className={statusDisplay.activeStatus.className}>
-                                    {statusDisplay.activeStatus.text}
-                                  </div>
-                                ) : (
-                                  <div className='text-muted-foreground text-xs'>—</div>
-                                )}
+                                <div className={statusDisplay.className}>{statusDisplay.text}</div>
                               </td>
 
                               {/* Actions column */}

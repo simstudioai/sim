@@ -373,13 +373,29 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       return state.knowledgeBasesList
     }
 
+    // Create an AbortController for request cancellation
+    const abortController = new AbortController()
+    const timeoutId = setTimeout(() => {
+      abortController.abort()
+    }, 10000) // 10 second timeout
+
     try {
       set({ loadingKnowledgeBasesList: true })
 
-      const response = await fetch('/api/knowledge')
+      const response = await fetch('/api/knowledge', {
+        signal: abortController.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      // Clear the timeout since request completed
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch knowledge bases: ${response.statusText}`)
+        throw new Error(
+          `Failed to fetch knowledge bases: ${response.status} ${response.statusText}`
+        )
       }
 
       const result = await response.json()
@@ -388,7 +404,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         throw new Error(result.error || 'Failed to fetch knowledge bases')
       }
 
-      const knowledgeBasesList = result.data
+      const knowledgeBasesList = result.data || []
 
       set({
         knowledgeBasesList,
@@ -398,9 +414,20 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       logger.info(`Knowledge bases list loaded: ${knowledgeBasesList.length} items`)
       return knowledgeBasesList
     } catch (error) {
+      // Clear the timeout in case of error
+      clearTimeout(timeoutId)
+
       logger.error('Error fetching knowledge bases list:', error)
 
+      // Always set loading to false, even on error
       set({ loadingKnowledgeBasesList: false })
+
+      // Don't throw on AbortError (timeout or cancellation)
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.warn('Knowledge bases list request was aborted (timeout or cancellation)')
+        return state.knowledgeBasesList // Return whatever we have cached
+      }
+
       throw error
     }
   },

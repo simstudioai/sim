@@ -37,12 +37,7 @@ export function DocumentTableRowSkeleton({ isSidebarCollapsed }: { isSidebarColl
         </div>
       </td>
 
-      {/* Processing Status column */}
-      <td className='px-4 py-3'>
-        <div className='h-6 w-16 animate-pulse rounded-md bg-muted' />
-      </td>
-
-      {/* Active Status column */}
+      {/* Status column */}
       <td className='px-4 py-3'>
         <div className='h-6 w-16 animate-pulse rounded-md bg-muted' />
       </td>
@@ -113,17 +108,16 @@ export function DocumentTableSkeleton({
     <div className='flex flex-1 flex-col overflow-hidden'>
       {/* Table header - fixed */}
       <div className='sticky top-0 z-10 overflow-x-auto border-b bg-background'>
-        <table className='w-full min-w-[800px] table-fixed'>
+        <table className='w-full min-w-[700px] table-fixed'>
           <colgroup>
             <col className='w-[4%]' />
-            <col className={`${isSidebarCollapsed ? 'w-[20%]' : 'w-[22%]'}`} />
+            <col className={`${isSidebarCollapsed ? 'w-[22%]' : 'w-[24%]'}`} />
             <col className='w-[8%]' />
             <col className='w-[8%]' />
             <col className='hidden w-[8%] lg:table-column' />
-            <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[14%]'}`} />
-            <col className='w-[10%]' />
-            <col className='w-[10%]' />
+            <col className={`${isSidebarCollapsed ? 'w-[18%]' : 'w-[16%]'}`} />
             <col className='w-[12%]' />
+            <col className='w-[14%]' />
           </colgroup>
           <thead>
             <tr>
@@ -146,9 +140,6 @@ export function DocumentTableSkeleton({
                 <span className='text-muted-foreground text-xs leading-none'>Uploaded</span>
               </th>
               <th className='px-4 pt-2 pb-3 text-left font-medium'>
-                <span className='text-muted-foreground text-xs leading-none'>Processing</span>
-              </th>
-              <th className='px-4 pt-2 pb-3 text-left font-medium'>
                 <span className='text-muted-foreground text-xs leading-none'>Status</span>
               </th>
               <th className='px-4 pt-2 pb-3 text-left font-medium'>
@@ -161,17 +152,16 @@ export function DocumentTableSkeleton({
 
       {/* Table body - scrollable */}
       <div className='flex-1 overflow-auto'>
-        <table className='w-full min-w-[800px] table-fixed'>
+        <table className='w-full min-w-[700px] table-fixed'>
           <colgroup>
             <col className='w-[4%]' />
-            <col className={`${isSidebarCollapsed ? 'w-[20%]' : 'w-[22%]'}`} />
+            <col className={`${isSidebarCollapsed ? 'w-[22%]' : 'w-[24%]'}`} />
             <col className='w-[8%]' />
             <col className='w-[8%]' />
             <col className='hidden w-[8%] lg:table-column' />
-            <col className={`${isSidebarCollapsed ? 'w-[16%]' : 'w-[14%]'}`} />
-            <col className='w-[10%]' />
-            <col className='w-[10%]' />
+            <col className={`${isSidebarCollapsed ? 'w-[18%]' : 'w-[16%]'}`} />
             <col className='w-[12%]' />
+            <col className='w-[14%]' />
           </colgroup>
           <tbody>
             {Array.from({ length: rowCount }).map((_, i) => (

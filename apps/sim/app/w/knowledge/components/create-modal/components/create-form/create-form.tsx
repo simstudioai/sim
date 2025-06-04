@@ -442,7 +442,7 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className={`relative cursor-pointer rounded-lg border-2 border-dashed p-16 text-center transition-all duration-200 ${
+                  className={`relative cursor-pointer rounded-lg border-[1.5px] border-dashed p-16 text-center transition-all duration-200 ${
                     isDragging
                       ? 'border-purple-300 bg-purple-50 shadow-sm'
                       : 'border-muted-foreground/25 hover:border-muted-foreground/40 hover:bg-muted/10'
@@ -457,13 +457,6 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                     multiple
                   />
                   <div className='flex flex-col items-center gap-3'>
-                    <div
-                      className={`text-4xl transition-all duration-200 ${
-                        isDragging ? 'text-purple-500' : 'text-muted-foreground'
-                      }`}
-                    >
-                      📁
-                    </div>
                     <div className='space-y-1'>
                       <p
                         className={`font-medium text-sm transition-colors duration-200 ${
@@ -504,13 +497,6 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                         multiple
                       />
                       <div className='flex items-center justify-center gap-2'>
-                        <div
-                          className={`text-base transition-colors duration-200 ${
-                            isDragging ? 'text-purple-500' : 'text-muted-foreground'
-                          }`}
-                        >
-                          📁
-                        </div>
                         <div>
                           <p
                             className={`font-medium text-sm transition-colors duration-200 ${

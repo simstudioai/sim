@@ -202,9 +202,6 @@ export async function GET(request: Request) {
     }
 
     const elapsed = Date.now() - startTime
-    logger.info(
-      `[${requestId}] Workflow fetch completed in ${elapsed}ms for ${workflows.length} workflows`
-    )
 
     // Return the workflows
     return NextResponse.json({ data: workflows }, { status: 200 })

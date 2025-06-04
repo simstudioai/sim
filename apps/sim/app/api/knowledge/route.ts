@@ -64,19 +64,6 @@ export async function GET(req: NextRequest) {
       .groupBy(knowledgeBase.id)
       .orderBy(knowledgeBase.createdAt)
 
-    // Debug logging
-    logger.info(`[${requestId}] Knowledge bases with counts:`, {
-      data: knowledgeBasesWithCounts.map((kb) => ({
-        id: kb.id,
-        name: kb.name,
-        docCount: kb.docCount,
-      })),
-    })
-
-    logger.info(
-      `[${requestId}] Retrieved ${knowledgeBasesWithCounts.length} knowledge bases for user ${session.user.id}`
-    )
-
     return NextResponse.json({
       success: true,
       data: knowledgeBasesWithCounts,
