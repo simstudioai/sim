@@ -30,6 +30,7 @@ interface TemplatesHeaderProps {
   activeSection: string | null
   scrollToSection: (sectionId: string) => void
   onCategoryFilter: (categories: string[] | null) => void
+  currentCategory?: string // For category pages context
 }
 
 type NavigationItem = 'discover' | CategoryGroup
@@ -38,7 +39,8 @@ export function TemplatesHeader({
   setSearchQuery, 
   activeSection, 
   scrollToSection,
-  onCategoryFilter 
+  onCategoryFilter,
+  currentCategory
 }: TemplatesHeaderProps) {
   const router = useRouter()
   const [localSearchQuery, setLocalSearchQuery] = useState('')
@@ -46,6 +48,13 @@ export function TemplatesHeader({
   const [visibleCategories, setVisibleCategories] = useState<string[]>([])
   const debouncedSearchQuery = useDebounce(localSearchQuery, 300)
   const [showSavedModal, setShowSavedModal] = useState(false)
+
+  // Set initial navigation based on current category
+  useEffect(() => {
+    if (currentCategory && currentCategory !== 'discover') {
+      setActiveNavigation(currentCategory as NavigationItem)
+    }
+  }, [currentCategory])
 
   // Update parent component when debounced search query changes
   useEffect(() => {
@@ -55,7 +64,7 @@ export function TemplatesHeader({
   // Update visible categories when navigation changes
   useEffect(() => {
     if (activeNavigation === 'discover') {
-      setVisibleCategories(['popular', 'recent', ...CATEGORIES.map(cat => cat.value)])
+      setVisibleCategories(['popular', ...CATEGORIES.map(cat => cat.value)])
       onCategoryFilter(null) // Show all categories
     } else {
       const groupCategories = [...CATEGORY_GROUPS[activeNavigation]]
@@ -66,10 +75,26 @@ export function TemplatesHeader({
 
   const handleNavigationClick = (nav: NavigationItem) => {
     setActiveNavigation(nav)
+    
+    // If clicking Discover from a category page, navigate back to main templates
+    if (nav === 'discover' && currentCategory && currentCategory !== 'discover') {
+      router.push('/w/templates')
+    }
   }
 
-  const handleDropdownCategoryClick = (category: string) => {
-    scrollToSection(category)
+  const handleDropdownCategoryClick = (category: string, parentGroup: CategoryGroup) => {
+    // Navigate to category page with subcategory filter
+    router.push(`/w/templates/${parentGroup}?subcategory=${category}`)
+  }
+
+  const handleCategoryPillClick = (categoryValue: string) => {
+    if (currentCategory && currentCategory !== 'discover') {
+      // On category pages, navigate with subcategory param
+      router.push(`/w/templates/${currentCategory}?subcategory=${categoryValue}`)
+    } else {
+      // On discover page, scroll to section
+      scrollToSection(categoryValue)
+    }
   }
 
   const renderNavigationButton = (
@@ -105,7 +130,7 @@ export function TemplatesHeader({
               return (
                 <DropdownMenuItem
                   key={categoryValue}
-                  onClick={() => handleDropdownCategoryClick(categoryValue)}
+                  onClick={() => handleDropdownCategoryClick(categoryValue, value as CategoryGroup)}
                   className="cursor-pointer"
                 >
                   <div className="flex items-center">
@@ -195,7 +220,7 @@ export function TemplatesHeader({
         <ScrollArea className="w-full">
           <div className="flex space-x-2 pb-2">
             {visibleCategories.map((categoryValue) => {
-              const isSpecial = categoryValue === 'popular' || categoryValue === 'recent'
+              const isSpecial = categoryValue === 'popular'
               const category = CATEGORIES.find(cat => cat.value === categoryValue)
               const isActive = activeSection === categoryValue
               const categoryColor = getCategoryColor(categoryValue)
@@ -211,7 +236,7 @@ export function TemplatesHeader({
                       ? 'text-white border-0'
                       : `border-muted-foreground/20 ${hoverColor} hover:text-foreground`
                   }`}
-                  onClick={() => scrollToSection(categoryValue)}
+                  onClick={() => handleCategoryPillClick(categoryValue)}
                   style={
                     isActive 
                       ? { 
