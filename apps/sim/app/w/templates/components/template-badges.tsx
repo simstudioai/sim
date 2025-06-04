@@ -1,8 +1,8 @@
 'use client'
 
-import { Eye, User } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Eye } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 
 interface TemplateBadgesProps {
   authorName: string
@@ -20,7 +20,7 @@ export function TemplateBadges({ authorName, views, price, className = '' }: Tem
   const getAuthorInitials = (name: string) => {
     return name
       .split(' ')
-      .map(word => word[0])
+      .map((word) => word[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -40,8 +40,8 @@ export function TemplateBadges({ authorName, views, price, className = '' }: Tem
       return 'Free'
     }
     // If it's a number, format as currency
-    const numPrice = parseFloat(priceStr)
-    if (!isNaN(numPrice) && numPrice > 0) {
+    const numPrice = Number.parseFloat(priceStr)
+    if (!Number.isNaN(numPrice) && numPrice > 0) {
       return `$${numPrice.toFixed(2)}`
     }
     return priceStr
@@ -50,32 +50,25 @@ export function TemplateBadges({ authorName, views, price, className = '' }: Tem
   return (
     <div className={`flex items-center justify-between gap-2 ${className}`}>
       {/* Author Info */}
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        <Avatar className="h-6 w-6">
-          <AvatarFallback className="text-xs bg-muted text-muted-foreground">
+      <div className='flex min-w-0 flex-1 items-center gap-2'>
+        <Avatar className='h-6 w-6'>
+          <AvatarFallback className='bg-muted text-muted-foreground text-xs'>
             {getAuthorInitials(authorName)}
           </AvatarFallback>
         </Avatar>
-        <span className="text-xs text-muted-foreground truncate">
-          {authorName}
-        </span>
+        <span className='truncate text-muted-foreground text-xs'>{authorName}</span>
       </div>
 
       {/* Stats and Price */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className='flex flex-shrink-0 items-center gap-2'>
         {/* Views Badge */}
-        <div className="flex items-center gap-1">
-          <Eye className="h-3 w-3 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">
-            {formatViews(views)}
-          </span>
+        <div className='flex items-center gap-1'>
+          <Eye className='h-3 w-3 text-muted-foreground' />
+          <span className='text-muted-foreground text-xs'>{formatViews(views)}</span>
         </div>
 
         {/* Price Badge */}
-        <Badge 
-          variant="outline" 
-          className="text-xs px-2 py-0.5 h-5"
-        >
+        <Badge variant='outline' className='h-5 px-2 py-0.5 text-xs'>
           {formatPrice(price)}
         </Badge>
       </div>

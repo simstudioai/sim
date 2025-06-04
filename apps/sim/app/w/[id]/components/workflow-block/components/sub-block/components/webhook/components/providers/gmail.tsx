@@ -89,6 +89,7 @@ interface GmailConfigProps {
   setLabelFilterBehavior: (behavior: 'INCLUDE' | 'EXCLUDE') => void
   markAsRead?: boolean
   setMarkAsRead?: (markAsRead: boolean) => void
+  isPreview?: boolean
 }
 
 export function GmailConfig({
@@ -98,6 +99,7 @@ export function GmailConfig({
   setLabelFilterBehavior,
   markAsRead = false,
   setMarkAsRead = () => {},
+  isPreview = false,
 }: GmailConfigProps) {
   const [labels, setLabels] = useState<GmailLabel[]>([])
   const [isLoadingLabels, setIsLoadingLabels] = useState(false)
@@ -105,6 +107,8 @@ export function GmailConfig({
 
   // Fetch Gmail labels
   useEffect(() => {
+    if (isPreview) return // Skip API calls in preview mode
+
     let mounted = true
     const fetchLabels = async () => {
       setIsLoadingLabels(true)
@@ -149,7 +153,7 @@ export function GmailConfig({
     return () => {
       mounted = false
     }
-  }, [])
+  }, [isPreview])
 
   const toggleLabel = (labelId: string) => {
     if (selectedLabels.includes(labelId)) {

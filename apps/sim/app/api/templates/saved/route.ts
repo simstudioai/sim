@@ -1,10 +1,10 @@
-import { NextRequest } from 'next/server'
-import { db } from '@/db'
-import { savedTemplates, templates } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
+import { auth } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { auth } from '@/lib/auth'
+import { db } from '@/db'
+import { savedTemplates, templates } from '@/db/schema'
 
 const logger = createLogger('SavedTemplatesAPI')
 
@@ -20,8 +20,10 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url)
     const includeState = url.searchParams.get('includeState') === 'true'
-    
-    logger.info(`[${requestId}] Fetching saved templates for user ${session.user.id}${includeState ? ' with state' : ''}`)
+
+    logger.info(
+      `[${requestId}] Fetching saved templates for user ${session.user.id}${includeState ? ' with state' : ''}`
+    )
 
     // Get saved templates with template data
     const savedTemplatesList = await db
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
       .orderBy(savedTemplates.createdAt) // Most recently saved first
 
     // Transform to match expected format
-    const formattedTemplates = savedTemplatesList.map(template => ({
+    const formattedTemplates = savedTemplatesList.map((template) => ({
       id: template.id,
       name: template.name,
       short_description: template.short_description,
@@ -67,14 +69,13 @@ export async function GET(request: NextRequest) {
     }))
 
     logger.info(`[${requestId}] Successfully fetched ${formattedTemplates.length} saved templates`)
-    
+
     return createSuccessResponse({
       saved: formattedTemplates,
-      total: formattedTemplates.length
+      total: formattedTemplates.length,
     })
-
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching saved templates:`, error)
     return createErrorResponse(`Failed to fetch saved templates: ${error.message}`, 500)
   }
-} 
+}

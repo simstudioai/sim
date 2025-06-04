@@ -1,3 +1,3 @@
 import OperationsPage from '../components/control-bar/components/operations/page'
 
-export default OperationsPage 
+export default OperationsPage

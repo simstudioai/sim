@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { HelpCircle, ScrollText, Send, Settings, Home, Shapes, Store, LibraryBig } from 'lucide-react'
+import { HelpCircle, LibraryBig, ScrollText, Send, Settings, Shapes } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -222,7 +222,7 @@ export function Sidebar() {
 
         {/* Logs, Settings, Templates, Marketplace Navigation - Follows workflows */}
         <div className='mt-6 flex-shrink-0'>
-          <NavSection isLoading={isLoading} itemCount={4} isCollapsed={isCollapsed}>      
+          <NavSection isLoading={isLoading} itemCount={4} isCollapsed={isCollapsed}>
             <NavSection.Item
               icon={<ScrollText className='h-[18px] w-[18px]' />}
               href='/w/logs'
@@ -248,9 +248,9 @@ export function Sidebar() {
               isCollapsed={isCollapsed}
             />
             <NavSection.Item
-              icon={<Shapes className="h-[18px] w-[18px]" />}
-              href="/w/templates"
-              label="Templates"
+              icon={<Shapes className='h-[18px] w-[18px]' />}
+              href='/w/templates'
+              label='Templates'
               active={pathname === '/w/templates'}
               isCollapsed={isCollapsed}
             />

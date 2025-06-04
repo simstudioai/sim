@@ -1,18 +1,15 @@
-import { NextRequest } from 'next/server'
-import { db } from '@/db'
-import { savedTemplates, templates } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { nanoid } from 'nanoid'
+import type { NextRequest } from 'next/server'
+import { auth } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-import { auth } from '@/lib/auth'
+import { db } from '@/db'
+import { savedTemplates, templates } from '@/db/schema'
 
 const logger = createLogger('SaveTemplateAPI')
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const { id: templateId } = await params
 
@@ -41,10 +38,7 @@ export async function POST(
       .select()
       .from(savedTemplates)
       .where(
-        and(
-          eq(savedTemplates.userId, session.user.id),
-          eq(savedTemplates.templateId, templateId)
-        )
+        and(eq(savedTemplates.userId, session.user.id), eq(savedTemplates.templateId, templateId))
       )
       .limit(1)
 
@@ -88,10 +82,7 @@ export async function DELETE(
     await db
       .delete(savedTemplates)
       .where(
-        and(
-          eq(savedTemplates.userId, session.user.id),
-          eq(savedTemplates.templateId, templateId)
-        )
+        and(eq(savedTemplates.userId, session.user.id), eq(savedTemplates.templateId, templateId))
       )
 
     logger.info(`[${requestId}] Successfully unsaved template ${templateId}`)
@@ -100,4 +91,4 @@ export async function DELETE(
     logger.error(`[${requestId}] Error unsaving template:`, error)
     return createErrorResponse(`Failed to unsave template: ${error.message}`, 500)
   }
-} 
+}

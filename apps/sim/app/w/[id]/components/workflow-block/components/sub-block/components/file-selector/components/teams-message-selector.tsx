@@ -44,6 +44,7 @@ interface TeamsMessageSelectorProps {
   disabled?: boolean
   serviceId?: string
   showPreview?: boolean
+  isPreview?: boolean
   onMessageInfoChange?: (messageInfo: TeamsMessageInfo | null) => void
   credential: string
   selectionType?: 'team' | 'channel' | 'chat'
@@ -64,6 +65,7 @@ export function TeamsMessageSelector({
   selectionType = 'team',
   initialTeamId,
   workflowId,
+  isPreview,
 }: TeamsMessageSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -95,6 +97,8 @@ export function TeamsMessageSelector({
   }
 
   const fetchCredentials = useCallback(async () => {
+    if (isPreview) return
+
     setIsLoading(true)
     try {
       const providerId = getProviderId()

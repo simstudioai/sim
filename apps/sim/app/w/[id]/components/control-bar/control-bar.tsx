@@ -13,9 +13,9 @@ import {
   Play,
   SkipForward,
   StepForward,
+  Store,
   Trash2,
   X,
-  Store,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import {
@@ -131,7 +131,6 @@ export function ControlBar() {
   // Marketplace modal state
   const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
-
 
   // Multiple runs state
   const [runCount, setRunCount] = useState(1)
@@ -776,18 +775,18 @@ export function ControlBar() {
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant="ghost"
-            size="icon"
+            variant='ghost'
+            size='icon'
             onClick={handlePublishWorkflow}
             disabled={isPublishing}
             className={cn('hover:text-[#701FFC]', isPublished && 'text-[#701FFC]')}
           >
             {isPublishing ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className='h-5 w-5 animate-spin' />
             ) : (
-              <Store className="h-5 w-5" />
+              <Store className='h-5 w-5' />
             )}
-            <span className="sr-only">Publish to Marketplace</span>
+            <span className='sr-only'>Publish to Marketplace</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>

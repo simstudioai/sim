@@ -73,20 +73,19 @@ export function FolderSelector({
     }
   }, [value, isPreview, previewValue])
 
-  // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
     if (serviceId) return serviceId
     return getServiceIdFromScopes(provider, requiredScopes)
   }
 
-  // Determine the appropriate provider ID based on service and scopes
   const getProviderId = (): string => {
     const effectiveServiceId = getServiceId()
     return getProviderIdFromServiceId(effectiveServiceId)
   }
 
-  // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
+    if (isPreview) return
+
     setIsLoading(true)
     try {
       const providerId = getProviderId()
@@ -120,7 +119,7 @@ export function FolderSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [provider, getProviderId, selectedCredentialId])
+  }, [provider, getProviderId, selectedCredentialId, isPreview])
 
   // Fetch a single folder by ID when we have a selectedFolderId but no metadata
   const fetchFolderById = useCallback(
