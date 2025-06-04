@@ -2,9 +2,9 @@ import { GoogleCalendarIcon } from '@/components/icons'
 import type {
   GoogleCalendarCreateResponse,
   GoogleCalendarGetResponse,
+  GoogleCalendarInviteResponse,
   GoogleCalendarListResponse,
   GoogleCalendarQuickAddResponse,
-  GoogleCalendarUpdateResponse,
 } from '@/tools/google_calendar/types'
 import type { BlockConfig } from '../types'
 
@@ -13,14 +13,14 @@ type GoogleCalendarResponse =
   | GoogleCalendarListResponse
   | GoogleCalendarGetResponse
   | GoogleCalendarQuickAddResponse
-  | GoogleCalendarUpdateResponse
+  | GoogleCalendarInviteResponse
 
 export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   type: 'google_calendar',
   name: 'Google Calendar',
   description: 'Manage Google Calendar events',
   longDescription:
-    'Integrate Google Calendar functionality to create, read, update, and list calendar events within your workflow. Automate scheduling, check availability, and manage events using OAuth authentication.',
+    "Integrate Google Calendar functionality to create, read, update, and list calendar events within your workflow. Automate scheduling, check availability, and manage events using OAuth authentication. Email invitations are sent asynchronously and delivery depends on recipients' Google Calendar settings.",
   docsLink: 'https://docs.simstudio.ai/tools/google-calendar',
   category: 'tools',
   bgColor: '#E0E0E0',
@@ -36,6 +36,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         { label: 'List Events', id: 'list' },
         { label: 'Get Event', id: 'get' },
         { label: 'Quick Add (Natural Language)', id: 'quick_add' },
+        { label: 'Invite Attendees', id: 'invite' },
       ],
     },
     {
@@ -137,54 +138,14 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       condition: { field: 'operation', value: 'get' },
     },
 
-    // Update Event Fields
+    // Invite Attendees Fields
     {
       id: 'eventId',
       title: 'Event ID',
       type: 'short-input',
       layout: 'full',
-      placeholder: 'Event ID to update',
-      condition: { field: 'operation', value: 'update' },
-    },
-    {
-      id: 'summary',
-      title: 'Event Title',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Updated meeting title',
-      condition: { field: 'operation', value: 'update' },
-    },
-    {
-      id: 'description',
-      title: 'Description',
-      type: 'long-input',
-      layout: 'full',
-      placeholder: 'Updated description',
-      condition: { field: 'operation', value: 'update' },
-    },
-    {
-      id: 'location',
-      title: 'Location',
-      type: 'short-input',
-      layout: 'full',
-      placeholder: 'Updated location',
-      condition: { field: 'operation', value: 'update' },
-    },
-    {
-      id: 'startDateTime',
-      title: 'Start Date & Time',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: '2025-06-03T10:00:00-08:00',
-      condition: { field: 'operation', value: 'update' },
-    },
-    {
-      id: 'endDateTime',
-      title: 'End Date & Time',
-      type: 'short-input',
-      layout: 'half',
-      placeholder: '2025-06-03T11:00:00-08:00',
-      condition: { field: 'operation', value: 'update' },
+      placeholder: 'Event ID to invite attendees to',
+      condition: { field: 'operation', value: 'invite' },
     },
     {
       id: 'attendees',
@@ -192,7 +153,18 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'john@example.com, jane@example.com',
-      condition: { field: 'operation', value: 'update' },
+      condition: { field: 'operation', value: 'invite' },
+    },
+    {
+      id: 'replaceExisting',
+      title: 'Replace Existing Attendees',
+      type: 'dropdown',
+      layout: 'full',
+      condition: { field: 'operation', value: 'invite' },
+      options: [
+        { label: 'Add to existing attendees', id: 'false' },
+        { label: 'Replace all attendees', id: 'true' },
+      ],
     },
 
     // Quick Add Fields
@@ -213,7 +185,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       condition: { field: 'operation', value: 'quick_add' },
     },
 
-    // Notification setting (for create, update, quick_add)
+    // Notification setting (for create, quick_add, invite)
     {
       id: 'sendUpdates',
       title: 'Send Email Notifications',
@@ -221,12 +193,12 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       layout: 'full',
       condition: {
         field: 'operation',
-        value: ['create', 'update', 'quick_add'],
+        value: ['create', 'quick_add', 'invite'],
       },
       options: [
-        { label: 'All', id: 'all' },
-        { label: 'External Only', id: 'externalOnly' },
-        { label: 'None', id: 'none' },
+        { label: 'All attendees (recommended)', id: 'all' },
+        { label: 'External attendees only', id: 'externalOnly' },
+        { label: 'None (no emails sent)', id: 'none' },
       ],
     },
   ],
@@ -236,6 +208,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       'google_calendar_list',
       'google_calendar_get',
       'google_calendar_quick_add',
+      'google_calendar_invite',
     ],
     config: {
       tool: (params) => {
@@ -248,12 +221,16 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
             return 'google_calendar_get'
           case 'quick_add':
             return 'google_calendar_quick_add'
+          case 'invite':
+            return 'google_calendar_invite'
           default:
             throw new Error(`Invalid Google Calendar operation: ${params.operation}`)
         }
       },
       params: (params) => {
-        const { credential, operation, attendees, ...rest } = params
+        const { credential, operation, attendees, replaceExisting, ...rest } = params
+
+        console.log('Block params processing:', { operation, attendees, type: typeof attendees })
 
         const processedParams = { ...rest }
 
@@ -264,16 +241,32 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
             .map((email) => email.trim())
             .filter((email) => email.length > 0)
 
+          console.log('Processed attendee list:', attendeeList)
+
           // Only add attendees if we have valid entries
           if (attendeeList.length > 0) {
             processedParams.attendees = attendeeList
           }
+        } else {
+          console.log('Attendees validation failed:', {
+            attendees,
+            hasValue: !!attendees,
+            isString: typeof attendees === 'string',
+            trimLength: attendees ? attendees.trim().length : 'N/A',
+          })
+        }
+
+        // Convert replaceExisting string to boolean for invite operation
+        if (operation === 'invite' && replaceExisting !== undefined) {
+          processedParams.replaceExisting = replaceExisting === 'true'
         }
 
         // Set default sendUpdates to 'all' if not specified for operations that support it
-        if (['create', 'update', 'quick_add'].includes(operation) && !processedParams.sendUpdates) {
+        if (['create', 'quick_add', 'invite'].includes(operation) && !processedParams.sendUpdates) {
           processedParams.sendUpdates = 'all'
         }
+
+        console.log('Final processed params:', processedParams)
 
         return {
           accessToken: credential,
@@ -299,11 +292,14 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
     timeMin: { type: 'string', required: false },
     timeMax: { type: 'string', required: false },
 
-    // Get/Update operation inputs
+    // Get/Invite operation inputs
     eventId: { type: 'string', required: false },
 
     // Quick add inputs
     text: { type: 'string', required: false },
+
+    // Invite specific inputs
+    replaceExisting: { type: 'string', required: false },
 
     // Common inputs
     sendUpdates: { type: 'string', required: false },

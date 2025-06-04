@@ -54,6 +54,13 @@ export interface GoogleCalendarQuickAddParams extends BaseGoogleCalendarParams {
   sendUpdates?: 'all' | 'externalOnly' | 'none'
 }
 
+export interface GoogleCalendarInviteParams extends BaseGoogleCalendarParams {
+  eventId: string
+  attendees: string[] // Array of email addresses to invite
+  sendUpdates?: 'all' | 'externalOnly' | 'none'
+  replaceExisting?: boolean // Whether to replace existing attendees or add to them
+}
+
 export type GoogleCalendarToolParams =
   | GoogleCalendarCreateParams
   | GoogleCalendarListParams
@@ -61,6 +68,7 @@ export type GoogleCalendarToolParams =
   | GoogleCalendarUpdateParams
   | GoogleCalendarDeleteParams
   | GoogleCalendarQuickAddParams
+  | GoogleCalendarInviteParams
 
 interface EventMetadata {
   id: string
@@ -80,9 +88,16 @@ interface EventMetadata {
     timeZone?: string
   }
   attendees?: Array<{
+    id?: string
     email: string
     displayName?: string
+    organizer?: boolean
+    self?: boolean
+    resource?: boolean
+    optional?: boolean
     responseStatus: string
+    comment?: string
+    additionalGuests?: number
   }>
   creator?: {
     email: string
@@ -138,6 +153,13 @@ export interface GoogleCalendarQuickAddResponse extends ToolResponse {
 }
 
 export interface GoogleCalendarUpdateResponse extends ToolResponse {
+  output: {
+    content: string
+    metadata: EventMetadata
+  }
+}
+
+export interface GoogleCalendarInviteResponse extends ToolResponse {
   output: {
     content: string
     metadata: EventMetadata
