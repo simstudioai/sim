@@ -165,15 +165,7 @@ export default function PersonalPage() {
       mainCategory="personal"
     >
       {loading ? (
-        <Section
-          id='loading'
-          title='Personal Templates'
-          ref={(el) => {
-            sectionRefs.current.loading = el
-          }}
-        >
-          <TemplateGrid isLoading={true} skeletonCount={6} />
-        </Section>
+        <TemplateGrid isLoading={true} skeletonCount={6} />
       ) : (
         <>
           {Object.entries(filteredWorkflows).map(([category, workflows]) => (
