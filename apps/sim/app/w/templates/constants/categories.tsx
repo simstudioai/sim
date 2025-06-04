@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react'
 import {
-  Atom,
-  BotMessageSquare,
   Brain,
   Code,
   Database,
@@ -10,7 +8,11 @@ import {
   Store,
   TrendingUp,
   Clock,
-  ChartBar,
+  Search,
+  CheckSquare,
+  BarChart3,
+  Users,
+  GraduationCap,
 } from 'lucide-react'
 
 export interface Category {
@@ -22,13 +24,7 @@ export interface Category {
 }
 
 export const CATEGORIES: Category[] = [
-  {
-    value: 'data',
-    label: 'Data Analysis',
-    icon: <Database className='mr-2 h-4 w-4' />,
-    color: '#3b82f6', // blue-500 
-    hoverColor: 'hover:bg-blue-100 dark:hover:bg-blue-950/40',
-  },
+  // Operations categories
   {
     value: 'marketing',
     label: 'Marketing',
@@ -44,25 +40,18 @@ export const CATEGORIES: Category[] = [
     hoverColor: 'hover:bg-green-100 dark:hover:bg-green-950/40',
   },
   {
-    value: 'customer_service',
-    label: 'Customer Service',
-    icon: <BotMessageSquare className='mr-2 h-4 w-4' />,
+    value: 'customer_success',
+    label: 'Customer Success',
+    icon: <Users className='mr-2 h-4 w-4' />,
     color: '#8b5cf6', // violet-500
     hoverColor: 'hover:bg-purple-100 dark:hover:bg-purple-950/40',
   },
   {
-    value: 'management',
-    label: 'Management',
-    icon: <ChartBar className='mr-2 h-4 w-4' />,
-    color: '#0ea5e9', // sky-500
-    hoverColor: 'hover:bg-sky-100 dark:hover:bg-sky-950/40',
-  },
-  {
-    value: 'research',
-    label: 'Research',
-    icon: <Atom className='mr-2 h-4 w-4' />,
-    color: '#f59e0b', // amber-500
-    hoverColor: 'hover:bg-amber-100 dark:hover:bg-amber-950/40',
+    value: 'data_analysis',
+    label: 'Data Analysis',
+    icon: <BarChart3 className='mr-2 h-4 w-4' />,
+    color: '#3b82f6', // blue-500 
+    hoverColor: 'hover:bg-blue-100 dark:hover:bg-blue-950/40',
   },
   {
     value: 'finance',
@@ -71,12 +60,20 @@ export const CATEGORIES: Category[] = [
     color: '#14b8a6', // teal-500
     hoverColor: 'hover:bg-teal-100 dark:hover:bg-teal-950/40',
   },
+  // Personal categories
   {
-    value: 'programming',
-    label: 'Programming',
-    icon: <Code className='mr-2 h-4 w-4' />,
-    color: '#6366f1', // indigo-500
-    hoverColor: 'hover:bg-indigo-100 dark:hover:bg-indigo-950/40',
+    value: 'exploration',
+    label: 'Exploration',
+    icon: <Search className='mr-2 h-4 w-4' />,
+    color: '#f59e0b', // amber-500
+    hoverColor: 'hover:bg-amber-100 dark:hover:bg-amber-950/40',
+  },
+  {
+    value: 'general_tasks',
+    label: 'General Tasks',
+    icon: <CheckSquare className='mr-2 h-4 w-4' />,
+    color: '#0ea5e9', // sky-500
+    hoverColor: 'hover:bg-sky-100 dark:hover:bg-sky-950/40',
   },
   {
     value: 'other',
@@ -84,6 +81,28 @@ export const CATEGORIES: Category[] = [
     icon: <Brain className='mr-2 h-4 w-4' />,
     color: '#6b7280', // gray-500
     hoverColor: 'hover:bg-gray-100 dark:hover:bg-gray-800',
+  },
+  // Technical categories
+  {
+    value: 'software_development',
+    label: 'Software Development',
+    icon: <Code className='mr-2 h-4 w-4' />,
+    color: '#6366f1', // indigo-500
+    hoverColor: 'hover:bg-indigo-100 dark:hover:bg-indigo-950/40',
+  },
+  {
+    value: 'academic_research',
+    label: 'Academic Research',
+    icon: <GraduationCap className='mr-2 h-4 w-4' />,
+    color: '#dc2626', // red-600
+    hoverColor: 'hover:bg-red-100 dark:hover:bg-red-950/40',
+  },
+  {
+    value: 'data_science',
+    label: 'Data Science',
+    icon: <Database className='mr-2 h-4 w-4' />,
+    color: '#059669', // emerald-600
+    hoverColor: 'hover:bg-emerald-100 dark:hover:bg-emerald-950/40',
   },
 ]
 
@@ -107,9 +126,9 @@ export const SPECIAL_CATEGORIES = {
 
 // Category groupings for navigation
 export const CATEGORY_GROUPS = {
-  work: ['marketing', 'sales', 'customer_service', 'data', 'finance'],
-  life: ['research', 'other'],
-  school: ['programming', 'research', 'data'],
+  operations: ['marketing', 'sales', 'customer_success', 'data_analysis', 'finance'],
+  personal: ['exploration', 'general_tasks', 'other'],
+  technical: ['software_development', 'academic_research', 'data_science'],
 } as const
 
 export type CategoryGroup = keyof typeof CATEGORY_GROUPS

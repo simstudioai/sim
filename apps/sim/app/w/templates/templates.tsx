@@ -224,7 +224,7 @@ export default function Templates() {
 
 
   return (
-    <div className={`flex h-[100vh] flex-col transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}>
+    <div className={`flex h-[100vh] w-full max-w-[100vw] overflow-x-hidden flex-col transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}>
       {/* Templates Header */}
       <TemplatesHeader
         setSearchQuery={setSearchQuery}
