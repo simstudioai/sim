@@ -31,6 +31,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     setSelectedWorkflowOutput,
     appendMessageContent,
     finalizeMessageStream,
+    getConversationId,
   } = useChatStore()
   const { entries } = useConsoleStore()
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -91,6 +92,9 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     // Store the message being sent for reference
     const sentMessage = chatMessage.trim()
 
+    // Get the conversationId for this workflow before adding the message
+    const conversationId = getConversationId(activeWorkflowId)
+
     // Add user message
     addMessage({
       content: sentMessage,
@@ -101,8 +105,11 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     // Clear input
     setChatMessage('')
 
-    // Execute the workflow to generate a response, passing the chat message as input
-    const result = await handleRunWorkflow({ input: sentMessage })
+    // Execute the workflow to generate a response, passing the chat message and conversationId as input
+    const result = await handleRunWorkflow({
+      input: sentMessage,
+      conversationId: conversationId,
+    })
 
     // Check if we got a streaming response
     if (result && 'stream' in result && result.stream instanceof ReadableStream) {

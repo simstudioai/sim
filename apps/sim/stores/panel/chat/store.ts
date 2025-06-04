@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid'
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import type { ChatMessage, ChatStore } from './types'
@@ -11,6 +12,7 @@ export const useChatStore = create<ChatStore>()(
       (set, get) => ({
         messages: [],
         selectedWorkflowOutputs: {},
+        conversationIds: {},
 
         addMessage: (message) => {
           set((state) => {
@@ -29,11 +31,28 @@ export const useChatStore = create<ChatStore>()(
         },
 
         clearChat: (workflowId: string | null) => {
-          set((state) => ({
-            messages: state.messages.filter(
-              (message) => !workflowId || message.workflowId !== workflowId
-            ),
-          }))
+          set((state) => {
+            const newState = {
+              messages: state.messages.filter(
+                (message) => !workflowId || message.workflowId !== workflowId
+              ),
+            }
+
+            // Generate a new conversationId when clearing chat for a specific workflow
+            if (workflowId) {
+              const newConversationIds = { ...state.conversationIds }
+              newConversationIds[workflowId] = uuidv4()
+              return {
+                ...newState,
+                conversationIds: newConversationIds,
+              }
+            }
+            // When clearing all chats (workflowId is null), also clear all conversationIds
+            return {
+              ...newState,
+              conversationIds: {},
+            }
+          })
         },
 
         getWorkflowMessages: (workflowId) => {
@@ -60,6 +79,25 @@ export const useChatStore = create<ChatStore>()(
 
         getSelectedWorkflowOutput: (workflowId) => {
           return get().selectedWorkflowOutputs[workflowId] || []
+        },
+
+        getConversationId: (workflowId) => {
+          const state = get()
+          if (!state.conversationIds[workflowId]) {
+            // Generate a new conversation ID if one doesn't exist
+            return get().generateNewConversationId(workflowId)
+          }
+          return state.conversationIds[workflowId]
+        },
+
+        generateNewConversationId: (workflowId) => {
+          const newId = uuidv4()
+          set((state) => {
+            const newConversationIds = { ...state.conversationIds }
+            newConversationIds[workflowId] = newId
+            return { conversationIds: newConversationIds }
+          })
+          return newId
         },
 
         appendMessageContent: (messageId, content) => {

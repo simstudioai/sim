@@ -76,7 +76,7 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { activeWorkflowId } = useWorkflowRegistry()
-  const { messages, addMessage } = useChatStore()
+  const { messages, addMessage, getConversationId } = useChatStore()
 
   // Use the execution store state to track if a workflow is executing
   const { isExecuting } = useExecutionStore()
@@ -113,6 +113,9 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
     // Store the message being sent for reference
     const sentMessage = chatMessage.trim()
 
+    // Get the conversationId for this workflow before adding the message
+    const conversationId = getConversationId(activeWorkflowId)
+
     // Add user message
     addMessage({
       content: sentMessage,
@@ -129,7 +132,10 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
     }
 
     // Execute the workflow to generate a response
-    await handleRunWorkflow({ input: sentMessage })
+    await handleRunWorkflow({
+      input: sentMessage,
+      conversationId: conversationId,
+    })
 
     // Ensure input stays focused even after response
     if (inputRef.current) {

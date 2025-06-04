@@ -16,6 +16,7 @@ export interface OutputConfig {
 export interface ChatStore {
   messages: ChatMessage[]
   selectedWorkflowOutputs: Record<string, string[]>
+  conversationIds: Record<string, string>
   addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => void
   clearChat: (workflowId: string | null) => void
   getWorkflowMessages: (workflowId: string) => ChatMessage[]
@@ -23,4 +24,6 @@ export interface ChatStore {
   getSelectedWorkflowOutput: (workflowId: string) => string[]
   appendMessageContent: (messageId: string, content: string) => void
   finalizeMessageStream: (messageId: string) => void
+  getConversationId: (workflowId: string) => string
+  generateNewConversationId: (workflowId: string) => string
 }
