@@ -30,6 +30,7 @@ import { searchTool as googleSearchTool } from './google'
 import {
   googleCalendarCreateTool,
   googleCalendarGetTool,
+  googleCalendarInviteTool,
   googleCalendarListTool,
   googleCalendarQuickAddTool,
 } from './google_calendar'
@@ -211,4 +212,5 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_get: googleCalendarGetTool,
   google_calendar_list: googleCalendarListTool,
   google_calendar_quick_add: googleCalendarQuickAddTool,
+  google_calendar_invite: googleCalendarInviteTool,
 }

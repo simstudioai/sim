@@ -66,7 +66,7 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
     attendees: {
       type: 'array',
       required: false,
-      description: 'Array of attendee email addresses',
+      description: 'Array of attendee email addresses (replaces all existing attendees)',
     },
     sendUpdates: {
       type: 'string',
@@ -78,99 +78,144 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
   request: {
     url: (params: GoogleCalendarUpdateParams) => {
       const calendarId = params.calendarId || 'primary'
-      const queryParams = new URLSearchParams()
-
-      if (params.sendUpdates !== undefined) {
-        queryParams.append('sendUpdates', params.sendUpdates)
-      }
-
-      const queryString = queryParams.toString()
-      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId)}${queryString ? `?${queryString}` : ''}`
+      return `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params.eventId)}`
     },
-    method: 'PUT',
+    method: 'GET',
     headers: (params: GoogleCalendarUpdateParams) => ({
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params: GoogleCalendarUpdateParams): Record<string, any> => {
-      const eventData: any = {}
-
-      // Only include fields that are provided and not empty
-      if (params.summary !== undefined && params.summary !== null && params.summary.trim() !== '') {
-        eventData.summary = params.summary
-      }
-
-      if (
-        params.description !== undefined &&
-        params.description !== null &&
-        params.description.trim() !== ''
-      ) {
-        eventData.description = params.description
-      }
-
-      if (
-        params.location !== undefined &&
-        params.location !== null &&
-        params.location.trim() !== ''
-      ) {
-        eventData.location = params.location
-      }
-
-      // Only update times if both start and end are provided (Google Calendar requires both)
-      const hasStartTime =
-        params.startDateTime !== undefined &&
-        params.startDateTime !== null &&
-        params.startDateTime.trim() !== ''
-      const hasEndTime =
-        params.endDateTime !== undefined &&
-        params.endDateTime !== null &&
-        params.endDateTime.trim() !== ''
-
-      if (hasStartTime && hasEndTime) {
-        eventData.start = {
-          dateTime: params.startDateTime,
-        }
-        eventData.end = {
-          dateTime: params.endDateTime,
-        }
-        if (params.timeZone) {
-          eventData.start.timeZone = params.timeZone
-          eventData.end.timeZone = params.timeZone
-        }
-      }
-
-      if (params.attendees !== undefined && params.attendees !== null) {
-        // Handle both string and array cases for attendees
-        let attendeeList: string[] = []
-        if (params.attendees) {
-          const attendees = params.attendees as string | string[]
-          if (Array.isArray(attendees)) {
-            attendeeList = attendees.filter((email: string) => email && email.trim().length > 0)
-          } else if (typeof attendees === 'string' && attendees.trim().length > 0) {
-            // Convert comma-separated string to array
-            attendeeList = attendees
-              .split(',')
-              .map((email: string) => email.trim())
-              .filter((email: string) => email.length > 0)
-          }
-        }
-
-        // Only update attendees if we have valid entries, otherwise preserve existing
-        if (attendeeList.length > 0) {
-          eventData.attendees = attendeeList.map((email: string) => ({ email }))
-        }
-      }
-
-      return eventData
-    },
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
+  transformResponse: async (response: Response, params) => {
+    const existingEvent = await response.json()
 
     if (!response.ok) {
-      throw new Error(data.error?.message || 'Failed to update calendar event')
+      throw new Error(existingEvent.error?.message || 'Failed to fetch existing event')
     }
+
+    // Start with the complete existing event to preserve all fields
+    const updatedEvent = { ...existingEvent }
+
+    // Apply updates only for fields that are provided and not empty
+    if (
+      params?.summary !== undefined &&
+      params?.summary !== null &&
+      params?.summary.trim() !== ''
+    ) {
+      updatedEvent.summary = params.summary
+    }
+
+    if (
+      params?.description !== undefined &&
+      params?.description !== null &&
+      params?.description.trim() !== ''
+    ) {
+      updatedEvent.description = params.description
+    }
+
+    if (
+      params?.location !== undefined &&
+      params?.location !== null &&
+      params?.location.trim() !== ''
+    ) {
+      updatedEvent.location = params.location
+    }
+
+    // Only update times if both start and end are provided (Google Calendar requires both)
+    const hasStartTime =
+      params?.startDateTime !== undefined &&
+      params?.startDateTime !== null &&
+      params?.startDateTime.trim() !== ''
+    const hasEndTime =
+      params?.endDateTime !== undefined &&
+      params?.endDateTime !== null &&
+      params?.endDateTime.trim() !== ''
+
+    if (hasStartTime && hasEndTime) {
+      updatedEvent.start = {
+        dateTime: params.startDateTime,
+      }
+      updatedEvent.end = {
+        dateTime: params.endDateTime,
+      }
+      if (params?.timeZone) {
+        updatedEvent.start.timeZone = params.timeZone
+        updatedEvent.end.timeZone = params.timeZone
+      }
+    }
+
+    // Handle attendees update - this replaces all existing attendees
+    if (params?.attendees !== undefined && params?.attendees !== null) {
+      let attendeeList: string[] = []
+      if (params.attendees) {
+        const attendees = params.attendees as string | string[]
+        if (Array.isArray(attendees)) {
+          attendeeList = attendees.filter((email: string) => email && email.trim().length > 0)
+        } else if (typeof attendees === 'string' && attendees.trim().length > 0) {
+          // Convert comma-separated string to array
+          attendeeList = attendees
+            .split(',')
+            .map((email: string) => email.trim())
+            .filter((email: string) => email.length > 0)
+        }
+      }
+
+      // Replace all attendees with the new list
+      if (attendeeList.length > 0) {
+        updatedEvent.attendees = attendeeList.map((email: string) => ({
+          email,
+          responseStatus: 'needsAction',
+        }))
+      } else {
+        // If empty attendee list is provided, remove all attendees
+        updatedEvent.attendees = []
+      }
+    }
+
+    // Remove read-only fields that shouldn't be included in updates
+    const readOnlyFields = [
+      'id',
+      'etag',
+      'kind',
+      'created',
+      'updated',
+      'htmlLink',
+      'iCalUID',
+      'sequence',
+      'creator',
+      'organizer',
+    ]
+    readOnlyFields.forEach((field) => {
+      delete updatedEvent[field]
+    })
+
+    // Construct PUT URL with query parameters
+    const calendarId = params?.calendarId || 'primary'
+    const queryParams = new URLSearchParams()
+    if (params?.sendUpdates !== undefined) {
+      queryParams.append('sendUpdates', params.sendUpdates)
+    }
+
+    const queryString = queryParams.toString()
+    const putUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(params?.eventId || '')}${queryString ? `?${queryString}` : ''}`
+
+    // Send PUT request to update the event
+    const putResponse = await fetch(putUrl, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${params?.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updatedEvent),
+    })
+
+    if (!putResponse.ok) {
+      const errorData = await putResponse.json()
+      throw new Error(errorData.error?.message || 'Failed to update calendar event')
+    }
+
+    const data = await putResponse.json()
 
     return {
       success: true,
@@ -209,6 +254,9 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarTo
         error.error.message.includes('Not Found')
       ) {
         return 'Event not found. Please check the event ID.'
+      }
+      if (error.error.message.includes('Failed to fetch existing event')) {
+        return `Unable to retrieve existing event details: ${error.error.message}`
       }
       return error.error.message
     }
