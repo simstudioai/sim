@@ -55,6 +55,7 @@ interface GoogleDrivePickerProps {
   onFileInfoChange?: (fileInfo: FileInfo | null) => void
   clientId: string
   apiKey: string
+  isPreview?: boolean
 }
 
 export function GoogleDrivePicker({
@@ -70,6 +71,7 @@ export function GoogleDrivePicker({
   onFileInfoChange,
   clientId,
   apiKey,
+  isPreview,
 }: GoogleDrivePickerProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -96,6 +98,12 @@ export function GoogleDrivePicker({
 
   // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
+    console.log('isPreview in google drive picker', isPreview)
+    if (isPreview) {
+      console.log('BLOCKED IN google drive picker')
+      return
+    }
+
     setIsLoading(true)
     try {
       const providerId = getProviderId()

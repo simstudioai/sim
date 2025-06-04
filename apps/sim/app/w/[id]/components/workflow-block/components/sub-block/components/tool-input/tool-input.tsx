@@ -982,6 +982,9 @@ export function ToolInput({
                                   requiredScopes={oauthConfig.additionalScopes || []}
                                   label={`Select ${oauthConfig.provider} account`}
                                   serviceId={oauthConfig.provider}
+                                  isPreview={isPreview}
+                                  previewValue={previewValue}
+                                  disabled={isPreview}
                                 />
                               </div>
                             )

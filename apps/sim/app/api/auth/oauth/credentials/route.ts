@@ -34,8 +34,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
     }
 
-    // Get the provider from the query params
     const { searchParams } = new URL(request.url)
+
+    // Get the provider from the query params
     const provider = searchParams.get('provider') as OAuthService | null
 
     if (!provider) {
