@@ -1,6 +1,6 @@
 /**
  * Shared types for the Templates module
- * 
+ *
  * This file centralizes all template-related interfaces to avoid duplication
  * and ensure consistency across components.
  */
@@ -81,4 +81,4 @@ export interface NavigationState {
   context: NavigationContext
   activeSection: string | null
   subcategory?: string | null
-} 
+}

@@ -49,6 +49,7 @@ interface JiraProjectSelectorProps {
   domain: string
   showPreview?: boolean
   onProjectInfoChange?: (projectInfo: JiraProjectInfo | null) => void
+  isPreview?: boolean
 }
 
 export function JiraProjectSelector({
@@ -62,6 +63,7 @@ export function JiraProjectSelector({
   domain,
   showPreview = true,
   onProjectInfoChange,
+  isPreview = false,
 }: JiraProjectSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -75,11 +77,9 @@ export function JiraProjectSelector({
   const [error, setError] = useState<string | null>(null)
   const [cloudId, setCloudId] = useState<string | null>(null)
 
-  // Handle search with debounce
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleSearch = (value: string) => {
-    // Clear any existing timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
@@ -89,9 +89,9 @@ export function JiraProjectSelector({
       if (value.length >= 1) {
         fetchProjects(value)
       } else {
-        fetchProjects() // Fetch all projects if no search term
+        fetchProjects()
       }
-    }, 500) // 500ms debounce
+    }, 500)
   }
 
   // Clean up the timeout on unmount
@@ -117,6 +117,8 @@ export function JiraProjectSelector({
 
   // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
+    if (isPreview) return // Skip API calls in preview mode
+
     setIsLoading(true)
     try {
       const providerId = getProviderId()
@@ -150,7 +152,7 @@ export function JiraProjectSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [provider, getProviderId, selectedCredentialId])
+  }, [provider, getProviderId, selectedCredentialId, isPreview])
 
   // Fetch detailed project information
   const fetchProjectInfo = useCallback(

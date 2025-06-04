@@ -108,7 +108,8 @@ const TOOLTIPS = {
   category: 'Categorizing your workflow helps users find it more easily.',
   authorName: 'The name you want to publish under (defaults to your account name if left empty).',
   shortDescription: 'A brief summary that appears in search results and workflow cards.',
-  longDescription: 'A detailed description explaining what your workflow does, how it works, and how it can help users.',
+  longDescription:
+    'A detailed description explaining what your workflow does, how it works, and how it can help users.',
 }
 
 interface MarketplaceInfo {
@@ -178,9 +179,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         }
 
         // Use the marketplace ID to fetch details instead of workflow ID
-        const response = await fetch(
-          `/api/templates/workflows?templateId=${marketplaceData.id}`
-        )
+        const response = await fetch(`/api/templates/workflows?templateId=${marketplaceData.id}`)
 
         if (!response.ok) {
           throw new Error('Failed to fetch marketplace information')
@@ -498,9 +497,11 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
                   {...field}
                 />
               </FormControl>
-              <div className='flex justify-between items-center text-xs'>
+              <div className='flex items-center justify-between text-xs'>
                 <FormMessage />
-                <span className={`${field.value?.length >= 60 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                <span
+                  className={`${field.value?.length >= 60 ? 'text-red-500' : 'text-muted-foreground'}`}
+                >
                   {field.value?.length || 0}/60 characters
                 </span>
               </div>
@@ -522,9 +523,11 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
                   {...field}
                 />
               </FormControl>
-              <div className='flex justify-between items-center text-xs'>
+              <div className='flex items-center justify-between text-xs'>
                 <FormMessage />
-                <span className={`${field.value?.length >= 300 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                <span
+                  className={`${field.value?.length >= 300 ? 'text-red-500' : 'text-muted-foreground'}`}
+                >
                   {field.value?.length || 0}/300 characters
                 </span>
               </div>

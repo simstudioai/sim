@@ -33,6 +33,7 @@ interface WebhookModalProps {
   onSave?: (path: string, providerConfig: ProviderConfig) => Promise<boolean>
   onDelete?: () => Promise<boolean>
   webhookId?: string
+  isPreview?: boolean
 }
 
 export function WebhookModal({
@@ -43,6 +44,7 @@ export function WebhookModal({
   onSave,
   onDelete,
   webhookId,
+  isPreview = false,
 }: WebhookModalProps) {
   const [copied, setCopied] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -657,6 +659,7 @@ export function WebhookModal({
             setMarkAsRead={setMarkAsRead}
             includeRawEmail={includeRawEmail}
             setIncludeRawEmail={setIncludeRawEmail}
+            isPreview={isPreview}
           />
         )
       case 'discord':

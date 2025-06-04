@@ -1,8 +1,8 @@
 'use client'
 
+import type { Workflow } from '../../types'
 import { TemplateWorkflowCard } from '../template-workflow-card'
 import { WorkflowCardSkeleton } from '../workflow-card-skeleton'
-import type { Workflow } from '../../types'
 
 interface TemplateGridProps {
   workflows?: Workflow[]
@@ -11,11 +11,11 @@ interface TemplateGridProps {
   emptyMessage?: string
 }
 
-export function TemplateGrid({ 
-  workflows = [], 
-  isLoading = false, 
+export function TemplateGrid({
+  workflows = [],
+  isLoading = false,
   skeletonCount = 6,
-  emptyMessage = 'No templates available'
+  emptyMessage = 'No templates available',
 }: TemplateGridProps) {
   if (isLoading) {
     return (
@@ -38,12 +38,8 @@ export function TemplateGrid({
   return (
     <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
       {workflows.map((workflow, index) => (
-        <TemplateWorkflowCard
-          key={workflow.id}
-          workflow={workflow}
-          index={index}
-        />
+        <TemplateWorkflowCard key={workflow.id} workflow={workflow} index={index} />
       ))}
     </div>
   )
-} 
+}

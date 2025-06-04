@@ -1,21 +1,21 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { AlertCircle } from 'lucide-react'
-import { CategoryPageLayout } from '../../../shared/category-page-layout'
-import { Section } from '../../../section'
-import { TemplateGrid } from '../../../shared/template-grid'
-import { CATEGORY_GROUPS, getCategoryLabel } from '../../../../constants/categories'
+import { useSearchParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console-logger'
-import { Workflow, TemplateData, getTemplateDescription } from '../../../../types'
+import { CATEGORY_GROUPS, getCategoryLabel } from '../../../../constants/categories'
+import { getTemplateDescription, type TemplateData, type Workflow } from '../../../../types'
+import { Section } from '../../../section'
+import { CategoryPageLayout } from '../../../shared/category-page-layout'
+import { TemplateGrid } from '../../../shared/template-grid'
 
 const logger = createLogger('TechnicalPage')
 
 export default function TechnicalPage() {
   const searchParams = useSearchParams()
   const subcategory = searchParams.get('subcategory')
-  
+
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -88,17 +88,19 @@ export default function TechnicalPage() {
 
         // Fetch all templates for technical subcategories
         const categoriesQuery = CATEGORY_GROUPS.technical.join(',')
-        const response = await fetch(`/api/templates/workflows?category=${categoriesQuery}`)
+        const response = await fetch(
+          `/api/templates/workflows?category=${categoriesQuery}&includeState=true`
+        )
 
         if (!response.ok) {
           throw new Error('Failed to fetch technical templates')
         }
 
         const data = await response.json()
-        
+
         // Handle different possible response formats
         let templates: TemplateData[] = []
-        
+
         if (Array.isArray(data)) {
           // Direct array response
           templates = data
@@ -112,22 +114,22 @@ export default function TechnicalPage() {
           logger.error('Unexpected API response format:', data)
           throw new Error('Unexpected API response format')
         }
-        
+
         // Organize by subcategory
         const organizedData: Record<string, TemplateData[]> = {}
-        CATEGORY_GROUPS.technical.forEach(cat => {
+        CATEGORY_GROUPS.technical.forEach((cat) => {
           organizedData[cat] = templates.filter((item: TemplateData) => item.category === cat)
         })
 
         setTemplateData(organizedData)
-        
+
         // Set initial active section
         if (subcategory && CATEGORY_GROUPS.technical.includes(subcategory as any)) {
           setActiveSection(subcategory)
         } else {
           setActiveSection(CATEGORY_GROUPS.technical[0])
         }
-        
+
         setLoading(false)
       } catch (error) {
         logger.error('Error fetching technical templates:', error)
@@ -162,7 +164,7 @@ export default function TechnicalPage() {
       scrollToSection={scrollToSection}
       onCategoryFilter={handleCategoryFilter}
       error={error}
-      mainCategory="technical"
+      mainCategory='technical'
     >
       {loading ? (
         <TemplateGrid isLoading={true} skeletonCount={6} />
@@ -179,7 +181,7 @@ export default function TechnicalPage() {
                 }
               }}
             >
-              <TemplateGrid 
+              <TemplateGrid
                 workflows={workflows}
                 emptyMessage={`No ${getCategoryLabel(category).toLowerCase()} templates available`}
               />
@@ -189,11 +191,13 @@ export default function TechnicalPage() {
           {Object.keys(filteredWorkflows).length === 0 && !loading && (
             <div className='flex h-64 flex-col items-center justify-center'>
               <AlertCircle className='mb-4 h-8 w-8 text-muted-foreground' />
-              <p className='text-muted-foreground'>No technical templates found matching your search.</p>
+              <p className='text-muted-foreground'>
+                No technical templates found matching your search.
+              </p>
             </div>
           )}
         </>
       )}
     </CategoryPageLayout>
   )
-} 
+}
