@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Heart, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { NotificationList } from '../../../[id]/components/notifications/notifications'
 import type { TemplateData } from '../../types'
+import { SavedModal } from '../control-bar/components/saved-modal'
 import { SimilarTemplates } from './components/similar-templates/similar-templates'
 import { TemplateHero } from './components/template-hero/template-hero'
 import { TemplatePreview } from './components/template-preview/template-preview'
@@ -29,6 +30,7 @@ export function TemplateDetailPage({
   const [template, setTemplate] = useState<TemplateData | null>(initialTemplateData || null)
   const [loading, setLoading] = useState(!initialTemplateData) // Only show loading if we don't have initial data
   const [error, setError] = useState<string | null>(null)
+  const [savedModalOpen, setSavedModalOpen] = useState(false)
 
   // Get sidebar state for layout calculations
   const { mode, isExpanded } = useSidebarStore()
@@ -140,7 +142,7 @@ export function TemplateDetailPage({
       className={`min-h-screen transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
     >
       <div className='border-b bg-background'>
-        <div className='px-6 py-4'>
+        <div className='flex items-center justify-between px-6 py-4'>
           <Button
             variant='ghost'
             size='sm'
@@ -149,6 +151,16 @@ export function TemplateDetailPage({
           >
             <ArrowLeft className='mr-2 h-4 w-4' />
             Back to Templates
+          </Button>
+
+          <Button
+            variant='ghost'
+            size='sm'
+            className='text-muted-foreground hover:text-foreground'
+            onClick={() => setSavedModalOpen(true)}
+          >
+            <Heart className='mr-2 h-4 w-4' />
+            Saved
           </Button>
         </div>
       </div>
@@ -169,6 +181,9 @@ export function TemplateDetailPage({
 
       {/* Notifications */}
       <NotificationList />
+
+      {/* Saved Templates Modal */}
+      <SavedModal open={savedModalOpen} onOpenChange={setSavedModalOpen} />
     </div>
   )
 }

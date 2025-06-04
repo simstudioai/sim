@@ -33,12 +33,7 @@ function WorkflowItem({ workflow, active, isMarketplace, isCollapsed }: Workflow
         )}
         style={{ backgroundColor: workflow.color }}
       />
-      {!isCollapsed && (
-        <span className='truncate'>
-          {workflow.name}
-          {isMarketplace && ' (Preview)'}
-        </span>
-      )}
+      {!isCollapsed && <span className='truncate'>{workflow.name}</span>}
     </Link>
   )
 }

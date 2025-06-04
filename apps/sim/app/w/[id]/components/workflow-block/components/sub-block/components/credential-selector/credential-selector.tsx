@@ -75,7 +75,9 @@ export function CredentialSelector({
 
   // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
-    if (isPreview) {return}
+    if (isPreview) {
+      return
+    }
 
     setIsLoading(true)
     try {
