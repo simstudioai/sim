@@ -17,7 +17,7 @@ import {
 import { elevenLabsTtsTool } from './elevenlabs'
 import { exaAnswerTool, exaFindSimilarLinksTool, exaGetContentsTool, exaSearchTool } from './exa'
 import { fileParseTool } from './file'
-import { scrapeTool } from './firecrawl'
+import { scrapeTool, searchTool } from './firecrawl'
 import { functionExecuteTool } from './function'
 import {
   githubCommentTool,
@@ -109,6 +109,7 @@ export const tools: Record<string, ToolConfig> = {
   vision_tool: visionTool,
   file_parser: fileParseTool,
   firecrawl_scrape: scrapeTool,
+  firecrawl_search: searchTool,
   google_search: googleSearchTool,
   jina_read_url: readUrlTool,
   linkup_search: linkupSearchTool,

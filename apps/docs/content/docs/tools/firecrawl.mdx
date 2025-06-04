@@ -1,6 +1,6 @@
 ---
 title: Firecrawl
-description: Scrape website content
+description: Scrape or search the web
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -51,7 +51,7 @@ The Firecrawl integration allows your agents to access and process web content p
 
 ## Usage Instructions
 
-Extract content from any website with advanced web scraping capabilities and content filtering. Retrieve clean, structured data from web pages with options to focus on main content.
+Extract content from any website with advanced web scraping or search the web for information. Retrieve clean, structured data from web pages with options to focus on main content, or intelligently search for information across the web.
 
 
 
@@ -77,6 +77,24 @@ Extract structured content from web pages with comprehensive metadata support. C
 | `html` | string |
 | `metadata` | string |
 
+### `firecrawl_search`
+
+Search for information on the web using Firecrawl
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Firecrawl API key |
+| `query` | string | Yes | The search query to use |
+
+#### Output
+
+| Parameter | Type |
+| --------- | ---- |
+| `data` | string |
+| `warning` | string |
+
 
 
 ## Block Configuration
@@ -85,7 +103,7 @@ Extract structured content from web pages with comprehensive metadata support. C
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
-| `apiKey` | string | Yes | API Key - Enter your Firecrawl API key |
+| `apiKey` | string | Yes |  |
 
 
 
@@ -97,6 +115,8 @@ Extract structured content from web pages with comprehensive metadata support. C
 | ↳ `markdown` | string | markdown of the response |
 | ↳ `html` | any | html of the response |
 | ↳ `metadata` | json | metadata of the response |
+| ↳ `data` | json | data of the response |
+| ↳ `warning` | any | warning of the response |
 
 
 ## Notes
