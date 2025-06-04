@@ -77,6 +77,69 @@ const getToolDisplayParams = (toolId: string): ToolParam[] => {
     }))
 }
 
+// Get filtered parameters based on block conditions
+const getFilteredToolParams = (
+  blockType: string,
+  toolId: string,
+  currentOperation?: string,
+  toolParams?: Record<string, string>
+): ToolParam[] => {
+  const tool = getTool(toolId)
+  const block = getAllBlocks().find((block) => block.type === blockType)
+
+  if (!tool || !block) return []
+
+  const allParams = Object.entries(tool.params)
+    .filter(([_, param]) => param.requiredForToolCall || param.optionalToolInput)
+    .map(([paramId, param]) => ({
+      id: paramId,
+      type: param.type,
+      description: param.description,
+      requiredForToolCall: param.requiredForToolCall ?? false,
+      optionalToolInput: param.optionalToolInput ?? false,
+    }))
+
+  const evaluateCondition = (condition: any, currentValues: Record<string, any>): boolean => {
+    const fieldValue = currentValues[condition.field]
+    let result = false
+
+    if (Array.isArray(condition.value)) {
+      result = condition.value.includes(fieldValue)
+    } else {
+      result = fieldValue === condition.value
+    }
+
+    if (condition.not) {
+      result = !result
+    }
+
+    return result
+  }
+
+  return allParams.filter((param) => {
+    const subBlock = block.subBlocks.find((sb) => sb.id === param.id)
+
+    if (!subBlock || !subBlock.condition) {
+      return true
+    }
+
+    const currentValues: Record<string, any> = {
+      operation: currentOperation,
+      ...toolParams,
+    }
+
+    const condition = subBlock.condition
+    let mainConditionResult = evaluateCondition(condition, currentValues)
+
+    if (condition.and) {
+      const andConditionResult = evaluateCondition(condition.and, currentValues)
+      mainConditionResult = mainConditionResult && andConditionResult
+    }
+
+    return mainConditionResult
+  })
+}
+
 // Keep this for backward compatibility - only get strictly required parameters
 const getRequiredToolParams = (toolId: string): ToolParam[] => {
   const tool = getTool(toolId)
@@ -335,7 +398,9 @@ export function ToolInput({
     const defaultOperation = operationOptions.length > 0 ? operationOptions[0].id : undefined
 
     const toolId = getToolIdFromBlock(toolBlock.type) || toolBlock.type
-    const displayParams = toolId ? getToolDisplayParams(toolId) : []
+    const displayParams = toolId
+      ? getFilteredToolParams(toolBlock.type, toolId, defaultOperation, {})
+      : []
 
     // Use the helper function to initialize parameters with blockId as instanceId
     const initialParams = initializeToolParams(
@@ -729,7 +794,7 @@ export function ToolInput({
             const requiredParams = isCustomTool
               ? getCustomToolParams(tool.schema)
               : toolId
-                ? getRequiredToolParams(toolId)
+                ? getFilteredToolParams(tool.type, toolId, tool.operation, tool.params)
                 : []
 
             // Check if the tool has any expandable content
