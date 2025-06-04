@@ -1,6 +1,6 @@
 'use client'
 
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { TemplatesHeader } from '../control-bar/control-bar'
 import { ErrorMessage } from '../error-message'
@@ -24,16 +24,18 @@ export function CategoryPageLayout({
   scrollToSection,
   onCategoryFilter,
   error,
-  mainCategory
+  mainCategory,
 }: CategoryPageLayoutProps) {
   const { mode, isExpanded } = useSidebarStore()
-  
+
   // Calculate if sidebar is collapsed based on mode and state
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
   return (
-    <div className={`flex h-[100vh] w-full max-w-[100vw] overflow-x-hidden flex-col transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}>
+    <div
+      className={`flex h-[100vh] w-full max-w-[100vw] flex-col overflow-x-hidden transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+    >
       {/* Templates Header */}
       <TemplatesHeader
         setSearchQuery={setSearchQuery}
@@ -52,4 +54,4 @@ export function CategoryPageLayout({
       </div>
     </div>
   )
-} 
+}

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
@@ -12,17 +12,14 @@ export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/templates/[id]/unpublish
- * 
+ *
  * Unpublishes a template (removes it from public view)
  * This could be implemented as a soft delete or visibility toggle
- * 
+ *
  * Request body:
  * - reason?: Optional reason for unpublishing
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const { id: templateId } = await params
 
@@ -30,7 +27,9 @@ export async function POST(
     const body = await request.json().catch(() => ({}))
     const { reason } = body
 
-    logger.info(`[${requestId}] Unpublishing template: ${templateId}${reason ? ` (reason: ${reason})` : ''}`)
+    logger.info(
+      `[${requestId}] Unpublishing template: ${templateId}${reason ? ` (reason: ${reason})` : ''}`
+    )
 
     // Verify the template exists
     const templateEntry = await db
@@ -49,9 +48,7 @@ export async function POST(
       return createErrorResponse('Template not found', 404)
     }
 
-    await db
-      .delete(schema.templates)
-      .where(eq(schema.templates.id, templateId))
+    await db.delete(schema.templates).where(eq(schema.templates.id, templateId))
 
     logger.info(`[${requestId}] Successfully unpublished template: ${templateEntry.name}`)
 
@@ -62,9 +59,8 @@ export async function POST(
       message: 'Template unpublished successfully',
       reason: reason || null,
     })
-
   } catch (error: any) {
     logger.error(`[${requestId}] Error unpublishing template`, error)
     return createErrorResponse(`Failed to unpublish template: ${error.message}`, 500)
   }
-} 
+}

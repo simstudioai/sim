@@ -1,4 +1,4 @@
-import { desc, eq, sql } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -203,20 +203,16 @@ export async function GET(request: NextRequest) {
     if (sections.length <= 2 && !sections.includes('byCategory') && !categoryParam) {
       // Simple query - just popular and/or recent
       if (sections.includes('popular')) {
-        result.popular = await db
-          .select(selectFields)
-          .from(schema.templates)
-          .limit(limit)
+        result.popular = await db.select(selectFields).from(schema.templates).limit(limit)
       }
 
       if (sections.includes('recent')) {
-        result.recent = await db
-          .select(selectFields)
-          .from(schema.templates)
-          .limit(limit)
+        result.recent = await db.select(selectFields).from(schema.templates).limit(limit)
       }
 
-      logger.info(`[${requestId}] Simple query completed - fetched ${Object.keys(result).length} sections`)
+      logger.info(
+        `[${requestId}] Simple query completed - fetched ${Object.keys(result).length} sections`
+      )
       return NextResponse.json(result)
     }
 
@@ -261,22 +257,16 @@ export async function GET(request: NextRequest) {
 
           // Always add the category to the result, even if empty
           result.byCategory[categoryValue] = categoryItems
-          logger.info(
-            `[${requestId}] Category ${categoryValue}: found ${categoryItems.length} items`
-          )
         })
       )
     }
 
     // Get popular items if requested
     if (sections.includes('popular')) {
-      result.popular = await db
-        .select(selectFields)
-        .from(schema.templates)
-        .limit(limit)
+      result.popular = await db.select(selectFields).from(schema.templates).limit(limit)
     }
 
-    // Get recent items if requested  
+    // Get recent items if requested
     if (sections.includes('recent')) {
       result.recent = await db
         .select(selectFields)
@@ -326,9 +316,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST handler for incrementing view counts
- * 
+ *
  * @deprecated This endpoint is deprecated. Use /api/templates/[id]/view instead.
- * 
+ *
  * Request body:
  * - id: Template entry ID to increment view count for
  */
@@ -343,7 +333,9 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('Template ID is required', 400)
     }
 
-    logger.warn(`[${requestId}] Using deprecated POST endpoint. Please use /api/templates/${id}/view instead.`)
+    logger.warn(
+      `[${requestId}] Using deprecated POST endpoint. Please use /api/templates/${id}/view instead.`
+    )
 
     // Redirect to the new organized endpoint
     const viewResponse = await fetch(`${new URL(request.url).origin}/api/templates/${id}/view`, {
@@ -364,4 +356,4 @@ export async function POST(request: NextRequest) {
     logger.error(`[${requestId}] Error in deprecated view tracking endpoint`, error)
     return createErrorResponse(`Failed to track view: ${error.message}`, 500)
   }
-} 
+}

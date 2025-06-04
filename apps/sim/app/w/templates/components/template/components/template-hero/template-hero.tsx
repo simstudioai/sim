@@ -1,15 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Eye, Heart, Share2, Download } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Download, Eye, Heart, Share2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { getCategoryLabel, getCategoryColor, getCategoryIcon } from '../../../../constants/categories'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
-import { TemplateData } from '../../../../types'
 import { useNotificationStore } from '@/stores/notifications/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import {
+  getCategoryColor,
+  getCategoryIcon,
+  getCategoryLabel,
+} from '../../../../constants/categories'
+import type { TemplateData } from '../../../../types'
 
 const logger = createLogger('TemplateHero')
 
@@ -29,9 +33,9 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   // Clear any existing share notifications when component mounts
   useEffect(() => {
     const { notifications, removeNotification } = useNotificationStore.getState()
-    
+
     // Remove any existing global info notifications to prevent stale notifications
-    notifications.forEach(notification => {
+    notifications.forEach((notification) => {
       if (notification.type === 'info' && notification.workflowId === null) {
         removeNotification(notification.id)
       }
@@ -116,7 +120,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
       // Create the share message with URL
       const templateUrl = `https://simstudio.ai/w/templates/${template.id}`
       const shareText = `Check this template out on Sim Studio! ${templateUrl}`
-      
+
       // Copy both message and URL to clipboard
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareText)
@@ -132,30 +136,20 @@ export function TemplateHero({ template }: TemplateHeroProps) {
         document.execCommand('copy')
         document.body.removeChild(textArea)
       }
-      
+
       // Show success notification (use null for workflowId since template pages don't have one)
-      addNotification(
-        'info',
-        'Template link copied!',
-        null,
-        { 
-          isPersistent: false,
-        }
-      )
-      
+      addNotification('info', 'Template link copied!', null, {
+        isPersistent: false,
+      })
+
       logger.info('Template share text copied to clipboard:', shareText)
     } catch (error) {
       logger.error('Failed to copy template share text:', error)
-      
+
       // Show error notification
-      addNotification(
-        'error',
-        'Failed to copy link',
-        null,
-        { 
-          isPersistent: false,
-        }
-      )
+      addNotification('error', 'Failed to copy link', null, {
+        isPersistent: false,
+      })
     }
   }
 
@@ -172,7 +166,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   const getAuthorInitials = (name: string) => {
     return name
       .split(' ')
-      .map(word => word[0])
+      .map((word) => word[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -182,12 +176,12 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   const categoryIcon = getCategoryIcon(template.category || '')
 
   return (
-    <div className="space-y-6">
+    <div className='space-y-6'>
       {/* Category Badge */}
       <div>
-        <Badge 
-          variant="outline" 
-          className="flex items-center w-fit"
+        <Badge
+          variant='outline'
+          className='flex w-fit items-center'
           style={{
             borderColor: categoryColor,
             color: categoryColor,
@@ -200,82 +194,78 @@ export function TemplateHero({ template }: TemplateHeroProps) {
 
       {/* Title */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">
-          {template.name} Template
-        </h1>
+        <h1 className='mb-2 font-bold text-3xl text-foreground'>{template.name} Template</h1>
       </div>
 
       {/* Author and Stats */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-            <span className="text-xs font-medium text-muted-foreground">
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center space-x-3'>
+          <div className='flex h-8 w-8 items-center justify-center rounded-full bg-muted'>
+            <span className='font-medium text-muted-foreground text-xs'>
               {getAuthorInitials(template.authorName)}
             </span>
           </div>
           <div>
-            <p className="text-sm font-medium text-foreground">
-              {template.authorName}
-            </p>
-            <p className="text-xs text-muted-foreground">
+            <p className='font-medium text-foreground text-sm'>{template.authorName}</p>
+            <p className='text-muted-foreground text-xs'>
               Created {formatDate(template.createdAt)}
             </p>
           </div>
         </div>
-        
-        <div className="flex items-center space-x-1 text-muted-foreground">
-          <Eye className="h-4 w-4" />
-          <span className="text-sm">{template.views.toLocaleString()}</span>
+
+        <div className='flex items-center space-x-1 text-muted-foreground'>
+          <Eye className='h-4 w-4' />
+          <span className='text-sm'>{template.views.toLocaleString()}</span>
         </div>
       </div>
 
       {/* Long Description */}
-      <div className="prose prose-sm max-w-none">
-        <p className="text-muted-foreground">
-          {template.long_description}
-        </p>
+      <div className='prose prose-sm max-w-none'>
+        <p className='text-muted-foreground'>{template.long_description}</p>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-wrap gap-3">
-        <Button 
+      <div className='flex flex-wrap gap-3'>
+        <Button
           onClick={handleUseTemplate}
           disabled={isUsing || !template.workflowState}
-          className="flex-1 sm:flex-none"
+          className='flex-1 sm:flex-none'
         >
           {isUsing ? (
             <>
-              <Download className="mr-2 h-4 w-4 animate-pulse" />
+              <Download className='mr-2 h-4 w-4 animate-pulse' />
               Creating...
             </>
           ) : (
             <>
-              <Download className="mr-2 h-4 w-4" />
+              <Download className='mr-2 h-4 w-4' />
               Use This Template
             </>
           )}
         </Button>
-        
-        <Button 
-          variant="outline" 
-          size="default"
+
+        <Button
+          variant='outline'
+          size='default'
           onClick={handleSaveTemplate}
           disabled={isSaving || isLoadingSavedStatus}
           className={isSaved ? 'bg-accent' : ''}
         >
           <Heart className={`mr-2 h-4 w-4 ${isSaved ? 'fill-current' : ''}`} />
-          {isLoadingSavedStatus ? 'Loading...' : isSaving ? 'Saving...' : isSaved ? 'Saved' : 'Save'}
+          {isLoadingSavedStatus
+            ? 'Loading...'
+            : isSaving
+              ? 'Saving...'
+              : isSaved
+                ? 'Saved'
+                : 'Save'}
         </Button>
-        
-        <Button 
-          variant="outline" 
-          size="default"
-          onClick={handleShareTemplate}
-        >
-          <Share2 className="mr-2 h-4 w-4" />
+
+        <Button variant='outline' size='default' onClick={handleShareTemplate}>
+          <Share2 className='mr-2 h-4 w-4' />
           Share
         </Button>
       </div>
     </div>
   )
-} 
+}

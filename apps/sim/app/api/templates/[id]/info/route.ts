@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
@@ -12,17 +12,14 @@ export const revalidate = 300
 
 /**
  * GET /api/templates/[id]/info
- * 
+ *
  * Fetches detailed information about a specific template
  * Including workflow state if requested
- * 
+ *
  * Query parameters:
  * - includeState: Whether to include workflow state (default: false)
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const { id: templateId } = await params
 
@@ -30,7 +27,9 @@ export async function GET(
     const url = new URL(request.url)
     const includeState = url.searchParams.get('includeState') === 'true'
 
-    logger.info(`[${requestId}] Fetching template info: ${templateId}${includeState ? ' with state' : ''}`)
+    logger.info(
+      `[${requestId}] Fetching template info: ${templateId}${includeState ? ' with state' : ''}`
+    )
 
     // Fetch the template with appropriate fields
     let templateEntry
@@ -82,17 +81,17 @@ export async function GET(
     }
 
     // Transform response if state was included
-    const responseData = includeState && 'state' in templateEntry
-      ? {
-          ...templateEntry,
-          workflowState: templateEntry.state,
-          state: undefined, // Remove the raw state field
-        }
-      : templateEntry
+    const responseData =
+      includeState && 'state' in templateEntry
+        ? {
+            ...templateEntry,
+            workflowState: templateEntry.state,
+            state: undefined, // Remove the raw state field
+          }
+        : templateEntry
 
     logger.info(`[${requestId}] Successfully fetched template info: ${templateEntry.name}`)
     return createSuccessResponse(responseData)
-
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching template info`, error)
     return createErrorResponse(`Failed to fetch template info: ${error.message}`, 500)

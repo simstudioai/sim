@@ -1,5 +1,5 @@
-import { eq, desc, ne, and } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
+import { desc, eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { db } from '@/db'
@@ -12,17 +12,14 @@ export const revalidate = 600
 
 /**
  * GET /api/templates/[id]/similar
- * 
+ *
  * Fetches similar templates based on the current template's category
  * Excludes the current template from results
- * 
+ *
  * Query parameters:
  * - limit: Maximum number of similar templates to return (default: 6)
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const { id: templateId } = await params
 
@@ -99,9 +96,8 @@ export async function GET(
       category: currentTemplate.category,
       total: similarTemplates.length,
     })
-
   } catch (error: any) {
     logger.error(`[${requestId}] Error fetching similar templates`, error)
     return createErrorResponse(`Failed to fetch similar templates: ${error.message}`, 500)
   }
-} 
+}

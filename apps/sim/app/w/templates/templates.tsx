@@ -1,17 +1,20 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
+import { createLogger } from '@/lib/logs/console-logger'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { TemplatesHeader } from './components/control-bar/control-bar'
 import { ErrorMessage } from './components/error-message'
 import { Section } from './components/section'
-import { TemplateWorkflowCard } from './components/template-workflow-card'
-import { WorkflowCardSkeleton } from './components/workflow-card-skeleton'
 import { TemplateGrid } from './components/shared/template-grid'
-import { CATEGORIES, getCategoryLabel, CATEGORY_GROUPS } from './constants/categories'
-import { useSidebarStore } from '@/stores/sidebar/store'
-import { createLogger } from '@/lib/logs/console-logger'
-import { Workflow, TemplateData, TemplateCollection, getTemplateDescription } from './types'
+import { CATEGORIES, getCategoryLabel } from './constants/categories'
+import {
+  getTemplateDescription,
+  type TemplateCollection,
+  type TemplateData,
+  type Workflow,
+} from './types'
 
 const logger = createLogger('Templates')
 
@@ -35,7 +38,7 @@ export default function Templates() {
 
   // Get sidebar state for layout calculations
   const { mode, isExpanded } = useSidebarStore()
-  
+
   // Calculate if sidebar is collapsed based on mode and state
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
@@ -48,7 +51,7 @@ export default function Templates() {
   // Convert template data to the format expected by components
   const workflowData = useMemo(() => {
     // Reusable function to convert template items to workflow format
-    const convertTemplateItems = (items: any[]) => 
+    const convertTemplateItems = (items: any[]) =>
       items.map((item) => ({
         id: item.id,
         name: item.name,
@@ -80,17 +83,17 @@ export default function Templates() {
     // Apply category filter if set
     if (categoryFilter && categoryFilter.length > 0) {
       const filtered: Record<string, Workflow[]> = {}
-      
+
       // Always include popular if it exists
       if (dataToFilter.popular) filtered.popular = dataToFilter.popular
-      
+
       // Add filtered categories
-      categoryFilter.forEach(category => {
+      categoryFilter.forEach((category) => {
         if (dataToFilter[category]) {
           filtered[category] = dataToFilter[category]
         }
       })
-      
+
       dataToFilter = filtered
     }
 
@@ -151,7 +154,10 @@ export default function Templates() {
         setLoading(true)
 
         // Load limited templates for discover page - 9 for popular, 6 for categories
-        const response = await fetch('/api/templates/workflows?section=popular,byCategory&limit=6&popularLimit=9')
+        // Include workflow states for preview thumbnails
+        const response = await fetch(
+          '/api/templates/workflows?section=popular,byCategory&limit=6&popularLimit=9&includeState=true'
+        )
 
         if (!response.ok) {
           throw new Error('Failed to fetch template data')
@@ -160,7 +166,7 @@ export default function Templates() {
         const data = await response.json()
 
         // Mark all sections as loaded
-        const allSections = new Set(['popular', ...CATEGORIES.map(cat => cat.value)])
+        const allSections = new Set(['popular', ...CATEGORIES.map((cat) => cat.value)])
         setLoadedSections(allSections)
 
         setTemplateData(data)
@@ -196,7 +202,7 @@ export default function Templates() {
     const observer = new IntersectionObserver(
       (entries) => {
         // Find the first intersecting section and set it as active
-        const intersectingEntry = entries.find(entry => entry.isIntersecting)
+        const intersectingEntry = entries.find((entry) => entry.isIntersecting)
         if (intersectingEntry) {
           setActiveSection(intersectingEntry.target.id)
         }
@@ -220,9 +226,10 @@ export default function Templates() {
     }
   }, [initialFetchCompleted.current])
 
-
   return (
-    <div className={`flex h-[100vh] w-full max-w-[100vw] overflow-x-hidden flex-col transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}>
+    <div
+      className={`flex h-[100vh] w-full max-w-[100vw] flex-col overflow-x-hidden transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+    >
       {/* Templates Header */}
       <TemplatesHeader
         setSearchQuery={setSearchQuery}
@@ -252,17 +259,17 @@ export default function Templates() {
         {/* Render template sections */}
         {!loading && (
           <>
-            {sortedFilteredWorkflows.map(
-              ([category, workflows]) => {
-                // Determine if we should show Browse All button
-                // Popular should never show Browse All
-                // Other categories should show Browse All with their specific category name
-                const showBrowseAll = category !== 'popular' && !searchQuery.trim()
-                
-                // Show sections if they have workflows OR if no search is active (to allow empty sections to trigger loading)
-                const shouldShowSection = workflows.length > 0 || !searchQuery.trim()
-                
-                return shouldShowSection && (
+            {sortedFilteredWorkflows.map(([category, workflows]) => {
+              // Determine if we should show Browse All button
+              // Popular should never show Browse All
+              // Other categories should show Browse All with their specific category name
+              const showBrowseAll = category !== 'popular' && !searchQuery.trim()
+
+              // Show sections if they have workflows OR if no search is active (to allow empty sections to trigger loading)
+              const shouldShowSection = workflows.length > 0 || !searchQuery.trim()
+
+              return (
+                shouldShowSection && (
                   <Section
                     key={category}
                     id={category}
@@ -275,14 +282,14 @@ export default function Templates() {
                       }
                     }}
                   >
-                    <TemplateGrid 
+                    <TemplateGrid
                       workflows={workflows}
                       emptyMessage={`No ${getCategoryLabel(category).toLowerCase()} templates available`}
                     />
                   </Section>
                 )
-              }
-            )}
+              )
+            })}
 
             {sortedFilteredWorkflows.length === 0 && !loading && (
               <div className='flex h-64 flex-col items-center justify-center'>

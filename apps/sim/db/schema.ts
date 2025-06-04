@@ -551,7 +551,7 @@ export const document = pgTable(
     processingStatus: text('processing_status'),
     processingStartedAt: timestamp('processing_started_at'),
     processingCompletedAt: timestamp('processing_completed_at'),
-    processingError: text('processing_error')
+    processingError: text('processing_error'),
   },
   (table) => ({
     // Primary access pattern - documents by knowledge base
@@ -675,7 +675,7 @@ export const savedTemplates = pgTable(
     templateId: text('template_id')
       .notNull()
       .references(() => templates.id, { onDelete: 'cascade' }),
-        
+
     // Usage tracking
     timesUsed: integer('times_used').notNull().default(0),
     lastUsedAt: timestamp('last_used_at'),
@@ -696,4 +696,3 @@ export const savedTemplates = pgTable(
     templateIdIdx: index('saved_templates_template_id_idx').on(table.templateId),
   })
 )
-

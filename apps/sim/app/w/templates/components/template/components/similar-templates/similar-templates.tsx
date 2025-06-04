@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { TemplateWorkflowCard } from '../../../../components/template-workflow-card'
-import { WorkflowCardSkeleton } from '@/app/w/templates/components/workflow-card-skeleton'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
-import { TemplateData, getTemplateDescription } from '../../../../types'
+import { WorkflowCardSkeleton } from '@/app/w/templates/components/workflow-card-skeleton'
+import { TemplateWorkflowCard } from '../../../../components/template-workflow-card'
+import { getTemplateDescription, type TemplateData } from '../../../../types'
 
 const logger = createLogger('SimilarTemplates')
 
@@ -29,22 +29,22 @@ export function SimilarTemplates({ currentTemplate }: SimilarTemplatesProps) {
         setError(null)
 
         // Use the new organized API endpoint for similar templates
-        const response = await fetch(
-          `/api/templates/${currentTemplate.id}/similar?limit=4`
-        )
+        const response = await fetch(`/api/templates/${currentTemplate.id}/similar?limit=4`)
 
         if (!response.ok) {
           throw new Error('Failed to fetch similar templates')
         }
 
         const data = await response.json()
-        
+
         // Extract similar templates from the new API response format
         const similarTemplatesData = data.similarTemplates || []
 
         setSimilarTemplates(similarTemplatesData)
-        
-        logger.info(`Loaded ${similarTemplatesData.length} similar templates for category: ${currentTemplate.category}`)
+
+        logger.info(
+          `Loaded ${similarTemplatesData.length} similar templates for category: ${currentTemplate.category}`
+        )
       } catch (err) {
         logger.error('Error fetching similar templates:', err)
         setError('Failed to load similar templates')
@@ -73,10 +73,10 @@ export function SimilarTemplates({ currentTemplate }: SimilarTemplatesProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">Similar Templates</CardTitle>
+          <CardTitle className='text-xl'>Similar Templates</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4'>
             {Array.from({ length: 4 }).map((_, index) => (
               <WorkflowCardSkeleton key={`skeleton-${index}`} />
             ))}
@@ -90,19 +90,16 @@ export function SimilarTemplates({ currentTemplate }: SimilarTemplatesProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">Similar Templates</CardTitle>
+          <CardTitle className='text-xl'>Similar Templates</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8">
-            <p className="text-muted-foreground mb-4">
+          <div className='py-8 text-center'>
+            <p className='mb-4 text-muted-foreground'>
               {error ? 'Failed to load similar templates' : 'No similar templates found'}
             </p>
-            <Button 
-              variant="outline" 
-              onClick={() => router.push('/w/templates')}
-            >
+            <Button variant='outline' onClick={() => router.push('/w/templates')}>
               Browse All Templates
-              <ArrowRight className="ml-2 h-4 w-4" />
+              <ArrowRight className='ml-2 h-4 w-4' />
             </Button>
           </div>
         </CardContent>
@@ -112,19 +109,19 @@ export function SimilarTemplates({ currentTemplate }: SimilarTemplatesProps) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-xl">Similar Templates</CardTitle>
-        <Button 
-          variant="ghost" 
-          size="sm"
+      <CardHeader className='flex flex-row items-center justify-between'>
+        <CardTitle className='text-xl'>Similar Templates</CardTitle>
+        <Button
+          variant='ghost'
+          size='sm'
           onClick={() => router.push(`/w/templates?category=${currentTemplate.category}`)}
         >
           View All
-          <ArrowRight className="ml-2 h-4 w-4" />
+          <ArrowRight className='ml-2 h-4 w-4' />
         </Button>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4'>
           {similarTemplates.map((template) => (
             <TemplateWorkflowCard
               key={template.id}
@@ -136,4 +133,4 @@ export function SimilarTemplates({ currentTemplate }: SimilarTemplatesProps) {
       </CardContent>
     </Card>
   )
-} 
+}

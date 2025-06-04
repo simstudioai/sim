@@ -28,11 +28,9 @@ export const Section = forwardRef<HTMLDivElement, SectionProps>(
   ({ title, id, children, showBrowseAll = false, browseAllCategory }, ref) => {
     return (
       <div ref={ref} id={id} className='mb-12 scroll-mt-14'>
-        <div className='flex items-center justify-between mb-6'>
+        <div className='mb-6 flex items-center justify-between'>
           <h2 className='font-medium text-lg capitalize'>{title}</h2>
-          {showBrowseAll && browseAllCategory && (
-            <BrowseAllButton category={browseAllCategory} />
-          )}
+          {showBrowseAll && browseAllCategory && <BrowseAllButton category={browseAllCategory} />}
         </div>
         {children}
       </div>

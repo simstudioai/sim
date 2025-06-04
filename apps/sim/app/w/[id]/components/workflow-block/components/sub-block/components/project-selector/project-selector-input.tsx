@@ -58,21 +58,24 @@ export function ProjectSelectorInput({
   ) => {
     setSelectedProjectId(projectId)
     setProjectInfo(info || null)
-    setValue(blockId, subBlock.id, projectId)
 
-    // Clear the issue-related fields when a new project is selected
-    if (provider === 'jira') {
-      setValue(blockId, 'summary', '')
-      setValue(blockId, 'description', '')
-      setValue(blockId, 'issueKey', '')
-    } else if (provider === 'discord') {
-      setValue(blockId, 'channelId', '')
-    } else if (provider === 'linear') {
-      if (subBlock.id === 'teamId') {
-        setValue(blockId, 'teamId', projectId)
-        setValue(blockId, 'projectId', '')
-      } else if (subBlock.id === 'projectId') {
-        setValue(blockId, 'projectId', projectId)
+    if (!isPreview) {
+      setValue(blockId, subBlock.id, projectId)
+
+      // Clear the issue-related fields when a new project is selected
+      if (provider === 'jira') {
+        setValue(blockId, 'summary', '')
+        setValue(blockId, 'description', '')
+        setValue(blockId, 'issueKey', '')
+      } else if (provider === 'discord') {
+        setValue(blockId, 'channelId', '')
+      } else if (provider === 'linear') {
+        if (subBlock.id === 'teamId') {
+          setValue(blockId, 'teamId', projectId)
+          setValue(blockId, 'projectId', '')
+        } else if (subBlock.id === 'projectId') {
+          setValue(blockId, 'projectId', projectId)
+        }
       }
     }
 
@@ -174,6 +177,7 @@ export function ProjectSelectorInput({
               disabled={disabled}
               showPreview={true}
               onProjectInfoChange={setProjectInfo}
+              isPreview={isPreview}
             />
           </div>
         </TooltipTrigger>

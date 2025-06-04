@@ -24,6 +24,7 @@ interface SlackChannelSelectorProps {
   credential: string
   label?: string
   disabled?: boolean
+  isPreview?: boolean
 }
 
 export function SlackChannelSelector({
@@ -32,6 +33,7 @@ export function SlackChannelSelector({
   credential,
   label = 'Select Slack channel',
   disabled = false,
+  isPreview = false,
 }: SlackChannelSelectorProps) {
   const [channels, setChannels] = useState<SlackChannelInfo[]>([])
   const [loading, setLoading] = useState(false)
@@ -42,6 +44,8 @@ export function SlackChannelSelector({
 
   // Fetch channels from Slack API
   const fetchChannels = useCallback(async () => {
+    if (isPreview) return
+
     if (!credential) return
 
     setLoading(true)
@@ -71,7 +75,7 @@ export function SlackChannelSelector({
     } finally {
       setLoading(false)
     }
-  }, [credential])
+  }, [credential, isPreview])
 
   // Handle dropdown open/close - fetch channels when opening
   const handleOpenChange = (isOpen: boolean) => {
@@ -93,14 +97,13 @@ export function SlackChannelSelector({
     }
   }, [value, channels])
 
-  // If we have a value but no channel info and haven't fetched yet, get just that channel
   useEffect(() => {
-    if (value && !selectedChannel && !loading && !initialFetchDone && credential) {
+    if (!isPreview && value && !selectedChannel && !loading && !initialFetchDone && credential) {
       // For now, we'll fetch all channels when needed
       // In the future, we could optimize to fetch just the selected channel
       fetchChannels()
     }
-  }, [value, selectedChannel, loading, initialFetchDone, credential, fetchChannels])
+  }, [value, selectedChannel, loading, initialFetchDone, credential, fetchChannels, isPreview])
 
   const handleSelectChannel = (channel: SlackChannelInfo) => {
     setSelectedChannel(channel)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { getCategoryLabel, CATEGORY_GROUPS } from '../../constants/categories'
+import { CATEGORY_GROUPS, getCategoryLabel } from '../../constants/categories'
 
 interface BrowseAllButtonProps {
   category: string
@@ -14,7 +14,7 @@ export function BrowseAllButton({ category, className }: BrowseAllButtonProps) {
   const handleClick = () => {
     // Find which parent category this subcategory belongs to
     let parentCategory = category // Default to the category itself
-    
+
     if (CATEGORY_GROUPS.operations.includes(category as any)) {
       parentCategory = 'operations'
       router.push(`/w/templates/operations?subcategory=${category}`)
@@ -33,9 +33,9 @@ export function BrowseAllButton({ category, className }: BrowseAllButtonProps) {
   return (
     <button
       onClick={handleClick}
-      className={`text-sm text-muted-foreground hover:text-foreground transition-colors ${className}`}
+      className={`text-muted-foreground text-sm transition-colors hover:text-foreground ${className}`}
     >
       Browse {getCategoryLabel(category)}
     </button>
   )
-} 
+}

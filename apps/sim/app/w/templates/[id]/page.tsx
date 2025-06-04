@@ -1,8 +1,8 @@
-import { Metadata } from 'next'
-import { TemplateDetailPage } from '../components/template/template'
+import { eq } from 'drizzle-orm'
+import type { Metadata } from 'next'
 import { db } from '@/db'
 import { templates } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { TemplateDetailPage } from '../components/template/template'
 
 interface TemplatePageProps {
   params: Promise<{
@@ -16,7 +16,7 @@ interface TemplatePageProps {
  */
 export default async function TemplatePage({ params }: TemplatePageProps) {
   const { id: templateId } = await params
-  
+
   return <TemplateDetailPage templateId={templateId} />
 }
 
@@ -26,7 +26,7 @@ export default async function TemplatePage({ params }: TemplatePageProps) {
 export async function generateMetadata({ params }: TemplatePageProps): Promise<Metadata> {
   try {
     const { id: templateId } = await params
-    
+
     // Fetch template data for metadata
     const template = await db
       .select({
@@ -51,15 +51,17 @@ export async function generateMetadata({ params }: TemplatePageProps): Promise<M
     }
 
     const title = `${template.name} Template | Sim Studio`
-    const description = template.short_description || template.long_description || 
+    const description =
+      template.short_description ||
+      template.long_description ||
       `A ${template.category} template by ${template.authorName} on Sim Studio.`
-    
+
     // Create the social preview message - this appears when shared in messages/social media
     const socialDescription = `Check this template out on Sim Studio! ${description}`
-    
+
     // Dynamic OG image URL with template ID
     const ogImageUrl = `https://simstudio.ai/api/og/template?id=${templateId}`
-    
+
     return {
       title,
       description: socialDescription,
@@ -121,4 +123,4 @@ export async function generateMetadata({ params }: TemplatePageProps): Promise<M
       },
     }
   }
-} 
+}

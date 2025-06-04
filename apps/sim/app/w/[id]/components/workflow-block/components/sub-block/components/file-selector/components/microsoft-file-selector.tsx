@@ -39,6 +39,7 @@ export interface MicrosoftFileInfo {
   modifiedTime?: string
   size?: string
   owners?: { displayName: string; emailAddress: string }[]
+  isPreview?: boolean
 }
 
 interface MicrosoftFileSelectorProps {
@@ -51,6 +52,7 @@ interface MicrosoftFileSelectorProps {
   serviceId?: string
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: MicrosoftFileInfo | null) => void
+  isPreview?: boolean
 }
 
 export function MicrosoftFileSelector({
@@ -63,6 +65,7 @@ export function MicrosoftFileSelector({
   serviceId,
   showPreview = true,
   onFileInfoChange,
+  isPreview,
 }: MicrosoftFileSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -91,6 +94,8 @@ export function MicrosoftFileSelector({
 
   // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
+    if (isPreview) return
+
     setIsLoading(true)
     try {
       const providerId = getProviderId()
@@ -124,7 +129,7 @@ export function MicrosoftFileSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [provider, getProviderId, selectedCredentialId])
+  }, [provider, getProviderId, selectedCredentialId, isPreview])
 
   // Fetch available Excel files for the selected credential
   const fetchAvailableFiles = useCallback(async () => {

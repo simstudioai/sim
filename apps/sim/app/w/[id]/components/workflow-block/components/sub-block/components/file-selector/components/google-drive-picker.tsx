@@ -55,6 +55,7 @@ interface GoogleDrivePickerProps {
   onFileInfoChange?: (fileInfo: FileInfo | null) => void
   clientId: string
   apiKey: string
+  isPreview?: boolean
 }
 
 export function GoogleDrivePicker({
@@ -70,6 +71,7 @@ export function GoogleDrivePicker({
   onFileInfoChange,
   clientId,
   apiKey,
+  isPreview,
 }: GoogleDrivePickerProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -96,6 +98,8 @@ export function GoogleDrivePicker({
 
   // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
+    if (isPreview) return
+
     setIsLoading(true)
     try {
       const providerId = getProviderId()
@@ -129,7 +133,7 @@ export function GoogleDrivePicker({
     } finally {
       setIsLoading(false)
     }
-  }, [provider, getProviderId, selectedCredentialId])
+  }, [provider, getProviderId, selectedCredentialId, isPreview])
 
   // Fetch a single file by ID when we have a selectedFileId but no metadata
   const fetchFileById = useCallback(

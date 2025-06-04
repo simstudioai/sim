@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { WorkflowPreview } from '@/app/w/components/workflow-preview/workflow-preview'
-import { TemplateBadges } from './template-badges'
-import { Workflow } from '../types'
 import { createLogger } from '@/lib/logs/console-logger'
+import { WorkflowPreview } from '@/app/w/components/workflow-preview/workflow-preview'
+import type { Workflow } from '../types'
+import { TemplateBadges } from './template-badges'
 
 const logger = createLogger('TemplateWorkflowCard')
 
@@ -66,9 +66,9 @@ export function TemplateWorkflowCard({ workflow, onHover }: TemplateWorkflowCard
       aria-label={`View ${workflow.name} template`}
       onClick={handleClick}
     >
-      <div className="space-y-3">
-        <Card 
-          className='flex h-80 flex-col overflow-hidden transition-all hover:shadow-md hover:border-primary/20'
+      <div className='space-y-3'>
+        <Card
+          className='flex h-80 flex-col overflow-hidden transition-all hover:border-primary/20 hover:shadow-md'
           onMouseEnter={handleMouseEnter}
         >
           {/* Workflow preview/thumbnail area */}
@@ -77,10 +77,10 @@ export function TemplateWorkflowCard({ workflow, onHover }: TemplateWorkflowCard
               // Interactive Preview
               <div className='absolute inset-0 flex items-center justify-center overflow-hidden'>
                 <div className='h-full w-full scale-[0.9] transform-gpu overflow-hidden'>
-                  <WorkflowPreview 
+                  <WorkflowPreview
                     workflowState={workflow.workflowState}
-                    height="100%"
-                    width="100%"
+                    height='100%'
+                    width='100%'
                     isPannable={false}
                     showSubBlocks={false}
                     defaultZoom={0.6}
@@ -104,10 +104,10 @@ export function TemplateWorkflowCard({ workflow, onHover }: TemplateWorkflowCard
               </div>
             )}
           </div>
-          <div className='flex flex-grow flex-col h-28'>
+          <div className='flex h-28 flex-grow flex-col'>
             {/* Workflow title */}
             <CardHeader className='p-4 pb-2'>
-              <h3 className='font-medium text-sm line-clamp-2'>{workflow.name}</h3>
+              <h3 className='line-clamp-2 font-medium text-sm'>{workflow.name}</h3>
             </CardHeader>
             {/* Workflow description */}
             <CardContent className='flex flex-grow flex-col p-4 pt-0 pb-4'>
@@ -115,15 +115,15 @@ export function TemplateWorkflowCard({ workflow, onHover }: TemplateWorkflowCard
             </CardContent>
           </div>
         </Card>
-        
+
         {/* Template badges below the card */}
         <TemplateBadges
           authorName={workflow.author}
           views={workflow.views}
           price={workflow.price}
-          className="px-1"
+          className='px-1'
         />
       </div>
     </div>
   )
-} 
+}
