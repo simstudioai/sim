@@ -45,7 +45,6 @@ interface JiraIssueSelectorProps {
   serviceId?: string
   domain: string
   showPreview?: boolean
-  isPreview?: boolean
   onIssueInfoChange?: (issueInfo: JiraIssueInfo | null) => void
   projectId?: string
 }
@@ -62,7 +61,6 @@ export function JiraIssueSelector({
   showPreview = true,
   onIssueInfoChange,
   projectId,
-  isPreview,
 }: JiraIssueSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -119,8 +117,6 @@ export function JiraIssueSelector({
 
   // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
-    if (isPreview) return
-
     setIsLoading(true)
     try {
       const providerId = getProviderId()

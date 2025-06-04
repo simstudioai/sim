@@ -115,23 +115,19 @@ export function FileSelectorInput({
   const handleFileChange = (fileId: string, info?: any) => {
     setSelectedFileId(fileId)
     setFileInfo(info || null)
-    if (!isPreview) {
-      setValue(blockId, subBlock.id, fileId)
-    }
+    setValue(blockId, subBlock.id, fileId)
   }
 
   // Handle issue selection
   const handleIssueChange = (issueKey: string, info?: JiraIssueInfo) => {
     setSelectedIssueId(issueKey)
     setIssueInfo(info || null)
-    if (!isPreview) {
-      setValue(blockId, subBlock.id, issueKey)
+    setValue(blockId, subBlock.id, issueKey)
 
-      // Clear the fields when a new issue is selected
-      if (isJira) {
-        setValue(blockId, 'summary', '')
-        setValue(blockId, 'description', '')
-      }
+    // Clear the fields when a new issue is selected
+    if (isJira) {
+      setValue(blockId, 'summary', '')
+      setValue(blockId, 'description', '')
     }
   }
 
@@ -139,9 +135,7 @@ export function FileSelectorInput({
   const handleChannelChange = (channelId: string, info?: DiscordChannelInfo) => {
     setSelectedChannelId(channelId)
     setChannelInfo(info || null)
-    if (!isPreview) {
-      setValue(blockId, subBlock.id, channelId)
-    }
+    setValue(blockId, subBlock.id, channelId)
   }
 
   // Handle calendar selection
@@ -231,7 +225,6 @@ export function FileSelectorInput({
                 disabled={disabled || !domain}
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: ConfluenceFileInfo | null) => void}
-                isPreview={isPreview}
               />
             </div>
           </TooltipTrigger>
@@ -262,7 +255,6 @@ export function FileSelectorInput({
                 disabled={disabled || !domain}
                 showPreview={true}
                 onIssueInfoChange={setIssueInfo as (info: JiraIssueInfo | null) => void}
-                isPreview={isPreview}
               />
             </div>
           </TooltipTrigger>
@@ -295,7 +287,6 @@ export function FileSelectorInput({
                 disabled={disabled || !credential}
                 showPreview={true}
                 onFileInfoChange={setFileInfo as (info: MicrosoftFileInfo | null) => void}
-                isPreview={isPreview}
               />
             </div>
           </TooltipTrigger>
@@ -346,9 +337,7 @@ export function FileSelectorInput({
                 onChange={(value, info) => {
                   setSelectedMessageId(value)
                   setMessageInfo(info || null)
-                  if (!isPreview) {
-                    setValue(blockId, subBlock.id, value)
-                  }
+                  setValue(blockId, subBlock.id, value)
                 }}
                 provider='microsoft-teams'
                 requiredScopes={subBlock.requiredScopes || []}
@@ -361,7 +350,6 @@ export function FileSelectorInput({
                 selectionType={selectionType}
                 initialTeamId={selectedTeamId}
                 workflowId={activeWorkflowId || ''}
-                isPreview={isPreview}
               />
             </div>
           </TooltipTrigger>
@@ -390,7 +378,6 @@ export function FileSelectorInput({
       onFileInfoChange={setFileInfo}
       clientId={clientId}
       apiKey={apiKey}
-      isPreview={isPreview}
     />
   )
 }

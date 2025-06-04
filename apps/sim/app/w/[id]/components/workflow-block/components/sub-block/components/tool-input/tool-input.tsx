@@ -1042,7 +1042,6 @@ export function ToolInput({
                                     onChannelSelect={(channelId) => {
                                       handleParamChange(toolIndex, param.id, channelId)
                                     }}
-                                    isPreview={isPreview}
                                   />
                                 ) : (
                                   <ShortInput

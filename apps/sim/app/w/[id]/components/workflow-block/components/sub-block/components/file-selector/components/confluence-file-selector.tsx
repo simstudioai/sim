@@ -43,7 +43,6 @@ interface ConfluenceFileSelectorProps {
   domain: string
   showPreview?: boolean
   onFileInfoChange?: (fileInfo: ConfluenceFileInfo | null) => void
-  isPreview?: boolean
 }
 
 export function ConfluenceFileSelector({
@@ -57,7 +56,6 @@ export function ConfluenceFileSelector({
   domain,
   showPreview = true,
   onFileInfoChange,
-  isPreview = false,
 }: ConfluenceFileSelectorProps) {
   const [open, setOpen] = useState(false)
   const [credentials, setCredentials] = useState<Credential[]>([])
@@ -86,7 +84,7 @@ export function ConfluenceFileSelector({
       } else if (value.length === 0) {
         fetchFiles()
       }
-    }, 500)
+    }, 500) // 500ms debounce
   }
 
   // Clean up the timeout on unmount
@@ -98,19 +96,20 @@ export function ConfluenceFileSelector({
     }
   }, [])
 
+  // Determine the appropriate service ID based on provider and scopes
   const getServiceId = (): string => {
     if (serviceId) return serviceId
     return getServiceIdFromScopes(provider, requiredScopes)
   }
 
+  // Determine the appropriate provider ID based on service and scopes
   const getProviderId = (): string => {
     const effectiveServiceId = getServiceId()
     return getProviderIdFromServiceId(effectiveServiceId)
   }
 
+  // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
-    if (isPreview) return
-
     setIsLoading(true)
     try {
       const providerId = getProviderId()
@@ -120,11 +119,14 @@ export function ConfluenceFileSelector({
         const data = await response.json()
         setCredentials(data.credentials)
 
+        // Auto-select logic for credentials
         if (data.credentials.length > 0) {
+          // If we already have a selected credential ID, check if it's valid
           if (
             selectedCredentialId &&
             data.credentials.some((cred: Credential) => cred.id === selectedCredentialId)
           ) {
+            // Keep the current selection
           } else {
             // Otherwise, select the default or first credential
             const defaultCred = data.credentials.find((cred: Credential) => cred.isDefault)
@@ -141,7 +143,7 @@ export function ConfluenceFileSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [provider, getProviderId, selectedCredentialId, isPreview])
+  }, [provider, getProviderId, selectedCredentialId])
 
   // Fetch page info when we have a selected file ID
   const fetchPageInfo = useCallback(
