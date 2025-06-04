@@ -134,7 +134,7 @@ export function TemplatesHeader({
   }
 
   return (
-    <div className="border-b bg-background">
+    <div className="border-b bg-background w-full">
       {/* Top Row - Action Icons */}
       <div className="flex justify-between px-6 py-3">
         <div className="flex items-center gap-2">
@@ -158,10 +158,10 @@ export function TemplatesHeader({
             <Heart className="h-4 w-4 mr-2" />
             Saved
           </Button>
-          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+          {/* <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
             <ShoppingBag className="h-4 w-4 mr-2" />
             Purchased
-          </Button>
+          </Button> */}
         </div>
       </div>
 
@@ -170,9 +170,9 @@ export function TemplatesHeader({
         {/* Left - Navigation */}
         <div className="flex items-center gap-6">
           {renderNavigationButton('Discover', 'discover')}
-          {renderNavigationButton('Work', 'work', true, [...CATEGORY_GROUPS.work])}
-          {renderNavigationButton('Life', 'life', true, [...CATEGORY_GROUPS.life])}
-          {renderNavigationButton('School', 'school', true, [...CATEGORY_GROUPS.school])}
+          {renderNavigationButton('Operations', 'operations', true, [...CATEGORY_GROUPS.operations])}
+          {renderNavigationButton('Personal', 'personal', true, [...CATEGORY_GROUPS.personal])}
+          {renderNavigationButton('Technical', 'technical', true, [...CATEGORY_GROUPS.technical])}
         </div>
 
         {/* Right - Search */}
@@ -191,46 +191,46 @@ export function TemplatesHeader({
       </div>
 
       {/* Category Pills Row */}
-      <div className="px-6 pb-4 overflow-hidden">
-      <ScrollArea className="h-[50px] whitespace-nowrap"> 
-        <div className="flex flex-wrap gap-2">
-          {visibleCategories.map((categoryValue) => {
-            const isSpecial = categoryValue === 'popular' || categoryValue === 'recent'
-            const category = CATEGORIES.find(cat => cat.value === categoryValue)
-            const isActive = activeSection === categoryValue
-            const categoryColor = getCategoryColor(categoryValue)
-            const hoverColor = getCategoryHoverColor(categoryValue)
-            
-            return (
-              <Button
-                key={categoryValue}
-                variant={isActive ? "default" : "outline"}
-                size="sm"
-                className={`rounded-full px-4 py-2 text-sm transition-colors ${
-                  isActive 
-                    ? 'text-white border-0'
-                    : `border-muted-foreground/20 ${hoverColor} hover:text-foreground`
-                }`}
-                onClick={() => scrollToSection(categoryValue)}
-                style={
-                  isActive 
-                    ? { 
-                        backgroundColor: categoryColor, 
-                        borderColor: categoryColor,
-                        color: 'white'
-                      }
-                    : {}
-                }
-              >
-                  <div className="flex items-center">
-                    {getCategoryIcon(categoryValue)}
-                    {getCategoryLabel(categoryValue)}
-                  </div>
-              </Button>
-            )
-          })}
-        </div>
-        <ScrollBar orientation="horizontal" />
+      <div className="px-6 pb-4">
+        <ScrollArea className="w-full">
+          <div className="flex space-x-2 pb-2">
+            {visibleCategories.map((categoryValue) => {
+              const isSpecial = categoryValue === 'popular' || categoryValue === 'recent'
+              const category = CATEGORIES.find(cat => cat.value === categoryValue)
+              const isActive = activeSection === categoryValue
+              const categoryColor = getCategoryColor(categoryValue)
+              const hoverColor = getCategoryHoverColor(categoryValue)
+              
+              return (
+                <Button
+                  key={categoryValue}
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  className={`rounded-full px-4 py-2 text-sm transition-colors flex-shrink-0 ${
+                    isActive 
+                      ? 'text-white border-0'
+                      : `border-muted-foreground/20 ${hoverColor} hover:text-foreground`
+                  }`}
+                  onClick={() => scrollToSection(categoryValue)}
+                  style={
+                    isActive 
+                      ? { 
+                          backgroundColor: categoryColor, 
+                          borderColor: categoryColor,
+                          color: 'white'
+                        }
+                      : {}
+                  }
+                >
+                    <div className="flex items-center">
+                      {getCategoryIcon(categoryValue)}
+                      {getCategoryLabel(categoryValue)}
+                    </div>
+                </Button>
+              )
+            })}
+          </div>
+          <ScrollBar orientation="horizontal" />
         </ScrollArea>
       </div>
 
