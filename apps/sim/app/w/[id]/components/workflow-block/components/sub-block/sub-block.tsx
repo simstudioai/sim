@@ -279,6 +279,8 @@ export function SubBlock({
             label={config.placeholder || 'Select a credential'}
             serviceId={config.serviceId}
             disabled={isPreview}
+            isPreview={isPreview}
+            previewValue={previewValue}
           />
         )
       case 'file-selector':
