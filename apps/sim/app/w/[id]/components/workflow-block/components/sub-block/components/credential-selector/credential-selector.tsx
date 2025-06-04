@@ -75,6 +75,8 @@ export function CredentialSelector({
 
   // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
+    if (isPreview) {return}
+
     setIsLoading(true)
     try {
       const response = await fetch(`/api/auth/oauth/credentials?provider=${effectiveProviderId}`)
@@ -112,7 +114,7 @@ export function CredentialSelector({
     } finally {
       setIsLoading(false)
     }
-  }, [effectiveProviderId, onChange, selectedId])
+  }, [effectiveProviderId, onChange, selectedId, isPreview])
 
   // Fetch credentials on initial mount
   useEffect(() => {

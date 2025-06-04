@@ -33,7 +33,7 @@ export function FileSelectorInput({
   blockId,
   subBlock,
   disabled,
-  isPreview = false,
+  isPreview,
   previewValue,
 }: FileSelectorInputProps) {
   const { getValue, setValue } = useSubBlockStore()
@@ -350,6 +350,7 @@ export function FileSelectorInput({
                 selectionType={selectionType}
                 initialTeamId={selectedTeamId}
                 workflowId={activeWorkflowId || ''}
+                isPreview={isPreview}
               />
             </div>
           </TooltipTrigger>
@@ -378,6 +379,7 @@ export function FileSelectorInput({
       onFileInfoChange={setFileInfo}
       clientId={clientId}
       apiKey={apiKey}
+      isPreview={isPreview}
     />
   )
 }
