@@ -113,6 +113,9 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
     // Store the message being sent for reference
     const sentMessage = chatMessage.trim()
 
+    // Get the conversationId for this workflow before adding the message
+    const conversationId = getConversationId(activeWorkflowId)
+
     // Add user message
     addMessage({
       content: sentMessage,
@@ -127,9 +130,6 @@ export function ChatModal({ open, onOpenChange, chatMessage, setChatMessage }: C
     if (inputRef.current) {
       inputRef.current.focus()
     }
-
-    // Get the conversationId for this workflow
-    const conversationId = getConversationId(activeWorkflowId)
 
     // Execute the workflow to generate a response
     await handleRunWorkflow({

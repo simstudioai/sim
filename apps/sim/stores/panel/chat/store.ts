@@ -47,8 +47,11 @@ export const useChatStore = create<ChatStore>()(
                 conversationIds: newConversationIds,
               }
             }
-
-            return newState
+            // When clearing all chats (workflowId is null), also clear all conversationIds
+            return {
+              ...newState,
+              conversationIds: {},
+            }
           })
         },
 

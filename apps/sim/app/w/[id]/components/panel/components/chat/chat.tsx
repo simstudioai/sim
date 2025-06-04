@@ -92,6 +92,9 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
     // Store the message being sent for reference
     const sentMessage = chatMessage.trim()
 
+    // Get the conversationId for this workflow before adding the message
+    const conversationId = getConversationId(activeWorkflowId)
+
     // Add user message
     addMessage({
       content: sentMessage,
@@ -101,9 +104,6 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
     // Clear input
     setChatMessage('')
-
-    // Get the conversationId for this workflow
-    const conversationId = getConversationId(activeWorkflowId)
 
     // Execute the workflow to generate a response, passing the chat message and conversationId as input
     const result = await handleRunWorkflow({
