@@ -64,6 +64,8 @@ export function ScheduleConfig({
 
   // Function to check if schedule exists in the database
   const checkSchedule = async () => {
+    if (isPreview) return
+    
     setIsLoading(true)
     try {
       // Check if there's a schedule for this workflow, passing the mode parameter
@@ -108,6 +110,8 @@ export function ScheduleConfig({
 
   // Check for schedule on mount and when relevant dependencies change
   useEffect(() => {
+    if (isPreview) return
+    
     // Always check for schedules regardless of the UI setting
     // This ensures we detect schedules even when the UI is set to manual
     checkSchedule()
