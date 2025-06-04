@@ -26,6 +26,7 @@ function EnhancedMarkdownRenderer({ content }: { content: string }) {
 export const ClientChatMessage = memo(
   function ClientChatMessage({ message }: { message: ChatMessage }) {
     const [isCopied, setIsCopied] = useState(false)
+
     const isJsonObject = useMemo(() => {
       return typeof message.content === 'object' && message.content !== null
     }, [message.content])
@@ -67,11 +68,10 @@ export const ClientChatMessage = memo(
                 )}
               </div>
             </div>
-            {message.type === 'assistant' &&
-              !isJsonObject &&
-              !message.isInitialMessage &&
-              !message.isStreaming && (
-                <div className='flex justify-start'>
+            {message.type === 'assistant' && !isJsonObject && !message.isInitialMessage && (
+              <div className='flex items-center justify-start space-x-2'>
+                {/* Copy Button - Only show when not streaming */}
+                {!message.isStreaming && (
                   <TooltipProvider>
                     <Tooltip delayDuration={300}>
                       <TooltipTrigger asChild>
@@ -101,8 +101,9 @@ export const ClientChatMessage = memo(
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                </div>
-              )}
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

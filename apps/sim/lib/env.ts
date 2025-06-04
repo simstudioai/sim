@@ -73,6 +73,7 @@ export const env = createEnv({
     NODE_ENV: z.string().optional(),
     GITHUB_TOKEN: z.string().optional(),
     CHONKIE_API_KEY: z.string().min(1).optional(),
+    ELEVENLABS_API_KEY: z.string().min(1).optional(),
 
     // OAuth blocks (all optional)
     GOOGLE_CLIENT_ID: z.string().optional(),

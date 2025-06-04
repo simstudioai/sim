@@ -4,8 +4,9 @@ import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Send, Square } from 'lucide-react'
+import { VoiceInput } from './voice-input'
 
-const PLACEHOLDER = 'Enter a message'
+const PLACEHOLDER = 'Enter a message or click the mic to speak'
 const MAX_TEXTAREA_HEIGHT = 160 // Max height in pixels (e.g., for about 4-5 lines)
 
 const containerVariants = {
@@ -20,14 +21,29 @@ const containerVariants = {
 } as const
 
 export const ChatInput: React.FC<{
-  onSubmit?: (value: string) => void
+  onSubmit?: (value: string, isVoiceInput?: boolean) => void
   isStreaming?: boolean
   onStopStreaming?: () => void
-}> = ({ onSubmit, isStreaming = false, onStopStreaming }) => {
+  onVoiceStart?: () => void
+  voiceOnly?: boolean
+  onInterrupt?: () => void
+}> = ({
+  onSubmit,
+  isStreaming = false,
+  onStopStreaming,
+  onVoiceStart,
+  voiceOnly = false,
+  onInterrupt,
+}) => {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null) // Ref for the textarea
   const [isActive, setIsActive] = useState(false)
   const [inputValue, setInputValue] = useState('')
+  const [isListening, setIsListening] = useState(false)
+
+  // Check if speech-to-text is available in the browser
+  const isSttAvailable =
+    typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
 
   // Function to adjust textarea height
   const adjustTextareaHeight = () => {
@@ -55,7 +71,7 @@ export const ChatInput: React.FC<{
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        if (!inputValue) {
+        if (!inputValue && !isListening) {
           setIsActive(false)
           if (textareaRef.current) {
             textareaRef.current.style.height = 'auto' // Reset height
@@ -67,7 +83,7 @@ export const ChatInput: React.FC<{
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [inputValue])
+  }, [inputValue, isListening])
 
   // Handle focus and initial height when activated
   useEffect(() => {
@@ -84,7 +100,7 @@ export const ChatInput: React.FC<{
 
   const handleSubmit = () => {
     if (!inputValue.trim()) return
-    onSubmit?.(inputValue.trim())
+    onSubmit?.(inputValue.trim(), false) // false = not voice input
     setInputValue('')
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto' // Reset height after submit
@@ -97,114 +113,158 @@ export const ChatInput: React.FC<{
     setInputValue(e.target.value)
   }
 
-  return (
-    <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-white to-transparent pb-4 text-black'>
-      <motion.div
-        ref={wrapperRef}
-        className='w-full max-w-3xl px-4'
-        variants={containerVariants}
-        animate={'expanded'}
-        initial='collapsed'
-        style={{
-          overflow: 'hidden',
-          borderRadius: 32,
-          background: '#fff',
-          border: '1px solid rgba(0,0,0,0.1)',
-          marginLeft: 'auto',
-          marginRight: 'auto',
-        }}
-        onClick={handleActivate}
-      >
-        <div className='flex h-full w-full items-center rounded-full p-2'>
-          {/* Text Input & Placeholder */}
-          <div className='relative mx-2 flex-1'>
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={inputValue}
-              onChange={handleInputChange}
-              onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                // Submit on Enter without Shift
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSubmit()
-                }
-                // Submit on Cmd/Ctrl + Enter for consistency with other chat apps
-                else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault()
-                  handleSubmit()
-                }
-                // Allow Enter with Shift for newline by not preventing default
-              }}
-              className='w-full flex-1 resize-none rounded-md border-0 bg-transparent py-3 font-normal text-base outline-0 transition-height duration-100 ease-out'
-              style={{
-                position: 'relative',
-                zIndex: 1,
-                lineHeight: '1.5',
-                minHeight: '44px', // Set a fixed min-height for consistent text alignment
-                verticalAlign: 'middle',
-                paddingLeft: '12px', // Add left padding to move cursor to the right
-              }}
-              onFocus={handleActivate}
-              onBlur={() => {
-                if (!inputValue) {
-                  setIsActive(false)
-                  if (textareaRef.current) {
-                    textareaRef.current.style.height = 'auto'
-                    textareaRef.current.style.overflowY = 'hidden'
-                  }
-                }
-              }}
-              placeholder=' ' /* keep native placeholder empty – we draw ours */
-            />
-            <div className='pointer-events-none absolute top-0 left-0 flex h-full w-full items-center'>
-              {!isActive && !inputValue && (
-                <div
-                  className='-translate-y-1/2 absolute top-1/2 left-3 select-none text-gray-400'
-                  style={{
-                    whiteSpace: 'nowrap',
-                    zIndex: 0,
-                    background:
-                      'linear-gradient(90deg, rgba(150,150,150,0.2) 0%, rgba(150,150,150,0.8) 50%, rgba(150,150,150,0.2) 100%)',
-                    backgroundSize: '200% 100%',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    animation: 'shimmer 10s infinite linear',
-                  }}
-                >
-                  {PLACEHOLDER}
-                  <style jsx global>{`
-                    @keyframes shimmer {
-                      0% {
-                        background-position: 200% 0;
-                      }
-                      100% {
-                        background-position: -200% 0;
-                      }
-                    }
-                  `}</style>
-                </div>
-              )}
-            </div>
-          </div>
+  // Handle voice transcript
+  const handleVoiceTranscript = (transcript: string) => {
+    setInputValue(transcript)
+    setIsActive(true)
+    // Auto-submit voice transcripts
+    setTimeout(() => {
+      onSubmit?.(transcript, true) // true = voice input
+      setInputValue('')
+      setIsActive(false)
+    }, 100)
+  }
 
-          <button
-            className='flex items-center justify-center rounded-full bg-black p-3 text-white hover:bg-zinc-700'
-            title={isStreaming ? 'Stop' : 'Send'}
-            type='button'
-            onClick={(e) => {
-              e.stopPropagation()
-              if (isStreaming) {
-                onStopStreaming?.()
-              } else {
-                handleSubmit()
-              }
-            }}
-          >
-            {isStreaming ? <Square size={18} /> : <Send size={18} />}
-          </button>
-        </div>
-      </motion.div>
-    </div>
+  // Handle voice start
+  const handleVoiceStart = () => {
+    setIsActive(true)
+    onVoiceStart?.() // Call the callback when voice starts
+  }
+
+  // Handle voice end
+  const handleVoiceEnd = () => {
+    // Keep active if we have content
+    if (!inputValue.trim()) {
+      setIsActive(false)
+    }
+  }
+
+  // Voice-only mode interface (for voice-first UI)
+  if (voiceOnly) {
+    return (
+      <div className='flex items-center justify-center'>
+        {/* Voice Input Only */}
+        {isSttAvailable && (
+          <VoiceInput
+            onTranscript={handleVoiceTranscript}
+            onVoiceStart={handleVoiceStart}
+            onVoiceEnd={handleVoiceEnd}
+            isListening={isListening}
+            setIsListening={setIsListening}
+            disabled={isStreaming}
+            onInterrupt={onInterrupt}
+            large={true}
+          />
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <div className='fixed right-0 bottom-0 left-0 flex w-full items-center justify-center bg-gradient-to-t from-white to-transparent pb-4 text-black'>
+        <motion.div
+          ref={wrapperRef}
+          className='w-full max-w-3xl px-4'
+          variants={containerVariants}
+          animate={'expanded'}
+          initial='collapsed'
+          style={{
+            overflow: 'hidden',
+            borderRadius: 32,
+            background: '#fff',
+            border: '1px solid rgba(0,0,0,0.1)',
+            marginLeft: 'auto',
+            marginRight: 'auto',
+          }}
+          onClick={handleActivate}
+        >
+          <div className='flex h-full w-full items-center rounded-full p-2'>
+            {/* Voice Input */}
+            {isSttAvailable && (
+              <div className='mr-2'>
+                <VoiceInput
+                  onTranscript={handleVoiceTranscript}
+                  onVoiceStart={handleVoiceStart}
+                  onVoiceEnd={handleVoiceEnd}
+                  isListening={isListening}
+                  setIsListening={setIsListening}
+                  disabled={isStreaming}
+                  onInterrupt={onInterrupt}
+                />
+              </div>
+            )}
+
+            {/* Text Input & Placeholder */}
+            <div className='relative min-h-[40px] flex-1'>
+              <textarea
+                ref={textareaRef}
+                value={inputValue}
+                onChange={handleInputChange}
+                className='w-full resize-none overflow-hidden bg-transparent px-3 py-3 text-base outline-none placeholder:text-gray-400'
+                placeholder={isActive ? '' : ''}
+                rows={1}
+                style={{
+                  minHeight: '40px',
+                  lineHeight: '1.4',
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSubmit()
+                  }
+                }}
+              />
+
+              <div className='pointer-events-none absolute top-0 left-0 flex h-full w-full items-center'>
+                {!isActive && !inputValue && !isListening && (
+                  <div
+                    className='-translate-y-1/2 absolute top-1/2 left-3 select-none text-gray-400'
+                    style={{
+                      whiteSpace: 'nowrap',
+                      zIndex: 0,
+                      background:
+                        'linear-gradient(90deg, rgba(150,150,150,0.2) 0%, rgba(150,150,150,0.8) 50%, rgba(150,150,150,0.2) 100%)',
+                      backgroundSize: '200% 100%',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      animation: 'shimmer 10s infinite linear',
+                    }}
+                  >
+                    {PLACEHOLDER}
+                    <style jsx global>{`
+                      @keyframes shimmer {
+                        0% {
+                          background-position: 200% 0;
+                        }
+                        100% {
+                          background-position: -200% 0;
+                        }
+                      }
+                    `}</style>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              className='flex items-center justify-center rounded-full bg-black p-3 text-white hover:bg-zinc-700'
+              title={isStreaming ? 'Stop' : 'Send'}
+              type='button'
+              onClick={(e) => {
+                e.stopPropagation()
+                if (isStreaming) {
+                  onStopStreaming?.()
+                } else {
+                  handleSubmit()
+                }
+              }}
+            >
+              {isStreaming ? <Square size={18} /> : <Send size={18} />}
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </>
   )
 }
