@@ -35,6 +35,10 @@ export default function Templates() {
   const [activeSection, setActiveSection] = useState<string | null>(null)
   const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(['popular']))
   const [categoryFilter, setCategoryFilter] = useState<string[] | null>(null)
+  
+  // Track which templates have state loaded for lazy loading
+  const [stateLoadedTemplates, setStateLoadedTemplates] = useState<Set<string>>(new Set())
+  const [isLoadingStates, setIsLoadingStates] = useState<Set<string>>(new Set())
 
   // Get sidebar state for layout calculations
   const { mode, isExpanded } = useSidebarStore()
@@ -47,6 +51,67 @@ export default function Templates() {
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const contentRef = useRef<HTMLDivElement>(null)
   const initialFetchCompleted = useRef(false)
+  
+  // Intersection observer for lazy loading workflow states
+  const observerRef = useRef<IntersectionObserver | null>(null)
+
+  // Function to lazy-load workflow state for a specific template
+  const loadTemplateState = async (templateId: string) => {
+    if (stateLoadedTemplates.has(templateId) || isLoadingStates.has(templateId)) {
+      return // Already loaded or loading
+    }
+
+    setIsLoadingStates((prev) => new Set(prev).add(templateId))
+
+    try {
+      const response = await fetch(
+        `/api/templates/workflows?templateId=${templateId}&includeState=true`
+      )
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch template state')
+      }
+
+      const stateData = await response.json()
+
+      if (stateData.workflowState) {
+        // Update the template data with the loaded state
+        setTemplateData((prev) => {
+          const updated = { ...prev }
+
+          // Update in popular if it exists there
+          updated.popular = updated.popular.map((template) =>
+            template.id === templateId
+              ? { ...template, workflowState: stateData.workflowState }
+              : template
+          )
+
+          // Update in categories if it exists there
+          Object.keys(updated.byCategory).forEach((category) => {
+            updated.byCategory[category] = updated.byCategory[category].map((template) =>
+              template.id === templateId
+                ? { ...template, workflowState: stateData.workflowState }
+                : template
+            )
+          })
+
+          return updated
+        })
+
+        setStateLoadedTemplates((prev) => new Set(prev).add(templateId))
+      }
+    } catch (error) {
+      logger.warn(`Failed to load state for template ${templateId}:`, error)
+    } finally {
+      setIsLoadingStates((prev) => {
+        const newSet = new Set(prev)
+        newSet.delete(templateId)
+        return newSet
+      })
+    }
+  }
+
+
 
   // Convert template data to the format expected by components
   const workflowData = useMemo(() => {
@@ -62,6 +127,8 @@ export default function Templates() {
         workflowState: item.workflowState,
         workflowUrl: `/w/${item.workflowId}`,
         price: item.price || 'Free',
+        // Add loading state indicator
+        isStateLoading: isLoadingStates.has(item.id),
       }))
 
     const result: Record<string, Workflow[]> = {
@@ -74,7 +141,7 @@ export default function Templates() {
     })
 
     return result
-  }, [templateData])
+  }, [templateData, isLoadingStates])
 
   // Filter workflows based on search query and category filter
   const filteredWorkflows = useMemo(() => {
@@ -153,28 +220,48 @@ export default function Templates() {
       try {
         setLoading(true)
 
-        // Load limited templates for discover page - 9 for popular, 6 for categories
-        // Include workflow states for preview thumbnails
-        const response = await fetch(
-          '/api/templates/workflows?section=popular,byCategory&limit=6&popularLimit=9&includeState=true'
+        // PHASE 1: Load popular templates WITH state (immediate previews for most viewed)
+        const popularPromise = fetch(
+          '/api/templates/workflows?section=popular&popularLimit=9&includeState=true'
         )
 
-        if (!response.ok) {
+        // PHASE 2: Load category templates WITHOUT state (ultra-fast structural load)
+        const categoriesPromise = fetch(
+          '/api/templates/workflows?section=byCategory&limit=6&includeState=false'
+        )
+
+        const [popularResponse, categoriesResponse] = await Promise.all([
+          popularPromise,
+          categoriesPromise,
+        ])
+
+        if (!popularResponse.ok || !categoriesResponse.ok) {
           throw new Error('Failed to fetch template data')
         }
 
-        const data = await response.json()
+        const [popularData, categoriesData] = await Promise.all([
+          popularResponse.json(),
+          categoriesResponse.json(),
+        ])
+
+        // Combine the data
+        const combinedData = {
+          popular: popularData.popular || [],
+          byCategory: categoriesData.byCategory || {},
+        }
 
         // Mark all sections as loaded
         const allSections = new Set(['popular', ...CATEGORIES.map((cat) => cat.value)])
         setLoadedSections(allSections)
 
-        setTemplateData(data)
+        setTemplateData(combinedData)
         initialFetchCompleted.current = true
 
         // Set initial active section to popular
         setActiveSection('popular')
         setLoading(false)
+
+        logger.info('Templates loaded - Popular with state, categories without state for lazy loading')
       } catch (error) {
         logger.error('Error fetching templates:', error)
         setError('Failed to load templates. Please try again later.')

@@ -393,14 +393,6 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         <div className='space-y-2.5'>
           <div className='flex items-start justify-between'>
             <h3 className='font-medium text-xl leading-tight'>{marketplaceInfo.name}</h3>
-            <div className='flex items-center gap-3'>
-              <div className='flex items-center gap-1.5 rounded-md px-2 py-1'>
-                <Eye className='h-3.5 w-3.5 text-muted-foreground' />
-                <span className='font-medium text-muted-foreground text-xs'>
-                  {marketplaceInfo.views}
-                </span>
-              </div>
-            </div>
           </div>
           <p className='text-muted-foreground text-sm'>{marketplaceInfo.short_description}</p>
           {marketplaceInfo.long_description && (
@@ -466,7 +458,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-6'>
         <Notice variant='warning' title='Security'>
-          API keys and environment variables will be automatically removed before publishing.
+          API keys and environment variables will be automatically removed.
         </Notice>
 
         <FormField

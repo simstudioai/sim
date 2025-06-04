@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
@@ -8,8 +8,8 @@ import * as schema from '@/db/schema'
 
 const logger = createLogger('TemplatesWorkflowsAPI')
 
-// Cache for 1 minute but can be revalidated on-demand
-export const revalidate = 60
+// Cache for 5 minutes but can be revalidated on-demand
+export const revalidate = 300
 
 /**
  * Consolidated API endpoint for template workflows
@@ -30,6 +30,7 @@ export const revalidate = 60
  */
 export async function GET(request: NextRequest) {
   const requestId = crypto.randomUUID().slice(0, 8)
+  const startTime = Date.now()
 
   try {
     // Parse query parameters
@@ -37,17 +38,20 @@ export async function GET(request: NextRequest) {
     const sectionParam = url.searchParams.get('section')
     const categoryParam = url.searchParams.get('category')
     const limitParam = url.searchParams.get('limit') || '6'
+    const popularLimitParam = url.searchParams.get('popularLimit')
     const limit = Number.parseInt(limitParam, 10)
+    const popularLimit = popularLimitParam ? Number.parseInt(popularLimitParam, 10) : limit
     const includeState = url.searchParams.get('includeState') === 'true'
     const workflowId = url.searchParams.get('workflowId')
     const templateId = url.searchParams.get('templateId')
+
+    logger.info(`[${requestId}] Starting request - sections: ${sectionParam}, includeState: ${includeState}`)
 
     // Handle single workflow request first (by workflow ID)
     if (workflowId) {
       let templateEntry
 
       if (includeState) {
-        // Query with state included
         templateEntry = await db
           .select({
             id: schema.templates.id,
@@ -66,7 +70,6 @@ export async function GET(request: NextRequest) {
           .limit(1)
           .then((rows) => rows[0])
       } else {
-        // Query without state
         templateEntry = await db
           .select({
             id: schema.templates.id,
@@ -90,7 +93,6 @@ export async function GET(request: NextRequest) {
         return createErrorResponse('Workflow not found in templates', 404)
       }
 
-      // Transform response if state was requested
       const responseData =
         includeState && 'state' in templateEntry
           ? {
@@ -100,7 +102,8 @@ export async function GET(request: NextRequest) {
             }
           : templateEntry
 
-      logger.info(`[${requestId}] Retrieved template data for workflow: ${workflowId}`)
+      const duration = Date.now() - startTime
+      logger.info(`[${requestId}] Single workflow query completed in ${duration}ms`)
       return createSuccessResponse(responseData)
     }
 
@@ -109,7 +112,6 @@ export async function GET(request: NextRequest) {
       let templateEntry
 
       if (includeState) {
-        // Query with state included
         templateEntry = await db
           .select({
             id: schema.templates.id,
@@ -128,7 +130,6 @@ export async function GET(request: NextRequest) {
           .limit(1)
           .then((rows) => rows[0])
       } else {
-        // Query without state
         templateEntry = await db
           .select({
             id: schema.templates.id,
@@ -152,7 +153,6 @@ export async function GET(request: NextRequest) {
         return createErrorResponse('Template entry not found', 404)
       }
 
-      // Transform response if state was requested
       const responseData =
         includeState && 'state' in templateEntry
           ? {
@@ -162,7 +162,8 @@ export async function GET(request: NextRequest) {
             }
           : templateEntry
 
-      logger.info(`[${requestId}] Retrieved template entry: ${templateId}`)
+      const duration = Date.now() - startTime
+      logger.info(`[${requestId}] Single template query completed in ${duration}ms`)
       return createSuccessResponse(responseData)
     }
 
@@ -177,7 +178,7 @@ export async function GET(request: NextRequest) {
       byCategory: {},
     }
 
-    // Define common fields to select
+    // Define base fields (without state for performance)
     const baseFields = {
       id: schema.templates.id,
       name: schema.templates.name,
@@ -191,88 +192,93 @@ export async function GET(request: NextRequest) {
       updatedAt: schema.templates.updatedAt,
     }
 
-    // Add state if requested
-    const selectFields = includeState
-      ? { ...baseFields, state: schema.templates.state }
-      : baseFields
+    // Add state fields for queries that need it
+    const fieldsWithState = {
+      ...baseFields,
+      state: schema.templates.state,
+    }
 
     // Determine which sections to fetch
     const sections = sectionParam ? sectionParam.split(',') : ['popular', 'recent', 'byCategory']
 
-    // Early return for simple queries (performance optimization)
-    if (sections.length <= 2 && !sections.includes('byCategory') && !categoryParam) {
-      // Simple query - just popular and/or recent
-      if (sections.includes('popular')) {
-        result.popular = await db.select(selectFields).from(schema.templates).limit(limit)
-      }
+    // Optimize: Use single query for multiple categories when possible
+    if (sections.includes('byCategory') || categoryParam) {
+      let requestedCategories: string[] = []
 
-      if (sections.includes('recent')) {
-        result.recent = await db.select(selectFields).from(schema.templates).limit(limit)
-      }
-
-      logger.info(
-        `[${requestId}] Simple query completed - fetched ${Object.keys(result).length} sections`
-      )
-      return NextResponse.json(result)
-    }
-
-    // Get categories if requested
-    if (
-      sections.includes('byCategory') ||
-      categoryParam ||
-      sections.some((s) => CATEGORIES.some((c) => c.value === s))
-    ) {
-      // Identify all requested categories
-      const requestedCategories = new Set<string>()
-
-      // Add explicitly requested category
       if (categoryParam) {
-        requestedCategories.add(categoryParam)
+        // Handle comma-separated categories in categoryParam
+        requestedCategories = categoryParam.split(',').filter(Boolean)
       }
 
       // Add categories from sections parameter
       sections.forEach((section) => {
         if (CATEGORIES.some((c) => c.value === section)) {
-          requestedCategories.add(section)
+          requestedCategories.push(section)
         }
       })
 
-      // Include byCategory section contents if requested
+      // Include all categories if byCategory is requested
       if (sections.includes('byCategory')) {
-        CATEGORIES.forEach((c) => requestedCategories.add(c.value))
+        CATEGORIES.forEach((c) => requestedCategories.push(c.value))
       }
 
-      // Log what we're fetching
-      const categoriesToFetch = Array.from(requestedCategories)
-      logger.info(`[${requestId}] Fetching specific categories: ${categoriesToFetch.join(', ')}`)
+      // Remove duplicates
+      requestedCategories = [...new Set(requestedCategories)]
 
-      // Process each requested category
-      await Promise.all(
-        categoriesToFetch.map(async (categoryValue) => {
-          const categoryItems = await db
-            .select(selectFields)
-            .from(schema.templates)
-            .where(eq(schema.templates.category, categoryValue))
-            .limit(limit)
+      if (requestedCategories.length > 0) {
+        logger.info(`[${requestId}] Fetching categories with single query: ${requestedCategories.join(', ')}`)
 
-          // Always add the category to the result, even if empty
+        // Single optimized query for all categories
+        const categoryTemplates = includeState
+          ? await db
+              .select(fieldsWithState)
+              .from(schema.templates)
+              .where(inArray(schema.templates.category, requestedCategories))
+              .orderBy(desc(schema.templates.views), desc(schema.templates.createdAt))
+          : await db
+              .select(baseFields)
+              .from(schema.templates)
+              .where(inArray(schema.templates.category, requestedCategories))
+              .orderBy(desc(schema.templates.views), desc(schema.templates.createdAt))
+
+        // Group results by category
+        requestedCategories.forEach((categoryValue) => {
+          const categoryItems = categoryTemplates
+            .filter((item) => item.category === categoryValue)
+            .slice(0, limit)
           result.byCategory[categoryValue] = categoryItems
         })
-      )
+      }
     }
 
-    // Get popular items if requested
+    // Get popular items if requested (optimized with views index)
     if (sections.includes('popular')) {
-      result.popular = await db.select(selectFields).from(schema.templates).limit(limit)
+      result.popular = includeState
+        ? await db
+            .select(fieldsWithState)
+            .from(schema.templates)
+            .orderBy(desc(schema.templates.views))
+            .limit(popularLimit)
+        : await db
+            .select(baseFields)
+            .from(schema.templates)
+            .orderBy(desc(schema.templates.views))
+            .limit(popularLimit)
     }
 
-    // Get recent items if requested
+    // Get recent items if requested (optimized with createdAt index)
     if (sections.includes('recent')) {
-      result.recent = await db
-        .select(selectFields)
-        .from(schema.templates)
-        .orderBy(desc(schema.templates.createdAt))
-        .limit(limit)
+      result.recent = includeState
+        ? await db
+            .select(fieldsWithState)
+            .from(schema.templates)
+            .orderBy(desc(schema.templates.createdAt))
+            .limit(limit)
+        : await db
+            .select(baseFields)
+            .from(schema.templates)
+            .orderBy(desc(schema.templates.createdAt))
+            .limit(limit)
     }
 
     // Transform the data if state was included to match the expected format
@@ -280,7 +286,6 @@ export async function GET(request: NextRequest) {
       const transformSection = (section: any[]) => {
         return section.map((item) => {
           if ('state' in item) {
-            // Create a new object without the state field, but with workflowState
             const { state, ...rest } = item
             return {
               ...rest,
@@ -306,10 +311,13 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    logger.info(`[${requestId}] Fetched template items${includeState ? ' with state' : ''}`)
+    const duration = Date.now() - startTime
+    logger.info(`[${requestId}] Fetch completed in ${duration}ms - popular: ${result.popular.length}, categories: ${Object.keys(result.byCategory).length}`)
+    
     return NextResponse.json(result)
   } catch (error: any) {
-    logger.error(`[${requestId}] Error fetching template items`, error)
+    const duration = Date.now() - startTime
+    logger.error(`[${requestId}] Error fetching template items after ${duration}ms`, error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
