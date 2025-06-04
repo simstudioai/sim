@@ -302,6 +302,13 @@
       "when": 1748552927845,
       "tag": "0042_next_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1749077318228,
+      "tag": "0043_robust_purple_man",
+      "breakpoints": true
     }
   ]
 }
