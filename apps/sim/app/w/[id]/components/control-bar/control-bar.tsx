@@ -57,8 +57,8 @@ import {
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
-import { TemplatesModal } from './components/templates-modal/templates-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
+import { TemplatesModal } from './components/templates-modal/templates-modal'
 
 const logger = createLogger('ControlBar')
 

@@ -135,26 +135,26 @@ export function TemplateDetailPage({
     >
       <div className='w-full border-b bg-background'>
         {/* Top Row - Action Icons */}
-        <div className='flex justify-between px-6 py-3'>
+        <div className='flex justify-between px-6 py-4'>
           <div className='flex items-center gap-2'>
             <span
-              className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
+              className='cursor-pointer font-medium text-sm'
               onClick={() => router.push('/w/templates')}
             >
               <ArrowLeft className='mr-2 inline h-4 w-4' />
               Back to templates
             </span>
           </div>
-          <div className='flex items-center gap-3'>
+          <div className='flex items-center gap-6'>
             <span
-              className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
+              className='cursor-pointer font-medium text-sm'
               onClick={() => setSavedModalOpen(true)}
             >
               <Heart className='mr-2 inline h-4 w-4' />
               Saved
             </span>
             <span
-              className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
+              className='cursor-pointer font-medium text-sm'
               onClick={() => setPublishedModalOpen(true)}
             >
               <Upload className='mr-2 inline h-4 w-4' />
