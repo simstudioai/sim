@@ -56,7 +56,7 @@ export function FileSelectorInput({
   const isDiscord = provider === 'discord'
   const isMicrosoftTeams = provider === 'microsoft-teams'
   const isMicrosoftExcel = provider === 'microsoft-excel'
-  const isGoogleCalendar = subBlock.provider || 'google-calendar'
+  const isGoogleCalendar = subBlock.provider === 'google-calendar'
   // For Confluence and Jira, we need the domain and credentials
   const domain = isConfluence || isJira ? (getValue(blockId, 'domain') as string) || '' : ''
   // For Discord, we need the bot token and server ID
