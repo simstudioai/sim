@@ -87,7 +87,7 @@ const NotificationIcon = {
   error: ErrorIcon,
   console: Terminal,
   api: Rocket,
-  marketplace: Store,
+  templates: Store,
   info: Info,
 }
 
@@ -98,7 +98,7 @@ const NotificationColors = {
   console:
     'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
   api: 'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
-  marketplace:
+  templates:
     'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
   info: 'border-border bg-background text-foreground dark:border-border dark:text-foreground dark:bg-background',
 }
@@ -570,7 +570,7 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
             )}
           </div>
         ) : (
-          // Original layout for error, console and marketplace notifications
+          // Original layout for error, console and templates notifications
           <div className='flex items-start gap-4 py-1'>
             {/* Icon with proper vertical alignment */}
             <div className='mt-0.5 flex-shrink-0'>
@@ -578,7 +578,7 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
                 className={cn('h-4 w-4', {
                   '!text-red-500 mt-[-3px]': type === 'error',
                   'mt-[-4px] text-foreground': type === 'console' || type === 'info',
-                  'text-foreground': type === 'marketplace',
+                  'text-foreground': type === 'templates',
                 })}
               />
             </div>
@@ -589,8 +589,8 @@ export function NotificationAlert({ notification, isFading, onHide }: Notificati
                 <span>
                   {type === 'error'
                     ? 'Error'
-                    : type === 'marketplace'
-                      ? 'Marketplace'
+                    : type === 'templates'
+                      ? 'Templates'
                       : type === 'info'
                         ? 'Info'
                         : 'Console'}

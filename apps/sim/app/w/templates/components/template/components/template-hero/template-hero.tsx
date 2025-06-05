@@ -73,8 +73,8 @@ export function TemplateHero({ template }: TemplateHeroProps) {
         const newWorkflowId = createWorkflow({
           name: `${template.name} (Copy)`,
           description: template.short_description || '',
-          marketplaceId: template.id,
-          marketplaceState: template.workflowState,
+          templatesId: template.id,
+          templatesState: template.workflowState,
         })
 
         router.push(`/w/${newWorkflowId}`)
@@ -114,15 +114,15 @@ export function TemplateHero({ template }: TemplateHeroProps) {
 
   // Helper function to find and update workflows that reference this template
   const syncWorkflowRegistryState = () => {
-    // Find all workflows that have this template as their marketplace data
+    // Find all workflows that have this template as their templates data
     const workflowsToUpdate = Object.entries(workflows).filter(
-      ([_, workflow]) => workflow.marketplaceData?.id === template.id
+      ([_, workflow]) => workflow.templatesData?.id === template.id
     )
 
-    // Update each workflow to remove marketplace data
+    // Update each workflow to remove templates data
     workflowsToUpdate.forEach(([workflowId, _]) => {
       updateWorkflow(workflowId, {
-        marketplaceData: null,
+        templatesData: null,
       })
     })
 
@@ -158,7 +158,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
         throw new Error(errorData.error || 'Failed to unpublish template')
       }
 
-      // Sync workflow registry state to remove marketplace data from workflows
+      // Sync workflow registry state to remove templates data from workflows
       syncWorkflowRegistryState()
 
       addNotification('info', `Template "${template.name}" has been unpublished`, null)

@@ -173,7 +173,7 @@ export function PublishedModal({ open, onOpenChange }: PublishedModalProps) {
                 <Upload className='mx-auto mb-4 h-12 w-12 text-muted-foreground/50' />
                 <p className='text-muted-foreground text-sm'>No published templates yet</p>
                 <p className='mt-1 text-muted-foreground text-xs'>
-                  Publish workflows to the marketplace to see them here
+                  Publish workflows to the templates to see them here
                 </p>
               </div>
             </div>

@@ -98,7 +98,6 @@ export function TeamsMessageSelector({
 
   const fetchCredentials = useCallback(async () => {
     if (isPreview) {
-      console.log('BLOCKED IN teams message selector')
       return
     }
     setIsLoading(true)

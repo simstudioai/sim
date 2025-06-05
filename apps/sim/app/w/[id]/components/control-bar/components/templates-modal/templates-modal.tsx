@@ -40,7 +40,7 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-const logger = createLogger('MarketplaceModal')
+const logger = createLogger('TemplatesModal')
 
 /**
  * Comprehensive sanitization of sensitive data from workflow state before publishing
@@ -221,13 +221,13 @@ const sanitizeWorkflowData = (workflowData: any) => {
   return sanitizedData
 }
 
-interface MarketplaceModalProps {
+interface TemplatesModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
 // Form schema for validation
-const marketplaceFormSchema = z.object({
+const templatesFormSchema = z.object({
   name: z
     .string()
     .min(3, 'Name must be at least 3 characters')
@@ -247,7 +247,7 @@ const marketplaceFormSchema = z.object({
     .max(50, 'Author name cannot exceed 50 characters'),
 })
 
-type MarketplaceFormValues = z.infer<typeof marketplaceFormSchema>
+type TemplatesFormValues = z.infer<typeof templatesFormSchema>
 
 // Tooltip texts
 const TOOLTIPS = {
@@ -258,7 +258,7 @@ const TOOLTIPS = {
     'A detailed description explaining what your workflow does, how it works, and how it can help users.',
 }
 
-interface MarketplaceInfo {
+interface TemplatesInfo {
   id: string
   name: string
   short_description: string
@@ -270,34 +270,34 @@ interface MarketplaceInfo {
   updatedAt: string
 }
 
-export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) {
+export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUnpublishing, setIsUnpublishing] = useState(false)
-  const [marketplaceInfo, setMarketplaceInfo] = useState<MarketplaceInfo | null>(null)
+  const [templatesInfo, setTemplatesInfo] = useState<TemplatesInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const { addNotification } = useNotificationStore()
   const { activeWorkflowId, workflows, updateWorkflow } = useWorkflowRegistry()
 
-  // Get marketplace data from the registry
-  const getMarketplaceData = () => {
+  // Get templates data from the registry
+  const getTemplatesData = () => {
     if (!activeWorkflowId || !workflows[activeWorkflowId]) return null
-    return workflows[activeWorkflowId].marketplaceData
+    return workflows[activeWorkflowId].templatesData
   }
 
-  // Check if workflow is published to marketplace
+  // Check if workflow is published to templates
   const isPublished = () => {
-    return !!getMarketplaceData()
+    return !!getTemplatesData()
   }
 
   // Check if the current user is the owner of the published workflow
   const isOwner = () => {
-    const marketplaceData = getMarketplaceData()
-    return marketplaceData?.status === 'owner'
+    const templatesData = getTemplatesData()
+    return templatesData?.status === 'owner'
   }
 
   // Initialize form with react-hook-form
-  const form = useForm<MarketplaceFormValues>({
-    resolver: zodResolver(marketplaceFormSchema),
+  const form = useForm<TemplatesFormValues>({
+    resolver: zodResolver(templatesFormSchema),
     defaultValues: {
       name: '',
       shortDescription: '',
@@ -307,40 +307,40 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     },
   })
 
-  // Fetch marketplace information when the modal opens and the workflow is published
+  // Fetch templates information when the modal opens and the workflow is published
   useEffect(() => {
-    async function fetchMarketplaceInfo() {
+    async function fetchTemplatesInfo() {
       if (!open || !activeWorkflowId || !isPublished()) {
-        setMarketplaceInfo(null)
+        setTemplatesInfo(null)
         return
       }
 
       try {
         setIsLoading(true)
 
-        // Get marketplace ID from the workflow's marketplaceData
-        const marketplaceData = getMarketplaceData()
-        if (!marketplaceData?.id) {
-          throw new Error('No marketplace ID found in workflow data')
+        // Get templates ID from the workflow's templatesData
+        const templatesData = getTemplatesData()
+        if (!templatesData?.id) {
+          throw new Error('No templates ID found in workflow data')
         }
 
-        // Use the marketplace ID to fetch details instead of workflow ID
-        const response = await fetch(`/api/templates/workflows?templateId=${marketplaceData.id}`)
+        // Use the templates ID to fetch details instead of workflow ID
+        const response = await fetch(`/api/templates/workflows?templateId=${templatesData.id}`)
 
         if (!response.ok) {
           // If the template is not found (404), it means it was unpublished
           if (response.status === 404) {
             logger.warn(
-              'Template not found in marketplace, removing marketplace data from workflow',
+              'Template not found in templates, removing templates data from workflow',
               {
-                templateId: marketplaceData.id,
+                templateId: templatesData.id,
                 workflowId: activeWorkflowId,
               }
             )
 
-            // Remove marketplace data from workflow since template no longer exists
+            // Remove templates data from workflow since template no longer exists
             updateWorkflow(activeWorkflowId, {
-              marketplaceData: null,
+              templatesData: null,
             })
 
             // Close the modal since the workflow is no longer published
@@ -349,27 +349,27 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
             // Notify user that the template was unpublished
             addNotification(
               'info',
-              'This workflow is no longer published to the marketplace',
+              'This workflow is no longer published to the templates',
               activeWorkflowId
             )
             return
           }
 
-          throw new Error('Failed to fetch marketplace information')
+          throw new Error('Failed to fetch templates information')
         }
 
         // The API returns the data directly without wrapping
-        const marketplaceEntry = await response.json()
-        setMarketplaceInfo(marketplaceEntry)
+        const templatesEntry = await response.json()
+        setTemplatesInfo(templatesEntry)
       } catch (error) {
-        console.error('Error fetching marketplace info:', error)
-        addNotification('error', 'Failed to fetch marketplace information', activeWorkflowId)
+        console.error('Error fetching templates info:', error)
+        addNotification('error', 'Failed to fetch templates information', activeWorkflowId)
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchMarketplaceInfo()
+    fetchTemplatesInfo()
   }, [open, activeWorkflowId, addNotification, updateWorkflow, onOpenChange])
 
   // Update form values when the active workflow changes or modal opens
@@ -382,22 +382,22 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     }
   }, [open, activeWorkflowId, workflows, form])
 
-  // Listen for the custom event to open the marketplace modal
+  // Listen for the custom event to open the templates modal
   useEffect(() => {
-    const handleOpenMarketplace = () => {
+    const handleOpenTemplates = () => {
       onOpenChange(true)
     }
 
     // Add event listener
-    window.addEventListener('open-marketplace', handleOpenMarketplace as EventListener)
+    window.addEventListener('open-templates', handleOpenTemplates as EventListener)
 
     // Clean up
     return () => {
-      window.removeEventListener('open-marketplace', handleOpenMarketplace as EventListener)
+      window.removeEventListener('open-templates', handleOpenTemplates as EventListener)
     }
   }, [onOpenChange])
 
-  const onSubmit = async (data: MarketplaceFormValues) => {
+  const onSubmit = async (data: TemplatesFormValues) => {
     if (!activeWorkflowId) {
       addNotification('error', 'No active workflow to publish', null)
       return
@@ -415,7 +415,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
       // Sanitize the workflow data
       const sanitizedWorkflowData = sanitizeWorkflowData(workflowData)
-      logger.info('Publishing sanitized workflow to marketplace', {
+      logger.info('Publishing sanitized workflow to templates', {
         workflowId: activeWorkflowId,
         workflowName: data.name,
         category: data.category,
@@ -442,19 +442,19 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         throw new Error(errorData.error || 'Failed to publish workflow')
       }
 
-      // Get the marketplace ID from the response
+      // Get the templates ID from the response
       const responseData = await response.json()
-      const marketplaceId = responseData.data.id
+      const templatesId = responseData.data.id
 
-      // Update the marketplace data in the workflow registry
+      // Update the templates data in the workflow registry
       updateWorkflow(activeWorkflowId, {
-        marketplaceData: { id: marketplaceId, status: 'owner' },
+        templatesData: { id: templatesId, status: 'owner' },
       })
 
-      // Add a marketplace notification with detailed information
+      // Add a templates notification with detailed information
       addNotification(
-        'marketplace',
-        `"${data.name}" successfully published to marketplace`,
+        'templates',
+        `"${data.name}" successfully published to templates`,
         activeWorkflowId
       )
 
@@ -477,19 +477,19 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     try {
       setIsUnpublishing(true)
 
-      // Get marketplace ID from the workflow's marketplaceData
-      const marketplaceData = getMarketplaceData()
-      if (!marketplaceData?.id) {
-        throw new Error('No marketplace ID found in workflow data')
+      // Get templates ID from the workflow's templatesData
+      const templatesData = getTemplatesData()
+      if (!templatesData?.id) {
+        throw new Error('No templates ID found in workflow data')
       }
 
-      logger.info('Attempting to unpublish marketplace entry', {
-        marketplaceId: marketplaceData.id,
+      logger.info('Attempting to unpublish templates entry', {
+        templatesId: templatesData.id,
         workflowId: activeWorkflowId,
-        status: marketplaceData.status,
+        status: templatesData.status,
       })
 
-      const response = await fetch(`/api/templates/${marketplaceData.id}/unpublish`, {
+      const response = await fetch(`/api/templates/${templatesData.id}/unpublish`, {
         method: 'POST',
       })
 
@@ -502,8 +502,8 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         throw new Error(errorData.error || 'Failed to unpublish workflow')
       }
 
-      logger.info('Successfully unpublished workflow from marketplace', {
-        marketplaceId: marketplaceData.id,
+      logger.info('Successfully unpublished workflow from templates', {
+        templatesId: templatesData.id,
         workflowId: activeWorkflowId,
       })
 
@@ -512,9 +512,9 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
 
       // Then update the workflow state after modal is closed
       setTimeout(() => {
-        // Remove the marketplace data from the workflow registry
+        // Remove the templates data from the workflow registry
         updateWorkflow(activeWorkflowId, {
-          marketplaceData: null,
+          templatesData: null,
         })
       }, 100)
     } catch (error: any) {
@@ -539,8 +539,8 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     </div>
   )
 
-  // Render marketplace information for published workflows
-  const renderMarketplaceInfo = () => {
+  // Render templates information for published workflows
+  const renderTemplatesInfo = () => {
     if (isLoading) {
       return (
         <div className='flex items-center justify-center py-12'>
@@ -549,12 +549,12 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
       )
     }
 
-    if (!marketplaceInfo) {
+    if (!templatesInfo) {
       return (
         <div className='flex items-center justify-center py-12 text-muted-foreground'>
           <div className='flex flex-col items-center gap-2'>
             <Info className='h-5 w-5' />
-            <p className='text-sm'>No marketplace information available</p>
+            <p className='text-sm'>No templates information available</p>
           </div>
         </div>
       )
@@ -565,14 +565,14 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         {/* Header section with title and stats */}
         <div className='space-y-2.5'>
           <div className='flex items-start justify-between'>
-            <h3 className='font-medium text-xl leading-tight'>{marketplaceInfo.name}</h3>
+            <h3 className='font-medium text-xl leading-tight'>{templatesInfo.name}</h3>
           </div>
-          <p className='text-muted-foreground text-sm'>{marketplaceInfo.short_description}</p>
-          {marketplaceInfo.long_description && (
+          <p className='text-muted-foreground text-sm'>{templatesInfo.short_description}</p>
+          {templatesInfo.long_description && (
             <div className='space-y-1.5'>
               <Label className='text-muted-foreground text-xs'>Detailed Description</Label>
               <p className='text-foreground text-sm leading-relaxed'>
-                {marketplaceInfo.long_description}
+                {templatesInfo.long_description}
               </p>
             </div>
           )}
@@ -585,20 +585,20 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
             <div
               className='flex items-center gap-1.5 rounded-md px-2.5 py-1'
               style={{
-                backgroundColor: `${getCategoryColor(marketplaceInfo.category)}15`,
-                color: getCategoryColor(marketplaceInfo.category),
+                backgroundColor: `${getCategoryColor(templatesInfo.category)}15`,
+                color: getCategoryColor(templatesInfo.category),
               }}
             >
-              {getCategoryIcon(marketplaceInfo.category)}
+              {getCategoryIcon(templatesInfo.category)}
               <span className='font-medium text-sm'>
-                {getCategoryLabel(marketplaceInfo.category)}
+                {getCategoryLabel(templatesInfo.category)}
               </span>
             </div>
           </div>
           <div className='space-y-1.5'>
             <Label className='text-muted-foreground text-xs'>Author</Label>
             <div className='flex items-center font-medium text-sm'>
-              {marketplaceInfo.authorName}
+              {templatesInfo.authorName}
             </div>
           </div>
         </div>
@@ -782,7 +782,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         <DialogHeader className='border-b px-6 py-4'>
           <div className='flex items-center justify-between'>
             <DialogTitle className='font-medium text-lg'>
-              {isPublished() ? 'Marketplace Information' : 'Publish to Marketplace'}
+              {isPublished() ? 'Templates Information' : 'Publish to Templates'}
             </DialogTitle>
             <Button
               variant='ghost'
@@ -797,7 +797,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         </DialogHeader>
 
         <div className='overflow-y-auto px-6 pt-4 pb-6'>
-          {isPublished() ? renderMarketplaceInfo() : renderPublishForm()}
+          {isPublished() ? renderTemplatesInfo() : renderPublishForm()}
         </div>
       </DialogContent>
     </Dialog>

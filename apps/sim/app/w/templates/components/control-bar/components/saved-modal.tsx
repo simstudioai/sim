@@ -180,7 +180,7 @@ export function SavedModal({ open, onOpenChange }: SavedModalProps) {
                 <Heart className='mx-auto mb-4 h-12 w-12 text-muted-foreground/50' />
                 <p className='text-muted-foreground text-sm'>No saved templates yet</p>
                 <p className='mt-1 text-muted-foreground text-xs'>
-                  Save templates from the marketplace to see them here
+                  Save templates from the templates to see them here
                 </p>
               </div>
             </div>
