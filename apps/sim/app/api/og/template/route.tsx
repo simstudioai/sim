@@ -1,49 +1,19 @@
-import { eq } from 'drizzle-orm'
 import { ImageResponse } from 'next/og'
 import type { NextRequest } from 'next/server'
-import { db } from '@/db'
-import { templates } from '@/db/schema'
 
 export const runtime = 'edge'
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const templateId = searchParams.get('id')
 
-    // Default template data for fallback
-    let templateData = {
-      name: 'Template',
-      authorName: 'Sim Studio',
-      category: 'template',
-      views: 0,
+    // Get template data from query parameters
+    const templateData = {
+      name: searchParams.get('name') || 'Template',
+      authorName: searchParams.get('authorName') || 'Sim Studio',
+      category: searchParams.get('category') || 'template',
+      views: Number.parseInt(searchParams.get('views') || '0'),
     }
-
-    // Fetch template data if ID is provided
-    if (templateId) {
-      const template = await db
-        .select({
-          name: templates.name,
-          authorName: templates.authorName,
-          category: templates.category,
-          views: templates.views,
-        })
-        .from(templates)
-        .where(eq(templates.id, templateId))
-        .limit(1)
-        .then((rows) => rows[0])
-
-      if (template) {
-        templateData = {
-          name: template.name,
-          authorName: template.authorName,
-          category: template.category || 'template',
-          views: template.views,
-        }
-      }
-    }
-
-    // const [regularFont, boldFont] = await Promise.all([fontRegular, fontBold])
 
     return new ImageResponse(
       <div
