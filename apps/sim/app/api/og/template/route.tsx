@@ -6,15 +6,6 @@ import { templates } from '@/db/schema'
 
 export const runtime = 'edge'
 
-// Load custom fonts if needed
-const fontRegular = fetch(new URL('/public/fonts/Inter-Regular.woff', import.meta.url)).then(
-  (res) => res.arrayBuffer()
-)
-
-const fontBold = fetch(new URL('/public/fonts/Inter-Bold.woff', import.meta.url)).then((res) =>
-  res.arrayBuffer()
-)
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -52,7 +43,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const [regularFont, boldFont] = await Promise.all([fontRegular, fontBold])
+    // const [regularFont, boldFont] = await Promise.all([fontRegular, fontBold])
 
     return new ImageResponse(
       <div
@@ -149,22 +140,6 @@ export async function GET(request: NextRequest) {
           >
             Template by {templateData.authorName}
           </div>
-
-          {/* Call to Action */}
-          <div
-            style={{
-              fontSize: 28,
-              color: '#3972F6',
-              fontWeight: 600,
-              backgroundColor: '#eff6ff',
-              padding: '16px 32px',
-              borderRadius: 12,
-              fontFamily: 'Inter',
-              border: '2px solid #3972F6',
-            }}
-          >
-            Check this template out on Sim Studio!
-          </div>
         </div>
 
         {/* Stats Footer */}
@@ -212,20 +187,6 @@ export async function GET(request: NextRequest) {
       {
         width: 1200,
         height: 630,
-        fonts: [
-          {
-            name: 'Inter',
-            data: regularFont,
-            style: 'normal',
-            weight: 400,
-          },
-          {
-            name: 'Inter',
-            data: boldFont,
-            style: 'normal',
-            weight: 700,
-          },
-        ],
       }
     )
   } catch (error) {
