@@ -80,10 +80,7 @@ export function WorkflowList({
 
   // Only show empty state when not loading and user is logged in
   const showEmptyState =
-    !isLoading &&
-    session?.user &&
-    regularWorkflows.length === 0 &&
-    templatesWorkflows.length === 0
+    !isLoading && session?.user && regularWorkflows.length === 0 && templatesWorkflows.length === 0
 
   return (
     <div className={`space-y-1 ${isLoading ? 'opacity-60' : ''}`}>

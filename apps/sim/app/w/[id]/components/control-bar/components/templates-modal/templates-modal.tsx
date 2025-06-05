@@ -330,13 +330,10 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
         if (!response.ok) {
           // If the template is not found (404), it means it was unpublished
           if (response.status === 404) {
-            logger.warn(
-              'Template not found in templates, removing templates data from workflow',
-              {
-                templateId: templatesData.id,
-                workflowId: activeWorkflowId,
-              }
-            )
+            logger.warn('Template not found in templates, removing templates data from workflow', {
+              templateId: templatesData.id,
+              workflowId: activeWorkflowId,
+            })
 
             // Remove templates data from workflow since template no longer exists
             updateWorkflow(activeWorkflowId, {
@@ -597,9 +594,7 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
           </div>
           <div className='space-y-1.5'>
             <Label className='text-muted-foreground text-xs'>Author</Label>
-            <div className='flex items-center font-medium text-sm'>
-              {templatesInfo.authorName}
-            </div>
+            <div className='flex items-center font-medium text-sm'>{templatesInfo.authorName}</div>
           </div>
         </div>
 
