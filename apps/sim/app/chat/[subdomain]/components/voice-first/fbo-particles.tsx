@@ -9,6 +9,7 @@ interface FBOParticlesProps {
   isPlayingAudio: boolean
   isStreaming: boolean
   isMuted: boolean
+  isProcessingInterruption?: boolean
   className?: string
 }
 
@@ -220,6 +221,7 @@ export function FBOParticlesVisualization({
   isPlayingAudio,
   isStreaming,
   isMuted,
+  isProcessingInterruption,
   className,
 }: FBOParticlesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -364,6 +366,9 @@ export function FBOParticlesVisualization({
         if (isMuted) {
           // When muted, only show minimal baseline animation
           audioIntensity = baselineIntensity * 0.3 // Much subtler when muted
+        } else if (isProcessingInterruption) {
+          // Special pulsing effect during interruption processing
+          audioIntensity = 35 + Math.sin(clock.getElapsedTime() * 4) * 10
         } else if (isPlayingAudio) {
           // Strong animation when AI is speaking
           audioIntensity = Math.max(audioIntensity, 60 + Math.sin(clock.getElapsedTime() * 3) * 20)

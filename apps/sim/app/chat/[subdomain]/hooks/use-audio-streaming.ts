@@ -151,10 +151,13 @@ export function useAudioStreaming() {
     })
     pendingRequestsRef.current.clear()
 
-    // Stop audio playback
+    // Stop audio playback and clear source to silence audio immediately
     if (audioElementRef.current) {
       audioElementRef.current.pause()
       audioElementRef.current.currentTime = 0
+      // Clearing the src and calling load guarantees the element is silent
+      audioElementRef.current.src = ''
+      audioElementRef.current.load()
     }
 
     setIsPlayingAudio(false)
@@ -221,10 +224,16 @@ export function useAudioStreaming() {
         return
       }
 
+      // Always create a fresh AbortController for every new streaming session.
+      // If the previous controller was already aborted, fetches would fail immediately.
+      if (!abortControllerRef.current || abortControllerRef.current.signal.aborted) {
+        createAbortController()
+      }
+
       try {
         // Initialize MediaSource if this is the first chunk
         if (!isInitializedRef.current) {
-          console.log('🎵 Initializing MediaSource...')
+          console.log('�� Initializing MediaSource...')
           const initialized = await initializeMediaSource(options)
           if (!initialized) {
             console.log('⚠️ MediaSource initialization failed, falling back to simple audio')

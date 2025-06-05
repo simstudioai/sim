@@ -39,6 +39,7 @@ export function VoiceFirstInterface({
     'prompt'
   )
   const [isInitialized, setIsInitialized] = useState(false)
+  const [isProcessingInterruption, setIsProcessingInterruption] = useState(false)
 
   const recognitionRef = useRef<any>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
@@ -51,8 +52,6 @@ export function VoiceFirstInterface({
   const hasInterruptedRef = useRef(false)
   const isMutedRef = useRef(false)
   const isPlayingAudioRef = useRef(false)
-  const interruptedTranscriptRef = useRef('')
-  const interruptionTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Keep refs in sync with state for use in callbacks
   useEffect(() => {
@@ -99,11 +98,6 @@ export function VoiceFirstInterface({
       timeoutRef.current = null
     }
 
-    if (interruptionTimeoutRef.current) {
-      clearTimeout(interruptionTimeoutRef.current)
-      interruptionTimeoutRef.current = null
-    }
-
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onstart = null
@@ -146,14 +140,6 @@ export function VoiceFirstInterface({
       console.log('✅ Voice-first speech recognition started')
       setIsListening(true)
       hasInterruptedRef.current = false // Reset interruption flag
-      interruptedTranscriptRef.current = '' // Clear any previous interrupted transcript
-
-      // Clear any pending interruption timeout
-      if (interruptionTimeoutRef.current) {
-        clearTimeout(interruptionTimeoutRef.current)
-        interruptionTimeoutRef.current = null
-      }
-
       onVoiceStart?.()
     }
 
@@ -164,18 +150,29 @@ export function VoiceFirstInterface({
       let interim = ''
       let hasSignificantSpeech = false
 
+      // Tweaked thresholds for faster interruption detection
+      const MIN_CHAR_THRESHOLD = 3
+      const MIN_WORD_THRESHOLD = 1
+      const CONFIDENCE_THRESHOLD = 0.3
+
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
         const transcriptText = result[0].transcript
         const confidence = result[0].confidence || 1 // Default to 1 if not available
+        const trimmedText = transcriptText.trim()
+        const wordCount = trimmedText.split(/\s+/).filter(Boolean).length
 
         // Check if we have meaningful speech (not just noise)
-        // Require at least 5 characters and reasonable confidence
-        if (transcriptText.trim().length >= 5 && confidence > 0.5) {
+        if (
+          trimmedText.length >= MIN_CHAR_THRESHOLD &&
+          wordCount >= MIN_WORD_THRESHOLD &&
+          confidence >= CONFIDENCE_THRESHOLD
+        ) {
           hasSignificantSpeech = true
           console.log('🎯 Significant speech detected:', {
-            text: transcriptText.trim(),
-            length: transcriptText.trim().length,
+            text: trimmedText,
+            length: trimmedText.length,
+            wordCount,
             confidence,
             isFinal: result.isFinal,
           })
@@ -201,57 +198,24 @@ export function VoiceFirstInterface({
       ) {
         console.log('🛑 Substantial speech detected, interrupting audio playback')
         hasInterruptedRef.current = true
-
-        // Store the interrupting speech (both interim and any final parts)
-        const currentSpeech = `${finalTranscript} ${interim}`.trim()
-        interruptedTranscriptRef.current = currentSpeech
-        console.log('💬 Interrupting speech:', currentSpeech)
-
-        // Interrupt the current playback
+        setIsProcessingInterruption(true)
         onInterrupt?.()
-
-        // Set a timeout to process the interrupted speech if no final transcript comes
-        if (interruptionTimeoutRef.current) {
-          clearTimeout(interruptionTimeoutRef.current)
-        }
-
-        interruptionTimeoutRef.current = setTimeout(() => {
-          if (interruptedTranscriptRef.current && interruptedTranscriptRef.current.length >= 5) {
-            console.log(
-              '⏱️ Processing interrupted speech after timeout:',
-              interruptedTranscriptRef.current
-            )
-            onVoiceTranscript?.(interruptedTranscriptRef.current)
-            interruptedTranscriptRef.current = ''
-
-            // Stop recognition to reset for next input
-            if (recognitionRef.current) {
-              try {
-                recognitionRef.current.stop()
-              } catch (e) {
-                // Ignore errors
-              }
-            }
-          }
-        }, 1500) // Wait 1.5 seconds for final transcript before processing
       }
 
       if (finalTranscript) {
         console.log('📝 Voice-first final transcript:', finalTranscript)
 
-        // Clear any interruption timeout since we got a final transcript
-        if (interruptionTimeoutRef.current) {
-          clearTimeout(interruptionTimeoutRef.current)
-          interruptionTimeoutRef.current = null
+        // If we just interrupted, add a small delay for clearer transition
+        if (hasInterruptedRef.current) {
+          console.log('⏱️ Adding transition delay after interruption...')
+          setTimeout(() => {
+            setIsProcessingInterruption(false)
+            onVoiceTranscript?.(finalTranscript)
+          }, 500) // Half second delay after interruption
+        } else {
+          onVoiceTranscript?.(finalTranscript)
         }
 
-        // If we interrupted, append to the interrupted transcript
-        if (hasInterruptedRef.current && interruptedTranscriptRef.current) {
-          finalTranscript = `${interruptedTranscriptRef.current} ${finalTranscript}`
-          interruptedTranscriptRef.current = '' // Clear after using
-        }
-
-        onVoiceTranscript?.(finalTranscript)
         // Clear transcripts after sending
         setTranscript('')
         setInterimTranscript('')
@@ -259,20 +223,23 @@ export function VoiceFirstInterface({
 
       setInterimTranscript(interim)
 
-      // Reset timeout for auto-stop
+      // Reset timeout for auto-stop – keep recognition alive while AI is speaking
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
-      timeoutRef.current = setTimeout(() => {
-        if (recognitionRef.current && !isCleaningUpRef.current) {
-          console.log('⏱️ Auto-stop triggered in voice-first mode')
-          try {
-            recognitionRef.current.stop()
-          } catch (e) {
-            // Ignore errors
+
+      if (!isPlayingAudioRef.current) {
+        timeoutRef.current = setTimeout(() => {
+          if (recognitionRef.current && !isCleaningUpRef.current) {
+            console.log('⏱️ Auto-stop triggered in voice-first mode')
+            try {
+              recognitionRef.current.stop()
+            } catch (e) {
+              // Ignore errors
+            }
           }
-        }
-      }, 3000)
+        }, 3000)
+      }
     }
 
     recognition.onerror = (event: any) => {
@@ -280,13 +247,30 @@ export function VoiceFirstInterface({
 
       console.log('⚠️ Voice-first speech recognition error:', event.error)
 
-      // Only handle critical errors
+      // Permission denied is the only truly fatal error
       if (event.error === 'not-allowed') {
         setPermissionStatus('denied')
         setIsListening(false)
         onVoiceEnd?.()
+        return
       }
-      // Ignore 'aborted' and other non-critical errors
+
+      // Gracefully handle common transient errors by restarting recognition
+      if (['no-speech', 'audio-capture'].includes(event.error)) {
+        console.log('🔄 Restarting recognition after transient error:', event.error)
+        try {
+          recognition.stop()
+        } catch (_e) {}
+
+        // Give the browser a brief moment before restarting
+        setTimeout(() => {
+          if (!isMutedRef.current && !isCleaningUpRef.current) {
+            try {
+              recognition.start()
+            } catch (_e) {}
+          }
+        }, 500)
+      }
     }
 
     recognition.onend = () => {
@@ -294,16 +278,34 @@ export function VoiceFirstInterface({
 
       console.log('🛑 Voice-first speech recognition ended')
       setIsListening(false)
+      setIsProcessingInterruption(false)
       onVoiceEnd?.()
 
       // Clear any remaining transcripts
       setTranscript('')
       setInterimTranscript('')
+
+      // Automatically restart recognition for continuous listening (unless muted)
+      if (!isMutedRef.current && !isCleaningUpRef.current) {
+        try {
+          recognition.start()
+        } catch (error) {
+          // Ignore restart errors (e.g., already started)
+        }
+      }
     }
 
     recognitionRef.current = recognition
     setIsInitialized(true)
-  }, [isSupported, isInitialized, onVoiceStart, onVoiceEnd, onVoiceTranscript, onInterrupt])
+  }, [
+    isSupported,
+    isInitialized,
+    onVoiceStart,
+    onVoiceEnd,
+    onVoiceTranscript,
+    onInterrupt,
+    setIsProcessingInterruption,
+  ])
 
   // Setup audio visualization
   const setupAudioVisualization = useCallback(async () => {
@@ -551,6 +553,7 @@ export function VoiceFirstInterface({
 
   // Get current status text
   const getStatusText = () => {
+    if (isProcessingInterruption) return 'Processing...'
     if (isStreaming) return 'Thinking...'
     if (isPlayingAudio) return 'Speaking...'
     if (isListening) return 'Listening...'
@@ -581,6 +584,7 @@ export function VoiceFirstInterface({
             isPlayingAudio={isPlayingAudio}
             isStreaming={isStreaming}
             isMuted={isMuted}
+            isProcessingInterruption={isProcessingInterruption}
           />
         </div>
 
@@ -609,13 +613,11 @@ export function VoiceFirstInterface({
           {/* Mute/unmute button */}
           <Button
             onClick={toggleMute}
-            variant={isMuted ? 'outline' : 'default'}
+            variant='outline'
             size='icon'
             className={cn(
-              'h-14 w-14 rounded-full',
-              isMuted
-                ? 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
-                : 'bg-blue-500 text-white hover:bg-blue-600'
+              'h-14 w-14 rounded-full border-gray-300 bg-transparent text-gray-600 hover:bg-gray-50',
+              isMuted && 'text-gray-400'
             )}
           >
             {isMuted ? <MicOff className='h-6 w-6' /> : <Mic className='h-6 w-6' />}

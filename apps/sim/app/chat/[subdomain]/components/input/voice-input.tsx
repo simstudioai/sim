@@ -81,6 +81,7 @@ export function VoiceInput({
   const streamRef = useRef<MediaStream | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const finalTranscriptRef = useRef<string>('')
+  const hasInterruptedRef = useRef<boolean>(false) // Prevent multiple interruptions
 
   // Cleanup audio resources - define this first as it's used by other functions
   const cleanupAudio = useCallback(() => {
@@ -147,6 +148,7 @@ export function VoiceInput({
       recognition.onstart = () => {
         console.log('✅ Speech recognition started successfully!')
         console.log('🎤 Now listening... Please speak into your microphone')
+        hasInterruptedRef.current = false // Reset interruption flag for new session
         onVoiceStart()
       }
 
@@ -157,22 +159,50 @@ export function VoiceInput({
 
         let finalTranscript = ''
         let interim = ''
+        let hasSignificantSpeech = false
 
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i]
           const transcriptText = result[0].transcript
+          const confidence = result[0].confidence || 1
 
           console.log(`Result ${i}:`, {
             isFinal: result.isFinal,
             transcript: transcriptText,
-            confidence: result[0].confidence,
+            confidence: confidence,
           })
+
+          // Check for significant speech for interruption
+          const trimmedText = transcriptText.trim()
+          const wordCount = trimmedText.split(/\s+/).filter((word) => word.length > 0).length
+
+          if (
+            trimmedText.length >= 3 && // Minimum character threshold
+            wordCount >= 1 && // At least one complete word
+            confidence > 0.4 && // Lower confidence threshold for more responsive interruption
+            !/^(um|uh|ah|hmm|eh)$/i.test(trimmedText) // Exclude common filler words
+          ) {
+            hasSignificantSpeech = true
+            console.log('🎯 Significant speech detected for interruption:', {
+              text: trimmedText,
+              length: trimmedText.length,
+              wordCount,
+              confidence,
+            })
+          }
 
           if (result.isFinal) {
             finalTranscript += transcriptText
           } else {
             interim += transcriptText
           }
+        }
+
+        // Call interrupt callback when we detect significant speech (only once per session)
+        if (hasSignificantSpeech && onInterrupt && !hasInterruptedRef.current) {
+          console.log('🛑 Triggering interruption due to significant speech')
+          hasInterruptedRef.current = true
+          onInterrupt()
         }
 
         if (finalTranscript) {
@@ -408,9 +438,8 @@ export function VoiceInput({
       return
     }
 
-    // Call interrupt callback immediately when starting to listen
-    // This allows stopping ongoing audio playback for true voice interruption
-    onInterrupt?.()
+    // Don't interrupt immediately - wait for actual significant speech
+    // This prevents false interruptions when just activating voice input
 
     try {
       console.log('🎙️ Starting voice input process...')

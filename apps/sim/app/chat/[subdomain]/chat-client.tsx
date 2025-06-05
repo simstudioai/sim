@@ -621,28 +621,39 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     }
   }, [stopAudio])
 
-  // Voice interruption - stop audio AND streaming when user starts speaking
+  // Voice interruption - stop audio when user starts speaking
   const handleVoiceInterruption = useCallback(() => {
-    console.log('🛑 Voice interruption detected!')
+    console.log('🛑 Voice interruption detected')
 
-    // Stop audio playback
-    if (isPlayingAudio) {
-      console.log('🔇 Stopping audio playback...')
-      stopAudio()
-    }
+    // 1. Always stop audio playback (even if play event hasn't fired yet)
+    console.log('🔇 Forcing audio playback to stop...')
+    stopAudio()
 
-    // Stop the streaming response
+    // 2. Stop any ongoing streaming response
     if (isStreamingResponse) {
       console.log('⏹️ Stopping streaming response...')
       stopStreaming(setMessages)
     }
 
-    // Clear any pending conversation timeouts
-    if (conversationTimeoutRef.current) {
-      clearTimeout(conversationTimeoutRef.current)
-      conversationTimeoutRef.current = null
-    }
-  }, [isPlayingAudio, stopAudio, isStreamingResponse, stopStreaming, setMessages])
+    // 3. Add a clear visual indicator of interruption
+    setMessages((prev) => {
+      const lastMessage = prev[prev.length - 1]
+
+      // If the last message is from assistant and was being streamed/played
+      if (lastMessage && lastMessage.type === 'assistant' && !lastMessage.isInitialMessage) {
+        return [
+          ...prev.slice(0, -1),
+          {
+            ...lastMessage,
+            content: `${lastMessage.content}\n\n_[Interrupted by user]_`,
+            isStreaming: false,
+          },
+        ]
+      }
+
+      return prev
+    })
+  }, [isStreamingResponse, stopStreaming, setMessages, stopAudio])
 
   // Handle voice mode activation with smooth transition
   const handleVoiceStart = useCallback(() => {
