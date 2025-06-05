@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
       .select({
         id: templates.id,
         name: templates.name,
-        short_description: templates.short_description,
-        long_description: templates.long_description,
+        shortDescription: templates.shortDescription,
+        longDescription: templates.longDescription,
         category: templates.category,
         price: templates.price,
         views: templates.views,

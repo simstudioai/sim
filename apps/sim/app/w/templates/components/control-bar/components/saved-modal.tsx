@@ -70,7 +70,33 @@ export function SavedModal({ open, onOpenChange }: SavedModalProps) {
     fetchSavedTemplates()
   }, [open])
 
-  // Sort templates based on selected option
+  // Retry function for failed requests
+  const handleRetry = () => {
+    setError(null)
+    setLoading(true)
+
+    const refetchSavedTemplates = async () => {
+      try {
+        const response = await fetch('/api/templates/saved')
+        if (!response.ok) {
+          throw new Error('Failed to fetch saved templates')
+        }
+
+        const data = await response.json()
+        setSavedTemplates(data.saved || [])
+
+        logger.info(`Loaded ${data.saved?.length || 0} saved templates`)
+      } catch (err: any) {
+        logger.error('Error fetching saved templates:', err)
+        setError(err.message || 'Failed to load saved templates')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    refetchSavedTemplates()
+  }
+
   const sortedTemplates = [...savedTemplates].sort((a, b) => {
     switch (sortBy) {
       case 'recent':
@@ -164,12 +190,7 @@ export function SavedModal({ open, onOpenChange }: SavedModalProps) {
             <div className='flex items-center justify-center py-12'>
               <div className='text-center'>
                 <p className='text-destructive text-sm'>{error}</p>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  className='mt-2'
-                  onClick={() => window.location.reload()}
-                >
+                <Button variant='outline' size='sm' className='mt-2' onClick={handleRetry}>
                   Try Again
                 </Button>
               </div>
@@ -180,7 +201,7 @@ export function SavedModal({ open, onOpenChange }: SavedModalProps) {
                 <Heart className='mx-auto mb-4 h-12 w-12 text-muted-foreground/50' />
                 <p className='text-muted-foreground text-sm'>No saved templates yet</p>
                 <p className='mt-1 text-muted-foreground text-xs'>
-                  Save templates from the templates to see them here
+                  Save templates from the gallery to see them here
                 </p>
               </div>
             </div>

@@ -20,7 +20,7 @@ interface PublishedTemplate {
   name: string
   views: number
   category: string
-  short_description: string | null
+  shortDescription: string | null
   price: string
   createdAt: string
   updatedAt: string
@@ -58,9 +58,9 @@ export function PublishedModal({ open, onOpenChange }: PublishedModalProps) {
         setPublishedTemplates(data.published || [])
 
         logger.info(`Loaded ${data.published?.length || 0} published templates`)
-      } catch (err: any) {
+      } catch (err: unknown) {
         logger.error('Error fetching published templates:', err)
-        setError(err.message || 'Failed to load published templates')
+        setError(err instanceof Error ? err.message : 'Failed to load published templates')
       } finally {
         setLoading(false)
       }
@@ -200,8 +200,8 @@ export function PublishedModal({ open, onOpenChange }: PublishedModalProps) {
                         </span>
                       </div>
                       <div className='mt-1 flex items-center gap-4 text-muted-foreground text-xs'>
-                        {template.short_description && (
-                          <span className='truncate'>{template.short_description}</span>
+                        {template.shortDescription && (
+                          <span className='truncate'>{template.shortDescription}</span>
                         )}
                         <div className='flex items-center gap-1'>
                           <Eye className='h-3 w-3' />

@@ -12,6 +12,12 @@ import { TemplateGrid } from '../../../shared/template-grid'
 
 const logger = createLogger('PersonalPage')
 
+type PersonalCategory = (typeof CATEGORY_GROUPS.personal)[number]
+
+function isPersonalCategory(category: string): category is PersonalCategory {
+  return CATEGORY_GROUPS.personal.includes(category as PersonalCategory)
+}
+
 export default function PersonalPage() {
   const searchParams = useSearchParams()
   const subcategory = searchParams.get('subcategory')
@@ -124,7 +130,7 @@ export default function PersonalPage() {
         setTemplateData(organizedData)
 
         // Set initial active section
-        if (subcategory && CATEGORY_GROUPS.personal.includes(subcategory as any)) {
+        if (subcategory && isPersonalCategory(subcategory)) {
           setActiveSection(subcategory)
         } else {
           setActiveSection(CATEGORY_GROUPS.personal[0])
@@ -167,7 +173,7 @@ export default function PersonalPage() {
       mainCategory='personal'
     >
       {loading ? (
-        <TemplateGrid isLoading={true} skeletonCount={6} />
+        <TemplateGrid isLoading={true} skeletonCount={6} workflows={[]} />
       ) : (
         <>
           {Object.entries(filteredWorkflows).map(([category, workflows]) => (

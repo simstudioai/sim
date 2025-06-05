@@ -62,12 +62,7 @@ export function TemplateWorkflowCard({ workflow, onHover, onMount }: TemplateWor
    * Handle template card click - navigate to template detail page
    */
   const handleClick = async () => {
-    try {
-      router.push(`/w/templates/${workflow.id}`)
-    } catch (error) {
-      logger.error('Failed to handle template click:', error)
-      router.push(`/w/templates/${workflow.id}`)
-    }
+    router.push(`/w/templates/${workflow.id}`)
   }
 
   return (

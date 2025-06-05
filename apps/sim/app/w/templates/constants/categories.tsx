@@ -106,8 +106,8 @@ export const CATEGORIES: Category[] = [
     value: 'management',
     label: 'Management',
     icon: <Folder className='mr-2 h-4 w-4' />,
-    color: '#059669',
-    hoverColor: 'hover:bg-emerald-100 dark:hover:bg-emerald-950/40',
+    color: '#7c3aed',
+    hoverColor: 'hover:bg-violet-100 dark:hover:bg-violet-950/40',
   },
 ]
 

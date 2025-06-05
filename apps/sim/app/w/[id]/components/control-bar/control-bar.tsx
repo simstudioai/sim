@@ -130,7 +130,6 @@ export function ControlBar() {
 
   // Templates modal state
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false)
-  const [isPublishing, setIsPublishing] = useState(false)
 
   // Multiple runs state
   const [runCount, setRunCount] = useState(1)
@@ -174,12 +173,6 @@ export function ControlBar() {
   const _isPublishedToTemplates = () => {
     const templatesData = getTemplatesData()
     return !!templatesData
-  }
-
-  // // Check if the current user is the owner of the published workflow
-  const isWorkflowOwner = () => {
-    const templatesData = getTemplatesData()
-    return templatesData?.status === 'owner'
   }
 
   // Get deployment status from registry
@@ -432,9 +425,9 @@ export function ControlBar() {
     }
   }
 
-  // /**
-  //  * Handle opening templates modal or showing published status
-  //  */
+  /**
+   * Handle publishing the workflow
+   */
   const handlePublishWorkflow = async () => {
     if (!activeWorkflowId) return
 
@@ -782,23 +775,14 @@ export function ControlBar() {
             variant='ghost'
             size='icon'
             onClick={handlePublishWorkflow}
-            disabled={isPublishing}
             className={cn('hover:text-[#701FFC]', isPublished && 'text-[#701FFC]')}
           >
-            {isPublishing ? (
-              <Loader2 className='h-5 w-5 animate-spin' />
-            ) : (
-              <Store className='h-5 w-5' />
-            )}
+            <Store className='h-5 w-5' />
             <span className='sr-only'>Publish to Templates</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          {isPublishing
-            ? 'Publishing...'
-            : isPublished
-              ? 'Published to Templates'
-              : 'Publish to Templates'}
+          {isPublished ? 'Published to Templates' : 'Publish to Templates'}
         </TooltipContent>
       </Tooltip>
     )

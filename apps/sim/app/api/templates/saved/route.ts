@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
       .select({
         id: templates.id,
         name: templates.name,
-        short_description: templates.short_description,
-        long_description: templates.long_description,
+        shortDescription: templates.shortDescription,
+        longDescription: templates.longDescription,
         authorId: templates.authorId,
         authorName: templates.authorName,
         category: templates.category,
@@ -53,8 +53,8 @@ export async function GET(request: NextRequest) {
     const formattedTemplates = savedTemplatesList.map((template) => ({
       id: template.id,
       name: template.name,
-      short_description: template.short_description,
-      long_description: template.long_description,
+      shortDescription: template.shortDescription,
+      longDescription: template.longDescription,
       authorId: template.authorId,
       authorName: template.authorName,
       category: template.category,
