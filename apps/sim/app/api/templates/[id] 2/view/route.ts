@@ -13,12 +13,9 @@ export const dynamic = 'force-dynamic'
  * POST /api/templates/[id]/view
  * Increments the view count for a template
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
-  
+
   try {
     const { id: templateId } = await params
 
@@ -53,9 +50,6 @@ export async function POST(
     })
   } catch (error: any) {
     logger.error(`[${requestId}] Error incrementing template view count`, error)
-    return NextResponse.json(
-      { error: 'Failed to track view' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to track view' }, { status: 500 })
   }
 }

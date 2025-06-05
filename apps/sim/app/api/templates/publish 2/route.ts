@@ -41,8 +41,15 @@ export async function POST(request: NextRequest) {
     try {
       // Parse request body
       const body = await request.json()
-      const { workflowId, name, shortDescription, longDescription, category, authorName, workflowState } =
-        PublishRequestSchema.parse(body)
+      const {
+        workflowId,
+        name,
+        shortDescription,
+        longDescription,
+        category,
+        authorName,
+        workflowState,
+      } = PublishRequestSchema.parse(body)
 
       // Check if the workflow belongs to the user
       const userWorkflow = await db
