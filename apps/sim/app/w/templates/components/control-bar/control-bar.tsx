@@ -1,7 +1,18 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, Code, Heart, Search, Glasses, Shapes, Upload, User } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Code,
+  Glasses,
+  Heart,
+  Search,
+  Shapes,
+  Upload,
+  User,
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,15 +33,15 @@ import {
   getCategoryIcon,
   getCategoryLabel,
 } from '../../constants/categories'
-import { SavedModal } from './components/saved-modal'
 import { PublishedModal } from './components/published-modal'
+import { SavedModal } from './components/saved-modal'
 
 interface TemplatesHeaderProps {
   setSearchQuery: (query: string) => void
   activeSection: string | null
   scrollToSection: (sectionId: string) => void
   onCategoryFilter: (categories: string[] | null) => void
-  currentCategory?: string // For category pages context
+  currentCategory?: string
 }
 
 type NavigationItem = 'discover' | CategoryGroup
@@ -72,6 +83,22 @@ export function TemplatesHeader({
       onCategoryFilter(groupCategories)
     }
   }, [activeNavigation, onCategoryFilter])
+
+  // Auto-scroll to active section pill
+  useEffect(() => {
+    if (activeSection && scrollContainerRef.current) {
+      const activeButton = scrollContainerRef.current.querySelector(
+        `[data-category="${activeSection}"]`
+      ) as HTMLElement
+      if (activeButton) {
+        activeButton.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'center',
+          block: 'nearest',
+        })
+      }
+    }
+  }, [activeSection])
 
   const handleNavigationClick = (nav: NavigationItem) => {
     setActiveNavigation(nav)
@@ -168,24 +195,24 @@ export function TemplatesHeader({
   const getCategoryDisplayInfo = (category: string) => {
     switch (category) {
       case 'operations':
-        return { 
-          label: 'Operations', 
-          icon: <Glasses className='mr-2 inline h-4 w-4'/> 
+        return {
+          label: 'Operations',
+          icon: <Glasses className='mr-2 inline h-4 w-4' />,
         }
       case 'personal':
-        return { 
-          label: 'Personal', 
-          icon: <User className='mr-2 inline h-4 w-4'/> 
+        return {
+          label: 'Personal',
+          icon: <User className='mr-2 inline h-4 w-4' />,
         }
       case 'technical':
-        return { 
-          label: 'Technical', 
-          icon: <Code className='mr-2 inline h-4 w-4'/> 
+        return {
+          label: 'Technical',
+          icon: <Code className='mr-2 inline h-4 w-4' />,
         }
       default:
-        return { 
-          label: 'Templates', 
-          icon: <Shapes className='mr-2 inline h-4 w-4'/> 
+        return {
+          label: 'Templates',
+          icon: <Shapes className='mr-2 inline h-4 w-4' />,
         }
     }
   }
@@ -193,24 +220,22 @@ export function TemplatesHeader({
   return (
     <div className='w-full border-b bg-background'>
       {/* Top Row - Action Icons */}
-      <div className='flex justify-between px-6 py-3'>
+      <div className='flex justify-between px-6 pt-4 pb-6'>
         <div className='flex items-center gap-2'>
-          <span
-            className='cursor-pointer font-medium text-sm'
-            onClick={() => router.push('/w/templates')}
-          >
-            <Shapes className='mr-2 inline h-4 w-4' />
-            Templates
-            {currentCategory && currentCategory !== 'discover' && (
-              <>
-                <span className='mx-2'>/</span>
-                {getCategoryDisplayInfo(currentCategory).icon}
-                {getCategoryDisplayInfo(currentCategory).label}
-              </>
-            )}
-          </span>
+          <Shapes className='h-[18px] w-[18px] text-muted-foreground' />
+          <h1 className='font-medium text-sm'>Templates</h1>
+          {currentCategory && currentCategory !== 'discover' && (
+            <span
+              className='cursor-pointer font-medium text-sm'
+              onClick={() => router.push('/w/templates')}
+            >
+              <span className='mx-2'>/</span>
+              {getCategoryDisplayInfo(currentCategory).icon}
+              {getCategoryDisplayInfo(currentCategory).label}
+            </span>
+          )}
         </div>
-        <div className='flex items-center gap-3'>
+        <div className='flex items-center gap-6'>
           <span
             className='cursor-pointer font-medium text-sm'
             onClick={() => setShowSavedModal(true)}
@@ -305,6 +330,7 @@ export function TemplatesHeader({
                   key={categoryValue}
                   variant={isActive ? 'default' : 'outline'}
                   size='sm'
+                  data-category={categoryValue}
                   className={`flex-shrink-0 rounded-full px-4 py-2 text-sm transition-colors ${
                     isActive
                       ? 'border-0 text-white'
