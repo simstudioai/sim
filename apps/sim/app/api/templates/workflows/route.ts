@@ -45,8 +45,6 @@ export async function GET(request: NextRequest) {
     const workflowId = url.searchParams.get('workflowId')
     const templateId = url.searchParams.get('templateId')
 
-    logger.info(`[${requestId}] Starting request - sections: ${sectionParam}, includeState: ${includeState}`)
-
     // Handle single workflow request first (by workflow ID)
     if (workflowId) {
       let templateEntry
@@ -103,7 +101,6 @@ export async function GET(request: NextRequest) {
           : templateEntry
 
       const duration = Date.now() - startTime
-      logger.info(`[${requestId}] Single workflow query completed in ${duration}ms`)
       return createSuccessResponse(responseData)
     }
 
@@ -163,7 +160,6 @@ export async function GET(request: NextRequest) {
           : templateEntry
 
       const duration = Date.now() - startTime
-      logger.info(`[${requestId}] Single template query completed in ${duration}ms`)
       return createSuccessResponse(responseData)
     }
 
@@ -226,7 +222,6 @@ export async function GET(request: NextRequest) {
       requestedCategories = [...new Set(requestedCategories)]
 
       if (requestedCategories.length > 0) {
-        logger.info(`[${requestId}] Fetching categories with single query: ${requestedCategories.join(', ')}`)
 
         // Single optimized query for all categories
         const categoryTemplates = includeState
@@ -312,7 +307,6 @@ export async function GET(request: NextRequest) {
     }
 
     const duration = Date.now() - startTime
-    logger.info(`[${requestId}] Fetch completed in ${duration}ms - popular: ${result.popular.length}, categories: ${Object.keys(result.byCategory).length}`)
     
     return NextResponse.json(result)
   } catch (error: any) {
@@ -357,7 +351,6 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await viewResponse.json()
-    logger.info(`[${requestId}] Successfully redirected view tracking for template: ${id}`)
 
     return createSuccessResponse(result)
   } catch (error: any) {

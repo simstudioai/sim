@@ -1,13 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Download, Eye, Heart, Share2 } from 'lucide-react'
+import { Download, Eye, Heart, Share2, Trash } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
+import { useSession } from '@/lib/auth-client'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import {
   getCategoryColor,
   getCategoryIcon,
@@ -23,18 +25,21 @@ interface TemplateHeroProps {
 
 export function TemplateHero({ template }: TemplateHeroProps) {
   const router = useRouter()
-  const { createWorkflow } = useWorkflowRegistry()
+  const { createWorkflow, workflows, updateWorkflow } = useWorkflowRegistry()
   const [isUsing, setIsUsing] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoadingSavedStatus, setIsLoadingSavedStatus] = useState(true)
+  const [isUnpublishing, setIsUnpublishing] = useState(false)
   const { addNotification } = useNotificationStore()
 
-  // Clear any existing share notifications when component mounts
+  const { data: session, isPending } = useSession()
+  
+  const isAuthor = !isPending && session?.user?.id === template.authorId
+
   useEffect(() => {
     const { notifications, removeNotification } = useNotificationStore.getState()
 
-    // Remove any existing global info notifications to prevent stale notifications
     notifications.forEach((notification) => {
       if (notification.type === 'info' && notification.workflowId === null) {
         removeNotification(notification.id)
@@ -42,7 +47,6 @@ export function TemplateHero({ template }: TemplateHeroProps) {
     })
   }, [])
 
-  // Check initial saved status when component mounts
   useEffect(() => {
     const checkSavedStatus = async () => {
       try {
@@ -61,12 +65,10 @@ export function TemplateHero({ template }: TemplateHeroProps) {
     checkSavedStatus()
   }, [template.id])
 
-  // Handle using the template
   const handleUseTemplate = async () => {
     try {
       setIsUsing(true)
 
-      // Create a local copy of the template workflow
       if (template.workflowState) {
         const newWorkflowId = createWorkflow({
           name: `${template.name} (Copy)`,
@@ -75,7 +77,6 @@ export function TemplateHero({ template }: TemplateHeroProps) {
           marketplaceState: template.workflowState,
         })
 
-        // Navigate to the new workflow
         router.push(`/w/${newWorkflowId}`)
       } else {
         logger.error('Cannot use template: workflow state is not available')
@@ -87,7 +88,6 @@ export function TemplateHero({ template }: TemplateHeroProps) {
     }
   }
 
-  // Handle saving/unsaving template
   const handleSaveTemplate = async () => {
     if (isSaving) return
 
@@ -106,7 +106,6 @@ export function TemplateHero({ template }: TemplateHeroProps) {
       const newSavedState = !isSaved
       setIsSaved(newSavedState)
 
-      logger.info(`Template ${template.id} ${newSavedState ? 'saved' : 'unsaved'} successfully`)
     } catch (error: any) {
       logger.error('Error toggling save state:', error)
     } finally {
@@ -114,14 +113,74 @@ export function TemplateHero({ template }: TemplateHeroProps) {
     }
   }
 
-  // Handle sharing template
+  // Helper function to find and update workflows that reference this template
+  const syncWorkflowRegistryState = () => {
+    // Find all workflows that have this template as their marketplace data
+    const workflowsToUpdate = Object.entries(workflows).filter(([_, workflow]) => 
+      workflow.marketplaceData?.id === template.id
+    )
+
+    // Update each workflow to remove marketplace data
+    workflowsToUpdate.forEach(([workflowId, _]) => {
+      updateWorkflow(workflowId, {
+        marketplaceData: null,
+      })
+    })
+
+    if (workflowsToUpdate.length > 0) {
+      
+      // Trigger workflow sync to persist changes to database
+      const workflowStore = useWorkflowStore.getState()
+      if (workflowStore.sync) {
+        workflowStore.sync.markDirty()
+        workflowStore.sync.forceSync()
+      }
+    }
+  }
+
+  const handleUnpublishTemplate = async () => {
+    if (!isAuthor) {
+      addNotification('error', 'You are not authorized to unpublish this template', null)
+      return
+    }
+
+    try {
+      setIsUnpublishing(true)
+
+      const response = await fetch(`/api/templates/${template.id}/unpublish`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        logger.error('Error response from unpublish endpoint', {
+          status: response.status,
+          data: errorData,
+        })
+        throw new Error(errorData.error || 'Failed to unpublish template')
+      }
+
+      // Sync workflow registry state to remove marketplace data from workflows
+      syncWorkflowRegistryState()
+
+      addNotification('info', `Template "${template.name}" has been unpublished`, null)
+
+      setTimeout(() => {
+        router.push('/w/templates')
+      }, 1500)
+    } catch (error: any) {
+      logger.error('Error unpublishing template:', error)
+      addNotification('error', `Failed to unpublish template: ${error.message}`, null)
+    } finally {
+      setIsUnpublishing(false)
+    }
+  }
+
   const handleShareTemplate = async () => {
     try {
-      // Create the share message with URL
       const templateUrl = `https://simstudio.ai/w/templates/${template.id}`
       const shareText = `Check this template out on Sim Studio! ${templateUrl}`
 
-      // Copy both message and URL to clipboard
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareText)
       } else {
@@ -137,23 +196,19 @@ export function TemplateHero({ template }: TemplateHeroProps) {
         document.body.removeChild(textArea)
       }
 
-      // Show success notification (use null for workflowId since template pages don't have one)
       addNotification('info', 'Template link copied!', null, {
         isPersistent: false,
       })
 
-      logger.info('Template share text copied to clipboard:', shareText)
     } catch (error) {
       logger.error('Failed to copy template share text:', error)
 
-      // Show error notification
       addNotification('error', 'Failed to copy link', null, {
         isPersistent: false,
       })
     }
   }
 
-  // Format creation date
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -162,7 +217,6 @@ export function TemplateHero({ template }: TemplateHeroProps) {
     })
   }
 
-  // Get author initials
   const getAuthorInitials = (name: string) => {
     return name
       .split(' ')
@@ -265,6 +319,28 @@ export function TemplateHero({ template }: TemplateHeroProps) {
           <Share2 className='mr-2 h-4 w-4' />
           Share
         </Button>
+
+        {/* Unpublish Button - Only show if user is the author */}
+        {!isPending && isAuthor && (
+          <Button
+            variant='destructive'
+            size='default'
+            onClick={handleUnpublishTemplate}
+            disabled={isUnpublishing}
+          >
+            {isUnpublishing ? (
+              <>
+                <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
+                Unpublishing...
+              </>
+            ) : (
+              <>
+                <Trash className='mr-2 h-4 w-4' />
+                Unpublish
+              </>
+            )}
+          </Button>
+        )}
       </div>
     </div>
   )

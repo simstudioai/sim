@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Heart, Loader2 } from 'lucide-react'
+import { ArrowLeft, Heart, Loader2, Upload } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -9,6 +9,7 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 import { NotificationList } from '../../../[id]/components/notifications/notifications'
 import type { TemplateData } from '../../types'
 import { SavedModal } from '../control-bar/components/saved-modal'
+import { PublishedModal } from '../control-bar/components/published-modal'
 import { SimilarTemplates } from './components/similar-templates/similar-templates'
 import { TemplateHero } from './components/template-hero/template-hero'
 import { TemplatePreview } from './components/template-preview/template-preview'
@@ -28,22 +29,19 @@ export function TemplateDetailPage({
 }: TemplateDetailPageProps) {
   const router = useRouter()
   const [template, setTemplate] = useState<TemplateData | null>(initialTemplateData || null)
-  const [loading, setLoading] = useState(!initialTemplateData) // Only show loading if we don't have initial data
+  const [loading, setLoading] = useState(!initialTemplateData)
   const [error, setError] = useState<string | null>(null)
   const [savedModalOpen, setSavedModalOpen] = useState(false)
+  const [publishedModalOpen, setPublishedModalOpen] = useState(false)
 
-  // Get sidebar state for layout calculations
   const { mode, isExpanded } = useSidebarStore()
 
-  // Calculate if sidebar is collapsed based on mode and state
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
-  // Fetch template data only if we don't have it or if we need to ensure we have complete data
   useEffect(() => {
     const fetchTemplate = async () => {
       try {
-        // If we have initial data and it includes workflowState, we might not need to fetch
         if (initialTemplateData?.workflowState) {
           setTemplate(initialTemplateData)
           setLoading(false)
@@ -54,7 +52,6 @@ export function TemplateDetailPage({
         setLoading(true)
         setError(null)
 
-        // Use the new organized API endpoint
         const response = await fetch(`/api/templates/${templateId}/info?includeState=true`)
 
         if (!response.ok) {
@@ -69,7 +66,6 @@ export function TemplateDetailPage({
         const data = await response.json()
         setTemplate(data)
 
-        // Track view after successful load
         trackView(templateId)
       } catch (err) {
         logger.error('Error fetching template:', err)
@@ -82,7 +78,6 @@ export function TemplateDetailPage({
     fetchTemplate()
   }, [templateId, initialTemplateData])
 
-  // Track template view - non-blocking and handles errors gracefully
   const trackView = async (id: string) => {
     try {
       await fetch(`/api/templates/${id}/view`, {
@@ -90,12 +85,10 @@ export function TemplateDetailPage({
       })
       logger.info(`Tracked view for template: ${id}`)
     } catch (error) {
-      // Don't let view tracking errors affect the user experience
       logger.warn('Failed to track template view:', error)
     }
   }
 
-  // Loading state
   if (loading) {
     return (
       <div
@@ -109,7 +102,6 @@ export function TemplateDetailPage({
     )
   }
 
-  // Error state
   if (error || !template) {
     return (
       <div
@@ -141,27 +133,34 @@ export function TemplateDetailPage({
     <div
       className={`min-h-screen transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
     >
-      <div className='border-b bg-background'>
-        <div className='flex items-center justify-between px-6 py-4'>
-          <Button
-            variant='ghost'
-            size='sm'
-            onClick={() => (onBack ? onBack() : router.push('/w/templates'))}
-            className='text-muted-foreground hover:text-foreground'
+      <div className='w-full border-b bg-background'>
+      {/* Top Row - Action Icons */}
+      <div className='flex justify-between px-6 py-3'>
+        <div className='flex items-center gap-2'>
+          <span
+            className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
+            onClick={() => router.push('/w/templates')}
           >
-            <ArrowLeft className='mr-2 h-4 w-4' />
-            Back to Templates
-          </Button>
-
-          <Button
-            variant='ghost'
-            size='sm'
-            className='text-muted-foreground hover:text-foreground'
+            <ArrowLeft className='mr-2 inline h-4 w-4' />
+            Back to templates
+          </span>
+        </div>
+        <div className='flex items-center gap-3'>
+          <span
+            className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
             onClick={() => setSavedModalOpen(true)}
           >
-            <Heart className='mr-2 h-4 w-4' />
+            <Heart className='mr-2 inline h-4 w-4' />
             Saved
-          </Button>
+          </span>
+          <span
+            className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
+            onClick={() => setPublishedModalOpen(true)}
+          >
+            <Upload className='mr-2 inline h-4 w-4' />
+            Published
+          </span>
+          </div>
         </div>
       </div>
 
@@ -184,6 +183,9 @@ export function TemplateDetailPage({
 
       {/* Saved Templates Modal */}
       <SavedModal open={savedModalOpen} onOpenChange={setSavedModalOpen} />
+
+      {/* Published Templates Modal */}
+      <PublishedModal open={publishedModalOpen} onOpenChange={setPublishedModalOpen} />
     </div>
   )
 }

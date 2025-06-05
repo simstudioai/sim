@@ -216,7 +216,6 @@ export const apiKey = pgTable('api_key', {
   expiresAt: timestamp('expires_at'),
 })
 
-
 export const templates = pgTable(
   'templates',
   {
@@ -232,7 +231,7 @@ export const templates = pgTable(
     views: integer('views').notNull().default(0),
     category: text('category'),
     price: text('price').notNull().default('Free'),
-    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
