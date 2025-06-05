@@ -235,7 +235,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         deployedAt,
         apiKey,
         createdAt,
-        marketplaceData,
+        templatesData,
         workspaceId, // Extract workspaceId
       } = workflow
 
@@ -255,7 +255,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         color: color || '#3972F6',
         // Use createdAt for sorting if available, otherwise fall back to lastSynced
         lastModified: createdAt ? new Date(createdAt) : new Date(lastSynced),
-        marketplaceData: marketplaceData || null,
+        templatesData: templatesData || null,
         workspaceId, // Include workspaceId in metadata
       }
 
@@ -269,7 +269,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         deployedAt: deployedAt ? new Date(deployedAt) : undefined,
         apiKey,
         lastSaved: Date.now(),
-        marketplaceData: marketplaceData || null,
+        templatesData: templatesData || null,
       }
 
       // 3. Initialize subblock values from the workflow state

@@ -16,24 +16,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params
 
-    // First, check if the workflow exists and is published to the marketplace
-    const marketplaceEntry = await db
+    // First, check if the workflow exists and is published to the templates
+    const templatesEntry = await db
       .select({
-        id: schema.marketplace.id,
-        workflowId: schema.marketplace.workflowId,
-        state: schema.marketplace.state,
-        name: schema.marketplace.name,
-        description: schema.marketplace.description,
-        authorId: schema.marketplace.authorId,
-        authorName: schema.marketplace.authorName,
+        id: schema.templates.id,
+        workflowId: schema.templates.workflowId,
+        state: schema.templates.state,
+        name: schema.templates.name,
+        longDescription: schema.templates.long_description,
+        shortDescription: schema.templates.short_description,
+        category: schema.templates.category,
+        authorId: schema.templates.authorId,
+        authorName: schema.templates.authorName,
       })
-      .from(schema.marketplace)
-      .where(eq(schema.marketplace.workflowId, id))
+      .from(schema.templates)
+      .where(eq(schema.templates.workflowId, id))
       .limit(1)
       .then((rows) => rows[0])
 
-    if (!marketplaceEntry) {
-      // Check if workflow exists but is not in marketplace
+    if (!templatesEntry) {
+      // Check if workflow exists but is not in templates
       const workflowExists = await db
         .select({ id: schema.workflow.id })
         .from(schema.workflow)
@@ -53,12 +55,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     logger.info(`[${requestId}] Retrieved public workflow: ${id}`)
 
     return createSuccessResponse({
-      id: marketplaceEntry.workflowId,
-      name: marketplaceEntry.name,
-      description: marketplaceEntry.description,
-      authorId: marketplaceEntry.authorId,
-      authorName: marketplaceEntry.authorName,
-      state: marketplaceEntry.state,
+      id: templatesEntry.workflowId,
+      name: templatesEntry.name,
+      longDescription: templatesEntry.longDescription,
+      shortDescription: templatesEntry.shortDescription,
+      category: templatesEntry.category,
+      authorId: templatesEntry.authorId,
+      authorName: templatesEntry.authorName,
+      state: templatesEntry.state,
       isPublic: true,
     })
   } catch (error) {

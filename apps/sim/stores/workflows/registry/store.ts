@@ -664,22 +664,22 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           name: options.name || generateUniqueName(workflows),
           lastModified: new Date(),
           description: options.description || 'New workflow',
-          color: options.marketplaceId ? '#808080' : getNextWorkflowColor(workflows), // Gray for marketplace imports
-          marketplaceData: options.marketplaceId
-            ? { id: options.marketplaceId, status: 'temp' as const }
+          color: options.templatesId ? '#808080' : getNextWorkflowColor(workflows), // Gray for templates imports
+          templatesData: options.templatesId
+            ? { id: options.templatesId, status: 'temp' as const }
             : undefined,
           workspaceId, // Associate with workspace
         }
 
         let initialState: any
 
-        // If this is a marketplace import with existing state
-        if (options.marketplaceId && options.marketplaceState) {
+        // If this is a templates import with existing state
+        if (options.templatesId && options.templatesState) {
           initialState = {
-            blocks: options.marketplaceState.blocks || {},
-            edges: options.marketplaceState.edges || [],
-            loops: options.marketplaceState.loops || {},
-            parallels: options.marketplaceState.parallels || {},
+            blocks: options.templatesState.blocks || {},
+            edges: options.templatesState.edges || [],
+            loops: options.templatesState.loops || {},
+            parallels: options.templatesState.parallels || {},
             isDeployed: false,
             deployedAt: undefined,
             deploymentStatuses: {}, // Initialize empty deployment statuses map
@@ -688,16 +688,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               past: [],
               present: {
                 state: {
-                  blocks: options.marketplaceState.blocks || {},
-                  edges: options.marketplaceState.edges || [],
-                  loops: options.marketplaceState.loops || {},
-                  parallels: options.marketplaceState.parallels || {},
+                  blocks: options.templatesState.blocks || {},
+                  edges: options.templatesState.edges || [],
+                  loops: options.templatesState.loops || {},
+                  parallels: options.templatesState.parallels || {},
                   isDeployed: false,
                   deployedAt: undefined,
                   workspaceId, // Include workspace ID in history
                 },
                 timestamp: Date.now(),
-                action: 'Imported from marketplace',
+                action: 'Imported from templates',
                 subblockValues: {},
               },
               future: [],
@@ -705,7 +705,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             lastSaved: Date.now(),
           }
 
-          logger.info(`Created workflow from marketplace: ${options.marketplaceId}`)
+          logger.info(`Created workflow from templates: ${options.templatesId}`)
         } else {
           // Create starter block for new workflow
           const starterId = crypto.randomUUID()
@@ -850,9 +850,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Save initial workflow state to localStorage
         saveWorkflowState(id, initialState)
 
-        // Initialize subblock values if this is a marketplace import
-        if (options.marketplaceId && options.marketplaceState?.blocks) {
-          useSubBlockStore.getState().initializeFromWorkflow(id, options.marketplaceState.blocks)
+        // Initialize subblock values if this is a templates import
+        if (options.templatesId && options.templatesState?.blocks) {
+          useSubBlockStore.getState().initializeFromWorkflow(id, options.templatesState.blocks)
         }
 
         // If this is the first workflow or it's an initial workflow, set it as active
@@ -877,31 +877,31 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       },
 
       /**
-       * Creates a new workflow from a marketplace workflow
-       * @param marketplaceId - The ID of the marketplace workflow to import
-       * @param state - The state of the marketplace workflow (blocks, edges, loops)
-       * @param metadata - Additional metadata like name, description from marketplace
+       * Creates a new workflow from a templates workflow
+       * @param templatesId - The ID of the templates workflow to import
+       * @param state - The state of the templates workflow (blocks, edges, loops)
+       * @param metadata - Additional metadata like name, description from templates
        * @returns The ID of the newly created workflow
        */
-      createMarketplaceWorkflow: (
-        marketplaceId: string,
+      createTemplatesWorkflow: (
+        templatesId: string,
         state: any,
         metadata: Partial<WorkflowMetadata>
       ) => {
         const { workflows } = get()
         const id = crypto.randomUUID()
 
-        // Generate workflow metadata with marketplace properties
+        // Generate workflow metadata with templates properties
         const newWorkflow: WorkflowMetadata = {
           id,
-          name: metadata.name || 'Marketplace workflow',
+          name: metadata.name || 'Templates workflow',
           lastModified: new Date(),
-          description: metadata.description || 'Imported from marketplace',
+          description: metadata.description || 'Imported from templates',
           color: metadata.color || getNextWorkflowColor(workflows),
-          marketplaceData: { id: marketplaceId, status: 'temp' as const },
+          templatesData: { id: templatesId, status: 'temp' as const },
         }
 
-        // Prepare workflow state based on the marketplace workflow state
+        // Prepare workflow state based on the templates workflow state
         const initialState = {
           blocks: state.blocks || {},
           edges: state.edges || [],
@@ -921,7 +921,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 deployedAt: undefined,
               },
               timestamp: Date.now(),
-              action: 'Imported from marketplace',
+              action: 'Imported from templates',
               subblockValues: {},
             },
             future: [],
@@ -956,7 +956,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Trigger sync
         useWorkflowStore.getState().sync.forceSync()
 
-        logger.info(`Created marketplace workflow ${id} imported from ${marketplaceId}`)
+        logger.info(`Created templates workflow ${id} imported from ${templatesId}`)
 
         return id
       },
@@ -995,7 +995,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           description: sourceWorkflow.description,
           color: getNextWorkflowColor(workflows),
           workspaceId, // Include the workspaceId in the new workflow
-          // Do not copy marketplace data
+          // Do not copy templates data
         }
 
         // Create new workflow state without deployment data
@@ -1004,10 +1004,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           edges: sourceState.edges || [],
           loops: sourceState.loops || {},
           parallels: sourceState.parallels || {},
-          isDeployed: false, // Reset deployment status
-          deployedAt: undefined, // Reset deployment timestamp
-          workspaceId, // Include workspaceId in state
-          deploymentStatuses: {}, // Start with empty deployment statuses map
+          isDeployed: false,
+          deployedAt: undefined,
+          workspaceId,
+          deploymentStatuses: {},
           history: {
             past: [],
             present: {

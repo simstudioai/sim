@@ -12,11 +12,11 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
   active: boolean
-  isMarketplace?: boolean
+  isTemplates?: boolean
   isCollapsed?: boolean
 }
 
-function WorkflowItem({ workflow, active, isMarketplace, isCollapsed }: WorkflowItemProps) {
+function WorkflowItem({ workflow, active, isTemplates, isCollapsed }: WorkflowItemProps) {
   return (
     <Link
       href={`/w/${workflow.id}`}
@@ -40,14 +40,14 @@ function WorkflowItem({ workflow, active, isMarketplace, isCollapsed }: Workflow
 
 interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
-  marketplaceWorkflows: WorkflowMetadata[]
+  templatesWorkflows: WorkflowMetadata[]
   isCollapsed?: boolean
   isLoading?: boolean
 }
 
 export function WorkflowList({
   regularWorkflows,
-  marketplaceWorkflows,
+  templatesWorkflows,
   isCollapsed = false,
   isLoading = false,
 }: WorkflowListProps) {
@@ -83,7 +83,7 @@ export function WorkflowList({
     !isLoading &&
     session?.user &&
     regularWorkflows.length === 0 &&
-    marketplaceWorkflows.length === 0
+    templatesWorkflows.length === 0
 
   return (
     <div className={`space-y-1 ${isLoading ? 'opacity-60' : ''}`}>
@@ -102,22 +102,22 @@ export function WorkflowList({
             />
           ))}
 
-          {/* Marketplace Temp Workflows (if any) */}
-          {marketplaceWorkflows.length > 0 && (
+          {/* Templates Temp Workflows (if any) */}
+          {templatesWorkflows.length > 0 && (
             <div className='mt-2 border-border/30 border-t pt-2'>
               <h3
                 className={`mb-1 px-2 font-medium text-muted-foreground text-xs ${
                   isCollapsed ? 'text-center' : ''
                 }`}
               >
-                {isCollapsed ? '' : 'Marketplace'}
+                {isCollapsed ? '' : 'Templates'}
               </h3>
-              {marketplaceWorkflows.map((workflow) => (
+              {templatesWorkflows.map((workflow) => (
                 <WorkflowItem
                   key={workflow.id}
                   workflow={workflow}
                   active={pathname === `/w/${workflow.id}`}
-                  isMarketplace
+                  isTemplates
                   isCollapsed={isCollapsed}
                 />
               ))}

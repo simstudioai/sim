@@ -98,10 +98,10 @@ export const workflow = pgTable('workflow', {
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
   variables: json('variables').default('{}'),
-  marketplaceData: json('marketplace_data'),
+  templatesData: json('templates_data'),
 
   // These columns are kept for backward compatibility during migration
-  // @deprecated - Use marketplaceData instead
+  // @deprecated - Use templatesData instead
   isPublished: boolean('is_published').notNull().default(false),
 })
 

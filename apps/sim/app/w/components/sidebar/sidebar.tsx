@@ -75,7 +75,7 @@ export function Sidebar() {
     }
   }, [isAnyModalOpen])
 
-  // Separate regular workflows from temporary marketplace workflows
+  // Separate regular workflows from temporary templates workflows
   const { regularWorkflows, tempWorkflows } = useMemo(() => {
     const regular: WorkflowMetadata[] = []
     const temp: WorkflowMetadata[] = []
@@ -87,7 +87,7 @@ export function Sidebar() {
         // 1. Belong to the active workspace, OR
         // 2. Don't have a workspace ID (legacy workflows)
         if (workflow.workspaceId === activeWorkspaceId || !workflow.workspaceId) {
-          if (workflow.marketplaceData?.status === 'temp') {
+          if (workflow.templatesData?.status === 'temp') {
             temp.push(workflow)
           } else {
             regular.push(workflow)
@@ -214,13 +214,13 @@ export function Sidebar() {
           </h2>
           <WorkflowList
             regularWorkflows={regularWorkflows}
-            marketplaceWorkflows={tempWorkflows}
+            templatesWorkflows={tempWorkflows}
             isCollapsed={isCollapsed}
             isLoading={isLoading}
           />
         </div>
 
-        {/* Logs, Settings, Templates, Marketplace Navigation - Follows workflows */}
+        {/* Logs, Settings, Templates, Navigation - Follows workflows */}
         <div className='mt-6 flex-shrink-0'>
           <NavSection isLoading={isLoading} itemCount={4} isCollapsed={isCollapsed}>
             <NavSection.Item
@@ -254,13 +254,6 @@ export function Sidebar() {
               active={pathname === '/w/templates'}
               isCollapsed={isCollapsed}
             />
-            {/* <NavSection.Item
-              icon={<Store className="h-[18px] w-[18px]" />}
-              href="/w/marketplace"
-              label="Marketplace"
-              active={pathname === '/w/marketplace'}
-              isCollapsed={isCollapsed}
-            /> */}
           </NavSection>
         </div>
 

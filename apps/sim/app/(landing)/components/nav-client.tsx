@@ -84,7 +84,7 @@ const NavLinks = ({
   onContactClick?: () => void
 }) => {
   const navigationLinks = [
-    // { href: "/", label: "Marketplace" },
+    // { href: "/", label: "Templates" },
     ...(currentPath !== '/' ? [{ href: '/', label: 'Home' }] : []),
     { href: 'https://docs.simstudio.ai/', label: 'Docs', external: true },
     // { href: '/', label: 'Blog' },
