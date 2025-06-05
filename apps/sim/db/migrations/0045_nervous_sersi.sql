@@ -1,0 +1,1 @@
+ALTER TABLE "workflow" RENAME COLUMN "marketplace_data" TO "templates_data";

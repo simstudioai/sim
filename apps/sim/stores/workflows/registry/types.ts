@@ -1,5 +1,5 @@
-export interface MarketplaceData {
-  id: string // Marketplace entry ID to track original marketplace source
+export interface TemplatesData {
+  id: string // Templates entry ID to track original templates source
   status: 'owner' | 'temp'
 }
 
@@ -16,7 +16,7 @@ export interface WorkflowMetadata {
   lastModified: Date
   description?: string
   color: string
-  marketplaceData?: MarketplaceData | null
+  templatesData?: TemplatesData | null
   workspaceId?: string
   folderId?: string | null
 }
@@ -42,8 +42,8 @@ export interface WorkflowRegistryActions {
   updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => void
   createWorkflow: (options?: {
     isInitial?: boolean
-    marketplaceId?: string
-    marketplaceState?: any
+    templatesId?: string
+    templatesState?: any
     name?: string
     description?: string
     workspaceId?: string

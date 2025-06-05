@@ -57,7 +57,7 @@ import {
 import { useWorkflowExecution } from '../../hooks/use-workflow-execution'
 import { DeploymentControls } from './components/deployment-controls/deployment-controls'
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
-import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
+import { TemplatesModal } from './components/templates-modal/templates-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
 
 const logger = createLogger('ControlBar')
@@ -128,8 +128,8 @@ export function ControlBar() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
-  // Marketplace modal state
-  const [isMarketplaceModalOpen, setIsMarketplaceModalOpen] = useState(false)
+  // Templates modal state
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
 
   // Multiple runs state
@@ -164,22 +164,22 @@ export function ControlBar() {
     isExecuting || isMultiRunning || isCancelling
   )
 
-  // Get the marketplace data from the workflow registry if available
-  const getMarketplaceData = () => {
+  // Get the templates data from the workflow registry if available
+  const getTemplatesData = () => {
     if (!activeWorkflowId || !workflows[activeWorkflowId]) return null
-    return workflows[activeWorkflowId].marketplaceData
+    return workflows[activeWorkflowId].templatesData
   }
 
-  // Check if the current workflow is published to marketplace
-  const _isPublishedToMarketplace = () => {
-    const marketplaceData = getMarketplaceData()
-    return !!marketplaceData
+  // Check if the current workflow is published to templates
+  const _isPublishedToTemplates = () => {
+    const templatesData = getTemplatesData()
+    return !!templatesData
   }
 
   // // Check if the current user is the owner of the published workflow
   const isWorkflowOwner = () => {
-    const marketplaceData = getMarketplaceData()
-    return marketplaceData?.status === 'owner'
+    const templatesData = getTemplatesData()
+    return templatesData?.status === 'owner'
   }
 
   // Get deployment status from registry
@@ -433,20 +433,20 @@ export function ControlBar() {
   }
 
   // /**
-  //  * Handle opening marketplace modal or showing published status
+  //  * Handle opening templates modal or showing published status
   //  */
   const handlePublishWorkflow = async () => {
     if (!activeWorkflowId) return
 
-    // If already published, show marketplace modal with info instead of notifications
-    const isPublished = _isPublishedToMarketplace()
+    // If already published, show templates modal with info instead of notifications
+    const isPublished = _isPublishedToTemplates()
     if (isPublished) {
-      setIsMarketplaceModalOpen(true)
+      setIsTemplatesModalOpen(true)
       return
     }
 
     // If not published, open the modal to start the publishing process
-    setIsMarketplaceModalOpen(true)
+    setIsTemplatesModalOpen(true)
   }
 
   /**
@@ -773,7 +773,7 @@ export function ControlBar() {
    * Render publish button
    */
   const renderPublishButton = () => {
-    const isPublished = _isPublishedToMarketplace()
+    const isPublished = _isPublishedToTemplates()
 
     return (
       <Tooltip>
@@ -790,15 +790,15 @@ export function ControlBar() {
             ) : (
               <Store className='h-5 w-5' />
             )}
-            <span className='sr-only'>Publish to Marketplace</span>
+            <span className='sr-only'>Publish to Templates</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>
           {isPublishing
             ? 'Publishing...'
             : isPublished
-              ? 'Published to Marketplace'
-              : 'Publish to Marketplace'}
+              ? 'Published to Templates'
+              : 'Publish to Templates'}
         </TooltipContent>
       </Tooltip>
     )
@@ -1138,8 +1138,8 @@ export function ControlBar() {
         {renderDeployButton()}
         {renderRunButton()}
 
-        {/* Add the marketplace modal */}
-        <MarketplaceModal open={isMarketplaceModalOpen} onOpenChange={setIsMarketplaceModalOpen} />
+        {/* Add the templates modal */}
+        <TemplatesModal open={isTemplatesModalOpen} onOpenChange={setIsTemplatesModalOpen} />
       </div>
     </div>
   )

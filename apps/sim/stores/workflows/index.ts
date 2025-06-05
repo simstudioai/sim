@@ -53,7 +53,7 @@ export function getWorkflowWithValues(workflowId: string) {
     name: metadata.name,
     description: metadata.description,
     color: metadata.color || '#3972F6',
-    marketplaceData: metadata.marketplaceData || null,
+    templatesData: metadata.templatesData || null,
     workspaceId: metadata.workspaceId,
     folderId: metadata.folderId,
     state: {
@@ -133,8 +133,9 @@ export function getAllWorkflowsWithValues() {
       name: metadata.name,
       description: metadata.description,
       color: metadata.color || '#3972F6',
-      marketplaceData: metadata.marketplaceData || null,
-      folderId: metadata.folderId,
+      templatesData: metadata.templatesData || null,
+      workspaceId: metadata.workspaceId, // Include workspaceId in the result
+      folderId: metadata.folderId, // Include folderId in the result
       state: {
         blocks: mergedBlocks,
         edges: workflowState.edges,
@@ -143,7 +144,7 @@ export function getAllWorkflowsWithValues() {
         lastSaved: workflowState.lastSaved,
         isDeployed: workflowState.isDeployed,
         deployedAt: workflowState.deployedAt,
-        marketplaceData: metadata.marketplaceData || null,
+        templatesData: metadata.templatesData || null,
       },
       // Include API key if available
       apiKey,

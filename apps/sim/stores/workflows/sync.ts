@@ -207,9 +207,9 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         color,
         state,
         createdAt,
-        marketplaceData,
-        workspaceId,
-        folderId,
+        templatesData,
+        workspaceId, // Extract workspaceId
+        folderId, // Extract folderId
       } = workflow
 
       // Skip if workflow doesn't belong to active workspace
@@ -223,13 +223,27 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         name,
         description: description || '',
         color: color || '#3972F6',
-        lastModified: createdAt ? new Date(createdAt) : new Date(),
-        marketplaceData: marketplaceData || null,
-        workspaceId,
-        folderId: folderId || null,
+        // Use createdAt for sorting if available, otherwise fall back to lastSynced
+        lastModified: createdAt ? new Date(createdAt) : new Date(lastSynced),
+        templatesData: templatesData || null,
+        workspaceId, // Include workspaceId in metadata
+        folderId: folderId || null, // Include folderId in metadata
       }
 
-      // Initialize subblock values
+      // 2. Prepare workflow state data
+      const workflowState = {
+        blocks: state.blocks || {},
+        edges: state.edges || [],
+        loops: state.loops || {},
+        parallels: state.parallels || {},
+        isDeployed: isDeployed || false,
+        deployedAt: deployedAt ? new Date(deployedAt) : undefined,
+        apiKey,
+        lastSaved: Date.now(),
+        templatesData: templatesData || null,
+      }
+
+      // 3. Initialize subblock values from the workflow state
       const subblockValues: Record<string, Record<string, any>> = {}
       if (state?.blocks) {
         Object.entries(state.blocks).forEach(([blockId, block]) => {

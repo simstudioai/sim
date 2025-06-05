@@ -98,9 +98,7 @@ export function GoogleDrivePicker({
 
   // Fetch available credentials for this provider
   const fetchCredentials = useCallback(async () => {
-    console.log('isPreview in google drive picker', isPreview)
     if (isPreview) {
-      console.log('BLOCKED IN google drive picker')
       return
     }
 
