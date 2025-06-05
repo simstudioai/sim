@@ -31,49 +31,32 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       `[${requestId}] Fetching template info: ${templateId}${includeState ? ' with state' : ''}`
     )
 
-    // Fetch the template with appropriate fields
-    let templateEntry
-
-    if (includeState) {
-      // Query with state included
-      templateEntry = await db
-        .select({
-          id: schema.templates.id,
-          name: schema.templates.name,
-          short_description: schema.templates.short_description,
-          long_description: schema.templates.long_description,
-          authorId: schema.templates.authorId,
-          authorName: schema.templates.authorName,
-          state: schema.templates.state,
-          views: schema.templates.views,
-          category: schema.templates.category,
-          createdAt: schema.templates.createdAt,
-          updatedAt: schema.templates.updatedAt,
-        })
-        .from(schema.templates)
-        .where(eq(schema.templates.id, templateId))
-        .limit(1)
-        .then((rows) => rows[0])
-    } else {
-      // Query without state
-      templateEntry = await db
-        .select({
-          id: schema.templates.id,
-          name: schema.templates.name,
-          short_description: schema.templates.short_description,
-          long_description: schema.templates.long_description,
-          authorId: schema.templates.authorId,
-          authorName: schema.templates.authorName,
-          views: schema.templates.views,
-          category: schema.templates.category,
-          createdAt: schema.templates.createdAt,
-          updatedAt: schema.templates.updatedAt,
-        })
-        .from(schema.templates)
-        .where(eq(schema.templates.id, templateId))
-        .limit(1)
-        .then((rows) => rows[0])
+    // Define base fields that are always selected
+    const baseFields = {
+      id: schema.templates.id,
+      name: schema.templates.name,
+      shortDescription: schema.templates.shortDescription,
+      longDescription: schema.templates.longDescription,
+      authorId: schema.templates.authorId,
+      authorName: schema.templates.authorName,
+      views: schema.templates.views,
+      category: schema.templates.category,
+      createdAt: schema.templates.createdAt,
+      updatedAt: schema.templates.updatedAt,
     }
+
+    // Conditionally add state field if requested
+    const fieldsToSelect = includeState
+      ? { ...baseFields, state: schema.templates.state }
+      : baseFields
+
+    // Single database query with conditional field selection
+    const templateEntry = await db
+      .select(fieldsToSelect)
+      .from(schema.templates)
+      .where(eq(schema.templates.id, templateId))
+      .limit(1)
+      .then((rows) => rows[0])
 
     if (!templateEntry) {
       logger.warn(`[${requestId}] Template not found: ${templateId}`)
@@ -92,8 +75,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     logger.info(`[${requestId}] Successfully fetched template info: ${templateEntry.name}`)
     return createSuccessResponse(responseData)
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Error fetching template info`, error)
-    return createErrorResponse(`Failed to fetch template info: ${error.message}`, 500)
+    return createErrorResponse(
+      `Failed to fetch template info: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      500
+    )
   }
 }

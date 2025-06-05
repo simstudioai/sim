@@ -12,6 +12,14 @@ import { TemplateGrid } from '../../../shared/template-grid'
 
 const logger = createLogger('TechnicalPage')
 
+// Type definitions for technical categories
+type TechnicalCategory = (typeof CATEGORY_GROUPS.technical)[number]
+
+// Type guard function
+function isTechnicalCategory(category: string): category is TechnicalCategory {
+  return CATEGORY_GROUPS.technical.includes(category as TechnicalCategory)
+}
+
 export default function TechnicalPage() {
   const searchParams = useSearchParams()
   const subcategory = searchParams.get('subcategory')
@@ -124,7 +132,7 @@ export default function TechnicalPage() {
         setTemplateData(organizedData)
 
         // Set initial active section
-        if (subcategory && CATEGORY_GROUPS.technical.includes(subcategory as any)) {
+        if (subcategory && isTechnicalCategory(subcategory)) {
           setActiveSection(subcategory)
         } else {
           setActiveSection(CATEGORY_GROUPS.technical[0])
@@ -167,7 +175,7 @@ export default function TechnicalPage() {
       mainCategory='technical'
     >
       {loading ? (
-        <TemplateGrid isLoading={true} skeletonCount={6} />
+        <TemplateGrid workflows={[]} isLoading={true} skeletonCount={6} />
       ) : (
         <>
           {Object.entries(filteredWorkflows).map(([category, workflows]) => (

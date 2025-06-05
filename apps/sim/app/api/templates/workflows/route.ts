@@ -12,6 +12,66 @@ const logger = createLogger('TemplatesWorkflowsAPI')
 export const revalidate = 300
 
 /**
+ * Fetches a single template entry by ID with optional state inclusion
+ */
+async function fetchSingleTemplate(
+  id: string,
+  condition: 'workflowId' | 'templateId',
+  includeState: boolean,
+  requestId: string
+) {
+  // Define base fields
+  const baseFields = {
+    id: schema.templates.id,
+    name: schema.templates.name,
+    shortDescription: schema.templates.shortDescription,
+    longDescription: schema.templates.longDescription,
+    authorId: schema.templates.authorId,
+    authorName: schema.templates.authorName,
+    category: schema.templates.category,
+    createdAt: schema.templates.createdAt,
+    updatedAt: schema.templates.updatedAt,
+  }
+
+  // Add state field if needed
+  const fieldsToSelect = includeState
+    ? { ...baseFields, state: schema.templates.state }
+    : baseFields
+
+  // Determine the where condition
+  const whereCondition =
+    condition === 'workflowId' ? eq(schema.templates.workflowId, id) : eq(schema.templates.id, id)
+
+  // Execute query
+  const templateEntry = await db
+    .select(fieldsToSelect)
+    .from(schema.templates)
+    .where(whereCondition)
+    .limit(1)
+    .then((rows) => rows[0])
+
+  if (!templateEntry) {
+    const entityType = condition === 'workflowId' ? 'workflow' : 'template entry'
+    logger.warn(`[${requestId}] No template entry found for ${entityType}: ${id}`)
+    const errorMessage =
+      condition === 'workflowId' ? 'Workflow not found in templates' : 'Template entry not found'
+    return { error: errorMessage, status: 404 }
+  }
+
+  // Transform response data
+  const responseData =
+    includeState && 'state' in templateEntry
+      ? {
+          ...templateEntry,
+          workflowState: templateEntry.state,
+          state: undefined,
+        }
+      : templateEntry
+
+  return { data: responseData }
+}
+
+/**
  * Consolidated API endpoint for template workflows
  *
  * Supports:
@@ -47,120 +107,20 @@ export async function GET(request: NextRequest) {
 
     // Handle single workflow request first (by workflow ID)
     if (workflowId) {
-      let templateEntry
-
-      if (includeState) {
-        templateEntry = await db
-          .select({
-            id: schema.templates.id,
-            name: schema.templates.name,
-            short_description: schema.templates.short_description,
-            long_description: schema.templates.long_description,
-            authorId: schema.templates.authorId,
-            authorName: schema.templates.authorName,
-            state: schema.templates.state,
-            category: schema.templates.category,
-            createdAt: schema.templates.createdAt,
-            updatedAt: schema.templates.updatedAt,
-          })
-          .from(schema.templates)
-          .where(eq(schema.templates.id, workflowId))
-          .limit(1)
-          .then((rows) => rows[0])
-      } else {
-        templateEntry = await db
-          .select({
-            id: schema.templates.id,
-            name: schema.templates.name,
-            short_description: schema.templates.short_description,
-            long_description: schema.templates.long_description,
-            authorId: schema.templates.authorId,
-            authorName: schema.templates.authorName,
-            category: schema.templates.category,
-            createdAt: schema.templates.createdAt,
-            updatedAt: schema.templates.updatedAt,
-          })
-          .from(schema.templates)
-          .where(eq(schema.templates.id, workflowId))
-          .limit(1)
-          .then((rows) => rows[0])
+      const result = await fetchSingleTemplate(workflowId, 'workflowId', includeState, requestId)
+      if (result.error) {
+        return createErrorResponse(result.error, result.status!)
       }
-
-      if (!templateEntry) {
-        logger.warn(`[${requestId}] No template entry found for workflow: ${workflowId}`)
-        return createErrorResponse('Workflow not found in templates', 404)
-      }
-
-      const responseData =
-        includeState && 'state' in templateEntry
-          ? {
-              ...templateEntry,
-              workflowState: templateEntry.state,
-              state: undefined,
-            }
-          : templateEntry
-
-      const duration = Date.now() - startTime
-      return createSuccessResponse(responseData)
+      return createSuccessResponse(result.data)
     }
 
     // Handle single template entry request (by template ID)
     if (templateId) {
-      let templateEntry
-
-      if (includeState) {
-        templateEntry = await db
-          .select({
-            id: schema.templates.id,
-            name: schema.templates.name,
-            short_description: schema.templates.short_description,
-            long_description: schema.templates.long_description,
-            authorId: schema.templates.authorId,
-            authorName: schema.templates.authorName,
-            state: schema.templates.state,
-            category: schema.templates.category,
-            createdAt: schema.templates.createdAt,
-            updatedAt: schema.templates.updatedAt,
-          })
-          .from(schema.templates)
-          .where(eq(schema.templates.id, templateId))
-          .limit(1)
-          .then((rows) => rows[0])
-      } else {
-        templateEntry = await db
-          .select({
-            id: schema.templates.id,
-            name: schema.templates.name,
-            short_description: schema.templates.short_description,
-            long_description: schema.templates.long_description,
-            authorId: schema.templates.authorId,
-            authorName: schema.templates.authorName,
-            category: schema.templates.category,
-            createdAt: schema.templates.createdAt,
-            updatedAt: schema.templates.updatedAt,
-          })
-          .from(schema.templates)
-          .where(eq(schema.templates.id, templateId))
-          .limit(1)
-          .then((rows) => rows[0])
+      const result = await fetchSingleTemplate(templateId, 'templateId', includeState, requestId)
+      if (result.error) {
+        return createErrorResponse(result.error, result.status!)
       }
-
-      if (!templateEntry) {
-        logger.warn(`[${requestId}] No template entry found with ID: ${templateId}`)
-        return createErrorResponse('Template entry not found', 404)
-      }
-
-      const responseData =
-        includeState && 'state' in templateEntry
-          ? {
-              ...templateEntry,
-              workflowState: templateEntry.state,
-              state: undefined,
-            }
-          : templateEntry
-
-      const duration = Date.now() - startTime
-      return createSuccessResponse(responseData)
+      return createSuccessResponse(result.data)
     }
 
     // Handle featured/collection requests
@@ -178,8 +138,8 @@ export async function GET(request: NextRequest) {
     const baseFields = {
       id: schema.templates.id,
       name: schema.templates.name,
-      short_description: schema.templates.short_description,
-      long_description: schema.templates.long_description,
+      shortDescription: schema.templates.shortDescription,
+      longDescription: schema.templates.longDescription,
       authorName: schema.templates.authorName,
       views: schema.templates.views,
       category: schema.templates.category,

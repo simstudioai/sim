@@ -6,8 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
-import { WorkflowCardSkeleton } from '@/app/w/templates/components/workflow-card-skeleton'
-import { TemplateWorkflowCard } from '../../../../components/template-workflow-card'
+import { TemplateGrid } from '../../../../components/shared/template-grid'
 import { getTemplateDescription, type TemplateData } from '../../../../types'
 
 const logger = createLogger('SimilarTemplates')
@@ -69,67 +68,39 @@ export function SimilarTemplates({ currentTemplate }: SimilarTemplatesProps) {
     price: template.price || 'Free',
   })
 
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className='text-xl'>Similar Templates</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4'>
-            {Array.from({ length: 4 }).map((_, index) => (
-              <WorkflowCardSkeleton key={`skeleton-${index}`} />
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (error || similarTemplates.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className='text-xl'>Similar Templates</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className='py-8 text-center'>
-            <p className='mb-4 text-muted-foreground'>
-              {error ? 'Failed to load similar templates' : 'No similar templates found'}
-            </p>
-            <Button variant='outline' onClick={() => router.push('/w/templates')}>
-              Browse All Templates
-              <ArrowRight className='ml-2 h-4 w-4' />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
+  const workflows = similarTemplates.map(convertToWorkflowFormat)
 
   return (
     <Card>
       <CardHeader className='flex flex-row items-center justify-between'>
         <CardTitle className='text-xl'>Similar Templates</CardTitle>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={() => router.push(`/w/templates?category=${currentTemplate.category}`)}
-        >
-          View All
-          <ArrowRight className='ml-2 h-4 w-4' />
-        </Button>
+        {!loading && workflows.length > 0 && (
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={() => router.push(`/w/templates?category=${currentTemplate.category}`)}
+          >
+            View All
+            <ArrowRight className='ml-2 h-4 w-4' />
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
-        <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4'>
-          {similarTemplates.map((template) => (
-            <TemplateWorkflowCard
-              key={template.id}
-              workflow={convertToWorkflowFormat(template)}
-              index={0}
-            />
-          ))}
-        </div>
+        <TemplateGrid
+          workflows={workflows}
+          isLoading={loading}
+          emptyMessage={error ? 'Failed to load similar templates' : 'No similar templates found'}
+          skeletonCount={4}
+          columns={{ md: 2, lg: 4 }}
+        />
+        {(error || (!loading && workflows.length === 0)) && (
+          <div className='mt-4 text-center'>
+            <Button variant='outline' onClick={() => router.push('/w/templates')}>
+              Browse All Templates
+              <ArrowRight className='ml-2 h-4 w-4' />
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

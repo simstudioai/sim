@@ -12,6 +12,6 @@ CREATE TABLE "templates" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "workflow" ADD COLUMN "templates_data" json;--> statement-breakpoint
+ALTER TABLE "workflow" ADD COLUMN "templates_data" json DEFAULT '{}'::json;--> statement-breakpoint
 ALTER TABLE "templates" ADD CONSTRAINT "templates_workflow_id_workflow_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflow"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "templates" ADD CONSTRAINT "templates_author_id_user_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;

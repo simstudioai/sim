@@ -67,8 +67,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .select({
         id: schema.templates.id,
         name: schema.templates.name,
-        short_description: schema.templates.short_description,
-        long_description: schema.templates.long_description,
+        shortDescription: schema.templates.shortDescription,
+        longDescription: schema.templates.longDescription,
         authorName: schema.templates.authorName,
         views: schema.templates.views,
         category: schema.templates.category,

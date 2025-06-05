@@ -24,10 +24,9 @@ export interface TemplateData {
   id: string
   workflowId: string
   name: string
-  // Support both legacy API response and database schema
-  description?: string // For compatibility with current components
-  short_description?: string | null // Database field
-  long_description?: string | null // Database field
+  description?: string
+  shortDescription?: string | null
+  longDescription?: string | null
   authorId?: string
   authorName: string
   views: number
@@ -72,7 +71,7 @@ export interface TemplateCardProps extends TemplateComponentProps {
 
 // Helper function to get description from template data
 export function getTemplateDescription(template: TemplateData): string {
-  return template.short_description || template.long_description || ''
+  return template.shortDescription || template.longDescription || ''
 }
 
 // Navigation types for hierarchical template browsing

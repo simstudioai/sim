@@ -107,7 +107,7 @@ export default function Templates() {
   }
 
   const workflowData = useMemo(() => {
-    const convertTemplateItems = (items: any[]) =>
+    const convertTemplateItems = (items: TemplateData[]) =>
       items.map((item) => ({
         id: item.id,
         name: item.name,
@@ -348,7 +348,7 @@ export default function Templates() {
               sectionRefs.current.loading = el
             }}
           >
-            <TemplateGrid isLoading={true} skeletonCount={6} />
+            <TemplateGrid isLoading={true} skeletonCount={6} workflows={[]} />
           </Section>
         )}
 
@@ -381,7 +381,7 @@ export default function Templates() {
                     <TemplateGrid
                       workflows={workflows}
                       emptyMessage={`No ${getCategoryLabel(category).toLowerCase()} templates available`}
-                      onTemplateMount={registerTemplateCard}
+                      onRegisterCard={registerTemplateCard}
                     />
                   </Section>
                 )

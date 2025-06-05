@@ -12,6 +12,12 @@ import { TemplateGrid } from '../../../shared/template-grid'
 
 const logger = createLogger('OperationsPage')
 
+type OperationsCategory = (typeof CATEGORY_GROUPS.operations)[number]
+
+function isOperationsCategory(category: string): category is OperationsCategory {
+  return CATEGORY_GROUPS.operations.includes(category as OperationsCategory)
+}
+
 export default function OperationsPage() {
   const searchParams = useSearchParams()
   const subcategory = searchParams.get('subcategory')
@@ -24,7 +30,6 @@ export default function OperationsPage() {
 
   // Create refs for each section
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const contentRef = useRef<HTMLDivElement>(null)
 
   // Convert template data to the format expected by components
   const workflowData = useMemo(() => {
@@ -125,7 +130,7 @@ export default function OperationsPage() {
         setTemplateData(organizedData)
 
         // Set initial active section
-        if (subcategory && CATEGORY_GROUPS.operations.includes(subcategory as any)) {
+        if (subcategory && isOperationsCategory(subcategory)) {
           setActiveSection(subcategory)
         } else {
           setActiveSection(CATEGORY_GROUPS.operations[0])
@@ -168,7 +173,7 @@ export default function OperationsPage() {
       mainCategory='operations'
     >
       {loading ? (
-        <TemplateGrid isLoading={true} skeletonCount={6} />
+        <TemplateGrid isLoading={true} skeletonCount={6} workflows={[]} />
       ) : (
         <>
           {Object.entries(filteredWorkflows).map(([category, workflows]) => (

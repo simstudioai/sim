@@ -32,8 +32,8 @@ export async function generateMetadata({ params }: TemplatePageProps): Promise<M
       .select({
         id: templates.id,
         name: templates.name,
-        short_description: templates.short_description,
-        long_description: templates.long_description,
+        short_description: templates.shortDescription,
+        long_description: templates.longDescription,
         authorName: templates.authorName,
         category: templates.category,
         views: templates.views,
