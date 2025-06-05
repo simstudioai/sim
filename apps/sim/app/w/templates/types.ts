@@ -50,6 +50,7 @@ export interface Workflow {
   workflowUrl: string
   workflowState?: WorkflowState
   price: string
+  isStateLoading?: boolean
 }
 
 // API response format for template collections

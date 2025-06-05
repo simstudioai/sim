@@ -8,8 +8,8 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { NotificationList } from '../../../[id]/components/notifications/notifications'
 import type { TemplateData } from '../../types'
-import { SavedModal } from '../control-bar/components/saved-modal'
 import { PublishedModal } from '../control-bar/components/published-modal'
+import { SavedModal } from '../control-bar/components/saved-modal'
 import { SimilarTemplates } from './components/similar-templates/similar-templates'
 import { TemplateHero } from './components/template-hero/template-hero'
 import { TemplatePreview } from './components/template-preview/template-preview'
@@ -134,32 +134,32 @@ export function TemplateDetailPage({
       className={`min-h-screen transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
     >
       <div className='w-full border-b bg-background'>
-      {/* Top Row - Action Icons */}
-      <div className='flex justify-between px-6 py-3'>
-        <div className='flex items-center gap-2'>
-          <span
-            className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
-            onClick={() => router.push('/w/templates')}
-          >
-            <ArrowLeft className='mr-2 inline h-4 w-4' />
-            Back to templates
-          </span>
-        </div>
-        <div className='flex items-center gap-3'>
-          <span
-            className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
-            onClick={() => setSavedModalOpen(true)}
-          >
-            <Heart className='mr-2 inline h-4 w-4' />
-            Saved
-          </span>
-          <span
-            className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
-            onClick={() => setPublishedModalOpen(true)}
-          >
-            <Upload className='mr-2 inline h-4 w-4' />
-            Published
-          </span>
+        {/* Top Row - Action Icons */}
+        <div className='flex justify-between px-6 py-3'>
+          <div className='flex items-center gap-2'>
+            <span
+              className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
+              onClick={() => router.push('/w/templates')}
+            >
+              <ArrowLeft className='mr-2 inline h-4 w-4' />
+              Back to templates
+            </span>
+          </div>
+          <div className='flex items-center gap-3'>
+            <span
+              className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
+              onClick={() => setSavedModalOpen(true)}
+            >
+              <Heart className='mr-2 inline h-4 w-4' />
+              Saved
+            </span>
+            <span
+              className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
+              onClick={() => setPublishedModalOpen(true)}
+            >
+              <Upload className='mr-2 inline h-4 w-4' />
+              Published
+            </span>
           </div>
         </div>
       </div>

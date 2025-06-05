@@ -241,10 +241,13 @@ export const templates = pgTable(
     viewsIdx: index('templates_views_idx').on(table.views),
     createdAtIdx: index('templates_created_at_idx').on(table.createdAt),
     authorIdIdx: index('templates_author_id_idx').on(table.authorId),
-    
+
     // Composite indexes for common query patterns
     categoryViewsIdx: index('templates_category_views_idx').on(table.category, table.views),
-    categoryCreatedAtIdx: index('templates_category_created_at_idx').on(table.category, table.createdAt),
+    categoryCreatedAtIdx: index('templates_category_created_at_idx').on(
+      table.category,
+      table.createdAt
+    ),
   })
 )
 

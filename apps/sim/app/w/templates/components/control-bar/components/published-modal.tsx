@@ -123,7 +123,8 @@ export function PublishedModal({ open, onOpenChange }: PublishedModalProps) {
         {/* Sort Controls */}
         <div className='flex items-center justify-between border-b pb-4'>
           <div className='text-muted-foreground text-sm'>
-            {publishedTemplates.length} published template{publishedTemplates.length !== 1 ? 's' : ''}
+            {publishedTemplates.length} published template
+            {publishedTemplates.length !== 1 ? 's' : ''}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -148,7 +149,9 @@ export function PublishedModal({ open, onOpenChange }: PublishedModalProps) {
           {loading ? (
             <div className='flex items-center justify-center py-12'>
               <Loader2 className='h-6 w-6 animate-spin' />
-              <span className='ml-2 text-muted-foreground text-sm'>Loading published templates...</span>
+              <span className='ml-2 text-muted-foreground text-sm'>
+                Loading published templates...
+              </span>
             </div>
           ) : error ? (
             <div className='flex items-center justify-center py-12'>

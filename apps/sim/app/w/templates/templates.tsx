@@ -18,10 +18,8 @@ import {
 
 const logger = createLogger('Templates')
 
-// Alias for backward compatibility
 export type TemplateWorkflow = TemplateData
 
-// The order to display sections in, matching toolbar order
 const SECTION_ORDER = ['popular', ...CATEGORIES.map((cat) => cat.value)]
 
 export default function Templates() {
@@ -35,30 +33,24 @@ export default function Templates() {
   const [activeSection, setActiveSection] = useState<string | null>(null)
   const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set(['popular']))
   const [categoryFilter, setCategoryFilter] = useState<string[] | null>(null)
-  
-  // Track which templates have state loaded for lazy loading
+
   const [stateLoadedTemplates, setStateLoadedTemplates] = useState<Set<string>>(new Set())
   const [isLoadingStates, setIsLoadingStates] = useState<Set<string>>(new Set())
 
-  // Get sidebar state for layout calculations
   const { mode, isExpanded } = useSidebarStore()
 
-  // Calculate if sidebar is collapsed based on mode and state
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
-  // Create refs for each section
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const contentRef = useRef<HTMLDivElement>(null)
   const initialFetchCompleted = useRef(false)
-  
-  // Intersection observer for lazy loading workflow states
+
   const observerRef = useRef<IntersectionObserver | null>(null)
 
-  // Function to lazy-load workflow state for a specific template
   const loadTemplateState = async (templateId: string) => {
     if (stateLoadedTemplates.has(templateId) || isLoadingStates.has(templateId)) {
-      return // Already loaded or loading
+      return
     }
 
     setIsLoadingStates((prev) => new Set(prev).add(templateId))
@@ -75,18 +67,15 @@ export default function Templates() {
       const stateData = await response.json()
 
       if (stateData.workflowState) {
-        // Update the template data with the loaded state
         setTemplateData((prev) => {
           const updated = { ...prev }
 
-          // Update in popular if it exists there
           updated.popular = updated.popular.map((template) =>
             template.id === templateId
               ? { ...template, workflowState: stateData.workflowState }
               : template
           )
 
-          // Update in categories if it exists there
           Object.keys(updated.byCategory).forEach((category) => {
             updated.byCategory[category] = updated.byCategory[category].map((template) =>
               template.id === templateId
@@ -111,11 +100,13 @@ export default function Templates() {
     }
   }
 
+  const registerTemplateCard = (element: HTMLElement, templateId: string) => {
+    if (observerRef.current) {
+      observerRef.current.observe(element)
+    }
+  }
 
-
-  // Convert template data to the format expected by components
   const workflowData = useMemo(() => {
-    // Reusable function to convert template items to workflow format
     const convertTemplateItems = (items: any[]) =>
       items.map((item) => ({
         id: item.id,
@@ -135,7 +126,6 @@ export default function Templates() {
       popular: convertTemplateItems(templateData.popular),
     }
 
-    // Add categories that have been loaded
     Object.entries(templateData.byCategory).forEach(([category, items]) => {
       result[category] = convertTemplateItems(items || [])
     })
@@ -143,18 +133,14 @@ export default function Templates() {
     return result
   }, [templateData, isLoadingStates])
 
-  // Filter workflows based on search query and category filter
   const filteredWorkflows = useMemo(() => {
     let dataToFilter = workflowData
 
-    // Apply category filter if set
     if (categoryFilter && categoryFilter.length > 0) {
       const filtered: Record<string, Workflow[]> = {}
 
-      // Always include popular if it exists
       if (dataToFilter.popular) filtered.popular = dataToFilter.popular
 
-      // Add filtered categories
       categoryFilter.forEach((category) => {
         if (dataToFilter[category]) {
           filtered[category] = dataToFilter[category]
@@ -164,7 +150,6 @@ export default function Templates() {
       dataToFilter = filtered
     }
 
-    // Apply search filter
     if (!searchQuery.trim()) {
       return dataToFilter
     }
@@ -189,22 +174,17 @@ export default function Templates() {
     return searchFiltered
   }, [searchQuery, workflowData, categoryFilter])
 
-  // Sort sections according to the toolbar order
   const sortedFilteredWorkflows = useMemo(() => {
-    // Get entries from filteredWorkflows
     const entries = Object.entries(filteredWorkflows)
 
-    // Sort based on the SECTION_ORDER
     entries.sort((a, b) => {
       const indexA = SECTION_ORDER.indexOf(a[0])
       const indexB = SECTION_ORDER.indexOf(b[0])
 
-      // If both categories are in our predefined order, use that order
       if (indexA !== -1 && indexB !== -1) {
         return indexA - indexB
       }
 
-      // If only one category is in our order, prioritize it
       if (indexA !== -1) return -1
       if (indexB !== -1) return 1
 
@@ -250,18 +230,18 @@ export default function Templates() {
           byCategory: categoriesData.byCategory || {},
         }
 
-        // Mark all sections as loaded
         const allSections = new Set(['popular', ...CATEGORIES.map((cat) => cat.value)])
         setLoadedSections(allSections)
 
         setTemplateData(combinedData)
         initialFetchCompleted.current = true
 
-        // Set initial active section to popular
         setActiveSection('popular')
         setLoading(false)
 
-        logger.info('Templates loaded - Popular with state, categories without state for lazy loading')
+        logger.info(
+          'Templates loaded - Popular with state, categories without state for lazy loading'
+        )
       } catch (error) {
         logger.error('Error fetching templates:', error)
         setError('Failed to load templates. Please try again later.')
@@ -272,7 +252,6 @@ export default function Templates() {
     fetchInitialData()
   }, [])
 
-  // Simplify scrollToSection
   const scrollToSection = (sectionId: string) => {
     if (sectionRefs.current[sectionId]) {
       sectionRefs.current[sectionId]?.scrollIntoView({
@@ -282,13 +261,11 @@ export default function Templates() {
     }
   }
 
-  // Simplified intersection observer just for tracking active section
   useEffect(() => {
     if (!initialFetchCompleted.current) return
 
     const observer = new IntersectionObserver(
       (entries) => {
-        // Find the first intersecting section and set it as active
         const intersectingEntry = entries.find((entry) => entry.isIntersecting)
         if (intersectingEntry) {
           setActiveSection(intersectingEntry.target.id)
@@ -296,12 +273,11 @@ export default function Templates() {
       },
       {
         root: contentRef.current,
-        rootMargin: '-20% 0px -60% 0px', // Only consider section active when it's prominently visible
+        rootMargin: '-20% 0px -60% 0px',
         threshold: 0.1,
       }
     )
 
-    // Observe all sections
     Object.entries(sectionRefs.current).forEach(([id, ref]) => {
       if (ref) {
         observer.observe(ref)
@@ -312,6 +288,39 @@ export default function Templates() {
       observer.disconnect()
     }
   }, [initialFetchCompleted.current])
+
+  // Intersection observer for lazy loading template states
+  useEffect(() => {
+    if (!initialFetchCompleted.current) return
+
+    const lazyLoadObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const templateId = entry.target.getAttribute('data-template-id')
+            const hasState = entry.target.getAttribute('data-has-state') === 'true'
+            const isLoading = entry.target.getAttribute('data-is-loading') === 'true'
+
+            if (templateId && !hasState && !isLoading && !stateLoadedTemplates.has(templateId)) {
+              loadTemplateState(templateId)
+            }
+          }
+        })
+      },
+      {
+        root: contentRef.current,
+        rootMargin: '200px',
+        threshold: 0.1,
+      }
+    )
+
+    observerRef.current = lazyLoadObserver
+
+    return () => {
+      lazyLoadObserver.disconnect()
+      observerRef.current = null
+    }
+  }, [initialFetchCompleted.current, stateLoadedTemplates])
 
   return (
     <div
@@ -372,6 +381,7 @@ export default function Templates() {
                     <TemplateGrid
                       workflows={workflows}
                       emptyMessage={`No ${getCategoryLabel(category).toLowerCase()} templates available`}
+                      onTemplateMount={registerTemplateCard}
                     />
                   </Section>
                 )

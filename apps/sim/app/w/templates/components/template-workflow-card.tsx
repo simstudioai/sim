@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -15,11 +15,13 @@ const logger = createLogger('TemplateWorkflowCard')
  * @property {Workflow} workflow - The workflow data to display
  * @property {number} index - The index of the workflow in the list
  * @property {Function} onHover - Optional callback function triggered when card is hovered to load workflow state
+ * @property {Function} onMount - Optional callback function triggered when card mounts for intersection observer registration
  */
 interface TemplateWorkflowCardProps {
   workflow: Workflow
   index: number
   onHover?: (id: string) => void
+  onMount?: (element: HTMLElement, templateId: string) => void
 }
 
 /**
@@ -27,9 +29,10 @@ interface TemplateWorkflowCardProps {
  * Navigates to template detail page on click and loads workflow state on hover for better UX
  * Shows either a workflow preview, thumbnail image, or fallback text
  */
-export function TemplateWorkflowCard({ workflow, onHover }: TemplateWorkflowCardProps) {
+export function TemplateWorkflowCard({ workflow, onHover, onMount }: TemplateWorkflowCardProps) {
   const [isPreviewReady, setIsPreviewReady] = useState(!!workflow.workflowState)
   const router = useRouter()
+  const cardRef = useRef<HTMLDivElement>(null)
 
   // When workflow state becomes available, update preview ready state
   useEffect(() => {
@@ -37,6 +40,13 @@ export function TemplateWorkflowCard({ workflow, onHover }: TemplateWorkflowCard
       setIsPreviewReady(true)
     }
   }, [workflow.workflowState, isPreviewReady])
+
+  // Register with intersection observer when component mounts
+  useEffect(() => {
+    if (cardRef.current && onMount) {
+      onMount(cardRef.current, workflow.id)
+    }
+  }, [onMount, workflow.id])
 
   /**
    * Handle mouse enter event
@@ -62,9 +72,13 @@ export function TemplateWorkflowCard({ workflow, onHover }: TemplateWorkflowCard
 
   return (
     <div
+      ref={cardRef}
       className='block cursor-pointer'
       aria-label={`View ${workflow.name} template`}
       onClick={handleClick}
+      data-template-id={workflow.id}
+      data-has-state={!!workflow.workflowState}
+      data-is-loading={workflow.isStateLoading}
     >
       <div className='space-y-3'>
         <Card
@@ -101,6 +115,12 @@ export function TemplateWorkflowCard({ workflow, onHover }: TemplateWorkflowCard
               // Fallback to text if no preview or thumbnail is available
               <div className='flex h-full w-full items-center justify-center'>
                 <span className='font-medium text-lg text-muted-foreground'>{workflow.name}</span>
+                {/* Show loading indicator when state is being loaded */}
+                {workflow.isStateLoading && (
+                  <div className='absolute inset-0 flex items-center justify-center bg-background/80'>
+                    <div className='h-8 w-8 animate-spin rounded-full border-primary border-b-2' />
+                  </div>
+                )}
               </div>
             )}
           </div>
