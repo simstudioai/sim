@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, Heart, Search, Shapes } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Heart, Search, Shapes, Upload } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,6 +23,7 @@ import {
   getCategoryLabel,
 } from '../../constants/categories'
 import { SavedModal } from './components/saved-modal'
+import { PublishedModal } from './components/published-modal'
 
 interface TemplatesHeaderProps {
   setSearchQuery: (query: string) => void
@@ -47,6 +48,7 @@ export function TemplatesHeader({
   const [visibleCategories, setVisibleCategories] = useState<string[]>([])
   const debouncedSearchQuery = useDebounce(localSearchQuery, 300)
   const [showSavedModal, setShowSavedModal] = useState(false)
+  const [showPublishedModal, setShowPublishedModal] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [showArrows, setShowArrows] = useState(false)
 
@@ -183,6 +185,13 @@ export function TemplatesHeader({
             <Heart className='mr-2 inline h-4 w-4' />
             Saved
           </span>
+          <span
+            className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
+            onClick={() => setShowPublishedModal(true)}
+          >
+            <Upload className='mr-2 inline h-4 w-4' />
+            Published
+          </span>
         </div>
       </div>
 
@@ -291,6 +300,7 @@ export function TemplatesHeader({
       </div>
 
       <SavedModal open={showSavedModal} onOpenChange={setShowSavedModal} />
+      <PublishedModal open={showPublishedModal} onOpenChange={setShowPublishedModal} />
     </div>
   )
 }

@@ -43,8 +43,8 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 const logger = createLogger('MarketplaceModal')
 
 /**
- * Sanitizes sensitive data from workflow state before publishing
- * Removes API keys, tokens, and environment variable references
+ * Comprehensive sanitization of sensitive data from workflow state before publishing
+ * Removes API keys, tokens, passwords, credentials, and environment variable references
  */
 const sanitizeWorkflowData = (workflowData: any) => {
   if (!workflowData) return workflowData
@@ -52,26 +52,172 @@ const sanitizeWorkflowData = (workflowData: any) => {
   const sanitizedData = JSON.parse(JSON.stringify(workflowData))
   let sanitizedCount = 0
 
-  // Handle workflow state format
-  if (sanitizedData.state?.blocks) {
-    Object.values(sanitizedData.state.blocks).forEach((block: any) => {
-      if (block.subBlocks) {
-        // Check for sensitive fields in subBlocks
-        Object.entries(block.subBlocks).forEach(([key, subBlock]: [string, any]) => {
-          // Check for API key related fields in any block type
-          const isSensitiveField =
-            key.toLowerCase() === 'apikey' || key.toLowerCase().includes('api_key')
+  // Comprehensive patterns for sensitive field detection
+  const sensitivePatterns = [
+    // API keys and tokens
+    /^apikey$/i,
+    /api[_-]?key/i,
+    /^token$/i,
+    /[_-]?token$/i,
+    /^bot[_-]?token$/i,
+    /^access[_-]?token$/i,
+    /^auth[_-]?token$/i,
+    
+    // Credentials and secrets
+    /^password$/i,
+    /^secret$/i,
+    /[_-]?secret$/i,
+    /^credential/i,
+    /^private[_-]?key$/i,
+    
+    // AWS and cloud credentials
+    /^access[_-]?key[_-]?id$/i,
+    /^secret[_-]?access[_-]?key$/i,
+    /^session[_-]?token$/i,
+    
+    // Email and personal info
+    /^email$/i,
+    /^username$/i,
+    /^user[_-]?id$/i,
+    /^phone$/i,
+    
+    // Provider-specific patterns
+    /^openai/i,
+    /^anthropic/i,
+    /^google/i,
+    /^discord/i,
+    /^telegram/i,
+    /^slack/i,
+    /^github/i,
+  ]
 
-          if (isSensitiveField && subBlock.value) {
-            subBlock.value = ''
-            sanitizedCount++
+  // Helper function to check if a field name matches sensitive patterns
+  const isSensitiveField = (fieldName: string): boolean => {
+    return sensitivePatterns.some(pattern => pattern.test(fieldName))
+  }
+
+  // Helper function to recursively sanitize any object
+  const sanitizeObject = (obj: any, path: string = ''): any => {
+    if (!obj || typeof obj !== 'object') return obj
+    
+    if (Array.isArray(obj)) {
+      return obj.map((item, index) => sanitizeObject(item, `${path}[${index}]`))
+    }
+
+    const sanitized = { ...obj }
+    
+    Object.keys(sanitized).forEach(key => {
+      const currentPath = path ? `${path}.${key}` : key
+      
+      if (isSensitiveField(key)) {
+        logger.info(`Sanitizing sensitive field: ${currentPath}`)
+        sanitized[key] = ''
+        sanitizedCount++
+      } else if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
+        sanitized[key] = sanitizeObject(sanitized[key], currentPath)
+      } else if (typeof sanitized[key] === 'string') {
+        // Check for environment variable references and remove them
+        const envVarPattern = /<env\.[\w_]+>/g
+        if (envVarPattern.test(sanitized[key])) {
+          logger.info(`Sanitizing environment variable reference: ${currentPath}`)
+          sanitized[key] = sanitized[key].replace(envVarPattern, '')
+          sanitizedCount++
+        }
+      }
+    })
+    
+    return sanitized
+  }
+
+  // Get all blocks from the registry to check password fields
+  const getPasswordFields = (): Set<string> => {
+    const passwordFields = new Set<string>()
+    
+    try {
+      // Import block configurations to identify password fields
+      // This is more reliable than pattern matching
+      const { getBlock } = require('@/blocks')
+      
+      if (sanitizedData.state?.blocks) {
+        Object.values(sanitizedData.state.blocks).forEach((block: any) => {
+          if (block.type) {
+            try {
+              const blockConfig = getBlock(block.type)
+              if (blockConfig?.subBlocks) {
+                blockConfig.subBlocks.forEach((subBlock: any) => {
+                  if (subBlock.password === true) {
+                    passwordFields.add(subBlock.id)
+                  }
+                })
+              }
+            } catch (error) {
+              // Block type might not exist anymore, continue
+            }
           }
         })
+      }
+    } catch (error) {
+      logger.warn('Could not load block configurations for password field detection', error)
+    }
+    
+    return passwordFields
+  }
+
+  // Get password fields from block configurations
+  const passwordFields = getPasswordFields()
+
+  // Handle workflow state format
+  if (sanitizedData.state?.blocks) {
+    Object.keys(sanitizedData.state.blocks).forEach(blockId => {
+      const block = sanitizedData.state.blocks[blockId]
+      
+      if (block.subBlocks) {
+        // Sanitize subBlocks
+        Object.keys(block.subBlocks).forEach(subBlockId => {
+          const subBlock = block.subBlocks[subBlockId]
+          
+          if (subBlock && typeof subBlock === 'object') {
+            // Check if this is a known password field or matches sensitive patterns
+            if (passwordFields.has(subBlockId) || isSensitiveField(subBlockId)) {
+              logger.info(`Sanitizing sensitive subBlock: ${blockId}.${subBlockId}`)
+              subBlock.value = ''
+              sanitizedCount++
+            } else if (subBlock.value && typeof subBlock.value === 'object') {
+              // Recursively sanitize complex values
+              subBlock.value = sanitizeObject(subBlock.value, `${blockId}.${subBlockId}.value`)
+            } else if (typeof subBlock.value === 'string') {
+              // Check for environment variable references
+              const envVarPattern = /<env\.[\w_]+>/g
+              if (envVarPattern.test(subBlock.value)) {
+                logger.info(`Sanitizing env var in subBlock: ${blockId}.${subBlockId}`)
+                subBlock.value = subBlock.value.replace(envVarPattern, '')
+                sanitizedCount++
+              }
+            }
+          }
+        })
+      }
+
+      // Sanitize block-level data
+      if (block.data) {
+        block.data = sanitizeObject(block.data, `${blockId}.data`)
+      }
+
+      // Sanitize any other block properties that might contain sensitive data
+      if (block.outputs) {
+        block.outputs = sanitizeObject(block.outputs, `${blockId}.outputs`)
       }
     })
   }
 
-  logger.info(`Sanitized ${sanitizedCount} API keys from workflow data`)
+  // Sanitize any other top-level properties
+  Object.keys(sanitizedData).forEach(key => {
+    if (key !== 'state') {
+      sanitizedData[key] = sanitizeObject(sanitizedData[key], key)
+    }
+  })
+
+  logger.info(`Sanitized ${sanitizedCount} sensitive fields from workflow data`)
   return sanitizedData
 }
 
@@ -182,6 +328,26 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
         const response = await fetch(`/api/templates/workflows?templateId=${marketplaceData.id}`)
 
         if (!response.ok) {
+          // If the template is not found (404), it means it was unpublished
+          if (response.status === 404) {
+            logger.warn('Template not found in marketplace, removing marketplace data from workflow', {
+              templateId: marketplaceData.id,
+              workflowId: activeWorkflowId,
+            })
+            
+            // Remove marketplace data from workflow since template no longer exists
+            updateWorkflow(activeWorkflowId, {
+              marketplaceData: null,
+            })
+            
+            // Close the modal since the workflow is no longer published
+            onOpenChange(false)
+            
+            // Notify user that the template was unpublished
+            addNotification('info', 'This workflow is no longer published to the marketplace', activeWorkflowId)
+            return
+          }
+          
           throw new Error('Failed to fetch marketplace information')
         }
 
@@ -197,7 +363,7 @@ export function MarketplaceModal({ open, onOpenChange }: MarketplaceModalProps) 
     }
 
     fetchMarketplaceInfo()
-  }, [open, activeWorkflowId, addNotification])
+  }, [open, activeWorkflowId, addNotification, updateWorkflow, onOpenChange])
 
   // Update form values when the active workflow changes or modal opens
   useEffect(() => {
