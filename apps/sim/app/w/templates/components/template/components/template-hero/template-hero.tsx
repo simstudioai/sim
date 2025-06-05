@@ -72,7 +72,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
       if (template.workflowState) {
         const newWorkflowId = createWorkflow({
           name: `${template.name} (Copy)`,
-          description: template.short_description || '',
+          description: template.shortDescription || '',
           templatesId: template.id,
           templatesState: template.workflowState,
         })
@@ -163,9 +163,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
 
       addNotification('info', `Template "${template.name}" has been unpublished`, null)
 
-      setTimeout(() => {
-        router.push('/w/templates')
-      }, 1500)
+      router.push('/w/templates')
     } catch (error: any) {
       logger.error('Error unpublishing template:', error)
       addNotification('error', `Failed to unpublish template: ${error.message}`, null)
@@ -272,7 +270,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
 
       {/* Long Description */}
       <div className='prose prose-sm max-w-none'>
-        <p className='text-muted-foreground'>{template.long_description}</p>
+        <p className='text-muted-foreground'>{template.longDescription}</p>
       </div>
 
       {/* Action Buttons */}

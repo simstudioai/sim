@@ -222,8 +222,8 @@ export const templates = pgTable(
     id: text('id').primaryKey(),
     state: json('state').notNull(),
     name: text('name').notNull(),
-    short_description: text('short_description'),
-    long_description: text('long_description'),
+    shortDescription: text('short_description'),
+    longDescription: text('long_description'),
     authorId: text('author_id')
       .notNull()
       .references(() => user.id),
