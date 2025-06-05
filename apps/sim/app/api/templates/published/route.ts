@@ -42,7 +42,9 @@ export async function GET(request: NextRequest) {
       .where(eq(templates.authorId, session.user.id))
       .orderBy(templates.createdAt)
 
-    logger.info(`[${requestId}] Successfully fetched ${publishedTemplatesList.length} published templates`)
+    logger.info(
+      `[${requestId}] Successfully fetched ${publishedTemplatesList.length} published templates`
+    )
 
     return createSuccessResponse({
       published: publishedTemplatesList,

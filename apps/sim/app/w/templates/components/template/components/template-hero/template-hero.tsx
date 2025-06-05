@@ -5,8 +5,8 @@ import { Download, Eye, Heart, Share2, Trash } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { createLogger } from '@/lib/logs/console-logger'
 import { useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -34,7 +34,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   const { addNotification } = useNotificationStore()
 
   const { data: session, isPending } = useSession()
-  
+
   const isAuthor = !isPending && session?.user?.id === template.authorId
 
   useEffect(() => {
@@ -105,7 +105,6 @@ export function TemplateHero({ template }: TemplateHeroProps) {
 
       const newSavedState = !isSaved
       setIsSaved(newSavedState)
-
     } catch (error: any) {
       logger.error('Error toggling save state:', error)
     } finally {
@@ -116,8 +115,8 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   // Helper function to find and update workflows that reference this template
   const syncWorkflowRegistryState = () => {
     // Find all workflows that have this template as their marketplace data
-    const workflowsToUpdate = Object.entries(workflows).filter(([_, workflow]) => 
-      workflow.marketplaceData?.id === template.id
+    const workflowsToUpdate = Object.entries(workflows).filter(
+      ([_, workflow]) => workflow.marketplaceData?.id === template.id
     )
 
     // Update each workflow to remove marketplace data
@@ -128,7 +127,6 @@ export function TemplateHero({ template }: TemplateHeroProps) {
     })
 
     if (workflowsToUpdate.length > 0) {
-      
       // Trigger workflow sync to persist changes to database
       const workflowStore = useWorkflowStore.getState()
       if (workflowStore.sync) {
@@ -199,7 +197,6 @@ export function TemplateHero({ template }: TemplateHeroProps) {
       addNotification('info', 'Template link copied!', null, {
         isPersistent: false,
       })
-
     } catch (error) {
       logger.error('Failed to copy template share text:', error)
 

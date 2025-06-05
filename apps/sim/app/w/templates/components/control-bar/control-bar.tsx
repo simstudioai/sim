@@ -1,7 +1,18 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, Heart, Search, Shapes, Upload } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Code,
+  Glasses,
+  Heart,
+  Search,
+  Shapes,
+  Upload,
+  User,
+} from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,8 +33,8 @@ import {
   getCategoryIcon,
   getCategoryLabel,
 } from '../../constants/categories'
-import { SavedModal } from './components/saved-modal'
 import { PublishedModal } from './components/published-modal'
+import { SavedModal } from './components/saved-modal'
 
 interface TemplatesHeaderProps {
   setSearchQuery: (query: string) => void
@@ -164,6 +175,32 @@ export function TemplatesHeader({
     )
   }
 
+  // Get category display info
+  const getCategoryDisplayInfo = (category: string) => {
+    switch (category) {
+      case 'operations':
+        return {
+          label: 'Operations',
+          icon: <Glasses className='mr-2 inline h-4 w-4 text-blue-500' />,
+        }
+      case 'personal':
+        return {
+          label: 'Personal',
+          icon: <User className='mr-2 inline h-4 w-4 text-red-500' />,
+        }
+      case 'technical':
+        return {
+          label: 'Technical',
+          icon: <Code className='mr-2 inline h-4 w-4 text-purple-500' />,
+        }
+      default:
+        return {
+          label: 'Templates',
+          icon: <Shapes className='mr-2 inline h-4 w-4 text-indigo-500' />,
+        }
+    }
+  }
+
   return (
     <div className='w-full border-b bg-background'>
       {/* Top Row - Action Icons */}
@@ -173,8 +210,15 @@ export function TemplatesHeader({
             className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
             onClick={() => router.push('/w/templates')}
           >
-            <Shapes className='mr-2 inline h-4 w-4' />
+            <Shapes className='mr-2 inline h-4 w-4 text-indigo-500' />
             Templates
+            {currentCategory && currentCategory !== 'discover' && (
+              <>
+                <span className='mx-2'>/</span>
+                {getCategoryDisplayInfo(currentCategory).icon}
+                {getCategoryDisplayInfo(currentCategory).label}
+              </>
+            )}
           </span>
         </div>
         <div className='flex items-center gap-3'>
@@ -182,14 +226,14 @@ export function TemplatesHeader({
             className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
             onClick={() => setShowSavedModal(true)}
           >
-            <Heart className='mr-2 inline h-4 w-4' />
+            <Heart className='mr-2 inline h-4 w-4 text-red-500' />
             Saved
           </span>
           <span
             className='cursor-pointer text-muted-foreground transition-colors hover:text-foreground'
             onClick={() => setShowPublishedModal(true)}
           >
-            <Upload className='mr-2 inline h-4 w-4' />
+            <Upload className='mr-2 inline h-4 w-4 text-green-500' />
             Published
           </span>
         </div>
