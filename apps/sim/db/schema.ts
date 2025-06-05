@@ -516,11 +516,6 @@ export const document = pgTable(
 
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
-
-    processingStatus: text('processing_status'),
-    processingStartedAt: timestamp('processing_started_at'),
-    processingCompletedAt: timestamp('processing_completed_at'),
-    processingError: text('processing_error'),
   },
   (table) => ({
     // Primary access pattern - documents by knowledge base
