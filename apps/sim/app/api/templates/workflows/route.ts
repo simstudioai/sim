@@ -222,7 +222,6 @@ export async function GET(request: NextRequest) {
       requestedCategories = [...new Set(requestedCategories)]
 
       if (requestedCategories.length > 0) {
-
         // Single optimized query for all categories
         const categoryTemplates = includeState
           ? await db
@@ -307,7 +306,7 @@ export async function GET(request: NextRequest) {
     }
 
     const duration = Date.now() - startTime
-    
+
     return NextResponse.json(result)
   } catch (error: any) {
     const duration = Date.now() - startTime

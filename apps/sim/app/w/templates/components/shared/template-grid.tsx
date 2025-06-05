@@ -9,6 +9,7 @@ interface TemplateGridProps {
   isLoading?: boolean
   skeletonCount?: number
   emptyMessage?: string
+  onTemplateMount?: (element: HTMLElement, templateId: string) => void
 }
 
 export function TemplateGrid({
@@ -16,6 +17,7 @@ export function TemplateGrid({
   isLoading = false,
   skeletonCount = 6,
   emptyMessage = 'No templates available',
+  onTemplateMount,
 }: TemplateGridProps) {
   if (isLoading) {
     return (
@@ -38,7 +40,12 @@ export function TemplateGrid({
   return (
     <div className='grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3'>
       {workflows.map((workflow, index) => (
-        <TemplateWorkflowCard key={workflow.id} workflow={workflow} index={index} />
+        <TemplateWorkflowCard
+          key={workflow.id}
+          workflow={workflow}
+          index={index}
+          onMount={onTemplateMount}
+        />
       ))}
     </div>
   )
