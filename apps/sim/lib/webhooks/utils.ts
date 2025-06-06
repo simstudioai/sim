@@ -258,35 +258,46 @@ export function formatWebhookInput(
     }
     return null
   }
-  
+
   if (foundWebhook.provider === 'telegram') {
     // Telegram input formatting logic
-    const message = body?.message || body?.edited_message || body?.channel_post || body?.edited_channel_post
-    
+    const message =
+      body?.message || body?.edited_message || body?.channel_post || body?.edited_channel_post
+
     logger.debug('Processing Telegram webhook', {
       updateId: body?.update_id,
       hasMessage: !!message,
       hasInlineQuery: !!body?.inline_query,
       hasCallbackQuery: !!body?.callback_query,
-      messageType: message ? (
-        message.text ? 'text' :
-        message.photo ? 'photo' :
-        message.document ? 'document' :
-        message.audio ? 'audio' :
-        message.video ? 'video' :
-        message.voice ? 'voice' :
-        message.sticker ? 'sticker' :
-        message.location ? 'location' :
-        message.contact ? 'contact' :
-        message.poll ? 'poll' :
-        'other'
-      ) : null
+      messageType: message
+        ? message.text
+          ? 'text'
+          : message.photo
+            ? 'photo'
+            : message.document
+              ? 'document'
+              : message.audio
+                ? 'audio'
+                : message.video
+                  ? 'video'
+                  : message.voice
+                    ? 'voice'
+                    : message.sticker
+                      ? 'sticker'
+                      : message.location
+                        ? 'location'
+                        : message.contact
+                          ? 'contact'
+                          : message.poll
+                            ? 'poll'
+                            : 'other'
+        : null,
     })
-    
+
     if (message) {
       // Extract message text with fallbacks for different content types
       let input = ''
-      
+
       if (message.text) {
         input = message.text
       } else if (message.caption) {
@@ -318,16 +329,25 @@ export function formatWebhookInput(
         input: input.substring(0, 100), // Log first 100 chars
         senderUsername: message.from?.username,
         chatType: message.chat?.type,
-        messageType: message.photo ? 'photo' :
-                    message.document ? 'document' :
-                    message.audio ? 'audio' :
-                    message.video ? 'video' :
-                    message.voice ? 'voice' :
-                    message.sticker ? 'sticker' :
-                    message.location ? 'location' :
-                    message.contact ? 'contact' :
-                    message.poll ? 'poll' :
-                    'text'
+        messageType: message.photo
+          ? 'photo'
+          : message.document
+            ? 'document'
+            : message.audio
+              ? 'audio'
+              : message.video
+                ? 'video'
+                : message.voice
+                  ? 'voice'
+                  : message.sticker
+                    ? 'sticker'
+                    : message.location
+                      ? 'location'
+                      : message.contact
+                        ? 'contact'
+                        : message.poll
+                          ? 'poll'
+                          : 'text',
       })
 
       return {
@@ -338,40 +358,57 @@ export function formatWebhookInput(
             text: message.text,
             caption: message.caption,
             date: message.date,
-            messageType: message.photo ? 'photo' :
-                        message.document ? 'document' :
-                        message.audio ? 'audio' :
-                        message.video ? 'video' :
-                        message.voice ? 'voice' :
-                        message.sticker ? 'sticker' :
-                        message.location ? 'location' :
-                        message.contact ? 'contact' :
-                        message.poll ? 'poll' :
-                        'text',
+            messageType: message.photo
+              ? 'photo'
+              : message.document
+                ? 'document'
+                : message.audio
+                  ? 'audio'
+                  : message.video
+                    ? 'video'
+                    : message.voice
+                      ? 'voice'
+                      : message.sticker
+                        ? 'sticker'
+                        : message.location
+                          ? 'location'
+                          : message.contact
+                            ? 'contact'
+                            : message.poll
+                              ? 'poll'
+                              : 'text',
             raw: message,
           },
-          sender: message.from ? {
-            id: message.from.id,
-            firstName: message.from.first_name,
-            lastName: message.from.last_name,
-            username: message.from.username,
-            languageCode: message.from.language_code,
-            isBot: message.from.is_bot,
-          } : null,
-          chat: message.chat ? {
-            id: message.chat.id,
-            type: message.chat.type,
-            title: message.chat.title,
-            username: message.chat.username,
-            firstName: message.chat.first_name,
-            lastName: message.chat.last_name,
-          } : null,
+          sender: message.from
+            ? {
+                id: message.from.id,
+                firstName: message.from.first_name,
+                lastName: message.from.last_name,
+                username: message.from.username,
+                languageCode: message.from.language_code,
+                isBot: message.from.is_bot,
+              }
+            : null,
+          chat: message.chat
+            ? {
+                id: message.chat.id,
+                type: message.chat.type,
+                title: message.chat.title,
+                username: message.chat.username,
+                firstName: message.chat.first_name,
+                lastName: message.chat.last_name,
+              }
+            : null,
           updateId: body.update_id,
-          updateType: body.message ? 'message' :
-                     body.edited_message ? 'edited_message' :
-                     body.channel_post ? 'channel_post' :
-                     body.edited_channel_post ? 'edited_channel_post' :
-                     'unknown',
+          updateType: body.message
+            ? 'message'
+            : body.edited_message
+              ? 'edited_message'
+              : body.channel_post
+                ? 'channel_post'
+                : body.edited_channel_post
+                  ? 'edited_channel_post'
+                  : 'unknown',
         },
         webhook: {
           data: {
@@ -386,13 +423,13 @@ export function formatWebhookInput(
         workflowId: foundWorkflow.id,
       }
     }
-    
+
     // Fallback for unknown Telegram update types
     logger.warn('Unknown Telegram update type', {
       updateId: body.update_id,
-      bodyKeys: Object.keys(body || {})
+      bodyKeys: Object.keys(body || {}),
     })
-    
+
     return {
       input: 'Telegram update received',
       telegram: {
@@ -413,7 +450,7 @@ export function formatWebhookInput(
       workflowId: foundWorkflow.id,
     }
   }
-  
+
   if (foundWebhook.provider === 'gmail') {
     if (body && typeof body === 'object' && 'email' in body) {
       return body // { email: {...}, timestamp: ... }

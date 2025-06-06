@@ -287,8 +287,7 @@ export function WebhookModal({
           airtableBaseId !== originalValues.airtableBaseId ||
           airtableTableId !== originalValues.airtableTableId ||
           airtableIncludeCellValues !== originalValues.airtableIncludeCellValues)) ||
-      (webhookProvider === 'telegram' &&
-        telegramBotToken !== originalValues.telegramBotToken) ||
+      (webhookProvider === 'telegram' && telegramBotToken !== originalValues.telegramBotToken) ||
       (webhookProvider === 'gmail' &&
         (!selectedLabels.every((label) => originalValues.selectedLabels.includes(label)) ||
           !originalValues.selectedLabels.every((label) => selectedLabels.includes(label)) ||

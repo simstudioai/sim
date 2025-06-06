@@ -355,12 +355,9 @@ async function createTelegramWebhookSubscription(
     const { botToken } = providerConfig || {}
 
     if (!botToken) {
-      logger.warn(
-        `[${requestId}] Missing botToken for Telegram webhook creation.`,
-        {
-          webhookId: webhookData.id,
-        }
-      )
+      logger.warn(`[${requestId}] Missing botToken for Telegram webhook creation.`, {
+        webhookId: webhookData.id,
+      })
       return // Cannot proceed without botToken
     }
 
