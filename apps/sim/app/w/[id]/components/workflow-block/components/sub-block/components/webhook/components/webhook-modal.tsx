@@ -112,10 +112,6 @@ export function WebhookModal({
   const [labelFilterBehavior, setLabelFilterBehavior] = useState<'INCLUDE' | 'EXCLUDE'>('INCLUDE')
   const [markAsRead, setMarkAsRead] = useState<boolean>(false)
 
-  // Diagnostic state
-  const [diagnostics, setDiagnostics] = useState<any>(null)
-  const [isRunningDiagnostics, setIsRunningDiagnostics] = useState(false)
-
   // Get the current provider configuration
   const _provider = WEBHOOK_PROVIDERS[webhookProvider] || WEBHOOK_PROVIDERS.generic
 
@@ -607,41 +603,6 @@ export function WebhookModal({
     }
   }
 
-  // Run webhook diagnostics (for Telegram)
-  const runDiagnostics = async () => {
-    if (!webhookId || webhookProvider !== 'telegram') return
-
-    try {
-      setIsRunningDiagnostics(true)
-      setDiagnostics(null)
-
-      const response = await fetch('/api/webhooks/diagnose', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ webhookId }),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText || 'Failed to run diagnostics')
-      }
-
-      const diagnosticData = await response.json()
-      setDiagnostics(diagnosticData)
-      
-      logger.info('Webhook diagnostics completed', { webhookId, diagnosticData })
-    } catch (error: any) {
-      logger.error('Error running diagnostics:', { error })
-      setDiagnostics({
-        error: error.message || 'An error occurred while running diagnostics'
-      })
-    } finally {
-      setIsRunningDiagnostics(false)
-    }
-  }
-
   // Provider-specific component rendering
   const renderProviderContent = () => {
     switch (webhookProvider) {
@@ -749,9 +710,6 @@ export function WebhookModal({
             testWebhook={testWebhook}
             webhookId={webhookId}
             webhookUrl={webhookUrl}
-            diagnostics={diagnostics}
-            isRunningDiagnostics={isRunningDiagnostics}
-            runDiagnostics={runDiagnostics}
           />
         )
       default:
