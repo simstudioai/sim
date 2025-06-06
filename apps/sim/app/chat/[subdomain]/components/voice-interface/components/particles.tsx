@@ -2,8 +2,11 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { createLogger } from '@/lib/logs/console-logger'
 
-interface FBOParticlesProps {
+const logger = createLogger('Particles')
+
+interface ParticlesProps {
   audioLevels: number[]
   isListening: boolean
   isPlayingAudio: boolean
@@ -215,7 +218,7 @@ void main() {
 }
 `
 
-export function FBOParticlesVisualization({
+export function ParticlesVisualization({
   audioLevels,
   isListening,
   isPlayingAudio,
@@ -223,7 +226,7 @@ export function FBOParticlesVisualization({
   isMuted,
   isProcessingInterruption,
   className,
-}: FBOParticlesProps) {
+}: ParticlesProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -237,8 +240,6 @@ export function FBOParticlesVisualization({
   const isInitializedRef = useRef(false)
 
   const cleanup = useCallback(() => {
-    console.log('🧹 Cleaning up Three.js resources...')
-
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = 0
@@ -272,7 +273,6 @@ export function FBOParticlesVisualization({
     const containerWidth = 400
     const containerHeight = 400
 
-    console.log('🎨 Initializing Three.js audio visualizer...')
     isInitializedRef.current = true
 
     while (container.firstChild) {
@@ -310,9 +310,8 @@ export function FBOParticlesVisualization({
         vertexShader,
         fragmentShader,
       })
-      console.log('✅ Shader material created successfully')
     } catch (error) {
-      console.error('❌ Shader compilation error, using fallback material:', error)
+      logger.error('❌ Shader compilation error, using fallback material:', error)
       mat = new THREE.MeshBasicMaterial({
         color: 0xb794f6, // Light purple color
         wireframe: true,
@@ -328,8 +327,6 @@ export function FBOParticlesVisualization({
 
     scene.add(mesh)
     meshRef.current = mesh
-
-    console.log('🔺 Mesh added to scene:', mesh)
 
     const bloomComposer = new SimpleBloomComposer(renderer, scene, camera)
     bloomComposerRef.current = bloomComposer
@@ -386,19 +383,6 @@ export function FBOParticlesVisualization({
         // Ensure we never go below the baseline when not muted
         if (!isMuted) {
           audioIntensity = Math.max(audioIntensity, baselineIntensity)
-        }
-
-        // Log significant changes in audio intensity for debugging
-        if (Math.abs(uniforms.u_frequency.value - audioIntensity) > 10) {
-          console.log('🔊 Audio intensity change:', {
-            previous: uniforms.u_frequency.value,
-            new: audioIntensity,
-            avgLevel,
-            isListening,
-            isPlayingAudio,
-            isStreaming,
-            isMuted,
-          })
         }
 
         uniforms.u_frequency.value = audioIntensity

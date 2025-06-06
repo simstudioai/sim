@@ -3,33 +3,40 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Phone, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { FBOParticlesVisualization } from './fbo-particles'
+import { ParticlesVisualization } from './components/particles'
 
-interface VoiceFirstInterfaceProps {
+const logger = createLogger('VoiceInterface')
+
+interface VoiceInterfaceProps {
   onVoiceData?: (data: Float32Array) => void
   onCallEnd?: () => void
   onVoiceTranscript?: (transcript: string) => void
   onVoiceStart?: () => void
   onVoiceEnd?: () => void
   onInterrupt?: () => void
+  onAudioChunkStart?: () => void
+  onResetInterruption?: (resetFn: () => void) => void
   isStreaming?: boolean
   isPlayingAudio?: boolean
   messages?: Array<{ content: string; type: 'user' | 'assistant' }>
   className?: string
 }
 
-export function VoiceFirstInterface({
+export function VoiceInterface({
   onCallEnd,
   onVoiceTranscript,
   onVoiceStart,
   onVoiceEnd,
   onInterrupt,
+  onAudioChunkStart,
+  onResetInterruption,
   isStreaming = false,
   isPlayingAudio = false,
   messages = [],
   className,
-}: VoiceFirstInterfaceProps) {
+}: VoiceInterfaceProps) {
   const [isListening, setIsListening] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [transcript, setTranscript] = useState('')
@@ -52,6 +59,7 @@ export function VoiceFirstInterface({
   const hasInterruptedRef = useRef(false)
   const isMutedRef = useRef(false)
   const isPlayingAudioRef = useRef(false)
+  const restartTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Keep refs in sync with state for use in callbacks
   useEffect(() => {
@@ -71,8 +79,6 @@ export function VoiceFirstInterface({
     if (isCleaningUpRef.current) return
     isCleaningUpRef.current = true
 
-    console.log('🧹 Cleaning up voice-first interface...')
-
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = null
@@ -81,6 +87,11 @@ export function VoiceFirstInterface({
     if (aiAudioAnimationRef.current) {
       cancelAnimationFrame(aiAudioAnimationRef.current)
       aiAudioAnimationRef.current = null
+    }
+
+    if (restartTimeoutRef.current) {
+      clearTimeout(restartTimeoutRef.current)
+      restartTimeoutRef.current = null
     }
 
     if (mediaStreamRef.current) {
@@ -121,11 +132,41 @@ export function VoiceFirstInterface({
     }, 100)
   }, [])
 
+  // Restart speech recognition with immediate retry
+  const restartRecognition = useCallback(() => {
+    if (isCleaningUpRef.current || isMutedRef.current || !recognitionRef.current) return
+
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+    } catch (e) {
+      // Ignore stop errors
+    }
+
+    // Clear any existing restart timeout
+    if (restartTimeoutRef.current) {
+      clearTimeout(restartTimeoutRef.current)
+      restartTimeoutRef.current = null
+    }
+
+    // Immediate restart for better responsiveness
+    restartTimeoutRef.current = setTimeout(() => {
+      if (!isCleaningUpRef.current && !isMutedRef.current && recognitionRef.current) {
+        try {
+          recognitionRef.current.start()
+        } catch (error: any) {
+          if (!error.message?.includes('already started')) {
+            logger.error('Error restarting recognition:', error)
+          }
+        }
+      }
+    }, 100) // Very short delay for immediate restart
+  }, [])
+
   // Initialize speech recognition only once
   const initializeSpeechRecognition = useCallback(() => {
     if (!isSupported || recognitionRef.current || isInitialized) return
-
-    console.log('🎤 Initializing Speech Recognition for voice-first interface...')
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) return
@@ -137,7 +178,6 @@ export function VoiceFirstInterface({
 
     recognition.onstart = () => {
       if (isCleaningUpRef.current) return
-      console.log('✅ Voice-first speech recognition started')
       setIsListening(true)
       hasInterruptedRef.current = false // Reset interruption flag
       onVoiceStart?.()
@@ -150,10 +190,10 @@ export function VoiceFirstInterface({
       let interim = ''
       let hasSignificantSpeech = false
 
-      // Tweaked thresholds for faster interruption detection
-      const MIN_CHAR_THRESHOLD = 3
+      // More aggressive thresholds for faster interruption detection
+      const MIN_CHAR_THRESHOLD = 2
       const MIN_WORD_THRESHOLD = 1
-      const CONFIDENCE_THRESHOLD = 0.3
+      const CONFIDENCE_THRESHOLD = 0.2 // Lower threshold for faster detection
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
@@ -169,13 +209,6 @@ export function VoiceFirstInterface({
           confidence >= CONFIDENCE_THRESHOLD
         ) {
           hasSignificantSpeech = true
-          console.log('🎯 Significant speech detected:', {
-            text: trimmedText,
-            length: trimmedText.length,
-            wordCount,
-            confidence,
-            isFinal: result.isFinal,
-          })
         }
 
         if (result.isFinal) {
@@ -196,22 +229,18 @@ export function VoiceFirstInterface({
         isPlayingAudioRef.current &&
         !isMutedRef.current
       ) {
-        console.log('🛑 Substantial speech detected, interrupting audio playback')
         hasInterruptedRef.current = true
         setIsProcessingInterruption(true)
         onInterrupt?.()
       }
 
       if (finalTranscript) {
-        console.log('📝 Voice-first final transcript:', finalTranscript)
-
         // If we just interrupted, add a small delay for clearer transition
         if (hasInterruptedRef.current) {
-          console.log('⏱️ Adding transition delay after interruption...')
           setTimeout(() => {
             setIsProcessingInterruption(false)
             onVoiceTranscript?.(finalTranscript)
-          }, 500) // Half second delay after interruption
+          }, 300) // Shorter delay for better responsiveness
         } else {
           onVoiceTranscript?.(finalTranscript)
         }
@@ -223,29 +252,23 @@ export function VoiceFirstInterface({
 
       setInterimTranscript(interim)
 
-      // Reset timeout for auto-stop – keep recognition alive while AI is speaking
+      // Keep recognition alive always - no auto-stop during audio playback
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current)
       }
 
+      // Only set auto-stop timeout if AI is not playing audio
       if (!isPlayingAudioRef.current) {
         timeoutRef.current = setTimeout(() => {
-          if (recognitionRef.current && !isCleaningUpRef.current) {
-            console.log('⏱️ Auto-stop triggered in voice-first mode')
-            try {
-              recognitionRef.current.stop()
-            } catch (e) {
-              // Ignore errors
-            }
+          if (recognitionRef.current && !isCleaningUpRef.current && !isPlayingAudioRef.current) {
+            restartRecognition()
           }
-        }, 3000)
+        }, 5000) // Longer timeout when not playing audio
       }
     }
 
     recognition.onerror = (event: any) => {
       if (isCleaningUpRef.current) return
-
-      console.log('⚠️ Voice-first speech recognition error:', event.error)
 
       // Permission denied is the only truly fatal error
       if (event.error === 'not-allowed') {
@@ -255,43 +278,68 @@ export function VoiceFirstInterface({
         return
       }
 
-      // Gracefully handle common transient errors by restarting recognition
-      if (['no-speech', 'audio-capture'].includes(event.error)) {
-        console.log('🔄 Restarting recognition after transient error:', event.error)
-        try {
-          recognition.stop()
-        } catch (_e) {}
-
-        // Give the browser a brief moment before restarting
-        setTimeout(() => {
-          if (!isMutedRef.current && !isCleaningUpRef.current) {
-            try {
-              recognition.start()
-            } catch (_e) {}
+      // For all other errors, aggressively restart immediately
+      setTimeout(() => {
+        if (!isCleaningUpRef.current && !isMutedRef.current && recognitionRef.current) {
+          try {
+            // Try to stop first (in case it's in a weird state)
+            recognitionRef.current.stop()
+          } catch (e) {
+            // Ignore stop errors
           }
-        }, 500)
-      }
+
+          // Then start again
+          setTimeout(() => {
+            if (!isCleaningUpRef.current && !isMutedRef.current && recognitionRef.current) {
+              try {
+                recognitionRef.current.start()
+              } catch (restartError: any) {
+                if (!restartError.message?.includes('already started')) {
+                  logger.error('Failed to restart after error:', restartError)
+                  setIsListening(false)
+                  onVoiceEnd?.()
+                }
+              }
+            }
+          }, 100)
+        }
+      }, 50)
     }
 
     recognition.onend = () => {
       if (isCleaningUpRef.current) return
 
-      console.log('🛑 Voice-first speech recognition ended')
-      setIsListening(false)
       setIsProcessingInterruption(false)
-      onVoiceEnd?.()
 
       // Clear any remaining transcripts
       setTranscript('')
       setInterimTranscript('')
 
-      // Automatically restart recognition for continuous listening (unless muted)
+      // Immediately restart recognition for continuous listening (unless muted)
       if (!isMutedRef.current && !isCleaningUpRef.current) {
-        try {
-          recognition.start()
-        } catch (error) {
-          // Ignore restart errors (e.g., already started)
-        }
+        // Use setTimeout with 0 delay to ensure it runs after current event loop
+        setTimeout(() => {
+          if (!isCleaningUpRef.current && !isMutedRef.current && recognitionRef.current) {
+            try {
+              recognitionRef.current.start()
+            } catch (error: any) {
+              if (!error.message?.includes('already started')) {
+                logger.error('Error restarting recognition after onend:', error)
+                // Only set to false if we truly can't restart
+                setIsListening(false)
+                onVoiceEnd?.()
+              }
+            }
+          } else {
+            // Only set to false if we can't restart (muted or cleaning up)
+            setIsListening(false)
+            onVoiceEnd?.()
+          }
+        }, 0)
+      } else {
+        // Only set to false if we're muted or cleaning up
+        setIsListening(false)
+        onVoiceEnd?.()
       }
     }
 
@@ -305,9 +353,10 @@ export function VoiceFirstInterface({
     onVoiceTranscript,
     onInterrupt,
     setIsProcessingInterruption,
+    restartRecognition,
   ])
 
-  // Setup audio visualization
+  // Setup audio visualization with enhanced echo cancellation
   const setupAudioVisualization = useCallback(async () => {
     if (isCleaningUpRef.current) return false
 
@@ -316,7 +365,10 @@ export function VoiceFirstInterface({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,
           sampleRate: 44100,
+          // More aggressive echo cancellation settings
+          channelCount: 1,
         },
       })
 
@@ -350,9 +402,21 @@ export function VoiceFirstInterface({
         // Calculate average level for debugging
         const avgLevel = dataArray.reduce((sum, val) => sum + val, 0) / bufferLength
 
-        // Log significant audio activity only when not muted
-        if (avgLevel > 10 && !isMuted) {
-          console.log('🎤 Audio activity detected:', avgLevel)
+        // Critical fix: If we're detecting audio activity but speech recognition isn't listening,
+        // and we're supposed to be listening (not muted, audio playing), restart it immediately
+        if (
+          isPlayingAudioRef.current &&
+          !isListening &&
+          !isMutedRef.current &&
+          recognitionRef.current
+        ) {
+          try {
+            recognitionRef.current.start()
+          } catch (error: any) {
+            if (!error.message?.includes('already started')) {
+              logger.error('Failed to restart recognition during playback:', error)
+            }
+          }
         }
 
         // Create circular pattern similar to Perplexity
@@ -378,13 +442,13 @@ export function VoiceFirstInterface({
       updateVisualization()
       return true
     } catch (error) {
-      console.error('Error setting up audio visualization:', error)
+      logger.error('Error setting up audio visualization:', error)
       setPermissionStatus('denied')
       return false
     }
   }, [isMuted, isListening])
 
-  // Start listening
+  // Start listening immediately
   const startListening = useCallback(async () => {
     if (
       !isSupported ||
@@ -396,26 +460,27 @@ export function VoiceFirstInterface({
       return
     }
 
-    console.log('🚀 Starting voice-first listening...')
-    // Don't interrupt immediately - wait for actual speech
-
     try {
-      await setupAudioVisualization()
+      // Setup audio visualization first
+      if (!mediaStreamRef.current) {
+        await setupAudioVisualization()
+      }
+
       setTranscript('')
       setInterimTranscript('')
 
-      // Start recognition
+      // Start recognition immediately
       if (recognitionRef.current && !isCleaningUpRef.current) {
         try {
           recognitionRef.current.start()
         } catch (error: any) {
           if (!error.message?.includes('already started')) {
-            console.error('Error starting recognition:', error)
+            logger.error('Error starting recognition:', error)
           }
         }
       }
     } catch (error) {
-      console.error('Error starting voice input:', error)
+      logger.error('Error starting voice input:', error)
       setIsListening(false)
     }
   }, [isSupported, isListening, setupAudioVisualization, isMuted])
@@ -423,7 +488,6 @@ export function VoiceFirstInterface({
   // Stop listening
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening && !isCleaningUpRef.current) {
-      console.log('🛑 Stopping voice-first listening...')
       try {
         recognitionRef.current.stop()
       } catch (error) {
@@ -438,7 +502,6 @@ export function VoiceFirstInterface({
 
     if (newMutedState) {
       // When muting, stop listening completely
-      console.log('🔇 Muting microphone and stopping recognition')
       if (recognitionRef.current && isListening) {
         try {
           recognitionRef.current.stop()
@@ -453,18 +516,17 @@ export function VoiceFirstInterface({
         })
       }
     } else {
-      // When unmuting, re-enable tracks and restart listening
-      console.log('🔊 Unmuting microphone')
+      // When unmuting, re-enable tracks and restart listening immediately
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getAudioTracks().forEach((track) => {
           track.enabled = true
         })
       }
-      // Restart listening after a short delay
+      // Restart listening immediately
       if (!isListening && !isCleaningUpRef.current) {
         setTimeout(() => {
           startListening()
-        }, 500)
+        }, 100) // Very short delay
       }
     }
 
@@ -508,12 +570,17 @@ export function VoiceFirstInterface({
       hasInterruptedRef.current = false
       // Start simulating AI audio levels
       simulateAIAudioLevels()
+
+      // Ensure speech recognition is running during audio playback
+      if (!isListening && !isMuted && recognitionRef.current) {
+        startListening()
+      }
     } else if (aiAudioAnimationRef.current) {
       // Stop AI audio simulation
       cancelAnimationFrame(aiAudioAnimationRef.current)
       aiAudioAnimationRef.current = null
     }
-  }, [isPlayingAudio, isListening, simulateAIAudioLevels])
+  }, [isPlayingAudio, isListening, simulateAIAudioLevels, isMuted, startListening])
 
   // Initialize when component mounts
   useEffect(() => {
@@ -522,27 +589,57 @@ export function VoiceFirstInterface({
     }
   }, [isSupported, isInitialized, initializeSpeechRecognition])
 
-  // Start audio visualization immediately for baseline animation
+  // Start audio visualization and listening immediately after initialization
   useEffect(() => {
     if (isInitialized && !mediaStreamRef.current && !isCleaningUpRef.current) {
-      const timer = setTimeout(() => {
-        setupAudioVisualization()
-      }, 500)
-
-      return () => clearTimeout(timer)
+      setupAudioVisualization().then((success) => {
+        if (success && !isMuted) {
+          // Start listening immediately after audio setup
+          setTimeout(() => startListening(), 200)
+        }
+      })
     }
-  }, [isInitialized, setupAudioVisualization])
+  }, [isInitialized, setupAudioVisualization, startListening, isMuted])
 
-  // Auto-start listening after initialization
+  // Ensure speech recognition restarts immediately when needed
   useEffect(() => {
-    if (isInitialized && !isListening && !isCleaningUpRef.current && !isMuted) {
-      const timer = setTimeout(() => {
-        startListening()
-      }, 1000) // Longer delay to ensure everything is ready
-
-      return () => clearTimeout(timer)
+    if (
+      isInitialized &&
+      !isListening &&
+      !isCleaningUpRef.current &&
+      !isMuted &&
+      recognitionRef.current
+    ) {
+      startListening()
     }
   }, [isInitialized, isListening, startListening, isMuted])
+
+  // Periodic check to ensure speech recognition stays active during audio playback
+  useEffect(() => {
+    if (!isPlayingAudio || isMuted || !recognitionRef.current) return
+
+    const checkInterval = setInterval(() => {
+      // Check if speech recognition should be active but isn't
+      if (
+        isPlayingAudio &&
+        !isListening &&
+        !isMuted &&
+        !isCleaningUpRef.current &&
+        recognitionRef.current &&
+        recognitionRef.current.state !== 'active'
+      ) {
+        try {
+          recognitionRef.current.start()
+        } catch (error: any) {
+          if (!error.message?.includes('already started')) {
+            console.error('Periodic restart failed:', error)
+          }
+        }
+      }
+    }, 2000) // Check every 2 seconds
+
+    return () => clearInterval(checkInterval)
+  }, [isPlayingAudio, isListening, isMuted])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -559,6 +656,27 @@ export function VoiceFirstInterface({
     if (isListening) return 'Listening...'
     return 'Ready'
   }
+
+  // Reset interruption flag to allow new interruptions
+  const resetInterruptionFlag = useCallback(() => {
+    hasInterruptedRef.current = false
+  }, [])
+
+  // Expose reset function through callback
+  useEffect(() => {
+    if (onResetInterruption) {
+      // Provide the reset function to the parent
+      onResetInterruption(resetInterruptionFlag)
+    }
+  }, [onResetInterruption, resetInterruptionFlag])
+
+  // Also reset interruption flag when new audio chunks are detected
+  useEffect(() => {
+    if (isPlayingAudio) {
+      // Reset interruption flag when audio starts playing
+      resetInterruptionFlag()
+    }
+  }, [isPlayingAudio, resetInterruptionFlag])
 
   return (
     <div className={cn('fixed inset-0 z-[100] flex flex-col bg-white text-gray-900', className)}>
@@ -578,7 +696,7 @@ export function VoiceFirstInterface({
       <div className='flex flex-1 flex-col items-center justify-center px-8'>
         {/* Voice visualization */}
         <div className='relative mb-16'>
-          <FBOParticlesVisualization
+          <ParticlesVisualization
             audioLevels={audioLevels}
             isListening={isListening}
             isPlayingAudio={isPlayingAudio}
@@ -594,6 +712,24 @@ export function VoiceFirstInterface({
             {getStatusText()}
             {isMuted && <span className='ml-2 text-gray-400 text-sm'>(Muted)</span>}
           </p>
+          {/* Debug info */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className='mt-2 space-y-1 text-gray-400 text-xs'>
+              <p>
+                Recognition: {isListening ? 'Active' : 'Inactive'} | Audio:{' '}
+                {isPlayingAudio ? 'Playing' : 'Silent'} | Initialized:{' '}
+                {isInitialized ? 'Yes' : 'No'}
+              </p>
+              <p>
+                State: {recognitionRef.current?.state || 'null'} | Muted: {isMuted ? 'Yes' : 'No'} |
+                Processing Interruption: {isProcessingInterruption ? 'Yes' : 'No'}
+              </p>
+              <p>
+                Has Interrupted: {hasInterruptedRef.current ? 'Yes' : 'No'} | Permission:{' '}
+                {permissionStatus}
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

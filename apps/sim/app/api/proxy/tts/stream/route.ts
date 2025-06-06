@@ -17,18 +17,8 @@ export async function POST(request: NextRequest) {
     const apiKey = env.ELEVENLABS_API_KEY
     if (!apiKey) {
       logger.error('ELEVENLABS_API_KEY not configured on server')
-      logger.error(
-        'Available env vars:',
-        Object.keys(process.env).filter((key) => key.includes('ELEVEN'))
-      )
-      logger.error('env.ELEVENLABS_API_KEY:', env.ELEVENLABS_API_KEY)
-      return new Response(
-        'ElevenLabs service not configured. Please ensure ELEVENLABS_API_KEY is set in your environment.',
-        { status: 503 }
-      )
+      return new Response('ElevenLabs service not configured', { status: 503 })
     }
-
-    logger.info('Starting streaming TTS request for voice:', voiceId)
 
     const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`
 
@@ -42,45 +32,51 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         text,
         model_id: modelId,
-        // Aggressive latency optimizations
-        optimize_streaming_latency: 4, // Maximum latency optimization (turns off text normalizer)
-        output_format: 'mp3_22050_32', // Lower sample rate for faster streaming
+        // Maximum performance settings
+        optimize_streaming_latency: 4,
+        output_format: 'mp3_22050_32', // Fastest format
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.8,
-          style: 0.0, // Disable style for faster processing
-          use_speaker_boost: false, // Disable for speed
+          style: 0.0,
+          use_speaker_boost: false,
         },
-        // Experimental: use auto mode for even lower latency
-        // Note: This might not be available in all API versions
-        enable_ssml_parsing: false, // Disable SSML for speed
-        apply_text_normalization: 'off', // Turn off text normalization for max speed
+        enable_ssml_parsing: false,
+        apply_text_normalization: 'off',
+        // Use auto mode for fastest possible streaming
+        // Note: This may sacrifice some quality for speed
+        use_pvc_as_ivc: false, // Use fastest voice processing
       }),
     })
 
     if (!response.ok) {
-      logger.error(`Failed to generate streaming TTS: ${response.status} ${response.statusText}`)
+      logger.error(`Failed to generate Stream TTS: ${response.status} ${response.statusText}`)
       return new Response(`Failed to generate TTS: ${response.status} ${response.statusText}`, {
         status: response.status,
       })
     }
 
-    // Check if we got a streaming response
     if (!response.body) {
       logger.error('No response body received from ElevenLabs')
       return new Response('No audio stream received', { status: 422 })
     }
 
-    logger.info('Streaming audio from ElevenLabs...')
+    // Create optimized streaming response
+    const { readable, writable } = new TransformStream({
+      transform(chunk, controller) {
+        // Pass through chunks immediately without buffering
+        controller.enqueue(chunk)
+      },
+      flush(controller) {
+        // Ensure all data is flushed immediately
+        controller.terminate()
+      },
+    })
 
-    // Create a TransformStream to pass through the audio chunks
-    const { readable, writable } = new TransformStream()
-
-    // Pipe the response body to our transform stream
     const writer = writable.getWriter()
     const reader = response.body.getReader()
 
-    // Start streaming in the background
+    // Stream with minimal buffering for real-time performance
 
     ;(async () => {
       try {
@@ -90,29 +86,32 @@ export async function POST(request: NextRequest) {
             await writer.close()
             break
           }
-          await writer.write(value)
+          // Write immediately without waiting
+          writer.write(value).catch(logger.error)
         }
-        logger.info('Finished streaming audio')
       } catch (error) {
-        logger.error('Error during streaming:', error)
+        logger.error('Error during Stream streaming:', error)
         await writer.abort(error)
       }
     })()
 
-    // Return the readable stream with appropriate headers
     return new Response(readable, {
       headers: {
         'Content-Type': 'audio/mpeg',
         'Transfer-Encoding': 'chunked',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
         'X-Content-Type-Options': 'nosniff',
         'Access-Control-Allow-Origin': '*',
-        // Add connection keep-alive for better streaming performance
         Connection: 'keep-alive',
+        // Stream headers for better streaming
+        'X-Accel-Buffering': 'no', // Disable nginx buffering
+        'X-Stream-Type': 'real-time',
       },
     })
   } catch (error) {
-    logger.error('Error in streaming TTS:', error)
+    logger.error('Error in Stream TTS:', error)
 
     return new Response(
       `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,

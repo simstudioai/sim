@@ -1,6 +1,9 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import { createLogger } from '@/lib/logs/console-logger'
+
+const logger = createLogger('UseAudioStreaming')
 
 interface AudioStreamingOptions {
   voiceId: string
@@ -8,7 +11,7 @@ interface AudioStreamingOptions {
   onAudioStart?: () => void
   onAudioEnd?: () => void
   onError?: (error: Error) => void
-  useOptimizedStreaming?: boolean
+  onAudioChunkStart?: () => void
 }
 
 export function useAudioStreaming() {
@@ -21,6 +24,8 @@ export function useAudioStreaming() {
   const processingQueueRef = useRef(false)
   const abortControllerRef = useRef<AbortController | null>(null)
   const pendingRequestsRef = useRef<Set<Promise<void>>>(new Set())
+  const hasStartedPlayingRef = useRef(false) // Track if we've started playing audio
+  const initialBufferingRef = useRef(true) // Track if we're still in initial buffering phase
 
   // Initialize MediaSource for streaming audio
   const initializeMediaSource = useCallback(async (options: AudioStreamingOptions) => {
@@ -31,7 +36,7 @@ export function useAudioStreaming() {
       if (!audioElementRef.current) {
         audioElementRef.current = new Audio()
         audioElementRef.current.controls = false
-        audioElementRef.current.autoplay = true
+        audioElementRef.current.autoplay = false
       }
 
       // Create MediaSource
@@ -70,17 +75,27 @@ export function useAudioStreaming() {
         // Set up audio element event listeners
         audioElementRef.current.addEventListener('play', () => {
           setIsPlayingAudio(true)
+          hasStartedPlayingRef.current = true
           onAudioStart?.()
         })
 
         audioElementRef.current.addEventListener('ended', () => {
           setIsPlayingAudio(false)
+          hasStartedPlayingRef.current = false
           onAudioEnd?.()
         })
 
-        audioElementRef.current.addEventListener('error', (e) => {
-          console.error('Audio playback error:', e)
+        audioElementRef.current.addEventListener('pause', () => {
           setIsPlayingAudio(false)
+          if (hasStartedPlayingRef.current) {
+            onAudioEnd?.()
+          }
+        })
+
+        audioElementRef.current.addEventListener('error', (e) => {
+          logger.error('Audio playback error:', e)
+          setIsPlayingAudio(false)
+          hasStartedPlayingRef.current = false
           onAudioEnd?.()
         })
       }
@@ -88,7 +103,7 @@ export function useAudioStreaming() {
       isInitializedRef.current = true
       return true
     } catch (error) {
-      console.error('Failed to initialize MediaSource:', error)
+      logger.error('Failed to initialize MediaSource:', error)
       isInitializedRef.current = false
       return false
     }
@@ -101,6 +116,11 @@ export function useAudioStreaming() {
       !sourceBufferRef.current ||
       audioChunksRef.current.length === 0
     ) {
+      return
+    }
+
+    // During initial buffering, wait for at least 2-3 chunks before starting playback
+    if (initialBufferingRef.current && audioChunksRef.current.length < 2) {
       return
     }
 
@@ -126,9 +146,20 @@ export function useAudioStreaming() {
           sourceBufferRef.current!.removeEventListener('updateend', handleUpdateEnd)
           processingQueueRef.current = false
 
-          // Process next chunk if available
+          // After processing the first chunk, we're no longer in initial buffering
+          if (initialBufferingRef.current) {
+            initialBufferingRef.current = false
+            // Start playback now that we have enough buffered data
+            if (audioElementRef.current?.paused) {
+              audioElementRef.current.play().catch((e) => {
+                logger.error('Error starting audio playback:', e)
+              })
+            }
+          }
+
+          // Process next chunk if available, with a small delay to allow smooth playback
           if (audioChunksRef.current.length > 0) {
-            setTimeout(() => processAudioChunks(), 10)
+            setTimeout(() => processAudioChunks(), 5)
           }
         }
 
@@ -137,7 +168,7 @@ export function useAudioStreaming() {
         processingQueueRef.current = false
       }
     } catch (error) {
-      console.error('Error processing audio chunk:', error)
+      logger.error('Error processing audio chunk:', error)
       processingQueueRef.current = false
     }
   }, [])
@@ -160,14 +191,17 @@ export function useAudioStreaming() {
       audioElementRef.current.load()
     }
 
+    // Immediately update state
     setIsPlayingAudio(false)
+    hasStartedPlayingRef.current = false
 
     // Clear audio chunks
     audioChunksRef.current = []
     processingQueueRef.current = false
 
-    // Reset initialization
+    // Reset initialization and buffering state
     isInitializedRef.current = false
+    initialBufferingRef.current = true
 
     // Clean up MediaSource
     if (mediaSourceRef.current) {
@@ -188,6 +222,7 @@ export function useAudioStreaming() {
       URL.revokeObjectURL(audioElementRef.current.src)
       audioElementRef.current.removeEventListener('play', () => {})
       audioElementRef.current.removeEventListener('ended', () => {})
+      audioElementRef.current.removeEventListener('pause', () => {})
       audioElementRef.current.removeEventListener('error', () => {})
       audioElementRef.current = null
     }
@@ -203,24 +238,10 @@ export function useAudioStreaming() {
   // Stream text to TTS and append to existing MediaSource
   const streamTextToAudio = useCallback(
     async (text: string, options: AudioStreamingOptions) => {
-      const {
-        voiceId,
-        modelId = 'eleven_turbo_v2_5',
-        onError,
-        useOptimizedStreaming = false,
-      } = options
-
-      console.log('📢 streamTextToAudio called:', {
-        textLength: text.length,
-        textPreview: `${text.substring(0, 50)}...`,
-        voiceId,
-        modelId,
-        useOptimizedStreaming,
-      })
+      const { voiceId, modelId = 'eleven_turbo_v2_5', onError } = options
 
       // Skip empty text
       if (!text.trim()) {
-        console.log('⚠️ Skipping empty text')
         return
       }
 
@@ -233,17 +254,22 @@ export function useAudioStreaming() {
       try {
         // Initialize MediaSource if this is the first chunk
         if (!isInitializedRef.current) {
-          console.log('�� Initializing MediaSource...')
           const initialized = await initializeMediaSource(options)
           if (!initialized) {
-            console.log('⚠️ MediaSource initialization failed, falling back to simple audio')
             // Fallback to simple audio playback
             return fallbackAudioPlayback(text, options)
           }
         }
 
-        // Create a request promise and track it
-        const requestPromise = streamAudioContent(text, { voiceId, modelId, useOptimizedStreaming })
+        // Reset initial buffering state for each new streaming session
+        initialBufferingRef.current = true
+
+        // Create a request promise and track it - only after MediaSource is ready
+        const requestPromise = streamAudioContent(text, {
+          voiceId,
+          modelId,
+          onAudioChunkStart: options.onAudioChunkStart,
+        })
         pendingRequestsRef.current.add(requestPromise)
 
         await requestPromise
@@ -252,7 +278,7 @@ export function useAudioStreaming() {
         pendingRequestsRef.current.delete(requestPromise)
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('Audio streaming error:', error)
+          logger.error('Audio streaming error:', error)
           onError?.(error)
         }
       }
@@ -264,18 +290,11 @@ export function useAudioStreaming() {
   const streamAudioContent = useCallback(
     async (
       text: string,
-      options: { voiceId: string; modelId?: string; useOptimizedStreaming?: boolean }
+      options: { voiceId: string; modelId?: string; onAudioChunkStart?: () => void }
     ) => {
-      const { voiceId, modelId = 'eleven_turbo_v2_5', useOptimizedStreaming = false } = options
+      const { voiceId, modelId = 'eleven_turbo_v2_5', onAudioChunkStart } = options
 
-      // Choose endpoint based on optimization preference
-      const endpoint = useOptimizedStreaming ? '/api/proxy/tts/websocket' : '/api/proxy/tts/stream'
-
-      console.log('🌐 Making TTS request to:', endpoint, {
-        textLength: text.length,
-        voiceId,
-        modelId,
-      })
+      const endpoint = '/api/proxy/tts/stream'
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -290,19 +309,12 @@ export function useAudioStreaming() {
         signal: abortControllerRef.current?.signal,
       })
 
-      console.log('📡 TTS response:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-        headers: Object.fromEntries(response.headers.entries()),
-      })
-
       if (!response.ok) {
         if (response.status === 401) {
           throw new Error('TTS authentication failed (401). Please check server configuration.')
         }
         const errorText = await response.text()
-        console.error('TTS error response:', errorText)
+        logger.error('TTS error response:', errorText)
         throw new Error(`TTS request failed: ${response.statusText} - ${errorText}`)
       }
 
@@ -314,20 +326,35 @@ export function useAudioStreaming() {
 
       try {
         let bytesReceived = 0
+        let isFirstChunk = true
+
         while (true) {
           const { done, value } = await reader.read()
 
           if (done) {
-            console.log('✅ TTS streaming complete, total bytes:', bytesReceived)
             break
           }
 
           if (value && value.length > 0) {
             bytesReceived += value.length
+
+            // Trigger audio start callback on first chunk
+            if (isFirstChunk && !hasStartedPlayingRef.current) {
+              setIsPlayingAudio(true)
+              hasStartedPlayingRef.current = true
+              // Don't call onAudioStart here since the audio element will handle it
+            }
+            isFirstChunk = false
+
+            // Notify that a new audio chunk is being processed (for interruption reset)
+            if (onAudioChunkStart) {
+              onAudioChunkStart()
+            }
+
             // Add chunk to queue
             audioChunksRef.current.push(value.buffer.slice(0))
 
-            // Start processing chunks immediately for real-time feel
+            // Start processing chunks - will respect initial buffering requirements
             processAudioChunks()
           }
         }
@@ -341,24 +368,15 @@ export function useAudioStreaming() {
   // Fallback audio playback for full text
   const fallbackAudioPlayback = useCallback(
     async (text: string, options: AudioStreamingOptions) => {
-      const {
-        voiceId,
-        modelId = 'eleven_turbo_v2_5',
-        onAudioStart,
-        onAudioEnd,
-        onError,
-        useOptimizedStreaming = false,
-      } = options
+      const { voiceId, modelId = 'eleven_turbo_v2_5', onAudioStart, onAudioEnd, onError } = options
 
       try {
-        if (!isPlayingAudio) {
-          setIsPlayingAudio(true)
-          onAudioStart?.()
-        }
+        // Signal audio start immediately
+        setIsPlayingAudio(true)
+        hasStartedPlayingRef.current = true
+        onAudioStart?.()
 
-        const endpoint = useOptimizedStreaming
-          ? '/api/proxy/tts/websocket'
-          : '/api/proxy/tts/stream'
+        const endpoint = '/api/proxy/tts/stream'
 
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -390,6 +408,7 @@ export function useAudioStreaming() {
           () => {
             URL.revokeObjectURL(audioUrl)
             setIsPlayingAudio(false)
+            hasStartedPlayingRef.current = false
             onAudioEnd?.()
             audioElementRef.current = null
           },
@@ -399,9 +418,10 @@ export function useAudioStreaming() {
         audio.addEventListener(
           'error',
           (e) => {
-            console.error('Audio playback error:', e)
+            logger.error('Audio playback error:', e)
             URL.revokeObjectURL(audioUrl)
             setIsPlayingAudio(false)
+            hasStartedPlayingRef.current = false
             onAudioEnd?.()
             audioElementRef.current = null
           },
@@ -411,14 +431,15 @@ export function useAudioStreaming() {
         await audio.play()
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
-          console.error('Fallback audio error:', error)
+          logger.error('Fallback audio error:', error)
           onError?.(error)
         }
         setIsPlayingAudio(false)
+        hasStartedPlayingRef.current = false
         onAudioEnd?.()
       }
     },
-    [isPlayingAudio]
+    []
   )
 
   return {

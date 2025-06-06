@@ -1,7 +1,10 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { createLogger } from '@/lib/logs/console-logger'
 import type { ChatMessage } from '../components/message/message'
+
+const logger = createLogger('UseChatStreaming')
 
 interface StreamingOptions {
   voiceSettings?: {
@@ -53,7 +56,7 @@ export function useChatStreaming() {
         return prev
       })
 
-      // Reset streaming state
+      // Reset streaming state immediately
       setIsStreamingResponse(false)
       accumulatedTextRef.current = ''
       lastStreamedPositionRef.current = 0
@@ -86,14 +89,6 @@ export function useChatStreaming() {
       streamingOptions?.voiceSettings?.isVoiceEnabled &&
       streamingOptions?.voiceSettings?.autoPlayResponses &&
       streamingOptions?.audioStreamHandler
-
-    console.log('🎵 Streaming handler audio conditions:', {
-      isVoiceEnabled: streamingOptions?.voiceSettings?.isVoiceEnabled,
-      autoPlayResponses: streamingOptions?.voiceSettings?.autoPlayResponses,
-      hasAudioStreamHandler: !!streamingOptions?.audioStreamHandler,
-      shouldStreamAudio,
-      voiceFirstMode: streamingOptions?.voiceSettings?.voiceFirstMode,
-    })
 
     // Get voice-first mode settings
     const voiceFirstMode = streamingOptions?.voiceSettings?.voiceFirstMode
@@ -205,7 +200,6 @@ export function useChatStreaming() {
         while (!done) {
           // Check if aborted before awaiting reader.read()
           if (abortControllerRef.current === null) {
-            console.log('Stream reading aborted')
             break
           }
 
@@ -223,7 +217,7 @@ export function useChatStreaming() {
                 updateDisplayedText(accumulatedTextRef.current)
               }
 
-              // Stream audio in real-time for meaningful chunks
+              // Stream audio in real-time for meaningful sentences
               if (
                 shouldStreamAudio &&
                 streamingOptions.audioStreamHandler &&
@@ -233,68 +227,62 @@ export function useChatStreaming() {
                   lastStreamedPositionRef.current
                 )
 
-                // Optimize chunking based on voice-first mode
-                const isVoiceFirst = voiceFirstMode && conversationMode
-                const CHUNK_MIN_LENGTH = isVoiceFirst ? 25 : 40 // Smaller chunks for voice-first
-                const CHUNK_MAX_LENGTH = isVoiceFirst ? 80 : 120 // Smaller max for real-time feel
+                // Use sentence-based streaming for natural audio flow
+                const sentenceEndings = ['. ', '! ', '? ', '.\n', '!\n', '?\n', '.', '!', '?']
+                let sentenceEnd = -1
 
-                if (newText.length >= CHUNK_MIN_LENGTH) {
-                  // Look for natural sentence endings first for best audio quality
-                  const sentenceEndings = ['. ', '! ', '? ', '.\n', '!\n', '?\n']
-                  let chunkEnd = -1
-
-                  // Find the first sentence ending within reasonable bounds
-                  for (const ending of sentenceEndings) {
-                    const index = newText.indexOf(ending)
-                    if (index > 0 && index <= CHUNK_MAX_LENGTH) {
-                      chunkEnd = index + ending.length
-                      break // Take the first one for real-time feel
-                    }
+                // Find the first complete sentence
+                for (const ending of sentenceEndings) {
+                  const index = newText.indexOf(ending)
+                  if (index > 0) {
+                    // Make sure we include the punctuation
+                    sentenceEnd = index + ending.length
+                    break
                   }
+                }
 
-                  // If no sentence ending found but text is long, look for clause breaks
-                  if (chunkEnd === -1 && newText.length >= CHUNK_MAX_LENGTH * 0.7) {
-                    const clauseBreaks = [', ', ': ', '; ', ' - ', ' — ', '\n']
-                    for (const breakPoint of clauseBreaks) {
-                      const index = newText.indexOf(breakPoint)
-                      if (index > CHUNK_MIN_LENGTH / 2 && index <= CHUNK_MAX_LENGTH) {
-                        chunkEnd = index + breakPoint.length
-                        break
+                // If we found a complete sentence, stream it
+                if (sentenceEnd > 0) {
+                  const sentence = newText.substring(0, sentenceEnd).trim()
+                  if (sentence && sentence.length >= 3) {
+                    // Only send meaningful sentences
+                    try {
+                      // Stream this sentence to audio
+                      await streamingOptions.audioStreamHandler(sentence)
+                      lastStreamedPositionRef.current += sentenceEnd
+
+                      // Update displayed text in synced mode
+                      if (voiceFirstMode && textStreamingMode === 'synced') {
+                        updateDisplayedText(
+                          accumulatedTextRef.current,
+                          lastStreamedPositionRef.current
+                        )
+                      }
+                    } catch (error) {
+                      logger.error('Error streaming audio sentence:', error)
+                      // Don't stop on individual sentence errors, but log them
+                      if (error instanceof Error && error.message.includes('401')) {
+                        logger.warn('TTS authentication error, stopping audio streaming')
+                        audioStreamingActiveRef.current = false
                       }
                     }
                   }
+                } else if (newText.length > 200 && done) {
+                  // If streaming has ended and we have a long incomplete sentence, stream it anyway
+                  const incompleteSentence = newText.trim()
+                  if (incompleteSentence && incompleteSentence.length >= 10) {
+                    try {
+                      await streamingOptions.audioStreamHandler(incompleteSentence)
+                      lastStreamedPositionRef.current += newText.length
 
-                  // Last resort: break at word boundary if text is very long
-                  if (chunkEnd === -1 && newText.length >= CHUNK_MAX_LENGTH) {
-                    const spaceIndex = newText.lastIndexOf(' ', CHUNK_MAX_LENGTH)
-                    chunkEnd = spaceIndex > CHUNK_MIN_LENGTH / 2 ? spaceIndex : CHUNK_MAX_LENGTH
-                  }
-
-                  // If we have a chunk to stream
-                  if (chunkEnd > 0) {
-                    const chunk = newText.substring(0, chunkEnd).trim()
-                    if (chunk && chunk.length >= 10) {
-                      // Only send meaningful chunks
-                      try {
-                        // Stream this chunk to audio
-                        await streamingOptions.audioStreamHandler(chunk)
-                        lastStreamedPositionRef.current += chunkEnd
-
-                        // Update displayed text in synced mode
-                        if (voiceFirstMode && textStreamingMode === 'synced') {
-                          updateDisplayedText(
-                            accumulatedTextRef.current,
-                            lastStreamedPositionRef.current
-                          )
-                        }
-                      } catch (error) {
-                        console.error('Error streaming audio chunk:', error)
-                        // Don't stop on individual chunk errors, but log them
-                        if (error instanceof Error && error.message.includes('401')) {
-                          console.warn('TTS authentication error, stopping audio streaming')
-                          audioStreamingActiveRef.current = false
-                        }
+                      if (voiceFirstMode && textStreamingMode === 'synced') {
+                        updateDisplayedText(
+                          accumulatedTextRef.current,
+                          lastStreamedPositionRef.current
+                        )
                       }
+                    } catch (error) {
+                      logger.error('Error streaming incomplete sentence:', error)
                     }
                   }
                 }
@@ -303,7 +291,7 @@ export function useChatStreaming() {
           }
         }
 
-        // Handle any remaining text for audio streaming
+        // Handle any remaining text for audio streaming when streaming completes
         if (
           shouldStreamAudio &&
           streamingOptions.audioStreamHandler &&
@@ -312,7 +300,7 @@ export function useChatStreaming() {
           const remainingText = accumulatedTextRef.current
             .substring(lastStreamedPositionRef.current)
             .trim()
-          if (remainingText && remainingText.length >= 5) {
+          if (remainingText && remainingText.length >= 3) {
             try {
               await streamingOptions.audioStreamHandler(remainingText)
 
@@ -321,7 +309,7 @@ export function useChatStreaming() {
                 updateDisplayedText(accumulatedTextRef.current, accumulatedTextRef.current.length)
               }
             } catch (error) {
-              console.error('Error streaming final audio chunk:', error)
+              logger.error('Error streaming final remaining text:', error)
             }
           }
         }
@@ -329,7 +317,7 @@ export function useChatStreaming() {
         // Show error to user in the message
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error during streaming'
-        console.error('Error reading stream:', error)
+        logger.error('Error reading stream:', error)
         cleanupStreaming(`\n\n_Error: ${errorMessage}_`, true)
         return // Skip the finally block's cleanupStreaming call
       } finally {

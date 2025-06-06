@@ -2,6 +2,7 @@
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { createLogger } from '@/lib/logs/console-logger'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import EmailAuth from './components/auth/email/email-auth'
 import PasswordAuth from './components/auth/password/password-auth'
@@ -11,9 +12,11 @@ import { ChatInput } from './components/input/input'
 import { ChatLoadingState } from './components/loading-state/loading-state'
 import type { ChatMessage } from './components/message/message'
 import { ChatMessageContainer } from './components/message-container/message-container'
-import { VoiceFirstInterface } from './components/voice-first/voice-first-interface'
+import { VoiceInterface } from './components/voice-interface/voice-interface'
 import { useAudioStreaming } from './hooks/use-audio-streaming'
 import { useChatStreaming } from './hooks/use-chat-streaming'
+
+const logger = createLogger('ChatClient')
 
 interface ChatConfig {
   id: string
@@ -103,6 +106,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Track last audio end time for conversational flow
   const lastAudioEndTimeRef = useRef<number>(0)
   const conversationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Ref to store the reset interruption function from voice-first interface
+  const resetInterruptionRef = useRef<(() => void) | null>(null)
 
   // Voice is always ready since server handles API key
   const isVoiceReady = DEFAULT_VOICE_SETTINGS.isVoiceEnabled
@@ -200,7 +206,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       conversationTimeoutRef.current = setTimeout(() => {
         // Only trigger if the user hasn't started typing or interacting
         if (!inputValue.trim()) {
-          console.log('🎙️ Conversation mode: Auto-triggering voice input...')
           // This would need to be implemented in the ChatInput component
           // For now, we'll dispatch a custom event
           window.dispatchEvent(new CustomEvent('auto-trigger-voice'))
@@ -277,7 +282,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         ])
       }
     } catch (error) {
-      console.error('Error fetching chat config:', error)
+      logger.error('Error fetching chat config:', error)
       setError('This chat is currently unavailable. Please try again later.')
     }
   }
@@ -292,7 +297,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         setStarCount(formattedStars)
       })
       .catch((err) => {
-        console.error('Failed to fetch GitHub stars:', err)
+        logger.error('Failed to fetch GitHub stars:', err)
       })
   }, [subdomain])
 
@@ -372,39 +377,32 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           !ttsDisabled &&
           (isVoiceInput || (isVoiceFirstMode && DEFAULT_VOICE_SETTINGS.autoPlayResponses))
 
-        console.log('🎵 Audio conditions:', {
-          isVoiceFirstMode,
-          isVoiceReady,
-          isVoiceInput,
-          autoPlayResponses: DEFAULT_VOICE_SETTINGS.autoPlayResponses,
-          ttsDisabled,
-          shouldPlayAudio,
-          contentType,
-        })
-
         const audioStreamHandler = shouldPlayAudio
           ? async (text: string) => {
-              console.log('🎤 audioStreamHandler called with text:', `${text.substring(0, 50)}...`)
               try {
                 await streamTextToAudio(text, {
                   voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
                   // Use optimized streaming for conversation mode
-                  useOptimizedStreaming: DEFAULT_VOICE_SETTINGS.conversationMode,
                   onAudioStart: () => {
-                    console.log('🔊 Audio streaming started')
                     lastAudioEndTimeRef.current = 0 // Reset end time
                   },
                   onAudioEnd: () => {
-                    console.log('🔇 Audio streaming ended')
                     lastAudioEndTimeRef.current = Date.now()
                   },
+                  onAudioChunkStart: () => {
+                    // Reset interruption flag for each new audio chunk to allow multiple interruptions
+                    // Reset the interruption flag in the voice interface
+                    if (resetInterruptionRef.current) {
+                      resetInterruptionRef.current()
+                    }
+                  },
                   onError: (error) => {
-                    console.error('Audio streaming error:', error)
+                    logger.error('Audio streaming error:', error)
                     // Disable TTS on authentication errors
                     if (error.message.includes('401')) {
                       ttsFailureCountRef.current++
                       if (ttsFailureCountRef.current >= 3) {
-                        console.warn('Disabling TTS due to repeated authentication failures')
+                        logger.warn('Disabling TTS due to repeated authentication failures')
                         setTtsDisabled(true)
                       }
                     }
@@ -413,7 +411,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                 // Reset failure count on success
                 ttsFailureCountRef.current = 0
               } catch (error) {
-                console.error('TTS error:', error)
+                logger.error('TTS error:', error)
               }
             }
           : undefined
@@ -437,11 +435,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             },
             audioStreamHandler,
             onAudioStart: () => {
-              console.log('🔊 Audio streaming started')
               lastAudioEndTimeRef.current = 0
             },
             onAudioEnd: () => {
-              console.log('🔇 Audio streaming ended')
               lastAudioEndTimeRef.current = Date.now()
             },
           }
@@ -449,7 +445,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       } else {
         // Fallback to JSON response handling
         const responseData = await response.json()
-        console.log('Message response:', responseData)
+        logger.info('Message response:', responseData)
 
         // Handle different response formats from API
         if (
@@ -494,23 +490,19 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               try {
                 await streamTextToAudio(fullContent, {
                   voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                  // Use optimized streaming for conversation mode
-                  useOptimizedStreaming: DEFAULT_VOICE_SETTINGS.conversationMode,
                   onAudioStart: () => {
-                    console.log('🔊 Audio streaming started')
                     lastAudioEndTimeRef.current = 0
                   },
                   onAudioEnd: () => {
-                    console.log('🔇 Audio streaming ended')
                     lastAudioEndTimeRef.current = Date.now()
                   },
                   onError: (error) => {
-                    console.error('Audio playback error:', error)
+                    logger.error('Audio playback error:', error)
                     // Disable TTS on authentication errors
                     if (error.message.includes('401')) {
                       ttsFailureCountRef.current++
                       if (ttsFailureCountRef.current >= 3) {
-                        console.warn('Disabling TTS due to repeated authentication failures')
+                        logger.warn('Disabling TTS due to repeated authentication failures')
                         setTtsDisabled(true)
                       }
                     }
@@ -519,7 +511,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                 // Reset failure count on success
                 ttsFailureCountRef.current = 0
               } catch (error) {
-                console.error('TTS error:', error)
+                logger.error('TTS error:', error)
               }
             }
           }
@@ -568,23 +560,19 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             try {
               await streamTextToAudio(contentString, {
                 voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                // Use optimized streaming for conversation mode
-                useOptimizedStreaming: DEFAULT_VOICE_SETTINGS.conversationMode,
                 onAudioStart: () => {
-                  console.log('🔊 Audio streaming started')
                   lastAudioEndTimeRef.current = 0
                 },
                 onAudioEnd: () => {
-                  console.log('🔇 Audio streaming ended')
                   lastAudioEndTimeRef.current = Date.now()
                 },
                 onError: (error) => {
-                  console.error('Audio playback error:', error)
+                  logger.error('Audio playback error:', error)
                   // Disable TTS on authentication errors
                   if (error.message.includes('401')) {
                     ttsFailureCountRef.current++
                     if (ttsFailureCountRef.current >= 3) {
-                      console.warn('Disabling TTS due to repeated authentication failures')
+                      logger.warn('Disabling TTS due to repeated authentication failures')
                       setTtsDisabled(true)
                     }
                   }
@@ -593,13 +581,13 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               // Reset failure count on success
               ttsFailureCountRef.current = 0
             } catch (error) {
-              console.error('TTS error:', error)
+              logger.error('TTS error:', error)
             }
           }
         }
       }
     } catch (error) {
-      console.error('Error sending message:', error)
+      logger.error('Error sending message:', error)
 
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -623,15 +611,11 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   // Voice interruption - stop audio when user starts speaking
   const handleVoiceInterruption = useCallback(() => {
-    console.log('🛑 Voice interruption detected')
-
-    // 1. Always stop audio playback (even if play event hasn't fired yet)
-    console.log('🔇 Forcing audio playback to stop...')
+    // 1. Always stop audio playback immediately (even if play event hasn't fired yet)
     stopAudio()
 
     // 2. Stop any ongoing streaming response
     if (isStreamingResponse) {
-      console.log('⏹️ Stopping streaming response...')
       stopStreaming(setMessages)
     }
 
@@ -657,13 +641,11 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   // Handle voice mode activation with smooth transition
   const handleVoiceStart = useCallback(() => {
-    console.log('🎙️ Activating voice-first mode...')
     setIsVoiceFirstMode(true)
   }, [])
 
   // Handle exiting voice mode with smooth transition
   const handleExitVoiceMode = useCallback(() => {
-    console.log('🔚 Exiting voice-first mode...')
     setIsVoiceFirstMode(false)
     stopAudio() // Stop any playing audio when exiting
 
@@ -677,7 +659,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Handle voice transcript from voice-first interface
   const handleVoiceTranscript = useCallback(
     (transcript: string) => {
-      console.log('📝 Voice transcript received:', transcript)
       handleSendMessage(transcript, true)
     },
     [handleSendMessage]
@@ -724,12 +705,24 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Voice-first mode interface with smooth transition
   if (isVoiceFirstMode && isVoiceReady) {
     return (
-      <VoiceFirstInterface
+      <VoiceInterface
         onCallEnd={handleExitVoiceMode}
         onVoiceTranscript={handleVoiceTranscript}
-        onVoiceStart={() => console.log('🎙️ Voice started in voice-first mode')}
-        onVoiceEnd={() => console.log('🔇 Voice ended in voice-first mode')}
+        onVoiceStart={() => logger.info('🎙️ Voice started in voice-first mode')}
+        onVoiceEnd={() => logger.info('🔇 Voice ended in voice-first mode')}
         onInterrupt={handleVoiceInterruption}
+        onAudioChunkStart={() => {
+          // Reset interruption flag for each new audio chunk to allow multiple interruptions
+          logger.info('🔄 New audio chunk starting - resetting interruption flag')
+          // Reset the interruption flag in the voice interface
+          if (resetInterruptionRef.current) {
+            resetInterruptionRef.current()
+          }
+        }}
+        onResetInterruption={(resetFn) => {
+          // Store the reset function so we can call it from audio chunk callbacks
+          resetInterruptionRef.current = resetFn
+        }}
         isStreaming={isStreamingResponse}
         isPlayingAudio={isPlayingAudio}
         messages={messages.map((msg) => ({
