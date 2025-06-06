@@ -258,6 +258,143 @@ export function formatWebhookInput(
     }
     return null
   }
+
+  if (foundWebhook.provider === 'telegram') {
+    // Telegram input formatting logic
+    const message =
+      body?.message || body?.edited_message || body?.channel_post || body?.edited_channel_post
+
+    if (message) {
+      // Extract message text with fallbacks for different content types
+      let input = ''
+
+      if (message.text) {
+        input = message.text
+      } else if (message.caption) {
+        input = message.caption
+      } else if (message.photo) {
+        input = 'Photo message'
+      } else if (message.document) {
+        input = `Document: ${message.document.file_name || 'file'}`
+      } else if (message.audio) {
+        input = `Audio: ${message.audio.title || 'audio file'}`
+      } else if (message.video) {
+        input = 'Video message'
+      } else if (message.voice) {
+        input = 'Voice message'
+      } else if (message.sticker) {
+        input = `Sticker: ${message.sticker.emoji || '🎭'}`
+      } else if (message.location) {
+        input = 'Location shared'
+      } else if (message.contact) {
+        input = `Contact: ${message.contact.first_name || 'contact'}`
+      } else if (message.poll) {
+        input = `Poll: ${message.poll.question}`
+      } else {
+        input = 'Message received'
+      }
+
+      return {
+        input, // Primary workflow input - the message content
+        telegram: {
+          message: {
+            id: message.message_id,
+            text: message.text,
+            caption: message.caption,
+            date: message.date,
+            messageType: message.photo
+              ? 'photo'
+              : message.document
+                ? 'document'
+                : message.audio
+                  ? 'audio'
+                  : message.video
+                    ? 'video'
+                    : message.voice
+                      ? 'voice'
+                      : message.sticker
+                        ? 'sticker'
+                        : message.location
+                          ? 'location'
+                          : message.contact
+                            ? 'contact'
+                            : message.poll
+                              ? 'poll'
+                              : 'text',
+            raw: message,
+          },
+          sender: message.from
+            ? {
+                id: message.from.id,
+                firstName: message.from.first_name,
+                lastName: message.from.last_name,
+                username: message.from.username,
+                languageCode: message.from.language_code,
+                isBot: message.from.is_bot,
+              }
+            : null,
+          chat: message.chat
+            ? {
+                id: message.chat.id,
+                type: message.chat.type,
+                title: message.chat.title,
+                username: message.chat.username,
+                firstName: message.chat.first_name,
+                lastName: message.chat.last_name,
+              }
+            : null,
+          updateId: body.update_id,
+          updateType: body.message
+            ? 'message'
+            : body.edited_message
+              ? 'edited_message'
+              : body.channel_post
+                ? 'channel_post'
+                : body.edited_channel_post
+                  ? 'edited_channel_post'
+                  : 'unknown',
+        },
+        webhook: {
+          data: {
+            provider: 'telegram',
+            path: foundWebhook.path,
+            providerConfig: foundWebhook.providerConfig,
+            payload: body,
+            headers: Object.fromEntries(request.headers.entries()),
+            method: request.method,
+          },
+        },
+        workflowId: foundWorkflow.id,
+      }
+    }
+
+    // Fallback for unknown Telegram update types
+    logger.warn('Unknown Telegram update type', {
+      updateId: body.update_id,
+      bodyKeys: Object.keys(body || {}),
+    })
+
+    return {
+      input: 'Telegram update received',
+      telegram: {
+        updateId: body.update_id,
+        updateType: 'unknown',
+        raw: body,
+      },
+      webhook: {
+        data: {
+          provider: 'telegram',
+          path: foundWebhook.path,
+          providerConfig: foundWebhook.providerConfig,
+          payload: body,
+          headers: Object.fromEntries(request.headers.entries()),
+          method: request.method,
+        },
+      },
+      workflowId: foundWorkflow.id,
+    }
+  }
+
   if (foundWebhook.provider === 'gmail') {
     if (body && typeof body === 'object' && 'email' in body) {
       return body // { email: {...}, timestamp: ... }

@@ -83,7 +83,6 @@ export interface AirtableWebhookConfig {
 
 export interface TelegramConfig {
   botToken?: string
-  triggerPhrase?: string
 }
 
 // Union type for all provider configurations
@@ -272,12 +271,6 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         label: 'Bot Token',
         placeholder: 'Enter your Telegram Bot Token',
         description: 'The token for your Telegram bot.',
-      },
-      triggerPhrase: {
-        type: 'string',
-        label: 'Trigger Phrase',
-        placeholder: '/start_workflow',
-        description: 'The phrase that will trigger the workflow when sent to the bot.',
       },
     },
   },

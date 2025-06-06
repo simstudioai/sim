@@ -129,9 +129,8 @@ export async function GET(request: NextRequest) {
 
       case 'telegram': {
         const botToken = providerConfig.botToken
-        const triggerPhrase = providerConfig.triggerPhrase
 
-        if (!botToken || !triggerPhrase) {
+        if (!botToken) {
           logger.warn(`[${requestId}] Telegram webhook missing configuration: ${webhookId}`)
           return NextResponse.json(
             { success: false, error: 'Webhook has incomplete configuration' },
@@ -229,7 +228,6 @@ export async function GET(request: NextRequest) {
             id: foundWebhook.id,
             url: webhookUrl,
             botToken: `${botToken.substring(0, 5)}...${botToken.substring(botToken.length - 5)}`, // Show partial token for security
-            triggerPhrase,
             isActive: foundWebhook.isActive,
           },
           test: {
@@ -238,7 +236,7 @@ export async function GET(request: NextRequest) {
             webhookInfo,
           },
           message: success
-            ? 'Telegram webhook appears to be working. Your bot should now receive messages.'
+            ? 'Telegram webhook appears to be working. Any message sent to your bot will trigger the workflow.'
             : 'Telegram webhook test failed. Please check server logs for more details.',
           curlCommand,
           info: 'To fix issues with Telegram webhooks getting 403 Forbidden responses, ensure the webhook request includes a User-Agent header.',

@@ -352,16 +352,13 @@ async function createTelegramWebhookSubscription(
 ) {
   try {
     const { path, providerConfig } = webhookData
-    const { botToken, triggerPhrase } = providerConfig || {}
+    const { botToken } = providerConfig || {}
 
-    if (!botToken || !triggerPhrase) {
-      logger.warn(
-        `[${requestId}] Missing botToken or triggerPhrase for Telegram webhook creation.`,
-        {
-          webhookId: webhookData.id,
-        }
-      )
-      return // Cannot proceed without botToken and triggerPhrase
+    if (!botToken) {
+      logger.warn(`[${requestId}] Missing botToken for Telegram webhook creation.`, {
+        webhookId: webhookData.id,
+      })
+      return // Cannot proceed without botToken
     }
 
     const requestOrigin = new URL(request.url).origin

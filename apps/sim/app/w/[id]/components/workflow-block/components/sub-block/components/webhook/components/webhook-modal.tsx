@@ -79,7 +79,6 @@ export function WebhookModal({
   const [discordAvatarUrl, setDiscordAvatarUrl] = useState('')
   const [slackSigningSecret, setSlackSigningSecret] = useState('')
   const [telegramBotToken, setTelegramBotToken] = useState('')
-  const [telegramTriggerPhrase, setTelegramTriggerPhrase] = useState('')
   // Airtable-specific state
   const [airtableWebhookSecret, _setAirtableWebhookSecret] = useState('')
   const [airtableBaseId, setAirtableBaseId] = useState('')
@@ -104,7 +103,6 @@ export function WebhookModal({
     airtableTableId: '',
     airtableIncludeCellValues: false,
     telegramBotToken: '',
-    telegramTriggerPhrase: '',
     selectedLabels: ['INBOX'] as string[],
     labelFilterBehavior: 'INCLUDE',
     markAsRead: false,
@@ -227,15 +225,12 @@ export function WebhookModal({
                 }))
               } else if (webhookProvider === 'telegram') {
                 const botToken = config.botToken || ''
-                const triggerPhrase = config.triggerPhrase || ''
 
                 setTelegramBotToken(botToken)
-                setTelegramTriggerPhrase(triggerPhrase)
 
                 setOriginalValues((prev) => ({
                   ...prev,
                   telegramBotToken: botToken,
-                  telegramTriggerPhrase: triggerPhrase,
                 }))
               } else if (webhookProvider === 'gmail') {
                 const labelIds = config.labelIds || []
@@ -292,9 +287,7 @@ export function WebhookModal({
           airtableBaseId !== originalValues.airtableBaseId ||
           airtableTableId !== originalValues.airtableTableId ||
           airtableIncludeCellValues !== originalValues.airtableIncludeCellValues)) ||
-      (webhookProvider === 'telegram' &&
-        (telegramBotToken !== originalValues.telegramBotToken ||
-          telegramTriggerPhrase !== originalValues.telegramTriggerPhrase)) ||
+      (webhookProvider === 'telegram' && telegramBotToken !== originalValues.telegramBotToken) ||
       (webhookProvider === 'gmail' &&
         (!selectedLabels.every((label) => originalValues.selectedLabels.includes(label)) ||
           !originalValues.selectedLabels.every((label) => selectedLabels.includes(label)) ||
@@ -319,7 +312,6 @@ export function WebhookModal({
     airtableTableId,
     airtableIncludeCellValues,
     telegramBotToken,
-    telegramTriggerPhrase,
     selectedLabels,
     labelFilterBehavior,
     markAsRead,
@@ -345,7 +337,7 @@ export function WebhookModal({
         isValid = discordWebhookName.trim() !== ''
         break
       case 'telegram':
-        isValid = telegramBotToken.trim() !== '' && telegramTriggerPhrase.trim() !== ''
+        isValid = telegramBotToken.trim() !== ''
         break
       case 'gmail':
         isValid = selectedLabels.length > 0
@@ -359,7 +351,6 @@ export function WebhookModal({
     slackSigningSecret,
     whatsappVerificationToken,
     telegramBotToken,
-    telegramTriggerPhrase,
     selectedLabels,
   ])
 
@@ -428,7 +419,6 @@ export function WebhookModal({
       case 'telegram':
         return {
           botToken: telegramBotToken || undefined,
-          triggerPhrase: telegramTriggerPhrase || undefined,
         }
       default:
         return {}
@@ -479,7 +469,6 @@ export function WebhookModal({
             airtableTableId,
             airtableIncludeCellValues,
             telegramBotToken,
-            telegramTriggerPhrase,
             selectedLabels,
             labelFilterBehavior,
             markAsRead,
@@ -713,8 +702,6 @@ export function WebhookModal({
           <TelegramConfig
             botToken={telegramBotToken}
             setBotToken={setTelegramBotToken}
-            triggerPhrase={telegramTriggerPhrase}
-            setTriggerPhrase={setTelegramTriggerPhrase}
             isLoadingToken={isLoadingToken}
             testResult={testResult}
             copied={copied}

@@ -8,8 +8,6 @@ import { TestResultDisplay as WebhookTestResult } from '../ui/test-result'
 interface TelegramConfigProps {
   botToken: string
   setBotToken: (value: string) => void
-  triggerPhrase: string
-  setTriggerPhrase: (value: string) => void
   isLoadingToken: boolean
   testResult: any
   copied: string | null
@@ -22,8 +20,6 @@ interface TelegramConfigProps {
 export function TelegramConfig({
   botToken,
   setBotToken,
-  triggerPhrase,
-  setTriggerPhrase,
   isLoadingToken,
   testResult,
   copied,
@@ -51,26 +47,6 @@ export function TelegramConfig({
               }}
               placeholder='123456789:ABCdefGHIjklMNOpqrsTUVwxyz'
               type='password'
-              required
-            />
-          )}
-        </ConfigField>
-
-        <ConfigField
-          id='telegram-trigger-phrase'
-          label='Trigger Phrase *'
-          description='The phrase that will trigger the workflow when sent to the bot'
-        >
-          {isLoadingToken ? (
-            <Skeleton className='h-10 w-full' />
-          ) : (
-            <Input
-              id='telegram-trigger-phrase'
-              value={triggerPhrase}
-              onChange={(e) => {
-                setTriggerPhrase(e.target.value)
-              }}
-              placeholder='/start_workflow'
               required
             />
           )}
@@ -104,8 +80,8 @@ export function TelegramConfig({
             </a>{' '}
             in Telegram to create a bot and copy its token.
           </li>
-          <li>Enter your Bot Token and a trigger phrase above.</li>
-          <li>Save settings and send the trigger phrase to your bot to start the workflow.</li>
+          <li>Enter your Bot Token above.</li>
+          <li>Save settings and any message sent to your bot will trigger the workflow.</li>
         </ol>
       </InstructionsSection>
     </div>
