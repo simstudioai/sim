@@ -98,10 +98,10 @@ export const workflow = pgTable('workflow', {
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
   variables: json('variables').default('{}'),
-  templatesData: json('templates_data'),
+  marketplaceData: json('marketplace_data'), // Format: { id: string, status: 'owner' | 'temp' }
 
   // These columns are kept for backward compatibility during migration
-  // @deprecated - Use templatesData instead
+  // @deprecated - Use marketplaceData instead
   isPublished: boolean('is_published').notNull().default(false),
 })
 
@@ -213,40 +213,23 @@ export const apiKey = pgTable('api_key', {
   expiresAt: timestamp('expires_at'),
 })
 
-export const templates = pgTable(
-  'templates',
-  {
-    id: text('id').primaryKey(),
-    state: json('state').notNull(),
-    name: text('name').notNull(),
-    shortDescription: text('short_description'),
-    longDescription: text('long_description'),
-    authorId: text('author_id')
-      .notNull()
-      .references(() => user.id),
-    authorName: text('author_name').notNull(),
-    views: integer('views').notNull().default(0),
-    category: text('category'),
-    price: text('price').notNull().default('Free'),
-    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    // Critical performance indexes
-    categoryIdx: index('templates_category_idx').on(table.category),
-    viewsIdx: index('templates_views_idx').on(table.views),
-    createdAtIdx: index('templates_created_at_idx').on(table.createdAt),
-    authorIdIdx: index('templates_author_id_idx').on(table.authorId),
-
-    // Composite indexes for common query patterns
-    categoryViewsIdx: index('templates_category_views_idx').on(table.category, table.views),
-    categoryCreatedAtIdx: index('templates_category_created_at_idx').on(
-      table.category,
-      table.createdAt
-    ),
-  })
-)
+export const marketplace = pgTable('marketplace', {
+  id: text('id').primaryKey(),
+  workflowId: text('workflow_id')
+    .notNull()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  state: json('state').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  authorId: text('author_id')
+    .notNull()
+    .references(() => user.id),
+  authorName: text('author_name').notNull(),
+  views: integer('views').notNull().default(0),
+  category: text('category'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
 
 export const userStats = pgTable('user_stats', {
   id: text('id').primaryKey(),
@@ -490,12 +473,14 @@ export const document = pgTable(
     knowledgeBaseId: text('knowledge_base_id')
       .notNull()
       .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
+
     // File information
     filename: text('filename').notNull(),
     fileUrl: text('file_url').notNull(),
     fileSize: integer('file_size').notNull(), // Size in bytes
     mimeType: text('mime_type').notNull(), // e.g., 'application/pdf', 'text/plain'
     fileHash: text('file_hash'), // SHA-256 hash for deduplication
+
     // Content statistics
     chunkCount: integer('chunk_count').notNull().default(0),
     tokenCount: integer('token_count').notNull().default(0),
@@ -623,37 +608,5 @@ export const embedding = pgTable(
 
     // Ensure embedding exists (simplified since we only support one model)
     embeddingNotNullCheck: check('embedding_not_null_check', sql`"embedding" IS NOT NULL`),
-  })
-)
-
-export const savedTemplates = pgTable(
-  'saved_templates',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    templateId: text('template_id')
-      .notNull()
-      .references(() => templates.id, { onDelete: 'cascade' }),
-
-    // Usage tracking
-    timesUsed: integer('times_used').notNull().default(0),
-    lastUsedAt: timestamp('last_used_at'),
-    savedAt: timestamp('saved_at').notNull().defaultNow(),
-
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    // Ensure a user can't save the same template twice
-    userTemplateIdx: uniqueIndex('saved_templates_user_template_idx').on(
-      table.userId,
-      table.templateId
-    ),
-    // Fast lookups for user's saved templates
-    userIdIdx: index('saved_templates_user_id_idx').on(table.userId),
-    // Fast lookups for template popularity
-    templateIdIdx: index('saved_templates_template_id_idx').on(table.templateId),
   })
 )
