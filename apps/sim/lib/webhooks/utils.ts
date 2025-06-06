@@ -264,36 +264,6 @@ export function formatWebhookInput(
     const message =
       body?.message || body?.edited_message || body?.channel_post || body?.edited_channel_post
 
-    logger.debug('Processing Telegram webhook', {
-      updateId: body?.update_id,
-      hasMessage: !!message,
-      hasInlineQuery: !!body?.inline_query,
-      hasCallbackQuery: !!body?.callback_query,
-      messageType: message
-        ? message.text
-          ? 'text'
-          : message.photo
-            ? 'photo'
-            : message.document
-              ? 'document'
-              : message.audio
-                ? 'audio'
-                : message.video
-                  ? 'video'
-                  : message.voice
-                    ? 'voice'
-                    : message.sticker
-                      ? 'sticker'
-                      : message.location
-                        ? 'location'
-                        : message.contact
-                          ? 'contact'
-                          : message.poll
-                            ? 'poll'
-                            : 'other'
-        : null,
-    })
-
     if (message) {
       // Extract message text with fallbacks for different content types
       let input = ''
@@ -323,32 +293,6 @@ export function formatWebhookInput(
       } else {
         input = 'Message received'
       }
-
-      logger.debug('Extracted Telegram message', {
-        messageId: message.message_id,
-        input: input.substring(0, 100), // Log first 100 chars
-        senderUsername: message.from?.username,
-        chatType: message.chat?.type,
-        messageType: message.photo
-          ? 'photo'
-          : message.document
-            ? 'document'
-            : message.audio
-              ? 'audio'
-              : message.video
-                ? 'video'
-                : message.voice
-                  ? 'voice'
-                  : message.sticker
-                    ? 'sticker'
-                    : message.location
-                      ? 'location'
-                      : message.contact
-                        ? 'contact'
-                        : message.poll
-                          ? 'poll'
-                          : 'text',
-      })
 
       return {
         input, // Primary workflow input - the message content
