@@ -94,9 +94,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Skip waitlist protection for development environment
-  // if (isDevelopment) {
-  //   return NextResponse.next()
-  // }
+  if (isDevelopment) {
+    return NextResponse.next()
+  }
 
   const userAgent = request.headers.get('user-agent') || ''
 
