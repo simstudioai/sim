@@ -285,7 +285,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       const contentType = response.headers.get('Content-Type') || ''
 
       if (contentType.includes('text/plain')) {
-        // Prepare audio streaming handler if voice mode is enabled
         const shouldPlayAudio = isVoiceInput || isVoiceFirstMode
 
         const audioStreamHandler = shouldPlayAudio
@@ -448,10 +447,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   // Voice interruption - stop audio when user starts speaking
   const handleVoiceInterruption = useCallback(() => {
-    // Stop audio playback immediately
     stopAudio()
 
-    // Stop any ongoing streaming response
     if (isStreamingResponse) {
       stopStreaming(setMessages)
     }
@@ -483,7 +480,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   // If authentication is required, use the extracted components
   if (authRequired) {
-    // Get title and description from the URL params or use defaults
     const title = new URLSearchParams(window.location.search).get('title') || 'chat'
     const primaryColor = new URLSearchParams(window.location.search).get('color') || '#802FFF'
 

@@ -13,7 +13,6 @@ export async function POST(request: NextRequest) {
       return new Response('Missing required parameters', { status: 400 })
     }
 
-    // Use server-side API key instead of client-provided key
     const apiKey = env.ELEVENLABS_API_KEY
     if (!apiKey) {
       logger.error('ELEVENLABS_API_KEY not configured on server')
@@ -75,8 +74,6 @@ export async function POST(request: NextRequest) {
 
     const writer = writable.getWriter()
     const reader = response.body.getReader()
-
-    // Stream with minimal buffering for real-time performance
 
     ;(async () => {
       try {
