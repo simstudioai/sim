@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, Loader2, Trash2 } from 'lucide-react'
+import { Loader2, Trash2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,44 +78,17 @@ export function DeleteChunkModal({
     <AlertDialog open={isOpen} onOpenChange={onClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <div className='flex items-center gap-3'>
-            <div className='flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30'>
-              <AlertTriangle className='h-5 w-5 text-red-600 dark:text-red-400' />
-            </div>
-            <div>
-              <AlertDialogTitle className='text-left'>Delete Chunk</AlertDialogTitle>
-              <AlertDialogDescription className='text-left'>
-                Are you sure you want to delete chunk #{chunk.chunkIndex}?
-              </AlertDialogDescription>
-            </div>
-          </div>
+          <AlertDialogTitle>Delete Chunk</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this chunk? This action cannot be undone.
+          </AlertDialogDescription>
         </AlertDialogHeader>
-
-        {/* Show chunk preview */}
-        <div className='my-4 rounded-md border bg-muted/30 p-3'>
-          <div className='mb-2 flex items-center gap-2 text-muted-foreground text-sm'>
-            <Trash2 className='h-4 w-4' />
-            <span>Chunk #{chunk.chunkIndex}</span>
-          </div>
-          <div className='text-sm'>
-            {chunk.content.length > 150 ? `${chunk.content.substring(0, 150)}...` : chunk.content}
-          </div>
-          <div className='mt-2 text-muted-foreground text-xs'>
-            {chunk.tokenCount} tokens • {chunk.content.length} characters
-          </div>
-        </div>
-
-        <AlertDialogDescription>
-          This action cannot be undone. The chunk will be permanently removed from your knowledge
-          base.
-        </AlertDialogDescription>
-
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleDeleteChunk}
             disabled={isDeleting}
-            className='bg-red-600 text-white hover:bg-red-700 focus:ring-red-600'
+            className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
           >
             {isDeleting ? (
               <>
@@ -125,7 +98,7 @@ export function DeleteChunkModal({
             ) : (
               <>
                 <Trash2 className='mr-2 h-4 w-4' />
-                Delete Chunk
+                Delete
               </>
             )}
           </AlertDialogAction>

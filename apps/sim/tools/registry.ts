@@ -52,7 +52,7 @@ import { requestTool as httpRequest } from './http'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
 import { readUrlTool } from './jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
-import { knowledgeSearchTool } from './knowledge'
+import { knowledgeSearchTool, knowledgeUploadChunkTool } from './knowledge'
 import { linearCreateIssueTool, linearReadIssuesTool } from './linear'
 import { linkupSearchTool } from './linkup'
 import { mem0AddMemoriesTool, mem0GetMemoriesTool, mem0SearchMemoriesTool } from './mem0'
@@ -187,6 +187,7 @@ export const tools: Record<string, ToolConfig> = {
   memory_get_all: memoryGetAllTool,
   memory_delete: memoryDeleteTool,
   knowledge_search: knowledgeSearchTool,
+  knowledge_upload_chunk: knowledgeUploadChunkTool,
   elevenlabs_tts: elevenLabsTtsTool,
   s3_get_object: s3GetObjectTool,
   telegram_message: telegramMessageTool,

@@ -32,6 +32,7 @@ export type SubBlockType =
   | 'channel-selector' // Channel selector for Slack, Discord, etc.
   | 'folder-selector' // Folder selector for Gmail, etc.
   | 'knowledge-base-selector' // Knowledge base selector
+  | 'document-selector' // Document selector for knowledge bases
   | 'input-format' // Input structure format
   | 'file-upload' // File uploader
 

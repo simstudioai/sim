@@ -4,20 +4,35 @@ import type { BlockConfig } from '../types'
 export const KnowledgeBlock: BlockConfig = {
   type: 'knowledge',
   name: 'Knowledge',
-  description: 'Search knowledge',
+  description: 'Use vector search',
   longDescription:
-    'Perform semantic vector search across your knowledge base to find the most relevant content. Uses advanced AI embeddings to understand meaning and context, returning the most similar documents to your search query.',
+    'Perform semantic vector search across your knowledge base or upload new chunks to documents. Uses advanced AI embeddings to understand meaning and context for search operations.',
   bgColor: '#00B0B0',
   icon: PackageSearchIcon,
   category: 'blocks',
   docsLink: 'https://docs.simstudio.ai/blocks/knowledge',
   tools: {
-    access: ['knowledge_search'],
+    access: ['knowledge_search', 'knowledge_upload_chunk'],
+    config: {
+      tool: (params) => {
+        switch (params.operation) {
+          case 'search':
+            return 'knowledge_search'
+          case 'upload_chunk':
+            return 'knowledge_upload_chunk'
+          default:
+            return 'knowledge_search'
+        }
+      },
+    },
   },
   inputs: {
+    operation: { type: 'string', required: true },
     knowledgeBaseId: { type: 'string', required: true },
-    query: { type: 'string', required: true },
+    query: { type: 'string', required: false },
     topK: { type: 'number', required: false },
+    documentId: { type: 'string', required: false },
+    content: { type: 'string', required: false },
   },
   outputs: {
     response: {
@@ -28,10 +43,23 @@ export const KnowledgeBlock: BlockConfig = {
         topK: 'number',
         totalResults: 'number',
         message: 'string',
+        success: 'boolean',
+        data: 'json',
       },
     },
   },
   subBlocks: [
+    {
+      id: 'operation',
+      title: 'Operation',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Search', id: 'search' },
+        { label: 'Upload Chunk', id: 'upload_chunk' },
+      ],
+      value: () => 'search',
+    },
     {
       id: 'knowledgeBaseId',
       title: 'Knowledge Base',
@@ -45,6 +73,7 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter your search query',
+      condition: { field: 'operation', value: 'search' },
     },
     {
       id: 'topK',
@@ -52,6 +81,24 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'short-input',
       layout: 'full',
       placeholder: 'Enter number of results (default: 10)',
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'documentId',
+      title: 'Document',
+      type: 'document-selector',
+      layout: 'full',
+      placeholder: 'Select document',
+      condition: { field: 'operation', value: 'upload_chunk' },
+    },
+    {
+      id: 'content',
+      title: 'Chunk Content',
+      type: 'long-input',
+      layout: 'full',
+      placeholder: 'Enter the chunk content to upload',
+      rows: 6,
+      condition: { field: 'operation', value: 'upload_chunk' },
     },
   ],
 }
