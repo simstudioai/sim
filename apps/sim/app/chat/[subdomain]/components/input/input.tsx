@@ -40,7 +40,7 @@ export const ChatInput: React.FC<{
   const textareaRef = useRef<HTMLTextAreaElement>(null) // Ref for the textarea
   const [isActive, setIsActive] = useState(false)
   const [inputValue, setInputValue] = useState('')
-  const [isListening, setIsListening] = useState(false)
+  const isListening = false // VoiceInput no longer manages listening state
 
   // Check if speech-to-text is available in the browser
   const isSttAvailable =
@@ -72,7 +72,7 @@ export const ChatInput: React.FC<{
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        if (!inputValue && !isListening) {
+        if (!inputValue) {
           setIsActive(false)
           if (textareaRef.current) {
             textareaRef.current.style.height = 'auto' // Reset height
@@ -84,7 +84,7 @@ export const ChatInput: React.FC<{
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [inputValue, isListening])
+  }, [inputValue])
 
   // Handle focus and initial height when activated
   useEffect(() => {
@@ -114,30 +114,9 @@ export const ChatInput: React.FC<{
     setInputValue(e.target.value)
   }
 
-  // Handle voice transcript
-  const handleVoiceTranscript = (transcript: string) => {
-    setInputValue(transcript)
-    setIsActive(true)
-    // Auto-submit voice transcripts
-    setTimeout(() => {
-      onSubmit?.(transcript, true) // true = voice input
-      setInputValue('')
-      setIsActive(false)
-    }, 100)
-  }
-
   // Handle voice start with smooth transition to voice-first mode
   const handleVoiceStart = () => {
-    setIsActive(true)
     onVoiceStart?.() // This will trigger the voice-first mode transition
-  }
-
-  // Handle voice end
-  const handleVoiceEnd = () => {
-    // Keep active if we have content
-    if (!inputValue.trim()) {
-      setIsActive(false)
-    }
   }
 
   // Voice-only mode interface (for voice-first UI)
@@ -151,19 +130,15 @@ export const ChatInput: React.FC<{
               <TooltipTrigger asChild>
                 <div>
                   <VoiceInput
-                    onTranscript={handleVoiceTranscript}
                     onVoiceStart={handleVoiceStart}
-                    onVoiceEnd={handleVoiceEnd}
                     isListening={isListening}
-                    setIsListening={setIsListening}
                     disabled={isStreaming}
-                    onInterrupt={onInterrupt}
                     large={true}
                   />
                 </div>
               </TooltipTrigger>
               <TooltipContent side='top' className='border border-gray-200 bg-white text-gray-900'>
-                <p>{isListening ? 'Stop listening' : 'Start voice input'}</p>
+                <p>Start voice conversation</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -200,18 +175,14 @@ export const ChatInput: React.FC<{
                     <TooltipTrigger asChild>
                       <div>
                         <VoiceInput
-                          onTranscript={handleVoiceTranscript}
                           onVoiceStart={handleVoiceStart}
-                          onVoiceEnd={handleVoiceEnd}
                           isListening={isListening}
-                          setIsListening={setIsListening}
                           disabled={isStreaming}
-                          onInterrupt={onInterrupt}
                         />
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side='top'>
-                      <p>{isListening ? 'Stop listening' : 'Start voice input'}</p>
+                      <p>Start voice conversation</p>
                       <span className='text-gray-500 text-xs'>Click to enter voice mode</span>
                     </TooltipContent>
                   </Tooltip>
@@ -241,7 +212,7 @@ export const ChatInput: React.FC<{
               />
 
               <div className='pointer-events-none absolute top-0 left-0 flex h-full w-full items-center'>
-                {!isActive && !inputValue && !isListening && (
+                {!isActive && !inputValue && (
                   <div
                     className='-translate-y-1/2 absolute top-1/2 left-3 select-none text-gray-400'
                     style={{

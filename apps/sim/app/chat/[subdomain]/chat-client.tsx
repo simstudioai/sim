@@ -31,13 +31,12 @@ interface ChatConfig {
   authType?: 'public' | 'password' | 'email'
 }
 
-// Default voice settings since voice is now enabled by default
 const DEFAULT_VOICE_SETTINGS = {
   isVoiceEnabled: true,
   voiceId: 'EXAVITQu4vr4xnSDxMaL', // Default ElevenLabs voice (Bella)
   autoPlayResponses: true,
   autoTriggerVoice: true,
-  voiceFirstMode: false, // Keep standard chat interface by default
+  voiceFirstMode: false,
   textStreamingInVoiceMode: 'synced' as const,
   conversationMode: true,
 }
@@ -86,9 +85,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   // Authentication state
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
 
-  // Track if last message was voice input
-  const [wasLastMessageVoice, setWasLastMessageVoice] = useState(false)
-
   // Voice-first mode state
   const [isVoiceFirstMode, setIsVoiceFirstMode] = useState(false)
 
@@ -96,19 +92,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
     useChatStreaming()
 
-  // Audio streaming hook
+  // Audio streaming hook with voice coordination
   const { isPlayingAudio, streamTextToAudio, stopAudio } = useAudioStreaming()
 
   // Track TTS failures
   const ttsFailureCountRef = useRef(0)
   const [ttsDisabled, setTtsDisabled] = useState(false)
-
-  // Track last audio end time for conversational flow
-  const lastAudioEndTimeRef = useRef<number>(0)
-  const conversationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Ref to store the reset interruption function from voice-first interface
-  const resetInterruptionRef = useRef<(() => void) | null>(null)
 
   // Voice is always ready since server handles API key
   const isVoiceReady = DEFAULT_VOICE_SETTINGS.isVoiceEnabled
@@ -185,56 +174,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       }, 1000)
     }
   }, [isStreamingResponse])
-
-  // Enhanced auto voice trigger for conversation mode
-  useEffect(() => {
-    if (
-      isVoiceFirstMode &&
-      DEFAULT_VOICE_SETTINGS.conversationMode &&
-      !isLoading &&
-      !isStreamingResponse &&
-      !isPlayingAudio &&
-      messages.length > 1 && // Ensure we have at least one exchange
-      messages[messages.length - 1].type === 'assistant' // Last message is from assistant
-    ) {
-      // Clear any existing timeout
-      if (conversationTimeoutRef.current) {
-        clearTimeout(conversationTimeoutRef.current)
-      }
-
-      // Auto-start voice input after audio ends with a short delay
-      conversationTimeoutRef.current = setTimeout(() => {
-        // Only trigger if the user hasn't started typing or interacting
-        if (!inputValue.trim()) {
-          // This would need to be implemented in the ChatInput component
-          // For now, we'll dispatch a custom event
-          window.dispatchEvent(new CustomEvent('auto-trigger-voice'))
-        }
-      }, 800) // Shorter delay for more natural conversation
-
-      return () => {
-        if (conversationTimeoutRef.current) {
-          clearTimeout(conversationTimeoutRef.current)
-        }
-      }
-    }
-  }, [
-    isVoiceFirstMode,
-    DEFAULT_VOICE_SETTINGS.conversationMode,
-    isLoading,
-    isStreamingResponse,
-    isPlayingAudio,
-    messages,
-    inputValue,
-  ])
-
-  // Enhanced audio end tracking for conversation flow
-  useEffect(() => {
-    if (!isPlayingAudio && lastAudioEndTimeRef.current !== 0) {
-      // Audio just ended
-      lastAudioEndTimeRef.current = Date.now()
-    }
-  }, [isPlayingAudio])
 
   const fetchChatConfig = async () => {
     try {
@@ -317,9 +256,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     const messageToSend = messageParam ?? inputValue
     if (!messageToSend.trim() || isLoading) return
 
-    // Track if this was a voice message
-    setWasLastMessageVoice(isVoiceInput)
-
     // Reset userHasScrolled when sending a new message
     setUserHasScrolled(false)
 
@@ -382,19 +318,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               try {
                 await streamTextToAudio(text, {
                   voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                  // Use optimized streaming for conversation mode
-                  onAudioStart: () => {
-                    lastAudioEndTimeRef.current = 0 // Reset end time
-                  },
-                  onAudioEnd: () => {
-                    lastAudioEndTimeRef.current = Date.now()
-                  },
                   onAudioChunkStart: () => {
-                    // Reset interruption flag for each new audio chunk to allow multiple interruptions
-                    // Reset the interruption flag in the voice interface
-                    if (resetInterruptionRef.current) {
-                      resetInterruptionRef.current()
-                    }
+                    // Note: Don't reset interruption state on every chunk - only on new streams
+                    // This prevents resetting mid-stream interruption state
                   },
                   onError: (error) => {
                     logger.error('Audio streaming error:', error)
@@ -434,12 +360,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               conversationMode: isVoiceFirstMode ? DEFAULT_VOICE_SETTINGS.conversationMode : false,
             },
             audioStreamHandler,
-            onAudioStart: () => {
-              lastAudioEndTimeRef.current = 0
-            },
-            onAudioEnd: () => {
-              lastAudioEndTimeRef.current = Date.now()
-            },
           }
         )
       } else {
@@ -490,12 +410,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               try {
                 await streamTextToAudio(fullContent, {
                   voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                  onAudioStart: () => {
-                    lastAudioEndTimeRef.current = 0
-                  },
-                  onAudioEnd: () => {
-                    lastAudioEndTimeRef.current = Date.now()
-                  },
                   onError: (error) => {
                     logger.error('Audio playback error:', error)
                     // Disable TTS on authentication errors
@@ -560,15 +474,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             try {
               await streamTextToAudio(contentString, {
                 voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                onAudioStart: () => {
-                  lastAudioEndTimeRef.current = 0
-                },
-                onAudioEnd: () => {
-                  lastAudioEndTimeRef.current = Date.now()
-                },
                 onError: (error) => {
                   logger.error('Audio playback error:', error)
-                  // Disable TTS on authentication errors
                   if (error.message.includes('401')) {
                     ttsFailureCountRef.current++
                     if (ttsFailureCountRef.current >= 3) {
@@ -578,7 +485,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                   }
                 },
               })
-              // Reset failure count on success
               ttsFailureCountRef.current = 0
             } catch (error) {
               logger.error('TTS error:', error)
@@ -611,11 +517,15 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   // Voice interruption - stop audio when user starts speaking
   const handleVoiceInterruption = useCallback(() => {
+    logger.info('🚨 handleVoiceInterruption called!')
+
     // 1. Always stop audio playback immediately (even if play event hasn't fired yet)
+    logger.info('🛑 Calling stopAudio()')
     stopAudio()
 
     // 2. Stop any ongoing streaming response
     if (isStreamingResponse) {
+      logger.info('🛑 Stopping streaming response')
       stopStreaming(setMessages)
     }
 
@@ -625,6 +535,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       // If the last message is from assistant and was being streamed/played
       if (lastMessage && lastMessage.type === 'assistant' && !lastMessage.isInitialMessage) {
+        logger.info('📝 Adding interruption marker to last message')
         return [
           ...prev.slice(0, -1),
           {
@@ -637,6 +548,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       return prev
     })
+
+    logger.info('✅ Voice interruption handling complete')
   }, [isStreamingResponse, stopStreaming, setMessages, stopAudio])
 
   // Handle voice mode activation with smooth transition
@@ -648,12 +561,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const handleExitVoiceMode = useCallback(() => {
     setIsVoiceFirstMode(false)
     stopAudio() // Stop any playing audio when exiting
-
-    // Clear any conversation mode timeouts
-    if (conversationTimeoutRef.current) {
-      clearTimeout(conversationTimeoutRef.current)
-      conversationTimeoutRef.current = null
-    }
   }, [stopAudio])
 
   // Handle voice transcript from voice-first interface
@@ -708,21 +615,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       <VoiceInterface
         onCallEnd={handleExitVoiceMode}
         onVoiceTranscript={handleVoiceTranscript}
-        onVoiceStart={() => logger.info('🎙️ Voice started in voice-first mode')}
-        onVoiceEnd={() => logger.info('🔇 Voice ended in voice-first mode')}
+        onVoiceStart={() => {}}
+        onVoiceEnd={() => {}}
         onInterrupt={handleVoiceInterruption}
-        onAudioChunkStart={() => {
-          // Reset interruption flag for each new audio chunk to allow multiple interruptions
-          logger.info('🔄 New audio chunk starting - resetting interruption flag')
-          // Reset the interruption flag in the voice interface
-          if (resetInterruptionRef.current) {
-            resetInterruptionRef.current()
-          }
-        }}
-        onResetInterruption={(resetFn) => {
-          // Store the reset function so we can call it from audio chunk callbacks
-          resetInterruptionRef.current = resetFn
-        }}
         isStreaming={isStreamingResponse}
         isPlayingAudio={isPlayingAudio}
         messages={messages.map((msg) => ({

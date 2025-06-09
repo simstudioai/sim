@@ -16,295 +16,82 @@ interface AudioStreamingOptions {
 
 export function useAudioStreaming() {
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
-  const mediaSourceRef = useRef<MediaSource | null>(null)
   const audioElementRef = useRef<HTMLAudioElement | null>(null)
-  const sourceBufferRef = useRef<SourceBuffer | null>(null)
-  const audioChunksRef = useRef<ArrayBuffer[]>([])
-  const isInitializedRef = useRef(false)
-  const processingQueueRef = useRef(false)
   const abortControllerRef = useRef<AbortController | null>(null)
-  const pendingRequestsRef = useRef<Set<Promise<void>>>(new Set())
-  const hasStartedPlayingRef = useRef(false) // Track if we've started playing audio
-  const initialBufferingRef = useRef(true) // Track if we're still in initial buffering phase
+  const sentenceQueueRef = useRef<string[]>([])
+  const isProcessingQueueRef = useRef(false)
 
-  // Initialize MediaSource for streaming audio
-  const initializeMediaSource = useCallback(async (options: AudioStreamingOptions) => {
-    const { onAudioStart, onAudioEnd } = options
+  // Helper function to split text into sentences
+  const splitIntoSentences = useCallback((text: string): string[] => {
+    if (!text.trim()) return []
+
+    // More robust sentence splitting that handles various punctuation patterns
+    const sentences: string[] = []
+
+    // Split on sentence boundaries while preserving punctuation
+    const parts = text.split(/([.!?]+(?:\s+|$))/)
+
+    let currentSentence = ''
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]
+
+      if (/[.!?]+(?:\s+|$)/.test(part)) {
+        // This is punctuation - add it to current sentence and finish
+        currentSentence += part
+        const trimmed = currentSentence.trim()
+        if (trimmed.length > 3) {
+          sentences.push(trimmed)
+        }
+        currentSentence = ''
+      } else if (part.trim()) {
+        // This is text content
+        currentSentence += part
+      }
+    }
+
+    // Handle any remaining text without punctuation
+    if (currentSentence.trim().length > 3) {
+      sentences.push(currentSentence.trim())
+    }
+
+    // If no sentences found, treat the whole text as one sentence
+    if (sentences.length === 0 && text.trim().length > 3) {
+      sentences.push(text.trim())
+    }
+
+    return sentences
+  }, [])
+
+  // Process sentence queue sequentially
+  const processNextSentence = useCallback(async (options: AudioStreamingOptions) => {
+    // Check if we should abort (queue cleared or processing stopped)
+    if (isProcessingQueueRef.current || sentenceQueueRef.current.length === 0) {
+      return
+    }
+
+    isProcessingQueueRef.current = true
+    const sentence = sentenceQueueRef.current.shift()!
 
     try {
-      // Create audio element if it doesn't exist
-      if (!audioElementRef.current) {
-        audioElementRef.current = new Audio()
-        audioElementRef.current.controls = false
-        audioElementRef.current.autoplay = false
-      }
-
-      // Create MediaSource
-      if (!mediaSourceRef.current) {
-        mediaSourceRef.current = new MediaSource()
-
-        const objectURL = URL.createObjectURL(mediaSourceRef.current)
-        audioElementRef.current.src = objectURL
-
-        // Wait for MediaSource to be ready
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('MediaSource timeout')), 10000)
-
-          mediaSourceRef.current!.addEventListener(
-            'sourceopen',
-            () => {
-              clearTimeout(timeout)
-              resolve()
-            },
-            { once: true }
-          )
-
-          mediaSourceRef.current!.addEventListener(
-            'error',
-            (e) => {
-              clearTimeout(timeout)
-              reject(new Error('MediaSource error'))
-            },
-            { once: true }
-          )
-        })
-
-        // Create SourceBuffer
-        sourceBufferRef.current = mediaSourceRef.current.addSourceBuffer('audio/mpeg')
-
-        // Set up audio element event listeners
-        audioElementRef.current.addEventListener('play', () => {
-          setIsPlayingAudio(true)
-          hasStartedPlayingRef.current = true
-          onAudioStart?.()
-        })
-
-        audioElementRef.current.addEventListener('ended', () => {
-          setIsPlayingAudio(false)
-          hasStartedPlayingRef.current = false
-          onAudioEnd?.()
-        })
-
-        audioElementRef.current.addEventListener('pause', () => {
-          setIsPlayingAudio(false)
-          if (hasStartedPlayingRef.current) {
-            onAudioEnd?.()
-          }
-        })
-
-        audioElementRef.current.addEventListener('error', (e) => {
-          logger.error('Audio playback error:', e)
-          setIsPlayingAudio(false)
-          hasStartedPlayingRef.current = false
-          onAudioEnd?.()
-        })
-      }
-
-      isInitializedRef.current = true
-      return true
-    } catch (error) {
-      logger.error('Failed to initialize MediaSource:', error)
-      isInitializedRef.current = false
-      return false
-    }
-  }, [])
-
-  // Process queued audio chunks
-  const processAudioChunks = useCallback(() => {
-    if (
-      processingQueueRef.current ||
-      !sourceBufferRef.current ||
-      audioChunksRef.current.length === 0
-    ) {
-      return
-    }
-
-    // During initial buffering, wait for at least 2-3 chunks before starting playback
-    if (initialBufferingRef.current && audioChunksRef.current.length < 2) {
-      return
-    }
-
-    if (sourceBufferRef.current.updating) {
-      // Wait for current update to finish
-      const handleUpdateEnd = () => {
-        sourceBufferRef.current!.removeEventListener('updateend', handleUpdateEnd)
-        processAudioChunks()
-      }
-      sourceBufferRef.current.addEventListener('updateend', handleUpdateEnd, { once: true })
-      return
-    }
-
-    processingQueueRef.current = true
-
-    try {
-      const chunk = audioChunksRef.current.shift()
-      if (chunk) {
-        sourceBufferRef.current.appendBuffer(chunk)
-
-        // Set up listener for when this chunk is processed
-        const handleUpdateEnd = () => {
-          sourceBufferRef.current!.removeEventListener('updateend', handleUpdateEnd)
-          processingQueueRef.current = false
-
-          // After processing the first chunk, we're no longer in initial buffering
-          if (initialBufferingRef.current) {
-            initialBufferingRef.current = false
-            // Start playback now that we have enough buffered data
-            if (audioElementRef.current?.paused) {
-              audioElementRef.current.play().catch((e) => {
-                logger.error('Error starting audio playback:', e)
-              })
-            }
-          }
-
-          // Process next chunk if available, with a small delay to allow smooth playback
-          if (audioChunksRef.current.length > 0) {
-            setTimeout(() => processAudioChunks(), 5)
-          }
-        }
-
-        sourceBufferRef.current.addEventListener('updateend', handleUpdateEnd, { once: true })
-      } else {
-        processingQueueRef.current = false
-      }
-    } catch (error) {
-      logger.error('Error processing audio chunk:', error)
-      processingQueueRef.current = false
-    }
-  }, [])
-
-  // Stop all audio playback and cleanup
-  const stopAudio = useCallback(() => {
-    // Abort ongoing requests
-    abortControllerRef.current?.abort()
-    pendingRequestsRef.current.forEach((request) => {
-      // Requests will be aborted by the AbortController
-    })
-    pendingRequestsRef.current.clear()
-
-    // Stop audio playback and clear source to silence audio immediately
-    if (audioElementRef.current) {
-      audioElementRef.current.pause()
-      audioElementRef.current.currentTime = 0
-      // Clearing the src and calling load guarantees the element is silent
-      audioElementRef.current.src = ''
-      audioElementRef.current.load()
-    }
-
-    // Immediately update state
-    setIsPlayingAudio(false)
-    hasStartedPlayingRef.current = false
-
-    // Clear audio chunks
-    audioChunksRef.current = []
-    processingQueueRef.current = false
-
-    // Reset initialization and buffering state
-    isInitializedRef.current = false
-    initialBufferingRef.current = true
-
-    // Clean up MediaSource
-    if (mediaSourceRef.current) {
-      try {
-        if (sourceBufferRef.current && !sourceBufferRef.current.updating) {
-          mediaSourceRef.current.removeSourceBuffer(sourceBufferRef.current)
-        }
-        mediaSourceRef.current.endOfStream()
-      } catch (e) {
-        // Ignore cleanup errors
-      }
-      mediaSourceRef.current = null
-      sourceBufferRef.current = null
-    }
-
-    // Clean up audio element
-    if (audioElementRef.current) {
-      URL.revokeObjectURL(audioElementRef.current.src)
-      audioElementRef.current.removeEventListener('play', () => {})
-      audioElementRef.current.removeEventListener('ended', () => {})
-      audioElementRef.current.removeEventListener('pause', () => {})
-      audioElementRef.current.removeEventListener('error', () => {})
-      audioElementRef.current = null
-    }
-  }, [])
-
-  // Create new abort controller for requests
-  const createAbortController = useCallback(() => {
-    abortControllerRef.current?.abort()
-    abortControllerRef.current = new AbortController()
-    return abortControllerRef.current
-  }, [])
-
-  // Stream text to TTS and append to existing MediaSource
-  const streamTextToAudio = useCallback(
-    async (text: string, options: AudioStreamingOptions) => {
-      const { voiceId, modelId = 'eleven_turbo_v2_5', onError } = options
-
-      // Skip empty text
-      if (!text.trim()) {
+      // Double-check abort controller before making request
+      if (!abortControllerRef.current || abortControllerRef.current.signal.aborted) {
+        logger.info('🛑 Aborting sentence processing (interrupted)')
+        isProcessingQueueRef.current = false
         return
       }
 
-      // Always create a fresh AbortController for every new streaming session.
-      // If the previous controller was already aborted, fetches would fail immediately.
-      if (!abortControllerRef.current || abortControllerRef.current.signal.aborted) {
-        createAbortController()
-      }
+      logger.info('🎵 Playing sentence:', `${sentence.substring(0, 50)}...`)
 
-      try {
-        // Initialize MediaSource if this is the first chunk
-        if (!isInitializedRef.current) {
-          const initialized = await initializeMediaSource(options)
-          if (!initialized) {
-            // Fallback to simple audio playback
-            return fallbackAudioPlayback(text, options)
-          }
-        }
-
-        // Reset initial buffering state for each new streaming session
-        initialBufferingRef.current = true
-
-        // Create a request promise and track it - only after MediaSource is ready
-        const requestPromise = streamAudioContent(text, {
-          voiceId,
-          modelId,
-          onAudioChunkStart: options.onAudioChunkStart,
-        })
-        pendingRequestsRef.current.add(requestPromise)
-
-        await requestPromise
-
-        // Remove from pending requests
-        pendingRequestsRef.current.delete(requestPromise)
-      } catch (error) {
-        if (error instanceof Error && error.name !== 'AbortError') {
-          logger.error('Audio streaming error:', error)
-          onError?.(error)
-        }
-      }
-    },
-    [initializeMediaSource, processAudioChunks]
-  )
-
-  // Stream audio content from TTS API
-  const streamAudioContent = useCallback(
-    async (
-      text: string,
-      options: { voiceId: string; modelId?: string; onAudioChunkStart?: () => void }
-    ) => {
-      const { voiceId, modelId = 'eleven_turbo_v2_5', onAudioChunkStart } = options
-
-      const endpoint = '/api/proxy/tts/stream'
-
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/proxy/tts/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text,
-          voiceId,
-          modelId,
+          text: sentence,
+          voiceId: options.voiceId,
+          modelId: options.modelId || 'eleven_turbo_v2_5',
         }),
         signal: abortControllerRef.current?.signal,
       })
@@ -314,133 +101,186 @@ export function useAudioStreaming() {
           throw new Error('TTS authentication failed (401). Please check server configuration.')
         }
         const errorText = await response.text()
-        logger.error('TTS error response:', errorText)
         throw new Error(`TTS request failed: ${response.statusText} - ${errorText}`)
       }
 
-      if (!response.body) {
-        throw new Error('No response body')
+      // Check again before proceeding to audio creation
+      if (!abortControllerRef.current || abortControllerRef.current.signal.aborted) {
+        logger.info('🛑 Aborting after TTS response (interrupted)')
+        isProcessingQueueRef.current = false
+        return
       }
 
-      const reader = response.body.getReader()
+      // Convert response to blob and play
+      const audioBlob = await response.blob()
+      const audioUrl = URL.createObjectURL(audioBlob)
 
-      try {
-        let bytesReceived = 0
-        let isFirstChunk = true
+      const audio = new Audio(audioUrl)
+      audioElementRef.current = audio
 
-        while (true) {
-          const { done, value } = await reader.read()
+      // Set up event listeners
+      audio.addEventListener(
+        'ended',
+        () => {
+          URL.revokeObjectURL(audioUrl)
+          audioElementRef.current = null
+          isProcessingQueueRef.current = false
 
-          if (done) {
-            break
-          }
-
-          if (value && value.length > 0) {
-            bytesReceived += value.length
-
-            // Trigger audio start callback on first chunk
-            if (isFirstChunk && !hasStartedPlayingRef.current) {
-              setIsPlayingAudio(true)
-              hasStartedPlayingRef.current = true
-              // Don't call onAudioStart here since the audio element will handle it
-            }
-            isFirstChunk = false
-
-            // Notify that a new audio chunk is being processed (for interruption reset)
-            if (onAudioChunkStart) {
-              onAudioChunkStart()
-            }
-
-            // Add chunk to queue
-            audioChunksRef.current.push(value.buffer.slice(0))
-
-            // Start processing chunks - will respect initial buffering requirements
-            processAudioChunks()
-          }
-        }
-      } finally {
-        reader.releaseLock()
-      }
-    },
-    [processAudioChunks]
-  )
-
-  // Fallback audio playback for full text
-  const fallbackAudioPlayback = useCallback(
-    async (text: string, options: AudioStreamingOptions) => {
-      const { voiceId, modelId = 'eleven_turbo_v2_5', onAudioStart, onAudioEnd, onError } = options
-
-      try {
-        // Signal audio start immediately
-        setIsPlayingAudio(true)
-        hasStartedPlayingRef.current = true
-        onAudioStart?.()
-
-        const endpoint = '/api/proxy/tts/stream'
-
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text,
-            voiceId,
-            modelId,
-          }),
-        })
-
-        if (!response.ok) {
-          if (response.status === 401) {
-            throw new Error('TTS authentication failed (401). Please check server configuration.')
-          }
-          throw new Error(`TTS request failed: ${response.statusText}`)
-        }
-
-        const audioBlob = await response.blob()
-        const audioUrl = URL.createObjectURL(audioBlob)
-
-        const audio = new Audio(audioUrl)
-        audioElementRef.current = audio
-
-        audio.addEventListener(
-          'ended',
-          () => {
-            URL.revokeObjectURL(audioUrl)
+          // Check if we should continue processing (might have been interrupted)
+          if (sentenceQueueRef.current.length > 0 && !abortControllerRef.current?.signal.aborted) {
+            setTimeout(() => processNextSentence(options), 100) // Small gap between sentences
+          } else {
+            // All sentences completed or interrupted
             setIsPlayingAudio(false)
-            hasStartedPlayingRef.current = false
-            onAudioEnd?.()
-            audioElementRef.current = null
-          },
-          { once: true }
-        )
+            options.onAudioEnd?.()
+            logger.info('✅ All sentences completed')
+          }
+        },
+        { once: true }
+      )
 
-        audio.addEventListener(
-          'error',
-          (e) => {
-            logger.error('Audio playback error:', e)
-            URL.revokeObjectURL(audioUrl)
+      audio.addEventListener(
+        'error',
+        (e) => {
+          logger.error('Audio playback error:', e)
+          URL.revokeObjectURL(audioUrl)
+          audioElementRef.current = null
+          isProcessingQueueRef.current = false
+
+          // Continue with next sentence even if one fails (but only if not interrupted)
+          if (sentenceQueueRef.current.length > 0 && !abortControllerRef.current?.signal.aborted) {
+            setTimeout(() => processNextSentence(options), 100)
+          } else {
             setIsPlayingAudio(false)
-            hasStartedPlayingRef.current = false
-            onAudioEnd?.()
-            audioElementRef.current = null
-          },
-          { once: true }
-        )
+            options.onAudioEnd?.()
+          }
+        },
+        { once: true }
+      )
 
+      // Start playback (final check for interruption)
+      if (!abortControllerRef.current?.signal.aborted) {
         await audio.play()
+      } else {
+        // Clean up if interrupted before play
+        URL.revokeObjectURL(audioUrl)
+        audioElementRef.current = null
+        isProcessingQueueRef.current = false
+        logger.info('🛑 Interrupted before audio play')
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name !== 'AbortError') {
+        logger.error('TTS sentence error:', error)
+        options.onError?.(error)
+      }
+
+      isProcessingQueueRef.current = false
+
+      // Continue with next sentence even if one fails (but only if not interrupted)
+      if (sentenceQueueRef.current.length > 0 && !abortControllerRef.current?.signal.aborted) {
+        setTimeout(() => processNextSentence(options), 100)
+      } else {
+        setIsPlayingAudio(false)
+        options.onAudioEnd?.()
+      }
+    }
+  }, [])
+
+  // Stop all audio playback and cleanup
+  const stopAudio = useCallback(() => {
+    logger.info('🛑 stopAudio() called - stopping all audio playback')
+
+    // Abort any ongoing requests
+    if (abortControllerRef.current) {
+      logger.info('🛑 Aborting audio requests')
+      abortControllerRef.current.abort()
+    }
+
+    // Clear sentence queue
+    const queueLength = sentenceQueueRef.current.length
+    sentenceQueueRef.current = []
+    isProcessingQueueRef.current = false
+    logger.info(`🛑 Cleared ${queueLength} sentences from queue`)
+
+    setIsPlayingAudio(false)
+    logger.info('🛑 Set isPlayingAudio to false')
+
+    if (audioElementRef.current) {
+      try {
+        logger.info('🛑 Pausing and cleaning up audio element')
+        audioElementRef.current.pause()
+        audioElementRef.current.currentTime = 0
+
+        const currentSrc = audioElementRef.current.src
+        audioElementRef.current.src = ''
+        audioElementRef.current.load()
+
+        if (currentSrc?.startsWith('blob:')) {
+          URL.revokeObjectURL(currentSrc)
+          logger.info('🛑 Revoked blob URL')
+        }
+      } catch (e) {
+        logger.warn('Audio cleanup warning (non-critical):', e)
+      }
+      audioElementRef.current = null
+      logger.info('🛑 Audio element cleaned up')
+    } else {
+      logger.info('🛑 No audio element to clean up')
+    }
+
+    logger.info('🛑✅ stopAudio() complete')
+  }, [])
+
+  // Queue-based audio streaming that handles multiple sentences
+  const streamTextToAudio = useCallback(
+    async (text: string, options: AudioStreamingOptions) => {
+      // Skip empty text
+      if (!text.trim()) {
+        return
+      }
+
+      logger.info('🎵 Starting TTS for text:', `${text.substring(0, 100)}...`)
+
+      // Create new abort controller for this request
+      abortControllerRef.current = new AbortController()
+
+      try {
+        // Split text into sentences
+        const sentences = splitIntoSentences(text)
+
+        if (sentences.length === 0) {
+          logger.warn('No valid sentences found in text')
+          return
+        }
+
+        logger.info(`🔢 Split into ${sentences.length} sentences`)
+
+        // Add sentences to queue
+        sentenceQueueRef.current = [...sentences]
+
+        // Start audio streaming
+        setIsPlayingAudio(true)
+        options.onAudioStart?.()
+
+        // Start processing the queue
+        await processNextSentence(options)
       } catch (error) {
         if (error instanceof Error && error.name !== 'AbortError') {
-          logger.error('Fallback audio error:', error)
-          onError?.(error)
+          logger.error('TTS streaming error:', error)
+          options.onError?.(error)
         }
         setIsPlayingAudio(false)
-        hasStartedPlayingRef.current = false
-        onAudioEnd?.()
+        options.onAudioEnd?.()
       }
     },
-    []
+    [splitIntoSentences, processNextSentence]
   )
+
+  const createAbortController = useCallback(() => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = new AbortController()
+    return abortControllerRef.current
+  }, [])
 
   return {
     isPlayingAudio,
