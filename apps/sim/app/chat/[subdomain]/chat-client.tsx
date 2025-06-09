@@ -3,6 +3,7 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
+import { noop } from '@/lib/utils'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import EmailAuth from './components/auth/email/email-auth'
 import PasswordAuth from './components/auth/password/password-auth'
@@ -31,8 +32,37 @@ interface ChatConfig {
   authType?: 'public' | 'password' | 'email'
 }
 
+interface AudioStreamingOptions {
+  voiceId: string
+  onError: (error: Error) => void
+}
+
 const DEFAULT_VOICE_SETTINGS = {
   voiceId: 'EXAVITQu4vr4xnSDxMaL', // Default ElevenLabs voice (Bella)
+}
+
+/**
+ * Creates an audio stream handler for text-to-speech conversion
+ * @param streamTextToAudio - Function to stream text to audio
+ * @param voiceId - The voice ID to use for TTS
+ * @returns Audio stream handler function or undefined
+ */
+function createAudioStreamHandler(
+  streamTextToAudio: (text: string, options: AudioStreamingOptions) => Promise<void>,
+  voiceId: string
+) {
+  return async (text: string) => {
+    try {
+      await streamTextToAudio(text, {
+        voiceId,
+        onError: (error: Error) => {
+          logger.error('Audio streaming error:', error)
+        },
+      })
+    } catch (error) {
+      logger.error('TTS error:', error)
+    }
+  }
 }
 
 function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T {
@@ -288,18 +318,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         const shouldPlayAudio = isVoiceInput || isVoiceFirstMode
 
         const audioStreamHandler = shouldPlayAudio
-          ? async (text: string) => {
-              try {
-                await streamTextToAudio(text, {
-                  voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                  onError: (error) => {
-                    logger.error('Audio streaming error:', error)
-                  },
-                })
-              } catch (error) {
-                logger.error('TTS error:', error)
-              }
-            }
+          ? createAudioStreamHandler(streamTextToAudio, DEFAULT_VOICE_SETTINGS.voiceId)
           : undefined
 
         // Handle streaming response with audio support
@@ -449,6 +468,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const handleVoiceInterruption = useCallback(() => {
     stopAudio()
 
+    // Stop any ongoing streaming response
     if (isStreamingResponse) {
       stopStreaming(setMessages)
     }
@@ -480,6 +500,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
   // If authentication is required, use the extracted components
   if (authRequired) {
+    // Get title and description from the URL params or use defaults
     const title = new URLSearchParams(window.location.search).get('title') || 'chat'
     const primaryColor = new URLSearchParams(window.location.search).get('color') || '#802FFF'
 
@@ -516,8 +537,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       <VoiceInterface
         onCallEnd={handleExitVoiceMode}
         onVoiceTranscript={handleVoiceTranscript}
-        onVoiceStart={() => {}}
-        onVoiceEnd={() => {}}
+        onVoiceStart={noop}
+        onVoiceEnd={noop}
         onInterrupt={handleVoiceInterruption}
         isStreaming={isStreamingResponse}
         isPlayingAudio={isPlayingAudio}
@@ -558,7 +579,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
             isStreaming={isStreamingResponse}
             onStopStreaming={() => stopStreaming(setMessages)}
             onVoiceStart={handleVoiceStart}
-            onInterrupt={handleVoiceInterruption}
           />
         </div>
       </div>

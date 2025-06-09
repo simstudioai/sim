@@ -6,15 +6,17 @@ import type { ChatMessage } from '../components/message/message'
 
 const logger = createLogger('UseChatStreaming')
 
-interface StreamingOptions {
-  voiceSettings?: {
-    isVoiceEnabled: boolean
-    voiceId: string
-    autoPlayResponses: boolean
-    voiceFirstMode?: boolean
-    textStreamingInVoiceMode?: 'hidden' | 'synced' | 'normal'
-    conversationMode?: boolean
-  }
+export interface VoiceSettings {
+  isVoiceEnabled: boolean
+  voiceId: string
+  autoPlayResponses: boolean
+  voiceFirstMode?: boolean
+  textStreamingInVoiceMode?: 'hidden' | 'synced' | 'normal'
+  conversationMode?: boolean
+}
+
+export interface StreamingOptions {
+  voiceSettings?: VoiceSettings
   onAudioStart?: () => void
   onAudioEnd?: () => void
   audioStreamHandler?: (text: string) => Promise<void>

@@ -5,6 +5,12 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('UseAudioStreaming')
 
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext
+  }
+}
+
 interface AudioStreamingOptions {
   voiceId: string
   modelId?: string
@@ -29,7 +35,11 @@ export function useAudioStreaming(sharedAudioContextRef?: RefObject<AudioContext
 
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const AudioContextConstructor = window.AudioContext || window.webkitAudioContext
+      if (!AudioContextConstructor) {
+        throw new Error('AudioContext is not supported in this browser')
+      }
+      audioContextRef.current = new AudioContextConstructor()
     }
     return audioContextRef.current
   }, [])
@@ -107,7 +117,7 @@ export function useAudioStreaming(sharedAudioContextRef?: RefObject<AudioContext
           setIsPlayingAudio(false)
         }
 
-        processAudioQueue()
+        setTimeout(() => processAudioQueue(), 0)
       }
 
       currentSourceRef.current = source
@@ -121,7 +131,7 @@ export function useAudioStreaming(sharedAudioContextRef?: RefObject<AudioContext
       }
 
       isProcessingQueueRef.current = false
-      processAudioQueue()
+      setTimeout(() => processAudioQueue(), 0)
     }
   }, [getAudioContext])
 

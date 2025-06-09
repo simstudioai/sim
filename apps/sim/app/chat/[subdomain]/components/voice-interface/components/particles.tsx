@@ -6,6 +6,14 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('Particles')
 
+interface ShaderUniforms {
+  u_time: { type: string; value: number }
+  u_frequency: { type: string; value: number }
+  u_red: { type: string; value: number }
+  u_green: { type: string; value: number }
+  u_blue: { type: string; value: number }
+}
+
 interface ParticlesProps {
   audioLevels: number[]
   isListening: boolean
@@ -232,7 +240,7 @@ export function ParticlesVisualization({
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const meshRef = useRef<THREE.Mesh | null>(null)
-  const uniformsRef = useRef<any>(null)
+  const uniformsRef = useRef<ShaderUniforms | null>(null)
   const clockRef = useRef<THREE.Clock | null>(null)
   const bloomComposerRef = useRef<SimpleBloomComposer | null>(null)
   const animationFrameRef = useRef<number>(0)
@@ -344,85 +352,103 @@ export function ParticlesVisualization({
 
     container.addEventListener('mousemove', handleMouseMove)
 
-    const animate = () => {
-      if (!camera || !clock || !scene || !bloomComposer || !isInitializedRef.current) return
-
+    const updateCameraPosition = () => {
+      if (!camera || !scene) return
       camera.position.x += (mouseRef.current.x - camera.position.x) * 0.05
       camera.position.y += (-mouseRef.current.y - camera.position.y) * 0.5
       camera.lookAt(scene.position)
+    }
+
+    const calculateAudioIntensity = (elapsedTime: number, avgLevel: number) => {
+      const baselineIntensity = 8 + Math.sin(elapsedTime * 0.5) * 3
+      let audioIntensity = baselineIntensity
+
+      if (isMuted) {
+        // When muted, only show minimal baseline animation
+        audioIntensity = baselineIntensity * 0.2
+      } else if (isProcessingInterruption) {
+        // Special pulsing effect during interruption processing
+        audioIntensity = 35 + Math.sin(elapsedTime * 4) * 10
+      } else if (isPlayingAudio) {
+        // Strong animation when AI is speaking - use simulated levels + enhancement
+        const aiIntensity = 60 + Math.sin(elapsedTime * 3) * 20
+        audioIntensity = Math.max(avgLevel * 0.8, aiIntensity)
+      } else if (isStreaming) {
+        // Pulsing animation when AI is thinking/streaming
+        audioIntensity = 40 + Math.sin(elapsedTime * 2) * 15
+      } else if (isListening && avgLevel > 0) {
+        // Scale user input more dramatically for better visual feedback
+        const userVoiceIntensity = avgLevel * 2.5 // Amplify user voice significantly
+        audioIntensity = Math.max(userVoiceIntensity, baselineIntensity * 1.5)
+
+        // Add some dynamic variation based on audio levels
+        const variationFactor = Math.min(avgLevel / 20, 1) // Cap at reasonable level
+        audioIntensity += Math.sin(elapsedTime * 8) * (10 * variationFactor)
+      } else {
+        // Idle state - subtle breathing animation
+        audioIntensity = baselineIntensity
+      }
+
+      // Clamp to reasonable range
+      audioIntensity = Math.max(audioIntensity, 3) // Never completely still
+      audioIntensity = Math.min(audioIntensity, 120) // Prevent excessive animation
+
+      return audioIntensity
+    }
+
+    const updateShaderColors = (
+      uniforms: ShaderUniforms,
+      elapsedTime: number,
+      avgLevel: number
+    ) => {
+      if (isMuted) {
+        // Muted: dim gray-blue
+        uniforms.u_red.value = 0.4
+        uniforms.u_green.value = 0.4
+        uniforms.u_blue.value = 0.6
+      } else if (isProcessingInterruption) {
+        // Interruption: bright orange/yellow
+        uniforms.u_red.value = 1.0
+        uniforms.u_green.value = 0.7
+        uniforms.u_blue.value = 0.2
+      } else if (isPlayingAudio) {
+        // AI speaking: bright blue-purple
+        uniforms.u_red.value = 0.6
+        uniforms.u_green.value = 0.4
+        uniforms.u_blue.value = 1.0
+      } else if (isListening && avgLevel > 10) {
+        // User speaking: bright green-blue with intensity-based variation
+        const intensity = Math.min(avgLevel / 50, 1)
+        uniforms.u_red.value = 0.2 + intensity * 0.3
+        uniforms.u_green.value = 0.8 + intensity * 0.2
+        uniforms.u_blue.value = 0.6 + intensity * 0.4
+      } else if (isStreaming) {
+        // AI thinking: pulsing purple
+        const pulse = (Math.sin(elapsedTime * 2) + 1) / 2
+        uniforms.u_red.value = 0.7 + pulse * 0.3
+        uniforms.u_green.value = 0.3
+        uniforms.u_blue.value = 0.9 + pulse * 0.1
+      } else {
+        // Default idle: soft blue-purple
+        uniforms.u_red.value = 0.8
+        uniforms.u_green.value = 0.6
+        uniforms.u_blue.value = 1.0
+      }
+    }
+
+    const animate = () => {
+      if (!camera || !clock || !scene || !bloomComposer || !isInitializedRef.current) return
+
+      updateCameraPosition()
 
       if (uniforms) {
-        uniforms.u_time.value = clock.getElapsedTime()
-
+        const elapsedTime = clock.getElapsedTime()
         const avgLevel = audioLevels.reduce((sum, level) => sum + level, 0) / audioLevels.length
 
-        const baselineIntensity = 8 + Math.sin(clock.getElapsedTime() * 0.5) * 3
-        let audioIntensity = baselineIntensity
+        uniforms.u_time.value = elapsedTime
 
-        if (isMuted) {
-          // When muted, only show minimal baseline animation
-          audioIntensity = baselineIntensity * 0.2
-        } else if (isProcessingInterruption) {
-          // Special pulsing effect during interruption processing
-          audioIntensity = 35 + Math.sin(clock.getElapsedTime() * 4) * 10
-        } else if (isPlayingAudio) {
-          // Strong animation when AI is speaking - use simulated levels + enhancement
-          const aiIntensity = 60 + Math.sin(clock.getElapsedTime() * 3) * 20
-          audioIntensity = Math.max(avgLevel * 0.8, aiIntensity)
-        } else if (isStreaming) {
-          // Pulsing animation when AI is thinking/streaming
-          audioIntensity = 40 + Math.sin(clock.getElapsedTime() * 2) * 15
-        } else if (isListening && avgLevel > 0) {
-          // Scale user input more dramatically for better visual feedback
-          const userVoiceIntensity = avgLevel * 2.5 // Amplify user voice significantly
-          audioIntensity = Math.max(userVoiceIntensity, baselineIntensity * 1.5)
-
-          // Add some dynamic variation based on audio levels
-          const variationFactor = Math.min(avgLevel / 20, 1) // Cap at reasonable level
-          audioIntensity += Math.sin(clock.getElapsedTime() * 8) * (10 * variationFactor)
-        } else {
-          // Idle state - subtle breathing animation
-          audioIntensity = baselineIntensity
-        }
-
-        // Clamp to reasonable range
-        audioIntensity = Math.max(audioIntensity, 3) // Never completely still
-        audioIntensity = Math.min(audioIntensity, 120) // Prevent excessive animation
-
-        // Dynamic color changes based on state for better visual feedback
-        if (isMuted) {
-          // Muted: dim gray-blue
-          uniforms.u_red.value = 0.4
-          uniforms.u_green.value = 0.4
-          uniforms.u_blue.value = 0.6
-        } else if (isProcessingInterruption) {
-          // Interruption: bright orange/yellow
-          uniforms.u_red.value = 1.0
-          uniforms.u_green.value = 0.7
-          uniforms.u_blue.value = 0.2
-        } else if (isPlayingAudio) {
-          // AI speaking: bright blue-purple
-          uniforms.u_red.value = 0.6
-          uniforms.u_green.value = 0.4
-          uniforms.u_blue.value = 1.0
-        } else if (isListening && avgLevel > 10) {
-          // User speaking: bright green-blue with intensity-based variation
-          const intensity = Math.min(avgLevel / 50, 1)
-          uniforms.u_red.value = 0.2 + intensity * 0.3
-          uniforms.u_green.value = 0.8 + intensity * 0.2
-          uniforms.u_blue.value = 0.6 + intensity * 0.4
-        } else if (isStreaming) {
-          // AI thinking: pulsing purple
-          const pulse = (Math.sin(clock.getElapsedTime() * 2) + 1) / 2
-          uniforms.u_red.value = 0.7 + pulse * 0.3
-          uniforms.u_green.value = 0.3
-          uniforms.u_blue.value = 0.9 + pulse * 0.1
-        } else {
-          // Default idle: soft blue-purple
-          uniforms.u_red.value = 0.8
-          uniforms.u_green.value = 0.6
-          uniforms.u_blue.value = 1.0
-        }
+        const audioIntensity = calculateAudioIntensity(elapsedTime, avgLevel)
+        updateShaderColors(uniforms, elapsedTime, avgLevel)
 
         uniforms.u_frequency.value = audioIntensity
       }
@@ -438,8 +464,6 @@ export function ParticlesVisualization({
       cleanup()
     }
   }, [])
-
-  useEffect(() => {}, [audioLevels, isListening, isPlayingAudio, isStreaming, isMuted])
 
   useEffect(() => {
     const handleResize = () => {

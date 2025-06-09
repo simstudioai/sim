@@ -27,20 +27,11 @@ export const ChatInput: React.FC<{
   onStopStreaming?: () => void
   onVoiceStart?: () => void
   voiceOnly?: boolean
-  onInterrupt?: () => void
-}> = ({
-  onSubmit,
-  isStreaming = false,
-  onStopStreaming,
-  onVoiceStart,
-  voiceOnly = false,
-  onInterrupt,
-}) => {
+}> = ({ onSubmit, isStreaming = false, onStopStreaming, onVoiceStart, voiceOnly = false }) => {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null) // Ref for the textarea
   const [isActive, setIsActive] = useState(false)
   const [inputValue, setInputValue] = useState('')
-  const isListening = false // VoiceInput no longer manages listening state
 
   // Check if speech-to-text is available in the browser
   const isSttAvailable =
@@ -129,12 +120,7 @@ export const ChatInput: React.FC<{
             <Tooltip>
               <TooltipTrigger asChild>
                 <div>
-                  <VoiceInput
-                    onVoiceStart={handleVoiceStart}
-                    isListening={isListening}
-                    disabled={isStreaming}
-                    large={true}
-                  />
+                  <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} large={true} />
                 </div>
               </TooltipTrigger>
               <TooltipContent side='top' className='border border-gray-200 bg-white text-gray-900'>
@@ -174,11 +160,7 @@ export const ChatInput: React.FC<{
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div>
-                        <VoiceInput
-                          onVoiceStart={handleVoiceStart}
-                          isListening={isListening}
-                          disabled={isStreaming}
-                        />
+                        <VoiceInput onVoiceStart={handleVoiceStart} disabled={isStreaming} />
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side='top'>

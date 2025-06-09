@@ -9,6 +9,40 @@ import { ParticlesVisualization } from './components/particles'
 
 const logger = createLogger('VoiceInterface')
 
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number
+  results: SpeechRecognitionResultList
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string
+  message?: string
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start(): void
+  stop(): void
+  abort(): void
+  onstart: ((this: SpeechRecognition, ev: Event) => any) | null
+  onend: ((this: SpeechRecognition, ev: Event) => any) | null
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null
+}
+
+interface SpeechRecognitionStatic {
+  new (): SpeechRecognition
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionStatic
+    webkitSpeechRecognition?: SpeechRecognitionStatic
+  }
+}
+
 interface VoiceInterfaceProps {
   onCallEnd?: () => void
   onVoiceTranscript?: (transcript: string) => void
@@ -42,7 +76,7 @@ export function VoiceInterface({
   )
   const [isInitialized, setIsInitialized] = useState(false)
 
-  const recognitionRef = useRef<any>(null)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
   const localAudioContextRef = useRef<AudioContext | null>(null)
   const audioContextRef = sharedAudioContextRef || localAudioContextRef
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -113,7 +147,11 @@ export function VoiceInterface({
       mediaStreamRef.current = stream
 
       if (!audioContextRef.current) {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
+        const AudioContextConstructor = window.AudioContext || window.webkitAudioContext
+        if (!AudioContextConstructor) {
+          throw new Error('AudioContext is not supported in this browser')
+        }
+        audioContextRef.current = new AudioContextConstructor()
       }
       const audioContext = audioContextRef.current
 
@@ -224,7 +262,7 @@ export function VoiceInterface({
       onVoiceStart?.()
     }
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       // Don't process results if muted
       if (isMutedRef.current) {
         return
@@ -255,7 +293,7 @@ export function VoiceInterface({
       }
     }
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       isStartingRef.current = false
       logger.error('Speech recognition error:', event.error)
 
@@ -361,7 +399,6 @@ export function VoiceInterface({
     if (isInitialized && !isMuted && !isListening) {
       const startAudio = async () => {
         try {
-          // Setup audio visualization first
           if (!mediaStreamRef.current) {
             const success = await setupAudioVisualization()
             if (!success) {
@@ -370,7 +407,6 @@ export function VoiceInterface({
             }
           }
 
-          // Start listening after a short delay
           setTimeout(() => {
             if (!isListening && !isMuted && !isStartingRef.current) {
               startListening()

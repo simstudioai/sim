@@ -40,14 +40,14 @@ declare global {
 
 interface VoiceInputProps {
   onVoiceStart: () => void
-  isListening: boolean
+  isListening?: boolean
   disabled?: boolean
   large?: boolean
 }
 
 export function VoiceInput({
   onVoiceStart,
-  isListening,
+  isListening = false,
   disabled = false,
   large = false,
 }: VoiceInputProps) {
