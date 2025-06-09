@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/knowledge'
+import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 
 export function useKnowledgeBase(id: string) {
   const { getKnowledgeBase, getCachedKnowledgeBase, loadingKnowledgeBases } = useKnowledgeStore()

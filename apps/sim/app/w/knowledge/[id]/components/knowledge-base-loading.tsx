@@ -1,6 +1,7 @@
 'use client'
 
 import { Search } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../../components/knowledge-header/knowledge-header'
 import { DocumentTableSkeleton } from '../../components/skeletons/table-skeleton'
@@ -39,7 +40,7 @@ export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoading
           <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
               {/* Search and Create Section */}
-              <div className='mb-4 flex items-center justify-between'>
+              <div className='mb-4 flex items-center justify-between pt-1'>
                 <div className='relative max-w-md flex-1'>
                   <div className='relative flex items-center'>
                     <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
@@ -54,13 +55,14 @@ export function KnowledgeBaseLoading({ knowledgeBaseName }: KnowledgeBaseLoading
 
                 <div className='flex items-center gap-3'>
                   {/* Add Documents Button - disabled state */}
-                  <button
+                  <Button
                     disabled
-                    className='mt-1 mr-1 flex items-center gap-1.5 rounded-md bg-[#701FFC] px-3 py-[7px] font-[480] text-primary-foreground text-sm shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_3px_rgba(127,47,255,0.12)] disabled:opacity-50'
+                    size='sm'
+                    className='flex items-center gap-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50'
                   >
                     <div className='h-3.5 w-3.5 animate-pulse rounded bg-primary-foreground/30' />
                     <span>Add Documents</span>
-                  </button>
+                  </Button>
                 </div>
               </div>
 

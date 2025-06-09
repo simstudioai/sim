@@ -10,12 +10,13 @@ import { Code } from './components/code'
 import { ConditionInput } from './components/condition-input'
 import { CredentialSelector } from './components/credential-selector/credential-selector'
 import { DateInput } from './components/date-input'
+import { DocumentSelector } from './components/document-selector/document-selector'
 import { Dropdown } from './components/dropdown'
 import { EvalInput } from './components/eval-input'
 import { FileSelectorInput } from './components/file-selector/file-selector-input'
 import { FileUpload } from './components/file-upload'
 import { FolderSelectorInput } from './components/folder-selector/components/folder-selector-input'
-import { KnowledgeBaseSelectorInput } from './components/knowledge-base-selector/knowledge-base-selector-input'
+import { KnowledgeBaseSelector } from './components/knowledge-base-selector/knowledge-base-selector'
 import { LongInput } from './components/long-input'
 import { ProjectSelectorInput } from './components/project-selector/project-selector-input'
 import { ScheduleConfig } from './components/schedule/schedule-config'
@@ -313,7 +314,17 @@ export function SubBlock({
         )
       case 'knowledge-base-selector':
         return (
-          <KnowledgeBaseSelectorInput
+          <KnowledgeBaseSelector
+            blockId={blockId}
+            subBlock={config}
+            disabled={isConnecting || isPreview}
+            isPreview={isPreview}
+            previewValue={previewValue}
+          />
+        )
+      case 'document-selector':
+        return (
+          <DocumentSelector
             blockId={blockId}
             subBlock={config}
             disabled={isConnecting || isPreview}

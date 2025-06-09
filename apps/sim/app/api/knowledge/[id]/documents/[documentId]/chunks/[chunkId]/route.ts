@@ -1,10 +1,10 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { embedding } from '@/db/schema'
+import { document, embedding } from '@/db/schema'
 import { checkChunkAccess } from '../../../../../utils'
 
 const logger = createLogger('ChunkByIdAPI')
@@ -188,8 +188,37 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Delete the chunk
-    await db.delete(embedding).where(eq(embedding.id, chunkId))
+    // Use transaction to atomically delete chunk and update document statistics
+    await db.transaction(async (tx) => {
+      // Get chunk data before deletion for statistics update
+      const chunkToDelete = await tx
+        .select({
+          tokenCount: embedding.tokenCount,
+          contentLength: embedding.contentLength,
+        })
+        .from(embedding)
+        .where(eq(embedding.id, chunkId))
+        .limit(1)
+
+      if (chunkToDelete.length === 0) {
+        throw new Error('Chunk not found')
+      }
+
+      const chunk = chunkToDelete[0]
+
+      // Delete the chunk
+      await tx.delete(embedding).where(eq(embedding.id, chunkId))
+
+      // Update document statistics
+      await tx
+        .update(document)
+        .set({
+          chunkCount: sql`${document.chunkCount} - 1`,
+          tokenCount: sql`${document.tokenCount} - ${chunk.tokenCount}`,
+          characterCount: sql`${document.characterCount} - ${chunk.contentLength}`,
+        })
+        .where(eq(document.id, documentId))
+    })
 
     logger.info(
       `[${requestId}] Chunk deleted: ${chunkId} from document ${documentId} in knowledge base ${knowledgeBaseId}`

@@ -1,6 +1,7 @@
 'use client'
 
-import { Search } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../../../components/knowledge-header/knowledge-header'
 import { ChunkTableSkeleton } from '../../../components/skeletons/table-skeleton'
@@ -50,7 +51,7 @@ export function DocumentLoading({
           <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
               {/* Search Section */}
-              <div className='mb-4'>
+              <div className='mb-4 flex items-center justify-between pt-1'>
                 <div className='relative max-w-md'>
                   <div className='relative flex items-center'>
                     <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
@@ -62,6 +63,15 @@ export function DocumentLoading({
                     />
                   </div>
                 </div>
+
+                <Button
+                  disabled
+                  size='sm'
+                  className='flex items-center gap-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:opacity-50'
+                >
+                  <Plus className='h-3.5 w-3.5' />
+                  <span>Create Chunk</span>
+                </Button>
               </div>
 
               {/* Table container */}

@@ -3,7 +3,7 @@
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import type { KnowledgeBaseData } from '@/stores/knowledge/knowledge'
+import type { KnowledgeBaseData } from '@/stores/knowledge/store'
 import { CreateForm } from './components/create-form/create-form'
 
 interface CreateModalProps {

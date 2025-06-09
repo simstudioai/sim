@@ -1,17 +1,19 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Circle, CircleOff, FileText, Search, Trash2, X } from 'lucide-react'
+import { Circle, CircleOff, FileText, Plus, Search, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
-import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/knowledge'
+import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../../components/knowledge-header/knowledge-header'
+import { CreateChunkModal } from './components/create-chunk-modal/create-chunk-modal'
+import { DeleteChunkModal } from './components/delete-chunk-modal/delete-chunk-modal'
 import { DocumentLoading } from './components/document-loading'
-import { EditChunkModal } from './components/edit-chunk-modal'
+import { EditChunkModal } from './components/edit-chunk-modal/edit-chunk-modal'
 
 const logger = createLogger('Document')
 
@@ -49,6 +51,9 @@ export function Document({
   const [selectedChunks, setSelectedChunks] = useState<Set<string>>(new Set())
   const [selectedChunk, setSelectedChunk] = useState<ChunkData | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
+  const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
   const [document, setDocument] = useState<DocumentData | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
@@ -119,7 +124,10 @@ export function Document({
 
   const breadcrumbs = [
     { label: 'Knowledge', href: '/w/knowledge' },
-    { label: effectiveKnowledgeBaseName, href: `/w/knowledge/${knowledgeBaseId}` },
+    {
+      label: effectiveKnowledgeBaseName,
+      href: `/w/knowledge/${knowledgeBaseId}`,
+    },
     { label: effectiveDocumentName },
   ]
 
@@ -165,32 +173,28 @@ export function Document({
     }
   }
 
-  const handleDeleteChunk = async (chunkId: string) => {
-    try {
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunkId}`,
-        {
-          method: 'DELETE',
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to delete chunk')
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        await refreshChunks()
-        setSelectedChunks((prev) => {
-          const newSet = new Set(prev)
-          newSet.delete(chunkId)
-          return newSet
-        })
-      }
-    } catch (err) {
-      logger.error('Error deleting chunk:', err)
+  const handleDeleteChunk = (chunkId: string) => {
+    const chunk = chunks.find((c) => c.id === chunkId)
+    if (chunk) {
+      setChunkToDelete(chunk)
+      setIsDeleteModalOpen(true)
     }
+  }
+
+  const handleChunkDeleted = async () => {
+    await refreshChunks()
+    if (chunkToDelete) {
+      setSelectedChunks((prev) => {
+        const newSet = new Set(prev)
+        newSet.delete(chunkToDelete.id)
+        return newSet
+      })
+    }
+  }
+
+  const handleCloseDeleteModal = () => {
+    setIsDeleteModalOpen(false)
+    setChunkToDelete(null)
   }
 
   const handleSelectChunk = (chunkId: string, checked: boolean) => {
@@ -213,6 +217,11 @@ export function Document({
     }
   }
 
+  const handleChunkCreated = async (newChunk: ChunkData) => {
+    // Refresh the chunks list to include the new chunk
+    await refreshChunks()
+  }
+
   const isAllSelected = chunks.length > 0 && selectedChunks.size === chunks.length
 
   if (isLoadingDocument || isLoadingChunks) {
@@ -228,7 +237,10 @@ export function Document({
   if (combinedError && !isLoadingChunks) {
     const errorBreadcrumbs = [
       { label: 'Knowledge', href: '/w/knowledge' },
-      { label: effectiveKnowledgeBaseName, href: `/w/knowledge/${knowledgeBaseId}` },
+      {
+        label: effectiveKnowledgeBaseName,
+        href: `/w/knowledge/${knowledgeBaseId}`,
+      },
       { label: 'Error' },
     ]
 
@@ -265,7 +277,7 @@ export function Document({
           <div className='flex-1 overflow-auto'>
             <div className='px-6 pb-6'>
               {/* Search Section */}
-              <div className='mb-4 flex items-center justify-between'>
+              <div className='mb-4 flex items-center justify-between pt-1'>
                 <div className='relative max-w-md'>
                   <div className='relative flex items-center'>
                     <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
@@ -291,6 +303,16 @@ export function Document({
                     )}
                   </div>
                 </div>
+
+                <Button
+                  onClick={() => setIsCreateChunkModalOpen(true)}
+                  disabled={document?.processingStatus === 'failed'}
+                  size='sm'
+                  className='flex items-center gap-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50'
+                >
+                  <Plus className='h-3.5 w-3.5' />
+                  <span>Create Chunk</span>
+                </Button>
               </div>
 
               {/* Error State for chunks */}
@@ -561,6 +583,25 @@ export function Document({
           updateChunk(updatedChunk.id, updatedChunk)
           setSelectedChunk(updatedChunk)
         }}
+      />
+
+      {/* Create Chunk Modal */}
+      <CreateChunkModal
+        open={isCreateChunkModalOpen}
+        onOpenChange={setIsCreateChunkModalOpen}
+        document={document}
+        knowledgeBaseId={knowledgeBaseId}
+        onChunkCreated={handleChunkCreated}
+      />
+
+      {/* Delete Chunk Modal */}
+      <DeleteChunkModal
+        chunk={chunkToDelete}
+        knowledgeBaseId={knowledgeBaseId}
+        documentId={documentId}
+        isOpen={isDeleteModalOpen}
+        onClose={handleCloseDeleteModal}
+        onChunkDeleted={handleChunkDeleted}
       />
     </div>
   )
