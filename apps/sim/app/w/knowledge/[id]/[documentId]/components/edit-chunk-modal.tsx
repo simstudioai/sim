@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { DocumentData } from '@/stores/knowledge/knowledge'
+import type { DocumentData } from '@/stores/knowledge/store'
 
 const logger = createLogger('EditChunkModal')
 

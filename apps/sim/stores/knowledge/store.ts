@@ -588,65 +588,25 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       const chunks = result.data
       const pagination = result.pagination
 
-      set((state) => {
-        // Get existing chunks if any
-        const existingCache = state.chunks[documentId]
-        const currentChunks = existingCache?.chunks || []
-
-        // For each fetched chunk, decide whether to use server data or preserve local state
-        const mergedChunks = chunks.map((fetchedChunk: ChunkData) => {
-          const existingChunk = currentChunks.find((chunk) => chunk.id === fetchedChunk.id)
-
-          if (!existingChunk) {
-            // New chunk from server, use it as-is
-            return fetchedChunk
-          }
-
-          // If server chunk has different content or metadata, prefer it (indicates server update)
-          if (
-            fetchedChunk.content !== existingChunk.content ||
-            JSON.stringify(fetchedChunk.metadata) !== JSON.stringify(existingChunk.metadata)
-          ) {
-            return fetchedChunk
-          }
-
-          // If server chunk has different enabled status, quality score, or other properties, prefer it
-          if (
-            fetchedChunk.enabled !== existingChunk.enabled ||
-            fetchedChunk.qualityScore !== existingChunk.qualityScore
-          ) {
-            return fetchedChunk
-          }
-
-          // Otherwise, preserve the existing chunk (keeps optimistic updates)
-          return existingChunk
-        })
-
-        // Add any new chunks that weren't in the existing set
-        const newChunks = chunks.filter(
-          (fetchedChunk: ChunkData) => !currentChunks.find((chunk) => chunk.id === fetchedChunk.id)
-        )
-
-        return {
-          chunks: {
-            ...state.chunks,
-            [documentId]: {
-              chunks: [...mergedChunks, ...newChunks],
-              pagination: {
-                total: pagination?.total || chunks.length,
-                limit: pagination?.limit || options?.limit || 50,
-                offset: pagination?.offset || options?.offset || 0,
-                hasMore: pagination?.hasMore || false,
-              },
-              searchQuery: options?.search,
-              lastFetchTime: Date.now(),
+      set((state) => ({
+        chunks: {
+          ...state.chunks,
+          [documentId]: {
+            chunks, // Use server data as source of truth
+            pagination: {
+              total: pagination?.total || chunks.length,
+              limit: pagination?.limit || options?.limit || 50,
+              offset: pagination?.offset || options?.offset || 0,
+              hasMore: pagination?.hasMore || false,
             },
+            searchQuery: options?.search,
+            lastFetchTime: Date.now(),
           },
-          loadingChunks: new Set(
-            [...state.loadingChunks].filter((loadingId) => loadingId !== documentId)
-          ),
-        }
-      })
+        },
+        loadingChunks: new Set(
+          [...state.loadingChunks].filter((loadingId) => loadingId !== documentId)
+        ),
+      }))
 
       logger.info(`Chunks refreshed for document: ${documentId}`)
       return chunks

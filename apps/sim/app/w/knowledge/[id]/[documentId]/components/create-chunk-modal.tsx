@@ -3,16 +3,24 @@
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import type { KnowledgeBaseData } from '@/stores/knowledge/store'
-import { CreateForm } from './components/create-form/create-form'
+import type { ChunkData, DocumentData } from '@/stores/knowledge/store'
+import { CreateChunkForm } from './create-chunk-form'
 
-interface CreateModalProps {
+interface CreateChunkModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onKnowledgeBaseCreated?: (knowledgeBase: KnowledgeBaseData) => void
+  document: DocumentData | null
+  knowledgeBaseId: string
+  onChunkCreated?: (chunk: ChunkData) => void
 }
 
-export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: CreateModalProps) {
+export function CreateChunkModal({
+  open,
+  onOpenChange,
+  document,
+  knowledgeBaseId,
+  onChunkCreated,
+}: CreateChunkModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -21,7 +29,7 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
       >
         <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
           <div className='flex items-center justify-between'>
-            <DialogTitle className='font-medium text-lg'>Create Knowledge Base</DialogTitle>
+            <DialogTitle className='font-medium text-lg'>Create Chunk</DialogTitle>
             <Button
               variant='ghost'
               size='icon'
@@ -35,9 +43,11 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         </DialogHeader>
 
         <div className='flex flex-1 flex-col overflow-hidden'>
-          <CreateForm
+          <CreateChunkForm
+            document={document}
+            knowledgeBaseId={knowledgeBaseId}
             onClose={() => onOpenChange(false)}
-            onKnowledgeBaseCreated={onKnowledgeBaseCreated}
+            onChunkCreated={onChunkCreated}
           />
         </div>
       </DialogContent>

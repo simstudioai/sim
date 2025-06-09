@@ -30,7 +30,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { createLogger } from '@/lib/logs/console-logger'
 import { getDocumentIcon } from '@/app/w/knowledge/components/icons/document-icons'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
-import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/knowledge'
+import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
 import { KnowledgeBaseLoading } from './components/knowledge-base-loading'
@@ -541,7 +541,7 @@ export function KnowledgeBase({
               />
 
               {/* Search and Create Section */}
-              <div className='mb-4 flex items-center justify-between'>
+              <div className='mb-4 flex items-center justify-between pt-1'>
                 <div className='relative max-w-md flex-1'>
                   <div className='relative flex items-center'>
                     <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
@@ -569,7 +569,7 @@ export function KnowledgeBase({
                     onClick={handleAddDocuments}
                     disabled={isUploading}
                     size='sm'
-                    className='flex items-center gap-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_3px_rgba(127,47,255,0.12)]'
+                    className='flex items-center gap-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
                   >
                     <Plus className='h-3.5 w-3.5' />
                     {isUploading ? 'Uploading...' : 'Add Documents'}

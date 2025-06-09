@@ -12,8 +12,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getDocumentIcon } from '@/app/w/knowledge/components/icons/document-icons'
-import type { DocumentData, KnowledgeBaseData } from '@/stores/knowledge/knowledge'
-import { useKnowledgeStore } from '@/stores/knowledge/knowledge'
+import type { DocumentData, KnowledgeBaseData } from '@/stores/knowledge/store'
+import { useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('CreateForm')
 
