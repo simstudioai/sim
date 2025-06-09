@@ -356,7 +356,6 @@ export function ParticlesVisualization({
 
         const avgLevel = audioLevels.reduce((sum, level) => sum + level, 0) / audioLevels.length
 
-        // Always have a subtle baseline animation to show the orb is "alive"
         const baselineIntensity = 8 + Math.sin(clock.getElapsedTime() * 0.5) * 3
         let audioIntensity = baselineIntensity
 
@@ -374,7 +373,6 @@ export function ParticlesVisualization({
           // Pulsing animation when AI is thinking/streaming
           audioIntensity = 40 + Math.sin(clock.getElapsedTime() * 2) * 15
         } else if (isListening && avgLevel > 0) {
-          // ENHANCED: Responsive to actual user's voice levels
           // Scale user input more dramatically for better visual feedback
           const userVoiceIntensity = avgLevel * 2.5 // Amplify user voice significantly
           audioIntensity = Math.max(userVoiceIntensity, baselineIntensity * 1.5)

@@ -3,9 +3,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Mic } from 'lucide-react'
-import { createLogger } from '@/lib/logs/console-logger'
-
-const logger = createLogger('VoiceInput')
 
 interface SpeechRecognitionEvent extends Event {
   resultIndex: number
@@ -55,9 +52,6 @@ export function VoiceInput({
   large = false,
 }: VoiceInputProps) {
   const [isSupported, setIsSupported] = useState(false)
-  const [permissionStatus, setPermissionStatus] = useState<'granted' | 'denied' | 'prompt'>(
-    'prompt'
-  )
 
   // Check if speech recognition is supported
   useEffect(() => {
@@ -65,26 +59,8 @@ export function VoiceInput({
     setIsSupported(!!SpeechRecognition)
   }, [])
 
-  // Check microphone permission on mount
-  useEffect(() => {
-    const checkPermission = async () => {
-      try {
-        const permission = await navigator.permissions.query({
-          name: 'microphone' as PermissionName,
-        })
-        setPermissionStatus(permission.state as 'granted' | 'denied' | 'prompt')
-      } catch (error) {
-        // Permission API not supported, will be checked when user clicks
-      }
-    }
-    checkPermission()
-  }, [])
-
-  // Simple click handler that triggers voice-first mode
   const handleVoiceClick = useCallback(() => {
     if (disabled) return
-
-    logger.info('🎤 Voice button clicked, switching to voice-first mode')
     onVoiceStart()
   }, [disabled, onVoiceStart])
 
@@ -107,9 +83,7 @@ export function VoiceInput({
           } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          title={
-            permissionStatus === 'denied' ? 'Microphone access denied' : 'Start voice conversation'
-          }
+          title='Start voice conversation'
         >
           <Mic size={32} />
         </motion.button>
@@ -117,7 +91,6 @@ export function VoiceInput({
     )
   }
 
-  // Standard mode for regular chat interface
   return (
     <div className='flex items-center'>
       {/* Voice Button */}
@@ -132,9 +105,7 @@ export function VoiceInput({
         } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        title={
-          permissionStatus === 'denied' ? 'Microphone access denied' : 'Start voice conversation'
-        }
+        title='Start voice conversation'
       >
         <Mic size={16} />
       </motion.button>

@@ -32,13 +32,7 @@ interface ChatConfig {
 }
 
 const DEFAULT_VOICE_SETTINGS = {
-  isVoiceEnabled: true,
   voiceId: 'EXAVITQu4vr4xnSDxMaL', // Default ElevenLabs voice (Bella)
-  autoPlayResponses: true,
-  autoTriggerVoice: true,
-  voiceFirstMode: false,
-  textStreamingInVoiceMode: 'synced' as const,
-  conversationMode: true,
 }
 
 function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T {
@@ -75,32 +69,17 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [starCount, setStarCount] = useState('3.4k')
   const [conversationId, setConversationId] = useState('')
 
-  // Simple state for showing scroll button
   const [showScrollButton, setShowScrollButton] = useState(false)
-
-  // Track if user has manually scrolled during response
   const [userHasScrolled, setUserHasScrolled] = useState(false)
   const isUserScrollingRef = useRef(false)
 
-  // Authentication state
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
 
-  // Voice-first mode state
   const [isVoiceFirstMode, setIsVoiceFirstMode] = useState(false)
-
-  // Use the custom streaming hook
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
     useChatStreaming()
-
-  // Audio streaming hook with voice coordination
-  const { isPlayingAudio, streamTextToAudio, stopAudio } = useAudioStreaming()
-
-  // Track TTS failures
-  const ttsFailureCountRef = useRef(0)
-  const [ttsDisabled, setTtsDisabled] = useState(false)
-
-  // Voice is always ready since server handles API key
-  const isVoiceReady = DEFAULT_VOICE_SETTINGS.isVoiceEnabled
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const { isPlayingAudio, streamTextToAudio, stopAudio } = useAudioStreaming(audioContextRef)
 
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
@@ -307,35 +286,17 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       if (contentType.includes('text/plain')) {
         // Prepare audio streaming handler if voice mode is enabled
-        // Play audio if: voice input was used OR (in voice-first mode with auto-play enabled)
-        const shouldPlayAudio =
-          isVoiceReady &&
-          !ttsDisabled &&
-          (isVoiceInput || (isVoiceFirstMode && DEFAULT_VOICE_SETTINGS.autoPlayResponses))
+        const shouldPlayAudio = isVoiceInput || isVoiceFirstMode
 
         const audioStreamHandler = shouldPlayAudio
           ? async (text: string) => {
               try {
                 await streamTextToAudio(text, {
                   voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                  onAudioChunkStart: () => {
-                    // Note: Don't reset interruption state on every chunk - only on new streams
-                    // This prevents resetting mid-stream interruption state
-                  },
                   onError: (error) => {
                     logger.error('Audio streaming error:', error)
-                    // Disable TTS on authentication errors
-                    if (error.message.includes('401')) {
-                      ttsFailureCountRef.current++
-                      if (ttsFailureCountRef.current >= 3) {
-                        logger.warn('Disabling TTS due to repeated authentication failures')
-                        setTtsDisabled(true)
-                      }
-                    }
                   },
                 })
-                // Reset failure count on success
-                ttsFailureCountRef.current = 0
               } catch (error) {
                 logger.error('TTS error:', error)
               }
@@ -351,13 +312,9 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           userHasScrolled,
           {
             voiceSettings: {
-              isVoiceEnabled: DEFAULT_VOICE_SETTINGS.isVoiceEnabled,
+              isVoiceEnabled: true,
               voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-              autoPlayResponses:
-                isVoiceInput || (isVoiceFirstMode && DEFAULT_VOICE_SETTINGS.autoPlayResponses),
-              voiceFirstMode: isVoiceFirstMode,
-              textStreamingInVoiceMode: DEFAULT_VOICE_SETTINGS.textStreamingInVoiceMode,
-              conversationMode: isVoiceFirstMode ? DEFAULT_VOICE_SETTINGS.conversationMode : false,
+              autoPlayResponses: isVoiceInput || isVoiceFirstMode,
             },
             audioStreamHandler,
           }
@@ -399,12 +356,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           setMessages((prev) => [...prev, ...assistantMessages])
 
           // Play audio for the full response if voice mode is enabled
-          // Play audio if: voice input was used OR (in voice-first mode with auto-play enabled)
-          if (
-            isVoiceReady &&
-            !ttsDisabled &&
-            (isVoiceInput || (isVoiceFirstMode && DEFAULT_VOICE_SETTINGS.autoPlayResponses))
-          ) {
+          if (isVoiceInput || isVoiceFirstMode) {
             const fullContent = assistantMessages.map((m: ChatMessage) => m.content).join(' ')
             if (fullContent.trim()) {
               try {
@@ -412,18 +364,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                   voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
                   onError: (error) => {
                     logger.error('Audio playback error:', error)
-                    // Disable TTS on authentication errors
-                    if (error.message.includes('401')) {
-                      ttsFailureCountRef.current++
-                      if (ttsFailureCountRef.current >= 3) {
-                        logger.warn('Disabling TTS due to repeated authentication failures')
-                        setTtsDisabled(true)
-                      }
-                    }
                   },
                 })
-                // Reset failure count on success
-                ttsFailureCountRef.current = 0
               } catch (error) {
                 logger.error('TTS error:', error)
               }
@@ -459,13 +401,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           setMessages((prev) => [...prev, assistantMessage])
 
           // Play audio for the response if voice mode is enabled
-          // Play audio if: voice input was used OR (in voice-first mode with auto-play enabled)
-          if (
-            isVoiceReady &&
-            !ttsDisabled &&
-            (isVoiceInput || (isVoiceFirstMode && DEFAULT_VOICE_SETTINGS.autoPlayResponses)) &&
-            assistantMessage.content
-          ) {
+          if ((isVoiceInput || isVoiceFirstMode) && assistantMessage.content) {
             const contentString =
               typeof assistantMessage.content === 'string'
                 ? assistantMessage.content
@@ -476,16 +412,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                 voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
                 onError: (error) => {
                   logger.error('Audio playback error:', error)
-                  if (error.message.includes('401')) {
-                    ttsFailureCountRef.current++
-                    if (ttsFailureCountRef.current >= 3) {
-                      logger.warn('Disabling TTS due to repeated authentication failures')
-                      setTtsDisabled(true)
-                    }
-                  }
                 },
               })
-              ttsFailureCountRef.current = 0
             } catch (error) {
               logger.error('TTS error:', error)
             }
@@ -512,52 +440,29 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   useEffect(() => {
     return () => {
       stopAudio()
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close()
+      }
     }
   }, [stopAudio])
 
   // Voice interruption - stop audio when user starts speaking
   const handleVoiceInterruption = useCallback(() => {
-    logger.info('🚨 handleVoiceInterruption called!')
-
-    // 1. Always stop audio playback immediately (even if play event hasn't fired yet)
-    logger.info('🛑 Calling stopAudio()')
+    // Stop audio playback immediately
     stopAudio()
 
-    // 2. Stop any ongoing streaming response
+    // Stop any ongoing streaming response
     if (isStreamingResponse) {
-      logger.info('🛑 Stopping streaming response')
       stopStreaming(setMessages)
     }
-
-    // 3. Add a clear visual indicator of interruption
-    setMessages((prev) => {
-      const lastMessage = prev[prev.length - 1]
-
-      // If the last message is from assistant and was being streamed/played
-      if (lastMessage && lastMessage.type === 'assistant' && !lastMessage.isInitialMessage) {
-        logger.info('📝 Adding interruption marker to last message')
-        return [
-          ...prev.slice(0, -1),
-          {
-            ...lastMessage,
-            content: `${lastMessage.content}\n\n_[Interrupted by user]_`,
-            isStreaming: false,
-          },
-        ]
-      }
-
-      return prev
-    })
-
-    logger.info('✅ Voice interruption handling complete')
   }, [isStreamingResponse, stopStreaming, setMessages, stopAudio])
 
-  // Handle voice mode activation with smooth transition
+  // Handle voice mode activation
   const handleVoiceStart = useCallback(() => {
     setIsVoiceFirstMode(true)
   }, [])
 
-  // Handle exiting voice mode with smooth transition
+  // Handle exiting voice mode
   const handleExitVoiceMode = useCallback(() => {
     setIsVoiceFirstMode(false)
     stopAudio() // Stop any playing audio when exiting
@@ -609,8 +514,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     return <ChatLoadingState />
   }
 
-  // Voice-first mode interface with smooth transition
-  if (isVoiceFirstMode && isVoiceReady) {
+  // Voice-first mode interface
+  if (isVoiceFirstMode) {
     return (
       <VoiceInterface
         onCallEnd={handleExitVoiceMode}
@@ -620,6 +525,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         onInterrupt={handleVoiceInterruption}
         isStreaming={isStreamingResponse}
         isPlayingAudio={isPlayingAudio}
+        audioContextRef={audioContextRef}
         messages={messages.map((msg) => ({
           content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
           type: msg.type,
