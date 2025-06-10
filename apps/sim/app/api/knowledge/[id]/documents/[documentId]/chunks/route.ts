@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { document, embedding } from '@/db/schema'
+import { document, embedding, workflow } from '@/db/schema'
 import { checkDocumentAccess, generateEmbeddings } from '../../../../utils'
 
 const logger = createLogger('DocumentChunksAPI')
@@ -158,13 +158,38 @@ export async function POST(
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized chunk creation attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const body = await req.json()
+    const { workflowId, ...chunkParams } = body
+
+    // Support both session-based and workflow-based authentication
+    let userId: string | undefined
+
+    if (workflowId) {
+      // Workflow-based authentication for server-side execution
+      const workflows = await db
+        .select({ userId: workflow.userId })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+
+      if (workflows.length === 0) {
+        logger.warn(`[${requestId}] Workflow not found for server-side auth: ${workflowId}`)
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
+
+      userId = workflows[0].userId
+      logger.info(`[${requestId}] Using workflow-based authentication for user: ${userId}`)
+    } else {
+      // Session-based authentication for client-side execution
+      const session = await getSession()
+      if (!session?.user?.id) {
+        logger.warn(`[${requestId}] Unauthorized chunk creation attempt`)
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      userId = session.user.id
     }
 
-    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, session.user.id)
+    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, userId)
 
     if (!accessCheck.hasAccess) {
       if (accessCheck.notFound) {
@@ -174,7 +199,7 @@ export async function POST(
         return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
       }
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted unauthorized chunk creation: ${accessCheck.reason}`
+        `[${requestId}] User ${userId} attempted unauthorized chunk creation: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -194,10 +219,8 @@ export async function POST(
       return NextResponse.json({ error: 'Cannot add chunks to failed document' }, { status: 400 })
     }
 
-    const body = await req.json()
-
     try {
-      const validatedData = CreateChunkSchema.parse(body)
+      const validatedData = CreateChunkSchema.parse(chunkParams)
 
       // Generate embedding for the content first (outside transaction for performance)
       logger.info(`[${requestId}] Generating embedding for manual chunk`)
