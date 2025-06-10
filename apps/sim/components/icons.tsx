@@ -2827,3 +2827,20 @@ export function PackageSearchIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+export function HuggingFaceIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width='24'
+      height='24'
+      viewBox='0 0 24 24'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM7 10.5C7.83 10.5 8.5 9.83 8.5 9C8.5 8.17 7.83 7.5 7 7.5C6.17 7.5 5.5 8.17 5.5 9C5.5 9.83 6.17 10.5 7 10.5ZM17 10.5C17.83 10.5 18.5 9.83 18.5 9C18.5 8.17 17.83 7.5 17 7.5C16.17 7.5 15.5 8.17 15.5 9C15.5 9.83 16.17 10.5 17 10.5ZM12 17.5C9.79 17.5 8 15.71 8 13.5H16C16 15.71 14.21 17.5 12 17.5Z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+} 

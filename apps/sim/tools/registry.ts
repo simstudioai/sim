@@ -97,6 +97,7 @@ import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube'
+import { huggingfaceChatTool } from './huggingface'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {
@@ -214,4 +215,5 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_list: googleCalendarListTool,
   google_calendar_quick_add: googleCalendarQuickAddTool,
   google_calendar_invite: googleCalendarInviteTool,
+  huggingface_chat: huggingfaceChatTool,
 }

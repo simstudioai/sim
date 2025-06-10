@@ -62,6 +62,7 @@ import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
+import { HuggingFaceBlock } from './blocks/huggingface'
 import type { BlockConfig } from './types'
 
 // Registry of all available blocks, alphabetically sorted
@@ -124,6 +125,7 @@ export const registry: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
+  huggingface: HuggingFaceBlock,
 }
 
 // Helper functions to access the registry
