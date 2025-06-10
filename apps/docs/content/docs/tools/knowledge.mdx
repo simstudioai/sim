@@ -1,6 +1,6 @@
 ---
 title: Knowledge
-description: Use vector search
+description: Search knowledge
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -49,7 +49,7 @@ In Sim Studio, the Knowledge Base block enables your agents to perform intellige
 
 ## Usage Instructions
 
-Perform semantic vector search across your knowledge base or upload new chunks to documents. Uses advanced AI embeddings to understand meaning and context for search operations.
+Perform semantic vector search across your knowledge base to find the most relevant content. Uses advanced AI embeddings to understand meaning and context, returning the most similar documents to your search query.
 
 
 
@@ -78,31 +78,6 @@ Search for similar content in a knowledge base using vector similarity
 | `totalResults` | string |
 | `message` | string |
 
-### `knowledge_upload_chunk`
-
-Upload a new chunk to a document in a knowledge base
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `knowledgeBaseId` | string | Yes | ID of the knowledge base containing the document |
-| `documentId` | string | Yes | ID of the document to upload the chunk to |
-| `content` | string | Yes | Content of the chunk to upload |
-
-#### Output
-
-| Parameter | Type |
-| --------- | ---- |
-| `data` | string |
-| `chunkIndex` | string |
-| `content` | string |
-| `contentLength` | string |
-| `tokenCount` | string |
-| `enabled` | string |
-| `createdAt` | string |
-| `updatedAt` | string |
-
 
 
 ## Block Configuration
@@ -111,7 +86,7 @@ Upload a new chunk to a document in a knowledge base
 
 | Parameter | Type | Required | Description | 
 | --------- | ---- | -------- | ----------- | 
-| `operation` | string | Yes | Operation |
+| `knowledgeBaseId` | string | Yes | Knowledge Base - Select knowledge base |
 
 
 
@@ -126,8 +101,6 @@ Upload a new chunk to a document in a knowledge base
 | ↳ `topK` | number | topK of the response |
 | ↳ `totalResults` | number | totalResults of the response |
 | ↳ `message` | string | message of the response |
-| ↳ `success` | boolean | success of the response |
-| ↳ `data` | json | data of the response |
 
 
 ## Notes
