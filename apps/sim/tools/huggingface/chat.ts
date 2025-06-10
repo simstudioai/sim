@@ -79,7 +79,7 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
     }),
     body: (params) => {
       const messages = []
-      
+
       // Add system prompt if provided
       if (params.systemPrompt) {
         messages.push({
@@ -87,7 +87,7 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
           content: params.systemPrompt,
         })
       }
-      
+
       // Add user message
       messages.push({
         role: 'user',
@@ -162,7 +162,7 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
 
   transformError: (error) => {
     let errorMessage = 'Unknown error occurred'
-    
+
     if (error) {
       if (typeof error === 'string') {
         errorMessage = error
@@ -178,7 +178,7 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
         }
       }
     }
-    
+
     return `Hugging Face chat completion failed: ${errorMessage}`
   },
-} 
+}

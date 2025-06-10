@@ -1,3 +1,3 @@
 import { chatTool } from './chat'
 
-export const huggingfaceChatTool = chatTool 
+export const huggingfaceChatTool = chatTool

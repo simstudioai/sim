@@ -50,6 +50,7 @@ import {
 import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
+import { huggingfaceChatTool } from './huggingface'
 import { readUrlTool } from './jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
 import { knowledgeSearchTool, knowledgeUploadChunkTool } from './knowledge'
@@ -97,7 +98,6 @@ import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube'
-import { huggingfaceChatTool } from './huggingface'
 
 // Registry of all available tools
 export const tools: Record<string, ToolConfig> = {

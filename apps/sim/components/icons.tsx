@@ -2843,4 +2843,4 @@ export function HuggingFaceIcon(props: SVGProps<SVGSVGElement>) {
       />
     </svg>
   )
-} 
+}

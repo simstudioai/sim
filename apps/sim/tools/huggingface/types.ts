@@ -26,4 +26,4 @@ export interface HuggingFaceChatResponse extends ToolResponse {
       total_tokens: number
     }
   }
-} 
+}
