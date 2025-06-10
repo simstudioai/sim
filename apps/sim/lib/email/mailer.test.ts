@@ -28,7 +28,7 @@ vi.mock('../urls/utils', () => ({
   getEmailDomain: vi.fn().mockReturnValue('simstudio.ai'),
 }))
 
-import { sendEmail } from './mailer'
+import { type EmailType, sendEmail } from './mailer'
 import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
 
 describe('mailer', () => {
@@ -174,7 +174,7 @@ describe('mailer', () => {
       await sendEmail({
         ...testEmailOptions,
         html: htmlWithPlaceholder,
-        emailType: 'updates',
+        emailType: 'updates' as EmailType,
       })
 
       expect(mockSend).toHaveBeenCalledWith(

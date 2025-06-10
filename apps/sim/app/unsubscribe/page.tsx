@@ -82,13 +82,31 @@ export default function UnsubscribePage() {
         setUnsubscribed(true)
         // Update the data to reflect the change
         if (data) {
-          setData({
-            ...data,
-            currentPreferences: {
-              ...data.currentPreferences,
-              [`unsubscribe${type.charAt(0).toUpperCase()}${type.slice(1)}`]: true,
-            },
-          })
+          // Type-safe property construction with validation
+          const validTypes = ['all', 'marketing', 'updates', 'notifications'] as const
+          if (validTypes.includes(type)) {
+            if (type === 'all') {
+              setData({
+                ...data,
+                currentPreferences: {
+                  ...data.currentPreferences,
+                  unsubscribeAll: true,
+                },
+              })
+            } else {
+              const propertyKey = `unsubscribe${type.charAt(0).toUpperCase()}${type.slice(1)}` as
+                | 'unsubscribeMarketing'
+                | 'unsubscribeUpdates'
+                | 'unsubscribeNotifications'
+              setData({
+                ...data,
+                currentPreferences: {
+                  ...data.currentPreferences,
+                  [propertyKey]: true,
+                },
+              })
+            }
+          }
         }
       } else {
         setError(result.error || 'Failed to unsubscribe')

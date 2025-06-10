@@ -67,7 +67,7 @@ export async function GET() {
           autoFillEnvVars: userSettings.autoFillEnvVars,
           telemetryEnabled: userSettings.telemetryEnabled,
           telemetryNotifiedUser: userSettings.telemetryNotifiedUser,
-          emailPreferences: userSettings.emailPreferences || {},
+          emailPreferences: userSettings.emailPreferences ?? {},
         },
       },
       { status: 200 }

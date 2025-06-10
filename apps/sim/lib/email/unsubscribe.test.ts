@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { EmailType } from './mailer'
 import {
   generateUnsubscribeToken,
   isTransactionalEmail,
@@ -69,15 +70,18 @@ describe('unsubscribe utilities', () => {
     })
 
     it('should handle legacy tokens (2 parts) and default to marketing', () => {
-      // Simulate a legacy token format (salt:hash without email type)
+      // Generate a real legacy token using the actual hashing logic to ensure backward compatibility
       const salt = 'abc123'
-      const hash = 'def456'
+      const { createHash } = require('crypto')
+      const hash = createHash('sha256')
+        .update(`${testEmail}:${salt}:${process.env.BETTER_AUTH_SECRET}`)
+        .digest('hex')
       const legacyToken = `${salt}:${hash}`
 
-      // This should return invalid since we can't verify legacy format properly
-      // but let's test the parsing logic
+      // This should return valid since we're using the actual legacy format properly
       const result = verifyUnsubscribeToken(testEmail, legacyToken)
-      expect(result.valid).toBe(false) // Will be false due to hash mismatch, but that's expected
+      expect(result.valid).toBe(true)
+      expect(result.emailType).toBe('marketing') // Should default to marketing for legacy tokens
     })
 
     it('should reject malformed tokens', () => {
@@ -96,7 +100,7 @@ describe('unsubscribe utilities', () => {
     })
 
     it('should identify non-transactional emails correctly', () => {
-      const nonTransactionalTypes = ['marketing', 'updates', 'notifications', 'random']
+      const nonTransactionalTypes: EmailType[] = ['marketing', 'updates', 'notifications']
 
       nonTransactionalTypes.forEach((type) => {
         expect(isTransactionalEmail(type)).toBe(false)

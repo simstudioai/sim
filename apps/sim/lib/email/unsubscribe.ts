@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { settings, user } from '@/db/schema'
+import type { EmailType } from './mailer'
 
 const logger = createLogger('Unsubscribe')
 
@@ -64,8 +65,8 @@ export function verifyUnsubscribeToken(
 /**
  * Check if an email type is transactional
  */
-export function isTransactionalEmail(emailType: string): boolean {
-  return emailType === 'transactional'
+export function isTransactionalEmail(emailType: EmailType): boolean {
+  return emailType === ('transactional' as EmailType)
 }
 
 /**

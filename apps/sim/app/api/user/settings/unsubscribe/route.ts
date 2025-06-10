@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import type { EmailType } from '@/lib/email/mailer'
 import {
   getEmailPreferences,
   isTransactionalEmail,
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired unsubscribe link' }, { status: 400 })
     }
 
-    const emailType = tokenVerification.emailType || 'marketing'
+    const emailType = tokenVerification.emailType as EmailType
     const isTransactional = isTransactionalEmail(emailType)
 
     // Get current preferences
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired unsubscribe link' }, { status: 400 })
     }
 
-    const emailType = tokenVerification.emailType || 'marketing'
+    const emailType = tokenVerification.emailType as EmailType
     const isTransactional = isTransactionalEmail(emailType)
 
     // Prevent unsubscribing from transactional emails

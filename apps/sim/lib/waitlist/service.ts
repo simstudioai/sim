@@ -5,7 +5,7 @@ import {
   renderWaitlistApprovalEmail,
   renderWaitlistConfirmationEmail,
 } from '@/components/emails/render-email'
-import { sendBatchEmails, sendEmail } from '@/lib/email/mailer'
+import { type EmailType, sendBatchEmails, sendEmail } from '@/lib/email/mailer'
 import { createToken, verifyToken } from '@/lib/waitlist/token'
 import { db } from '@/db'
 import { waitlist } from '@/db/schema'
@@ -555,7 +555,7 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
           to: user.email,
           subject,
           html: emailHtml,
-          emailType: 'updates' as const,
+          emailType: 'updates' as EmailType,
         }
       })
     )

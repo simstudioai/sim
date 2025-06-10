@@ -80,7 +80,7 @@ export const WaitlistConfirmationEmail = ({
           </Section>
         </Container>
 
-        <EmailFooter baseUrl={baseUrl} unsubscribeToken={unsubscribeToken} email={email} />
+        <EmailFooter baseUrl={baseUrl} unsubscribe={{ unsubscribeToken, email }} />
       </Body>
     </Html>
   )

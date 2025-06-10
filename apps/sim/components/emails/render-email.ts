@@ -17,10 +17,10 @@ export async function renderOTPEmail(
 
 export async function renderPasswordResetEmail(
   username: string,
-  resetUrl: string
+  resetLink: string
 ): Promise<string> {
   return await render(
-    ResetPasswordEmail({ username, resetLink: resetUrl, updatedDate: new Date() })
+    ResetPasswordEmail({ username, resetLink: resetLink, updatedDate: new Date() })
   )
 }
 

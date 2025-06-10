@@ -6,12 +6,14 @@ import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
 
 const logger = createLogger('Mailer')
 
+export type EmailType = 'transactional' | 'marketing' | 'updates' | 'notifications'
+
 interface EmailOptions {
   to: string
   subject: string
   html: string
   from?: string
-  emailType?: 'transactional' | 'marketing' | 'updates' | 'notifications'
+  emailType?: EmailType
   includeUnsubscribe?: boolean
 }
 
