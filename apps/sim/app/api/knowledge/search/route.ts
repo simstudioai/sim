@@ -90,7 +90,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { workflowId, ...searchParams } = body
 
-    // Support both session-based and workflow-based authentication
     const userId = await getUserId(requestId, workflowId)
 
     if (!userId) {
@@ -100,74 +99,89 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: errorMessage }, { status: statusCode })
     }
 
-    // Use the original body for validation (without workflowId)
-    const validatedData = VectorSearchSchema.parse(searchParams)
+    try {
+      const validatedData = VectorSearchSchema.parse(searchParams)
 
-    // Verify the knowledge base exists and user has access
-    const kb = await db
-      .select()
-      .from(knowledgeBase)
-      .where(
-        and(
-          eq(knowledgeBase.id, validatedData.knowledgeBaseId),
-          eq(knowledgeBase.userId, userId),
-          isNull(knowledgeBase.deletedAt)
+      // Verify the knowledge base exists and user has access
+      const kb = await db
+        .select()
+        .from(knowledgeBase)
+        .where(
+          and(
+            eq(knowledgeBase.id, validatedData.knowledgeBaseId),
+            eq(knowledgeBase.userId, userId),
+            isNull(knowledgeBase.deletedAt)
+          )
         )
-      )
-      .limit(1)
+        .limit(1)
 
-    if (kb.length === 0) {
-      logger.warn(
-        `[${requestId}] Knowledge base not found or access denied: ${validatedData.knowledgeBaseId}`
-      )
-      return NextResponse.json(
-        { error: 'Knowledge base not found or access denied' },
-        { status: 404 }
-      )
-    }
+      if (kb.length === 0) {
+        logger.warn(
+          `[${requestId}] Knowledge base not found or access denied: ${validatedData.knowledgeBaseId}`
+        )
+        return NextResponse.json(
+          { error: 'Knowledge base not found or access denied' },
+          { status: 404 }
+        )
+      }
 
-    // Generate embedding for the search query
-    logger.info(`[${requestId}] Generating embedding for search query`)
-    const queryEmbedding = await generateSearchEmbedding(validatedData.query)
+      // Generate embedding for the search query
+      logger.info(`[${requestId}] Generating embedding for search query`)
+      const queryEmbedding = await generateSearchEmbedding(validatedData.query)
 
-    const results = await db
-      .select({
-        id: embedding.id,
-        content: embedding.content,
-        documentId: embedding.documentId,
-        chunkIndex: embedding.chunkIndex,
-        metadata: embedding.metadata,
-        similarity: sql<number>`1 - (${embedding.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
+      // Perform vector similarity search using pgvector cosine similarity
+      logger.info(`[${requestId}] Performing vector search with topK=${validatedData.topK}`)
+
+      const results = await db
+        .select({
+          id: embedding.id,
+          content: embedding.content,
+          documentId: embedding.documentId,
+          chunkIndex: embedding.chunkIndex,
+          metadata: embedding.metadata,
+          similarity: sql<number>`1 - (${embedding.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
+        })
+        .from(embedding)
+        .where(
+          and(
+            eq(embedding.knowledgeBaseId, validatedData.knowledgeBaseId),
+            eq(embedding.enabled, true)
+          )
+        )
+        .orderBy(sql`${embedding.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
+        .limit(validatedData.topK)
+
+      logger.info(`[${requestId}] Vector search completed. Found ${results.length} results`)
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          results: results.map((result) => ({
+            id: result.id,
+            content: result.content,
+            documentId: result.documentId,
+            chunkIndex: result.chunkIndex,
+            metadata: result.metadata,
+            similarity: result.similarity,
+          })),
+          query: validatedData.query,
+          knowledgeBaseId: validatedData.knowledgeBaseId,
+          topK: validatedData.topK,
+          totalResults: results.length,
+        },
       })
-      .from(embedding)
-      .where(
-        and(
-          eq(embedding.knowledgeBaseId, validatedData.knowledgeBaseId),
-          eq(embedding.enabled, true)
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        logger.warn(`[${requestId}] Invalid vector search data`, {
+          errors: validationError.errors,
+        })
+        return NextResponse.json(
+          { error: 'Invalid request data', details: validationError.errors },
+          { status: 400 }
         )
-      )
-      .orderBy(sql`${embedding.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
-      .limit(validatedData.topK)
-
-    logger.info(`[${requestId}] Vector search completed. Found ${results.length} results`)
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        results: results.map((result) => ({
-          id: result.id,
-          content: result.content,
-          documentId: result.documentId,
-          chunkIndex: result.chunkIndex,
-          metadata: result.metadata,
-          similarity: result.similarity,
-        })),
-        query: validatedData.query,
-        knowledgeBaseId: validatedData.knowledgeBaseId,
-        topK: validatedData.topK,
-        totalResults: results.length,
-      },
-    })
+      }
+      throw validationError
+    }
   } catch (error) {
     logger.error(`[${requestId}] Error performing vector search`, error)
     return NextResponse.json(
