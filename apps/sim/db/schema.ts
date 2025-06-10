@@ -154,6 +154,9 @@ export const settings = pgTable('settings', {
   telemetryEnabled: boolean('telemetry_enabled').notNull().default(true),
   telemetryNotifiedUser: boolean('telemetry_notified_user').notNull().default(false),
 
+  // Email preferences
+  emailPreferences: json('email_preferences').notNull().default('{}'),
+
   // Keep general for future flexible settings
   general: json('general').notNull().default('{}'),
 
