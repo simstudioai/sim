@@ -1,12 +1,19 @@
 import { Container, Img, Link, Section, Text } from '@react-email/components'
 import { env } from '@/lib/env'
 
+interface UnsubscribeOptions {
+  unsubscribeToken?: string
+  email?: string
+}
+
 interface EmailFooterProps {
   baseUrl?: string
+  unsubscribe?: UnsubscribeOptions
 }
 
 export const EmailFooter = ({
   baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai',
+  unsubscribe,
 }: EmailFooterProps) => {
   return (
     <Container>
@@ -104,6 +111,23 @@ export const EmailFooter = ({
                         rel='noopener noreferrer'
                       >
                         Terms of Service
+                      </a>{' '}
+                      •{' '}
+                      <a
+                        href={
+                          unsubscribe?.unsubscribeToken && unsubscribe?.email
+                            ? `${baseUrl}/unsubscribe?token=${unsubscribe.unsubscribeToken}&email=${encodeURIComponent(unsubscribe.email)}`
+                            : `mailto:help@simstudio.ai?subject=Unsubscribe%20Request&body=Please%20unsubscribe%20me%20from%20all%20emails.`
+                        }
+                        style={{
+                          color: '#706a7b !important',
+                          textDecoration: 'underline',
+                          fontWeight: 'normal',
+                          fontFamily: 'HelveticaNeue, Helvetica, Arial, sans-serif',
+                        }}
+                        rel='noopener noreferrer'
+                      >
+                        Unsubscribe
                       </a>
                     </p>
                   </td>

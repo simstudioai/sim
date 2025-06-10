@@ -13,16 +13,20 @@ import {
 } from '@react-email/components'
 import { env } from '@/lib/env'
 import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
+import { EmailFooter } from './footer'
 
 interface WaitlistConfirmationEmailProps {
-  email?: string
+  email: string
+  unsubscribeToken?: string
 }
 
 const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
 const typeformLink = 'https://form.typeform.com/to/jqCO12pF'
 
-export const WaitlistConfirmationEmail = ({ email = '' }: WaitlistConfirmationEmailProps) => {
+export const WaitlistConfirmationEmail = ({
+  email,
+  unsubscribeToken,
+}: WaitlistConfirmationEmailProps) => {
   return (
     <Html>
       <Head />
@@ -76,7 +80,7 @@ export const WaitlistConfirmationEmail = ({ email = '' }: WaitlistConfirmationEm
           </Section>
         </Container>
 
-        <EmailFooter baseUrl={baseUrl} />
+        <EmailFooter baseUrl={baseUrl} unsubscribe={{ unsubscribeToken, email }} />
       </Body>
     </Html>
   )

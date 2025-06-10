@@ -1,13 +1,20 @@
 import { Resend } from 'resend'
 import { createLogger } from '@/lib/logs/console-logger'
-import { env } from './env'
-import { getEmailDomain } from './urls/utils'
+import { env } from '../env'
+import { getEmailDomain } from '../urls/utils'
+import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
+
+const logger = createLogger('Mailer')
+
+export type EmailType = 'transactional' | 'marketing' | 'updates' | 'notifications'
 
 interface EmailOptions {
   to: string
   subject: string
   html: string
   from?: string
+  emailType?: EmailType
+  includeUnsubscribe?: boolean
 }
 
 interface BatchEmailOptions {
@@ -27,9 +34,8 @@ interface BatchSendEmailResult {
   data?: any
 }
 
-const logger = createLogger('Mailer')
-
 const resendApiKey = env.RESEND_API_KEY
+
 const resend =
   resendApiKey && resendApiKey !== 'placeholder' && resendApiKey.trim() !== ''
     ? new Resend(resendApiKey)
@@ -40,8 +46,28 @@ export async function sendEmail({
   subject,
   html,
   from,
+  emailType = 'transactional',
+  includeUnsubscribe = true,
 }: EmailOptions): Promise<SendEmailResult> {
   try {
+    // Check if user has unsubscribed (skip for critical transactional emails)
+    if (emailType !== 'transactional') {
+      const unsubscribeType = emailType as 'marketing' | 'updates' | 'notifications'
+      const hasUnsubscribed = await isUnsubscribed(to, unsubscribeType)
+      if (hasUnsubscribed) {
+        logger.info('Email not sent (user unsubscribed):', {
+          to,
+          subject,
+          emailType,
+        })
+        return {
+          success: true,
+          message: 'Email skipped (user unsubscribed)',
+          data: { id: 'skipped-unsubscribed' },
+        }
+      }
+    }
+
     const senderEmail = from || `noreply@${getEmailDomain()}`
 
     if (!resend) {
@@ -57,11 +83,27 @@ export async function sendEmail({
       }
     }
 
+    // Generate unsubscribe token and add to HTML
+    let finalHtml = html
+    const headers: Record<string, string> = {}
+
+    if (includeUnsubscribe && emailType !== 'transactional') {
+      const unsubscribeToken = generateUnsubscribeToken(to, emailType)
+      const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
+      const unsubscribeUrl = `${baseUrl}/unsubscribe?token=${unsubscribeToken}&email=${encodeURIComponent(to)}`
+
+      headers['List-Unsubscribe'] = `<${unsubscribeUrl}>`
+      headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click'
+
+      finalHtml = html.replace(/\{\{UNSUBSCRIBE_TOKEN\}\}/g, unsubscribeToken)
+    }
+
     const { data, error } = await resend.emails.send({
       from: `Sim Studio <${senderEmail}>`,
       to,
       subject,
-      html,
+      html: finalHtml,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
     })
 
     if (error) {

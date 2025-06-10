@@ -1,6 +1,6 @@
 {
-  "id": "a022e5ae-e3ba-46c2-99f3-c335ac452538",
-  "prevId": "b85bdf30-35f9-40d4-a5a5-ba46dfe8a477",
+  "id": "01a747d8-d7e0-4f49-af52-b45e0f4343a9",
+  "prevId": "a022e5ae-e3ba-46c2-99f3-c335ac452538",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1818,6 +1818,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "email_preferences": {
+          "name": "email_preferences",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
         },
         "general": {
           "name": "general",

@@ -5,7 +5,7 @@ import {
   renderWaitlistApprovalEmail,
   renderWaitlistConfirmationEmail,
 } from '@/components/emails/render-email'
-import { sendBatchEmails, sendEmail } from '@/lib/mailer'
+import { type EmailType, sendBatchEmails, sendEmail } from '@/lib/email/mailer'
 import { createToken, verifyToken } from '@/lib/waitlist/token'
 import { db } from '@/db'
 import { waitlist } from '@/db/schema'
@@ -197,6 +197,7 @@ export async function approveWaitlistUser(
         to: normalizedEmail,
         subject,
         html: emailHtml,
+        emailType: 'updates',
       })
 
       // If email sending failed, don't update the user status
@@ -427,6 +428,7 @@ export async function resendApprovalEmail(
         to: normalizedEmail,
         subject,
         html: emailHtml,
+        emailType: 'updates',
       })
 
       // Check for email sending failures
@@ -553,6 +555,7 @@ export async function approveBatchWaitlistUsers(emails: string[]): Promise<{
           to: user.email,
           subject,
           html: emailHtml,
+          emailType: 'updates' as EmailType,
         }
       })
     )

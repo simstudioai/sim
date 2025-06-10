@@ -1,71 +1,59 @@
-import { renderAsync } from '@react-email/components'
+import { render } from '@react-email/components'
+import { generateUnsubscribeToken } from '@/lib/email/unsubscribe'
 import { InvitationEmail } from './invitation-email'
 import { OTPVerificationEmail } from './otp-verification-email'
 import { ResetPasswordEmail } from './reset-password-email'
 import { WaitlistApprovalEmail } from './waitlist-approval-email'
 import { WaitlistConfirmationEmail } from './waitlist-confirmation-email'
 
-/**
- * Renders the OTP verification email to HTML
- */
 export async function renderOTPEmail(
   otp: string,
   email: string,
-  type: 'sign-in' | 'email-verification' | 'forget-password' = 'email-verification'
+  type: 'sign-in' | 'email-verification' | 'forget-password' = 'email-verification',
+  chatTitle?: string
 ): Promise<string> {
-  return await renderAsync(OTPVerificationEmail({ otp, email, type }))
+  return await render(OTPVerificationEmail({ otp, email, type, chatTitle }))
 }
 
-/**
- * Renders the password reset email to HTML
- */
 export async function renderPasswordResetEmail(
   username: string,
   resetLink: string
 ): Promise<string> {
-  return await renderAsync(ResetPasswordEmail({ username, resetLink, updatedDate: new Date() }))
+  return await render(
+    ResetPasswordEmail({ username, resetLink: resetLink, updatedDate: new Date() })
+  )
 }
 
-/**
- * Renders the invitation email to HTML
- */
 export async function renderInvitationEmail(
   inviterName: string,
   organizationName: string,
-  inviteLink: string,
-  invitedEmail: string
+  invitationUrl: string,
+  email: string
 ): Promise<string> {
-  return await renderAsync(
+  return await render(
     InvitationEmail({
       inviterName,
       organizationName,
-      inviteLink,
-      invitedEmail,
+      inviteLink: invitationUrl,
+      invitedEmail: email,
       updatedDate: new Date(),
     })
   )
 }
 
-/**
- * Renders the waitlist confirmation email to HTML
- */
 export async function renderWaitlistConfirmationEmail(email: string): Promise<string> {
-  return await renderAsync(WaitlistConfirmationEmail({ email }))
+  const unsubscribeToken = generateUnsubscribeToken(email, 'marketing')
+  return await render(WaitlistConfirmationEmail({ email, unsubscribeToken }))
 }
 
-/**
- * Renders the waitlist approval email to HTML
- */
 export async function renderWaitlistApprovalEmail(
   email: string,
-  signupLink: string
+  signupUrl: string
 ): Promise<string> {
-  return await renderAsync(WaitlistApprovalEmail({ email, signupLink }))
+  const unsubscribeToken = generateUnsubscribeToken(email, 'updates')
+  return await render(WaitlistApprovalEmail({ email, signupUrl, unsubscribeToken }))
 }
 
-/**
- * Gets the appropriate email subject based on email type
- */
 export function getEmailSubject(
   type:
     | 'sign-in'

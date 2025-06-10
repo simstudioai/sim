@@ -13,18 +13,20 @@ import {
 } from '@react-email/components'
 import { env } from '@/lib/env'
 import { baseStyles } from './base-styles'
-import EmailFooter from './footer'
+import { EmailFooter } from './footer'
 
 interface WaitlistApprovalEmailProps {
-  email?: string
-  signupLink?: string
+  email: string
+  signupUrl: string
+  unsubscribeToken?: string
 }
 
 const baseUrl = env.NEXT_PUBLIC_APP_URL || 'https://simstudio.ai'
 
 export const WaitlistApprovalEmail = ({
-  email = '',
-  signupLink = '',
+  email,
+  signupUrl,
+  unsubscribeToken,
 }: WaitlistApprovalEmailProps) => {
   return (
     <Html>
@@ -65,7 +67,7 @@ export const WaitlistApprovalEmail = ({
               Your email ({email}) has been approved. Click the button below to create your account
               and start using Sim Studio today:
             </Text>
-            <Link href={signupLink} style={{ textDecoration: 'none' }}>
+            <Link href={signupUrl} style={{ textDecoration: 'none' }}>
               <Text style={baseStyles.button}>Create Your Account</Text>
             </Link>
             <Text style={baseStyles.paragraph}>
@@ -80,7 +82,7 @@ export const WaitlistApprovalEmail = ({
           </Section>
         </Container>
 
-        <EmailFooter baseUrl={baseUrl} />
+        <EmailFooter baseUrl={baseUrl} unsubscribe={{ unsubscribeToken, email }} />
       </Body>
     </Html>
   )

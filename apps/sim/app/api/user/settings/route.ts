@@ -16,6 +16,14 @@ const SettingsSchema = z.object({
   autoFillEnvVars: z.boolean().optional(),
   telemetryEnabled: z.boolean().optional(),
   telemetryNotifiedUser: z.boolean().optional(),
+  emailPreferences: z
+    .object({
+      unsubscribeAll: z.boolean().optional(),
+      unsubscribeMarketing: z.boolean().optional(),
+      unsubscribeUpdates: z.boolean().optional(),
+      unsubscribeNotifications: z.boolean().optional(),
+    })
+    .optional(),
 })
 
 // Default settings values
@@ -26,6 +34,7 @@ const defaultSettings = {
   autoFillEnvVars: true,
   telemetryEnabled: true,
   telemetryNotifiedUser: false,
+  emailPreferences: {},
 }
 
 export async function GET() {
@@ -58,6 +67,7 @@ export async function GET() {
           autoFillEnvVars: userSettings.autoFillEnvVars,
           telemetryEnabled: userSettings.telemetryEnabled,
           telemetryNotifiedUser: userSettings.telemetryNotifiedUser,
+          emailPreferences: userSettings.emailPreferences ?? {},
         },
       },
       { status: 200 }
