@@ -4,6 +4,8 @@ import { env } from '../env'
 import { getEmailDomain } from '../urls/utils'
 import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
 
+const logger = createLogger('Mailer')
+
 interface EmailOptions {
   to: string
   subject: string
@@ -30,9 +32,8 @@ interface BatchSendEmailResult {
   data?: any
 }
 
-const logger = createLogger('Mailer')
-
 const resendApiKey = env.RESEND_API_KEY
+
 const resend =
   resendApiKey && resendApiKey !== 'placeholder' && resendApiKey.trim() !== ''
     ? new Resend(resendApiKey)
