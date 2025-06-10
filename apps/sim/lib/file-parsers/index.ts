@@ -75,6 +75,20 @@ function getParserInstances(): Record<string, FileParser> {
       } catch (error) {
         logger.error('Failed to load DOCX parser:', error)
       }
+
+      try {
+        const { TxtParser } = require('./txt-parser')
+        parserInstances.txt = new TxtParser()
+      } catch (error) {
+        logger.error('Failed to load TXT parser:', error)
+      }
+
+      try {
+        const { MdParser } = require('./md-parser')
+        parserInstances.md = new MdParser()
+      } catch (error) {
+        logger.error('Failed to load MD parser:', error)
+      }
     } catch (error) {
       logger.error('Error loading file parsers:', error)
     }

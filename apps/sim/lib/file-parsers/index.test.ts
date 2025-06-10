@@ -37,6 +37,22 @@ const mockDocxParseFile = vi.fn().mockResolvedValue({
   },
 })
 
+const mockTxtParseFile = vi.fn().mockResolvedValue({
+  content: 'Parsed TXT content',
+  metadata: {
+    characterCount: 100,
+    tokenCount: 10,
+  },
+})
+
+const mockMdParseFile = vi.fn().mockResolvedValue({
+  content: 'Parsed MD content',
+  metadata: {
+    characterCount: 100,
+    tokenCount: 10,
+  },
+})
+
 // Create mock module implementation
 const createMockModule = () => {
   // Create mock parsers
@@ -44,6 +60,8 @@ const createMockModule = () => {
     pdf: { parseFile: mockPdfParseFile },
     csv: { parseFile: mockCsvParseFile },
     docx: { parseFile: mockDocxParseFile },
+    txt: { parseFile: mockTxtParseFile },
+    md: { parseFile: mockMdParseFile },
   }
 
   // Create the mock module implementation
@@ -119,6 +137,18 @@ describe('File Parsers', () => {
             pageCount: 3,
           },
         }),
+      })),
+    }))
+
+    vi.doMock('./txt-parser', () => ({
+      TxtParser: vi.fn().mockImplementation(() => ({
+        parseFile: mockTxtParseFile,
+      })),
+    }))
+
+    vi.doMock('./md-parser', () => ({
+      MdParser: vi.fn().mockImplementation(() => ({
+        parseFile: mockMdParseFile,
       })),
     }))
 
@@ -211,6 +241,40 @@ describe('File Parsers', () => {
       expect(result).toEqual(expectedResult)
     })
 
+    it('should parse TXT files successfully', async () => {
+      const expectedResult = {
+        content: 'Parsed TXT content',
+        metadata: {
+          characterCount: 100,
+          tokenCount: 10,
+        },
+      }
+
+      mockTxtParseFile.mockResolvedValueOnce(expectedResult)
+      mockExistsSync.mockReturnValue(true)
+
+      const { parseFile } = await import('./index')
+      const result = await parseFile('/test/files/document.txt')
+
+      expect(result).toEqual(expectedResult)
+    })
+
+    it('should parse MD files successfully', async () => {
+      const expectedResult = {
+        content: 'Parsed MD content',
+        metadata: {
+          characterCount: 100,
+          tokenCount: 10,
+        },
+      }
+
+      mockMdParseFile.mockResolvedValueOnce(expectedResult)
+      mockExistsSync.mockReturnValue(true)
+
+      const { parseFile } = await import('./index')
+      const result = await parseFile('/test/files/document.md')
+    })
+
     it('should throw error for unsupported file types', async () => {
       // Make sure the file "exists" for this test
       mockExistsSync.mockReturnValue(true)
@@ -240,13 +304,14 @@ describe('File Parsers', () => {
       expect(isSupportedFileType('pdf')).toBe(true)
       expect(isSupportedFileType('csv')).toBe(true)
       expect(isSupportedFileType('docx')).toBe(true)
+      expect(isSupportedFileType('txt')).toBe(true)
+      expect(isSupportedFileType('md')).toBe(true)
     })
 
     it('should return false for unsupported file types', async () => {
       const { isSupportedFileType } = await import('./index')
 
       expect(isSupportedFileType('png')).toBe(false)
-      expect(isSupportedFileType('txt')).toBe(false)
       expect(isSupportedFileType('unknown')).toBe(false)
     })
 
@@ -255,6 +320,8 @@ describe('File Parsers', () => {
 
       expect(isSupportedFileType('PDF')).toBe(true)
       expect(isSupportedFileType('CSV')).toBe(true)
+      expect(isSupportedFileType('TXT')).toBe(true)
+      expect(isSupportedFileType('MD')).toBe(true)
     })
 
     it('should handle errors gracefully', async () => {
