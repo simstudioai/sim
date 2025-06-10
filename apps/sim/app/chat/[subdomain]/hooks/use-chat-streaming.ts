@@ -1,11 +1,34 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { createLogger } from '@/lib/logs/console-logger'
 import type { ChatMessage } from '../components/message/message'
+
+const logger = createLogger('UseChatStreaming')
+
+export interface VoiceSettings {
+  isVoiceEnabled: boolean
+  voiceId: string
+  autoPlayResponses: boolean
+  voiceFirstMode?: boolean
+  textStreamingInVoiceMode?: 'hidden' | 'synced' | 'normal'
+  conversationMode?: boolean
+}
+
+export interface StreamingOptions {
+  voiceSettings?: VoiceSettings
+  onAudioStart?: () => void
+  onAudioEnd?: () => void
+  audioStreamHandler?: (text: string) => Promise<void>
+}
 
 export function useChatStreaming() {
   const [isStreamingResponse, setIsStreamingResponse] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const accumulatedTextRef = useRef<string>('')
+  const lastStreamedPositionRef = useRef<number>(0)
+  const audioStreamingActiveRef = useRef<boolean>(false)
+  const lastDisplayedPositionRef = useRef<number>(0) // Track displayed text in synced mode
 
   const stopStreaming = (setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>) => {
     if (abortControllerRef.current) {
@@ -35,8 +58,12 @@ export function useChatStreaming() {
         return prev
       })
 
-      // Reset streaming state
+      // Reset streaming state immediately
       setIsStreamingResponse(false)
+      accumulatedTextRef.current = ''
+      lastStreamedPositionRef.current = 0
+      lastDisplayedPositionRef.current = 0
+      audioStreamingActiveRef.current = false
     }
   }
 
@@ -45,33 +72,90 @@ export function useChatStreaming() {
     setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
     setIsLoading: React.Dispatch<React.SetStateAction<boolean>>,
     scrollToBottom: () => void,
-    userHasScrolled?: boolean
+    userHasScrolled?: boolean,
+    streamingOptions?: StreamingOptions
   ) => {
     const messageId = crypto.randomUUID()
 
     // Set streaming state before adding the assistant message
     setIsStreamingResponse(true)
 
+    // Reset refs
+    accumulatedTextRef.current = ''
+    lastStreamedPositionRef.current = 0
+    lastDisplayedPositionRef.current = 0
+    audioStreamingActiveRef.current = false
+
+    // Check if we should stream audio
+    const shouldStreamAudio =
+      streamingOptions?.voiceSettings?.isVoiceEnabled &&
+      streamingOptions?.voiceSettings?.autoPlayResponses &&
+      streamingOptions?.audioStreamHandler
+
+    // Get voice-first mode settings
+    const voiceFirstMode = streamingOptions?.voiceSettings?.voiceFirstMode
+    const textStreamingMode = streamingOptions?.voiceSettings?.textStreamingInVoiceMode || 'normal'
+    const conversationMode = streamingOptions?.voiceSettings?.conversationMode
+
+    // In voice-first mode with hidden text, don't show text at all
+    const shouldShowText = !voiceFirstMode || textStreamingMode !== 'hidden'
+
     // Add placeholder message
     setMessages((prev) => [
       ...prev,
       {
         id: messageId,
-        content: '',
+        content: shouldShowText ? '' : '🎵 Generating audio response...',
         type: 'assistant',
         timestamp: new Date(),
         isStreaming: true,
+        isVoiceOnly: voiceFirstMode && textStreamingMode === 'hidden',
       },
     ])
 
     // Stop showing loading indicator once streaming begins
     setIsLoading(false)
 
+    // Start audio if in voice mode
+    if (shouldStreamAudio) {
+      streamingOptions.onAudioStart?.()
+      audioStreamingActiveRef.current = true
+    }
+
+    // Helper function to update displayed text based on mode
+    const updateDisplayedText = (fullText: string, audioPosition?: number) => {
+      let displayText = fullText
+
+      if (voiceFirstMode && textStreamingMode === 'synced') {
+        // Only show text up to where audio has been streamed
+        displayText = fullText.substring(0, audioPosition || lastStreamedPositionRef.current)
+      } else if (voiceFirstMode && textStreamingMode === 'hidden') {
+        // Don't update text content, keep voice indicator
+        return
+      }
+
+      setMessages((prev) =>
+        prev.map((msg) => {
+          if (msg.id === messageId) {
+            return {
+              ...msg,
+              content: displayText,
+            }
+          }
+          return msg
+        })
+      )
+    }
+
     // Helper function to clean up after streaming ends (success or error)
     const cleanupStreaming = (messageContent?: string, appendContent = false) => {
       // Reset streaming state and controller
       setIsStreamingResponse(false)
       abortControllerRef.current = null
+      accumulatedTextRef.current = ''
+      lastStreamedPositionRef.current = 0
+      lastDisplayedPositionRef.current = 0
+      audioStreamingActiveRef.current = false
 
       // Update message content and remove isStreaming flag
       setMessages((prev) =>
@@ -83,6 +167,7 @@ export function useChatStreaming() {
                 ? msg.content + (messageContent || '')
                 : messageContent || msg.content,
               isStreaming: false,
+              isVoiceOnly: false,
             }
           }
           return msg
@@ -94,6 +179,11 @@ export function useChatStreaming() {
         setTimeout(() => {
           scrollToBottom()
         }, 300)
+      }
+
+      // End audio streaming
+      if (shouldStreamAudio) {
+        streamingOptions.onAudioEnd?.()
       }
     }
 
@@ -112,7 +202,6 @@ export function useChatStreaming() {
         while (!done) {
           // Check if aborted before awaiting reader.read()
           if (abortControllerRef.current === null) {
-            console.log('Stream reading aborted')
             break
           }
 
@@ -122,11 +211,107 @@ export function useChatStreaming() {
           if (value) {
             const chunk = decoder.decode(value, { stream: true })
             if (chunk) {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === messageId ? { ...msg, content: msg.content + chunk } : msg
+              // Accumulate text
+              accumulatedTextRef.current += chunk
+
+              // Update the message with the accumulated text based on mode
+              if (shouldShowText) {
+                updateDisplayedText(accumulatedTextRef.current)
+              }
+
+              // Stream audio in real-time for meaningful sentences
+              if (
+                shouldStreamAudio &&
+                streamingOptions.audioStreamHandler &&
+                audioStreamingActiveRef.current
+              ) {
+                const newText = accumulatedTextRef.current.substring(
+                  lastStreamedPositionRef.current
                 )
-              )
+
+                // Use sentence-based streaming for natural audio flow
+                const sentenceEndings = ['. ', '! ', '? ', '.\n', '!\n', '?\n', '.', '!', '?']
+                let sentenceEnd = -1
+
+                // Find the first complete sentence
+                for (const ending of sentenceEndings) {
+                  const index = newText.indexOf(ending)
+                  if (index > 0) {
+                    // Make sure we include the punctuation
+                    sentenceEnd = index + ending.length
+                    break
+                  }
+                }
+
+                // If we found a complete sentence, stream it
+                if (sentenceEnd > 0) {
+                  const sentence = newText.substring(0, sentenceEnd).trim()
+                  if (sentence && sentence.length >= 3) {
+                    // Only send meaningful sentences
+                    try {
+                      // Stream this sentence to audio
+                      await streamingOptions.audioStreamHandler(sentence)
+                      lastStreamedPositionRef.current += sentenceEnd
+
+                      // Update displayed text in synced mode
+                      if (voiceFirstMode && textStreamingMode === 'synced') {
+                        updateDisplayedText(
+                          accumulatedTextRef.current,
+                          lastStreamedPositionRef.current
+                        )
+                      }
+                    } catch (error) {
+                      logger.error('Error streaming audio sentence:', error)
+                      // Don't stop on individual sentence errors, but log them
+                      if (error instanceof Error && error.message.includes('401')) {
+                        logger.warn('TTS authentication error, stopping audio streaming')
+                        audioStreamingActiveRef.current = false
+                      }
+                    }
+                  }
+                } else if (newText.length > 200 && done) {
+                  // If streaming has ended and we have a long incomplete sentence, stream it anyway
+                  const incompleteSentence = newText.trim()
+                  if (incompleteSentence && incompleteSentence.length >= 10) {
+                    try {
+                      await streamingOptions.audioStreamHandler(incompleteSentence)
+                      lastStreamedPositionRef.current += newText.length
+
+                      if (voiceFirstMode && textStreamingMode === 'synced') {
+                        updateDisplayedText(
+                          accumulatedTextRef.current,
+                          lastStreamedPositionRef.current
+                        )
+                      }
+                    } catch (error) {
+                      logger.error('Error streaming incomplete sentence:', error)
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Handle any remaining text for audio streaming when streaming completes
+        if (
+          shouldStreamAudio &&
+          streamingOptions.audioStreamHandler &&
+          audioStreamingActiveRef.current
+        ) {
+          const remainingText = accumulatedTextRef.current
+            .substring(lastStreamedPositionRef.current)
+            .trim()
+          if (remainingText && remainingText.length >= 3) {
+            try {
+              await streamingOptions.audioStreamHandler(remainingText)
+
+              // Final update for synced mode
+              if (voiceFirstMode && textStreamingMode === 'synced') {
+                updateDisplayedText(accumulatedTextRef.current, accumulatedTextRef.current.length)
+              }
+            } catch (error) {
+              logger.error('Error streaming final remaining text:', error)
             }
           }
         }
@@ -134,7 +319,7 @@ export function useChatStreaming() {
         // Show error to user in the message
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error during streaming'
-        console.error('Error reading stream:', error)
+        logger.error('Error reading stream:', error)
         cleanupStreaming(`\n\n_Error: ${errorMessage}_`, true)
         return // Skip the finally block's cleanupStreaming call
       } finally {

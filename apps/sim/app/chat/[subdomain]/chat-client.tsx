@@ -2,6 +2,8 @@
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { createLogger } from '@/lib/logs/console-logger'
+import { noop } from '@/lib/utils'
 import { getFormattedGitHubStars } from '@/app/(landing)/actions/github'
 import EmailAuth from './components/auth/email/email-auth'
 import PasswordAuth from './components/auth/password/password-auth'
@@ -11,7 +13,11 @@ import { ChatInput } from './components/input/input'
 import { ChatLoadingState } from './components/loading-state/loading-state'
 import type { ChatMessage } from './components/message/message'
 import { ChatMessageContainer } from './components/message-container/message-container'
+import { VoiceInterface } from './components/voice-interface/voice-interface'
+import { useAudioStreaming } from './hooks/use-audio-streaming'
 import { useChatStreaming } from './hooks/use-chat-streaming'
+
+const logger = createLogger('ChatClient')
 
 interface ChatConfig {
   id: string
@@ -24,6 +30,39 @@ interface ChatConfig {
     headerText?: string
   }
   authType?: 'public' | 'password' | 'email'
+}
+
+interface AudioStreamingOptions {
+  voiceId: string
+  onError: (error: Error) => void
+}
+
+const DEFAULT_VOICE_SETTINGS = {
+  voiceId: 'EXAVITQu4vr4xnSDxMaL', // Default ElevenLabs voice (Bella)
+}
+
+/**
+ * Creates an audio stream handler for text-to-speech conversion
+ * @param streamTextToAudio - Function to stream text to audio
+ * @param voiceId - The voice ID to use for TTS
+ * @returns Audio stream handler function or undefined
+ */
+function createAudioStreamHandler(
+  streamTextToAudio: (text: string, options: AudioStreamingOptions) => Promise<void>,
+  voiceId: string
+) {
+  return async (text: string) => {
+    try {
+      await streamTextToAudio(text, {
+        voiceId,
+        onError: (error: Error) => {
+          logger.error('Audio streaming error:', error)
+        },
+      })
+    } catch (error) {
+      logger.error('TTS error:', error)
+    }
+  }
 }
 
 function throttle<T extends (...args: any[]) => any>(func: T, delay: number): T {
@@ -60,19 +99,17 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   const [starCount, setStarCount] = useState('3.4k')
   const [conversationId, setConversationId] = useState('')
 
-  // Simple state for showing scroll button
   const [showScrollButton, setShowScrollButton] = useState(false)
-
-  // Track if user has manually scrolled during response
   const [userHasScrolled, setUserHasScrolled] = useState(false)
   const isUserScrollingRef = useRef(false)
 
-  // Authentication state
   const [authRequired, setAuthRequired] = useState<'password' | 'email' | null>(null)
 
-  // Use the custom streaming hook
+  const [isVoiceFirstMode, setIsVoiceFirstMode] = useState(false)
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
     useChatStreaming()
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const { isPlayingAudio, streamTextToAudio, stopAudio } = useAudioStreaming(audioContextRef)
 
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
@@ -193,7 +230,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         ])
       }
     } catch (error) {
-      console.error('Error fetching chat config:', error)
+      logger.error('Error fetching chat config:', error)
       setError('This chat is currently unavailable. Please try again later.')
     }
   }
@@ -208,7 +245,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         setStarCount(formattedStars)
       })
       .catch((err) => {
-        console.error('Failed to fetch GitHub stars:', err)
+        logger.error('Failed to fetch GitHub stars:', err)
       })
   }, [subdomain])
 
@@ -224,7 +261,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
   }
 
   // Handle sending a message
-  const handleSendMessage = async (messageParam?: string) => {
+  const handleSendMessage = async (messageParam?: string, isVoiceInput = false) => {
     const messageToSend = messageParam ?? inputValue
     if (!messageToSend.trim() || isLoading) return
 
@@ -278,18 +315,32 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       const contentType = response.headers.get('Content-Type') || ''
 
       if (contentType.includes('text/plain')) {
-        // Handle streaming response - pass the current userHasScrolled value
+        const shouldPlayAudio = isVoiceInput || isVoiceFirstMode
+
+        const audioStreamHandler = shouldPlayAudio
+          ? createAudioStreamHandler(streamTextToAudio, DEFAULT_VOICE_SETTINGS.voiceId)
+          : undefined
+
+        // Handle streaming response with audio support
         await handleStreamedResponse(
           response,
           setMessages,
           setIsLoading,
           scrollToBottom,
-          userHasScrolled
+          userHasScrolled,
+          {
+            voiceSettings: {
+              isVoiceEnabled: true,
+              voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
+              autoPlayResponses: isVoiceInput || isVoiceFirstMode,
+            },
+            audioStreamHandler,
+          }
         )
       } else {
         // Fallback to JSON response handling
         const responseData = await response.json()
-        console.log('Message response:', responseData)
+        logger.info('Message response:', responseData)
 
         // Handle different response formats from API
         if (
@@ -321,6 +372,23 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
           // Add all messages at once
           setMessages((prev) => [...prev, ...assistantMessages])
+
+          // Play audio for the full response if voice mode is enabled
+          if (isVoiceInput || isVoiceFirstMode) {
+            const fullContent = assistantMessages.map((m: ChatMessage) => m.content).join(' ')
+            if (fullContent.trim()) {
+              try {
+                await streamTextToAudio(fullContent, {
+                  voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
+                  onError: (error) => {
+                    logger.error('Audio playback error:', error)
+                  },
+                })
+              } catch (error) {
+                logger.error('TTS error:', error)
+              }
+            }
+          }
         } else {
           // Handle single output as before
           let messageContent = responseData.output
@@ -349,10 +417,29 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
           }
 
           setMessages((prev) => [...prev, assistantMessage])
+
+          // Play audio for the response if voice mode is enabled
+          if ((isVoiceInput || isVoiceFirstMode) && assistantMessage.content) {
+            const contentString =
+              typeof assistantMessage.content === 'string'
+                ? assistantMessage.content
+                : JSON.stringify(assistantMessage.content)
+
+            try {
+              await streamTextToAudio(contentString, {
+                voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
+                onError: (error) => {
+                  logger.error('Audio playback error:', error)
+                },
+              })
+            } catch (error) {
+              logger.error('TTS error:', error)
+            }
+          }
         }
       }
     } catch (error) {
-      console.error('Error sending message:', error)
+      logger.error('Error sending message:', error)
 
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -366,6 +453,45 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       setIsLoading(false)
     }
   }
+
+  // Stop audio when component unmounts or when streaming is stopped
+  useEffect(() => {
+    return () => {
+      stopAudio()
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close()
+      }
+    }
+  }, [stopAudio])
+
+  // Voice interruption - stop audio when user starts speaking
+  const handleVoiceInterruption = useCallback(() => {
+    stopAudio()
+
+    // Stop any ongoing streaming response
+    if (isStreamingResponse) {
+      stopStreaming(setMessages)
+    }
+  }, [isStreamingResponse, stopStreaming, setMessages, stopAudio])
+
+  // Handle voice mode activation
+  const handleVoiceStart = useCallback(() => {
+    setIsVoiceFirstMode(true)
+  }, [])
+
+  // Handle exiting voice mode
+  const handleExitVoiceMode = useCallback(() => {
+    setIsVoiceFirstMode(false)
+    stopAudio() // Stop any playing audio when exiting
+  }, [stopAudio])
+
+  // Handle voice transcript from voice-first interface
+  const handleVoiceTranscript = useCallback(
+    (transcript: string) => {
+      handleSendMessage(transcript, true)
+    },
+    [handleSendMessage]
+  )
 
   // If error, show error message using the extracted component
   if (error) {
@@ -405,6 +531,27 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     return <ChatLoadingState />
   }
 
+  // Voice-first mode interface
+  if (isVoiceFirstMode) {
+    return (
+      <VoiceInterface
+        onCallEnd={handleExitVoiceMode}
+        onVoiceTranscript={handleVoiceTranscript}
+        onVoiceStart={noop}
+        onVoiceEnd={noop}
+        onInterrupt={handleVoiceInterruption}
+        isStreaming={isStreamingResponse}
+        isPlayingAudio={isPlayingAudio}
+        audioContextRef={audioContextRef}
+        messages={messages.map((msg) => ({
+          content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+          type: msg.type,
+        }))}
+      />
+    )
+  }
+
+  // Standard text-based chat interface
   return (
     <div className='fixed inset-0 z-[100] flex flex-col bg-background'>
       {/* Header component */}
@@ -426,11 +573,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       <div className='relative p-4 pb-6'>
         <div className='relative mx-auto max-w-3xl'>
           <ChatInput
-            onSubmit={(value) => {
-              void handleSendMessage(value)
+            onSubmit={(value, isVoiceInput) => {
+              void handleSendMessage(value, isVoiceInput)
             }}
             isStreaming={isStreamingResponse}
             onStopStreaming={() => stopStreaming(setMessages)}
+            onVoiceStart={handleVoiceStart}
           />
         </div>
       </div>

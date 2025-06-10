@@ -378,3 +378,8 @@ export function getInvalidCharacters(name: string): string[] {
   const invalidChars = name.match(/[^a-zA-Z0-9_\s]/g)
   return invalidChars ? [...new Set(invalidChars)] : []
 }
+
+/**
+ * No-operation function for use as default callback
+ */
+export const noop = () => {}
