@@ -54,7 +54,7 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
       id: 'model',
       title: 'Model',
       type: 'short-input',
-      layout: 'half',
+      layout: 'full',
       placeholder:
         'e.g., deepseek/deepseek-v3-0324, llama3.1-8b, meta-llama/Llama-3.2-3B-Instruct-Turbo',
       description: 'The model must be available for the selected provider.',
