@@ -1,5 +1,10 @@
 import type { ToolConfig } from '../types'
-import type { HuggingFaceChatParams, HuggingFaceChatResponse } from './types'
+import type {
+  HuggingFaceChatParams,
+  HuggingFaceChatResponse,
+  HuggingFaceMessage,
+  HuggingFaceRequestBody,
+} from './types'
 
 export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse> = {
   id: 'huggingface_chat',
@@ -78,7 +83,7 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
       'Content-Type': 'application/json',
     }),
     body: (params) => {
-      const messages = []
+      const messages: HuggingFaceMessage[] = []
 
       // Add system prompt if provided
       if (params.systemPrompt) {
@@ -94,7 +99,7 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
         content: params.content,
       })
 
-      const body: Record<string, any> = {
+      const body: HuggingFaceRequestBody = {
         model: params.model,
         messages: messages,
         stream: params.stream || false,
@@ -151,7 +156,11 @@ export const chatTool: ToolConfig<HuggingFaceChatParams, HuggingFaceChatResponse
                 completion_tokens: data.usage.completion_tokens || 0,
                 total_tokens: data.usage.total_tokens || 0,
               }
-            : undefined,
+            : {
+                prompt_tokens: 0,
+                completion_tokens: 0,
+                total_tokens: 0,
+              },
         },
       }
     } catch (error: any) {

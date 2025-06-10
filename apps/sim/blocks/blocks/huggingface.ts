@@ -118,7 +118,7 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
       type: {
         content: 'string',
         model: 'string',
-        usage: 'any',
+        usage: 'json',
       },
     },
   },

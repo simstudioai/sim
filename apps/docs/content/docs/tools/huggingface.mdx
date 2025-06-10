@@ -24,23 +24,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
     </svg>`}
 />
 
-{/* MANUAL-CONTENT-START:intro */}
-[Hugging Face](https://huggingface.co/) is the leading platform for open-source AI models, providing access to thousands of state-of-the-art machine learning models. This integration allows you to use Hugging Face's Inference API to generate chat completions and content using various AI providers and models.
-
-## Key Features
-
-- **12 Inference Providers** - Access models through Novita, Cerebras, Cohere, Together, and 8 other providers
-
-## Getting Started
-
-1. Get your API key from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
-2. Choose a provider (e.g., "novita", "cerebras", "together")
-3. Specify a model that's available for your provider
-4. Add your prompts and generate content
-
-💡 **Tip**: Different providers offer different models. Make sure the model you specify is supported by your selected provider.
-{/* MANUAL-CONTENT-END:intro */}
-
 ## Usage Instructions
 
 Generate completions using Hugging Face Inference API with access to various open-source models. Leverage cutting-edge AI models for chat completions, content generation, and AI-powered conversations with customizable parameters.
@@ -95,7 +78,7 @@ Generate completions using Hugging Face Inference API
 | `response` | object | Output from response |
 | ↳ `content` | string | content of the response |
 | ↳ `model` | string | model of the response |
-| ↳ `usage` | any | usage of the response |
+| ↳ `usage` | json | usage of the response |
 
 
 ## Notes
