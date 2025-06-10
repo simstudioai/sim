@@ -674,7 +674,7 @@ export async function executeWorkflowFromPayload(
       serializedWorkflow,
       processedBlockStates,
       decryptedEnvVars,
-      input, // Use the provided input (might be single event or batch)
+      input,
       workflowVariables
     )
 
