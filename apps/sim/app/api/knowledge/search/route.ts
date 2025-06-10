@@ -107,7 +107,6 @@ export async function POST(request: NextRequest) {
       }
 
       userId = workflows[0].userId
-      logger.info(`[${requestId}] Using workflow-based authentication for user: ${userId}`)
     } else {
       // Session-based authentication for client-side execution
       const session = await getSession()
@@ -148,9 +147,6 @@ export async function POST(request: NextRequest) {
     // Generate embedding for the search query
     logger.info(`[${requestId}] Generating embedding for search query`)
     const queryEmbedding = await generateSearchEmbedding(validatedData.query)
-
-    // Perform vector similarity search using pgvector cosine similarity
-    logger.info(`[${requestId}] Performing vector search with topK=${validatedData.topK}`)
 
     const results = await db
       .select({
