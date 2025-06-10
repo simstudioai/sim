@@ -12,6 +12,11 @@ const config = {
         destination: '/introduction',
         permanent: true,
       },
+      {
+        source: '/docs/:path*.mdx',
+        destination: '/llms.mdx/:path*',
+        permanent: true,
+      },
     ]
   },
 }
