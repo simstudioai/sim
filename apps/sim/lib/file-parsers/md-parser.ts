@@ -28,7 +28,7 @@ export class MdParser implements FileParser {
       logger.info('Parsing buffer, size:', buffer.length)
 
       // Extract content
-      const result = await readFile(buffer, 'utf-8')
+      const result = buffer.toString('utf-8')
 
       return {
         content: result,
