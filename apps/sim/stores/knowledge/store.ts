@@ -88,6 +88,7 @@ interface KnowledgeStore {
   loadingDocuments: Set<string>
   loadingChunks: Set<string>
   loadingKnowledgeBasesList: boolean
+  knowledgeBasesListLoaded: boolean
 
   // Actions
   getKnowledgeBase: (id: string) => Promise<KnowledgeBaseData | null>
@@ -138,6 +139,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   loadingDocuments: new Set(),
   loadingChunks: new Set(),
   loadingKnowledgeBasesList: false,
+  knowledgeBasesListLoaded: false,
 
   getCachedKnowledgeBase: (id: string) => {
     return get().knowledgeBases[id] || null
@@ -363,8 +365,8 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   getKnowledgeBasesList: async () => {
     const state = get()
 
-    // Return cached list if it exists
-    if (state.knowledgeBasesList.length > 0) {
+    // Return cached list if we have already loaded it before (prevents infinite loops when empty)
+    if (state.knowledgeBasesListLoaded) {
       return state.knowledgeBasesList
     }
 
@@ -409,6 +411,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       set({
         knowledgeBasesList,
         loadingKnowledgeBasesList: false,
+        knowledgeBasesListLoaded: true, // Mark as loaded regardless of result to prevent infinite loops
       })
 
       logger.info(`Knowledge bases list loaded: ${knowledgeBasesList.length} items`)
@@ -420,7 +423,10 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       logger.error('Error fetching knowledge bases list:', error)
 
       // Always set loading to false, even on error
-      set({ loadingKnowledgeBasesList: false })
+      set({
+        loadingKnowledgeBasesList: false,
+        knowledgeBasesListLoaded: true, // Mark as loaded even on error to prevent infinite retries
+      })
 
       // Don't throw on AbortError (timeout or cancellation)
       if (error instanceof Error && error.name === 'AbortError') {
@@ -748,7 +754,10 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   },
 
   clearKnowledgeBasesList: () => {
-    set({ knowledgeBasesList: [] })
+    set({
+      knowledgeBasesList: [],
+      knowledgeBasesListLoaded: false, // Reset loaded state to allow reloading
+    })
     logger.info('Knowledge bases list cleared')
   },
 }))

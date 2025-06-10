@@ -98,6 +98,7 @@ export function useKnowledgeBasesList() {
     getKnowledgeBasesList,
     knowledgeBasesList,
     loadingKnowledgeBasesList,
+    knowledgeBasesListLoaded,
     addKnowledgeBase,
     removeKnowledgeBase,
     clearKnowledgeBasesList,
@@ -108,7 +109,8 @@ export function useKnowledgeBasesList() {
   const maxRetries = 3
 
   useEffect(() => {
-    if (knowledgeBasesList.length > 0 || loadingKnowledgeBasesList) return
+    // Only load if we haven't loaded before AND we're not currently loading
+    if (knowledgeBasesListLoaded || loadingKnowledgeBasesList) return
 
     let isMounted = true
     let retryTimeoutId: NodeJS.Timeout | null = null
@@ -160,7 +162,7 @@ export function useKnowledgeBasesList() {
         clearTimeout(retryTimeoutId)
       }
     }
-  }, [knowledgeBasesList.length, loadingKnowledgeBasesList]) // Removed getKnowledgeBasesList from dependencies
+  }, [knowledgeBasesListLoaded, loadingKnowledgeBasesList, getKnowledgeBasesList])
 
   const refreshList = async () => {
     try {
@@ -185,6 +187,7 @@ export function useKnowledgeBasesList() {
     useKnowledgeStore.setState({
       knowledgeBasesList: [],
       loadingKnowledgeBasesList: false,
+      knowledgeBasesListLoaded: false, // Reset store's loaded state
     })
 
     try {
