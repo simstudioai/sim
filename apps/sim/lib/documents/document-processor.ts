@@ -1,4 +1,4 @@
-import { RecursiveChunker } from 'chonkie/cloud'
+import { RecursiveChunker } from 'chonkie'
 import type { RecursiveChunk } from 'chonkie/types'
 import { env } from '@/lib/env'
 import { isSupportedFileType, parseBuffer, parseFile } from '@/lib/file-parsers'
@@ -78,7 +78,11 @@ async function parseDocument(
   fileUrl: string,
   filename: string,
   mimeType: string
-): Promise<{ content: string; processingMethod: 'file-parser' | 'mistral-ocr'; s3Url?: string }> {
+): Promise<{
+  content: string
+  processingMethod: 'file-parser' | 'mistral-ocr'
+  s3Url?: string
+}> {
   const processingMethod = determineProcessingMethod(mimeType, filename)
 
   logger.info(`Processing document "${filename}" using ${processingMethod}`)
@@ -237,15 +241,8 @@ async function chunkContent(
   content: string,
   options: DocumentProcessingOptions
 ): Promise<RecursiveChunk[]> {
-  const apiKey = env.CHONKIE_API_KEY
-  if (!apiKey) {
-    throw new Error('CHONKIE_API_KEY not configured')
-  }
-
-  const chunker = new RecursiveChunker(apiKey, {
+  const chunker = await RecursiveChunker.create({
     chunkSize: options.chunkSize || 512,
-    recipe: options.recipe || 'default',
-    lang: options.lang || 'en',
     minCharactersPerChunk: options.minCharactersPerChunk || 24,
   })
 
@@ -255,7 +252,7 @@ async function chunkContent(
       chunkSize: options.chunkSize || 512,
     })
 
-    const chunks = await chunker.chunk({ text: content })
+    const chunks = await chunker.chunk(content)
 
     logger.info(`Successfully created ${chunks.length} chunks`)
     return chunks as RecursiveChunk[]
@@ -266,7 +263,6 @@ async function chunkContent(
     )
   }
 }
-
 /**
  * Calculate token count estimation (rough approximation: 4 chars per token)
  */

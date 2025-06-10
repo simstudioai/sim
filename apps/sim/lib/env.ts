@@ -72,7 +72,6 @@ export const env = createEnv({
     FREE_PLAN_LOG_RETENTION_DAYS: z.string().optional(),
     NODE_ENV: z.string().optional(),
     GITHUB_TOKEN: z.string().optional(),
-    CHONKIE_API_KEY: z.string().min(1).optional(),
     ELEVENLABS_API_KEY: z.string().min(1).optional(),
 
     // OAuth blocks (all optional)
