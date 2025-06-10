@@ -19,14 +19,16 @@ export const ollamaProvider: ProviderConfig = {
 
   // Initialize the provider by fetching available models
   async initialize() {
-    if (typeof window !== 'undefined') {
-      logger.info('Skipping Ollama initialization on client side to avoid CORS issues')
-      return
-    }
+    // Disabled too allow for client side initialization
+    // if (typeof window !== 'undefined') {
+    //   logger.info('Skipping Ollama initialization on client side to avoid CORS issues')
+    //   return
+    // }
 
     try {
       const response = await fetch(`${OLLAMA_HOST}/api/tags`)
       if (!response.ok) {
+        console.log('response', response)
         useOllamaStore.getState().setModels([])
         logger.warn('Ollama service is not available. The provider will be disabled.')
         return
@@ -34,6 +36,7 @@ export const ollamaProvider: ProviderConfig = {
       const data = (await response.json()) as ModelsObject
       this.models = data.models.map((model) => model.name)
       useOllamaStore.getState().setModels(this.models)
+      logger.info('Ollama models initialized', { models: this.models })
     } catch (error) {
       logger.warn('Ollama model instantiation failed. The provider will be disabled.', {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -58,8 +61,8 @@ export const ollamaProvider: ProviderConfig = {
     try {
       // Prepare messages array
       const ollama = new OpenAI({
-        apiKey: 'empty',
         baseURL: `${OLLAMA_HOST}/v1`,
+        apiKey: 'ollama',
       })
 
       // Start with an empty array for all messages
