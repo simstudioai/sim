@@ -29,11 +29,18 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      knowledgeBaseId: params.knowledgeBaseId,
-      query: params.query,
-      topK: params.topK ? Number.parseInt(params.topK.toString()) : 10,
-    }),
+    body: (params) => {
+      const workflowId = params._context?.workflowId
+
+      const requestBody = {
+        knowledgeBaseId: params.knowledgeBaseId,
+        query: params.query,
+        topK: params.topK ? Number.parseInt(params.topK.toString()) : 10,
+        ...(workflowId && { workflowId }),
+      }
+
+      return requestBody
+    },
     isInternalRoute: true,
   },
   transformResponse: async (response): Promise<KnowledgeSearchResponse> => {

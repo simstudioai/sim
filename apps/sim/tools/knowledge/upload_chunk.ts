@@ -30,10 +30,17 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
     headers: () => ({
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      content: params.content,
-      enabled: true,
-    }),
+    body: (params) => {
+      const workflowId = params._context?.workflowId
+
+      const requestBody = {
+        content: params.content,
+        enabled: true,
+        ...(workflowId && { workflowId }),
+      }
+
+      return requestBody
+    },
     isInternalRoute: true,
   },
   transformResponse: async (response): Promise<KnowledgeUploadChunkResponse> => {

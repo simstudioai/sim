@@ -1,10 +1,10 @@
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSession } from '@/lib/auth'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { embedding, knowledgeBase } from '@/db/schema'
 
@@ -87,16 +87,20 @@ export async function POST(request: NextRequest) {
   try {
     logger.info(`[${requestId}] Processing vector search request`)
 
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized vector search attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const body = await request.json()
+    const { workflowId, ...searchParams } = body
+
+    const userId = await getUserId(requestId, workflowId)
+
+    if (!userId) {
+      const errorMessage = workflowId ? 'Workflow not found' : 'Unauthorized'
+      const statusCode = workflowId ? 404 : 401
+      logger.warn(`[${requestId}] Authentication failed: ${errorMessage}`)
+      return NextResponse.json({ error: errorMessage }, { status: statusCode })
     }
 
-    const body = await request.json()
-
     try {
-      const validatedData = VectorSearchSchema.parse(body)
+      const validatedData = VectorSearchSchema.parse(searchParams)
 
       // Verify the knowledge base exists and user has access
       const kb = await db
@@ -105,7 +109,7 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(knowledgeBase.id, validatedData.knowledgeBaseId),
-            eq(knowledgeBase.userId, session.user.id),
+            eq(knowledgeBase.userId, userId),
             isNull(knowledgeBase.deletedAt)
           )
         )

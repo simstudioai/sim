@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getUserId } from '@/app/api/auth/oauth/utils'
 import { db } from '@/db'
 import { document, embedding } from '@/db/schema'
 import { checkDocumentAccess, generateEmbeddings } from '../../../../utils'
@@ -158,13 +159,19 @@ export async function POST(
   const { id: knowledgeBaseId, documentId } = await params
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized chunk creation attempt`)
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const body = await req.json()
+    const { workflowId, ...searchParams } = body
+
+    const userId = await getUserId(requestId, workflowId)
+
+    if (!userId) {
+      const errorMessage = workflowId ? 'Workflow not found' : 'Unauthorized'
+      const statusCode = workflowId ? 404 : 401
+      logger.warn(`[${requestId}] Authentication failed: ${errorMessage}`)
+      return NextResponse.json({ error: errorMessage }, { status: statusCode })
     }
 
-    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, session.user.id)
+    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, userId)
 
     if (!accessCheck.hasAccess) {
       if (accessCheck.notFound) {
@@ -174,7 +181,7 @@ export async function POST(
         return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
       }
       logger.warn(
-        `[${requestId}] User ${session.user.id} attempted unauthorized chunk creation: ${accessCheck.reason}`
+        `[${requestId}] User ${userId} attempted unauthorized chunk creation: ${accessCheck.reason}`
       )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -194,10 +201,8 @@ export async function POST(
       return NextResponse.json({ error: 'Cannot add chunks to failed document' }, { status: 400 })
     }
 
-    const body = await req.json()
-
     try {
-      const validatedData = CreateChunkSchema.parse(body)
+      const validatedData = CreateChunkSchema.parse(searchParams)
 
       // Generate embedding for the content first (outside transaction for performance)
       logger.info(`[${requestId}] Generating embedding for manual chunk`)
