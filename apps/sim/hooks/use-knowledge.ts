@@ -369,8 +369,6 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
       return fetchedChunks
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load page')
-      // Reset page on error
-      setCurrentPage((prev) => prev)
       throw err
     } finally {
       setIsLoading(false)
