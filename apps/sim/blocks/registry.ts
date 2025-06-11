@@ -25,6 +25,7 @@ import { GoogleCalendarBlock } from './blocks/google_calendar'
 import { GoogleDocsBlock } from './blocks/google_docs'
 import { GoogleDriveBlock } from './blocks/google_drive'
 import { GoogleSheetsBlock } from './blocks/google_sheets'
+import { HuggingFaceBlock } from './blocks/huggingface'
 // import { GuestyBlock } from './blocks/guesty'
 import { ImageGeneratorBlock } from './blocks/image_generator'
 import { JinaBlock } from './blocks/jina'
@@ -124,6 +125,7 @@ export const registry: Record<string, BlockConfig> = {
   whatsapp: WhatsAppBlock,
   x: XBlock,
   youtube: YouTubeBlock,
+  huggingface: HuggingFaceBlock,
 }
 
 // Helper functions to access the registry

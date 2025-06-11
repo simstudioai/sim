@@ -19,6 +19,7 @@
     "google_search",
     "google_sheets",
     "guesty",
+    "huggingface",
     "image_generator",
     "jina",
     "jira",

@@ -50,6 +50,7 @@ import {
 import { guestyGuestTool, guestyReservationTool } from './guesty'
 import { requestTool as httpRequest } from './http'
 import { contactsTool as hubspotContacts } from './hubspot/contacts'
+import { huggingfaceChatTool } from './huggingface'
 import { readUrlTool } from './jina'
 import { jiraBulkRetrieveTool, jiraRetrieveTool, jiraUpdateTool, jiraWriteTool } from './jira'
 import { knowledgeSearchTool, knowledgeUploadChunkTool } from './knowledge'
@@ -104,6 +105,7 @@ export const tools: Record<string, ToolConfig> = {
   autoblocks_prompt_manager: autoblocksPromptManagerTool,
   openai_embeddings: openAIEmbeddings,
   http_request: httpRequest,
+  huggingface_chat: huggingfaceChatTool,
   hubspot_contacts: hubspotContacts,
   salesforce_opportunities: salesforceOpportunities,
   function_execute: functionExecuteTool,
