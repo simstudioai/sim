@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Circle, CircleOff, FileText, Plus, Search, Trash2, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, Circle, CircleOff, FileText, Plus, Search, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -59,17 +59,54 @@ export function Document({
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Use the new chunks hook
+  // Search debouncing
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+
+  // Use the updated chunks hook with pagination
   const {
     chunks,
     isLoading: isLoadingChunks,
     error: chunksError,
+    pagination,
+    currentPage,
+    totalPages,
+    hasNextPage,
+    hasPrevPage,
+    goToPage,
+    nextPage,
+    prevPage,
     refreshChunks,
+    searchChunks,
     updateChunk,
   } = useDocumentChunks(knowledgeBaseId, documentId)
 
   // Combine errors
   const combinedError = error || chunksError
+
+  // Handle pagination navigation
+  const handlePrevPage = useCallback(() => {
+    if (hasPrevPage && !isLoadingChunks) {
+      prevPage()?.catch((err) => {
+        logger.error('Previous page failed:', err)
+      })
+    }
+  }, [hasPrevPage, isLoadingChunks, prevPage])
+
+  const handleNextPage = useCallback(() => {
+    if (hasNextPage && !isLoadingChunks) {
+      nextPage()?.catch((err) => {
+        logger.error('Next page failed:', err)
+      })
+    }
+  }, [hasNextPage, isLoadingChunks, nextPage])
+
+  const handleGoToPage = useCallback((page: number) => {
+    if (page !== currentPage && !isLoadingChunks) {
+      goToPage(page)?.catch((err) => {
+        logger.error('Go to page failed:', err)
+      })
+    }
+  }, [currentPage, isLoadingChunks, goToPage])
 
   // Try to get document from store cache first, then fetch if needed
   useEffect(() => {
@@ -182,7 +219,7 @@ export function Document({
   }
 
   const handleChunkDeleted = async () => {
-    await refreshChunks()
+    await refreshChunks({ search: debouncedSearchQuery || undefined })
     if (chunkToDelete) {
       setSelectedChunks((prev) => {
         const newSet = new Set(prev)
@@ -219,7 +256,7 @@ export function Document({
 
   const handleChunkCreated = async (newChunk: ChunkData) => {
     // Refresh the chunks list to include the new chunk
-    await refreshChunks()
+    await refreshChunks({ search: debouncedSearchQuery || undefined })
   }
 
   const isAllSelected = chunks.length > 0 && selectedChunks.size === chunks.length
@@ -314,6 +351,27 @@ export function Document({
                   <span>Create Chunk</span>
                 </Button>
               </div>
+
+              {/* Pagination Info */}
+              {document?.processingStatus === 'completed' && chunks.length > 0 && (
+                <div className='mb-3 flex items-center justify-between text-sm text-muted-foreground'>
+                  <div className='flex items-center gap-4'>
+                    <span>
+                      Showing {((currentPage - 1) * pagination.limit) + 1}-{Math.min(currentPage * pagination.limit, pagination.total)} of {pagination.total} chunks
+                    </span>
+                    {searchQuery && (
+                      <span className='text-xs'>
+                        • Filtered by "{searchQuery}"
+                      </span>
+                    )}
+                  </div>
+                  {totalPages > 1 && (
+                    <span className='text-xs'>
+                      Page {currentPage} of {totalPages}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Error State for chunks */}
               {combinedError && !isLoadingChunks && (
@@ -426,9 +484,9 @@ export function Document({
                             <div className='flex items-center gap-2'>
                               <FileText className='h-5 w-5 text-muted-foreground' />
                               <span className='text-muted-foreground text-sm italic'>
-                                {document?.processingStatus === 'completed'
-                                  ? 'No chunks found'
-                                  : 'Document is still processing...'}
+                                {searchQuery 
+                                  ? `No chunks found matching "${searchQuery}"`
+                                  : 'No chunks found'}
                               </span>
                             </div>
                           </td>
@@ -566,6 +624,66 @@ export function Document({
                     </tbody>
                   </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {document?.processingStatus === 'completed' && totalPages > 1 && (
+                  <div className='flex items-center justify-center border-t bg-background px-6 py-4'>
+                    <div className='flex items-center gap-1'>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={handlePrevPage}
+                        disabled={!hasPrevPage || isLoadingChunks}
+                        className='h-8 w-8 p-0'
+                      >
+                        <ChevronLeft className='h-4 w-4' />
+                      </Button>
+
+                      {/* Page numbers - show a few around current page */}
+                      <div className='flex items-center gap-3 mx-4'>
+                        {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                          let page: number
+                          if (totalPages <= 7) {
+                            page = i + 1
+                          } else if (currentPage <= 4) {
+                            page = i + 1
+                          } else if (currentPage >= totalPages - 3) {
+                            page = totalPages - 6 + i
+                          } else {
+                            page = currentPage - 3 + i
+                          }
+
+                          if (page < 1 || page > totalPages) return null
+
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => handleGoToPage(page)}
+                              disabled={isLoadingChunks}
+                              className={`text-sm font-medium transition-colors hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed ${
+                                page === currentPage
+                                  ? 'text-foreground'
+                                  : 'text-muted-foreground'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={handleNextPage}
+                        disabled={!hasNextPage || isLoadingChunks}
+                        className='h-8 w-8 p-0'
+                      >
+                        <ChevronRight className='h-4 w-4' />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
