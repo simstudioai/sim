@@ -59,9 +59,6 @@ export function Document({
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Search debouncing
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
-
   // Use the updated chunks hook with pagination
   const {
     chunks,
@@ -218,7 +215,7 @@ export function Document({
   }
 
   const handleChunkDeleted = async () => {
-    await refreshChunks({ search: debouncedSearchQuery || undefined })
+    await refreshChunks()
     if (chunkToDelete) {
       setSelectedChunks((prev) => {
         const newSet = new Set(prev)
@@ -255,7 +252,7 @@ export function Document({
 
   const handleChunkCreated = async (newChunk: ChunkData) => {
     // Refresh the chunks list to include the new chunk
-    await refreshChunks({ search: debouncedSearchQuery || undefined })
+    await refreshChunks()
   }
 
   const isAllSelected = chunks.length > 0 && selectedChunks.size === chunks.length
