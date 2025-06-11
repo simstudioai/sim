@@ -341,33 +341,12 @@ export function Document({
                   onClick={() => setIsCreateChunkModalOpen(true)}
                   disabled={document?.processingStatus === 'failed'}
                   size='sm'
-                  className='flex items-center gap-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50'
+                  className='flex items-center gap-1 bg-[#701FFC] font-[480] text-white shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50'
                 >
                   <Plus className='h-3.5 w-3.5' />
                   <span>Create Chunk</span>
                 </Button>
               </div>
-
-              {/* Pagination Info */}
-              {document?.processingStatus === 'completed' && chunks.length > 0 && (
-                <div className='mb-3 flex items-center justify-between text-sm text-muted-foreground'>
-                  <div className='flex items-center gap-4'>
-                    <span>
-                      Showing {((currentPage - 1) * pagination.limit) + 1}-{Math.min(currentPage * pagination.limit, pagination.total)} of {pagination.total} chunks
-                    </span>
-                    {searchQuery && (
-                      <span className='text-xs'>
-                        • Filtered by "{searchQuery}"
-                      </span>
-                    )}
-                  </div>
-                  {totalPages > 1 && (
-                    <span className='text-xs'>
-                      Page {currentPage} of {totalPages}
-                    </span>
-                  )}
-                </div>
-              )}
 
               {/* Error State for chunks */}
               {combinedError && !isLoadingChunks && (
@@ -636,7 +615,7 @@ export function Document({
                       </Button>
 
                       {/* Page numbers - show a few around current page */}
-                      <div className='flex items-center gap-3 mx-4'>
+                      <div className='flex items-center gap-6 mx-4'>
                         {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
                           let page: number
                           if (totalPages <= 7) {
