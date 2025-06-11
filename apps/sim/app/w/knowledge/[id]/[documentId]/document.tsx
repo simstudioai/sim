@@ -1,7 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, Circle, CircleOff, FileText, Plus, Search, Trash2, X } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  CircleOff,
+  FileText,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -95,13 +105,16 @@ export function Document({
     }
   }, [hasNextPage, isLoadingChunks, nextPage])
 
-  const handleGoToPage = useCallback((page: number) => {
-    if (page !== currentPage && !isLoadingChunks) {
-      goToPage(page)?.catch((err) => {
-        logger.error('Go to page failed:', err)
-      })
-    }
-  }, [currentPage, isLoadingChunks, goToPage])
+  const handleGoToPage = useCallback(
+    (page: number) => {
+      if (page !== currentPage && !isLoadingChunks) {
+        goToPage(page)?.catch((err) => {
+          logger.error('Go to page failed:', err)
+        })
+      }
+    },
+    [currentPage, isLoadingChunks, goToPage]
+  )
 
   // Try to get document from store cache first, then fetch if needed
   useEffect(() => {
@@ -614,7 +627,7 @@ export function Document({
                       </Button>
 
                       {/* Page numbers - show a few around current page */}
-                      <div className='flex items-center gap-6 mx-4'>
+                      <div className='mx-4 flex items-center gap-6'>
                         {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                           let page: number
                           if (totalPages <= 5) {
@@ -634,10 +647,8 @@ export function Document({
                               key={page}
                               onClick={() => handleGoToPage(page)}
                               disabled={isLoadingChunks}
-                              className={`text-sm font-medium transition-colors hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed ${
-                                page === currentPage
-                                  ? 'text-foreground'
-                                  : 'text-muted-foreground'
+                              className={`font-medium text-sm transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 ${
+                                page === currentPage ? 'text-foreground' : 'text-muted-foreground'
                               }`}
                             >
                               {page}

@@ -250,9 +250,11 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
       try {
         // Check cache first
         const cached = getCachedChunks(documentId)
-        if (cached && 
-            cached.searchQuery === searchQuery &&
-            cached.pagination.offset === (currentPage - 1) * pagination.limit) {
+        if (
+          cached &&
+          cached.searchQuery === searchQuery &&
+          cached.pagination.offset === (currentPage - 1) * pagination.limit
+        ) {
           if (isMounted) {
             setChunks(cached.chunks)
             setPagination(cached.pagination)
@@ -303,16 +305,26 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     return () => {
       isMounted = false
     }
-  }, [knowledgeBaseId, documentId, currentPage, searchQuery, isStoreLoading, initialLoadDone, pagination.limit])
+  }, [
+    knowledgeBaseId,
+    documentId,
+    currentPage,
+    searchQuery,
+    isStoreLoading,
+    initialLoadDone,
+    pagination.limit,
+  ])
 
   // Separate effect to sync with store state changes (no API calls)
   useEffect(() => {
     if (!documentId || !initialLoadDone) return
 
     const cached = getCachedChunks(documentId)
-    if (cached && 
-        cached.searchQuery === searchQuery &&
-        cached.pagination.offset === (currentPage - 1) * pagination.limit) {
+    if (
+      cached &&
+      cached.searchQuery === searchQuery &&
+      cached.pagination.offset === (currentPage - 1) * pagination.limit
+    ) {
       setChunks(cached.chunks)
       setPagination(cached.pagination)
     }
@@ -321,7 +333,15 @@ export function useDocumentChunks(knowledgeBaseId: string, documentId: string) {
     if (!isStoreLoading && isLoading) {
       setIsLoading(false)
     }
-  }, [documentId, isStoreLoading, isLoading, initialLoadDone, searchQuery, currentPage, pagination.limit])
+  }, [
+    documentId,
+    isStoreLoading,
+    isLoading,
+    initialLoadDone,
+    searchQuery,
+    currentPage,
+    pagination.limit,
+  ])
 
   const goToPage = async (page: number) => {
     if (page < 1 || page > totalPages || page === currentPage) return

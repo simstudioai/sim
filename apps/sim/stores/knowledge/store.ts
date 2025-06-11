@@ -290,10 +290,12 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
 
     // Return cached chunks if they exist and match the exact search criteria AND offset
     const cached = state.chunks[documentId]
-    if (cached && 
-        cached.searchQuery === options?.search && 
-        cached.pagination.offset === (options?.offset || 0) &&
-        cached.pagination.limit === (options?.limit || 50)) {
+    if (
+      cached &&
+      cached.searchQuery === options?.search &&
+      cached.pagination.offset === (options?.offset || 0) &&
+      cached.pagination.limit === (options?.limit || 50)
+    ) {
       return cached.chunks
     }
 
