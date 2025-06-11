@@ -76,7 +76,6 @@ export function Document({
     nextPage,
     prevPage,
     refreshChunks,
-    searchChunks,
     updateChunk,
   } = useDocumentChunks(knowledgeBaseId, documentId)
 
