@@ -15,6 +15,7 @@ import { useCodeGeneration } from '@/app/w/[id]/hooks/use-code-generation'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { CodePromptBar } from '../../../../code-prompt-bar/code-prompt-bar'
 import { useSubBlockValue } from '../hooks/use-sub-block-value'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('Code')
 
@@ -81,7 +82,13 @@ export function Code({
     (useSubBlockStore((state) => state.getValue(blockId, collapsedStateKey)) as boolean) ?? false
   const setCollapsedValue = useSubBlockStore((state) => state.setValue)
 
-  const showCollapseButton = subBlockId === 'responseFormat' && code.split('\n').length > 5
+  // Get block type to determine if we should show collapse button
+  const blockType = useWorkflowStore((state) => state.blocks[blockId]?.type)
+  
+  const showCollapseButton = 
+    ((subBlockId === 'responseFormat') || 
+     (blockType === 'function' && subBlockId === 'code')) && 
+    code.split('\n').length > 5
 
   const editorRef = useRef<HTMLDivElement>(null)
 
