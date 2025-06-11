@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, Circle, CircleOff, FileText, Plus, Search, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -64,7 +64,6 @@ export function Document({
     chunks,
     isLoading: isLoadingChunks,
     error: chunksError,
-    pagination,
     currentPage,
     totalPages,
     hasNextPage,
@@ -459,9 +458,9 @@ export function Document({
                             <div className='flex items-center gap-2'>
                               <FileText className='h-5 w-5 text-muted-foreground' />
                               <span className='text-muted-foreground text-sm italic'>
-                                {searchQuery 
-                                  ? `No chunks found matching "${searchQuery}"`
-                                  : 'No chunks found'}
+                                {document?.processingStatus === 'completed'
+                                  ? 'No chunks found'
+                                  : 'Document is still processing...'}
                               </span>
                             </div>
                           </td>
@@ -616,16 +615,16 @@ export function Document({
 
                       {/* Page numbers - show a few around current page */}
                       <div className='flex items-center gap-6 mx-4'>
-                        {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
                           let page: number
-                          if (totalPages <= 7) {
+                          if (totalPages <= 5) {
                             page = i + 1
-                          } else if (currentPage <= 4) {
+                          } else if (currentPage <= 3) {
                             page = i + 1
-                          } else if (currentPage >= totalPages - 3) {
-                            page = totalPages - 6 + i
+                          } else if (currentPage >= totalPages - 2) {
+                            page = totalPages - 4 + i
                           } else {
-                            page = currentPage - 3 + i
+                            page = currentPage - 2 + i
                           }
 
                           if (page < 1 || page > totalPages) return null
