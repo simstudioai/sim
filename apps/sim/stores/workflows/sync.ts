@@ -3,7 +3,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { API_ENDPOINTS } from '../constants'
 import { createSingletonSyncManager } from '../sync'
-import { getAllWorkflowsWithValues } from '.'
+import { getAllWorkflowsWithValues } from './'
 import { useWorkflowRegistry } from './registry/store'
 import type { WorkflowMetadata } from './registry/types'
 import { useSubBlockStore } from './subblock/store'
@@ -230,7 +230,6 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         description,
         color,
         state,
-        lastSynced,
         isDeployed,
         deployedAt,
         apiKey,
@@ -251,70 +250,40 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       registryWorkflows[id] = {
         id,
         name,
-        description: description || '',
-        color: color || '#3972F6',
-        // Use createdAt for sorting if available, otherwise fall back to lastSynced
-        lastModified: createdAt ? new Date(createdAt) : new Date(lastSynced),
-        marketplaceData: marketplaceData || null,
-        workspaceId, // Include workspaceId in metadata
+        description,
+        color,
+        marketplaceData,
+        workspaceId,
+        lastModified: createdAt ? new Date(createdAt) : new Date(),
       }
 
-      // 2. Prepare workflow state data
+      // 2. Store workflow state in localStorage for persistence
       const workflowState = {
         blocks: state.blocks || {},
         edges: state.edges || [],
         loops: state.loops || {},
         parallels: state.parallels || {},
-        isDeployed: isDeployed || false,
-        deployedAt: deployedAt ? new Date(deployedAt) : undefined,
-        apiKey,
-        lastSaved: Date.now(),
-        marketplaceData: marketplaceData || null,
+        isStreaming: false,
+        isExecuting: false,
+        environment: state.environment || {},
+        variables: state.variables || {},
+        metadata: {
+          workflowId: id,
+          version: '1.0.0',
+          lastSaved: Date.now(),
+          ...state.metadata,
+        },
       }
 
-      // 3. Initialize subblock values from the workflow state
-      const subblockValues: Record<string, Record<string, any>> = {}
-
-      // Extract subblock values from blocks
-      Object.entries(workflowState.blocks).forEach(([blockId, block]) => {
-        const blockState = block as BlockState
-        subblockValues[blockId] = {}
-
-        Object.entries(blockState.subBlocks || {}).forEach(([subblockId, subblock]) => {
-          subblockValues[blockId][subblockId] = subblock.value
-        })
-      })
-
-      // Get any additional subblock values that might not be in the state but are in the store
-      const storedValues = useSubBlockStore.getState().workflowValues[id] || {}
-      Object.entries(storedValues).forEach(([blockId, blockValues]) => {
-        if (!subblockValues[blockId]) {
-          subblockValues[blockId] = {}
-        }
-
-        Object.entries(blockValues).forEach(([subblockId, value]) => {
-          // Only update if not already set or if value is null
-          if (
-            subblockValues[blockId][subblockId] === null ||
-            subblockValues[blockId][subblockId] === undefined
-          ) {
-            subblockValues[blockId][subblockId] = value
-          }
-        })
-      })
-
-      // 4. Store the workflow state and subblock values in localStorage
-      // This ensures compatibility with existing code that loads from localStorage
       localStorage.setItem(`workflow-${id}`, JSON.stringify(workflowState))
-      localStorage.setItem(`subblock-values-${id}`, JSON.stringify(subblockValues))
 
-      // 5. Update subblock store for this workflow
-      useSubBlockStore.setState((state) => ({
-        workflowValues: {
-          ...state.workflowValues,
-          [id]: subblockValues,
-        },
-      }))
+      // 3. Update deployment status separately
+      useWorkflowRegistry.getState().setDeploymentStatus(
+        id,
+        isDeployed || false,
+        deployedAt ? new Date(deployedAt) : undefined,
+        apiKey
+      )
     })
 
     logger.info(

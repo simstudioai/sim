@@ -7,6 +7,7 @@ import { GenericBlockHandler } from './generic/generic-handler'
 import { LoopBlockHandler } from './loop/loop-handler'
 import { ParallelBlockHandler } from './parallel/parallel-handler'
 import { RouterBlockHandler } from './router/router-handler'
+import { WorkflowBlockHandler } from './workflow/workflow-handler'
 
 export {
   AgentBlockHandler,
@@ -18,4 +19,5 @@ export {
   LoopBlockHandler,
   ParallelBlockHandler,
   RouterBlockHandler,
+  WorkflowBlockHandler,
 }

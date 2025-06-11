@@ -14,6 +14,7 @@ import {
   LoopBlockHandler,
   ParallelBlockHandler,
   RouterBlockHandler,
+  WorkflowBlockHandler,
 } from './handlers/index'
 import { LoopManager } from './loops'
 import { ParallelManager } from './parallels'
@@ -141,6 +142,7 @@ export class Executor {
       new ApiBlockHandler(),
       new LoopBlockHandler(this.resolver),
       new ParallelBlockHandler(this.resolver),
+      new WorkflowBlockHandler(),
       new GenericBlockHandler(),
     ]
 
