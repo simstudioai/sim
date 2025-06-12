@@ -234,7 +234,7 @@ async function parseDocument(
 }
 
 /**
- * Chunk text content using RecursiveChunker
+ * Chunk text content using TextChunker
  */
 async function chunkContent(content: string, options: DocumentProcessingOptions): Promise<Chunk[]> {
   const chunker = new TextChunker({
@@ -243,7 +243,7 @@ async function chunkContent(content: string, options: DocumentProcessingOptions)
   })
 
   try {
-    logger.info('Chunking content with RecursiveChunker', {
+    logger.info('Chunking content with TextChunker', {
       contentLength: content.length,
       chunkSize: options.chunkSize || 512,
     })

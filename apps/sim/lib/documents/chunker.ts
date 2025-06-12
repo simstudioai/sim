@@ -2,12 +2,6 @@ export interface ChunkMetadata {
   startIndex: number
   endIndex: number
   tokenCount: number
-  characterCount: number
-  chunkIndex: number
-  overlap?: {
-    previous?: string
-    next?: string
-  }
 }
 
 export interface TextChunk {
@@ -18,16 +12,7 @@ export interface TextChunk {
 export interface ChunkerOptions {
   chunkSize?: number
   minChunkSize?: number
-  maxChunkSize?: number
   overlap?: number
-  separators?: string[]
-  preserveSentences?: boolean
-  tokenEstimationMethod?: 'simple' | 'gpt'
-}
-
-export interface ChunkerCreateOptions {
-  chunkSize?: number
-  minCharactersPerChunk?: number
 }
 
 export interface Chunk {
