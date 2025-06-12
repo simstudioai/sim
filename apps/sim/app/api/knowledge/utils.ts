@@ -179,7 +179,11 @@ export async function checkDocumentAccess(
     .limit(1)
 
   if (kb.length === 0) {
-    return { hasAccess: false, notFound: true, reason: 'Knowledge base not found' }
+    return {
+      hasAccess: false,
+      notFound: true,
+      reason: 'Knowledge base not found',
+    }
   }
 
   const kbData = kb[0]
@@ -204,7 +208,11 @@ export async function checkDocumentAccess(
     return { hasAccess: false, notFound: true, reason: 'Document not found' }
   }
 
-  return { hasAccess: true, document: doc[0] as DocumentData, knowledgeBase: kbData }
+  return {
+    hasAccess: true,
+    document: doc[0] as DocumentData,
+    knowledgeBase: kbData,
+  }
 }
 
 /**
@@ -226,7 +234,11 @@ export async function checkChunkAccess(
     .limit(1)
 
   if (kb.length === 0) {
-    return { hasAccess: false, notFound: true, reason: 'Knowledge base not found' }
+    return {
+      hasAccess: false,
+      notFound: true,
+      reason: 'Knowledge base not found',
+    }
   }
 
   const kbData = kb[0]
@@ -437,8 +449,8 @@ export async function processDocumentAsync(
       tokenCount: Math.ceil(chunk.text.length / 4),
       embedding: embeddings[chunkIndex] || null,
       embeddingModel: 'text-embedding-3-small',
-      startOffset: chunk.startIndex || 0,
-      endOffset: chunk.endIndex || chunk.text.length,
+      startOffset: chunk.metadata.startIndex,
+      endOffset: chunk.metadata.endIndex,
       overlapTokens: 0,
       metadata: {},
       searchRank: '1.0',

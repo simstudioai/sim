@@ -1,5 +1,4 @@
-import { RecursiveChunker } from 'chonkie'
-import type { RecursiveChunk } from 'chonkie/types'
+import { type Chunk, TextChunker } from '@/lib/documents/chunker'
 import { env } from '@/lib/env'
 import { isSupportedFileType, parseBuffer, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -26,7 +25,7 @@ class APIError extends Error {
 
 export interface ProcessedDocument {
   content: string
-  chunks: RecursiveChunk[]
+  chunks: Chunk[]
   metadata: {
     filename: string
     fileSize: number
@@ -237,13 +236,10 @@ async function parseDocument(
 /**
  * Chunk text content using RecursiveChunker
  */
-async function chunkContent(
-  content: string,
-  options: DocumentProcessingOptions
-): Promise<RecursiveChunk[]> {
-  const chunker = await RecursiveChunker.create({
+async function chunkContent(content: string, options: DocumentProcessingOptions): Promise<Chunk[]> {
+  const chunker = new TextChunker({
     chunkSize: options.chunkSize || 512,
-    minCharactersPerChunk: options.minCharactersPerChunk || 24,
+    minChunkSize: options.minCharactersPerChunk || 24,
   })
 
   try {
@@ -255,19 +251,13 @@ async function chunkContent(
     const chunks = await chunker.chunk(content)
 
     logger.info(`Successfully created ${chunks.length} chunks`)
-    return chunks as RecursiveChunk[]
+    return chunks
   } catch (error) {
     logger.error('Chunking failed:', error)
     throw new Error(
       `Text chunking failed: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
   }
-}
-/**
- * Calculate token count estimation (rough approximation: 4 chars per token)
- */
-function estimateTokenCount(text: string): number {
-  return Math.ceil(text.length / 4)
 }
 
 /**
@@ -300,7 +290,7 @@ export async function processDocument(
 
     // Step 3: Calculate metadata
     const characterCount = content.length
-    const tokenCount = estimateTokenCount(content)
+    const tokenCount = chunks.reduce((acc, chunk) => acc + chunk.tokenCount, 0)
     const chunkCount = chunks.length
 
     const processedDocument: ProcessedDocument = {
