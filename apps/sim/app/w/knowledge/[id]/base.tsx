@@ -569,7 +569,7 @@ export function KnowledgeBase({
                     onClick={handleAddDocuments}
                     disabled={isUploading}
                     size='sm'
-                    className='flex items-center gap-1 bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                    className='flex items-center gap-1 bg-[#701FFC] font-[480] text-white shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
                   >
                     <Plus className='h-3.5 w-3.5' />
                     {isUploading ? 'Uploading...' : 'Add Documents'}

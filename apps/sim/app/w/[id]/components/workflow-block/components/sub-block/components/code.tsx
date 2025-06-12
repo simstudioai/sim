@@ -81,7 +81,8 @@ export function Code({
     (useSubBlockStore((state) => state.getValue(blockId, collapsedStateKey)) as boolean) ?? false
   const setCollapsedValue = useSubBlockStore((state) => state.setValue)
 
-  const showCollapseButton = subBlockId === 'responseFormat' && code.split('\n').length > 5
+  const showCollapseButton =
+    (subBlockId === 'responseFormat' || subBlockId === 'code') && code.split('\n').length > 5
 
   const editorRef = useRef<HTMLDivElement>(null)
 

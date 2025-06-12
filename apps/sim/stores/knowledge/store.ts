@@ -288,9 +288,14 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   ) => {
     const state = get()
 
-    // Return cached chunks if they exist and match the search criteria
+    // Return cached chunks if they exist and match the exact search criteria AND offset
     const cached = state.chunks[documentId]
-    if (cached && cached.searchQuery === options?.search) {
+    if (
+      cached &&
+      cached.searchQuery === options?.search &&
+      cached.pagination.offset === (options?.offset || 0) &&
+      cached.pagination.limit === (options?.limit || 50)
+    ) {
       return cached.chunks
     }
 
@@ -331,7 +336,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         chunks: {
           ...state.chunks,
           [documentId]: {
-            chunks,
+            chunks, // Always replace chunks for traditional pagination
             pagination: {
               total: pagination?.total || chunks.length,
               limit: pagination?.limit || options?.limit || 50,
@@ -571,11 +576,11 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         loadingChunks: new Set([...state.loadingChunks, documentId]),
       }))
 
-      // Build query parameters
+      // Build query parameters - for refresh, always start from offset 0
       const params = new URLSearchParams()
       if (options?.search) params.set('search', options.search)
       if (options?.limit) params.set('limit', options.limit.toString())
-      if (options?.offset) params.set('offset', options.offset.toString())
+      params.set('offset', '0') // Always start fresh on refresh
 
       const response = await fetch(
         `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks?${params.toString()}`
@@ -598,11 +603,11 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
         chunks: {
           ...state.chunks,
           [documentId]: {
-            chunks, // Use server data as source of truth
+            chunks, // Replace all chunks with fresh data
             pagination: {
               total: pagination?.total || chunks.length,
               limit: pagination?.limit || options?.limit || 50,
-              offset: pagination?.offset || options?.offset || 0,
+              offset: 0, // Reset to start
               hasMore: pagination?.hasMore || false,
             },
             searchQuery: options?.search,
