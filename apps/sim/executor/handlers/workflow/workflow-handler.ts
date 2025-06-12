@@ -91,13 +91,10 @@ export class WorkflowBlockHandler implements BlockHandler {
       const childWorkflowName = workflowMetadata?.name || workflowId
 
       return {
-        response: {
-          success: false,
-          error: error.message || 'Child workflow execution failed',
-          childWorkflowId: workflowId,
-          childWorkflowName: childWorkflowName,
-        },
-      }
+        success: false,
+        error: error.message || 'Child workflow execution failed',
+        childWorkflowName: childWorkflowName,
+      } as Record<string, any>
     }
   }
 
@@ -163,25 +160,33 @@ export class WorkflowBlockHandler implements BlockHandler {
   ): BlockOutput {
     const success = childResult.success !== false
 
-    // Create the parent block output with a flattened structure
-    // This allows outputs from child workflow to be easily connected to other blocks
-    const parentOutput = {
+    // If child workflow failed, return minimal output
+    if (!success) {
+      logger.warn(`Child workflow ${childWorkflowName} failed`)
+      return {
+        response: {
+          success: false,
+          childWorkflowName,
+          error: childResult.error || 'Child workflow execution failed'
+        }
+      } as Record<string, any>
+    }
+
+    // Extract the actual result content from the nested structure
+    let result = childResult
+    if (childResult?.output?.response) {
+      result = childResult.output.response
+    } else if (childResult?.response?.response) {
+      result = childResult.response.response
+    }
+
+    // Return a properly structured response with all required fields
+    return {
       response: {
-        success,
-        duration: Math.round(duration),
-        childWorkflowId,
+        success: true,
         childWorkflowName,
-        // Flatten the child result for easier access in visual connections
-        ...(childResult.output || {}),
-      },
-    }
-
-    // If child workflow failed, include error information
-    if (!success && childResult.error) {
-      parentOutput.response.error = childResult.error
-    }
-
-    logger.info(`Child workflow output mapped:`, parentOutput)
-    return parentOutput
+        result
+      }
+    } as Record<string, any>
   }
 }

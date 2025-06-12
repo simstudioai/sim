@@ -8,11 +8,10 @@ const logger = createLogger('WorkflowBlock')
 
 interface WorkflowResponse extends ToolResponse {
   output: {
-    [key: string]: any
     success: boolean
-    duration?: number
-    childWorkflowId: string
     childWorkflowName: string
+    result: any
+    error?: string
   }
 }
 
@@ -66,9 +65,8 @@ export const WorkflowBlock: BlockConfig = {
     response: {
       type: {
         success: 'boolean',
-        duration: 'number',
-        childWorkflowId: 'string',
         childWorkflowName: 'string',
+        result: 'json',
         error: 'string'
       }
     }
