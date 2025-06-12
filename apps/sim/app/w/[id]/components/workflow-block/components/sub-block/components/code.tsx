@@ -81,9 +81,6 @@ export function Code({
     (useSubBlockStore((state) => state.getValue(blockId, collapsedStateKey)) as boolean) ?? false
   const setCollapsedValue = useSubBlockStore((state) => state.setValue)
 
-  // Get block type to determine if we should show collapse button
-  // const blockType = useWorkflowStore((state) => state.blocks[blockId]?.type)
-
   const showCollapseButton =
     (subBlockId === 'responseFormat' || subBlockId === 'code') && code.split('\n').length > 5
 
