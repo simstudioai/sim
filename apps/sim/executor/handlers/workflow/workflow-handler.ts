@@ -8,12 +8,16 @@ import type { BlockHandler, ExecutionContext, StreamingExecution } from '../../t
 
 const logger = createLogger('WorkflowBlockHandler')
 
+// Maximum allowed depth for nested workflow executions
+const MAX_WORKFLOW_DEPTH = 10
+
 /**
  * Handler for workflow blocks that execute other workflows inline.
  * Creates sub-execution contexts and manages data flow between parent and child workflows.
  */
 export class WorkflowBlockHandler implements BlockHandler {
   private serializer = new Serializer()
+  private static executionStack = new Set<string>()
 
   canHandle(block: SerializedBlock): boolean {
     return block.metadata?.id === 'workflow'
@@ -33,6 +37,21 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
 
     try {
+      // Check execution depth
+      const currentDepth = (context.workflowId?.split('_sub_').length || 1) - 1
+      if (currentDepth >= MAX_WORKFLOW_DEPTH) {
+        throw new Error(`Maximum workflow nesting depth of ${MAX_WORKFLOW_DEPTH} exceeded`)
+      }
+
+      // Check for cycles
+      const executionId = `${context.workflowId}_sub_${workflowId}`
+      if (WorkflowBlockHandler.executionStack.has(executionId)) {
+        throw new Error(`Cyclic workflow dependency detected: ${executionId}`)
+      }
+
+      // Add current execution to stack
+      WorkflowBlockHandler.executionStack.add(executionId)
+
       // Load the child workflow from API
       const childWorkflow = await this.loadChildWorkflow(workflowId)
 
@@ -45,7 +64,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
 
-      logger.info(`Executing child workflow: ${childWorkflowName} (${workflowId})`)
+      logger.info(`Executing child workflow: ${childWorkflowName} (${workflowId}) at depth ${currentDepth}`)
 
       // Use the input data directly from the context - this allows for visual connections
       // from parent workflow blocks to flow into the child workflow
@@ -74,8 +93,11 @@ export class WorkflowBlockHandler implements BlockHandler {
       })
 
       const startTime = performance.now()
-      const result = await subExecutor.execute(`${context.workflowId}_sub_${workflowId}`)
+      const result = await subExecutor.execute(executionId)
       const duration = performance.now() - startTime
+
+      // Remove current execution from stack after completion
+      WorkflowBlockHandler.executionStack.delete(executionId)
 
       // Log execution completion
       logger.info(`Child workflow ${childWorkflowName} completed in ${Math.round(duration)}ms`)
@@ -84,6 +106,10 @@ export class WorkflowBlockHandler implements BlockHandler {
       return this.mapChildOutputToParent(result, workflowId, childWorkflowName, duration)
     } catch (error: any) {
       logger.error(`Error executing child workflow ${workflowId}:`, error)
+
+      // Clean up execution stack in case of error
+      const executionId = `${context.workflowId}_sub_${workflowId}`
+      WorkflowBlockHandler.executionStack.delete(executionId)
 
       // Get workflow name for error reporting
       const { workflows } = useWorkflowRegistry.getState()
