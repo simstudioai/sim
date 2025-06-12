@@ -50,6 +50,7 @@ describe('WorkflowBlockHandler', () => {
     vi.clearAllMocks()
 
     // Clear the static execution stack
+
     ;(WorkflowBlockHandler as any).executionStack.clear()
 
     // Setup default fetch mock
@@ -102,8 +103,9 @@ describe('WorkflowBlockHandler', () => {
 
     it('should detect and prevent cyclic dependencies', async () => {
       const inputs = { workflowId: 'child-workflow-id' }
-      
+
       // Simulate a cycle by adding the execution to the stack
+
       ;(WorkflowBlockHandler as any).executionStack.add('parent-workflow-id_sub_child-workflow-id')
 
       const result = await handler.execute(mockBlock, inputs, mockContext)
@@ -117,11 +119,12 @@ describe('WorkflowBlockHandler', () => {
 
     it('should enforce maximum depth limit', async () => {
       const inputs = { workflowId: 'child-workflow-id' }
-      
+
       // Create a deeply nested context (simulate 11 levels deep to exceed the limit of 10)
       const deepContext = {
         ...mockContext,
-        workflowId: 'level1_sub_level2_sub_level3_sub_level4_sub_level5_sub_level6_sub_level7_sub_level8_sub_level9_sub_level10_sub_level11',
+        workflowId:
+          'level1_sub_level2_sub_level3_sub_level4_sub_level5_sub_level6_sub_level7_sub_level8_sub_level9_sub_level10_sub_level11',
       }
 
       const result = await handler.execute(mockBlock, inputs, deepContext)
@@ -267,4 +270,4 @@ describe('WorkflowBlockHandler', () => {
       })
     })
   })
-}) 
+})

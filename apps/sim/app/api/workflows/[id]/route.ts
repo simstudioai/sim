@@ -7,10 +7,7 @@ import { workflow, workspaceMember } from '@/db/schema'
 
 const logger = createLogger('WorkflowDetailAPI')
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const startTime = Date.now()
 
@@ -74,10 +71,9 @@ export async function GET(
       `[${requestId}] User ${session.user.id} attempted to access workflow ${workflowId} without permission`
     )
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Error fetching workflow after ${elapsed}ms:`, error)
     return NextResponse.json({ error: 'Failed to fetch workflow' }, { status: 500 })
   }
-} 
+}

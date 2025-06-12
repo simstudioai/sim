@@ -64,7 +64,9 @@ export class WorkflowBlockHandler implements BlockHandler {
       const workflowMetadata = workflows[workflowId]
       const childWorkflowName = workflowMetadata?.name || childWorkflow.name || 'Unknown Workflow'
 
-      logger.info(`Executing child workflow: ${childWorkflowName} (${workflowId}) at depth ${currentDepth}`)
+      logger.info(
+        `Executing child workflow: ${childWorkflowName} (${workflowId}) at depth ${currentDepth}`
+      )
 
       // Use the input data directly from the context - this allows for visual connections
       // from parent workflow blocks to flow into the child workflow
@@ -193,8 +195,8 @@ export class WorkflowBlockHandler implements BlockHandler {
         response: {
           success: false,
           childWorkflowName,
-          error: childResult.error || 'Child workflow execution failed'
-        }
+          error: childResult.error || 'Child workflow execution failed',
+        },
       } as Record<string, any>
     }
 
@@ -211,8 +213,8 @@ export class WorkflowBlockHandler implements BlockHandler {
       response: {
         success: true,
         childWorkflowName,
-        result
-      }
+        result,
+      },
     } as Record<string, any>
   }
 }

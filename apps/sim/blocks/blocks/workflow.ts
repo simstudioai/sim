@@ -19,13 +19,13 @@ interface WorkflowResponse extends ToolResponse {
 const getAvailableWorkflows = (): Array<{ label: string; id: string }> => {
   try {
     const { workflows, activeWorkflowId } = useWorkflowRegistry.getState()
-    
+
     // Filter out the current workflow to prevent recursion
     const availableWorkflows = Object.entries(workflows)
       .filter(([id]) => id !== activeWorkflowId)
       .map(([id, workflow]) => ({
         label: workflow.name || `Workflow ${id.slice(0, 8)}`,
-        id: id
+        id: id,
       }))
       .sort((a, b) => a.label.localeCompare(b.label))
 
@@ -58,8 +58,8 @@ export const WorkflowBlock: BlockConfig = {
     workflowId: {
       type: 'string',
       required: true,
-      description: 'ID of the workflow to execute'
-    }
+      description: 'ID of the workflow to execute',
+    },
   },
   outputs: {
     response: {
@@ -67,8 +67,8 @@ export const WorkflowBlock: BlockConfig = {
         success: 'boolean',
         childWorkflowName: 'string',
         result: 'json',
-        error: 'string'
-      }
-    }
-  }
+        error: 'string',
+      },
+    },
+  },
 }
