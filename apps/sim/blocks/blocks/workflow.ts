@@ -50,6 +50,13 @@ export const WorkflowBlock: BlockConfig = {
       type: 'dropdown',
       options: getAvailableWorkflows,
     },
+    {
+      id: 'input',
+      title: 'Input Variable (Optional)',
+      type: 'short-input',
+      placeholder: 'Select a variable to pass to the child workflow',
+      description: 'This variable will be available as start.response.input in the child workflow',
+    },
   ],
   tools: {
     access: ['workflow_executor'],
@@ -59,6 +66,11 @@ export const WorkflowBlock: BlockConfig = {
       type: 'string',
       required: true,
       description: 'ID of the workflow to execute',
+    },
+    input: {
+      type: 'string',
+      required: false,
+      description: 'Variable reference to pass to the child workflow',
     },
   },
   outputs: {

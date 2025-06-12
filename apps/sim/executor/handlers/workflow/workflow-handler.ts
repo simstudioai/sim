@@ -68,29 +68,23 @@ export class WorkflowBlockHandler implements BlockHandler {
         `Executing child workflow: ${childWorkflowName} (${workflowId}) at depth ${currentDepth}`
       )
 
-      // Use the input data directly from the context - this allows for visual connections
-      // from parent workflow blocks to flow into the child workflow
-      const subWorkflowInput = {
-        ...inputs, // Include any direct inputs to this block
-      }
+      // Prepare the input for the child workflow
+      // The input from this block should be passed as start.response.input to the child workflow
+      let childWorkflowInput = {}
 
-      // Get the starter block's input data from the context
-      const starterBlock = context.workflow?.blocks.find((b) => b.metadata?.id === 'starter')
-      if (starterBlock) {
-        const starterState = context.blockStates.get(starterBlock.id)
-        if (starterState?.output?.response?.input) {
-          // Include the parent workflow's input data
-          Object.assign(subWorkflowInput, starterState.output.response.input)
-        }
+      if (inputs.input !== undefined) {
+        // If input is provided, use it directly
+        childWorkflowInput = inputs.input
+        logger.info(`Passing input to child workflow: ${JSON.stringify(childWorkflowInput)}`)
       }
 
       // Remove the workflowId from the input to avoid confusion
-      const { workflowId: _, ...cleanInput } = subWorkflowInput
+      const { workflowId: _, input: __, ...otherInputs } = inputs
 
       // Execute child workflow inline
       const subExecutor = new Executor({
         workflow: childWorkflow.serializedState,
-        workflowInput: cleanInput,
+        workflowInput: childWorkflowInput,
         envVarValues: context.environmentVariables,
       })
 
