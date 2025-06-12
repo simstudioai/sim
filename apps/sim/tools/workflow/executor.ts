@@ -52,8 +52,11 @@ export const workflowExecutorTool: ToolConfig<
   transformResponse: async (response: any) => {
     logger.info('Workflow executor tool response received', { response })
 
+    // Extract success state from response, default to false if not present
+    const success = response?.success ?? false
+
     return {
-      success: true,
+      success,
       duration: response?.duration ?? 0,
       childWorkflowId: response?.childWorkflowId ?? '',
       childWorkflowName: response?.childWorkflowName ?? '',
