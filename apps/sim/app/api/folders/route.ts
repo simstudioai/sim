@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflowFolder } from '@/db/schema'
 
-const logger = createLogger('FolderAPI')
+const logger = createLogger('FoldersAPI')
 
 // GET - Fetch folders for a workspace
 export async function GET(request: NextRequest) {
