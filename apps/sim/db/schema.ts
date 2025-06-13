@@ -123,10 +123,10 @@ export const workflow = pgTable('workflow', {
   isDeployed: boolean('is_deployed').notNull().default(false),
   deployedState: json('deployed_state'),
   deployedAt: timestamp('deployed_at'),
-  collaborators: json('collaborators').notNull().default([]),
+  collaborators: json('collaborators').notNull().default('[]'),
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
-  variables: json('variables').default({}),
+  variables: json('variables').default('{}'),
   isPublished: boolean('is_published').notNull().default(false),
   marketplaceData: json('marketplace_data'),
 })
