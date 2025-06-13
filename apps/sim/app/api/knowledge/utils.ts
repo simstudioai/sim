@@ -414,18 +414,6 @@ export async function processDocumentAsync(
 
     logger.info(`[${documentId}] Embeddings generated, updating document record`)
 
-    await db
-      .update(document)
-      .set({
-        chunkCount: processed.metadata.chunkCount,
-        tokenCount: processed.metadata.tokenCount,
-        characterCount: processed.metadata.characterCount,
-        processingStatus: 'completed',
-        processingCompletedAt: now,
-        processingError: null,
-      })
-      .where(eq(document.id, documentId))
-
     const embeddingRecords = processed.chunks.map((chunk, chunkIndex) => ({
       id: crypto.randomUUID(),
       knowledgeBaseId,
@@ -449,17 +437,31 @@ export async function processDocumentAsync(
       updatedAt: now,
     }))
 
-    if (embeddingRecords.length > 0) {
-      await db.insert(embedding).values(embeddingRecords)
-    }
+    await db.transaction(async (tx) => {
+      if (embeddingRecords.length > 0) {
+        await tx.insert(embedding).values(embeddingRecords)
+      }
 
-    await db
-      .update(knowledgeBase)
-      .set({
-        tokenCount: sql`${knowledgeBase.tokenCount} + ${processed.metadata.tokenCount}`,
-        updatedAt: now,
-      })
-      .where(eq(knowledgeBase.id, knowledgeBaseId))
+      await tx
+        .update(document)
+        .set({
+          chunkCount: processed.metadata.chunkCount,
+          tokenCount: processed.metadata.tokenCount,
+          characterCount: processed.metadata.characterCount,
+          processingStatus: 'completed',
+          processingCompletedAt: now,
+          processingError: null,
+        })
+        .where(eq(document.id, documentId))
+
+      await tx
+        .update(knowledgeBase)
+        .set({
+          tokenCount: sql`${knowledgeBase.tokenCount} + ${processed.metadata.tokenCount}`,
+          updatedAt: now,
+        })
+        .where(eq(knowledgeBase.id, knowledgeBaseId))
+    })
 
     const processingTime = Date.now() - startTime
     logger.info(
