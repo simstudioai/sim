@@ -552,7 +552,7 @@ export const embedding = pgTable(
     lastAccessedAt: timestamp('last_accessed_at', { mode: 'string' }),
     qualityScore: numeric('quality_score'),
     // TODO: failed to parse database type 'tsvector'
-    contentTsv: unknown('content_tsv').generatedAlwaysAs(
+    contentTsv: text('content_tsv').generatedAlwaysAs(
       sql`to_tsvector('english'::regconfig, content)`
     ),
     createdAt: timestamp('created_at', { mode: 'string' }).defaultNow().notNull(),
