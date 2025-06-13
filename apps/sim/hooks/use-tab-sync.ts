@@ -47,6 +47,7 @@ export function useTabSync(options: TabSyncOptions = {}) {
 
   const lastSyncRef = useRef<number>(0)
   const isSyncingRef = useRef<boolean>(false)
+  const timeoutRefs = useRef<NodeJS.Timeout[]>([])
   const { activeWorkflowId } = useWorkflowRegistry()
   const workflowStore = useWorkflowStore()
 
@@ -258,9 +259,10 @@ export function useTabSync(options: TabSyncOptions = {}) {
       if (document.visibilityState === 'visible') {
         logger.debug('Tab became visible - triggering structural sync check')
         // Use a longer delay to allow any ongoing operations to complete
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           syncWorkflowEditor()
         }, 300)
+        timeoutRefs.current.push(timeoutId)
       }
     }
 
@@ -268,15 +270,20 @@ export function useTabSync(options: TabSyncOptions = {}) {
     const handleWindowFocus = () => {
       logger.debug('Window focused - triggering structural sync check')
       // Use a longer delay to allow any ongoing operations to complete
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         syncWorkflowEditor()
       }, 300)
+      timeoutRefs.current.push(timeoutId)
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', handleWindowFocus)
 
     return () => {
+      // Clear any pending timeouts to prevent memory leaks
+      timeoutRefs.current.forEach(clearTimeout)
+      timeoutRefs.current = []
+
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleWindowFocus)
     }
