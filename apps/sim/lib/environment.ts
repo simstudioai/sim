@@ -35,5 +35,5 @@ export const isHosted = env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
  * Get cost multiplier based on environment
  */
 export function getCostMultiplier(): number {
-  return isProd ? Number.parseFloat(env.COST_MULTIPLIER!) || 1 : 1
+  return isProd ? (env.COST_MULTIPLIER ?? 1) : 1
 }

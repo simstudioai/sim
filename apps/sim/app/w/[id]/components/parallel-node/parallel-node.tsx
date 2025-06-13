@@ -111,7 +111,7 @@ export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) =>
   const getNestedStyles = () => {
     // Base styles
     const styles: Record<string, string> = {
-      backgroundColor: 'transparent',
+      backgroundColor: 'rgba(0, 0, 0, 0.02)',
     }
 
     // Apply nested styles

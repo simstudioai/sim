@@ -6,7 +6,7 @@ export const ParallelTool = {
   name: 'Parallel',
   description: 'Parallel Execution',
   icon: SplitIcon,
-  bgColor: '#8BC34A',
+  bgColor: '#FEE12B',
   data: {
     label: 'Parallel',
     parallelType: 'collection' as 'collection' | 'count',
