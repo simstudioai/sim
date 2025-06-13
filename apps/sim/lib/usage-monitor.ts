@@ -56,7 +56,7 @@ export async function checkUsageStatus(userId: string): Promise<UsageData> {
       })
     } else {
       // Free tier limit
-      limit = Number.parseFloat(env.FREE_TIER_COST_LIMIT!)
+      limit = env.FREE_TIER_COST_LIMIT ?? 5
       logger.info('Using free tier limit', { userId, limit })
     }
 

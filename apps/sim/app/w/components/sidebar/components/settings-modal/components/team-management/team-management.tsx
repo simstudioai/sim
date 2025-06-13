@@ -15,6 +15,7 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { client, useSession } from '@/lib/auth-client'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { checkEnterprisePlan } from '@/lib/subscription/utils'
 import { TeamSeatsDialog } from '../subscription/components/team-seats-dialog'
@@ -1243,7 +1244,7 @@ export function TeamManagement() {
         open={isAddSeatDialogOpen}
         onOpenChange={setIsAddSeatDialogOpen}
         title='Add Team Seats'
-        description='Update your team size. Each seat costs $40/month and gets $40 of inference credits.'
+        description={`Update your team size. Each seat costs $${env.TEAM_TIER_COST_LIMIT}/month and gets $${env.TEAM_TIER_COST_LIMIT} of inference credits.`}
         currentSeats={subscriptionData?.seats || 1}
         initialSeats={newSeatCount}
         isLoading={isUpdatingSeats}

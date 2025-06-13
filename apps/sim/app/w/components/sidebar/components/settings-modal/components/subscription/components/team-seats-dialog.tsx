@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { env } from '@/lib/env'
 
 interface TeamSeatsDialogProps {
   open: boolean
@@ -50,7 +51,7 @@ export function TeamSeatsDialog({
     }
   }, [open, initialSeats])
 
-  const costPerSeat = 40
+  const costPerSeat = env.TEAM_TIER_COST_LIMIT ?? 40
   const totalMonthlyCost = selectedSeats * costPerSeat
   const costChange = currentSeats ? (selectedSeats - currentSeats) * costPerSeat : 0
 

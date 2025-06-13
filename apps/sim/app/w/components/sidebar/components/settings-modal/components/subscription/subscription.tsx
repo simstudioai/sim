@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useActiveOrganization, useSession, useSubscription } from '@/lib/auth-client'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { TeamSeatsDialog } from './components/team-seats-dialog'
 
@@ -807,7 +808,7 @@ export function Subscription({
             open={isTeamDialogOpen}
             onOpenChange={setIsTeamDialogOpen}
             title='Team Subscription'
-            description='Set up a team workspace with collaborative features. Each seat costs $40/month and gets $40 of inference credits.'
+            description={`Set up a team workspace with collaborative features. Each seat costs $${env.TEAM_TIER_COST_LIMIT}/month and gets $${env.TEAM_TIER_COST_LIMIT} of inference credits.`}
             initialSeats={seats}
             isLoading={isUpgradingTeam}
             onConfirm={async (selectedSeats: number) => {

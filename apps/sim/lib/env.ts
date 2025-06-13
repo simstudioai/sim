@@ -17,25 +17,13 @@ export const env = createEnv({
     STRIPE_SECRET_KEY: z.string().min(1).optional(),
     STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
     STRIPE_FREE_PRICE_ID: z.string().min(1).optional(),
-    FREE_TIER_COST_LIMIT: z
-      .string()
-      .regex(/^\d+(\.\d+)?$/)
-      .optional(),
+    FREE_TIER_COST_LIMIT: z.number().optional(),
     STRIPE_PRO_PRICE_ID: z.string().min(1).optional(),
-    PRO_TIER_COST_LIMIT: z
-      .string()
-      .regex(/^\d+(\.\d+)?$/)
-      .optional(),
+    PRO_TIER_COST_LIMIT: z.number().optional(),
     STRIPE_TEAM_PRICE_ID: z.string().min(1).optional(),
-    TEAM_TIER_COST_LIMIT: z
-      .string()
-      .regex(/^\d+(\.\d+)?$/)
-      .optional(),
+    TEAM_TIER_COST_LIMIT: z.number().optional(),
     STRIPE_ENTERPRISE_PRICE_ID: z.string().min(1).optional(),
-    ENTERPRISE_TIER_COST_LIMIT: z
-      .string()
-      .regex(/^\d+(\.\d+)?$/)
-      .optional(),
+    ENTERPRISE_TIER_COST_LIMIT: z.number().optional(),
     RESEND_API_KEY: z.string().min(1).optional(),
     OPENAI_API_KEY: z.string().min(1).optional(),
     OPENAI_API_KEY_1: z.string().min(1).optional(),
@@ -47,10 +35,7 @@ export const env = createEnv({
     ANTHROPIC_API_KEY_3: z.string().min(1).optional(),
     FREESTYLE_API_KEY: z.string().min(1).optional(),
     TELEMETRY_ENDPOINT: z.string().url().optional(),
-    COST_MULTIPLIER: z
-      .string()
-      .regex(/^\d+(\.\d+)?$/)
-      .optional(),
+    COST_MULTIPLIER: z.number().optional(),
     JWT_SECRET: z.string().min(1).optional(),
     BROWSERBASE_API_KEY: z.string().min(1).optional(),
     BROWSERBASE_PROJECT_ID: z.string().min(1).optional(),
