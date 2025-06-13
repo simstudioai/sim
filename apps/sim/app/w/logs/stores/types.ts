@@ -93,6 +93,7 @@ export interface FilterState {
   timeRange: TimeRange
   level: LogLevel
   workflowIds: string[]
+  folderIds: string[]
   searchQuery: string
   triggers: TriggerType[]
 
@@ -111,6 +112,8 @@ export interface FilterState {
   setLevel: (level: LogLevel) => void
   setWorkflowIds: (workflowIds: string[]) => void
   toggleWorkflowId: (workflowId: string) => void
+  setFolderIds: (folderIds: string[]) => void
+  toggleFolderId: (folderId: string) => void
   setSearchQuery: (query: string) => void
   setTriggers: (triggers: TriggerType[]) => void
   toggleTrigger: (trigger: TriggerType) => void
