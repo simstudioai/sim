@@ -757,8 +757,8 @@ export const workflowFolder = pgTable(
   (table) => [
     index('workflow_folder_parent_sort_idx').using(
       'btree',
-      table.parentId.asc().nullsLast().op('int4_ops'),
-      table.sortOrder.asc().nullsLast().op('text_ops')
+      table.parentId.asc().nullsLast().op('text_ops'),
+      table.sortOrder.asc().nullsLast().op('int4_ops')
     ),
     index('workflow_folder_user_idx').using('btree', table.userId.asc().nullsLast().op('text_ops')),
     index('workflow_folder_workspace_parent_idx').using(
@@ -766,6 +766,11 @@ export const workflowFolder = pgTable(
       table.workspaceId.asc().nullsLast().op('text_ops'),
       table.parentId.asc().nullsLast().op('text_ops')
     ),
+    foreignKey({
+      columns: [table.parentId],
+      foreignColumns: [table.id],
+      name: 'workflow_folder_parent_id_workflow_folder_id_fk',
+    }).onDelete('set null'),
     foreignKey({
       columns: [table.userId],
       foreignColumns: [user.id],
