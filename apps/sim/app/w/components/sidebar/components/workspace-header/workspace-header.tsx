@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronDown, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { ChevronDown, Pencil, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AgentIcon } from '@/components/icons'
@@ -27,7 +27,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -535,34 +534,6 @@ export function WorkspaceHeader({
                   </div>
                 </div>
               </DropdownMenuTrigger>
-
-              {/* Plus button positioned absolutely */}
-              {!isCollapsed && (
-                <div className='-translate-y-1/2 absolute top-1/2 right-2 z-30'>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        {isClientLoading ? (
-                          <Skeleton className='h-6 w-6 shrink-0' />
-                        ) : (
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            onClick={(e) => {
-                              onCreateWorkflow()
-                            }}
-                            className='flex h-6 w-6 shrink-0 items-center justify-center p-0'
-                          >
-                            <Plus className='h-[18px] w-[18px] stroke-[2px]' />
-                            <span className='sr-only'>New Workflow</span>
-                          </Button>
-                        )}
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>New Workflow</TooltipContent>
-                  </Tooltip>
-                </div>
-              )}
             </div>
           )}
         </div>

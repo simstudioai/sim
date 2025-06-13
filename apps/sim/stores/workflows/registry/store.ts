@@ -669,6 +669,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             ? { id: options.marketplaceId, status: 'temp' as const }
             : undefined,
           workspaceId, // Associate with workspace
+          folderId: options.folderId || null, // Associate with folder if provided
         }
 
         let initialState: any
