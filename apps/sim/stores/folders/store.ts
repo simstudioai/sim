@@ -143,7 +143,7 @@ export const useFolderStore = create<FolderState>()(
         let currentId: string | null = folderId
 
         while (currentId && folders[currentId]) {
-          const folder = folders[currentId]
+          const folder: WorkflowFolder = folders[currentId]
           path.unshift(folder)
           currentId = folder.parentId
         }
