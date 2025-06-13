@@ -61,6 +61,7 @@ import { TwilioSMSBlock } from './blocks/twilio'
 import { TypeformBlock } from './blocks/typeform'
 import { VisionBlock } from './blocks/vision'
 import { WhatsAppBlock } from './blocks/whatsapp'
+import { WorkflowBlock } from './blocks/workflow'
 import { XBlock } from './blocks/x'
 import { YouTubeBlock } from './blocks/youtube'
 import type { BlockConfig } from './types'
@@ -123,6 +124,7 @@ export const registry: Record<string, BlockConfig> = {
   typeform: TypeformBlock,
   vision: VisionBlock,
   whatsapp: WhatsAppBlock,
+  workflow: WorkflowBlock,
   x: XBlock,
   youtube: YouTubeBlock,
   huggingface: HuggingFaceBlock,

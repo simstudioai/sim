@@ -96,6 +96,7 @@ import { typeformFilesTool, typeformInsightsTool, typeformResponsesTool } from '
 import type { ToolConfig } from './types'
 import { visionTool } from './vision'
 import { whatsappSendMessageTool } from './whatsapp'
+import { workflowExecutorTool } from './workflow'
 import { xReadTool, xSearchTool, xUserTool, xWriteTool } from './x'
 import { youtubeSearchTool } from './youtube'
 
@@ -216,4 +217,5 @@ export const tools: Record<string, ToolConfig> = {
   google_calendar_list: googleCalendarListTool,
   google_calendar_quick_add: googleCalendarQuickAddTool,
   google_calendar_invite: googleCalendarInviteTool,
+  workflow_executor: workflowExecutorTool,
 }
