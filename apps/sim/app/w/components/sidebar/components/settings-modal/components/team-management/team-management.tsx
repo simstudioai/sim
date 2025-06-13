@@ -15,8 +15,10 @@ import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { client, useSession } from '@/lib/auth-client'
+import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { checkEnterprisePlan } from '@/lib/subscription/utils'
+import { TeamSeatsDialog } from '../subscription/components/team-seats-dialog'
 
 const logger = createLogger('TeamManagement')
 
@@ -114,6 +116,10 @@ export function TeamManagement() {
     () => calculateSeatUsage(activeOrganization),
     [activeOrganization]
   )
+
+  const [isAddSeatDialogOpen, setIsAddSeatDialogOpen] = useState(false)
+  const [newSeatCount, setNewSeatCount] = useState(1)
+  const [isUpdatingSeats, setIsUpdatingSeats] = useState(false)
 
   const loadData = useCallback(async () => {
     if (!session?.user) return
@@ -281,7 +287,7 @@ export function TeamManagement() {
     }
 
     try {
-      await updateSeats(currentSeats - 1)
+      await reduceSeats(currentSeats - 1)
       await refreshOrganization()
     } catch (err: any) {
       setError(err.message || 'Failed to reduce seats')
@@ -581,7 +587,7 @@ export function TeamManagement() {
       if (shouldReduceSeats && subscriptionData) {
         const currentSeats = subscriptionData.seats || 0
         if (currentSeats > 1) {
-          await updateSeats(currentSeats - 1)
+          await reduceSeats(currentSeats - 1)
         }
       }
 
@@ -637,34 +643,68 @@ export function TeamManagement() {
     )
   }
 
-  const updateSeats = useCallback(
-    async (newSeatCount: number) => {
-      if (!subscriptionData || !activeOrganization) return
+  // Handle opening the add seat dialog
+  const handleAddSeatDialog = () => {
+    if (subscriptionData) {
+      setNewSeatCount((subscriptionData.seats || 1) + 1) // Default to current seats + 1
+      setIsAddSeatDialogOpen(true)
+    }
+  }
 
-      // Don't allow enterprise users to modify seats
-      if (checkEnterprisePlan(subscriptionData)) {
-        setError('Enterprise plan seats can only be modified by contacting support')
-        return
+  // Handle reducing seats
+  const reduceSeats = async (newSeatCount: number) => {
+    if (!subscriptionData || !activeOrganization) return
+
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      const { error } = await client.subscription.upgrade({
+        plan: 'team',
+        referenceId: activeOrganization.id,
+        subscriptionId: subscriptionData.id,
+        seats: newSeatCount,
+        successUrl: window.location.href,
+        cancelUrl: window.location.href,
+      })
+      if (error) throw new Error(error.message || 'Failed to reduce seats')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Confirm seat addition
+  const confirmAddSeats = async (selectedSeats?: number) => {
+    if (!subscriptionData || !activeOrganization) return
+
+    const seatsToUse = selectedSeats || newSeatCount
+
+    try {
+      setIsUpdatingSeats(true)
+      setError(null)
+
+      const { error } = await client.subscription.upgrade({
+        plan: 'team',
+        referenceId: activeOrganization.id,
+        subscriptionId: subscriptionData.id,
+        seats: seatsToUse,
+        successUrl: window.location.href,
+        cancelUrl: window.location.href,
+      })
+
+      if (error) {
+        setError(error.message || 'Failed to update seats')
+      } else {
+        // Close the dialog after successful upgrade
+        setIsAddSeatDialogOpen(false)
+        await refreshOrganization()
       }
-
-      try {
-        setIsLoading(true)
-        setError(null)
-
-        const { error } = await client.subscription.upgrade({
-          plan: 'team',
-          referenceId: activeOrganization.id,
-          successUrl: window.location.href,
-          cancelUrl: window.location.href,
-          seats: newSeatCount,
-        })
-        if (error) throw new Error(error.message || 'Failed to update seats')
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [subscriptionData, activeOrganization]
-  )
+    } catch (err: any) {
+      setError(err.message || 'Failed to update seats')
+    } finally {
+      setIsUpdatingSeats(false)
+    }
+  }
 
   if (isLoading && !activeOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
     return <TeamManagementSkeleton />
@@ -935,18 +975,7 @@ export function TeamManagement() {
                       <Button
                         variant='outline'
                         size='sm'
-                        onClick={async () => {
-                          const currentSeats = subscriptionData.seats || 1
-                          try {
-                            await updateSeats(currentSeats + 1)
-                            await refreshOrganization()
-                          } catch (error) {
-                            const errorMessage =
-                              error instanceof Error ? error.message : 'Failed to update seats'
-                            setError(errorMessage)
-                            logger.error('Error updating seats', { error })
-                          }
-                        }}
+                        onClick={handleAddSeatDialog}
                         disabled={isLoading}
                       >
                         Add Seat
@@ -1209,6 +1238,23 @@ export function TeamManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Seat Dialog - using shared component */}
+      <TeamSeatsDialog
+        open={isAddSeatDialogOpen}
+        onOpenChange={setIsAddSeatDialogOpen}
+        title='Add Team Seats'
+        description={`Update your team size. Each seat costs $${env.TEAM_TIER_COST_LIMIT}/month and gets $${env.TEAM_TIER_COST_LIMIT} of inference credits.`}
+        currentSeats={subscriptionData?.seats || 1}
+        initialSeats={newSeatCount}
+        isLoading={isUpdatingSeats}
+        onConfirm={async (selectedSeats: number) => {
+          setNewSeatCount(selectedSeats)
+          await confirmAddSeats(selectedSeats)
+        }}
+        confirmButtonText='Update Seats'
+        showCostBreakdown={true}
+      />
     </div>
   )
 }
