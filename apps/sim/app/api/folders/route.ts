@@ -56,35 +56,40 @@ export async function POST(request: NextRequest) {
     // Generate a new ID
     const id = crypto.randomUUID()
 
-    // Get the next sort order for the parent (or root level)
-    const existingFolders = await db
-      .select({ sortOrder: workflowFolder.sortOrder })
-      .from(workflowFolder)
-      .where(
-        and(
-          eq(workflowFolder.workspaceId, workspaceId),
-          eq(workflowFolder.userId, session.user.id),
-          parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
+    // Use transaction to ensure sortOrder consistency
+    const newFolder = await db.transaction(async (tx) => {
+      // Get the next sort order for the parent (or root level)
+      const existingFolders = await tx
+        .select({ sortOrder: workflowFolder.sortOrder })
+        .from(workflowFolder)
+        .where(
+          and(
+            eq(workflowFolder.workspaceId, workspaceId),
+            eq(workflowFolder.userId, session.user.id),
+            parentId ? eq(workflowFolder.parentId, parentId) : isNull(workflowFolder.parentId)
+          )
         )
-      )
-      .orderBy(desc(workflowFolder.sortOrder))
-      .limit(1)
+        .orderBy(desc(workflowFolder.sortOrder))
+        .limit(1)
 
-    const nextSortOrder = existingFolders.length > 0 ? existingFolders[0].sortOrder + 1 : 0
+      const nextSortOrder = existingFolders.length > 0 ? existingFolders[0].sortOrder + 1 : 0
 
-    // Insert the new folder
-    const [newFolder] = await db
-      .insert(workflowFolder)
-      .values({
-        id,
-        name: name.trim(),
-        userId: session.user.id,
-        workspaceId,
-        parentId: parentId || null,
-        color: color || '#6B7280',
-        sortOrder: nextSortOrder,
-      })
-      .returning()
+      // Insert the new folder within the same transaction
+      const [folder] = await tx
+        .insert(workflowFolder)
+        .values({
+          id,
+          name: name.trim(),
+          userId: session.user.id,
+          workspaceId,
+          parentId: parentId || null,
+          color: color || '#6B7280',
+          sortOrder: nextSortOrder,
+        })
+        .returning()
+
+      return folder
+    })
 
     logger.info('Created new folder:', { id, name, workspaceId, parentId })
 
