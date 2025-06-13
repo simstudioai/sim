@@ -12,12 +12,13 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useRegistryLoading } from '../../hooks/use-registry-loading'
+import { CreateMenu } from './components/create-menu/create-menu'
+import { FolderTree } from './components/folder-tree/folder-tree'
 import { HelpModal } from './components/help-modal/help-modal'
 import { InviteModal } from './components/invite-modal/invite-modal'
 import { NavSection } from './components/nav-section/nav-section'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 import { SidebarControl } from './components/sidebar-control/sidebar-control'
-import { WorkflowList } from './components/workflow-list/workflow-list'
 import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 export function Sidebar() {
@@ -126,7 +127,7 @@ export function Sidebar() {
   }, [workflows, isLoading, activeWorkspaceId])
 
   // Create workflow
-  const handleCreateWorkflow = async () => {
+  const handleCreateWorkflow = async (folderId?: string) => {
     try {
       // Import the isActivelyLoadingFromDB function to check sync status
       const { isActivelyLoadingFromDB } = await import('@/stores/workflows/sync')
@@ -137,15 +138,22 @@ export function Sidebar() {
         return
       }
 
-      // Create the workflow and ensure it's associated with the active workspace
+      // Create the workflow and ensure it's associated with the active workspace and folder
       const id = createWorkflow({
         workspaceId: activeWorkspaceId || undefined,
+        folderId: folderId || undefined, // Associate with folder if provided
       })
 
       router.push(`/w/${id}`)
     } catch (error) {
       console.error('Error creating workflow:', error)
     }
+  }
+
+  // Create folder handler
+  const handleCreateFolder = async (parentId?: string) => {
+    // This will be handled by the CreateMenu component
+    console.log('Create folder with parent:', parentId)
   }
 
   // Calculate sidebar visibility states
@@ -224,26 +232,26 @@ export function Sidebar() {
       <div className='scrollbar-none flex flex-1 flex-col overflow-auto px-2 py-0'>
         {/* Workflows Section */}
         <div className='flex-shrink-0'>
-          <h2
-            className={`mb-1 px-2 font-medium text-muted-foreground text-xs ${isCollapsed ? 'text-center' : ''}`}
+          {/* Workflows Header with Create Menu */}
+          <div
+            className={`mb-1 flex items-center justify-between px-2 ${isCollapsed ? 'justify-center' : ''}`}
           >
-            {isLoading ? (
-              isCollapsed ? (
-                ''
-              ) : (
-                <Skeleton className='h-4 w-16' />
-              )
-            ) : isCollapsed ? (
-              ''
-            ) : (
-              'Workflows'
+            <h2
+              className={`font-medium text-muted-foreground text-xs ${isCollapsed ? 'hidden' : ''}`}
+            >
+              {isLoading ? <Skeleton className='h-4 w-16' /> : 'Workflows'}
+            </h2>
+            {!isCollapsed && !isLoading && (
+              <CreateMenu onCreateWorkflow={handleCreateWorkflow} isCollapsed={false} />
             )}
-          </h2>
-          <WorkflowList
+          </div>
+          <FolderTree
             regularWorkflows={regularWorkflows}
             marketplaceWorkflows={tempWorkflows}
             isCollapsed={isCollapsed}
             isLoading={isLoading}
+            onCreateWorkflow={handleCreateWorkflow}
+            onCreateFolder={handleCreateFolder}
           />
         </div>
 

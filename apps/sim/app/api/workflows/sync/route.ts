@@ -41,6 +41,7 @@ const WorkflowSchema = z.object({
   state: WorkflowStateSchema,
   marketplaceData: MarketplaceDataSchema,
   workspaceId: z.string().optional(),
+  folderId: z.string().nullable().optional(),
 })
 
 const SyncPayloadSchema = z.object({
@@ -392,6 +393,7 @@ export async function POST(req: NextRequest) {
               id: clientWorkflow.id,
               userId: session.user.id,
               workspaceId: effectiveWorkspaceId,
+              folderId: clientWorkflow.folderId || null,
               name: clientWorkflow.name,
               description: clientWorkflow.description,
               color: clientWorkflow.color,
@@ -422,6 +424,7 @@ export async function POST(req: NextRequest) {
             dbWorkflow.description !== clientWorkflow.description ||
             dbWorkflow.color !== clientWorkflow.color ||
             dbWorkflow.workspaceId !== effectiveWorkspaceId ||
+            dbWorkflow.folderId !== (clientWorkflow.folderId || null) ||
             JSON.stringify(dbWorkflow.marketplaceData) !==
               JSON.stringify(clientWorkflow.marketplaceData)
 
@@ -434,6 +437,7 @@ export async function POST(req: NextRequest) {
                   description: clientWorkflow.description,
                   color: clientWorkflow.color,
                   workspaceId: effectiveWorkspaceId,
+                  folderId: clientWorkflow.folderId || null,
                   state: clientWorkflow.state,
                   marketplaceData: clientWorkflow.marketplaceData || null,
                   lastSynced: now,

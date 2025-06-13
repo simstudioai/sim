@@ -237,6 +237,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         createdAt,
         marketplaceData,
         workspaceId, // Extract workspaceId
+        folderId, // Extract folderId
       } = workflow
 
       // Ensure this workflow belongs to the current workspace
@@ -257,6 +258,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         lastModified: createdAt ? new Date(createdAt) : new Date(lastSynced),
         marketplaceData: marketplaceData || null,
         workspaceId, // Include workspaceId in metadata
+        folderId: folderId || null, // Include folderId in metadata
       }
 
       // 2. Prepare workflow state data

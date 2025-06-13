@@ -18,6 +18,7 @@ export interface WorkflowMetadata {
   color: string
   marketplaceData?: MarketplaceData | null
   workspaceId?: string
+  folderId?: string | null
 }
 
 export interface WorkflowRegistryState {
@@ -43,6 +44,7 @@ export interface WorkflowRegistryActions {
     name?: string
     description?: string
     workspaceId?: string
+    folderId?: string | null
   }) => string
   duplicateWorkflow: (sourceId: string) => string | null
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
