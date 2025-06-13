@@ -106,8 +106,16 @@ vi.mock('@/lib/documents/document-processor', () => ({
   processDocuments: vi.fn().mockResolvedValue([
     {
       chunks: [
-        { text: 'alpha', startIndex: 0, endIndex: 4 },
-        { text: 'beta', startIndex: 5, endIndex: 8 },
+        {
+          text: 'alpha',
+          tokenCount: 1,
+          metadata: { startIndex: 0, endIndex: 4 },
+        },
+        {
+          text: 'beta',
+          tokenCount: 1,
+          metadata: { startIndex: 5, endIndex: 8 },
+        },
       ],
       metadata: {
         filename: 'dummy',
