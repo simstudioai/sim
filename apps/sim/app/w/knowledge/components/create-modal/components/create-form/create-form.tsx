@@ -17,7 +17,7 @@ import { useKnowledgeStore } from '@/stores/knowledge/store'
 
 const logger = createLogger('CreateForm')
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 const ACCEPTED_FILE_TYPES = [
   'application/pdf',
   'application/msword',
@@ -107,7 +107,7 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
       for (const file of Array.from(fileList)) {
         // Check file size
         if (file.size > MAX_FILE_SIZE) {
-          setFileError(`File ${file.name} is too large. Maximum size is 50MB.`)
+          setFileError(`File ${file.name} is too large. Maximum size is 100MB per file.`)
           hasError = true
           continue
         }
@@ -259,29 +259,77 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
         const uploadedFiles: UploadedFile[] = []
 
         for (const file of files) {
-          const formData = new FormData()
-          formData.append('file', file)
+          try {
+            const presignedResponse = await fetch('/api/files/presigned', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                fileName: file.name,
+                contentType: file.type,
+                fileSize: file.size,
+              }),
+            })
 
-          const uploadResponse = await fetch('/api/files/upload', {
-            method: 'POST',
-            body: formData,
-          })
+            const presignedData = await presignedResponse.json()
 
-          if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json()
-            throw new Error(`Failed to upload ${file.name}: ${errorData.error || 'Unknown error'}`)
+            if (presignedResponse.ok && presignedData.directUploadSupported) {
+              const uploadResponse = await fetch(presignedData.presignedUrl, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': file.type,
+                },
+                body: file,
+              })
+
+              if (!uploadResponse.ok) {
+                throw new Error(
+                  `Direct upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`
+                )
+              }
+
+              uploadedFiles.push({
+                filename: file.name,
+                fileUrl: presignedData.fileInfo.path.startsWith('http')
+                  ? presignedData.fileInfo.path
+                  : `${window.location.origin}${presignedData.fileInfo.path}`,
+                fileSize: file.size,
+                mimeType: file.type,
+                fileHash: undefined,
+              })
+            } else {
+              const formData = new FormData()
+              formData.append('file', file)
+
+              const uploadResponse = await fetch('/api/files/upload', {
+                method: 'POST',
+                body: formData,
+              })
+
+              if (!uploadResponse.ok) {
+                const errorData = await uploadResponse.json()
+                throw new Error(
+                  `Failed to upload ${file.name}: ${errorData.error || 'Unknown error'}`
+                )
+              }
+
+              const uploadResult = await uploadResponse.json()
+              uploadedFiles.push({
+                filename: file.name,
+                fileUrl: uploadResult.path.startsWith('http')
+                  ? uploadResult.path
+                  : `${window.location.origin}${uploadResult.path}`,
+                fileSize: file.size,
+                mimeType: file.type,
+                fileHash: undefined,
+              })
+            }
+          } catch (error) {
+            throw new Error(
+              `Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            )
           }
-
-          const uploadResult = await uploadResponse.json()
-          uploadedFiles.push({
-            filename: file.name,
-            fileUrl: uploadResult.path.startsWith('http')
-              ? uploadResult.path
-              : `${window.location.origin}${uploadResult.path}`,
-            fileSize: file.size,
-            mimeType: file.type,
-            fileHash: undefined,
-          })
         }
 
         // Start async document processing
@@ -466,7 +514,7 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                         {isDragging ? 'Drop files here!' : 'Drop files here or click to browse'}
                       </p>
                       <p className='text-muted-foreground text-xs'>
-                        Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 50MB each)
+                        Supports PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
                       </p>
                     </div>
                   </div>
@@ -508,7 +556,7 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
                               : 'Drop more files or click to browse'}
                           </p>
                           <p className='text-muted-foreground text-xs'>
-                            PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 50MB each)
+                            PDF, DOC, DOCX, TXT, CSV, XLS, XLSX (max 100MB each)
                           </p>
                         </div>
                       </div>
