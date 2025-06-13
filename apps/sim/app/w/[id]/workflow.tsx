@@ -18,6 +18,7 @@ import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
 import { getBlock } from '@/blocks'
+import { useTabSync } from '@/hooks/use-tab-sync'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -96,6 +97,11 @@ function WorkflowContent() {
   const { activeBlockIds, pendingBlocks } = useExecutionStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
+
+  // Tab synchronization hook - automatically syncs workflow when tab becomes visible
+  useTabSync({
+    enabled: true,
+  })
 
   // Helper function to update a node's parent with proper position calculation
   const updateNodeParent = useCallback(
@@ -1344,8 +1350,10 @@ function WorkflowContent() {
       <div
         className={`relative h-full w-full flex-1 transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
       >
-        <Panel />
-        <NotificationList />
+        <div className='fixed top-0 right-0 z-10'>
+          <Panel />
+          <NotificationList />
+        </div>
         <ReactFlow
           nodes={nodes}
           edges={edgesWithSelection}
