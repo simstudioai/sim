@@ -127,33 +127,45 @@ export function useTabSync(options: TabSyncOptions = {}) {
         return
       }
 
-      // Structural comparison - exclude positions to avoid movement sync issues
-      const currentStateStr = JSON.stringify({
+      // Normalize and stringify once to avoid redundant processing
+      const currentNormalized = {
         blocks: normalizeBlocksForComparison(currentState.blocks),
         edges: currentState.edges,
         loops: currentState.loops,
         parallels: currentState.parallels,
-      })
+      }
 
-      const newStateStr = JSON.stringify({
+      const newNormalized = {
         blocks: normalizeBlocksForComparison(newWorkflowState.blocks || {}),
         edges: newWorkflowState.edges || [],
         loops: newWorkflowState.loops || {},
         parallels: newWorkflowState.parallels || {},
-      })
+      }
 
-      const hasStructuralChanges = currentStateStr !== newStateStr
+      // Cache stringified versions for comparison
+      const currentStringified = {
+        full: JSON.stringify(currentNormalized),
+        blocks: JSON.stringify(currentNormalized.blocks),
+        edges: JSON.stringify(currentNormalized.edges),
+        loops: JSON.stringify(currentNormalized.loops),
+        parallels: JSON.stringify(currentNormalized.parallels),
+      }
 
-      // More detailed change detection for logging (also excluding positions)
-      const hasBlockChanges =
-        JSON.stringify(normalizeBlocksForComparison(currentState.blocks)) !==
-        JSON.stringify(normalizeBlocksForComparison(newWorkflowState.blocks || {}))
-      const hasEdgeChanges =
-        JSON.stringify(currentState.edges) !== JSON.stringify(newWorkflowState.edges || [])
-      const hasLoopChanges =
-        JSON.stringify(currentState.loops) !== JSON.stringify(newWorkflowState.loops || {})
-      const hasParallelChanges =
-        JSON.stringify(currentState.parallels) !== JSON.stringify(newWorkflowState.parallels || {})
+      const newStringified = {
+        full: JSON.stringify(newNormalized),
+        blocks: JSON.stringify(newNormalized.blocks),
+        edges: JSON.stringify(newNormalized.edges),
+        loops: JSON.stringify(newNormalized.loops),
+        parallels: JSON.stringify(newNormalized.parallels),
+      }
+
+      const hasStructuralChanges = currentStringified.full !== newStringified.full
+
+      // Detailed change detection using cached strings
+      const hasBlockChanges = currentStringified.blocks !== newStringified.blocks
+      const hasEdgeChanges = currentStringified.edges !== newStringified.edges
+      const hasLoopChanges = currentStringified.loops !== newStringified.loops
+      const hasParallelChanges = currentStringified.parallels !== newStringified.parallels
 
       if (hasStructuralChanges) {
         logger.info('Newer structural changes detected - updating editor', {
