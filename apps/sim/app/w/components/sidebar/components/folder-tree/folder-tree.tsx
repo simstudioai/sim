@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -83,25 +84,33 @@ function FolderItem({ folder, isCollapsed, onCreateWorkflow }: FolderItemProps) 
 
   if (isCollapsed) {
     return (
-      <div
-        className='group mx-auto flex h-8 w-8 items-center justify-center'
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <div
-          className={clsx(
-            'flex h-4 w-4 items-center justify-center rounded transition-colors',
-            dragOver ? 'ring-2 ring-blue-500' : ''
-          )}
-        >
-          {isExpanded ? (
-            <FolderOpen className='h-3 w-3 text-foreground/70 dark:text-foreground/60' />
-          ) : (
-            <Folder className='h-3 w-3 text-foreground/70 dark:text-foreground/60' />
-          )}
-        </div>
-      </div>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className='group mx-auto flex h-8 w-8 cursor-pointer items-center justify-center'
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={handleToggleExpanded}
+          >
+            <div
+              className={clsx(
+                'flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-accent/50',
+                dragOver ? 'ring-2 ring-blue-500' : ''
+              )}
+            >
+              {isExpanded ? (
+                <FolderOpen className='h-3 w-3 text-foreground/70 dark:text-foreground/60' />
+              ) : (
+                <Folder className='h-3 w-3 text-foreground/70 dark:text-foreground/60' />
+              )}
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side='right'>
+          <p>{folder.name}</p>
+        </TooltipContent>
+      </Tooltip>
     )
   }
 
@@ -176,22 +185,34 @@ function WorkflowItem({ workflow, active, isMarketplace, isCollapsed, level }: W
 
   if (isCollapsed) {
     return (
-      <Link
-        href={`/w/${workflow.id}`}
-        className={clsx(
-          'mx-auto flex h-8 w-8 items-center justify-center rounded-md',
-          active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50',
-          isDragging ? 'opacity-50' : ''
-        )}
-        draggable={!isMarketplace}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-      >
-        <div
-          className='h-[14px] w-[14px] flex-shrink-0 rounded'
-          style={{ backgroundColor: workflow.color }}
-        />
-      </Link>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Link
+            href={`/w/${workflow.id}`}
+            className={clsx(
+              'mx-auto flex h-8 w-8 items-center justify-center rounded-md',
+              active
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:bg-accent/50',
+              isDragging ? 'opacity-50' : ''
+            )}
+            draggable={!isMarketplace}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div
+              className='h-[14px] w-[14px] flex-shrink-0 rounded'
+              style={{ backgroundColor: workflow.color }}
+            />
+          </Link>
+        </TooltipTrigger>
+        <TooltipContent side='right'>
+          <p>
+            {workflow.name}
+            {isMarketplace && ' (Preview)'}
+          </p>
+        </TooltipContent>
+      </Tooltip>
     )
   }
 
@@ -204,7 +225,7 @@ function WorkflowItem({ workflow, active, isMarketplace, isCollapsed, level }: W
         isDragging ? 'opacity-50' : '',
         !isMarketplace ? 'cursor-move' : ''
       )}
-      style={{ paddingLeft: `${(level + 1) * 20 + 8}px` }}
+      style={{ paddingLeft: isCollapsed ? '0px' : `${(level + 1) * 20 + 8}px` }}
       draggable={!isMarketplace}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
@@ -271,7 +292,7 @@ export function FolderTree({
     nodes.forEach((folder) => {
       // Render folder
       result.push(
-        <div key={folder.id} style={{ paddingLeft: `${level * 20}px` }}>
+        <div key={folder.id} style={{ paddingLeft: isCollapsed ? '0px' : `${level * 20}px` }}>
           <FolderItem
             folder={folder}
             isCollapsed={isCollapsed}
@@ -308,7 +329,7 @@ export function FolderTree({
   const showLoading = isLoading || foldersLoading
 
   return (
-    <div className={`space-y-1 ${showLoading ? 'opacity-60' : ''}`}>
+    <div className={`space-y-1 transition-opacity duration-200 ${showLoading ? 'opacity-60' : ''}`}>
       {/* Folder tree */}
       {renderFolderTree(folderTree)}
 
