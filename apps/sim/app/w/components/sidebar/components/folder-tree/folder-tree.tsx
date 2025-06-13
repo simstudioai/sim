@@ -15,12 +15,9 @@ interface FolderItemProps {
   folder: FolderTreeNode
   isCollapsed?: boolean
   onCreateWorkflow: (folderId?: string) => void
-  onCreateFolder: (parentId?: string) => void
 }
 
-function FolderItem({ folder, isCollapsed, onCreateWorkflow, onCreateFolder }: FolderItemProps) {
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [newName, setNewName] = useState(folder.name)
+function FolderItem({ folder, isCollapsed, onCreateWorkflow }: FolderItemProps) {
   const [dragOver, setDragOver] = useState(false)
   const { expandedFolders, toggleExpanded, updateFolderAPI, deleteFolder } = useFolderStore()
   const { updateWorkflow } = useWorkflowRegistry()
@@ -228,7 +225,6 @@ interface FolderTreeProps {
   isCollapsed?: boolean
   isLoading?: boolean
   onCreateWorkflow: (folderId?: string) => void
-  onCreateFolder: (parentId?: string) => void
 }
 
 export function FolderTree({
@@ -237,7 +233,6 @@ export function FolderTree({
   isCollapsed = false,
   isLoading = false,
   onCreateWorkflow,
-  onCreateFolder,
 }: FolderTreeProps) {
   const pathname = usePathname()
   const { activeWorkspaceId } = useWorkflowRegistry()
@@ -279,7 +274,6 @@ export function FolderTree({
             folder={folder}
             isCollapsed={isCollapsed}
             onCreateWorkflow={onCreateWorkflow}
-            onCreateFolder={onCreateFolder}
           />
         </div>
       )

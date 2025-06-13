@@ -150,12 +150,6 @@ export function Sidebar() {
     }
   }
 
-  // Create folder handler
-  const handleCreateFolder = async (parentId?: string) => {
-    // This will be handled by the CreateMenu component
-    console.log('Create folder with parent:', parentId)
-  }
-
   // Calculate sidebar visibility states
   // When in hover mode, sidebar is collapsed until hovered or workspace dropdown is open
   // When in expanded/collapsed mode, sidebar follows isExpanded state
@@ -251,7 +245,6 @@ export function Sidebar() {
             isCollapsed={isCollapsed}
             isLoading={isLoading}
             onCreateWorkflow={handleCreateWorkflow}
-            onCreateFolder={handleCreateFolder}
           />
         </div>
 
