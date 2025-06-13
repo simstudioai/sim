@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronDown, File, Folder, Plus } from 'lucide-react'
+import { File, Folder, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -120,9 +120,8 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant='ghost' size='sm' className='h-6 shrink-0 gap-1 px-2' title='Create'>
+          <Button variant='ghost' size='icon' className='h-6 w-6 shrink-0 p-0' title='Create'>
             <Plus className='h-[16px] w-[16px] stroke-[2px]' />
-            <ChevronDown className='h-[12px] w-[12px]' />
             <span className='sr-only'>Create</span>
           </Button>
         </DropdownMenuTrigger>

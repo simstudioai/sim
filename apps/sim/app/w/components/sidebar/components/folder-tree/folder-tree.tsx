@@ -5,7 +5,6 @@ import clsx from 'clsx'
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
@@ -95,12 +94,11 @@ function FolderItem({ folder, isCollapsed, onCreateWorkflow }: FolderItemProps) 
             'flex h-4 w-4 items-center justify-center rounded transition-colors',
             dragOver ? 'ring-2 ring-blue-500' : ''
           )}
-          style={{ backgroundColor: folder.color }}
         >
           {isExpanded ? (
-            <FolderOpen className='h-3 w-3 text-white' />
+            <FolderOpen className='h-3 w-3 text-foreground/70 dark:text-foreground/60' />
           ) : (
-            <Folder className='h-3 w-3 text-white' />
+            <Folder className='h-3 w-3 text-foreground/70 dark:text-foreground/60' />
           )}
         </div>
       </div>
@@ -109,41 +107,45 @@ function FolderItem({ folder, isCollapsed, onCreateWorkflow }: FolderItemProps) 
 
   return (
     <div
-      className={clsx('group', dragOver ? 'rounded-md border border-blue-200 bg-blue-50' : '')}
+      className={clsx(
+        'group',
+        dragOver
+          ? 'rounded-md border border-blue-500/50 bg-blue-500/10 dark:border-blue-400/50 dark:bg-blue-400/10'
+          : ''
+      )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className='flex items-center rounded-md px-2 py-1.5 text-sm hover:bg-accent/50'>
-        <Button
-          variant='ghost'
-          size='sm'
-          className='mr-1 h-4 w-4 p-0'
-          onClick={handleToggleExpanded}
-        >
+      <div
+        className='flex cursor-pointer items-center rounded-md px-2 py-1.5 text-sm hover:bg-accent/50'
+        onClick={handleToggleExpanded}
+      >
+        <div className='mr-1 flex h-4 w-4 items-center justify-center'>
           {isExpanded ? <ChevronDown className='h-3 w-3' /> : <ChevronRight className='h-3 w-3' />}
-        </Button>
+        </div>
 
-        <div
-          className='mr-2 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded'
-          style={{ backgroundColor: folder.color }}
-        >
+        <div className='mr-2 flex h-4 w-4 flex-shrink-0 items-center justify-center'>
           {isExpanded ? (
-            <FolderOpen className='h-3 w-3 text-white' />
+            <FolderOpen className='h-4 w-4 text-foreground/70 dark:text-foreground/60' />
           ) : (
-            <Folder className='h-3 w-3 text-white' />
+            <Folder className='h-4 w-4 text-foreground/70 dark:text-foreground/60' />
           )}
         </div>
 
-        <span className='flex-1 truncate text-muted-foreground'>{folder.name}</span>
+        <span className='flex-1 cursor-default select-none truncate text-muted-foreground'>
+          {folder.name}
+        </span>
 
-        <FolderContextMenu
-          folderId={folder.id}
-          folderName={folder.name}
-          onCreateWorkflow={onCreateWorkflow}
-          onRename={handleRename}
-          onDelete={handleDelete}
-        />
+        <div className='flex items-center justify-center' onClick={(e) => e.stopPropagation()}>
+          <FolderContextMenu
+            folderId={folder.id}
+            folderName={folder.name}
+            onCreateWorkflow={onCreateWorkflow}
+            onRename={handleRename}
+            onDelete={handleDelete}
+          />
+        </div>
       </div>
     </div>
   )
