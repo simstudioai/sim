@@ -18,7 +18,12 @@ interface FolderSectionProps {
   expandedFolders: Set<string>
   pathname: string
   updateWorkflow: (id: string, updates: any) => void
-  renderFolderTree: (nodes: FolderTreeNode[], level: number) => React.ReactNode[]
+  renderFolderTree: (
+    nodes: FolderTreeNode[],
+    level: number,
+    parentDragOver?: boolean
+  ) => React.ReactNode[]
+  parentDragOver?: boolean
 }
 
 function FolderSection({
@@ -31,6 +36,7 @@ function FolderSection({
   pathname,
   updateWorkflow,
   renderFolderTree,
+  parentDragOver = false,
 }: FolderSectionProps) {
   const { isDragOver, handleDragOver, handleDragLeave, handleDrop } = useDragHandlers(
     updateWorkflow,
@@ -39,6 +45,7 @@ function FolderSection({
   )
 
   const workflowsInFolder = workflowsByFolder[folder.id] || []
+  const isAnyDragOver = isDragOver || parentDragOver
 
   return (
     <div
@@ -74,7 +81,7 @@ function FolderSection({
               active={pathname === `/w/${workflow.id}`}
               isCollapsed={isCollapsed}
               level={level}
-              isDragOver={isDragOver}
+              isDragOver={isAnyDragOver}
             />
           ))}
         </div>
@@ -82,7 +89,7 @@ function FolderSection({
 
       {/* Render child folders */}
       {expandedFolders.has(folder.id) && folder.children.length > 0 && (
-        <div>{renderFolderTree(folder.children, level + 1)}</div>
+        <div>{renderFolderTree(folder.children, level + 1, isAnyDragOver)}</div>
       )}
     </div>
   )
@@ -193,7 +200,11 @@ export function FolderTree({
     handleDrop: handleRootDrop,
   } = useDragHandlers(updateWorkflow, null, 'Moved workflow(s) to root')
 
-  const renderFolderTree = (nodes: FolderTreeNode[], level = 0): React.ReactNode[] => {
+  const renderFolderTree = (
+    nodes: FolderTreeNode[],
+    level = 0,
+    parentDragOver = false
+  ): React.ReactNode[] => {
     return nodes.map((folder) => (
       <FolderSection
         key={folder.id}
@@ -206,6 +217,7 @@ export function FolderTree({
         pathname={pathname}
         updateWorkflow={updateWorkflow}
         renderFolderTree={renderFolderTree}
+        parentDragOver={parentDragOver}
       />
     ))
   }

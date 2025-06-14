@@ -40,14 +40,11 @@ export function FolderItem({
     toggleExpanded(folder.id)
     pendingStateRef.current = newExpandedState
 
-    // Clear any pending update
     if (updateTimeoutRef.current) {
       clearTimeout(updateTimeoutRef.current)
     }
 
-    // Debounce the API call to prevent race conditions
     updateTimeoutRef.current = setTimeout(() => {
-      // Only update if the pending state matches what we're about to send
       if (pendingStateRef.current === newExpandedState) {
         updateFolderAPI(folder.id, { isExpanded: newExpandedState })
           .catch(console.error)
@@ -55,10 +52,9 @@ export function FolderItem({
             pendingStateRef.current = null
           })
       }
-    }, 300) // Increased debounce to prevent rapid toggle issues
+    }, 300)
   }, [folder.id, isExpanded, toggleExpanded, updateFolderAPI])
 
-  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (updateTimeoutRef.current) {
