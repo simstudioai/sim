@@ -1,17 +1,3 @@
-CREATE TABLE "workflow_change_log" (
-	"id" text PRIMARY KEY NOT NULL,
-	"workflow_id" text NOT NULL,
-	"user_id" text NOT NULL,
-	"change_type" text NOT NULL,
-	"operation" text NOT NULL,
-	"entity_id" text NOT NULL,
-	"before_state" json,
-	"after_state" json,
-	"client_id" text,
-	"session_id" text,
-	"created_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "workflow_edge" (
 	"id" text PRIMARY KEY NOT NULL,
 	"workflow_id" text NOT NULL,
@@ -84,8 +70,6 @@ CREATE TABLE "workflow_parallel" (
 --> statement-breakpoint
 ALTER TABLE "workflow" ALTER COLUMN "collaborators" SET DEFAULT '[]'::json;--> statement-breakpoint
 ALTER TABLE "workflow" ALTER COLUMN "variables" SET DEFAULT '{}'::json;--> statement-breakpoint
-ALTER TABLE "workflow_change_log" ADD CONSTRAINT "workflow_change_log_workflow_id_workflow_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflow"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workflow_change_log" ADD CONSTRAINT "workflow_change_log_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_edge" ADD CONSTRAINT "workflow_edge_workflow_id_workflow_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflow"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_edge" ADD CONSTRAINT "workflow_edge_modified_by_user_id_fk" FOREIGN KEY ("modified_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_loop" ADD CONSTRAINT "workflow_loop_workflow_id_workflow_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflow"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -94,10 +78,6 @@ ALTER TABLE "workflow_node" ADD CONSTRAINT "workflow_node_workflow_id_workflow_i
 ALTER TABLE "workflow_node" ADD CONSTRAINT "workflow_node_modified_by_user_id_fk" FOREIGN KEY ("modified_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_parallel" ADD CONSTRAINT "workflow_parallel_workflow_id_workflow_id_fk" FOREIGN KEY ("workflow_id") REFERENCES "public"."workflow"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_parallel" ADD CONSTRAINT "workflow_parallel_modified_by_user_id_fk" FOREIGN KEY ("modified_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "workflow_change_log_workflow_id_idx" ON "workflow_change_log" USING btree ("workflow_id");--> statement-breakpoint
-CREATE INDEX "workflow_change_log_created_at_idx" ON "workflow_change_log" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "workflow_change_log_workflow_time_idx" ON "workflow_change_log" USING btree ("workflow_id","created_at");--> statement-breakpoint
-CREATE INDEX "workflow_change_log_entity_idx" ON "workflow_change_log" USING btree ("entity_id","change_type");--> statement-breakpoint
 CREATE INDEX "workflow_edge_workflow_id_idx" ON "workflow_edge" USING btree ("workflow_id");--> statement-breakpoint
 CREATE INDEX "workflow_edge_source_idx" ON "workflow_edge" USING btree ("source");--> statement-breakpoint
 CREATE INDEX "workflow_edge_target_idx" ON "workflow_edge" USING btree ("target");--> statement-breakpoint
