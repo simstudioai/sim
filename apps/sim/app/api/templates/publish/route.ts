@@ -17,11 +17,11 @@ export const revalidate = 0
 // Schema for request body
 const PublishRequestSchema = z.object({
   workflowId: z.string().uuid(),
-  name: z.string().min(3).max(50).optional(),
-  shortDescription: z.string().min(10).max(200).optional(),
-  longDescription: z.string().min(20).max(1000).optional(),
-  category: z.string().min(1).optional(),
-  authorName: z.string().min(2).max(50).optional(),
+  name: z.string().min(3).max(50),
+  shortDescription: z.string().min(10).max(200),
+  longDescription: z.string().min(20).max(1000),
+  category: z.string().min(1),
+  authorName: z.string().min(2).max(50),
   workflowState: z.record(z.any()).optional(),
 })
 
@@ -99,8 +99,8 @@ export async function POST(request: NextRequest) {
         workflowId: workflowId,
         state: workflowState,
         name: name || userWorkflow[0].name,
-        short_description: shortDescription || userWorkflow[0].description || '',
-        long_description: longDescription || '',
+        shortDescription: shortDescription || userWorkflow[0].description || '',
+        longDescription: longDescription || '',
         authorId: userId,
         authorName: authorName || userData[0].name,
         category: category || null,

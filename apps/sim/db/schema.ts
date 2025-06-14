@@ -78,12 +78,41 @@ export const verification = pgTable('verification', {
   updatedAt: timestamp('updated_at'),
 })
 
+export const workflowFolder = pgTable(
+  'workflow_folder',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    parentId: text('parent_id'), // Self-reference will be handled by foreign key constraint
+    color: text('color').default('#6B7280'),
+    isExpanded: boolean('is_expanded').notNull().default(true),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index('workflow_folder_user_idx').on(table.userId),
+    workspaceParentIdx: index('workflow_folder_workspace_parent_idx').on(
+      table.workspaceId,
+      table.parentId
+    ),
+    parentSortIdx: index('workflow_folder_parent_sort_idx').on(table.parentId, table.sortOrder),
+  })
+)
+
 export const workflow = pgTable('workflow', {
   id: text('id').primaryKey(),
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
   workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
+  folderId: text('folder_id').references(() => workflowFolder.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   description: text('description'),
   state: json('state').notNull(),
@@ -94,15 +123,12 @@ export const workflow = pgTable('workflow', {
   isDeployed: boolean('is_deployed').notNull().default(false),
   deployedState: json('deployed_state'),
   deployedAt: timestamp('deployed_at'),
-  collaborators: json('collaborators').notNull().default('[]'),
+  collaborators: json('collaborators').notNull().default([]),
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
-  variables: json('variables').default('{}'),
-  templatesData: json('templates_data'),
-
-  // These columns are kept for backward compatibility during migration
-  // @deprecated - Use templatesData instead
+  variables: json('variables').default({}),
   isPublished: boolean('is_published').notNull().default(false),
+  marketplaceData: json('marketplace_data'),
 })
 
 export const waitlist = pgTable('waitlist', {
@@ -216,40 +242,23 @@ export const apiKey = pgTable('api_key', {
   expiresAt: timestamp('expires_at'),
 })
 
-export const templates = pgTable(
-  'templates',
-  {
-    id: text('id').primaryKey(),
-    state: json('state').notNull(),
-    name: text('name').notNull(),
-    shortDescription: text('short_description'),
-    longDescription: text('long_description'),
-    authorId: text('author_id')
-      .notNull()
-      .references(() => user.id),
-    authorName: text('author_name').notNull(),
-    views: integer('views').notNull().default(0),
-    category: text('category'),
-    price: text('price').notNull().default('Free'),
-    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    // Critical performance indexes
-    categoryIdx: index('templates_category_idx').on(table.category),
-    viewsIdx: index('templates_views_idx').on(table.views),
-    createdAtIdx: index('templates_created_at_idx').on(table.createdAt),
-    authorIdIdx: index('templates_author_id_idx').on(table.authorId),
-
-    // Composite indexes for common query patterns
-    categoryViewsIdx: index('templates_category_views_idx').on(table.category, table.views),
-    categoryCreatedAtIdx: index('templates_category_created_at_idx').on(
-      table.category,
-      table.createdAt
-    ),
-  })
-)
+export const marketplace = pgTable('marketplace', {
+  id: text('id').primaryKey(),
+  workflowId: text('workflow_id')
+    .notNull()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  state: json('state').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  authorId: text('author_id')
+    .notNull()
+    .references(() => user.id),
+  authorName: text('author_name').notNull(),
+  views: integer('views').notNull().default(0),
+  category: text('category'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
 
 export const userStats = pgTable('user_stats', {
   id: text('id').primaryKey(),
@@ -493,12 +502,14 @@ export const document = pgTable(
     knowledgeBaseId: text('knowledge_base_id')
       .notNull()
       .references(() => knowledgeBase.id, { onDelete: 'cascade' }),
+
     // File information
     filename: text('filename').notNull(),
     fileUrl: text('file_url').notNull(),
     fileSize: integer('file_size').notNull(), // Size in bytes
     mimeType: text('mime_type').notNull(), // e.g., 'application/pdf', 'text/plain'
     fileHash: text('file_hash'), // SHA-256 hash for deduplication
+
     // Content statistics
     chunkCount: integer('chunk_count').notNull().default(0),
     tokenCount: integer('token_count').notNull().default(0),
@@ -629,6 +640,41 @@ export const embedding = pgTable(
   })
 )
 
+export const templates = pgTable(
+  'templates',
+  {
+    id: text('id').primaryKey(),
+    state: json('state').notNull(),
+    name: text('name').notNull(),
+    shortDescription: text('short_description'),
+    longDescription: text('long_description'),
+    authorId: text('author_id')
+      .notNull()
+      .references(() => user.id),
+    authorName: text('author_name').notNull(),
+    views: integer('views').notNull().default(0),
+    category: text('category'),
+    price: text('price').notNull().default('Free'),
+    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Critical performance indexes
+    categoryIdx: index('templates_category_idx').on(table.category),
+    viewsIdx: index('templates_views_idx').on(table.views),
+    createdAtIdx: index('templates_created_at_idx').on(table.createdAt),
+    authorIdIdx: index('templates_author_id_idx').on(table.authorId),
+
+    // Composite indexes for common query patterns
+    categoryViewsIdx: index('templates_category_views_idx').on(table.category, table.views),
+    categoryCreatedAtIdx: index('templates_category_created_at_idx').on(
+      table.category,
+      table.createdAt
+    ),
+  })
+)
+
 export const savedTemplates = pgTable(
   'saved_templates',
   {
@@ -660,3 +706,4 @@ export const savedTemplates = pgTable(
     templateIdIdx: index('saved_templates_template_id_idx').on(table.templateId),
   })
 )
+
