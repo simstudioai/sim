@@ -169,7 +169,6 @@ export function FolderTree({
     }
   }, [activeWorkspaceId, fetchFolders])
 
-  // Clear selection when navigating to different workspace
   useEffect(() => {
     clearSelection()
   }, [activeWorkspaceId, clearSelection])
@@ -187,7 +186,6 @@ export function FolderTree({
     {} as Record<string, WorkflowMetadata[]>
   )
 
-  // Root drag handlers using the custom hook
   const {
     isDragOver: rootDragOver,
     handleDragOver: handleRootDragOver,

@@ -30,42 +30,32 @@ export function WorkflowItem({
   const isSelected = useIsWorkflowSelected(workflow.id)
 
   const handleClick = (e: React.MouseEvent) => {
-    // Don't handle click if a drag operation was started
     if (dragStartedRef.current) {
       e.preventDefault()
       return
     }
 
     if (e.shiftKey) {
-      // Shift+click: toggle selection and prevent navigation
       e.preventDefault()
       toggleWorkflowSelection(workflow.id)
     } else {
-      // Regular click: select this workflow only and allow navigation
-      // Only select if it's not already the only selected workflow to avoid unnecessary re-renders
       if (!isSelected || selectedWorkflows.size > 1) {
         selectOnly(workflow.id)
       }
-      // Don't prevent default - let Link handle navigation
     }
   }
 
   const handleDragStart = (e: React.DragEvent) => {
-    if (isMarketplace) return // Don't allow dragging marketplace workflows
+    if (isMarketplace) return
 
-    // Mark that a drag operation has started
     dragStartedRef.current = true
     setIsDragging(true)
 
-    // If this workflow is part of a multi-selection, drag all selected workflows
-    // Otherwise, just drag this single workflow
     let workflowIds: string[]
     if (isSelected && selectedWorkflows.size > 1) {
       workflowIds = Array.from(selectedWorkflows)
     } else {
       workflowIds = [workflow.id]
-      // Don't call selectOnly here as it can interfere with the drag operation
-      // The workflow will be visually highlighted by the isDragging state
     }
 
     e.dataTransfer.setData('workflow-ids', JSON.stringify(workflowIds))

@@ -34,7 +34,6 @@ export function FolderItem({
 
   const handleToggleExpanded = () => {
     toggleExpanded(folder.id)
-    // Persist to server
     updateFolderAPI(folder.id, { isExpanded: !isExpanded }).catch(console.error)
   }
 
