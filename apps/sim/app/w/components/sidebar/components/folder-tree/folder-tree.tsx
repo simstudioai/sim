@@ -223,7 +223,9 @@ export function FolderTree({
       <div
         className={clsx(
           'space-y-1',
-          rootDragOver ? 'rounded-md bg-blue-500/10 dark:bg-blue-400/10' : ''
+          rootDragOver ? 'rounded-md bg-blue-500/10 dark:bg-blue-400/10' : '',
+          // Always provide minimal drop zone when root is empty, but keep it subtle
+          (workflowsByFolder.root || []).length === 0 ? 'min-h-2 py-1' : ''
         )}
         style={
           rootDragOver

@@ -74,7 +74,6 @@ export function WorkflowItem({
 
   const handleDragEnd = () => {
     setIsDragging(false)
-    // Use requestAnimationFrame to reset after the current event loop
     requestAnimationFrame(() => {
       dragStartedRef.current = false
     })
