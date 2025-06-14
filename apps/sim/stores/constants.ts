@@ -1,8 +1,4 @@
-export const STORAGE_KEYS = {
-  REGISTRY: 'workflow-registry',
-  WORKFLOW: (id: string) => `workflow-${id}`,
-  SUBBLOCK: (id: string) => `subblock-values-${id}`,
-}
+// localStorage persistence removed - STORAGE_KEYS no longer needed
 
 export const API_ENDPOINTS = {
   SYNC: '/api/workflows/sync',

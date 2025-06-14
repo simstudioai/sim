@@ -271,20 +271,30 @@ export function WorkspaceHeader({
             const fetchedWorkspaces = data.workspaces as Workspace[]
             setWorkspaces(fetchedWorkspaces)
 
-            // Find workspace that matches the active ID from registry or use first workspace
-            const matchingWorkspace = fetchedWorkspaces.find(
-              (workspace) => workspace.id === activeWorkspaceId
-            )
-            const workspaceToActivate = matchingWorkspace || fetchedWorkspaces[0]
-
-            // If we found a workspace, set it as active and update registry if needed
-            if (workspaceToActivate) {
-              setActiveWorkspace(workspaceToActivate)
-
-              // If active workspace in UI doesn't match registry, update registry
-              if (workspaceToActivate.id !== activeWorkspaceId) {
-                setActiveWorkspaceId(workspaceToActivate.id)
+            // Only update workspace if we have a valid activeWorkspaceId from registry
+            if (activeWorkspaceId) {
+              const matchingWorkspace = fetchedWorkspaces.find(
+                (workspace) => workspace.id === activeWorkspaceId
+              )
+              if (matchingWorkspace) {
+                setActiveWorkspace(matchingWorkspace)
+              } else {
+                // Active workspace not found, fallback to first workspace
+                const fallbackWorkspace = fetchedWorkspaces[0]
+                if (fallbackWorkspace) {
+                  setActiveWorkspace(fallbackWorkspace)
+                  setActiveWorkspaceId(fallbackWorkspace.id)
+                }
               }
+            } else {
+              // No active workspace in registry yet - wait for loadLastActiveWorkspace() to complete
+              // If there's only one workspace, we can safely select it
+              if (fetchedWorkspaces.length === 1) {
+                const onlyWorkspace = fetchedWorkspaces[0]
+                setActiveWorkspace(onlyWorkspace)
+                setActiveWorkspaceId(onlyWorkspace.id)
+              }
+              // For multiple workspaces, wait for the saved preference to load
             }
           }
           setIsWorkspacesLoading(false)

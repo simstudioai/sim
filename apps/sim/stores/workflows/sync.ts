@@ -7,7 +7,6 @@ import { getAllWorkflowsWithValues } from '.'
 import { useWorkflowRegistry } from './registry/store'
 import type { WorkflowMetadata } from './registry/types'
 import { useSubBlockStore } from './subblock/store'
-import { useWorkflowStore } from './workflow/store'
 import type { BlockState } from './workflow/types'
 
 const logger = createLogger('WorkflowsSync')
@@ -305,10 +304,8 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         })
       })
 
-      // 4. Store the workflow state and subblock values in localStorage
-      // This ensures compatibility with existing code that loads from localStorage
-      localStorage.setItem(`workflow-${id}`, JSON.stringify(workflowState))
-      localStorage.setItem(`subblock-values-${id}`, JSON.stringify(subblockValues))
+      // 4. Only store metadata in registry - no workflow state caching
+      // Workflow states will be fetched individually when needed
 
       // 5. Update subblock store for this workflow
       useSubBlockStore.setState((state) => ({
@@ -329,19 +326,16 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     // Capture initial state for change detection
     lastWorkflowState = getAllWorkflowsWithValues()
 
-    // 9. Set the first workflow as active if there's no active workflow
+    // 9. Don't automatically load first workflow - it will be loaded when setActiveWorkflow is called
+    // This maintains the clean "metadata in registry, active workflow in store" separation
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
     if (!activeWorkflowId && Object.keys(registryWorkflows).length > 0) {
       const firstWorkflowId = Object.keys(registryWorkflows)[0]
-
-      // Load the first workflow as active
-      const workflowState = JSON.parse(localStorage.getItem(`workflow-${firstWorkflowId}`) || '{}')
-
-      if (Object.keys(workflowState).length > 0) {
-        useWorkflowStore.setState(workflowState)
-        useWorkflowRegistry.setState({ activeWorkflowId: firstWorkflowId })
-        logger.info(`Set first workflow ${firstWorkflowId} as active`)
-      }
+      // Just set the active workflow ID - the actual state will be fetched when needed
+      useWorkflowRegistry.setState({ activeWorkflowId: firstWorkflowId })
+      logger.info(
+        `Set first workflow ${firstWorkflowId} as active (state will be loaded on demand)`
+      )
     }
 
     // Mark registry as fully initialized now that all data is loaded
@@ -514,4 +508,31 @@ export const workflowSync = {
       }
     }, DEBOUNCE_DELAY)
   },
+}
+
+/**
+ * Fetch a single workflow state from the database
+ * @param workflowId The ID of the workflow to fetch
+ * @returns Promise that resolves to the workflow state if found, null otherwise
+ */
+export async function fetchWorkflowStateFromDB(workflowId: string): Promise<any | null> {
+  try {
+    const response = await fetch(`/api/workflows/${workflowId}`, {
+      method: 'GET',
+    })
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        logger.warn(`Workflow ${workflowId} not found in database`)
+        return null
+      }
+      throw new Error(`Failed to fetch workflow: ${response.statusText}`)
+    }
+
+    const { data } = await response.json()
+    return data
+  } catch (error) {
+    logger.error(`Error fetching workflow ${workflowId} from DB:`, error)
+    return null
+  }
 }

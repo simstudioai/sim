@@ -20,7 +20,6 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
 const logger = new Logger('jira_issue_selector')
@@ -423,14 +422,32 @@ export function JiraIssueSelector({
     const effectiveServiceId = getServiceId()
     const providerId = getProviderId()
 
-    // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', providerId)
+    // Store OAuth state in localStorage before redirect
+    const oauthState = {
+      providerId: providerId,
+      serviceId: effectiveServiceId,
+      requiredScopes,
+      returnUrl: window.location.href,
+      context: 'jira-issue-selector',
+      timestamp: Date.now(),
+    }
 
-    // Show the OAuth modal
-    setShowOAuthModal(true)
+    // Use localStorage for OAuth state management
+    try {
+      localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
+
+      // Navigate to OAuth URL
+      const authUrl = `/api/auth/oauth?provider=${providerId}&service=${effectiveServiceId}&scopes=${encodeURIComponent(
+        requiredScopes.join(',')
+      )}&return_url=${encodeURIComponent(window.location.href)}`
+
+      window.location.href = authUrl
+    } catch (error) {
+      logger.error('Failed to store OAuth state:', error)
+      // Fallback to OAuth modal
+      setShowOAuthModal(true)
+    }
+
     setOpen(false)
   }
 
