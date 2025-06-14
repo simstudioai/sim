@@ -366,24 +366,6 @@ export const apiKey = pgTable('api_key', {
   expiresAt: timestamp('expires_at'),
 })
 
-export const marketplace = pgTable('marketplace', {
-  id: text('id').primaryKey(),
-  workflowId: text('workflow_id')
-    .notNull()
-    .references(() => workflow.id, { onDelete: 'cascade' }),
-  state: json('state').notNull(),
-  name: text('name').notNull(),
-  description: text('description'),
-  authorId: text('author_id')
-    .notNull()
-    .references(() => user.id),
-  authorName: text('author_name').notNull(),
-  views: integer('views').notNull().default(0),
-  category: text('category'),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow(),
-})
-
 export const userStats = pgTable('user_stats', {
   id: text('id').primaryKey(),
   userId: text('user_id')

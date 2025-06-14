@@ -10,7 +10,7 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 interface WorkflowItemProps {
   workflow: WorkflowMetadata
   active: boolean
-  isMarketplace?: boolean
+  isTemplates?: boolean
   isCollapsed?: boolean
   level: number
   isDragOver?: boolean
@@ -19,7 +19,7 @@ interface WorkflowItemProps {
 export function WorkflowItem({
   workflow,
   active,
-  isMarketplace,
+  isTemplates,
   isCollapsed,
   level,
   isDragOver = false,
@@ -46,7 +46,7 @@ export function WorkflowItem({
   }
 
   const handleDragStart = (e: React.DragEvent) => {
-    if (isMarketplace) return
+    if (isTemplates) return
 
     dragStartedRef.current = true
     setIsDragging(true)
@@ -85,7 +85,7 @@ export function WorkflowItem({
                 : '',
               isDragging ? 'opacity-50' : ''
             )}
-            draggable={!isMarketplace}
+            draggable={!isTemplates}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onClick={handleClick}
@@ -99,7 +99,7 @@ export function WorkflowItem({
         <TooltipContent side='right'>
           <p>
             {workflow.name}
-            {isMarketplace && ' (Preview)'}
+            {isTemplates && ' (Preview)'}
           </p>
         </TooltipContent>
       </Tooltip>
@@ -116,10 +116,10 @@ export function WorkflowItem({
           : 'text-muted-foreground hover:bg-accent/50',
         isSelected && selectedWorkflows.size > 1 && !active && !isDragOver ? 'bg-accent/70' : '',
         isDragging ? 'opacity-50' : '',
-        !isMarketplace ? 'cursor-move' : ''
+        !isTemplates ? 'cursor-move' : ''
       )}
       style={{ paddingLeft: isCollapsed ? '0px' : `${(level + 1) * 20 + 8}px` }}
-      draggable={!isMarketplace}
+      draggable={!isTemplates}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={handleClick}
@@ -130,7 +130,7 @@ export function WorkflowItem({
       />
       <span className='truncate'>
         {workflow.name}
-        {isMarketplace && ' (Preview)'}
+        {isTemplates && ' (Preview)'}
       </span>
     </Link>
   )

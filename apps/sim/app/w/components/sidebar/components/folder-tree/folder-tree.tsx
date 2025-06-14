@@ -145,7 +145,7 @@ function useDragHandlers(
 
 interface FolderTreeProps {
   regularWorkflows: WorkflowMetadata[]
-  marketplaceWorkflows: WorkflowMetadata[]
+  templatesWorkflows: WorkflowMetadata[]
   isCollapsed?: boolean
   isLoading?: boolean
   onCreateWorkflow: (folderId?: string) => void
@@ -153,7 +153,7 @@ interface FolderTreeProps {
 
 export function FolderTree({
   regularWorkflows,
-  marketplaceWorkflows,
+  templatesWorkflows,
   isCollapsed = false,
   isLoading = false,
   onCreateWorkflow,
@@ -262,22 +262,22 @@ export function FolderTree({
         ))}
       </div>
 
-      {/* Marketplace workflows */}
-      {marketplaceWorkflows.length > 0 && (
+      {/* Templates workflows */}
+      {templatesWorkflows.length > 0 && (
         <div className='mt-2 border-border/30 border-t pt-2'>
           <h3
             className={`mb-1 px-2 font-medium text-muted-foreground text-xs ${
               isCollapsed ? 'text-center' : ''
             }`}
           >
-            {isCollapsed ? '' : 'Marketplace'}
+            {isCollapsed ? '' : 'Templates'}
           </h3>
-          {marketplaceWorkflows.map((workflow) => (
+          {templatesWorkflows.map((workflow) => (
             <WorkflowItem
               key={workflow.id}
               workflow={workflow}
               active={pathname === `/w/${workflow.id}`}
-              isMarketplace
+              isTemplates
               isCollapsed={isCollapsed}
               level={-1}
               isDragOver={false}
@@ -289,7 +289,7 @@ export function FolderTree({
       {/* Empty state */}
       {!showLoading &&
         regularWorkflows.length === 0 &&
-        marketplaceWorkflows.length === 0 &&
+        templatesWorkflows.length === 0 &&
         folderTree.length === 0 &&
         !isCollapsed && (
           <div className='px-2 py-1.5 text-muted-foreground text-xs'>
