@@ -43,6 +43,7 @@ interface VoiceInputProps {
   isListening?: boolean
   disabled?: boolean
   large?: boolean
+  minimal?: boolean
 }
 
 export function VoiceInput({
@@ -50,6 +51,7 @@ export function VoiceInput({
   isListening = false,
   disabled = false,
   large = false,
+  minimal = false,
 }: VoiceInputProps) {
   const [isSupported, setIsSupported] = useState(false)
 
@@ -66,6 +68,24 @@ export function VoiceInput({
 
   if (!isSupported) {
     return null
+  }
+
+  if (minimal) {
+    return (
+      <motion.button
+        type='button'
+        onClick={handleVoiceClick}
+        disabled={disabled}
+        className={`flex items-center justify-center p-1 transition-colors duration-200 ${
+          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:text-gray-600'
+        }`}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        title='Start voice conversation'
+      >
+        <Mic size={18} className='text-gray-500' />
+      </motion.button>
+    )
   }
 
   if (large) {
@@ -93,21 +113,22 @@ export function VoiceInput({
 
   return (
     <div className='flex items-center'>
-      {/* Voice Button */}
+      {/* Voice Button - Now matches send button styling */}
       <motion.button
         type='button'
         onClick={handleVoiceClick}
         disabled={disabled}
-        className={`flex items-center justify-center rounded-full p-2 transition-all duration-200 ${
+        className={`flex items-center justify-center rounded-full p-2.5 transition-all duration-200 md:p-3 ${
           isListening
             ? 'bg-red-500 text-white hover:bg-red-600'
-            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            : 'bg-black text-white hover:bg-zinc-700'
         } ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         title='Start voice conversation'
       >
-        <Mic size={16} />
+        <Mic size={16} className='md:hidden' />
+        <Mic size={18} className='hidden md:block' />
       </motion.button>
     </div>
   )

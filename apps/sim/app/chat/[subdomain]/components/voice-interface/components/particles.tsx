@@ -402,37 +402,37 @@ export function ParticlesVisualization({
       avgLevel: number
     ) => {
       if (isMuted) {
-        // Muted: dim gray-blue
-        uniforms.u_red.value = 0.4
-        uniforms.u_green.value = 0.4
-        uniforms.u_blue.value = 0.6
+        // Muted: dim purple-gray
+        uniforms.u_red.value = 0.25
+        uniforms.u_green.value = 0.1
+        uniforms.u_blue.value = 0.5
       } else if (isProcessingInterruption) {
-        // Interruption: bright orange/yellow
-        uniforms.u_red.value = 1.0
-        uniforms.u_green.value = 0.7
-        uniforms.u_blue.value = 0.2
-      } else if (isPlayingAudio) {
-        // AI speaking: bright blue-purple
+        // Interruption: bright purple
         uniforms.u_red.value = 0.6
-        uniforms.u_green.value = 0.4
-        uniforms.u_blue.value = 1.0
+        uniforms.u_green.value = 0.2
+        uniforms.u_blue.value = 0.9
+      } else if (isPlayingAudio) {
+        // AI speaking: brand purple (#701FFC)
+        uniforms.u_red.value = 0.44
+        uniforms.u_green.value = 0.12
+        uniforms.u_blue.value = 0.99
       } else if (isListening && avgLevel > 10) {
-        // User speaking: bright green-blue with intensity-based variation
+        // User speaking: lighter purple with intensity-based variation
         const intensity = Math.min(avgLevel / 50, 1)
-        uniforms.u_red.value = 0.2 + intensity * 0.3
-        uniforms.u_green.value = 0.8 + intensity * 0.2
-        uniforms.u_blue.value = 0.6 + intensity * 0.4
+        uniforms.u_red.value = 0.35 + intensity * 0.15
+        uniforms.u_green.value = 0.1 + intensity * 0.1
+        uniforms.u_blue.value = 0.8 + intensity * 0.2
       } else if (isStreaming) {
-        // AI thinking: pulsing purple
+        // AI thinking: pulsing brand purple
         const pulse = (Math.sin(elapsedTime * 2) + 1) / 2
-        uniforms.u_red.value = 0.7 + pulse * 0.3
-        uniforms.u_green.value = 0.3
-        uniforms.u_blue.value = 0.9 + pulse * 0.1
+        uniforms.u_red.value = 0.35 + pulse * 0.15
+        uniforms.u_green.value = 0.08 + pulse * 0.08
+        uniforms.u_blue.value = 0.95 + pulse * 0.05
       } else {
-        // Default idle: soft blue-purple
-        uniforms.u_red.value = 0.8
-        uniforms.u_green.value = 0.6
-        uniforms.u_blue.value = 1.0
+        // Default idle: soft brand purple
+        uniforms.u_red.value = 0.4
+        uniforms.u_green.value = 0.15
+        uniforms.u_blue.value = 0.9
       }
     }
 
