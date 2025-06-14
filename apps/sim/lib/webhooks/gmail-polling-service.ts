@@ -18,6 +18,7 @@ interface GmailWebhookConfig {
   historyId?: string
   processedEmailIds?: string[]
   pollingInterval?: number
+  includeRawEmail?: boolean
 }
 
 interface GmailEmail {
@@ -43,6 +44,12 @@ export interface SimplifiedEmail {
   labels: string[]
   hasAttachments: boolean
   attachments: Array<{ filename: string; mimeType: string; size: number }>
+}
+
+export interface GmailWebhookPayload {
+  email: SimplifiedEmail
+  timestamp: string
+  rawEmail?: GmailEmail // Only included when includeRawEmail is true
 }
 
 export async function pollGmailWebhooks() {
@@ -590,13 +597,16 @@ async function processEmails(
         attachments: attachments,
       }
 
-      // Prepare webhook payload with simplified email
-      const payload = {
+      // Prepare webhook payload with simplified email and optionally raw email
+      const payload: GmailWebhookPayload = {
         email: simplifiedEmail,
         timestamp: new Date().toISOString(),
+        ...(config.includeRawEmail ? { rawEmail: email } : {}),
       }
 
-      logger.debug(`[${requestId}] Sending simplified email payload for ${email.id}`)
+      logger.debug(
+        `[${requestId}] Sending ${config.includeRawEmail ? 'simplified + raw' : 'simplified'} email payload for ${email.id}`
+      )
 
       // Trigger the webhook
       const webhookUrl = `${getBaseUrl()}/api/webhooks/trigger/${webhookData.path}`
