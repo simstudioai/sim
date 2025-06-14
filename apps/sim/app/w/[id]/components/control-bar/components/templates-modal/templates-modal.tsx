@@ -110,7 +110,6 @@ const sanitizeWorkflowData = (workflowData: any) => {
       const currentPath = path ? `${path}.${key}` : key
 
       if (isSensitiveField(key)) {
-        logger.info(`Sanitizing sensitive field: ${currentPath}`)
         sanitized[key] = ''
         sanitizedCount++
       } else if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
@@ -119,7 +118,6 @@ const sanitizeWorkflowData = (workflowData: any) => {
         // Check for environment variable references and remove them
         const envVarPattern = /<env\.[\w_]+>/g
         if (envVarPattern.test(sanitized[key])) {
-          logger.info(`Sanitizing environment variable reference: ${currentPath}`)
           sanitized[key] = sanitized[key].replace(envVarPattern, '')
           sanitizedCount++
         }
@@ -179,7 +177,6 @@ const sanitizeWorkflowData = (workflowData: any) => {
           if (subBlock && typeof subBlock === 'object') {
             // Check if this is a known password field or matches sensitive patterns
             if (passwordFields.has(subBlockId) || isSensitiveField(subBlockId)) {
-              logger.info(`Sanitizing sensitive subBlock: ${blockId}.${subBlockId}`)
               subBlock.value = ''
               sanitizedCount++
             } else if (subBlock.value && typeof subBlock.value === 'object') {
@@ -189,7 +186,6 @@ const sanitizeWorkflowData = (workflowData: any) => {
               // Check for environment variable references
               const envVarPattern = /<env\.[\w_]+>/g
               if (envVarPattern.test(subBlock.value)) {
-                logger.info(`Sanitizing env var in subBlock: ${blockId}.${subBlockId}`)
                 subBlock.value = subBlock.value.replace(envVarPattern, '')
                 sanitizedCount++
               }
@@ -653,14 +649,14 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
                 <Textarea
                   placeholder='Enter a brief summary of your workflow'
                   className='min-h-24'
-                  maxLength={60}
+                  maxLength={120}
                   {...field}
                 />
               </FormControl>
               <div className='flex items-center justify-between text-xs'>
                 <FormMessage />
                 <span
-                  className={`${field.value?.length >= 60 ? 'text-red-500' : 'text-muted-foreground'}`}
+                  className={`${field.value?.length >= 120 ? 'text-red-500' : 'text-muted-foreground'}`}
                 >
                   {field.value?.length || 0}/120 characters
                 </span>
@@ -679,14 +675,14 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
                 <Textarea
                   placeholder='Enter a detailed description of your workflow'
                   className='min-h-24'
-                  maxLength={300}
+                  maxLength={400}
                   {...field}
                 />
               </FormControl>
               <div className='flex items-center justify-between text-xs'>
                 <FormMessage />
                 <span
-                  className={`${field.value?.length >= 300 ? 'text-red-500' : 'text-muted-foreground'}`}
+                  className={`${field.value?.length >= 400 ? 'text-red-500' : 'text-muted-foreground'}`}
                 >
                   {field.value?.length || 0}/400 characters
                 </span>
