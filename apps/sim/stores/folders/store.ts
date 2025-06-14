@@ -283,11 +283,6 @@ export const useFolderStore = create<FolderState>()(
 
         get().updateFolder(id, processedFolder)
 
-        // Update expanded state if isExpanded was changed
-        if (updates.isExpanded !== undefined) {
-          get().setExpanded(id, updates.isExpanded)
-        }
-
         return processedFolder
       },
 

@@ -66,7 +66,7 @@ function FolderSection({
 
       {/* Render workflows in this folder */}
       {expandedFolders.has(folder.id) && workflowsInFolder.length > 0 && (
-        <div>
+        <div className='space-y-0.5'>
           {workflowsInFolder.map((workflow) => (
             <WorkflowItem
               key={workflow.id}
@@ -213,14 +213,16 @@ export function FolderTree({
   const showLoading = isLoading || foldersLoading
 
   return (
-    <div className={`space-y-1 transition-opacity duration-200 ${showLoading ? 'opacity-60' : ''}`}>
+    <div
+      className={`space-y-0.5 transition-opacity duration-200 ${showLoading ? 'opacity-60' : ''}`}
+    >
       {/* Folder tree */}
       {renderFolderTree(folderTree)}
 
       {/* Root level workflows (no folder) */}
       <div
         className={clsx(
-          'space-y-1',
+          'space-y-0.5',
           rootDragOver ? 'rounded-md bg-blue-500/10 dark:bg-blue-400/10' : '',
           // Always provide minimal drop zone when root is empty, but keep it subtle
           (workflowsByFolder.root || []).length === 0 ? 'min-h-2 py-1' : ''

@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -31,11 +32,40 @@ export function FolderItem({
   const { updateWorkflow } = useWorkflowRegistry()
 
   const isExpanded = expandedFolders.has(folder.id)
+  const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pendingStateRef = useRef<boolean | null>(null)
 
-  const handleToggleExpanded = () => {
+  const handleToggleExpanded = useCallback(() => {
+    const newExpandedState = !isExpanded
     toggleExpanded(folder.id)
-    updateFolderAPI(folder.id, { isExpanded: !isExpanded }).catch(console.error)
-  }
+    pendingStateRef.current = newExpandedState
+
+    // Clear any pending update
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current)
+    }
+
+    // Debounce the API call to prevent race conditions
+    updateTimeoutRef.current = setTimeout(() => {
+      // Only update if the pending state matches what we're about to send
+      if (pendingStateRef.current === newExpandedState) {
+        updateFolderAPI(folder.id, { isExpanded: newExpandedState })
+          .catch(console.error)
+          .finally(() => {
+            pendingStateRef.current = null
+          })
+      }
+    }, 300) // Increased debounce to prevent rapid toggle issues
+  }, [folder.id, isExpanded, toggleExpanded, updateFolderAPI])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const handleRename = async (folderId: string, newName: string) => {
     try {
