@@ -2,244 +2,145 @@
 
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react'
-import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { FolderContextMenu } from '../folder-context-menu/folder-context-menu'
+import { FolderItem } from './components/folder-item'
+import { WorkflowItem } from './components/workflow-item'
 
-interface FolderItemProps {
+interface FolderSectionProps {
   folder: FolderTreeNode
-  isCollapsed?: boolean
+  level: number
+  isCollapsed: boolean
   onCreateWorkflow: (folderId?: string) => void
+  workflowsByFolder: Record<string, WorkflowMetadata[]>
+  expandedFolders: Set<string>
+  pathname: string
+  updateWorkflow: (id: string, updates: Partial<WorkflowMetadata>) => void
+  renderFolderTree: (
+    nodes: FolderTreeNode[],
+    level: number,
+    parentDragOver?: boolean
+  ) => React.ReactNode[]
+  parentDragOver?: boolean
 }
 
-function FolderItem({ folder, isCollapsed, onCreateWorkflow }: FolderItemProps) {
-  const [dragOver, setDragOver] = useState(false)
-  const { expandedFolders, toggleExpanded, updateFolderAPI, deleteFolder } = useFolderStore()
-  const { updateWorkflow } = useWorkflowRegistry()
+function FolderSection({
+  folder,
+  level,
+  isCollapsed,
+  onCreateWorkflow,
+  workflowsByFolder,
+  expandedFolders,
+  pathname,
+  updateWorkflow,
+  renderFolderTree,
+  parentDragOver = false,
+}: FolderSectionProps) {
+  const { isDragOver, handleDragOver, handleDragLeave, handleDrop } = useDragHandlers(
+    updateWorkflow,
+    folder.id,
+    `Moved workflow(s) to folder ${folder.id}`
+  )
 
-  const isExpanded = expandedFolders.has(folder.id)
+  const workflowsInFolder = workflowsByFolder[folder.id] || []
+  const isAnyDragOver = isDragOver || parentDragOver
 
-  const handleToggleExpanded = () => {
-    toggleExpanded(folder.id)
-    // Persist to server
-    updateFolderAPI(folder.id, { isExpanded: !isExpanded }).catch(console.error)
-  }
-
-  const handleRename = async (folderId: string, newName: string) => {
-    try {
-      await updateFolderAPI(folderId, { name: newName })
-    } catch (error) {
-      console.error('Failed to rename folder:', error)
-    }
-  }
-
-  const handleDelete = async (folderId: string) => {
-    if (
-      confirm(
-        `Are you sure you want to delete "${folder.name}"? Child folders and workflows will be moved to the parent folder.`
-      )
-    ) {
-      try {
-        await deleteFolder(folderId)
-      } catch (error) {
-        console.error('Failed to delete folder:', error)
+  return (
+    <div
+      className={clsx(isDragOver ? 'rounded-md bg-blue-500/10 dark:bg-blue-400/10' : '')}
+      style={
+        isDragOver
+          ? {
+              boxShadow: 'inset 0 0 0 1px rgb(59 130 246 / 0.5)',
+            }
+          : {}
       }
-    }
-  }
+    >
+      {/* Render folder */}
+      <div style={{ paddingLeft: isCollapsed ? '0px' : `${level * 20}px` }}>
+        <FolderItem
+          folder={folder}
+          isCollapsed={isCollapsed}
+          onCreateWorkflow={onCreateWorkflow}
+          dragOver={isDragOver}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        />
+      </div>
 
-  // Drag and drop handlers
+      {/* Render workflows in this folder */}
+      {expandedFolders.has(folder.id) && workflowsInFolder.length > 0 && (
+        <div className='space-y-0.5'>
+          {workflowsInFolder.map((workflow) => (
+            <WorkflowItem
+              key={workflow.id}
+              workflow={workflow}
+              active={pathname === `/w/${workflow.id}`}
+              isCollapsed={isCollapsed}
+              level={level}
+              isDragOver={isAnyDragOver}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Render child folders */}
+      {expandedFolders.has(folder.id) && folder.children.length > 0 && (
+        <div>{renderFolderTree(folder.children, level + 1, isAnyDragOver)}</div>
+      )}
+    </div>
+  )
+}
+
+// Custom hook for drag and drop handling
+function useDragHandlers(
+  updateWorkflow: (id: string, updates: Partial<WorkflowMetadata>) => void,
+  targetFolderId: string | null, // null for root
+  logMessage?: string
+) {
+  const [isDragOver, setIsDragOver] = useState(false)
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragOver(true)
+    setIsDragOver(true)
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragOver(false)
+    setIsDragOver(false)
   }
 
-  const handleDrop = async (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDragOver(false)
+    setIsDragOver(false)
 
-    const workflowId = e.dataTransfer.getData('workflow-id')
-    if (workflowId && workflowId !== folder.id) {
+    const workflowIdsData = e.dataTransfer.getData('workflow-ids')
+    if (workflowIdsData) {
+      const workflowIds = JSON.parse(workflowIdsData) as string[]
+
       try {
-        // Update workflow to be in this folder
-        await updateWorkflow(workflowId, { folderId: folder.id })
-        console.log(`Moved workflow ${workflowId} to folder ${folder.id}`)
+        workflowIds.forEach((workflowId) =>
+          updateWorkflow(workflowId, { folderId: targetFolderId })
+        )
+        console.log(logMessage || `Moved ${workflowIds.length} workflow(s)`)
       } catch (error) {
-        console.error('Failed to move workflow to folder:', error)
+        console.error('Failed to move workflows:', error)
       }
     }
   }
 
-  if (isCollapsed) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className='group mx-auto flex h-8 w-8 cursor-pointer items-center justify-center'
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={handleToggleExpanded}
-          >
-            <div
-              className={clsx(
-                'flex h-4 w-4 items-center justify-center rounded transition-colors hover:bg-accent/50',
-                dragOver ? 'ring-2 ring-blue-500' : ''
-              )}
-            >
-              {isExpanded ? (
-                <FolderOpen className='h-3 w-3 text-foreground/70 dark:text-foreground/60' />
-              ) : (
-                <Folder className='h-3 w-3 text-foreground/70 dark:text-foreground/60' />
-              )}
-            </div>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side='right'>
-          <p>{folder.name}</p>
-        </TooltipContent>
-      </Tooltip>
-    )
+  return {
+    isDragOver,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
   }
-
-  return (
-    <div
-      className={clsx(
-        'group',
-        dragOver
-          ? 'rounded-md border border-blue-500/50 bg-blue-500/10 dark:border-blue-400/50 dark:bg-blue-400/10'
-          : ''
-      )}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      <div
-        className='flex cursor-pointer items-center rounded-md px-2 py-1.5 text-sm hover:bg-accent/50'
-        onClick={handleToggleExpanded}
-      >
-        <div className='mr-1 flex h-4 w-4 items-center justify-center'>
-          {isExpanded ? <ChevronDown className='h-3 w-3' /> : <ChevronRight className='h-3 w-3' />}
-        </div>
-
-        <div className='mr-2 flex h-4 w-4 flex-shrink-0 items-center justify-center'>
-          {isExpanded ? (
-            <FolderOpen className='h-4 w-4 text-foreground/70 dark:text-foreground/60' />
-          ) : (
-            <Folder className='h-4 w-4 text-foreground/70 dark:text-foreground/60' />
-          )}
-        </div>
-
-        <span className='flex-1 cursor-default select-none truncate text-muted-foreground'>
-          {folder.name}
-        </span>
-
-        <div className='flex items-center justify-center' onClick={(e) => e.stopPropagation()}>
-          <FolderContextMenu
-            folderId={folder.id}
-            folderName={folder.name}
-            onCreateWorkflow={onCreateWorkflow}
-            onRename={handleRename}
-            onDelete={handleDelete}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-interface WorkflowItemProps {
-  workflow: WorkflowMetadata
-  active: boolean
-  isMarketplace?: boolean
-  isCollapsed?: boolean
-  level: number
-}
-
-function WorkflowItem({ workflow, active, isMarketplace, isCollapsed, level }: WorkflowItemProps) {
-  const [isDragging, setIsDragging] = useState(false)
-
-  const handleDragStart = (e: React.DragEvent) => {
-    if (isMarketplace) return // Don't allow dragging marketplace workflows
-
-    e.dataTransfer.setData('workflow-id', workflow.id)
-    e.dataTransfer.effectAllowed = 'move'
-    setIsDragging(true)
-  }
-
-  const handleDragEnd = () => {
-    setIsDragging(false)
-  }
-
-  if (isCollapsed) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Link
-            href={`/w/${workflow.id}`}
-            className={clsx(
-              'mx-auto flex h-8 w-8 items-center justify-center rounded-md',
-              active
-                ? 'bg-accent text-accent-foreground'
-                : 'text-muted-foreground hover:bg-accent/50',
-              isDragging ? 'opacity-50' : ''
-            )}
-            draggable={!isMarketplace}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <div
-              className='h-[14px] w-[14px] flex-shrink-0 rounded'
-              style={{ backgroundColor: workflow.color }}
-            />
-          </Link>
-        </TooltipTrigger>
-        <TooltipContent side='right'>
-          <p>
-            {workflow.name}
-            {isMarketplace && ' (Preview)'}
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    )
-  }
-
-  return (
-    <Link
-      href={`/w/${workflow.id}`}
-      className={clsx(
-        'flex items-center rounded-md px-2 py-1.5 font-medium text-sm',
-        active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/50',
-        isDragging ? 'opacity-50' : '',
-        !isMarketplace ? 'cursor-move' : ''
-      )}
-      style={{ paddingLeft: isCollapsed ? '0px' : `${(level + 1) * 20 + 8}px` }}
-      draggable={!isMarketplace}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <div
-        className='mr-2 h-[14px] w-[14px] flex-shrink-0 rounded'
-        style={{ backgroundColor: workflow.color }}
-      />
-      <span className='truncate'>
-        {workflow.name}
-        {isMarketplace && ' (Preview)'}
-      </span>
-    </Link>
-  )
 }
 
 interface FolderTreeProps {
@@ -264,7 +165,9 @@ export function FolderTree({
     expandedFolders,
     fetchFolders,
     isLoading: foldersLoading,
+    clearSelection,
   } = useFolderStore()
+  const { updateWorkflow } = useWorkflowRegistry()
 
   // Fetch folders when workspace changes
   useEffect(() => {
@@ -272,6 +175,10 @@ export function FolderTree({
       fetchFolders(activeWorkspaceId)
     }
   }, [activeWorkspaceId, fetchFolders])
+
+  useEffect(() => {
+    clearSelection()
+  }, [activeWorkspaceId, clearSelection])
 
   const folderTree = activeWorkspaceId ? getFolderTree(activeWorkspaceId) : []
 
@@ -286,63 +193,74 @@ export function FolderTree({
     {} as Record<string, WorkflowMetadata[]>
   )
 
-  const renderFolderTree = (nodes: FolderTreeNode[], level = 0): React.ReactNode[] => {
-    const result: React.ReactNode[] = []
+  const {
+    isDragOver: rootDragOver,
+    handleDragOver: handleRootDragOver,
+    handleDragLeave: handleRootDragLeave,
+    handleDrop: handleRootDrop,
+  } = useDragHandlers(updateWorkflow, null, 'Moved workflow(s) to root')
 
-    nodes.forEach((folder) => {
-      // Render folder
-      result.push(
-        <div key={folder.id} style={{ paddingLeft: isCollapsed ? '0px' : `${level * 20}px` }}>
-          <FolderItem
-            folder={folder}
-            isCollapsed={isCollapsed}
-            onCreateWorkflow={onCreateWorkflow}
-          />
-        </div>
-      )
-
-      // Render workflows in this folder
-      const workflowsInFolder = workflowsByFolder[folder.id] || []
-      if (expandedFolders.has(folder.id) && workflowsInFolder.length > 0) {
-        workflowsInFolder.forEach((workflow) => {
-          result.push(
-            <WorkflowItem
-              key={workflow.id}
-              workflow={workflow}
-              active={pathname === `/w/${workflow.id}`}
-              isCollapsed={isCollapsed}
-              level={level}
-            />
-          )
-        })
-      }
-
-      // Render child folders
-      if (expandedFolders.has(folder.id) && folder.children.length > 0) {
-        result.push(...renderFolderTree(folder.children, level + 1))
-      }
-    })
-
-    return result
+  const renderFolderTree = (
+    nodes: FolderTreeNode[],
+    level = 0,
+    parentDragOver = false
+  ): React.ReactNode[] => {
+    return nodes.map((folder) => (
+      <FolderSection
+        key={folder.id}
+        folder={folder}
+        level={level}
+        isCollapsed={isCollapsed}
+        onCreateWorkflow={onCreateWorkflow}
+        workflowsByFolder={workflowsByFolder}
+        expandedFolders={expandedFolders}
+        pathname={pathname}
+        updateWorkflow={updateWorkflow}
+        renderFolderTree={renderFolderTree}
+        parentDragOver={parentDragOver}
+      />
+    ))
   }
 
   const showLoading = isLoading || foldersLoading
 
   return (
-    <div className={`space-y-1 transition-opacity duration-200 ${showLoading ? 'opacity-60' : ''}`}>
+    <div
+      className={`space-y-0.5 transition-opacity duration-200 ${showLoading ? 'opacity-60' : ''}`}
+    >
       {/* Folder tree */}
       {renderFolderTree(folderTree)}
 
       {/* Root level workflows (no folder) */}
-      {(workflowsByFolder.root || []).map((workflow) => (
-        <WorkflowItem
-          key={workflow.id}
-          workflow={workflow}
-          active={pathname === `/w/${workflow.id}`}
-          isCollapsed={isCollapsed}
-          level={-1}
-        />
-      ))}
+      <div
+        className={clsx(
+          'space-y-0.5',
+          rootDragOver ? 'rounded-md bg-blue-500/10 dark:bg-blue-400/10' : '',
+          // Always provide minimal drop zone when root is empty, but keep it subtle
+          (workflowsByFolder.root || []).length === 0 ? 'min-h-2 py-1' : ''
+        )}
+        style={
+          rootDragOver
+            ? {
+                boxShadow: 'inset 0 0 0 1px rgb(59 130 246 / 0.5)',
+              }
+            : {}
+        }
+        onDragOver={handleRootDragOver}
+        onDragLeave={handleRootDragLeave}
+        onDrop={handleRootDrop}
+      >
+        {(workflowsByFolder.root || []).map((workflow) => (
+          <WorkflowItem
+            key={workflow.id}
+            workflow={workflow}
+            active={pathname === `/w/${workflow.id}`}
+            isCollapsed={isCollapsed}
+            level={-1}
+            isDragOver={rootDragOver}
+          />
+        ))}
+      </div>
 
       {/* Marketplace workflows */}
       {marketplaceWorkflows.length > 0 && (
@@ -362,6 +280,7 @@ export function FolderTree({
               isMarketplace
               isCollapsed={isCollapsed}
               level={-1}
+              isDragOver={false}
             />
           ))}
         </div>
