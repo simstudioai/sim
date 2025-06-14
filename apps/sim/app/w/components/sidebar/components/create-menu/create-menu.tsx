@@ -24,6 +24,7 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
   const [showFolderDialog, setShowFolderDialog] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
 
   const { activeWorkspaceId } = useWorkflowRegistry()
   const { createFolder } = useFolderStore()
@@ -34,6 +35,7 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
 
   const handleCreateFolder = () => {
     setShowFolderDialog(true)
+    setDropdownOpen(false)
   }
 
   const handleFolderSubmit = async (e: React.FormEvent) => {
@@ -61,27 +63,48 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
     setShowFolderDialog(false)
   }
 
+  const handleMouseEnter = () => {
+    setDropdownOpen(true)
+  }
+
+  const handleMouseLeave = () => {
+    setDropdownOpen(false)
+  }
+
+  const handleDropdownItemClick = (action: () => void) => {
+    action()
+    setDropdownOpen(false)
+  }
+
   if (isCollapsed) {
     return (
       <>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant='ghost' size='icon' className='h-6 w-6 shrink-0 p-0' title='Create'>
-              <Plus className='h-[18px] w-[18px] stroke-[2px]' />
-              <span className='sr-only'>Create</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='center' side='right'>
-            <DropdownMenuItem onClick={handleCreateWorkflow}>
-              <File className='mr-2 h-4 w-4' />
-              New Workflow
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleCreateFolder}>
-              <Folder className='mr-2 h-4 w-4' />
-              New Folder
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+          <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-6 w-6 shrink-0 p-0'
+                title='Create'
+                onClick={handleCreateWorkflow}
+              >
+                <Plus className='h-[18px] w-[18px] stroke-[2px]' />
+                <span className='sr-only'>Create</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='center' side='right'>
+              <DropdownMenuItem onClick={() => handleDropdownItemClick(handleCreateWorkflow)}>
+                <File className='mr-2 h-4 w-4' />
+                New Workflow
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDropdownItemClick(handleCreateFolder)}>
+                <Folder className='mr-2 h-4 w-4' />
+                New Folder
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         {/* Folder creation dialog */}
         <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
@@ -118,24 +141,32 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant='ghost' size='icon' className='h-6 w-6 shrink-0 p-0' title='Create'>
-            <Plus className='h-[16px] w-[16px] stroke-[2px]' />
-            <span className='sr-only'>Create</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='end'>
-          <DropdownMenuItem onClick={handleCreateWorkflow}>
-            <File className='mr-2 h-4 w-4' />
-            New Workflow
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleCreateFolder}>
-            <Folder className='mr-2 h-4 w-4' />
-            New Folder
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+        <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant='ghost'
+              size='icon'
+              className='h-6 w-6 shrink-0 p-0'
+              title='Create'
+              onClick={handleCreateWorkflow}
+            >
+              <Plus className='h-[16px] w-[16px] stroke-[2px]' />
+              <span className='sr-only'>Create</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            <DropdownMenuItem onClick={() => handleDropdownItemClick(handleCreateWorkflow)}>
+              <File className='mr-2 h-4 w-4' />
+              New Workflow
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleDropdownItemClick(handleCreateFolder)}>
+              <Folder className='mr-2 h-4 w-4' />
+              New Folder
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
       {/* Folder creation dialog */}
       <Dialog open={showFolderDialog} onOpenChange={setShowFolderDialog}>
