@@ -29,13 +29,13 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   const [isUsing, setIsUsing] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [isLoadingSavedStatus, setIsLoadingSavedStatus] = useState(true)
+  const [isLoadingSavedStatus, setIsLoadingSavedStatus] = useState(false)
   const [isUnpublishing, setIsUnpublishing] = useState(false)
   const { addNotification } = useNotificationStore()
 
   const { data: session, isPending } = useSession()
 
-  const isAuthor = !isPending && session?.user?.id === template.authorId
+  const isAuthor = session?.user?.id === template.authorId
 
   useEffect(() => {
     const { notifications, removeNotification } = useNotificationStore.getState()
@@ -48,6 +48,8 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   }, [])
 
   useEffect(() => {
+    setIsLoadingSavedStatus(true)
+
     const checkSavedStatus = async () => {
       try {
         const response = await fetch(`/api/templates/${template.id}/saved-status`)
