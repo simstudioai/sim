@@ -4,10 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { TemplatesHeader } from './components/control-bar/control-bar'
+import { TemplateGrid } from './components/components/template-grid'
+import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorMessage } from './components/error-message'
 import { Section } from './components/section'
-import { TemplateGrid } from './components/shared/template-grid'
 import { CATEGORIES, getCategoryLabel } from './constants/categories'
 import {
   getTemplateDescription,
@@ -327,7 +327,7 @@ export default function Templates() {
       className={`flex h-[100vh] w-full max-w-[100vw] flex-col overflow-x-hidden transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
     >
       {/* Templates Header */}
-      <TemplatesHeader
+      <ControlBar
         setSearchQuery={setSearchQuery}
         activeSection={activeSection}
         scrollToSection={scrollToSection}

@@ -6,9 +6,9 @@ import { useSearchParams } from 'next/navigation'
 import { createLogger } from '@/lib/logs/console-logger'
 import { CATEGORY_GROUPS, getCategoryLabel } from '../../../../constants/categories'
 import { getTemplateDescription, type TemplateData, type Workflow } from '../../../../types'
+import { CategoryPageLayout } from '../../../components/category-page-layout'
+import { TemplateGrid } from '../../../components/template-grid'
 import { Section } from '../../../section'
-import { CategoryPageLayout } from '../../../shared/category-page-layout'
-import { TemplateGrid } from '../../../shared/template-grid'
 
 const logger = createLogger('TechnicalPage')
 
