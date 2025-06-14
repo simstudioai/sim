@@ -154,10 +154,6 @@ export function convertGranularToLegacy(
     target: edge.target,
     sourceHandle: edge.sourceHandle,
     targetHandle: edge.targetHandle,
-    type: edge.type,
-    animated: edge.animated,
-    style: edge.style,
-    data: edge.data,
   }))
 
   // Convert loops

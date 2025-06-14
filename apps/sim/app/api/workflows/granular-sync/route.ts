@@ -105,7 +105,7 @@ const GranularSyncPayloadSchema = z.object({
           lastSaved: z.number().optional(),
           isDeployed: z.boolean().optional(),
           deployedAt: z
-            .union([z.string(), z.date()])
+            .union([z.string(), z.date(), z.null()])
             .optional()
             .transform((val) => (typeof val === 'string' ? new Date(val) : val)),
           isPublished: z.boolean().optional(),
