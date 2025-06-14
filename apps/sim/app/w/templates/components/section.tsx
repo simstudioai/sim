@@ -1,7 +1,7 @@
 'use client'
 
 import { forwardRef, type ReactNode } from 'react'
-import { BrowseAllButton } from './shared/browse-all-button'
+import { BrowseAllButton } from './components/browse-all-button'
 
 /**
  * SectionProps interface - defines the properties for the Section component

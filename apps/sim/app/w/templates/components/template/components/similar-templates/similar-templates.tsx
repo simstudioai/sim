@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createLogger } from '@/lib/logs/console-logger'
-import { TemplateGrid } from '../../../../components/shared/template-grid'
 import { getTemplateDescription, type TemplateData } from '../../../../types'
+import { TemplateGrid } from '../../../components/template-grid'
 
 const logger = createLogger('SimilarTemplates')
 
