@@ -3,12 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { createLogger } from '@/lib/logs/console-logger'
 import { WorkflowPreview } from '@/app/w/components/workflow-preview/workflow-preview'
 import type { Workflow } from '../types'
 import { TemplateBadges } from './template-badges'
-
-const logger = createLogger('TemplateWorkflowCard')
 
 /**
  * TemplateWorkflowCardProps interface - defines the properties for the TemplateWorkflowCard component

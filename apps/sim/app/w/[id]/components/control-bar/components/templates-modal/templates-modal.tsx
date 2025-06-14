@@ -261,8 +261,8 @@ const TOOLTIPS = {
 interface TemplatesInfo {
   id: string
   name: string
-  short_description: string
-  long_description: string
+  shortDescription: string
+  longDescription: string
   category: string
   authorName: string
   views: number
@@ -564,12 +564,12 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
           <div className='flex items-start justify-between'>
             <h3 className='font-medium text-xl leading-tight'>{templatesInfo.name}</h3>
           </div>
-          <p className='text-muted-foreground text-sm'>{templatesInfo.short_description}</p>
-          {templatesInfo.long_description && (
+          <p className='text-muted-foreground text-sm'>{templatesInfo.shortDescription}</p>
+          {templatesInfo.longDescription && (
             <div className='space-y-1.5'>
               <Label className='text-muted-foreground text-xs'>Detailed Description</Label>
               <p className='text-foreground text-sm leading-relaxed'>
-                {templatesInfo.long_description}
+                {templatesInfo.longDescription}
               </p>
             </div>
           )}
