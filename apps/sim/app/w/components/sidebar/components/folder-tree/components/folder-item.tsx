@@ -5,7 +5,6 @@ import clsx from 'clsx'
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { type FolderTreeNode, useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { FolderContextMenu } from '../../folder-context-menu/folder-context-menu'
 
 interface FolderItemProps {
@@ -27,9 +26,7 @@ export function FolderItem({
   onDragLeave,
   onDrop,
 }: FolderItemProps) {
-  const { expandedFolders, toggleExpanded, updateFolderAPI, deleteFolder, selectedWorkflows } =
-    useFolderStore()
-  const { updateWorkflow } = useWorkflowRegistry()
+  const { expandedFolders, toggleExpanded, updateFolderAPI, deleteFolder } = useFolderStore()
 
   const isExpanded = expandedFolders.has(folder.id)
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)

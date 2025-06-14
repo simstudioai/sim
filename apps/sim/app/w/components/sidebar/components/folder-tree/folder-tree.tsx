@@ -17,7 +17,7 @@ interface FolderSectionProps {
   workflowsByFolder: Record<string, WorkflowMetadata[]>
   expandedFolders: Set<string>
   pathname: string
-  updateWorkflow: (id: string, updates: any) => void
+  updateWorkflow: (id: string, updates: Partial<WorkflowMetadata>) => void
   renderFolderTree: (
     nodes: FolderTreeNode[],
     level: number,
@@ -97,7 +97,7 @@ function FolderSection({
 
 // Custom hook for drag and drop handling
 function useDragHandlers(
-  updateWorkflow: (id: string, updates: any) => void,
+  updateWorkflow: (id: string, updates: Partial<WorkflowMetadata>) => void,
   targetFolderId: string | null, // null for root
   logMessage?: string
 ) {
