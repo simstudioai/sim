@@ -25,7 +25,7 @@ import {
 } from './workflows/persistence'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
-import { isRegistryInitialized } from './workflows/sync'
+import { isRegistryInitialized, workflowSync } from './workflows/sync'
 import { useWorkflowStore } from './workflows/workflow/store'
 import type { BlockState } from './workflows/workflow/types'
 
@@ -205,7 +205,14 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
       manager.sync()
     })
 
-  // 3. Cleanup managers
+  // 3. Use immediate sync for exit to ensure changes are saved before page unload
+  const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
+  if (activeWorkflowId) {
+    // Use immediate sync for exit - no debouncing needed when leaving page
+    workflowSync.syncWorkflowImmediate(activeWorkflowId)
+  }
+
+  // 4. Cleanup managers
   getSyncManagers().forEach((manager) => manager.dispose())
 
   // Standard beforeunload pattern

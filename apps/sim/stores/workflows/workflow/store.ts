@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
+import { changeTracker, createEdgeChange, createNodeChange } from '../granular-sync'
 import { pushHistory, type WorkflowStoreWithHistory, withHistory } from '../middleware'
 import { saveWorkflowState } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
@@ -43,6 +44,11 @@ const initialState = {
     },
     future: [],
   },
+}
+
+// Helper function to get the active workflow ID
+const getActiveWorkflowId = (): string | null => {
+  return useWorkflowRegistry.getState().activeWorkflowId
 }
 
 // Create a consolidated sync control implementation
@@ -101,6 +107,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         parentId?: string,
         extent?: 'parent'
       ) => {
+        const activeWorkflowId = getActiveWorkflowId()
+        if (!activeWorkflowId) return
+
         const blockConfig = getBlock(type)
         // For custom nodes like loop and parallel that don't use BlockConfig
         if (!blockConfig && (type === 'loop' || type === 'parallel')) {
@@ -110,22 +119,24 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
             ...(parentId && { parentId, extent: extent || 'parent' }),
           }
 
+          const blockState = {
+            id,
+            type,
+            name,
+            position,
+            subBlocks: {},
+            outputs: {},
+            enabled: true,
+            horizontalHandles: true,
+            isWide: false,
+            height: 0,
+            data: nodeData,
+          }
+
           const newState = {
             blocks: {
               ...get().blocks,
-              [id]: {
-                id,
-                type,
-                name,
-                position,
-                subBlocks: {},
-                outputs: {},
-                enabled: true,
-                horizontalHandles: true,
-                isWide: false,
-                height: 0,
-                data: nodeData,
-              },
+              [id]: blockState,
             },
             edges: [...get().edges],
             loops: get().generateLoopBlocks(),
@@ -135,6 +146,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           set(newState)
           pushHistory(set, get, newState, `Add ${type} node`)
           get().updateLastSaved()
+
+          // Track the change with granular sync
+          const change = createNodeChange(activeWorkflowId, 'create', id, blockState)
+          changeTracker.trackChange(change)
+
           workflowSync.sync()
           return
         }
@@ -159,22 +175,24 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         const outputs = resolveOutputType(blockConfig.outputs, subBlocks)
 
+        const blockState = {
+          id,
+          type,
+          name,
+          position,
+          subBlocks,
+          outputs,
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          height: 0,
+          data: nodeData,
+        }
+
         const newState = {
           blocks: {
             ...get().blocks,
-            [id]: {
-              id,
-              type,
-              name,
-              position,
-              subBlocks,
-              outputs,
-              enabled: true,
-              horizontalHandles: true,
-              isWide: false,
-              height: 0,
-              data: nodeData,
-            },
+            [id]: blockState,
           },
           edges: [...get().edges],
           loops: get().generateLoopBlocks(),
@@ -184,24 +202,43 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Add ${type} block`)
         get().updateLastSaved()
+
+        // Track the change with granular sync
+        const change = createNodeChange(activeWorkflowId, 'create', id, blockState)
+        changeTracker.trackChange(change)
+
         get().sync.markDirty()
         get().sync.forceSync()
       },
 
       updateBlockPosition: (id: string, position: Position) => {
+        const activeWorkflowId = getActiveWorkflowId()
+
+        const currentBlock = get().blocks[id]
+        if (!currentBlock) return
+
+        const updatedBlock = {
+          ...currentBlock,
+          position,
+        }
+
         set((state) => ({
           blocks: {
             ...state.blocks,
-            [id]: {
-              ...state.blocks[id],
-              position,
-            },
+            [id]: updatedBlock,
           },
           edges: [...state.edges],
         }))
         get().updateLastSaved()
 
-        // No sync here as this is a frequent operation during dragging
+        // Track the position change with granular sync (if workflow is active)
+        if (activeWorkflowId) {
+          const change = createNodeChange(activeWorkflowId, 'update', id, updatedBlock)
+          changeTracker.trackChange(change)
+        }
+
+        // Only mark dirty for position updates (frequent operation) - don't force sync
+        get().sync.markDirty()
       },
 
       updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {
@@ -295,9 +332,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       removeBlock: (id: string) => {
+        const activeWorkflowId = getActiveWorkflowId()
+        if (!activeWorkflowId) return
+
         // First, clean up any subblock values for this block
         const subBlockStore = useSubBlockStore.getState()
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
         const newState = {
           blocks: { ...get().blocks },
@@ -349,7 +388,26 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           }))
         }
 
+        // Track deletion changes for all blocks being removed
+        blocksToRemove.forEach((blockId) => {
+          const blockToDelete = newState.blocks[blockId]
+          if (blockToDelete) {
+            const change = createNodeChange(activeWorkflowId, 'delete', blockId, blockToDelete)
+            changeTracker.trackChange(change)
+          }
+        })
+
         // Remove all edges connected to any of the blocks being removed
+        const removedEdges = newState.edges.filter(
+          (edge) => blocksToRemove.has(edge.source) || blocksToRemove.has(edge.target)
+        )
+
+        // Track edge deletions
+        removedEdges.forEach((edge) => {
+          const change = createEdgeChange(activeWorkflowId, 'delete', edge.id, edge)
+          changeTracker.trackChange(change)
+        })
+
         newState.edges = newState.edges.filter(
           (edge) => !blocksToRemove.has(edge.source) && !blocksToRemove.has(edge.target)
         )
@@ -367,6 +425,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       },
 
       addEdge: (edge: Edge) => {
+        const activeWorkflowId = getActiveWorkflowId()
+        if (!activeWorkflowId) return
+
         // Check for duplicate connections
         const isDuplicate = get().edges.some(
           (existingEdge) =>
@@ -402,11 +463,19 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Add connection')
         get().updateLastSaved()
+
+        // Track the change with granular sync
+        const change = createEdgeChange(activeWorkflowId, 'create', newEdge.id, newEdge)
+        changeTracker.trackChange(change)
+
         get().sync.markDirty()
         get().sync.forceSync()
       },
 
       removeEdge: (edgeId: string) => {
+        const activeWorkflowId = getActiveWorkflowId()
+        if (!activeWorkflowId) return
+
         // Validate the edge exists
         const edgeToRemove = get().edges.find((edge) => edge.id === edgeId)
         if (!edgeToRemove) {
@@ -427,6 +496,11 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Remove connection')
         get().updateLastSaved()
+
+        // Track the change with granular sync
+        const change = createEdgeChange(activeWorkflowId, 'delete', edgeId, edgeToRemove)
+        changeTracker.trackChange(change)
+
         get().sync.markDirty()
         get().sync.forceSync()
       },
@@ -510,8 +584,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
+
+        // Only mark dirty for toggle operations - sync will happen automatically
         get().sync.markDirty()
-        get().sync.forceSync()
       },
 
       duplicateBlock: (id: string) => {
@@ -599,8 +674,9 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
+
+        // Only mark dirty for toggle operations - sync will happen automatically
         get().sync.markDirty()
-        get().sync.forceSync()
       },
 
       updateBlockName: (id: string, name: string) => {

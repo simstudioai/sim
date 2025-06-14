@@ -3,6 +3,7 @@ import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
 import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
 import { API_ENDPOINTS, STORAGE_KEYS } from '../../constants'
+import { changeTracker, createNodeChange } from '../granular-sync'
 import {
   loadWorkflowState,
   removeFromStorage,
@@ -642,6 +643,22 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         // Update the active workflow ID
         set({ activeWorkflowId: id, error: null })
+
+        // Start change tracking for the newly active workflow
+        changeTracker.startTracking(id)
+
+        // Track the starter block as a change so it gets synced to database
+        if (!parsedState.marketplaceId) {
+          const starterId = Object.keys(parsedState.blocks)[0]
+          const starterBlock = parsedState.blocks[starterId]
+          if (starterBlock) {
+            const nodeChange = createNodeChange(id, 'create', starterId, starterBlock)
+            changeTracker.trackChange(nodeChange)
+            logger.info(`Tracked starter block ${starterId} as change for new workflow ${id}`)
+          }
+        }
+
+        logger.info(`Started change tracking for workflow ${id}`)
       },
 
       /**
@@ -866,13 +883,29 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           useWorkflowStore.setState(initialState)
         }
 
+        // Start change tracking for the new workflow
+        changeTracker.startTracking(id)
+
+        // Track the starter block as a change so it gets synced to database
+        if (!options.marketplaceId) {
+          const starterId = Object.keys(initialState.blocks)[0]
+          const starterBlock = initialState.blocks[starterId]
+          if (starterBlock) {
+            const nodeChange = createNodeChange(id, 'create', starterId, starterBlock)
+            changeTracker.trackChange(nodeChange)
+            logger.info(`Tracked starter block ${starterId} as change for new workflow ${id}`)
+          }
+        }
+
         // Mark as dirty to ensure sync
         useWorkflowStore.getState().sync.markDirty()
 
         // Trigger sync
         useWorkflowStore.getState().sync.forceSync()
 
-        logger.info(`Created new workflow with ID ${id} in workspace ${workspaceId || 'none'}`)
+        logger.info(
+          `Created new workflow with ID ${id} in workspace ${workspaceId || 'none'} and started change tracking`
+        )
 
         return id
       },

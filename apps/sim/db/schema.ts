@@ -131,6 +131,200 @@ export const workflow = pgTable('workflow', {
   marketplaceData: json('marketplace_data'),
 })
 
+// New granular workflow tables for improved sync performance
+export const workflowNode = pgTable(
+  'workflow_node',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+
+    // Node properties
+    type: text('type').notNull(),
+    name: text('name').notNull(),
+    positionX: integer('position_x').notNull(),
+    positionY: integer('position_y').notNull(),
+
+    // Node configuration
+    subBlocks: json('sub_blocks').notNull().default('{}'),
+    outputs: json('outputs').notNull().default('{}'),
+    enabled: boolean('enabled').notNull().default(true),
+
+    // Layout properties
+    horizontalHandles: boolean('horizontal_handles').default(false),
+    isWide: boolean('is_wide').default(false),
+    height: integer('height'),
+
+    // Advanced properties
+    advancedMode: boolean('advanced_mode').default(false),
+    data: json('data').default('{}'),
+
+    // Parent-child relationships for nested nodes
+    parentId: text('parent_id'),
+    extent: text('extent'), // 'parent' for nested nodes
+
+    // Sync and versioning
+    version: integer('version').notNull().default(1),
+    lastModified: timestamp('last_modified').notNull().defaultNow(),
+    modifiedBy: text('modified_by').references(() => user.id),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Indexes for efficient queries
+    workflowIdIdx: index('workflow_node_workflow_id_idx').on(table.workflowId),
+    workflowVersionIdx: index('workflow_node_workflow_version_idx').on(
+      table.workflowId,
+      table.version
+    ),
+    parentIdIdx: index('workflow_node_parent_id_idx').on(table.parentId),
+    lastModifiedIdx: index('workflow_node_last_modified_idx').on(table.lastModified),
+
+    // Compound index for efficient sync queries
+    workflowSyncIdx: index('workflow_node_sync_idx').on(
+      table.workflowId,
+      table.lastModified,
+      table.version
+    ),
+  })
+)
+
+export const workflowEdge = pgTable(
+  'workflow_edge',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+
+    // Edge connection properties
+    source: text('source').notNull(),
+    target: text('target').notNull(),
+    sourceHandle: text('source_handle'),
+    targetHandle: text('target_handle'),
+
+    // Edge styling and behavior
+    type: text('type').default('default'),
+    animated: boolean('animated').default(false),
+    style: json('style').default('{}'),
+    data: json('data').default('{}'),
+
+    // Sync and versioning
+    version: integer('version').notNull().default(1),
+    lastModified: timestamp('last_modified').notNull().defaultNow(),
+    modifiedBy: text('modified_by').references(() => user.id),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Indexes for efficient queries
+    workflowIdIdx: index('workflow_edge_workflow_id_idx').on(table.workflowId),
+    sourceIdx: index('workflow_edge_source_idx').on(table.source),
+    targetIdx: index('workflow_edge_target_idx').on(table.target),
+    workflowVersionIdx: index('workflow_edge_workflow_version_idx').on(
+      table.workflowId,
+      table.version
+    ),
+
+    // Compound indexes for sync and connection queries
+    workflowSyncIdx: index('workflow_edge_sync_idx').on(
+      table.workflowId,
+      table.lastModified,
+      table.version
+    ),
+    connectionIdx: index('workflow_edge_connection_idx').on(table.source, table.target),
+  })
+)
+
+export const workflowLoop = pgTable(
+  'workflow_loop',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+
+    // Loop properties
+    nodes: json('nodes').notNull().default('[]'), // Array of node IDs
+    iterations: integer('iterations').notNull().default(1),
+    loopType: text('loop_type').notNull(), // 'for' or 'forEach'
+    forEachItems: json('for_each_items'), // Items or expression for forEach loops
+
+    // Execution state
+    executionState: json('execution_state').notNull().default('{}'),
+
+    // Sync and versioning
+    version: integer('version').notNull().default(1),
+    lastModified: timestamp('last_modified').notNull().defaultNow(),
+    modifiedBy: text('modified_by').references(() => user.id),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Indexes for efficient queries
+    workflowIdIdx: index('workflow_loop_workflow_id_idx').on(table.workflowId),
+    workflowVersionIdx: index('workflow_loop_workflow_version_idx').on(
+      table.workflowId,
+      table.version
+    ),
+
+    // Compound index for sync queries
+    workflowSyncIdx: index('workflow_loop_sync_idx').on(
+      table.workflowId,
+      table.lastModified,
+      table.version
+    ),
+  })
+)
+
+export const workflowParallel = pgTable(
+  'workflow_parallel',
+  {
+    id: text('id').primaryKey(),
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }),
+
+    // Parallel properties
+    nodes: json('nodes').notNull().default('[]'), // Array of node IDs
+    distribution: json('distribution'), // Items or expression for parallel distribution
+
+    // Execution state
+    executionState: json('execution_state').notNull().default('{}'),
+
+    // Sync and versioning
+    version: integer('version').notNull().default(1),
+    lastModified: timestamp('last_modified').notNull().defaultNow(),
+    modifiedBy: text('modified_by').references(() => user.id),
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Indexes for efficient queries
+    workflowIdIdx: index('workflow_parallel_workflow_id_idx').on(table.workflowId),
+    workflowVersionIdx: index('workflow_parallel_workflow_version_idx').on(
+      table.workflowId,
+      table.version
+    ),
+
+    // Compound index for sync queries
+    workflowSyncIdx: index('workflow_parallel_sync_idx').on(
+      table.workflowId,
+      table.lastModified,
+      table.version
+    ),
+  })
+)
+
 export const waitlist = pgTable('waitlist', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),

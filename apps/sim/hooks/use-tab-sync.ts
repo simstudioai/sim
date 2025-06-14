@@ -2,47 +2,41 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
+import { changeTracker } from '@/stores/workflows/granular-sync'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { fetchWorkflowsFromDB } from '@/stores/workflows/sync'
+import {
+  getWorkflowChanges,
+  hasUnsavedChanges,
+  isActivelyLoadingFromDB,
+  isRegistryInitialized,
+  syncWorkflow,
+} from '@/stores/workflows/sync'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
-const logger = createLogger('TabSync')
+const logger = createLogger('GranularTabSync')
 
 export interface TabSyncOptions {
   /** Whether tab sync is enabled. Default: true */
   enabled?: boolean
-  /** Minimum time in ms between syncs. Default: 2000 */
+  /** Minimum time in ms between syncs. Default: 1000 */
   minSyncInterval?: number
+  /** Enable real-time collaboration features. Default: true */
+  enableRealTimeSync?: boolean
+  /** Enable conflict resolution. Default: true */
+  enableConflictResolution?: boolean
 }
 
 /**
- * Helper function to normalize blocks for comparison, excluding position data
- * This focuses on structural changes rather than movement
- */
-function normalizeBlocksForComparison(blocks: Record<string, any>) {
-  const normalized: Record<string, any> = {}
-
-  for (const [id, block] of Object.entries(blocks)) {
-    normalized[id] = {
-      ...block,
-      // Exclude position from comparison to avoid movement sync issues
-      position: undefined,
-    }
-  }
-
-  return normalized
-}
-
-/**
- * Hook that automatically syncs the workflow editor when the user switches back to the tab.
- * This prevents the "newest write wins" issue by ensuring users always see the latest version.
- * Note: This excludes position changes to avoid inconsistent movement syncing.
+ * Hook for granular tab sync with real-time collaboration support
+ * Provides component-level syncing instead of full workflow syncing
  */
 export function useTabSync(options: TabSyncOptions = {}) {
   const {
     enabled = true,
-    minSyncInterval = 2000, // Increased to reduce conflicts
+    minSyncInterval = 1000,
+    enableRealTimeSync = true,
+    enableConflictResolution = true,
   } = options
 
   const lastSyncRef = useRef<number>(0)
@@ -63,183 +57,59 @@ export function useTabSync(options: TabSyncOptions = {}) {
       return
     }
 
+    // Skip if registry not ready
+    if (!isRegistryInitialized() || isActivelyLoadingFromDB()) {
+      logger.debug('Sync skipped - registry not ready')
+      return
+    }
+
     // Prevent concurrent syncs
     isSyncingRef.current = true
     lastSyncRef.current = now
 
     try {
-      logger.info('Tab became visible - checking for workflow updates')
+      logger.info(`Tab sync triggered for workflow ${activeWorkflowId}`)
 
-      // Store current complete workflow state for comparison (excluding positions)
-      const currentState = {
+      // Get current local state
+      const currentLocalState = {
         blocks: { ...workflowStore.blocks },
         edges: [...workflowStore.edges],
         loops: { ...workflowStore.loops },
         parallels: { ...workflowStore.parallels },
         lastSaved: workflowStore.lastSaved || 0,
-        isDeployed: workflowStore.isDeployed,
-        deployedAt: workflowStore.deployedAt,
-        needsRedeployment: workflowStore.needsRedeployment,
-        hasActiveSchedule: workflowStore.hasActiveSchedule,
-        hasActiveWebhook: workflowStore.hasActiveWebhook,
+        metadata: {
+          isDeployed: workflowStore.isDeployed,
+          deployedAt: workflowStore.deployedAt,
+          needsRedeployment: workflowStore.needsRedeployment,
+          hasActiveSchedule: workflowStore.hasActiveSchedule,
+          hasActiveWebhook: workflowStore.hasActiveWebhook,
+        },
       }
 
-      // Wait for any pending writes to complete before fetching
-      await new Promise((resolve) => setTimeout(resolve, 200))
+      // Check if we have unsaved local changes
+      const hasLocalChanges = hasUnsavedChanges(activeWorkflowId)
 
-      // Force a fresh fetch from database to ensure we get the absolute latest state
-      await fetchWorkflowsFromDB()
-
-      // Wait a bit more to ensure the fetch has fully completed and localStorage is updated
-      await new Promise((resolve) => setTimeout(resolve, 100))
-
-      // Get the updated workflow from the registry
-      const updatedWorkflow = useWorkflowRegistry.getState().workflows[activeWorkflowId]
-
-      if (!updatedWorkflow) {
-        logger.warn('Active workflow not found after sync')
-        return
-      }
-
-      // Load the updated workflow state from localStorage (populated by fetchWorkflowsFromDB)
-      const workflowStateKey = `workflow-${activeWorkflowId}`
-      const subBlockValuesKey = `subblock-values-${activeWorkflowId}`
-
-      const updatedWorkflowState = localStorage.getItem(workflowStateKey)
-      const updatedSubBlockValues = localStorage.getItem(subBlockValuesKey)
-
-      if (!updatedWorkflowState) {
-        logger.warn('No updated workflow state found in localStorage')
-        return
-      }
-
-      const newWorkflowState = JSON.parse(updatedWorkflowState)
-      const newSubBlockValues = updatedSubBlockValues ? JSON.parse(updatedSubBlockValues) : {}
-      const newLastSaved = newWorkflowState.lastSaved || 0
-
-      // **CRITICAL: Only update if the database version is actually newer**
-      // This prevents overriding newer local changes with older database state
-      if (newLastSaved <= currentState.lastSaved) {
-        logger.debug('Database state is not newer than current state, skipping update', {
-          currentLastSaved: new Date(currentState.lastSaved).toISOString(),
-          newLastSaved: new Date(newLastSaved).toISOString(),
+      if (hasLocalChanges) {
+        const pendingChanges = getWorkflowChanges(activeWorkflowId)
+        logger.info(`Found ${pendingChanges.length} unsaved local changes`, {
+          changesSummary: changeTracker.getChangesSummary(activeWorkflowId),
         })
+      }
+
+      // Fetch latest changes from server using granular sync
+      const syncSuccess = await syncWorkflow(activeWorkflowId)
+
+      if (!syncSuccess) {
+        logger.warn('Failed to sync workflow from server')
         return
       }
 
-      // Normalize and stringify once to avoid redundant processing
-      const currentNormalized = {
-        blocks: normalizeBlocksForComparison(currentState.blocks),
-        edges: currentState.edges,
-        loops: currentState.loops,
-        parallels: currentState.parallels,
-      }
+      // After sync, check if there are server changes to apply locally
+      await checkAndApplyServerChanges(activeWorkflowId, currentLocalState)
 
-      const newNormalized = {
-        blocks: normalizeBlocksForComparison(newWorkflowState.blocks || {}),
-        edges: newWorkflowState.edges || [],
-        loops: newWorkflowState.loops || {},
-        parallels: newWorkflowState.parallels || {},
-      }
-
-      // Cache stringified versions for comparison
-      const currentStringified = {
-        full: JSON.stringify(currentNormalized),
-        blocks: JSON.stringify(currentNormalized.blocks),
-        edges: JSON.stringify(currentNormalized.edges),
-        loops: JSON.stringify(currentNormalized.loops),
-        parallels: JSON.stringify(currentNormalized.parallels),
-      }
-
-      const newStringified = {
-        full: JSON.stringify(newNormalized),
-        blocks: JSON.stringify(newNormalized.blocks),
-        edges: JSON.stringify(newNormalized.edges),
-        loops: JSON.stringify(newNormalized.loops),
-        parallels: JSON.stringify(newNormalized.parallels),
-      }
-
-      const hasStructuralChanges = currentStringified.full !== newStringified.full
-
-      // Detailed change detection using cached strings
-      const hasBlockChanges = currentStringified.blocks !== newStringified.blocks
-      const hasEdgeChanges = currentStringified.edges !== newStringified.edges
-      const hasLoopChanges = currentStringified.loops !== newStringified.loops
-      const hasParallelChanges = currentStringified.parallels !== newStringified.parallels
-
-      if (hasStructuralChanges) {
-        logger.info('Newer structural changes detected - updating editor', {
-          activeWorkflowId,
-          blocksChanged: hasBlockChanges,
-          edgesChanged: hasEdgeChanges,
-          loopsChanged: hasLoopChanges,
-          parallelsChanged: hasParallelChanges,
-          currentBlockCount: Object.keys(currentState.blocks).length,
-          newBlockCount: Object.keys(newWorkflowState.blocks || {}).length,
-          currentEdgeCount: currentState.edges.length,
-          newEdgeCount: (newWorkflowState.edges || []).length,
-          timeDiff: newLastSaved - currentState.lastSaved,
-          note: 'Positions preserved to avoid movement conflicts',
-        })
-
-        // Merge new structural changes while preserving current positions
-        const mergedBlocks = { ...(newWorkflowState.blocks || {}) }
-
-        // Preserve current positions to avoid movement conflicts
-        for (const [blockId, currentBlock] of Object.entries(currentState.blocks)) {
-          if (mergedBlocks[blockId] && currentBlock.position) {
-            mergedBlocks[blockId] = {
-              ...mergedBlocks[blockId],
-              position: currentBlock.position, // Keep current position
-            }
-          }
-        }
-
-        // Update the workflow store with structural changes but preserved positions
-        const completeStateUpdate = {
-          blocks: mergedBlocks,
-          edges: newWorkflowState.edges || [],
-          loops: newWorkflowState.loops || {},
-          parallels: newWorkflowState.parallels || {},
-          lastSaved: newLastSaved,
-          isDeployed:
-            newWorkflowState.isDeployed !== undefined
-              ? newWorkflowState.isDeployed
-              : currentState.isDeployed,
-          deployedAt:
-            newWorkflowState.deployedAt !== undefined
-              ? newWorkflowState.deployedAt
-              : currentState.deployedAt,
-          needsRedeployment:
-            newWorkflowState.needsRedeployment !== undefined
-              ? newWorkflowState.needsRedeployment
-              : currentState.needsRedeployment,
-          hasActiveSchedule:
-            newWorkflowState.hasActiveSchedule !== undefined
-              ? newWorkflowState.hasActiveSchedule
-              : currentState.hasActiveSchedule,
-          hasActiveWebhook:
-            newWorkflowState.hasActiveWebhook !== undefined
-              ? newWorkflowState.hasActiveWebhook
-              : currentState.hasActiveWebhook,
-        }
-
-        useWorkflowStore.setState(completeStateUpdate)
-
-        // Update subblock values
-        useSubBlockStore.setState((state) => ({
-          workflowValues: {
-            ...state.workflowValues,
-            [activeWorkflowId]: newSubBlockValues,
-          },
-        }))
-
-        logger.info('Workflow editor successfully synced structural changes (positions preserved)')
-      } else {
-        logger.debug('No structural changes detected, positions preserved')
-      }
+      logger.info('Granular tab sync completed successfully')
     } catch (error) {
-      logger.error('Failed to sync workflow editor:', error)
+      logger.error('Failed to perform granular tab sync:', error)
     } finally {
       // Always release the sync lock
       isSyncingRef.current = false
@@ -248,17 +118,143 @@ export function useTabSync(options: TabSyncOptions = {}) {
     enabled,
     activeWorkflowId,
     minSyncInterval,
+    enableRealTimeSync,
+    enableConflictResolution,
     workflowStore.blocks,
     workflowStore.edges,
     workflowStore.loops,
     workflowStore.parallels,
     workflowStore.lastSaved,
-    workflowStore.isDeployed,
-    workflowStore.deployedAt,
-    workflowStore.needsRedeployment,
-    workflowStore.hasActiveSchedule,
-    workflowStore.hasActiveWebhook,
   ])
+
+  /**
+   * Check for server changes and apply them to local state
+   */
+  const checkAndApplyServerChanges = useCallback(
+    async (workflowId: string, currentLocalState: any) => {
+      try {
+        // Get the updated workflow state from localStorage (updated by sync)
+        const workflowStateKey = `workflow-${workflowId}`
+        const subBlockValuesKey = `subblock-values-${workflowId}`
+
+        const updatedWorkflowState = localStorage.getItem(workflowStateKey)
+        const updatedSubBlockValues = localStorage.getItem(subBlockValuesKey)
+
+        if (!updatedWorkflowState) {
+          logger.debug('No updated workflow state found')
+          return
+        }
+
+        const newWorkflowState = JSON.parse(updatedWorkflowState)
+        const newSubBlockValues = updatedSubBlockValues ? JSON.parse(updatedSubBlockValues) : {}
+        const newLastSaved = newWorkflowState.lastSaved || 0
+
+        // **CRITICAL: Only update if the server version is actually newer**
+        if (newLastSaved <= currentLocalState.lastSaved) {
+          logger.debug('Server state is not newer than local state, skipping update', {
+            localLastSaved: new Date(currentLocalState.lastSaved).toISOString(),
+            serverLastSaved: new Date(newLastSaved).toISOString(),
+          })
+          return
+        }
+
+        // Simple JSON comparison to detect changes
+        const hasChanges = hasWorkflowChanges(currentLocalState, newWorkflowState)
+
+        if (!hasChanges) {
+          logger.debug('No workflow changes detected')
+          return
+        }
+
+        logger.info('Server changes detected - applying updates', {
+          workflowId,
+          serverTimestamp: new Date(newLastSaved).toISOString(),
+        })
+
+        // Apply changes with conflict resolution
+        const mergedState = enableConflictResolution
+          ? applyChangesWithConflictResolution(currentLocalState, newWorkflowState)
+          : newWorkflowState
+
+        // Update the workflow store with the merged changes
+        useWorkflowStore.setState({
+          blocks: mergedState.blocks || {},
+          edges: mergedState.edges || [],
+          loops: mergedState.loops || {},
+          parallels: mergedState.parallels || {},
+          lastSaved: newLastSaved,
+          // Preserve local metadata unless specifically changed
+          isDeployed: mergedState.isDeployed ?? currentLocalState.metadata.isDeployed,
+          deployedAt: mergedState.deployedAt ?? currentLocalState.metadata.deployedAt,
+          needsRedeployment:
+            mergedState.needsRedeployment ?? currentLocalState.metadata.needsRedeployment,
+          hasActiveSchedule:
+            mergedState.hasActiveSchedule ?? currentLocalState.metadata.hasActiveSchedule,
+          hasActiveWebhook:
+            mergedState.hasActiveWebhook ?? currentLocalState.metadata.hasActiveWebhook,
+        })
+
+        // Update subblock values
+        useSubBlockStore.setState((state) => ({
+          workflowValues: {
+            ...state.workflowValues,
+            [workflowId]: newSubBlockValues,
+          },
+        }))
+
+        logger.info('Successfully applied server changes with granular sync')
+      } catch (error) {
+        logger.error('Error applying server changes:', error)
+      }
+    },
+    [enableConflictResolution]
+  )
+
+  /**
+   * Simple comparison to check if workflows are different
+   */
+  const hasWorkflowChanges = useCallback((local: any, server: any): boolean => {
+    // Quick comparison excluding metadata and timestamps
+    const localCore = {
+      blocks: local.blocks,
+      edges: local.edges,
+      loops: local.loops,
+      parallels: local.parallels,
+    }
+
+    const serverCore = {
+      blocks: server.blocks,
+      edges: server.edges,
+      loops: server.loops,
+      parallels: server.parallels,
+    }
+
+    return JSON.stringify(localCore) !== JSON.stringify(serverCore)
+  }, [])
+
+  /**
+   * Apply changes with smart conflict resolution
+   */
+  const applyChangesWithConflictResolution = useCallback(
+    (localState: any, serverState: any): any => {
+      // Simple merge strategy that preserves local positions
+      const mergedState = { ...serverState }
+
+      // Preserve local positions to avoid jarring movement
+      Object.keys(localState.blocks || {}).forEach((blockId) => {
+        if (mergedState.blocks?.[blockId] && localState.blocks[blockId]?.position) {
+          mergedState.blocks[blockId] = {
+            ...mergedState.blocks[blockId],
+            position: localState.blocks[blockId].position,
+          }
+        }
+      })
+
+      logger.debug('Applied conflict resolution - preserved local positions')
+      return mergedState
+    },
+    []
+  )
 
   // Handle tab visibility changes
   useEffect(() => {
@@ -267,24 +263,22 @@ export function useTabSync(options: TabSyncOptions = {}) {
     }
 
     const handleVisibilityChange = () => {
-      // Only sync when tab becomes visible (not when it becomes hidden)
+      // Only sync when tab becomes visible
       if (document.visibilityState === 'visible') {
-        logger.debug('Tab became visible - triggering structural sync check')
-        // Use a longer delay to allow any ongoing operations to complete
+        logger.debug('Tab became visible - triggering granular sync')
         const timeoutId = setTimeout(() => {
           syncWorkflowEditor()
-        }, 300)
+        }, 150)
         timeoutRefs.current.push(timeoutId)
       }
     }
 
-    // Also handle window focus as a fallback for older browsers
+    // Handle window focus as a fallback
     const handleWindowFocus = () => {
-      logger.debug('Window focused - triggering structural sync check')
-      // Use a longer delay to allow any ongoing operations to complete
+      logger.debug('Window focused - triggering granular sync')
       const timeoutId = setTimeout(() => {
         syncWorkflowEditor()
-      }, 300)
+      }, 150)
       timeoutRefs.current.push(timeoutId)
     }
 
@@ -292,7 +286,7 @@ export function useTabSync(options: TabSyncOptions = {}) {
     window.addEventListener('focus', handleWindowFocus)
 
     return () => {
-      // Clear any pending timeouts to prevent memory leaks
+      // Clear any pending timeouts
       timeoutRefs.current.forEach(clearTimeout)
       timeoutRefs.current = []
 
@@ -301,8 +295,31 @@ export function useTabSync(options: TabSyncOptions = {}) {
     }
   }, [enabled, syncWorkflowEditor])
 
-  // Return the sync function for manual triggering if needed
+  // Real-time sync interval for active collaboration
+  useEffect(() => {
+    if (!enabled || !enableRealTimeSync || !activeWorkflowId) {
+      return
+    }
+
+    // More frequent syncing for real-time collaboration
+    const intervalId = setInterval(() => {
+      if (hasUnsavedChanges(activeWorkflowId)) {
+        logger.debug('Real-time sync: unsaved changes detected')
+        syncWorkflowEditor()
+      }
+    }, 5000) // Sync every 5 seconds if there are changes
+
+    return () => {
+      clearInterval(intervalId)
+    }
+  }, [enabled, enableRealTimeSync, activeWorkflowId, syncWorkflowEditor])
+
+  // Return enhanced sync interface
   return {
     syncWorkflowEditor,
+    hasUnsavedChanges: activeWorkflowId ? hasUnsavedChanges(activeWorkflowId) : false,
+    pendingChangesCount: activeWorkflowId ? getWorkflowChanges(activeWorkflowId).length : 0,
+    isRealTimeSyncEnabled: enableRealTimeSync,
+    lastSyncTime: lastSyncRef.current,
   }
 }

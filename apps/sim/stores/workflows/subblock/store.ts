@@ -3,9 +3,11 @@ import { devtools, persist } from 'zustand/middleware'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useEnvironmentStore } from '../../settings/environment/store'
 import { useGeneralStore } from '../../settings/general/store'
+import { changeTracker, createNodeChange } from '../granular-sync'
 import { loadSubblockValues, saveSubblockValues } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
 import { workflowSync } from '../sync'
+import { useWorkflowStore } from '../workflow/store'
 import type { SubBlockStore } from './types'
 import { extractEnvVarName, findMatchingEnvVar, isEnvVarReference } from './utils'
 
@@ -50,6 +52,25 @@ export const useSubBlockStore = create<SubBlockStore>()(
               },
             },
           }))
+
+          // Track the change with granular sync
+          const currentBlock = useWorkflowStore.getState().blocks[blockId]
+          if (currentBlock) {
+            // Create updated block with new subblock value
+            const updatedBlock = {
+              ...currentBlock,
+              subBlocks: {
+                ...currentBlock.subBlocks,
+                [subBlockId]: {
+                  ...currentBlock.subBlocks[subBlockId],
+                  value,
+                },
+              },
+            }
+
+            const change = createNodeChange(activeWorkflowId, 'update', blockId, updatedBlock)
+            changeTracker.trackChange(change)
+          }
 
           // Persist to localStorage for backup
           const currentValues = get().workflowValues[activeWorkflowId] || {}
