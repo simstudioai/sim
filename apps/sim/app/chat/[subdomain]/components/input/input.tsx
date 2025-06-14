@@ -7,7 +7,8 @@ import { Send, Square } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { VoiceInput } from './voice-input'
 
-const PLACEHOLDER = 'Enter a message or click the mic to speak'
+const PLACEHOLDER_MOBILE = 'Enter a message'
+const PLACEHOLDER_DESKTOP = 'Enter a message or click the mic to speak'
 const MAX_TEXTAREA_HEIGHT = 160 // Max height in pixels (e.g., for about 4-5 lines)
 
 const containerVariants = {
@@ -195,31 +196,50 @@ export const ChatInput: React.FC<{
 
               <div className='pointer-events-none absolute top-0 left-0 flex h-full w-full items-center'>
                 {!isActive && !inputValue && (
-                  <div
-                    className='-translate-y-1/2 absolute top-1/2 left-3 select-none text-gray-400'
-                    style={{
-                      whiteSpace: 'nowrap',
-                      zIndex: 0,
-                      background:
-                        'linear-gradient(90deg, rgba(150,150,150,0.2) 0%, rgba(150,150,150,0.8) 50%, rgba(150,150,150,0.2) 100%)',
-                      backgroundSize: '200% 100%',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent',
-                      animation: 'shimmer 10s infinite linear',
-                    }}
-                  >
-                    {PLACEHOLDER}
-                    <style jsx global>{`
-                      @keyframes shimmer {
-                        0% {
-                          background-position: 200% 0;
+                  <>
+                    {/* Mobile placeholder */}
+                    <div
+                      className='-translate-y-1/2 absolute top-1/2 left-3 select-none text-gray-400 md:hidden'
+                      style={{
+                        whiteSpace: 'nowrap',
+                        zIndex: 0,
+                        background:
+                          'linear-gradient(90deg, rgba(150,150,150,0.2) 0%, rgba(150,150,150,0.8) 50%, rgba(150,150,150,0.2) 100%)',
+                        backgroundSize: '200% 100%',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        animation: 'shimmer 10s infinite linear',
+                      }}
+                    >
+                      {PLACEHOLDER_MOBILE}
+                    </div>
+                    {/* Desktop placeholder */}
+                    <div
+                      className='-translate-y-1/2 absolute top-1/2 left-3 hidden select-none text-gray-400 md:block'
+                      style={{
+                        whiteSpace: 'nowrap',
+                        zIndex: 0,
+                        background:
+                          'linear-gradient(90deg, rgba(150,150,150,0.2) 0%, rgba(150,150,150,0.8) 50%, rgba(150,150,150,0.2) 100%)',
+                        backgroundSize: '200% 100%',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        animation: 'shimmer 10s infinite linear',
+                      }}
+                    >
+                      {PLACEHOLDER_DESKTOP}
+                      <style jsx global>{`
+                        @keyframes shimmer {
+                          0% {
+                            background-position: 200% 0;
+                          }
+                          100% {
+                            background-position: -200% 0;
+                          }
                         }
-                        100% {
-                          background-position: -200% 0;
-                        }
-                      }
-                    `}</style>
-                  </div>
+                      `}</style>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
