@@ -46,7 +46,7 @@ interface TemplatesHeaderProps {
 
 type NavigationItem = 'discover' | CategoryGroup
 
-export function TemplatesHeader({
+export function ControlBar({
   setSearchQuery,
   activeSection,
   scrollToSection,

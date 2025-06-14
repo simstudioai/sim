@@ -235,11 +235,11 @@ const templatesFormSchema = z.object({
   shortDescription: z
     .string()
     .min(10, 'Short description must be at least 10 characters')
-    .max(60, 'Short description cannot exceed 60 characters'),
+    .max(120, 'Short description cannot exceed 120 characters'),
   longDescription: z
     .string()
     .min(20, 'Long description must be at least 20 characters')
-    .max(300, 'Long description cannot exceed 300 characters'),
+    .max(400, 'Long description cannot exceed 400 characters'),
   category: z.string().min(1, 'Please select a category'),
   authorName: z
     .string()
@@ -662,7 +662,7 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
                 <span
                   className={`${field.value?.length >= 60 ? 'text-red-500' : 'text-muted-foreground'}`}
                 >
-                  {field.value?.length || 0}/60 characters
+                  {field.value?.length || 0}/120 characters
                 </span>
               </div>
             </FormItem>
@@ -688,7 +688,7 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
                 <span
                   className={`${field.value?.length >= 300 ? 'text-red-500' : 'text-muted-foreground'}`}
                 >
-                  {field.value?.length || 0}/300 characters
+                  {field.value?.length || 0}/400 characters
                 </span>
               </div>
             </FormItem>

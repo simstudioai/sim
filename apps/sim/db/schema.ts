@@ -706,4 +706,3 @@ export const savedTemplates = pgTable(
     templateIdIdx: index('saved_templates_template_id_idx').on(table.templateId),
   })
 )
-
