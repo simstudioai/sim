@@ -39,51 +39,71 @@ export function TemplateDetailPage({
   const isSidebarCollapsed =
     mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
 
+  // Reset body pointer-events when template page loads
   useEffect(() => {
+    const resetBodyPointerEvents = () => {
+      const currentBodyStyle = getComputedStyle(document.body).pointerEvents
+      if (currentBodyStyle === 'none') {
+        document.body.style.pointerEvents = 'auto'
+      }
+    }
+    resetBodyPointerEvents()
+  }, [])
+
+  useEffect(() => {
+    // Don't set loading if we have valid initial data
+    if (!initialTemplateData) {
+      setLoading(true)
+    }
+
+    setError(null)
+    setSavedModalOpen(false)
+    setPublishedModalOpen(false)
+
     const fetchTemplate = async () => {
-      try {
-        if (initialTemplateData?.workflowState) {
-          setTemplate(initialTemplateData)
-          setLoading(false)
-          trackView(templateId)
-          return
-        }
-
-        setLoading(true)
-        setError(null)
-
-        const response = await fetch(`/api/templates/${templateId}/info?includeState=true`)
-
-        if (!response.ok) {
-          if (response.status === 404) {
-            setError('Template not found')
-          } else {
-            setError('Failed to load template')
-          }
-          return
-        }
-
-        const data = await response.json()
-        setTemplate(data)
-
+      if (initialTemplateData?.workflowState) {
+        setTemplate(initialTemplateData)
+        if (loading) setLoading(false)
         trackView(templateId)
-      } catch (err) {
-        logger.error('Error fetching template:', err)
-        setError('Failed to load template')
-      } finally {
-        setLoading(false)
+        return
+      }
+
+      if (!template || template.id !== templateId) {
+        setLoading(true)
+
+        try {
+          const response = await fetch(`/api/templates/${templateId}/info?includeState=true`)
+
+          if (!response.ok) {
+            if (response.status === 404) {
+              setError('Template not found')
+            } else {
+              setError('Failed to load template')
+            }
+            return
+          }
+
+          const data = await response.json()
+          setTemplate(data)
+
+          trackView(templateId)
+        } catch (err) {
+          logger.error('Error fetching template:', err)
+          setError('Failed to load template')
+        } finally {
+          setLoading(false)
+        }
       }
     }
 
     fetchTemplate()
-  }, [templateId, initialTemplateData])
+  }, [templateId]) // Remove initialTemplateData from deps
 
   const trackView = async (id: string) => {
     try {
       await fetch(`/api/templates/${id}/view`, {
         method: 'POST',
       })
-      logger.info(`Tracked view for template: ${id}`)
     } catch (error) {
       logger.warn('Failed to track template view:', error)
     }

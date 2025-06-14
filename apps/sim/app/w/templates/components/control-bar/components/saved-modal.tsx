@@ -15,6 +15,12 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('SavedModal')
 
+// Calculate height for exactly 5 templates
+// Each template row ≈ 64px (p-3 padding + content) + 8px gap from space-y-2
+const TEMPLATE_ROW_HEIGHT = 72
+const MAX_VISIBLE_TEMPLATES = 5
+const MAX_CONTENT_HEIGHT = MAX_VISIBLE_TEMPLATES * TEMPLATE_ROW_HEIGHT
+
 interface SavedTemplate {
   id: string
   name: string
@@ -57,8 +63,6 @@ export function SavedModal({ open, onOpenChange }: SavedModalProps) {
 
         const data = await response.json()
         setSavedTemplates(data.saved || [])
-
-        logger.info(`Loaded ${data.saved?.length || 0} saved templates`)
       } catch (err: any) {
         logger.error('Error fetching saved templates:', err)
         setError(err.message || 'Failed to load saved templates')
@@ -84,8 +88,6 @@ export function SavedModal({ open, onOpenChange }: SavedModalProps) {
 
         const data = await response.json()
         setSavedTemplates(data.saved || [])
-
-        logger.info(`Loaded ${data.saved?.length || 0} saved templates`)
       } catch (err: any) {
         logger.error('Error fetching saved templates:', err)
         setError(err.message || 'Failed to load saved templates')
@@ -180,7 +182,7 @@ export function SavedModal({ open, onOpenChange }: SavedModalProps) {
         </div>
 
         {/* Content */}
-        <div className='flex-1 overflow-y-auto'>
+        <div className='flex-1 overflow-y-auto' style={{ maxHeight: `${MAX_CONTENT_HEIGHT}px` }}>
           {loading ? (
             <div className='flex items-center justify-center py-12'>
               <Loader2 className='h-6 w-6 animate-spin' />

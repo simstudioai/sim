@@ -15,6 +15,12 @@ import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('PublishedModal')
 
+// Calculate height for exactly 5 templates
+// Each template row ≈ 64px (p-3 padding + content) + 8px gap from space-y-2
+const TEMPLATE_ROW_HEIGHT = 72
+const MAX_VISIBLE_TEMPLATES = 5
+const MAX_CONTENT_HEIGHT = MAX_VISIBLE_TEMPLATES * TEMPLATE_ROW_HEIGHT
+
 interface PublishedTemplate {
   id: string
   name: string
@@ -56,8 +62,6 @@ export function PublishedModal({ open, onOpenChange }: PublishedModalProps) {
 
         const data = await response.json()
         setPublishedTemplates(data.published || [])
-
-        logger.info(`Loaded ${data.published?.length || 0} published templates`)
       } catch (err: unknown) {
         logger.error('Error fetching published templates:', err)
         setError(err instanceof Error ? err.message : 'Failed to load published templates')
@@ -145,7 +149,7 @@ export function PublishedModal({ open, onOpenChange }: PublishedModalProps) {
         </div>
 
         {/* Content */}
-        <div className='flex-1 overflow-y-auto'>
+        <div className='flex-1 overflow-y-auto' style={{ maxHeight: `${MAX_CONTENT_HEIGHT}px` }}>
           {loading ? (
             <div className='flex items-center justify-center py-12'>
               <Loader2 className='h-6 w-6 animate-spin' />

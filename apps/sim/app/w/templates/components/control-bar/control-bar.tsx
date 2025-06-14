@@ -223,7 +223,12 @@ export function ControlBar({
       <div className='flex justify-between px-6 pt-4 pb-6'>
         <div className='flex items-center gap-2'>
           <Shapes className='h-[18px] w-[18px] text-muted-foreground' />
-          <h1 className='font-medium text-sm'>Templates</h1>
+          <button
+            className='cursor-pointer font-medium text-sm'
+            onClick={() => router.push('/w/templates')}
+          >
+            Templates
+          </button>
           {currentCategory && currentCategory !== 'discover' && (
             <span
               className='cursor-pointer font-medium text-sm'
