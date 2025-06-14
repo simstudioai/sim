@@ -23,6 +23,7 @@ interface FolderState {
   folders: Record<string, WorkflowFolder>
   isLoading: boolean
   expandedFolders: Set<string>
+  selectedWorkflows: Set<string>
 
   // Actions
   setFolders: (folders: WorkflowFolder[]) => void
@@ -32,6 +33,14 @@ interface FolderState {
   setLoading: (loading: boolean) => void
   toggleExpanded: (folderId: string) => void
   setExpanded: (folderId: string, expanded: boolean) => void
+
+  // Selection actions
+  selectWorkflow: (workflowId: string) => void
+  deselectWorkflow: (workflowId: string) => void
+  toggleWorkflowSelection: (workflowId: string) => void
+  clearSelection: () => void
+  selectOnly: (workflowId: string) => void
+  isWorkflowSelected: (workflowId: string) => boolean
 
   // Computed values
   getFolderTree: (workspaceId: string) => FolderTreeNode[]
@@ -57,6 +66,7 @@ export const useFolderStore = create<FolderState>()(
       folders: {},
       isLoading: false,
       expandedFolders: new Set(),
+      selectedWorkflows: new Set(),
 
       setFolders: (folders) =>
         set(() => ({
@@ -112,6 +122,44 @@ export const useFolderStore = create<FolderState>()(
           }
           return { expandedFolders: newExpanded }
         }),
+
+      // Selection actions
+      selectWorkflow: (workflowId) =>
+        set((state) => {
+          const newSelected = new Set(state.selectedWorkflows)
+          newSelected.add(workflowId)
+          return { selectedWorkflows: newSelected }
+        }),
+
+      deselectWorkflow: (workflowId) =>
+        set((state) => {
+          const newSelected = new Set(state.selectedWorkflows)
+          newSelected.delete(workflowId)
+          return { selectedWorkflows: newSelected }
+        }),
+
+      toggleWorkflowSelection: (workflowId) =>
+        set((state) => {
+          const newSelected = new Set(state.selectedWorkflows)
+          if (newSelected.has(workflowId)) {
+            newSelected.delete(workflowId)
+          } else {
+            newSelected.add(workflowId)
+          }
+          return { selectedWorkflows: newSelected }
+        }),
+
+      clearSelection: () =>
+        set(() => ({
+          selectedWorkflows: new Set(),
+        })),
+
+      selectOnly: (workflowId) =>
+        set(() => ({
+          selectedWorkflows: new Set([workflowId]),
+        })),
+
+      isWorkflowSelected: (workflowId) => get().selectedWorkflows.has(workflowId),
 
       getFolderTree: (workspaceId) => {
         const folders = Object.values(get().folders).filter((f) => f.workspaceId === workspaceId)
@@ -268,3 +316,7 @@ export const useFolderStore = create<FolderState>()(
     { name: 'folder-store' }
   )
 )
+
+// Selector hook for checking if a workflow is selected (avoids get() calls)
+export const useIsWorkflowSelected = (workflowId: string) =>
+  useFolderStore((state) => state.selectedWorkflows.has(workflowId))
