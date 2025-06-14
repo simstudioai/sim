@@ -428,7 +428,6 @@ describe('Function Execute API Route', () => {
       const { POST } = await import('./route')
       const response = await POST(req)
 
-      // Should handle complex data gracefully
       expect(response.status).toBe(200)
     })
   })
