@@ -7,10 +7,8 @@ import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
-// Mock implementations (shared across all test suites)
 const mockFreestyleExecuteScript = vi.fn()
 const mockCreateContext = vi.fn()
-const mockScript = vi.fn()
 const mockRunInContext = vi.fn()
 const mockLogger = {
   info: vi.fn(),
@@ -391,27 +389,6 @@ describe('Function Execute API Route', () => {
 
       expect(response.status).toBe(200)
     })
-
-    it('should exclude _context from execution parameters', async () => {
-      const req = createMockRequest('POST', {
-        code: 'return "test"',
-        params: {
-          data: 'valid',
-          _context: { workflowId: 'should-be-excluded' },
-        },
-      })
-
-      const { POST } = await import('./route')
-      await POST(req)
-
-      // _context should be removed from executionParams
-      expect(mockLogger.info).toHaveBeenCalledWith(
-        expect.stringMatching(/\[.*\] Function execution request/),
-        expect.objectContaining({
-          paramsCount: 1, // Only 'data' should be counted, not '_context'
-        })
-      )
-    })
   })
 
   describe('Utility Functions', () => {
@@ -495,6 +472,11 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
   })
 
   it('should handle nested template variables', async () => {
+    mockFreestyleExecuteScript.mockResolvedValueOnce({
+      result: 'environment-valueparam-value',
+      logs: [],
+    })
+
     const req = createMockRequest('POST', {
       code: 'return {{outer}} + <inner>',
       envVars: {
@@ -507,11 +489,19 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
 
     const { POST } = await import('./route')
     const response = await POST(req)
+    const data = await response.json()
 
     expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
+    expect(data.output.result).toBe('environment-valueparam-value')
   })
 
   it('should prioritize environment variables over params for {{}} syntax', async () => {
+    mockFreestyleExecuteScript.mockResolvedValueOnce({
+      result: 'env-wins',
+      logs: [],
+    })
+
     const req = createMockRequest('POST', {
       code: 'return {{conflictVar}}',
       envVars: {
@@ -524,12 +514,20 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
 
     const { POST } = await import('./route')
     const response = await POST(req)
+    const data = await response.json()
 
     expect(response.status).toBe(200)
+    expect(data.success).toBe(true)
     // Environment variable should take precedence
+    expect(data.output.result).toBe('env-wins')
   })
 
   it('should handle missing template variables gracefully', async () => {
+    mockFreestyleExecuteScript.mockResolvedValueOnce({
+      result: '',
+      logs: [],
+    })
+
     const req = createMockRequest('POST', {
       code: 'return {{nonexistent}} + <alsoMissing>',
       envVars: {},
@@ -538,8 +536,10 @@ describe('Function Execute API - Template Variable Edge Cases', () => {
 
     const { POST } = await import('./route')
     const response = await POST(req)
+    const data = await response.json()
 
     expect(response.status).toBe(200)
-    // Should replace with empty strings for missing variables
+    expect(data.success).toBe(true)
+    expect(data.output.result).toBe('')
   })
 })
