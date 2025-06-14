@@ -5,7 +5,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflow, workflowFolder } from '@/db/schema'
 
-const logger = createLogger('FolderAPI')
+const logger = createLogger('FoldersIDAPI')
 
 // PUT - Update a folder
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { isProd } from '@/lib/environment'
 import { useUserSubscription } from '@/hooks/use-user-subscription'
 import FilterSection from './components/filter-section'
+import FolderFilter from './components/folder'
 import Level from './components/level'
 import Timeline from './components/timeline'
 import Trigger from './components/trigger'
@@ -61,6 +62,9 @@ export function Filters() {
 
       {/* Trigger Filter */}
       <FilterSection title='Trigger' defaultOpen={true} content={<Trigger />} />
+
+      {/* Folder Filter */}
+      <FilterSection title='Folder' defaultOpen={true} content={<FolderFilter />} />
 
       {/* Workflow Filter */}
       <FilterSection title='Workflow' defaultOpen={true} content={<Workflow />} />
