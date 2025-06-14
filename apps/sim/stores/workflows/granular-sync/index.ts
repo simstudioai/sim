@@ -24,14 +24,11 @@ export {
   mergeGranularChangesWithLegacy,
   validateGranularData,
 } from './conversion'
-// Core functionality
-export { GranularSyncManager } from './sync-manager'
 // Core types
 export type {
   ChangeTracker,
   ConflictResolution,
   ConversionResult,
-  GranularSyncConfig,
   GranularSyncPayload,
   GranularSyncResponse,
   GranularWorkflowEdge,
@@ -45,34 +42,9 @@ export type {
 } from './types'
 
 import { changeTracker } from './change-tracker'
-import { GranularSyncManager } from './sync-manager'
-// Import types and classes for internal use
-import type { GranularSyncConfig } from './types'
 
 // Constants
 export const GRANULAR_SYNC_ENDPOINT = '/api/workflows/granular-sync'
-
-/**
- * Factory function to create a granular sync manager for a workflow
- */
-export function createGranularSyncManager(
-  workflowId: string,
-  options: Partial<GranularSyncConfig> = {}
-): GranularSyncManager {
-  const config: GranularSyncConfig = {
-    workflowId,
-    endpoint: GRANULAR_SYNC_ENDPOINT,
-    syncInterval: 30000, // 30 seconds
-    syncOnInterval: true,
-    syncOnExit: true,
-    maxRetries: 3,
-    retryBackoff: 1000,
-    conflictResolutionStrategy: 'merge',
-    ...options,
-  }
-
-  return new GranularSyncManager(config)
-}
 
 /**
  * Utility function to start tracking changes for a workflow

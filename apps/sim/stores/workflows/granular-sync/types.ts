@@ -151,21 +151,6 @@ export interface ConversionResult {
   parallels: GranularWorkflowParallel[]
 }
 
-// Sync manager configuration
-export interface GranularSyncConfig {
-  workflowId: string
-  endpoint: string
-  syncInterval?: number
-  syncOnInterval?: boolean
-  syncOnExit?: boolean
-  maxRetries?: number
-  retryBackoff?: number
-  conflictResolutionStrategy?: 'server_wins' | 'client_wins' | 'merge' | 'prompt_user'
-  onSyncSuccess?: (response: GranularSyncResponse) => void
-  onSyncError?: (error: any) => void
-  onConflict?: (conflicts: ConflictResolution[]) => void
-}
-
 // Change tracking
 export interface ChangeTracker {
   startTracking: (workflowId: string) => void
