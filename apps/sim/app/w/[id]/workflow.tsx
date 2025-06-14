@@ -18,7 +18,6 @@ import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
 import { getBlock } from '@/blocks'
-import { useTabSync } from '@/hooks/use-tab-sync'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -97,11 +96,6 @@ function WorkflowContent() {
   const { activeBlockIds, pendingBlocks } = useExecutionStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
-
-  // Tab synchronization hook - automatically syncs workflow when tab becomes visible
-  useTabSync({
-    enabled: true,
-  })
 
   // Helper function to update a node's parent with proper position calculation
   const updateNodeParent = useCallback(
