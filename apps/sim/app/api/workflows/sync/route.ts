@@ -8,8 +8,8 @@ import { workflow, workspace, workspaceMember } from '@/db/schema'
 
 const logger = createLogger('WorkflowAPI')
 
-// Define marketplace data schema
-const MarketplaceDataSchema = z
+// Define templates data schema
+const TemplatesDataSchema = z
   .object({
     id: z.string(),
     status: z.enum(['owner', 'temp']),
@@ -30,7 +30,7 @@ const WorkflowStateSchema = z.object({
     .optional()
     .transform((val) => (typeof val === 'string' ? new Date(val) : val)),
   isPublished: z.boolean().optional(),
-  marketplaceData: MarketplaceDataSchema,
+  templatesData: TemplatesDataSchema,
 })
 
 const WorkflowSchema = z.object({
@@ -39,7 +39,7 @@ const WorkflowSchema = z.object({
   description: z.string().optional(),
   color: z.string().optional(),
   state: WorkflowStateSchema,
-  marketplaceData: MarketplaceDataSchema,
+  templatesData: TemplatesDataSchema,
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
 })
@@ -203,6 +203,9 @@ export async function GET(request: Request) {
     }
 
     const elapsed = Date.now() - startTime
+    logger.info(
+      `[${requestId}] Workflow fetch completed in ${elapsed}ms for ${workflows.length} workflows`
+    )
 
     // Return the workflows
     return NextResponse.json({ data: workflows }, { status: 200 })
@@ -378,9 +381,9 @@ export async function POST(req: NextRequest) {
         const dbWorkflow = dbWorkflowMap.get(id)
 
         // Handle legacy published workflows migration
-        // If client workflow has isPublished but no marketplaceData, create marketplaceData with owner status
-        if (clientWorkflow.state.isPublished && !clientWorkflow.marketplaceData) {
-          clientWorkflow.marketplaceData = { id: clientWorkflow.id, status: 'owner' }
+        // If client workflow has isPublished but no templatesData, create templatesData with owner status
+        if (clientWorkflow.state.isPublished && !clientWorkflow.templatesData) {
+          clientWorkflow.templatesData = { id: clientWorkflow.id, status: 'owner' }
         }
 
         // Ensure the workflow has the correct workspaceId
@@ -398,7 +401,7 @@ export async function POST(req: NextRequest) {
               description: clientWorkflow.description,
               color: clientWorkflow.color,
               state: clientWorkflow.state,
-              marketplaceData: clientWorkflow.marketplaceData || null,
+              templatesData: clientWorkflow.templatesData || null,
               lastSynced: now,
               createdAt: now,
               updatedAt: now,
@@ -425,8 +428,8 @@ export async function POST(req: NextRequest) {
             dbWorkflow.color !== clientWorkflow.color ||
             dbWorkflow.workspaceId !== effectiveWorkspaceId ||
             dbWorkflow.folderId !== (clientWorkflow.folderId || null) ||
-            JSON.stringify(dbWorkflow.marketplaceData) !==
-              JSON.stringify(clientWorkflow.marketplaceData)
+            JSON.stringify(dbWorkflow.templatesData) !==
+              JSON.stringify(clientWorkflow.templatesData)
 
           if (needsUpdate) {
             operations.push(
@@ -439,7 +442,7 @@ export async function POST(req: NextRequest) {
                   workspaceId: effectiveWorkspaceId,
                   folderId: clientWorkflow.folderId || null,
                   state: clientWorkflow.state,
-                  marketplaceData: clientWorkflow.marketplaceData || null,
+                  templatesData: clientWorkflow.templatesData || null,
                   lastSynced: now,
                   updatedAt: now,
                 })

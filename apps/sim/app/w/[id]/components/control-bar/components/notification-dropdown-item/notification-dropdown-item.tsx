@@ -23,7 +23,7 @@ interface NotificationDropdownItemProps {
 const NotificationIcon = {
   error: ErrorIcon,
   console: Terminal,
-  marketplace: Store,
+  templates: Store,
   info: AlertCircle,
   api: Rocket,
 }
@@ -31,7 +31,7 @@ const NotificationIcon = {
 const NotificationColors = {
   error: 'text-destructive',
   console: 'text-foreground',
-  marketplace: 'text-foreground',
+  templates: 'text-foreground',
   info: 'text-foreground',
   api: 'text-foreground',
 }
@@ -93,8 +93,8 @@ export function NotificationDropdownItem({
           <span className='font-medium text-xs'>
             {type === 'error'
               ? 'Error'
-              : type === 'marketplace'
-                ? 'Marketplace'
+              : type === 'templates'
+                ? 'Templates'
                 : type === 'info'
                   ? 'Info'
                   : 'Console'}

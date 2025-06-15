@@ -1,0 +1,1 @@
+ALTER TABLE "saved_templates" ADD COLUMN "saved_at" timestamp DEFAULT now() NOT NULL;

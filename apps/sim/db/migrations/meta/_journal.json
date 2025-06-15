@@ -285,15 +285,43 @@
     {
       "idx": 41,
       "version": "7",
-      "when": 1749514555378,
-      "tag": "0041_sparkling_ma_gnuci",
+      "when": 1748552813988,
+      "tag": "0041_cool_living_lightning",
       "breakpoints": true
     },
     {
       "idx": 42,
       "version": "7",
-      "when": 1749784177503,
-      "tag": "0042_breezy_miracleman",
+      "when": 1748552927845,
+      "tag": "0042_next_gauntlet",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1749077318228,
+      "tag": "0043_robust_purple_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1749086840759,
+      "tag": "0044_redundant_wind_dancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1749108660187,
+      "tag": "0045_nervous_sersi",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1749840236604,
+      "tag": "0046_needy_valkyrie",
       "breakpoints": true
     }
   ]
