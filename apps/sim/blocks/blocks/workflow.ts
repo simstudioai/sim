@@ -1,4 +1,4 @@
-import { ComponentIcon } from '@/components/icons'
+import { WorkflowIcon } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { ToolResponse } from '@/tools/types'
@@ -39,10 +39,10 @@ const getAvailableWorkflows = (): Array<{ label: string; id: string }> => {
 export const WorkflowBlock: BlockConfig = {
   type: 'workflow',
   name: 'Workflow',
-  description: 'Execute another workflow as a block',
+  description: 'Execute another workflow',
   category: 'blocks',
-  bgColor: '#6366f1',
-  icon: ComponentIcon,
+  bgColor: '#705335',
+  icon: WorkflowIcon,
   subBlocks: [
     {
       id: 'workflowId',

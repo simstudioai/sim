@@ -214,6 +214,73 @@ export function WorkIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function WorkflowIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      width='30'
+      height='30'
+      viewBox='0 0 24 24'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <circle
+        className='a'
+        cx='12'
+        cy='6'
+        r='3'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <rect
+        className='a'
+        height='5'
+        rx='2'
+        width='8'
+        x='2'
+        y='16'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <rect
+        className='a'
+        height='5'
+        rx='2'
+        width='8'
+        x='14'
+        y='16'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <path
+        className='a'
+        d='M6,16V14a2,2,0,0,1,2-2h8a2,2,0,0,1,2,2v2'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <line
+        className='a'
+        x1='12'
+        x2='12'
+        y1='9'
+        y2='12'
+        stroke='currentColor'
+        strokeWidth='1.5'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
 export function WarnIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
