@@ -1,3 +1,5 @@
-import OperationsPage from '../components/control-bar/components/operations/page'
+import CategoryPage from '../components/control-bar/components/category-page'
 
-export default OperationsPage
+export default function OperationsPage() {
+  return <CategoryPage categoryGroup='operations' />
+}
