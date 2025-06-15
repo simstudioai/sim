@@ -757,7 +757,14 @@ function WorkflowContent() {
             clearInterval(checkInterval)
             // Reset variables loaded state before setting active workflow
             resetVariablesLoaded()
-            setActiveWorkflow(currentId)
+
+            // Only call setActiveWorkflow if the workflow isn't already active
+            // This prevents overwriting state that was just set in createWorkflow
+            const { activeWorkflowId } = useWorkflowRegistry.getState()
+            if (activeWorkflowId !== currentId) {
+              setActiveWorkflow(currentId)
+            }
+
             markAllAsRead(currentId)
           }
         }, 100)
@@ -766,7 +773,14 @@ function WorkflowContent() {
 
       // Reset variables loaded state before setting active workflow
       resetVariablesLoaded()
-      setActiveWorkflow(currentId)
+
+      // Only call setActiveWorkflow if the workflow isn't already active
+      // This prevents overwriting state that was just set in createWorkflow
+      const { activeWorkflowId } = useWorkflowRegistry.getState()
+      if (activeWorkflowId !== currentId) {
+        setActiveWorkflow(currentId)
+      }
+
       markAllAsRead(currentId)
     }
 

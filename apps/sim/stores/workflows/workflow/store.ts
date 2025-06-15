@@ -4,7 +4,6 @@ import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
 import { pushHistory, type WorkflowStoreWithHistory, withHistory } from '../middleware'
-import { saveWorkflowState } from '../persistence'
 import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
 import { markWorkflowsDirty, workflowSync } from '../sync'
@@ -469,30 +468,10 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
       updateLastSaved: () => {
         set({ lastSaved: Date.now() })
 
-        // Save current state to localStorage
-        const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-        if (activeWorkflowId) {
-          const currentState = get()
-          const generatedLoops = currentState.generateLoopBlocks()
-          const generatedParallels = currentState.generateParallelBlocks()
-          saveWorkflowState(activeWorkflowId, {
-            blocks: currentState.blocks,
-            edges: currentState.edges,
-            loops: generatedLoops,
-            parallels: generatedParallels,
-            history: currentState.history,
-            // Include both legacy and new deployment status fields
-            isDeployed: currentState.isDeployed,
-            deployedAt: currentState.deployedAt,
-            deploymentStatuses: currentState.deploymentStatuses,
-            lastSaved: Date.now(),
-          })
-
-          // Note: Scheduling changes are automatically handled by the workflowSync
-          // When the workflow is synced to the database, the sync system checks if
-          // the starter block has scheduling enabled and updates or cancels the
-          // schedule accordingly.
-        }
+        // Note: Scheduling changes are automatically handled by the workflowSync
+        // When the workflow is synced to the database, the sync system checks if
+        // the starter block has scheduling enabled and updates or cancels the
+        // schedule accordingly.
       },
 
       toggleBlockEnabled: (id: string) => {

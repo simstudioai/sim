@@ -20,7 +20,12 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
-import { saveToStorage } from '@/stores/workflows/persistence'
+import {
+  buildOAuthUrl,
+  buildTeamsChannelUrl,
+  buildTeamsChatUrl,
+  buildTeamsTeamUrl,
+} from '@/lib/urls/utils'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
 const logger = new Logger('TeamsMessageSelector')
@@ -167,7 +172,7 @@ export function TeamsMessageSelector({
         displayName: team.displayName,
         type: 'team' as const,
         teamId: team.id,
-        webViewLink: `https://teams.microsoft.com/l/team/${team.id}`,
+        webViewLink: buildTeamsTeamUrl(team.id),
       }))
 
       setTeams(teamsData)
@@ -229,7 +234,7 @@ export function TeamsMessageSelector({
           type: 'channel' as const,
           teamId,
           channelId: channel.id,
-          webViewLink: `https://teams.microsoft.com/l/channel/${teamId}/${encodeURIComponent(channel.displayName)}/${channel.id}`,
+          webViewLink: buildTeamsChannelUrl(teamId, channel.displayName, channel.id),
         }))
 
         setChannels(channelsData)
@@ -293,7 +298,7 @@ export function TeamsMessageSelector({
         displayName: chat.displayName,
         type: 'chat' as const,
         chatId: chat.id,
-        webViewLink: `https://teams.microsoft.com/l/chat/${chat.id}`,
+        webViewLink: buildTeamsChatUrl(chat.id),
       }))
 
       setChats(chatsData)
@@ -402,14 +407,35 @@ export function TeamsMessageSelector({
     const effectiveServiceId = getServiceId()
     const providerId = getProviderId()
 
-    // Store information about the required connection
-    saveToStorage<string>('pending_service_id', effectiveServiceId)
-    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
-    saveToStorage<string>('pending_oauth_return_url', window.location.href)
-    saveToStorage<string>('pending_oauth_provider_id', providerId)
+    // Store OAuth state in localStorage before redirect
+    const oauthState = {
+      providerId: providerId,
+      serviceId: effectiveServiceId,
+      requiredScopes,
+      returnUrl: window.location.href,
+      context: 'teams-message-selector',
+      timestamp: Date.now(),
+    }
 
-    // Show the OAuth modal
-    setShowOAuthModal(true)
+    // Use localStorage for OAuth state management
+    try {
+      localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
+
+      // Navigate to OAuth URL using the utility function
+      const authUrl = buildOAuthUrl({
+        provider: providerId,
+        service: effectiveServiceId,
+        scopes: requiredScopes,
+        returnUrl: window.location.href,
+      })
+
+      window.location.href = authUrl
+    } catch (error) {
+      logger.error('Failed to store OAuth state:', error)
+      // Fallback to OAuth modal
+      setShowOAuthModal(true)
+    }
+
     setOpen(false)
   }
 
@@ -516,7 +542,7 @@ export function TeamsMessageSelector({
               displayName: team.displayName,
               type: 'team',
               teamId: team.id,
-              webViewLink: `https://teams.microsoft.com/l/team/${team.id}`,
+              webViewLink: buildTeamsTeamUrl(team.id),
             }
             setSelectedTeamId(team.id)
             setSelectedMessage(teamInfo)
@@ -554,7 +580,7 @@ export function TeamsMessageSelector({
               displayName: chat.displayName,
               type: 'chat',
               chatId: chat.id,
-              webViewLink: `https://teams.microsoft.com/l/chat/${chat.id}`,
+              webViewLink: buildTeamsChatUrl(chat.id),
             }
             setSelectedChatId(chat.id)
             setSelectedMessage(chatInfo)
@@ -616,7 +642,7 @@ export function TeamsMessageSelector({
                         type: 'channel' as const,
                         teamId: team.id,
                         channelId: channel.id,
-                        webViewLink: `https://teams.microsoft.com/l/channel/${team.id}/${encodeURIComponent(channel.displayName)}/${channel.id}`,
+                        webViewLink: buildTeamsChannelUrl(team.id, channel.displayName, channel.id),
                       },
                     }
                   }
