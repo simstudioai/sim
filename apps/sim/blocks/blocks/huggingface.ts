@@ -10,7 +10,7 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
     'Generate completions using Hugging Face Inference API with access to various open-source models. Leverage cutting-edge AI models for chat completions, content generation, and AI-powered conversations with customizable parameters.',
   docsLink: 'https://docs.simstudio.ai/tools/huggingface',
   category: 'tools',
-  bgColor: '#181C1E',
+  bgColor: '#0B0F19',
   icon: HuggingFaceIcon,
   subBlocks: [
     {
