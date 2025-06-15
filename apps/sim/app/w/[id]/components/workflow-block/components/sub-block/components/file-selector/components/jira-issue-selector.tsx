@@ -19,7 +19,7 @@ import {
   getProviderIdFromServiceId,
   getServiceIdFromScopes,
   type OAuthProvider,
-} from '@/lib/oauth'
+} from '@/lib/oauth/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 

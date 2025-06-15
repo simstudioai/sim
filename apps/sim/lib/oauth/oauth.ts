@@ -22,7 +22,7 @@ import {
   xIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
-import { env } from './env'
+import { env } from '../env'
 
 const logger = createLogger('OAuth')
 
@@ -630,7 +630,7 @@ export async function refreshOAuthToken(
     }
 
     // Prepare request body
-    const bodyParams: Record<string, string | undefined> = {
+    let bodyParams: Record<string, string> = {
       grant_type: 'refresh_token',
       refresh_token: refreshToken,
     }
@@ -643,10 +643,12 @@ export async function refreshOAuthToken(
         const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
         headers.Authorization = `Basic ${basicAuth}`
 
-        // Make sure to include refresh_token in body params but not client_id/client_secret
-        // This ensures we're not sending credentials in both header and body
-        bodyParams.client_id = undefined
-        bodyParams.client_secret = undefined
+        // For Airtable, only send grant_type and refresh_token in body
+        // Do NOT include client_id or client_secret in the body
+        bodyParams = {
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }
       } else {
         throw new Error('Both client ID and client secret are required for Airtable OAuth')
       }
@@ -660,19 +662,29 @@ export async function refreshOAuthToken(
       const basicAuth = Buffer.from(authString).toString('base64')
       headers.Authorization = `Basic ${basicAuth}`
 
-      // When using Basic Auth, don't include client_id in body
-      bodyParams.client_id = undefined
-      bodyParams.client_secret = undefined
+      // When using Basic Auth, only send grant_type and refresh_token in body
+      bodyParams = {
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }
     } else {
       // For other providers, use the general approach
       if (useBasicAuth) {
         const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
         headers.Authorization = `Basic ${basicAuth}`
-      }
-
-      if (!useBasicAuth) {
-        bodyParams.client_id = clientId
-        bodyParams.client_secret = clientSecret
+        // When using Basic Auth, only send grant_type and refresh_token in body
+        bodyParams = {
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }
+      } else {
+        // When not using Basic Auth, include client credentials in body
+        bodyParams = {
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+        }
       }
     }
 
@@ -680,7 +692,7 @@ export async function refreshOAuthToken(
     const response = await fetch(tokenEndpoint, {
       method: 'POST',
       headers,
-      body: new URLSearchParams(bodyParams as Record<string, string>).toString(),
+      body: new URLSearchParams(bodyParams).toString(),
     })
 
     if (!response.ok) {
