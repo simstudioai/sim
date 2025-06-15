@@ -141,10 +141,19 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
               'claude-opus-4-20250514',
               'claude-3-7-sonnet-20250219',
               'claude-3-5-sonnet-20240620',
+
             ],
             not: true, // Show for all models EXCEPT those listed
           }
-        : undefined, // Show for all models in non-hosted environments
+        : {
+          field: 'model',
+          // Include all Ollama models for which we don't show the API key field
+          value: [
+            // Ollama models
+            ...useOllamaStore.getState().models,
+          ],
+          not: true, // Show for all models EXCEPT those listed
+        }, // Show for all models in non-hosted environments
     },
     {
       id: 'tools',
