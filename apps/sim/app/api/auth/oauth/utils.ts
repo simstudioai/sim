@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { refreshOAuthToken } from '@/lib/oauth'
+import { refreshOAuthToken } from '@/lib/oauth/oauth'
 import { db } from '@/db'
 import { account, workflow } from '@/db/schema'
 

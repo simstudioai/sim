@@ -18,7 +18,7 @@ import {
   OAUTH_PROVIDERS,
   type OAuthProvider,
   parseProvider,
-} from '@/lib/oauth'
+} from '@/lib/oauth/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 
 const logger = createLogger('OAuthRequiredModal')

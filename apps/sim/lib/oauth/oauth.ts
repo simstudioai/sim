@@ -22,7 +22,7 @@ import {
   xIcon,
 } from '@/components/icons'
 import { createLogger } from '@/lib/logs/console-logger'
-import { env } from './env'
+import { env } from '../env'
 
 const logger = createLogger('OAuth')
 
@@ -520,6 +520,216 @@ export function parseProvider(provider: OAuthProvider): ProviderConfig {
   }
 }
 
+interface ProviderAuthConfig {
+  tokenEndpoint: string
+  clientId: string
+  clientSecret: string
+  useBasicAuth: boolean
+  additionalHeaders?: Record<string, string>
+  supportsRefreshTokenRotation?: boolean
+}
+
+/**
+ * Get OAuth provider configuration for token refresh
+ */
+function getProviderAuthConfig(provider: string): ProviderAuthConfig {
+  const getCredentials = (clientId: string | undefined, clientSecret: string | undefined) => {
+    if (!clientId || !clientSecret) {
+      throw new Error(`Missing client credentials for provider: ${provider}`)
+    }
+    return { clientId, clientSecret }
+  }
+
+  switch (provider) {
+    case 'google': {
+      const { clientId, clientSecret } = getCredentials(
+        env.GOOGLE_CLIENT_ID,
+        env.GOOGLE_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://oauth2.googleapis.com/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    case 'github': {
+      const { clientId, clientSecret } = getCredentials(
+        env.GITHUB_CLIENT_ID,
+        env.GITHUB_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://github.com/login/oauth/access_token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+        additionalHeaders: { Accept: 'application/json' },
+      }
+    }
+    case 'x': {
+      const { clientId, clientSecret } = getCredentials(env.X_CLIENT_ID, env.X_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://api.x.com/2/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+      }
+    }
+    case 'confluence': {
+      const { clientId, clientSecret } = getCredentials(
+        env.CONFLUENCE_CLIENT_ID,
+        env.CONFLUENCE_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://auth.atlassian.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'jira': {
+      const { clientId, clientSecret } = getCredentials(env.JIRA_CLIENT_ID, env.JIRA_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://auth.atlassian.com/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'airtable': {
+      const { clientId, clientSecret } = getCredentials(
+        env.AIRTABLE_CLIENT_ID,
+        env.AIRTABLE_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://airtable.com/oauth2/v1/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'supabase': {
+      const { clientId, clientSecret } = getCredentials(
+        env.SUPABASE_CLIENT_ID,
+        env.SUPABASE_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.supabase.com/v1/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    case 'notion': {
+      const { clientId, clientSecret } = getCredentials(
+        env.NOTION_CLIENT_ID,
+        env.NOTION_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.notion.com/v1/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    case 'discord': {
+      const { clientId, clientSecret } = getCredentials(
+        env.DISCORD_CLIENT_ID,
+        env.DISCORD_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://discord.com/api/v10/oauth2/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+      }
+    }
+    case 'microsoft': {
+      const { clientId, clientSecret } = getCredentials(
+        env.MICROSOFT_CLIENT_ID,
+        env.MICROSOFT_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    case 'outlook': {
+      const { clientId, clientSecret } = getCredentials(
+        env.MICROSOFT_CLIENT_ID,
+        env.MICROSOFT_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    case 'linear': {
+      const { clientId, clientSecret } = getCredentials(
+        env.LINEAR_CLIENT_ID,
+        env.LINEAR_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://api.linear.app/oauth/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
+      }
+    }
+    case 'slack': {
+      const { clientId, clientSecret } = getCredentials(
+        env.SLACK_CLIENT_ID,
+        env.SLACK_CLIENT_SECRET
+      )
+      return {
+        tokenEndpoint: 'https://slack.com/api/oauth.v2.access',
+        clientId,
+        clientSecret,
+        useBasicAuth: false,
+      }
+    }
+    default:
+      throw new Error(`Unsupported provider: ${provider}`)
+  }
+}
+
+/**
+ * Build the authentication request headers and body for OAuth token refresh
+ */
+function buildAuthRequest(
+  config: ProviderAuthConfig,
+  refreshToken: string
+): { headers: Record<string, string>; bodyParams: Record<string, string> } {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    ...config.additionalHeaders,
+  }
+
+  const bodyParams: Record<string, string> = {
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+  }
+
+  if (config.useBasicAuth) {
+    // Use Basic Authentication - credentials in Authorization header only
+    const basicAuth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')
+    headers.Authorization = `Basic ${basicAuth}`
+  } else {
+    // Use body credentials - include client credentials in request body
+    bodyParams.client_id = config.clientId
+    bodyParams.client_secret = config.clientSecret
+  }
+
+  return { headers, bodyParams }
+}
+
 /**
  * Refresh an OAuth token
  * This is a server-side utility function to refresh OAuth tokens
@@ -535,152 +745,17 @@ export async function refreshOAuthToken(
     // Get the provider from the providerId (e.g., 'google-drive' -> 'google')
     const provider = providerId.split('-')[0]
 
-    // Determine the token endpoint based on the provider
-    let tokenEndpoint: string
-    let clientId: string | undefined
-    let clientSecret: string | undefined
-    let useBasicAuth = false
+    // Get provider configuration
+    const config = getProviderAuthConfig(provider)
 
-    switch (provider) {
-      case 'google':
-        tokenEndpoint = 'https://oauth2.googleapis.com/token'
-        clientId = env.GOOGLE_CLIENT_ID
-        clientSecret = env.GOOGLE_CLIENT_SECRET
-        break
-      case 'github':
-        tokenEndpoint = 'https://github.com/login/oauth/access_token'
-        clientId = env.GITHUB_CLIENT_ID
-        clientSecret = env.GITHUB_CLIENT_SECRET
-        break
-      case 'x':
-        tokenEndpoint = 'https://api.x.com/2/oauth2/token'
-        clientId = env.X_CLIENT_ID
-        clientSecret = env.X_CLIENT_SECRET
-        useBasicAuth = true
-        break
-      case 'confluence':
-        tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
-        clientId = env.CONFLUENCE_CLIENT_ID
-        clientSecret = env.CONFLUENCE_CLIENT_SECRET
-        useBasicAuth = true
-        break
-      case 'jira':
-        tokenEndpoint = 'https://auth.atlassian.com/oauth/token'
-        clientId = env.JIRA_CLIENT_ID
-        clientSecret = env.JIRA_CLIENT_SECRET
-        useBasicAuth = true
-        break
-      case 'airtable':
-        tokenEndpoint = 'https://airtable.com/oauth2/v1/token'
-        clientId = env.AIRTABLE_CLIENT_ID
-        clientSecret = env.AIRTABLE_CLIENT_SECRET
-        useBasicAuth = true
-        break
-      case 'supabase':
-        tokenEndpoint = 'https://api.supabase.com/v1/oauth/token'
-        clientId = env.SUPABASE_CLIENT_ID
-        clientSecret = env.SUPABASE_CLIENT_SECRET
-        break
-      case 'notion':
-        tokenEndpoint = 'https://api.notion.com/v1/oauth/token'
-        clientId = env.NOTION_CLIENT_ID
-        clientSecret = env.NOTION_CLIENT_SECRET
-        break
-      case 'discord':
-        tokenEndpoint = 'https://discord.com/api/v10/oauth2/token'
-        clientId = env.DISCORD_CLIENT_ID
-        clientSecret = env.DISCORD_CLIENT_SECRET
-        useBasicAuth = true
-        break
-      case 'microsoft':
-        tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
-        clientId = env.MICROSOFT_CLIENT_ID
-        clientSecret = env.MICROSOFT_CLIENT_SECRET
-        break
-      case 'outlook':
-        tokenEndpoint = 'https://login.microsoftonline.com/common/oauth2/v2.0/token'
-        clientId = env.MICROSOFT_CLIENT_ID
-        clientSecret = env.MICROSOFT_CLIENT_SECRET
-        break
-      case 'linear':
-        tokenEndpoint = 'https://api.linear.app/oauth/token'
-        clientId = env.LINEAR_CLIENT_ID
-        clientSecret = env.LINEAR_CLIENT_SECRET
-        useBasicAuth = true
-        break
-      case 'slack':
-        tokenEndpoint = 'https://slack.com/api/oauth.v2.access'
-        clientId = env.SLACK_CLIENT_ID
-        clientSecret = env.SLACK_CLIENT_SECRET
-        break
-      default:
-        throw new Error(`Unsupported provider: ${provider}`)
-    }
-
-    if (!clientId || !clientSecret) {
-      throw new Error(`Missing client credentials for provider: ${provider}`)
-    }
-
-    // Prepare request headers and body
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      ...(provider === 'github' && {
-        Accept: 'application/json',
-      }),
-    }
-
-    // Prepare request body
-    const bodyParams: Record<string, string | undefined> = {
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-    }
-
-    // For Airtable, check if we have both client ID and secret
-    if (provider === 'airtable') {
-      // Airtable requires Basic Auth with client ID and secret in the Authorization header
-      // Do not include client_id or client_secret in the body when using Basic Auth
-      if (clientId && clientSecret) {
-        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-        headers.Authorization = `Basic ${basicAuth}`
-
-        // Make sure to include refresh_token in body params but not client_id/client_secret
-        // This ensures we're not sending credentials in both header and body
-        bodyParams.client_id = undefined
-        bodyParams.client_secret = undefined
-      } else {
-        throw new Error('Both client ID and client secret are required for Airtable OAuth')
-      }
-    } else if (
-      provider === 'x' ||
-      provider === 'confluence' ||
-      provider === 'jira' ||
-      provider === 'discord'
-    ) {
-      const authString = `${clientId}:${clientSecret}`
-      const basicAuth = Buffer.from(authString).toString('base64')
-      headers.Authorization = `Basic ${basicAuth}`
-
-      // When using Basic Auth, don't include client_id in body
-      bodyParams.client_id = undefined
-      bodyParams.client_secret = undefined
-    } else {
-      // For other providers, use the general approach
-      if (useBasicAuth) {
-        const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64')
-        headers.Authorization = `Basic ${basicAuth}`
-      }
-
-      if (!useBasicAuth) {
-        bodyParams.client_id = clientId
-        bodyParams.client_secret = clientSecret
-      }
-    }
+    // Build authentication request
+    const { headers, bodyParams } = buildAuthRequest(config, refreshToken)
 
     // Refresh the token
-    const response = await fetch(tokenEndpoint, {
+    const response = await fetch(config.tokenEndpoint, {
       method: 'POST',
       headers,
-      body: new URLSearchParams(bodyParams as Record<string, string>).toString(),
+      body: new URLSearchParams(bodyParams).toString(),
     })
 
     if (!response.ok) {
@@ -708,16 +783,9 @@ export async function refreshOAuthToken(
     // Extract token and expiration (different providers may use different field names)
     const accessToken = data.access_token
 
-    // For Airtable, also capture the new refresh token if provided
-    // Airtable may rotate refresh tokens
+    // Handle refresh token rotation for providers that support it
     let newRefreshToken = null
-    if (provider === 'airtable' && data.refresh_token) {
-      newRefreshToken = data.refresh_token
-      logger.info('Received new refresh token from Airtable')
-    }
-
-    // For Confluence and Jira, check if we got a new refresh token
-    if ((provider === 'confluence' || provider === 'jira') && data.refresh_token) {
+    if (config.supportsRefreshTokenRotation && data.refresh_token) {
       newRefreshToken = data.refresh_token
       logger.info(`Received new refresh token from ${provider}`)
     }
