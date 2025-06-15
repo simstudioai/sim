@@ -11,10 +11,10 @@ const logger = createLogger('WorkflowByIdAPI')
  * GET /api/workflows/[id]
  * Fetch a single workflow by ID
  */
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const startTime = Date.now()
-  const workflowId = params.id
+  const { id: workflowId } = await params
 
   try {
     // Get the session

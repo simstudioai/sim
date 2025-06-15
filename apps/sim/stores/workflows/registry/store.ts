@@ -153,25 +153,16 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           })
       },
 
-      // Set active workspace and update UI + persist to server
-      setActiveWorkspace: async (id: string) => {
-        const currentWorkspaceId = get().activeWorkspaceId
+      // Switch to workspace with comprehensive error handling and loading states
+      switchToWorkspace: (id: string) => {
+        const { activeWorkspaceId } = get()
 
-        // Only perform the switch if the workspace is different
-        if (id === currentWorkspaceId) {
-          return
-        }
-
-        // Prevent multiple workspace transitions at once
-        if (isWorkspaceTransitioning) {
-          logger.warn('Workspace already transitioning, ignoring new request')
-          return
-        }
+        if (activeWorkspaceId === id) return
 
         // Set transition state
         setWorkspaceTransitioning(true)
 
-        logger.info(`Switching workspace from ${currentWorkspaceId} to ${id}`)
+        logger.info(`Switching workspace from ${activeWorkspaceId} to ${id}`)
 
         // Reset all workflow state
         resetWorkflowStores()
@@ -179,16 +170,12 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Reset registry initialization state
         resetRegistryInitialization()
 
-        // No longer saving workspace to localStorage
-
-        // Persist workspace selection to server (fire and forget)
-        fetch('/api/user/workspace', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId: id }),
-        }).catch((error) => {
-          logger.warn('Failed to persist workspace selection to server:', error)
-        })
+        // Save workspace to localStorage
+        try {
+          localStorage.setItem('lastActiveWorkspaceId', id)
+        } catch (error) {
+          logger.warn('Failed to save workspace to localStorage:', error)
+        }
 
         // Set loading state while we fetch workflows
         set({
@@ -218,21 +205,29 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           })
       },
 
-      // Load user's last active workspace from server
+      // Load user's last active workspace from localStorage
       loadLastActiveWorkspace: async () => {
         try {
-          const response = await fetch('/api/user/workspace')
-          if (response.ok) {
-            const data = await response.json()
-            if (data.workspaceId && data.workspaceId !== get().activeWorkspaceId) {
-              // Set the workspace without triggering a full switch (since we're initializing)
-              set({ activeWorkspaceId: data.workspaceId })
-              logger.info(`Restored last active workspace: ${data.workspaceId}`)
-            }
+          const savedWorkspaceId = localStorage.getItem('lastActiveWorkspaceId')
+          if (savedWorkspaceId && savedWorkspaceId !== get().activeWorkspaceId) {
+            // Set the workspace without triggering a full switch (since we're initializing)
+            set({ activeWorkspaceId: savedWorkspaceId })
+            logger.info(`Restored last active workspace from localStorage: ${savedWorkspaceId}`)
           }
         } catch (error) {
-          logger.warn('Failed to load last active workspace from server:', error)
+          logger.warn('Failed to load last active workspace from localStorage:', error)
           // This is non-critical, so we continue with default behavior
+        }
+      },
+
+      // Simple method to set active workspace ID without triggering full switch
+      setActiveWorkspaceId: (id: string) => {
+        set({ activeWorkspaceId: id })
+        // Save to localStorage as well
+        try {
+          localStorage.setItem('lastActiveWorkspaceId', id)
+        } catch (error) {
+          logger.warn('Failed to save workspace to localStorage:', error)
         }
       },
 

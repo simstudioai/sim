@@ -193,7 +193,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
               // Switch to the first available workspace
               const firstWorkspace = workspaces[0]
               logger.info(`Switching to available workspace: ${firstWorkspace.id}`)
-              useWorkflowRegistry.getState().setActiveWorkspace(firstWorkspace.id)
+              useWorkflowRegistry.getState().switchToWorkspace(firstWorkspace.id)
               return
             }
           }

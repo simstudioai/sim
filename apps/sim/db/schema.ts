@@ -176,11 +176,6 @@ export const settings = pgTable('settings', {
   autoConnect: boolean('auto_connect').notNull().default(true),
   autoFillEnvVars: boolean('auto_fill_env_vars').notNull().default(true),
 
-  // Workspace preference
-  lastActiveWorkspaceId: text('last_active_workspace_id').references(() => workspace.id, {
-    onDelete: 'set null',
-  }),
-
   // Privacy settings
   telemetryEnabled: boolean('telemetry_enabled').notNull().default(true),
   telemetryNotifiedUser: boolean('telemetry_notified_user').notNull().default(false),

@@ -241,7 +241,7 @@ export function WorkspaceHeader({
   const router = useRouter()
 
   // Get workflowRegistry state and actions
-  const { activeWorkspaceId, setActiveWorkspace: setActiveWorkspaceId } = useWorkflowRegistry()
+  const { activeWorkspaceId, switchToWorkspace, setActiveWorkspaceId } = useWorkflowRegistry()
 
   const userName = sessionData?.user?.name || sessionData?.user?.email || 'User'
 
@@ -316,8 +316,8 @@ export function WorkspaceHeader({
     setActiveWorkspace(workspace)
     setIsOpen(false)
 
-    // Update the workflow registry store with the new active workspace
-    setActiveWorkspaceId(workspace.id)
+    // Use full workspace switch to clear workflows and load new ones
+    switchToWorkspace(workspace.id)
 
     // Update URL to include workspace ID
     router.push(`/w/${workspace.id}`)

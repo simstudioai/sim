@@ -1,2 +1,0 @@
-ALTER TABLE "settings" ADD COLUMN "last_active_workspace_id" text;--> statement-breakpoint
-ALTER TABLE "settings" ADD CONSTRAINT "settings_last_active_workspace_id_workspace_id_fk" FOREIGN KEY ("last_active_workspace_id") REFERENCES "public"."workspace"("id") ON DELETE set null ON UPDATE no action;

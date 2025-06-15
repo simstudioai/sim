@@ -33,7 +33,8 @@ export interface WorkflowRegistryState {
 export interface WorkflowRegistryActions {
   setLoading: (loading: boolean) => void
   setActiveWorkflow: (id: string) => Promise<void>
-  setActiveWorkspace: (id: string) => void
+  switchToWorkspace: (id: string) => void
+  setActiveWorkspaceId: (id: string) => void
   loadLastActiveWorkspace: () => Promise<void>
   handleWorkspaceDeletion: (newWorkspaceId: string) => void
   removeWorkflow: (id: string) => void
