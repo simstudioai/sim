@@ -146,6 +146,8 @@ export function GmailConfig({
   markAsRead = false,
   setMarkAsRead = () => {},
   isPreview = false,
+  includeRawEmail = false,
+  setIncludeRawEmail = () => {},
 }: GmailConfigProps) {
   const [labels, setLabels] = useState<GmailLabel[]>([])
   const [isLoadingLabels, setIsLoadingLabels] = useState(false)

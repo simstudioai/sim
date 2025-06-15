@@ -657,7 +657,6 @@ export function WebhookModal({
             setMarkAsRead={setMarkAsRead}
             includeRawEmail={includeRawEmail}
             setIncludeRawEmail={setIncludeRawEmail}
-            isPreview={isPreview}
           />
         )
       case 'discord':
