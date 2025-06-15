@@ -12,9 +12,7 @@ export const env = createEnv({
     DATABASE_URL: z.string().url(),
     BETTER_AUTH_URL: z.string().url(),
     BETTER_AUTH_SECRET: z.string().min(32),
-    DISABLE_REGISTRATION: z
-      .preprocess((v) => v === "true" || v === "1", z.boolean())
-      .optional(),
+    DISABLE_REGISTRATION: z.boolean().optional(),
     ENCRYPTION_KEY: z.string().min(32),
 
     POSTGRES_URL: z.string().url().optional(),
@@ -88,9 +86,7 @@ export const env = createEnv({
     MICROSOFT_CLIENT_SECRET: z.string().optional(),
     HUBSPOT_CLIENT_ID: z.string().optional(),
     HUBSPOT_CLIENT_SECRET: z.string().optional(),
-    DOCKER_BUILD: z
-      .preprocess((v) => v === "true" || v === "1", z.boolean())
-      .optional(),
+    DOCKER_BUILD: z.boolean().optional(),
     LINEAR_CLIENT_ID: z.string().optional(),
     LINEAR_CLIENT_SECRET: z.string().optional(),
     SLACK_CLIENT_ID: z.string().optional(),
