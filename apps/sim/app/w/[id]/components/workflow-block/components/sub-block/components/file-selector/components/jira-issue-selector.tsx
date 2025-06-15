@@ -438,7 +438,7 @@ export function JiraIssueSelector({
 
       // Navigate to OAuth URL
       const authUrl = `/api/auth/oauth?provider=${providerId}&service=${effectiveServiceId}&scopes=${encodeURIComponent(
-        requiredScopes.join(',')
+        (requiredScopes || []).join(',')
       )}&return_url=${encodeURIComponent(window.location.href)}`
 
       window.location.href = authUrl
