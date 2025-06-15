@@ -1,9 +1,8 @@
-import { createEnv } from "@t3-oss/env-nextjs";
-import { env as runtimeEnv } from "next-runtime-env";
-import { z } from "zod";
+import { createEnv } from '@t3-oss/env-nextjs'
+import { env as runtimeEnv } from 'next-runtime-env'
+import { z } from 'zod'
 
-const getEnv = (variable: string) =>
-  runtimeEnv(variable) ?? process.env[variable];
+const getEnv = (variable: string) => runtimeEnv(variable) ?? process.env[variable]
 
 export const env = createEnv({
   skipValidation: true,
@@ -104,19 +103,15 @@ export const env = createEnv({
 
   // Only need to define client variables, server variables are automatically handled
   experimental__runtimeEnv: {
-    NEXT_PUBLIC_APP_URL: getEnv("NEXT_PUBLIC_APP_URL"),
-    NEXT_PUBLIC_VERCEL_URL: getEnv("NEXT_PUBLIC_VERCEL_URL"),
-    NEXT_PUBLIC_SENTRY_DSN: getEnv("NEXT_PUBLIC_SENTRY_DSN"),
-    NEXT_PUBLIC_GOOGLE_CLIENT_ID: getEnv("NEXT_PUBLIC_GOOGLE_CLIENT_ID"),
-    NEXT_PUBLIC_GOOGLE_API_KEY: getEnv("NEXT_PUBLIC_GOOGLE_API_KEY"),
-    NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: getEnv(
-      "NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER"
-    ),
+    NEXT_PUBLIC_APP_URL: getEnv('NEXT_PUBLIC_APP_URL'),
+    NEXT_PUBLIC_VERCEL_URL: getEnv('NEXT_PUBLIC_VERCEL_URL'),
+    NEXT_PUBLIC_SENTRY_DSN: getEnv('NEXT_PUBLIC_SENTRY_DSN'),
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID'),
+    NEXT_PUBLIC_GOOGLE_API_KEY: getEnv('NEXT_PUBLIC_GOOGLE_API_KEY'),
+    NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER'),
   },
-});
+})
 
 // Needing this utility because t3-env is returning string for boolean values.
 export const isTruthy = (value: string | boolean | number | undefined) =>
-  typeof value === "string"
-    ? value === "true" || value === "1"
-    : Boolean(value);
+  typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value)
