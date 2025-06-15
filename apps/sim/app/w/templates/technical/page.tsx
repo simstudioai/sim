@@ -1,3 +1,5 @@
-import TechnicalPage from '../components/control-bar/components/technical/page'
+import CategoryPage from '../components/control-bar/components/category-page'
 
-export default TechnicalPage
+export default function TechnicalPage() {
+  return <CategoryPage categoryGroup='technical' />
+}
