@@ -49,7 +49,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Case 2: Workflow belongs to a workspace the user is a member of
     if (!hasAccess && workflowData.workspaceId) {
       const membership = await db
-        .select({ role: workspaceMember.role })
+        .select({ id: workspaceMember.id })
         .from(workspaceMember)
         .where(
           and(
