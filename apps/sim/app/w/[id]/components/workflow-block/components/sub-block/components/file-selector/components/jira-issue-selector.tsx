@@ -20,6 +20,7 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { buildOAuthUrl } from '@/lib/urls/utils'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
 const logger = new Logger('jira_issue_selector')
@@ -436,10 +437,13 @@ export function JiraIssueSelector({
     try {
       localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
 
-      // Navigate to OAuth URL
-      const authUrl = `/api/auth/oauth?provider=${providerId}&service=${effectiveServiceId}&scopes=${encodeURIComponent(
-        requiredScopes.join(',')
-      )}&return_url=${encodeURIComponent(window.location.href)}`
+      // Navigate to OAuth URL using the utility function
+      const authUrl = buildOAuthUrl({
+        provider: providerId,
+        service: effectiveServiceId,
+        scopes: requiredScopes,
+        returnUrl: window.location.href,
+      })
 
       window.location.href = authUrl
     } catch (error) {

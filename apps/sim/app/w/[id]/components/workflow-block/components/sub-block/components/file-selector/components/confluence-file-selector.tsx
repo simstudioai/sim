@@ -19,6 +19,7 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
+import { buildOAuthUrl } from '@/lib/urls/utils'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
 export interface ConfluenceFileInfo {
@@ -353,7 +354,7 @@ export function ConfluenceFileSelector({
   }
 
   // Handle adding a new credential
-  const handleConnectAccount = () => {
+  const handleAddCredential = () => {
     const effectiveServiceId = getServiceId()
     const providerId = getProviderId()
 
@@ -371,10 +372,13 @@ export function ConfluenceFileSelector({
     try {
       localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
 
-      // Navigate to OAuth URL
-      const authUrl = `/api/auth/oauth?provider=${providerId}&service=${effectiveServiceId}&scopes=${encodeURIComponent(
-        requiredScopes.join(',')
-      )}&return_url=${encodeURIComponent(window.location.href)}`
+      // Navigate to OAuth URL using the utility function
+      const authUrl = buildOAuthUrl({
+        provider: providerId,
+        service: effectiveServiceId,
+        scopes: requiredScopes,
+        returnUrl: window.location.href,
+      })
 
       window.location.href = authUrl
     } catch (error) {
@@ -521,7 +525,7 @@ export function ConfluenceFileSelector({
                 {/* Connect account option - only show if no credentials */}
                 {credentials.length === 0 && (
                   <CommandGroup>
-                    <CommandItem onSelect={handleConnectAccount}>
+                    <CommandItem onSelect={handleAddCredential}>
                       <div className='flex items-center gap-2 text-primary'>
                         <ConfluenceIcon className='h-4 w-4' />
                         <span>Connect Confluence account</span>

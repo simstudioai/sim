@@ -18,6 +18,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
+import { buildOAuthUrl } from '@/lib/urls/utils'
 
 const logger = createLogger('OAuthRequiredModal')
 
@@ -173,18 +174,24 @@ export function OAuthRequiredModal({
     try {
       localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
 
-      // Navigate to OAuth URL
-      const authUrl = `/api/auth/oauth?provider=${effectiveProviderId}&service=${effectiveServiceId}&scopes=${encodeURIComponent(
-        requiredScopes.join(',')
-      )}&return_url=${encodeURIComponent(window.location.href)}`
+      // Navigate to OAuth URL using the utility function
+      const authUrl = buildOAuthUrl({
+        provider: effectiveProviderId,
+        service: effectiveServiceId,
+        scopes: requiredScopes,
+        returnUrl: window.location.href,
+      })
 
       window.location.href = authUrl
     } catch (error) {
       logger.error('Failed to store OAuth state:', error)
-      // Fallback: redirect without state
-      const authUrl = `/api/auth/oauth?provider=${effectiveProviderId}&service=${effectiveServiceId}&scopes=${encodeURIComponent(
-        requiredScopes.join(',')
-      )}&return_url=${encodeURIComponent(window.location.href)}`
+      // Fallback: redirect without state using the utility function
+      const authUrl = buildOAuthUrl({
+        provider: effectiveProviderId,
+        service: effectiveServiceId,
+        scopes: requiredScopes,
+        returnUrl: window.location.href,
+      })
 
       window.location.href = authUrl
     }
@@ -210,18 +217,24 @@ export function OAuthRequiredModal({
     try {
       localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
 
-      // Navigate to OAuth URL
-      const authUrl = `/api/auth/oauth?provider=${effectiveProviderId}&service=${effectiveServiceId}&scopes=${encodeURIComponent(
-        requiredScopes.join(',')
-      )}&return_url=${encodeURIComponent(window.location.href)}`
+      // Navigate to OAuth URL using the utility function
+      const authUrl = buildOAuthUrl({
+        provider: effectiveProviderId,
+        service: effectiveServiceId,
+        scopes: requiredScopes,
+        returnUrl: window.location.href,
+      })
 
       window.location.href = authUrl
     } catch (error) {
       logger.error('Failed to store OAuth state:', error)
-      // Fallback: redirect without state
-      const authUrl = `/api/auth/oauth?provider=${effectiveProviderId}&service=${effectiveServiceId}&scopes=${encodeURIComponent(
-        requiredScopes.join(',')
-      )}&return_url=${encodeURIComponent(window.location.href)}`
+      // Fallback: redirect without state using the utility function
+      const authUrl = buildOAuthUrl({
+        provider: effectiveProviderId,
+        service: effectiveServiceId,
+        scopes: requiredScopes,
+        returnUrl: window.location.href,
+      })
 
       window.location.href = authUrl
     }

@@ -24,6 +24,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
+import { buildOAuthUrl } from '@/lib/urls/utils'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('GoogleDrivePicker')
@@ -302,10 +303,13 @@ export function GoogleDrivePicker({
     try {
       localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
 
-      // Navigate to OAuth URL
-      const authUrl = `/api/auth/oauth?provider=${providerId}&service=${effectiveServiceId}&scopes=${encodeURIComponent(
-        requiredScopes.join(',')
-      )}&return_url=${encodeURIComponent(window.location.href)}`
+      // Navigate to OAuth URL using the utility function
+      const authUrl = buildOAuthUrl({
+        provider: providerId,
+        service: effectiveServiceId,
+        scopes: requiredScopes,
+        returnUrl: window.location.href,
+      })
 
       window.location.href = authUrl
     } catch (error) {

@@ -15,6 +15,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console-logger'
 import { type Credential, getProviderIdFromServiceId, getServiceIdFromScopes } from '@/lib/oauth'
+import { buildOAuthUrl } from '@/lib/urls/utils'
 import { OAuthRequiredModal } from '@/app/w/[id]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 
 const logger = createLogger('FolderSelector')
@@ -272,7 +273,7 @@ export function FolderSelector({
   }
 
   // Handle adding a new credential
-  const handleConnectAccount = () => {
+  const handleAddCredential = () => {
     const effectiveServiceId = getServiceId()
     const providerId = getProviderId()
 
@@ -290,10 +291,13 @@ export function FolderSelector({
     try {
       localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
 
-      // Navigate to OAuth URL
-      const authUrl = `/api/auth/oauth?provider=${providerId}&service=${effectiveServiceId}&scopes=${encodeURIComponent(
-        requiredScopes.join(',')
-      )}&return_url=${encodeURIComponent(window.location.href)}`
+      // Navigate to OAuth URL using the utility function
+      const authUrl = buildOAuthUrl({
+        provider: providerId,
+        service: effectiveServiceId,
+        scopes: requiredScopes,
+        returnUrl: window.location.href,
+      })
 
       window.location.href = authUrl
     } catch (error) {
@@ -458,7 +462,7 @@ export function FolderSelector({
                 {/* Connect account option - only show if no credentials */}
                 {credentials.length === 0 && (
                   <CommandGroup>
-                    <CommandItem onSelect={handleConnectAccount}>
+                    <CommandItem onSelect={handleAddCredential}>
                       <div className='flex items-center gap-2 text-primary'>
                         <span>Connect {getProviderName()} account</span>
                       </div>

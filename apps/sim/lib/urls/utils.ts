@@ -53,3 +53,64 @@ export function getEmailDomain(): string {
     return isProd ? 'simstudio.ai' : 'localhost:3000'
   }
 }
+
+/**
+ * OAuth URL construction utilities
+ */
+
+export interface OAuthUrlParams {
+  provider: string
+  service: string
+  scopes: string[]
+  returnUrl?: string
+}
+
+/**
+ * Constructs a standardized OAuth URL for authentication
+ * @param params OAuth URL parameters
+ * @returns The complete OAuth URL
+ */
+export function buildOAuthUrl({ provider, service, scopes, returnUrl }: OAuthUrlParams): string {
+  const currentReturnUrl = returnUrl || (typeof window !== 'undefined' ? window.location.href : '')
+
+  return `/api/auth/oauth?provider=${provider}&service=${service}&scopes=${encodeURIComponent(
+    scopes.join(',')
+  )}&return_url=${encodeURIComponent(currentReturnUrl)}`
+}
+
+/**
+ * Microsoft Teams URL construction utilities
+ */
+
+/**
+ * Constructs a Microsoft Teams team URL
+ * @param teamId The team ID
+ * @returns The complete Teams team URL
+ */
+export function buildTeamsTeamUrl(teamId: string): string {
+  return `https://teams.microsoft.com/l/team/${teamId}`
+}
+
+/**
+ * Constructs a Microsoft Teams channel URL
+ * @param teamId The team ID
+ * @param channelDisplayName The channel display name
+ * @param channelId The channel ID
+ * @returns The complete Teams channel URL
+ */
+export function buildTeamsChannelUrl(
+  teamId: string,
+  channelDisplayName: string,
+  channelId: string
+): string {
+  return `https://teams.microsoft.com/l/channel/${teamId}/${encodeURIComponent(channelDisplayName)}/${channelId}`
+}
+
+/**
+ * Constructs a Microsoft Teams chat URL
+ * @param chatId The chat ID
+ * @returns The complete Teams chat URL
+ */
+export function buildTeamsChatUrl(chatId: string): string {
+  return `https://teams.microsoft.com/l/chat/${chatId}`
+}
