@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { client } from '@/lib/auth-client'
+import { env, isTruthy } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useNotificationStore } from '@/stores/notifications/store'
 
@@ -47,7 +48,9 @@ export function useVerification({
 
   // Debug notification store
   useEffect(() => {
-    logger.info('Notification store state:', { addNotification: !!addNotification })
+    logger.info('Notification store state:', {
+      addNotification: !!addNotification,
+    })
   }, [addNotification])
 
   useEffect(() => {
@@ -154,7 +157,10 @@ export function useVerification({
         // Set both state variables to ensure the error shows
         setIsInvalidOtp(true)
         setErrorMessage(message)
-        logger.info('Error state after API error:', { isInvalidOtp: true, errorMessage: message })
+        logger.info('Error state after API error:', {
+          isInvalidOtp: true,
+          errorMessage: message,
+        })
         // Clear the OTP input on invalid code
         setOtp('')
       }
@@ -173,7 +179,10 @@ export function useVerification({
       // Set both state variables to ensure the error shows
       setIsInvalidOtp(true)
       setErrorMessage(message)
-      logger.info('Error state after caught error:', { isInvalidOtp: true, errorMessage: message })
+      logger.info('Error state after caught error:', {
+        isInvalidOtp: true,
+        errorMessage: message,
+      })
 
       // Clear the OTP input on error
       setOtp('')
@@ -218,7 +227,7 @@ export function useVerification({
         logger.info('Auto-verifying user', { email: storedEmail })
       }
 
-      const isDevOrDocker = !isProduction || process.env.DOCKER_BUILD === 'true'
+      const isDevOrDocker = !isProduction || isTruthy(env.DOCKER_BUILD)
 
       // Auto-verify and redirect in development/docker environments
       if (isDevOrDocker || !hasResendKey) {

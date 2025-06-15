@@ -1,7 +1,7 @@
 import path from 'path'
 import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
-import { env } from './lib/env'
+import { env, isTruthy } from './lib/env'
 
 const nextConfig: NextConfig = {
   devIndicators: false,
@@ -13,12 +13,12 @@ const nextConfig: NextConfig = {
     ],
   },
   typescript: {
-    ignoreBuildErrors: env.DOCKER_BUILD,
+    ignoreBuildErrors: isTruthy(env.DOCKER_BUILD),
   },
   eslint: {
-    ignoreDuringBuilds: env.DOCKER_BUILD,
+    ignoreDuringBuilds: isTruthy(env.DOCKER_BUILD),
   },
-  output: env.DOCKER_BUILD ? 'standalone' : undefined,
+  output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   turbopack: {
     resolveExtensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
   },
@@ -99,7 +99,10 @@ const nextConfig: NextConfig = {
         source: '/api/workflows/:id/execute',
         headers: [
           { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET,POST,OPTIONS,PUT' },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET,POST,OPTIONS,PUT',
+          },
           {
             key: 'Access-Control-Allow-Headers',
             value:
