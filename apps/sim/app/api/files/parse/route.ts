@@ -30,7 +30,6 @@ interface ParseResult {
   }
 }
 
-// MIME type mapping for various file extensions
 const fileTypeMap: Record<string, string> = {
   // Text formats
   txt: 'text/plain',
@@ -222,12 +221,24 @@ async function handleExternalUrl(url: string, fileType?: string): Promise<ParseR
   try {
     logger.info('Fetching external URL:', url)
 
-    const response = await fetch(url)
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+    })
     if (!response.ok) {
       throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`)
     }
 
+    const contentLength = response.headers.get('content-length')
+    if (contentLength && Number.parseInt(contentLength) > MAX_DOWNLOAD_SIZE_BYTES) {
+      throw new Error(`File too large: ${contentLength} bytes (max: ${MAX_DOWNLOAD_SIZE_BYTES})`)
+    }
+
     const buffer = Buffer.from(await response.arrayBuffer())
+
+    if (buffer.length > MAX_DOWNLOAD_SIZE_BYTES) {
+      throw new Error(`File too large: ${buffer.length} bytes (max: ${MAX_DOWNLOAD_SIZE_BYTES})`)
+    }
+
     logger.info(`Downloaded file from URL: ${url}, size: ${buffer.length} bytes`)
 
     // Extract filename from URL
