@@ -7,17 +7,16 @@ import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('File Upload API Route', () => {
-  // Mock file system and S3 client modules
+  // Mock file system and storage modules
   const mockWriteFile = vi.fn().mockResolvedValue(undefined)
-  const mockUploadToS3 = vi.fn().mockImplementation((buffer, fileName) => {
-    return Promise.resolve({
-      path: `/api/files/serve/s3/${Date.now()}-${fileName}`,
-      key: `${Date.now()}-${fileName}`,
-      name: fileName,
-      size: buffer.length,
-      type: 'text/plain',
-    })
+  const mockUploadFile = vi.fn().mockResolvedValue({
+    path: '/api/files/serve/s3/test-key',
+    key: 'test-key',
+    name: 'test.txt',
+    size: 100,
+    type: 'text/plain',
   })
+  const mockIsUsingCloudStorage = vi.fn().mockReturnValue(false)
   const mockEnsureUploadsDirectory = vi.fn().mockResolvedValue(true)
 
   // Mock form data
@@ -46,9 +45,10 @@ describe('File Upload API Route', () => {
       writeFile: mockWriteFile,
     }))
 
-    // Mock the S3 client
-    vi.doMock('@/lib/uploads/s3-client', () => ({
-      uploadToS3: mockUploadToS3,
+    // Mock the storage abstraction layer
+    vi.doMock('@/lib/uploads', () => ({
+      uploadFile: mockUploadFile,
+      isUsingCloudStorage: mockIsUsingCloudStorage,
     }))
 
     // Mock the logger
@@ -66,10 +66,11 @@ describe('File Upload API Route', () => {
       v4: vi.fn().mockReturnValue('mock-uuid'),
     }))
 
-    // Configure upload directory and S3 mode with all required exports
+    // Configure upload directory and storage mode with all required exports
     vi.doMock('@/lib/uploads/setup', () => ({
       UPLOAD_DIR: '/test/uploads',
       USE_S3_STORAGE: false,
+      USE_BLOB_STORAGE: false,
       ensureUploadsDirectory: mockEnsureUploadsDirectory,
       S3_CONFIG: {
         bucket: 'test-bucket',
@@ -119,10 +120,14 @@ describe('File Upload API Route', () => {
     vi.doMock('@/lib/uploads/setup', () => ({
       UPLOAD_DIR: '/test/uploads',
       USE_S3_STORAGE: true,
+      USE_BLOB_STORAGE: false,
     }))
 
+    // Mock cloud storage mode
+    mockIsUsingCloudStorage.mockReturnValue(true)
+
     // Create a mock request with file
-    const mockFile = createMockFile('document.pdf', 'application/pdf')
+    const mockFile = createMockFile()
     const formData = createMockFormData([mockFile])
 
     // Create mock request object
@@ -142,28 +147,41 @@ describe('File Upload API Route', () => {
     expect(response.status).toBe(200)
     expect(data).toHaveProperty('path')
     expect(data.path).toContain('/api/files/serve/s3/')
-    expect(data).toHaveProperty('key')
-    expect(data).toHaveProperty('name', 'document.pdf')
+    expect(data).toHaveProperty('name', 'test.txt')
+    expect(data).toHaveProperty('size')
+    expect(data).toHaveProperty('type', 'text/plain')
 
-    // Verify uploadToS3 was called with correct parameters
-    expect(mockUploadToS3).toHaveBeenCalledWith(
+    // Verify uploadFile was called with correct parameters
+    expect(mockUploadFile).toHaveBeenCalledWith(
       expect.any(Buffer),
-      'document.pdf',
-      'application/pdf',
+      'test.txt',
+      'text/plain',
       expect.any(Number)
     )
-
-    // Verify local write was NOT called
-    expect(mockWriteFile).not.toHaveBeenCalled()
   })
 
   it('should handle multiple file uploads', async () => {
     // Create multiple mock files
-    const mockFiles = [
-      createMockFile('file1.txt', 'text/plain'),
-      createMockFile('file2.jpg', 'image/jpeg'),
-    ]
-    const formData = createMockFormData(mockFiles)
+    const mockFile1 = createMockFile('file1.txt', 'text/plain')
+    const mockFile2 = createMockFile('file2.txt', 'text/plain')
+    const formData = createMockFormData([mockFile1, mockFile2])
+
+    // Mock multiple upload responses
+    mockUploadFile
+      .mockResolvedValueOnce({
+        path: '/api/files/serve/test1.txt',
+        key: 'test1.txt',
+        name: 'file1.txt',
+        size: 100,
+        type: 'text/plain',
+      })
+      .mockResolvedValueOnce({
+        path: '/api/files/serve/test2.txt',
+        key: 'test2.txt',
+        name: 'file2.txt',
+        size: 100,
+        type: 'text/plain',
+      })
 
     // Create mock request object
     const req = new NextRequest('http://localhost:3000/api/files/upload', {
@@ -180,13 +198,13 @@ describe('File Upload API Route', () => {
 
     // Verify response has multiple results
     expect(response.status).toBe(200)
-    expect(Array.isArray(data)).toBe(true)
-    expect(data).toHaveLength(2)
-    expect(data[0]).toHaveProperty('name', 'file1.txt')
-    expect(data[1]).toHaveProperty('name', 'file2.jpg')
+    expect(data).toHaveProperty('files')
+    expect(Array.isArray(data.files)).toBe(true)
+    expect(data.files).toHaveLength(2)
 
-    // Verify files were written
-    expect(mockWriteFile).toHaveBeenCalledTimes(2)
+    // Verify each file was uploaded
+    expect(data.files[0]).toHaveProperty('name', 'file1.txt')
+    expect(data.files[1]).toHaveProperty('name', 'file2.txt')
   })
 
   it('should handle missing files', async () => {
@@ -217,10 +235,14 @@ describe('File Upload API Route', () => {
     vi.doMock('@/lib/uploads/setup', () => ({
       UPLOAD_DIR: '/test/uploads',
       USE_S3_STORAGE: true,
+      USE_BLOB_STORAGE: false,
     }))
 
-    // Mock S3 upload failure
-    mockUploadToS3.mockRejectedValueOnce(new Error('S3 upload failed'))
+    // Mock cloud storage mode
+    mockIsUsingCloudStorage.mockReturnValue(true)
+
+    // Mock upload failure
+    mockUploadFile.mockRejectedValueOnce(new Error('Upload failed'))
 
     // Create a mock request with file
     const mockFile = createMockFile()
@@ -242,7 +264,7 @@ describe('File Upload API Route', () => {
     // Verify error response
     expect(response.status).toBe(500)
     expect(data).toHaveProperty('error', 'Error')
-    expect(data).toHaveProperty('message', 'S3 upload failed')
+    expect(data).toHaveProperty('message', 'Upload failed')
   })
 
   it('should handle CORS preflight requests', async () => {

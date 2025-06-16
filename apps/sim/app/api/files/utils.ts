@@ -111,11 +111,28 @@ export function isS3Path(path: string): boolean {
 }
 
 /**
+ * Check if a path is a Blob path
+ */
+export function isBlobPath(path: string): boolean {
+  return path.includes('/api/files/serve/blob/')
+}
+
+/**
  * Extract S3 key from a path
  */
 export function extractS3Key(path: string): string {
   if (isS3Path(path)) {
     return decodeURIComponent(path.split('/api/files/serve/s3/')[1])
+  }
+  return path
+}
+
+/**
+ * Extract Blob key from a path
+ */
+export function extractBlobKey(path: string): string {
+  if (isBlobPath(path)) {
+    return decodeURIComponent(path.split('/api/files/serve/blob/')[1])
   }
   return path
 }

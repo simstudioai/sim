@@ -1,17 +1,12 @@
-/**
- * Tests for file delete API route
- *
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('File Delete API Route', () => {
-  // Mock file system modules
+  // Mock file system and storage modules
   const mockUnlink = vi.fn().mockResolvedValue(undefined)
   const mockExistsSync = vi.fn().mockReturnValue(true)
-  const mockDeleteFromS3 = vi.fn().mockResolvedValue(undefined)
-  const mockEnsureUploadsDirectory = vi.fn().mockResolvedValue(true)
+  const mockDeleteFile = vi.fn().mockResolvedValue(undefined)
+  const mockIsUsingCloudStorage = vi.fn().mockReturnValue(false)
 
   beforeEach(() => {
     vi.resetModules()
@@ -25,9 +20,10 @@ describe('File Delete API Route', () => {
       unlink: mockUnlink,
     }))
 
-    // Mock the S3 client
-    vi.doMock('@/lib/uploads/s3-client', () => ({
-      deleteFromS3: mockDeleteFromS3,
+    // Mock the storage abstraction layer
+    vi.doMock('@/lib/uploads', () => ({
+      deleteFile: mockDeleteFile,
+      isUsingCloudStorage: mockIsUsingCloudStorage,
     }))
 
     // Mock the logger
@@ -40,15 +36,11 @@ describe('File Delete API Route', () => {
       }),
     }))
 
-    // Configure upload directory and S3 mode with all required exports
+    // Configure upload directory and storage mode with all required exports
     vi.doMock('@/lib/uploads/setup', () => ({
       UPLOAD_DIR: '/test/uploads',
       USE_S3_STORAGE: false,
-      ensureUploadsDirectory: mockEnsureUploadsDirectory,
-      S3_CONFIG: {
-        bucket: 'test-bucket',
-        region: 'test-region',
-      },
+      USE_BLOB_STORAGE: false,
     }))
 
     // Skip setup.server.ts side effects
@@ -117,7 +109,11 @@ describe('File Delete API Route', () => {
     vi.doMock('@/lib/uploads/setup', () => ({
       UPLOAD_DIR: '/test/uploads',
       USE_S3_STORAGE: true,
+      USE_BLOB_STORAGE: false,
     }))
+
+    // Mock cloud storage mode
+    mockIsUsingCloudStorage.mockReturnValue(true)
 
     // Create request with S3 file path
     const req = createMockRequest('POST', {
@@ -134,10 +130,10 @@ describe('File Delete API Route', () => {
     // Verify response
     expect(response.status).toBe(200)
     expect(data).toHaveProperty('success', true)
-    expect(data).toHaveProperty('message', 'File deleted successfully from S3')
+    expect(data).toHaveProperty('message', 'File deleted successfully from cloud storage')
 
-    // Verify deleteFromS3 was called with correct key
-    expect(mockDeleteFromS3).toHaveBeenCalledWith('1234567890-test-file.txt')
+    // Verify deleteFile was called with correct key
+    expect(mockDeleteFile).toHaveBeenCalledWith('1234567890-test-file.txt')
   })
 
   it('should handle missing file path', async () => {

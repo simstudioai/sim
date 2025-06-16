@@ -5,8 +5,8 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { env } from '../env'
-import { S3_CONFIG } from './setup'
+import { env } from '../../env'
+import { S3_CONFIG } from '../setup'
 
 // Lazily create a single S3 client instance.
 let _s3Client: S3Client | null = null
@@ -22,12 +22,17 @@ export function getS3Client(): S3Client {
     )
   }
 
+  // Only pass explicit credentials if both environment variables are available.
+  // Otherwise, fall back to the AWS SDK default credential provider chain (e.g. EC2/ECS roles, shared config files, etc.).
   _s3Client = new S3Client({
     region,
-    credentials: {
-      accessKeyId: env.AWS_ACCESS_KEY_ID || '',
-      secretAccessKey: env.AWS_SECRET_ACCESS_KEY || '',
-    },
+    credentials:
+      env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
+        ? {
+            accessKeyId: env.AWS_ACCESS_KEY_ID,
+            secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+          }
+        : undefined,
   })
 
   return _s3Client

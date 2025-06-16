@@ -22,7 +22,8 @@ describe('File Parse API Route', () => {
   const mockUnlink = vi.fn().mockResolvedValue(undefined)
   const mockAccessFs = vi.fn().mockResolvedValue(undefined)
   const mockStatFs = vi.fn().mockImplementation(() => ({ isFile: () => true }))
-  const mockDownloadFromS3 = vi.fn().mockResolvedValue(Buffer.from('test s3 file content'))
+  const mockDownloadFile = vi.fn().mockResolvedValue(Buffer.from('test cloud file content'))
+  const mockIsUsingCloudStorage = vi.fn().mockReturnValue(false)
   const mockParseFile = vi.fn().mockResolvedValue({
     content: 'parsed content',
     metadata: { pageCount: 1 },
@@ -59,8 +60,9 @@ describe('File Parse API Route', () => {
       stat: mockStatFs,
     }))
 
-    vi.doMock('@/lib/uploads/s3-client', () => ({
-      downloadFromS3: mockDownloadFromS3,
+    vi.doMock('@/lib/uploads', () => ({
+      downloadFile: mockDownloadFile,
+      isUsingCloudStorage: mockIsUsingCloudStorage,
     }))
 
     vi.doMock('@/lib/file-parsers', () => ({
@@ -90,10 +92,7 @@ describe('File Parse API Route', () => {
     vi.doMock('@/lib/uploads/setup', () => ({
       UPLOAD_DIR: '/test/uploads',
       USE_S3_STORAGE: false,
-      S3_CONFIG: {
-        bucket: 'test-bucket',
-        region: 'test-region',
-      },
+      USE_BLOB_STORAGE: false,
     }))
 
     vi.doMock('@/lib/uploads/setup.server', () => ({}))
@@ -169,20 +168,27 @@ describe('File Parse API Route', () => {
   })
 
   it('should handle S3 access errors gracefully', async () => {
-    mockDownloadFromS3.mockRejectedValueOnce(new Error('S3 access denied'))
+    // Mock cloud storage mode
+    mockIsUsingCloudStorage.mockReturnValue(true)
 
-    const req = createMockRequest('POST', {
-      filePath: '/api/files/serve/s3/access-denied.pdf',
+    // Mock download failure
+    mockDownloadFile.mockRejectedValueOnce(new Error('Access denied'))
+
+    const req = new NextRequest('http://localhost:3000/api/files/parse', {
+      method: 'POST',
+      body: JSON.stringify({
+        filePath: '/api/files/serve/s3/test-file.txt',
+      }),
     })
 
     const { POST } = await import('./route')
     const response = await POST(req)
     const data = await response.json()
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(500)
     expect(data).toHaveProperty('success', false)
     expect(data).toHaveProperty('error')
-    expect(data.error).toContain('S3 access denied')
+    expect(data.error).toContain('Access denied')
   })
 
   it('should handle access errors gracefully', async () => {
