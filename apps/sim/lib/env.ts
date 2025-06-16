@@ -11,6 +11,7 @@ export const env = createEnv({
     DATABASE_URL: z.string().url(),
     BETTER_AUTH_URL: z.string().url(),
     BETTER_AUTH_SECRET: z.string().min(32),
+    DISABLE_REGISTRATION: z.boolean().optional(),
     ENCRYPTION_KEY: z.string().min(32),
 
     POSTGRES_URL: z.string().url().optional(),
@@ -110,3 +111,7 @@ export const env = createEnv({
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER'),
   },
 })
+
+// Needing this utility because t3-env is returning string for boolean values.
+export const isTruthy = (value: string | boolean | number | undefined) =>
+  typeof value === 'string' ? value === 'true' || value === '1' : Boolean(value)
