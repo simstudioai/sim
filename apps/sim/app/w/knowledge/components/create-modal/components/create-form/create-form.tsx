@@ -275,11 +275,18 @@ export function CreateForm({ onClose, onKnowledgeBaseCreated }: CreateFormProps)
             const presignedData = await presignedResponse.json()
 
             if (presignedResponse.ok && presignedData.directUploadSupported) {
+              const uploadHeaders: Record<string, string> = {
+                'Content-Type': file.type,
+              }
+
+              // Add Azure-specific headers if provided
+              if (presignedData.uploadHeaders) {
+                Object.assign(uploadHeaders, presignedData.uploadHeaders)
+              }
+
               const uploadResponse = await fetch(presignedData.presignedUrl, {
                 method: 'PUT',
-                headers: {
-                  'Content-Type': file.type,
-                },
+                headers: uploadHeaders, // Use the merged headers
                 body: file,
               })
 

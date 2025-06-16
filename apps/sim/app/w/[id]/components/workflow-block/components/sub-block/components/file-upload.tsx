@@ -170,12 +170,19 @@ export function FileUpload({
             // Use direct upload method
             useDirectUpload = true
 
-            // Upload directly to S3 using the pre-signed URL
+            const uploadHeaders: Record<string, string> = {
+              'Content-Type': file.type,
+            }
+
+            // Add Azure-specific headers if provided
+            if (presignedData.uploadHeaders) {
+              Object.assign(uploadHeaders, presignedData.uploadHeaders)
+            }
+
+            // Upload directly to cloud storage using the pre-signed URL
             const uploadResponse = await fetch(presignedData.presignedUrl, {
               method: 'PUT',
-              headers: {
-                'Content-Type': file.type,
-              },
+              headers: uploadHeaders, // Use the merged headers
               body: file,
             })
 
