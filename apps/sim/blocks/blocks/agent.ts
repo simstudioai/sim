@@ -147,6 +147,31 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
         : undefined, // Show for all models in non-hosted environments
     },
     {
+      id: 'azureEndpoint',
+      title: 'Azure OpenAI Endpoint',
+      type: 'short-input',
+      layout: 'full',
+      password: true,
+      placeholder: 'https://your-resource.openai.azure.com',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: ['azure/gpt-4o', 'azure/o3', 'azure/o4-mini', 'azure/gpt-4.1', 'azure/model-router'],
+      },
+    },
+    {
+      id: 'azureApiVersion',
+      title: 'Azure API Version',
+      type: 'short-input',
+      layout: 'full',
+      placeholder: '2024-07-01-preview',
+      connectionDroppable: false,
+      condition: {
+        field: 'model',
+        value: ['azure/gpt-4o', 'azure/o3', 'azure/o4-mini', 'azure/gpt-4.1', 'azure/model-router'],
+      },
+    },
+    {
       id: 'tools',
       title: 'Tools',
       type: 'tool-input',
@@ -237,6 +262,8 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
     memories: { type: 'json', required: false },
     model: { type: 'string', required: true },
     apiKey: { type: 'string', required: true },
+    azureEndpoint: { type: 'string', required: false },
+    azureApiVersion: { type: 'string', required: false },
     responseFormat: {
       type: 'json',
       required: false,

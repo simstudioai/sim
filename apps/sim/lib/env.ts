@@ -58,6 +58,8 @@ export const env = createEnv({
     NODE_ENV: z.string().optional(),
     GITHUB_TOKEN: z.string().optional(),
     ELEVENLABS_API_KEY: z.string().min(1).optional(),
+    AZURE_OPENAI_ENDPOINT: z.string().url().optional(),
+    AZURE_OPENAI_API_VERSION: z.string().optional(),
 
     // OAuth blocks (all optional)
     GOOGLE_CLIENT_ID: z.string().optional(),

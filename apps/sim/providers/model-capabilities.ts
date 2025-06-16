@@ -7,6 +7,8 @@
 export const MODELS_TEMP_RANGE_0_2 = [
   // OpenAI models
   'gpt-4o',
+  // Azure OpenAI models
+  'azure/gpt-4o',
   // Google models
   'gemini-2.5-pro-exp-03-25',
   'gemini-2.5-flash-preview-04-17',
@@ -30,7 +32,13 @@ export const MODELS_TEMP_RANGE_0_1 = [
 export const MODELS_WITH_TEMPERATURE_SUPPORT = [...MODELS_TEMP_RANGE_0_2, ...MODELS_TEMP_RANGE_0_1]
 
 // Models and their providers that support tool usage control (force, auto, none)
-export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = ['openai', 'anthropic', 'deepseek', 'xai']
+export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = [
+  'openai',
+  'azure-openai',
+  'anthropic',
+  'deepseek',
+  'xai',
+]
 
 /**
  * Check if a model supports temperature parameter
