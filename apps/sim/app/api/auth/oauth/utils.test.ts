@@ -35,7 +35,7 @@ describe('OAuth Utils', () => {
       db: mockDb,
     }))
 
-    vi.doMock('@/lib/oauth', () => ({
+    vi.doMock('@/lib/oauth/oauth', () => ({
       refreshOAuthToken: mockRefreshOAuthToken,
     }))
 
@@ -181,13 +181,13 @@ describe('OAuth Utils', () => {
         providerId: 'google',
       }
 
-      mockRefreshOAuthToken.mockRejectedValueOnce(new Error('Refresh failed'))
+      mockRefreshOAuthToken.mockResolvedValueOnce(null)
 
       const { refreshTokenIfNeeded } = await import('./utils')
 
       await expect(
         refreshTokenIfNeeded('request-id', mockCredential, 'credential-id')
-      ).rejects.toThrow()
+      ).rejects.toThrow('Failed to refresh token')
 
       expect(mockLogger.error).toHaveBeenCalled()
     })

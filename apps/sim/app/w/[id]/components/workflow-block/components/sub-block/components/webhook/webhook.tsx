@@ -69,6 +69,7 @@ export interface GmailConfig {
   labelIds?: string[]
   labelFilterBehavior?: 'INCLUDE' | 'EXCLUDE'
   markAsRead?: boolean
+  includeRawEmail?: boolean
   maxEmailsPerPoll?: number
 }
 
@@ -144,6 +145,12 @@ export const WEBHOOK_PROVIDERS: { [key: string]: WebhookProvider } = {
         label: 'Mark As Read',
         defaultValue: false,
         description: 'Mark emails as read after processing.',
+      },
+      includeRawEmail: {
+        type: 'boolean',
+        label: 'Include Raw Email Data',
+        defaultValue: false,
+        description: 'Include the complete, unprocessed email data from Gmail.',
       },
       maxEmailsPerPoll: {
         type: 'string',

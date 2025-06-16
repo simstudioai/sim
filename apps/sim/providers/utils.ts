@@ -2,6 +2,7 @@ import { getCostMultiplier, isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCustomToolsStore } from '@/stores/custom-tools/store'
 import { anthropicProvider } from './anthropic'
+import { azureOpenAIProvider } from './azure-openai'
 import { cerebrasProvider } from './cerebras'
 import { deepseekProvider } from './deepseek'
 import { googleProvider } from './google'
@@ -30,6 +31,11 @@ export const providers: Record<
     models: ['gpt-4o', 'o1', 'o3', 'o4-mini', 'gpt-4.1'],
     computerUseModels: ['computer-use-preview'],
     modelPatterns: [/^gpt/, /^o1/],
+  },
+  'azure-openai': {
+    ...azureOpenAIProvider,
+    models: ['azure/gpt-4o', 'azure/o3', 'azure/o4-mini', 'azure/gpt-4.1', 'azure/model-router'],
+    modelPatterns: [/^azure\//],
   },
   anthropic: {
     ...anthropicProvider,

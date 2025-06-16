@@ -39,6 +39,38 @@ const modelPricing: ModelPricingMap = {
     updatedAt: '2025-05-13',
   },
 
+  // Azure OpenAI Models (same pricing as OpenAI)
+  'azure/gpt-4o': {
+    input: 2.5,
+    cachedInput: 1.25, // 50% discount for cached input
+    output: 10.0,
+    updatedAt: '2025-06-15',
+  },
+  'azure/o3': {
+    input: 10,
+    cachedInput: 2.5,
+    output: 40,
+    updatedAt: '2025-06-15',
+  },
+  'azure/o4-mini': {
+    input: 1.1,
+    cachedInput: 0.275,
+    output: 4.4,
+    updatedAt: '2025-06-15',
+  },
+  'azure/gpt-4.1': {
+    input: 2.0,
+    cachedInput: 0.5,
+    output: 8.0,
+    updatedAt: '2025-06-15',
+  },
+  'azure/model-router': {
+    input: 2.0,
+    cachedInput: 0.5,
+    output: 8.0,
+    updatedAt: '2025-06-15',
+  },
+
   // Anthropic Models
   'claude-3-5-sonnet-20240620': {
     input: 3.0,

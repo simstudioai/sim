@@ -570,8 +570,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       />
 
       {/* Input area (free-standing at the bottom) */}
-      <div className='relative p-4 pb-6'>
-        <div className='relative mx-auto max-w-3xl'>
+      <div className='relative p-3 pb-4 md:p-4 md:pb-6'>
+        <div className='relative mx-auto max-w-3xl md:max-w-[748px]'>
           <ChatInput
             onSubmit={(value, isVoiceInput) => {
               void handleSendMessage(value, isVoiceInput)

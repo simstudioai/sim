@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/select'
 import { Toggle } from '@/components/ui/toggle'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { OAuthProvider } from '@/lib/oauth'
+import type { OAuthProvider } from '@/lib/oauth/oauth'
 import { cn } from '@/lib/utils'
 import { getAllBlocks } from '@/blocks'
 import { supportsToolUsageControl } from '@/providers/model-capabilities'

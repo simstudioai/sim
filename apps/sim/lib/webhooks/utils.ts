@@ -1504,6 +1504,7 @@ export async function configureGmailPolling(
           maxEmailsPerPoll,
           pollingInterval,
           markAsRead: providerConfig.markAsRead || false,
+          includeRawEmail: providerConfig.includeRawEmail || false,
           labelIds: providerConfig.labelIds || ['INBOX'],
           labelFilterBehavior: providerConfig.labelFilterBehavior || 'INCLUDE',
           lastCheckedTimestamp: now.toISOString(),

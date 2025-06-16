@@ -1232,5 +1232,33 @@ describe('AgentBlockHandler', () => {
       expect(requestBody.messages[1].content).toBe('What is the weather like?')
       expect(requestBody.messages[1]).not.toHaveProperty('conversationId')
     })
+
+    it('should pass Azure OpenAI parameters through the request pipeline', async () => {
+      const inputs = {
+        model: 'azure/gpt-4o',
+        systemPrompt: 'You are a helpful assistant.',
+        userPrompt: 'Hello!',
+        apiKey: 'test-azure-api-key',
+        azureEndpoint: 'https://my-azure-resource.openai.azure.com',
+        azureApiVersion: '2024-07-01-preview',
+        temperature: 0.7,
+      }
+
+      mockGetProviderFromModel.mockReturnValue('azure-openai')
+
+      await handler.execute(mockBlock, inputs, mockContext)
+
+      expect(mockFetch).toHaveBeenCalledWith(expect.any(String), expect.any(Object))
+
+      const fetchCall = mockFetch.mock.calls[0]
+      const requestBody = JSON.parse(fetchCall[1].body)
+
+      // Check that Azure parameters are included in the request
+      expect(requestBody.azureEndpoint).toBe('https://my-azure-resource.openai.azure.com')
+      expect(requestBody.azureApiVersion).toBe('2024-07-01-preview')
+      expect(requestBody.provider).toBe('azure-openai')
+      expect(requestBody.model).toBe('azure/gpt-4o')
+      expect(requestBody.apiKey).toBe('test-azure-api-key')
+    })
   })
 })
