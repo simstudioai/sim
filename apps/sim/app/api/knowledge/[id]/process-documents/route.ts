@@ -200,7 +200,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const validatedData = ProcessDocumentsSchema.parse(body)
 
       const createdDocuments = await db.transaction(async (tx) => {
-        const documentPromises = validatedData.documents.map(async (docData) => {
+        const documentPromises = validatedData.documents.map(async (docData, index) => {
           const documentId = crypto.randomUUID()
           const now = new Date()
 
@@ -220,11 +220,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             uploadedAt: now,
           }
 
-          await tx.insert(document).values(newDocument)
-          return { documentId, ...docData }
+          try {
+            await tx.insert(document).values(newDocument)
+            logger.info(
+              `[${requestId}] Document record created: ${documentId} for file: ${docData.filename}`
+            )
+            return { documentId, ...docData }
+          } catch (dbError) {
+            logger.error(
+              `[${requestId}] Failed to create document record for ${docData.filename}:`,
+              dbError
+            )
+            throw new Error(
+              `Failed to create document record for ${docData.filename}: ${dbError instanceof Error ? dbError.message : 'Unknown database error'}`
+            )
+          }
         })
 
-        return await Promise.all(documentPromises)
+        const results = await Promise.all(documentPromises)
+
+        // Validate that all documents were created successfully
+        const invalidResults = results.filter((result) => !result.documentId || !result.filename)
+        if (invalidResults.length > 0) {
+          logger.error(`[${requestId}] Some documents failed to create properly:`, invalidResults)
+          throw new Error(`Failed to create ${invalidResults.length} document records`)
+        }
+
+        return results
       })
 
       logger.info(
