@@ -1,5 +1,6 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from './registry/store'
+import { workflowSync } from './sync'
 import { mergeSubblockState } from './utils'
 import { useWorkflowStore } from './workflow/store'
 import type { BlockState, WorkflowState } from './workflow/types'
@@ -110,15 +111,15 @@ export function getAllWorkflowsWithValues() {
       .getState()
       .getWorkflowDeploymentStatus(activeWorkflowId)
 
-    // Use the current state from the store (guaranteed to be valid)
+    // Ensure state has all required fields for Zod validation
     const workflowState: WorkflowState = {
-      blocks: currentState.blocks,
-      edges: currentState.edges,
-      loops: currentState.loops,
-      parallels: currentState.parallels,
+      blocks: currentState.blocks || {},
+      edges: currentState.edges || [],
+      loops: currentState.loops || {},
+      parallels: currentState.parallels || {},
       isDeployed: deploymentStatus?.isDeployed || false,
       deployedAt: deploymentStatus?.deployedAt,
-      lastSaved: currentState.lastSaved,
+      lastSaved: currentState.lastSaved || Date.now(),
     }
 
     // Merge the subblock values for this specific workflow
@@ -133,7 +134,6 @@ export function getAllWorkflowsWithValues() {
       description: metadata.description,
       color: metadata.color || '#3972F6',
       marketplaceData: metadata.marketplaceData || null,
-      workspaceId: metadata.workspaceId,
       folderId: metadata.folderId,
       state: {
         blocks: mergedBlocks,
@@ -148,6 +148,11 @@ export function getAllWorkflowsWithValues() {
       // Include API key if available
       apiKey,
     }
+
+    // Only include workspaceId if it's not null/undefined
+    if (metadata.workspaceId) {
+      result[activeWorkflowId].workspaceId = metadata.workspaceId
+    }
   }
 
   return result
@@ -158,9 +163,7 @@ export function getAllWorkflowsWithValues() {
  * This is a shortcut for other files to trigger sync operations
  */
 export function syncWorkflows() {
-  const workflowStore = useWorkflowStore.getState()
-  workflowStore.sync.markDirty()
-  workflowStore.sync.forceSync()
+  workflowSync.sync()
 }
 
 // Workflows store exports - localStorage persistence removed

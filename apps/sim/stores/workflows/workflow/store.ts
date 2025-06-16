@@ -46,31 +46,24 @@ const initialState = {
 
 // Create a consolidated sync control implementation
 /**
- * The SyncControl implementation provides a clean, centralized way to handle workflow syncing.
- *
- * This pattern offers several advantages:
- * 1. It encapsulates sync logic through a clear, standardized interface
- * 2. It allows components to mark workflows as dirty without direct dependencies
- * 3. It prevents race conditions by ensuring changes are properly tracked before syncing
- * 4. It centralizes sync decisions to avoid redundant or conflicting operations
- *
- * Usage:
- * - Call markDirty() when workflow state changes but sync can be deferred
- * - Call forceSync() when an immediate sync to the server is needed
- * - Use isDirty() to check if there are unsaved changes
+ * Simplified SyncControl implementation
  */
 const createSyncControl = (): SyncControl => ({
   markDirty: () => {
+    // Simply mark workflows as dirty for sync
     markWorkflowsDirty()
   },
   isDirty: () => {
-    // This calls into the sync module to check dirty status
-    // Actual implementation in sync.ts
-    return true // Always return true as the sync module will do the actual checking
+    // Always return true - let the sync system decide if sync is needed
+    return true
   },
   forceSync: () => {
-    markWorkflowsDirty() // Always mark as dirty before forcing a sync
-    workflowSync.sync()
+    // Force sync by marking dirty and syncing
+    markWorkflowsDirty()
+    // Small delay to ensure state has settled
+    setTimeout(() => {
+      workflowSync.sync()
+    }, 100)
   },
 })
 
@@ -134,7 +127,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           set(newState)
           pushHistory(set, get, newState, `Add ${type} node`)
           get().updateLastSaved()
-          workflowSync.sync()
+          get().sync.markDirty()
           return
         }
 
@@ -184,7 +177,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         pushHistory(set, get, newState, `Add ${type} block`)
         get().updateLastSaved()
         get().sync.markDirty()
-        get().sync.forceSync()
       },
 
       updateBlockPosition: (id: string, position: Position) => {
@@ -199,8 +191,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           edges: [...state.edges],
         }))
         get().updateLastSaved()
-
-        // No sync here as this is a frequent operation during dragging
+        // No sync for position updates to avoid excessive syncing during drag
       },
 
       updateNodeDimensions: (id: string, dimensions: { width: number; height: number }) => {
@@ -219,7 +210,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           edges: [...state.edges],
         }))
         get().updateLastSaved()
-        workflowSync.sync()
+        get().sync.markDirty()
       },
 
       updateParentId: (id: string, parentId: string, extent: 'parent') => {
@@ -290,7 +281,8 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           parentId ? `Set parent for ${block.name}` : `Remove parent for ${block.name}`
         )
         get().updateLastSaved()
-        workflowSync.sync()
+        get().sync.markDirty()
+        get().sync.forceSync()
       },
 
       removeBlock: (id: string) => {
@@ -362,7 +354,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         pushHistory(set, get, newState, 'Remove block and children')
         get().updateLastSaved()
         get().sync.markDirty()
-        get().sync.forceSync()
       },
 
       addEdge: (edge: Edge) => {
@@ -390,7 +381,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         const newEdges = [...get().edges, newEdge]
 
-        // Use the new loop generation approach
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
@@ -402,7 +392,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         pushHistory(set, get, newState, 'Add connection')
         get().updateLastSaved()
         get().sync.markDirty()
-        get().sync.forceSync()
       },
 
       removeEdge: (edgeId: string) => {
@@ -415,7 +404,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         const newEdges = get().edges.filter((edge) => edge.id !== edgeId)
 
-        // Use the new loop generation approach instead of cycle detection
         const newState = {
           blocks: { ...get().blocks },
           edges: newEdges,
@@ -427,7 +415,6 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         pushHistory(set, get, newState, 'Remove connection')
         get().updateLastSaved()
         get().sync.markDirty()
-        get().sync.forceSync()
       },
 
       clear: () => {
@@ -435,6 +422,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           blocks: {},
           edges: [],
           loops: {},
+          parallels: {},
           history: {
             past: [],
             present: {
@@ -460,18 +448,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
         set(newState)
         get().sync.markDirty()
-        get().sync.forceSync()
-
         return newState
       },
 
       updateLastSaved: () => {
         set({ lastSaved: Date.now() })
-
         // Note: Scheduling changes are automatically handled by the workflowSync
-        // When the workflow is synced to the database, the sync system checks if
-        // the starter block has scheduling enabled and updates or cancels the
-        // schedule accordingly.
       },
 
       toggleBlockEnabled: (id: string) => {
@@ -485,12 +467,12 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           },
           edges: [...get().edges],
           loops: { ...get().loops },
+          parallels: { ...get().parallels },
         }
 
         set(newState)
         get().updateLastSaved()
         get().sync.markDirty()
-        get().sync.forceSync()
       },
 
       duplicateBlock: (id: string) => {

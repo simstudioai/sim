@@ -23,7 +23,7 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { initializeSyncManagers, isSyncInitialized } from '@/stores/sync-registry'
+import { initializeSyncManagers } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -250,19 +250,14 @@ function WorkflowContent() {
   // Initialize workflow
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Ensure sync system is initialized before proceeding
       const initSync = async () => {
         // Initialize sync system if not already initialized
         await initializeSyncManagers()
         setIsInitialized(true)
       }
 
-      // Check if already initialized
-      if (isSyncInitialized()) {
-        setIsInitialized(true)
-      } else {
-        initSync()
-      }
+      // Initialize sync system
+      initSync()
     }
   }, [])
 
@@ -747,37 +742,16 @@ function WorkflowContent() {
         return
       }
 
-      // Import the isActivelyLoadingFromDB function to check sync status
-      const { isActivelyLoadingFromDB } = await import('@/stores/workflows/sync')
-
-      // Wait for any active DB loading to complete before switching workflows
-      if (isActivelyLoadingFromDB()) {
-        const checkInterval = setInterval(() => {
-          if (!isActivelyLoadingFromDB()) {
-            clearInterval(checkInterval)
-            // Reset variables loaded state before setting active workflow
-            resetVariablesLoaded()
-
-            // Only call setActiveWorkflow if the workflow isn't already active
-            // This prevents overwriting state that was just set in createWorkflow
-            const { activeWorkflowId } = useWorkflowRegistry.getState()
-            if (activeWorkflowId !== currentId) {
-              setActiveWorkflow(currentId)
-            }
-
-            markAllAsRead(currentId)
-          }
-        }, 100)
-        return
-      }
-
       // Reset variables loaded state before setting active workflow
       resetVariablesLoaded()
 
-      // Only call setActiveWorkflow if the workflow isn't already active
-      // This prevents overwriting state that was just set in createWorkflow
+      // Always call setActiveWorkflow when workflow ID changes to ensure proper state
       const { activeWorkflowId } = useWorkflowRegistry.getState()
+
       if (activeWorkflowId !== currentId) {
+        setActiveWorkflow(currentId)
+      } else {
+        // Even if the workflow is already active, call setActiveWorkflow to ensure state consistency
         setActiveWorkflow(currentId)
       }
 

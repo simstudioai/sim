@@ -2,12 +2,7 @@
 
 import { createLogger } from '@/lib/logs/console-logger'
 import type { SyncManager } from './sync'
-import {
-  fetchWorkflowsFromDB,
-  isRegistryInitialized,
-  resetRegistryInitialization,
-  workflowSync,
-} from './workflows/sync'
+import { fetchWorkflowsFromDB, workflowSync } from './workflows/sync'
 
 const logger = createLogger('SyncRegistry')
 
@@ -17,13 +12,7 @@ let initializing = false
 let managers: SyncManager[] = []
 
 /**
- * Initialize sync managers and fetch data from DB
- * Returns a promise that resolves when initialization is complete
- *
- * Note: Workflow scheduling is handled automatically by the workflowSync manager
- * when workflows are synced to the database. The scheduling logic checks if a
- * workflow has scheduling enabled in its starter block and updates the schedule
- * accordingly.
+ * Simplified sync managers initialization
  */
 export async function initializeSyncManagers(): Promise<boolean> {
   // Skip if already initialized or initializing
@@ -37,34 +26,18 @@ export async function initializeSyncManagers(): Promise<boolean> {
     // Initialize sync managers
     managers = [workflowSync]
 
-    // Reset registry initialization state before fetching
-    resetRegistryInitialization()
-
     // Fetch data from DB
     try {
-      // Remove environment variables fetch
       await fetchWorkflowsFromDB()
-
-      // Wait for a short period to ensure registry is properly initialized
-      if (!isRegistryInitialized()) {
-        logger.info('Waiting for registry initialization to complete...')
-        await new Promise((resolve) => setTimeout(resolve, 500))
-      }
-
-      // Verify initialization complete
-      if (!isRegistryInitialized()) {
-        logger.warn('Registry initialization may not have completed properly')
-      } else {
-        logger.info('Registry initialization verified')
-      }
+      logger.info('Workflows loaded from database')
     } catch (error) {
-      logger.error('Error fetching data from DB:', { error })
+      logger.error('Error fetching data from DB:', error)
     }
 
     initialized = true
     return true
   } catch (error) {
-    logger.error('Error initializing sync managers:', { error })
+    logger.error('Error initializing sync managers:', error)
     return false
   } finally {
     initializing = false
@@ -72,28 +45,36 @@ export async function initializeSyncManagers(): Promise<boolean> {
 }
 
 /**
- * Check if sync managers are initialized
+ * Force resync all managers
  */
-export function isSyncInitialized(): boolean {
-  return initialized && isRegistryInitialized()
+export function forceSyncAll(): void {
+  if (!initialized) {
+    logger.warn('Sync managers not initialized, cannot force sync')
+    return
+  }
+
+  managers.forEach((manager) => {
+    try {
+      manager.sync()
+    } catch (error) {
+      logger.error('Error forcing sync for manager:', error)
+    }
+  })
 }
 
 /**
- * Get all sync managers
+ * Dispose all sync managers
  */
-export function getSyncManagers(): SyncManager[] {
-  return managers
-}
+export function disposeSyncManagers(): void {
+  managers.forEach((manager) => {
+    try {
+      manager.dispose()
+    } catch (error) {
+      logger.error('Error disposing sync manager:', error)
+    }
+  })
 
-/**
- * Reset all sync managers
- */
-export function resetSyncManagers(): void {
+  managers = []
   initialized = false
   initializing = false
-  managers = []
-  resetRegistryInitialization()
 }
-
-// Export individual sync managers for direct use
-export { workflowSync }

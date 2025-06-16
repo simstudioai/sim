@@ -8,17 +8,11 @@ import { useNotificationStore } from './notifications/store'
 import { useConsoleStore } from './panel/console/store'
 import { useVariablesStore } from './panel/variables/store'
 import { useEnvironmentStore } from './settings/environment/store'
-import {
-  getSyncManagers,
-  initializeSyncManagers,
-  isSyncInitialized,
-  resetSyncManagers,
-} from './sync-registry'
+import { disposeSyncManagers, initializeSyncManagers } from './sync-registry'
 // Import the syncWorkflows function directly
 import { syncWorkflows } from './workflows'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
-import { isRegistryInitialized } from './workflows/sync'
 import { useWorkflowStore } from './workflows/workflow/store'
 import type { BlockState } from './workflows/workflow/types'
 
@@ -66,8 +60,6 @@ async function initializeApplication(): Promise<void> {
     if (!hasDbWorkflows && isNewLoginSession) {
       // Critical safeguard: For new login sessions with no DB workflows
       logger.info('New login session with no workflows - preventing initial sync')
-      const syncManagers = getSyncManagers()
-      syncManagers.forEach((manager) => manager.stopIntervalSync())
 
       // Create the first starter workflow with an agent block for new users
       logger.info('Creating first workflow with agent block for new user')
@@ -96,7 +88,7 @@ async function initializeApplication(): Promise<void> {
  * Checks if application is fully initialized
  */
 export function isAppInitialized(): boolean {
-  return appFullyInitialized && isRegistryInitialized() && isSyncInitialized()
+  return appFullyInitialized
 }
 
 /**
@@ -120,16 +112,6 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
   // Mark workflows as dirty to ensure sync on exit
   syncWorkflows()
 
-  // Final sync for managers that need it
-  getSyncManagers()
-    .filter((manager) => manager.config.syncOnExit)
-    .forEach((manager) => {
-      manager.sync()
-    })
-
-  // Cleanup managers
-  getSyncManagers().forEach((manager) => manager.dispose())
-
   // Standard beforeunload pattern
   event.preventDefault()
   event.returnValue = ''
@@ -140,7 +122,7 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
  */
 function cleanupApplication(): void {
   window.removeEventListener('beforeunload', handleBeforeUnload)
-  getSyncManagers().forEach((manager) => manager.dispose())
+  disposeSyncManagers()
 }
 
 /**
@@ -152,7 +134,7 @@ export async function clearUserData(): Promise<void> {
 
   try {
     // Reset all sync managers to prevent any pending syncs
-    resetSyncManagers()
+    disposeSyncManagers()
 
     // Reset all stores to their initial state
     resetAllStores()
@@ -207,7 +189,7 @@ export async function reinitializeAfterLogin(): Promise<void> {
     appFullyInitialized = false
 
     // Reset sync managers to prevent any active syncs during reinitialization
-    resetSyncManagers()
+    disposeSyncManagers()
 
     // Clean existing state to avoid stale data
     resetAllStores()
@@ -408,13 +390,6 @@ function createFirstWorkflowWithAgentBlock(): void {
 
   // Mark as dirty to ensure sync
   syncWorkflows()
-
-  // Resume sync managers after initialization
-  setTimeout(() => {
-    const syncManagers = getSyncManagers()
-    syncManagers.forEach((manager) => manager.startIntervalSync())
-    syncWorkflows()
-  }, 1000)
 
   logger.info('First workflow with agent block created successfully')
 }

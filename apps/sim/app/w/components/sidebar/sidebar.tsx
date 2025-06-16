@@ -129,15 +129,6 @@ export function Sidebar() {
   // Create workflow
   const handleCreateWorkflow = async (folderId?: string) => {
     try {
-      // Import the isActivelyLoadingFromDB function to check sync status
-      const { isActivelyLoadingFromDB } = await import('@/stores/workflows/sync')
-
-      // Prevent creating workflows during active DB operations
-      if (isActivelyLoadingFromDB()) {
-        console.log('Please wait, syncing in progress...')
-        return
-      }
-
       // Create the workflow and ensure it's associated with the active workspace and folder
       const id = createWorkflow({
         workspaceId: activeWorkspaceId || undefined,
