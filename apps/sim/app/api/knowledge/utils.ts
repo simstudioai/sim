@@ -377,6 +377,7 @@ export async function processDocumentAsync(
     minCharactersPerChunk?: number
     recipe?: string
     lang?: string
+    chunkOverlap?: number
   }
 ): Promise<void> {
   const startTime = Date.now()
@@ -400,7 +401,7 @@ export async function processDocumentAsync(
       docData.filename,
       docData.mimeType,
       processingOptions.chunkSize || 1000,
-      200 // chunkOverlap
+      processingOptions.chunkOverlap || 200
     )
 
     const now = new Date()

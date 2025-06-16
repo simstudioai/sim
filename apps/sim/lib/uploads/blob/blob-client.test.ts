@@ -129,6 +129,8 @@ describe('Azure Blob Storage Client', () => {
 
       const result = await uploadToBlob(testBuffer, fileName, contentType, customConfig)
 
+      // Verify the container client is called with correct custom configuration
+      expect(mockGetContainerClient).toHaveBeenCalledWith('customcontainer')
       expect(result.name).toBe(fileName)
       expect(result.type).toBe(contentType)
     })
@@ -196,14 +198,17 @@ describe('Azure Blob Storage Client', () => {
   })
 
   describe('sanitizeFilenameForMetadata', () => {
-    it('should sanitize filenames for metadata', async () => {
-      const { sanitizeFilenameForMetadata } = await import('./blob-client')
+    const testCases = [
+      { input: 'test file.txt', expected: 'test file.txt' },
+      { input: 'test"file.txt', expected: 'testfile.txt' },
+      { input: 'test\\file.txt', expected: 'testfile.txt' },
+      { input: 'test  file.txt', expected: 'test file.txt' },
+      { input: '', expected: 'file' },
+    ]
 
-      expect(sanitizeFilenameForMetadata('test file.txt')).toBe('test file.txt')
-      expect(sanitizeFilenameForMetadata('test"file.txt')).toBe('testfile.txt')
-      expect(sanitizeFilenameForMetadata('test\\file.txt')).toBe('testfile.txt')
-      expect(sanitizeFilenameForMetadata('test  file.txt')).toBe('test file.txt')
-      expect(sanitizeFilenameForMetadata('')).toBe('file')
+    test.each(testCases)('should sanitize "$input" to "$expected"', async ({ input, expected }) => {
+      const { sanitizeFilenameForMetadata } = await import('./blob-client')
+      expect(sanitizeFilenameForMetadata(input)).toBe(expected)
     })
   })
 })

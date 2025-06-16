@@ -16,7 +16,7 @@ const hasS3Config = !!(env.S3_BUCKET_NAME && env.AWS_REGION)
 // Check if Azure Blob is configured (has required credentials)
 const hasBlobConfig = !!(
   env.AZURE_STORAGE_CONTAINER_NAME &&
-  (env.AZURE_ACCOUNT_NAME || env.AZURE_CONNECTION_STRING)
+  ((env.AZURE_ACCOUNT_NAME && env.AZURE_ACCOUNT_KEY) || env.AZURE_CONNECTION_STRING)
 )
 
 // Storage configuration flags - auto-detect based on available credentials

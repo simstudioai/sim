@@ -143,7 +143,7 @@ export async function uploadToBlob(
   const blockBlobClient = containerClient.getBlockBlobClient(uniqueKey)
 
   // Upload the file to Azure Blob Storage
-  await blockBlobClient.upload(file, file.length, {
+  await blockBlobClient.upload(file, fileSize, {
     blobHTTPHeaders: {
       blobContentType: contentType,
     },
@@ -187,7 +187,13 @@ export async function getPresignedUrl(key: string, expiresIn = 3600) {
 
   const sasToken = generateBlobSASQueryParameters(
     sasOptions,
-    new StorageSharedKeyCredential(BLOB_CONFIG.accountName, BLOB_CONFIG.accountKey || '')
+    new StorageSharedKeyCredential(
+      BLOB_CONFIG.accountName,
+      BLOB_CONFIG.accountKey ??
+        (() => {
+          throw new Error('AZURE_ACCOUNT_KEY is required when using account name authentication')
+        })()
+    )
   ).toString()
 
   return `${blockBlobClient.url}?${sasToken}`
@@ -239,7 +245,13 @@ export async function getPresignedUrlWithConfig(
 
   const sasToken = generateBlobSASQueryParameters(
     sasOptions,
-    new StorageSharedKeyCredential(customConfig.accountName, customConfig.accountKey || '')
+    new StorageSharedKeyCredential(
+      customConfig.accountName,
+      customConfig.accountKey ??
+        (() => {
+          throw new Error('Account key is required when using account name authentication')
+        })()
+    )
   ).toString()
 
   return `${blockBlobClient.url}?${sasToken}`
@@ -256,7 +268,10 @@ export async function downloadFromBlob(key: string) {
   const blockBlobClient = containerClient.getBlockBlobClient(key)
 
   const downloadBlockBlobResponse = await blockBlobClient.download()
-  const downloaded = await streamToBuffer(downloadBlockBlobResponse.readableStreamBody!)
+  if (!downloadBlockBlobResponse.readableStreamBody) {
+    throw new Error('Failed to get readable stream from blob download')
+  }
+  const downloaded = await streamToBuffer(downloadBlockBlobResponse.readableStreamBody)
 
   return downloaded
 }

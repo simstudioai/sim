@@ -40,20 +40,20 @@ export async function POST(request: NextRequest) {
 
     const storageProvider = getStorageProvider()
 
-    if (storageProvider === 's3') {
-      return await handleS3PresignedUrl(fileName, contentType, fileSize)
+    switch (storageProvider) {
+      case 's3':
+        return await handleS3PresignedUrl(fileName, contentType, fileSize)
+      case 'blob':
+        return await handleBlobPresignedUrl(fileName, contentType, fileSize)
+      default:
+        return NextResponse.json(
+          {
+            error: 'Unknown storage provider',
+            directUploadSupported: false,
+          },
+          { status: 400 }
+        )
     }
-    if (storageProvider === 'blob') {
-      return await handleBlobPresignedUrl(fileName, contentType, fileSize)
-    }
-
-    return NextResponse.json(
-      {
-        error: 'Unknown storage provider',
-        directUploadSupported: false,
-      },
-      { status: 400 }
-    )
   } catch (error) {
     logger.error('Error generating presigned URL:', error)
     return createErrorResponse(
@@ -76,7 +76,7 @@ async function handleS3PresignedUrl(fileName: string, contentType: string, fileS
     Key: uniqueKey,
     ContentType: contentType,
     Metadata: {
-      originalName: encodeURIComponent(fileName),
+      originalName: sanitizedOriginalName,
       uploadedAt: new Date().toISOString(),
     },
   })
@@ -155,7 +155,9 @@ async function handleBlobPresignedUrl(fileName: string, contentType: string, fil
     })
   } catch (error) {
     logger.error('Error generating Blob presigned URL:', error)
-    throw error
+    return createErrorResponse(
+      error instanceof Error ? error : new Error('Failed to generate Blob presigned URL')
+    )
   }
 }
 

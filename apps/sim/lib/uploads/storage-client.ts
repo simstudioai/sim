@@ -80,7 +80,7 @@ export async function uploadFile(
   }
 
   throw new Error(
-    'No storage provider configured. Set USE_BLOB=true or configure S3 for production.'
+    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
   )
 }
 
@@ -101,7 +101,7 @@ export async function downloadFile(key: string): Promise<Buffer> {
   }
 
   throw new Error(
-    'No storage provider configured. Set USE_BLOB=true or configure S3 for production.'
+    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
   )
 }
 
@@ -121,7 +121,7 @@ export async function deleteFile(key: string): Promise<void> {
   }
 
   throw new Error(
-    'No storage provider configured. Set USE_BLOB=true or configure S3 for production.'
+    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
   )
 }
 
@@ -143,7 +143,7 @@ export async function getPresignedUrl(key: string, expiresIn = 3600): Promise<st
   }
 
   throw new Error(
-    'No storage provider configured. Set USE_BLOB=true or configure S3 for production.'
+    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
   )
 }
 
@@ -170,7 +170,7 @@ export async function getPresignedUrlWithConfig(
   }
 
   throw new Error(
-    'No storage provider configured. Set USE_BLOB=true or configure S3 for production.'
+    'No storage provider configured. Set Azure credentials (AZURE_CONNECTION_STRING or AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY) or configure AWS credentials for S3.'
   )
 }
 

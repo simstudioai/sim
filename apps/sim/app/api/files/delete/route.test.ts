@@ -111,6 +111,31 @@ describe('File Delete API Route', () => {
     expect(mockDeleteFile).toHaveBeenCalledWith('1234567890-test-file.txt')
   })
 
+  it('should handle Azure Blob file deletion successfully', async () => {
+    vi.doMock('@/lib/uploads/setup', () => ({
+      UPLOAD_DIR: '/test/uploads',
+      USE_S3_STORAGE: false,
+      USE_BLOB_STORAGE: true,
+    }))
+
+    mockIsUsingCloudStorage.mockReturnValue(true)
+
+    const req = createMockRequest('POST', {
+      filePath: '/api/files/serve/blob/1234567890-test-document.pdf',
+    })
+
+    const { POST } = await import('./route')
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data).toHaveProperty('success', true)
+    expect(data).toHaveProperty('message', 'File deleted successfully from cloud storage')
+
+    expect(mockDeleteFile).toHaveBeenCalledWith('1234567890-test-document.pdf')
+  })
+
   it('should handle missing file path', async () => {
     const req = createMockRequest('POST', {})
 

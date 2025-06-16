@@ -24,6 +24,7 @@ const ProcessDocumentsSchema = z.object({
     minCharactersPerChunk: z.number(),
     recipe: z.string(),
     lang: z.string(),
+    chunkOverlap: z.number().optional(),
   }),
 })
 

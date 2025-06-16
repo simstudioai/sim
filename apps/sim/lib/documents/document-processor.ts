@@ -171,16 +171,19 @@ async function parseWithMistralOCR(
 
     if (provider === 'blob') {
       const blobConfig = kbConfig as BlobConfig
-      if (!blobConfig.containerName || !blobConfig.accountName) {
+      if (
+        !blobConfig.containerName ||
+        (!blobConfig.connectionString && (!blobConfig.accountName || !blobConfig.accountKey))
+      ) {
         throw new Error(
-          'Azure Blob configuration missing: AZURE_ACCOUNT_NAME and AZURE_KB_CONTAINER_NAME environment variables are required for PDF processing with Mistral OCR'
+          'Azure Blob configuration missing for PDF processing with Mistral OCR. Set AZURE_CONNECTION_STRING or both AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY, and AZURE_KB_CONTAINER_NAME.'
         )
       }
     } else {
       const s3Config = kbConfig as S3Config
       if (!s3Config.bucket || !s3Config.region) {
         throw new Error(
-          'S3 configuration missing: AWS_REGION and S3_KB_BUCKET_NAME environment variables are required for PDF processing with Mistral OCR'
+          'S3 configuration missing for PDF processing with Mistral OCR. Set AWS_REGION and S3_KB_BUCKET_NAME environment variables.'
         )
       }
     }

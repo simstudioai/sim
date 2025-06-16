@@ -16,6 +16,7 @@ import {
   extractS3Key,
   InvalidRequestError,
   isBlobPath,
+  isCloudPath,
   isS3Path,
 } from '../utils'
 
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     try {
       // Use appropriate handler based on path and environment
       const result =
-        isS3Path(filePath) || isBlobPath(filePath) || isUsingCloudStorage()
+        isCloudPath(filePath) || isUsingCloudStorage()
           ? await handleCloudFileDelete(filePath)
           : await handleLocalFileDelete(filePath)
 

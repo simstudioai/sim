@@ -251,7 +251,12 @@ describe('File Serve API Route', () => {
         }
       },
       createFileResponse: vi.fn(),
-      createErrorResponse: vi.fn(),
+      createErrorResponse: vi.fn().mockImplementation((error) => {
+        return new Response(JSON.stringify({ error: error.name, message: error.message }), {
+          status: error.name === 'FileNotFoundError' ? 404 : 500,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
       getContentType: vi.fn().mockReturnValue('text/plain'),
       isS3Path: vi.fn().mockReturnValue(false),
       isBlobPath: vi.fn().mockReturnValue(false),
@@ -271,8 +276,11 @@ describe('File Serve API Route', () => {
 
     expect(response.status).toBe(404)
 
-    const text = await response.text()
-    expect(text).toBe('File not found')
+    const responseData = await response.json()
+    expect(responseData).toEqual({
+      error: 'FileNotFoundError',
+      message: expect.stringContaining('File not found'),
+    })
   })
 
   describe('content type detection', () => {

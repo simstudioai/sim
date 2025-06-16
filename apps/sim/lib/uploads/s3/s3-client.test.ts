@@ -287,7 +287,7 @@ describe('S3 Client', () => {
 
       expect(client).toBeDefined()
       // Verify the client was constructed with the right configuration
-      expect(S3Client).toBeDefined()
+      expect(S3Client).toHaveBeenCalledWith({ region: 'test-region' })
     })
   })
 })

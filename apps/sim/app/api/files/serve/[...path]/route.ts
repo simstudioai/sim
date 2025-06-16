@@ -1,5 +1,5 @@
 import { readFile } from 'fs/promises'
-import { type NextRequest, NextResponse } from 'next/server'
+import type { NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { downloadFile, isUsingCloudStorage } from '@/lib/uploads'
 import '@/lib/uploads/setup.server'
@@ -53,7 +53,7 @@ export async function GET(
     logger.error('Error serving file:', error)
 
     if (error instanceof FileNotFoundError) {
-      return new NextResponse('File not found', { status: 404 })
+      return createErrorResponse(error)
     }
 
     return createErrorResponse(error instanceof Error ? error : new Error('Failed to serve file'))
