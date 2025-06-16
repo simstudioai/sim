@@ -46,12 +46,6 @@ const modelPricing: ModelPricingMap = {
     output: 10.0,
     updatedAt: '2025-06-15',
   },
-  'azure/o1': {
-    input: 15.0,
-    cachedInput: 7.5, // 50% discount for cached input
-    output: 60,
-    updatedAt: '2025-06-15',
-  },
   'azure/o3': {
     input: 10,
     cachedInput: 2.5,
