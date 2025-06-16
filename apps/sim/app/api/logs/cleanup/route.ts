@@ -3,7 +3,7 @@ import { and, eq, inArray, lt, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getS3Client } from '@/lib/uploads/s3-client'
+import { getS3Client } from '@/lib/uploads/s3/s3-client'
 import { db } from '@/db'
 import { subscription, user, workflow, workflowLogs } from '@/db/schema'
 
