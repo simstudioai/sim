@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { client } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import {
   getProviderIdFromServiceId,
@@ -18,7 +19,7 @@ import {
   type OAuthProvider,
   parseProvider,
 } from '@/lib/oauth'
-import { buildOAuthUrl } from '@/lib/urls/utils'
+import { saveToStorage } from '@/stores/workflows/persistence'
 
 const logger = createLogger('OAuthRequiredModal')
 
@@ -156,90 +157,57 @@ export function OAuthRequiredModal({
     (scope) => !scope.includes('userinfo.email') && !scope.includes('userinfo.profile')
   )
 
-  const handleConnectAccount = () => {
-    // Calculate the provider ID from service ID
-    const effectiveProviderId = getProviderIdFromServiceId(effectiveServiceId)
-
-    // Store OAuth state in localStorage before redirect
-    const oauthState = {
-      providerId: effectiveProviderId,
-      serviceId: effectiveServiceId,
-      requiredScopes,
-      returnUrl: window.location.href,
-      context: 'oauth-required-modal',
-      timestamp: Date.now(),
-    }
-
-    // Use localStorage for OAuth state management
+  const handleRedirectToSettings = () => {
     try {
-      localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
+      // Determine the appropriate serviceId and providerId
+      const providerId = getProviderIdFromServiceId(effectiveServiceId)
 
-      // Navigate to OAuth URL using the utility function
-      const authUrl = buildOAuthUrl({
-        provider: effectiveProviderId,
-        service: effectiveServiceId,
-        scopes: requiredScopes,
-        returnUrl: window.location.href,
+      // Store information about the required connection
+      saveToStorage<string>('pending_service_id', effectiveServiceId)
+      saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
+      saveToStorage<string>('pending_oauth_return_url', window.location.href)
+      saveToStorage<string>('pending_oauth_provider_id', providerId)
+      saveToStorage<boolean>('from_oauth_modal', true)
+
+      // Close the modal
+      onClose()
+
+      // Open the settings modal with the credentials tab
+      const event = new CustomEvent('open-settings', {
+        detail: { tab: 'credentials' },
       })
-
-      window.location.href = authUrl
+      window.dispatchEvent(event)
     } catch (error) {
-      logger.error('Failed to store OAuth state:', error)
-      // Fallback: redirect without state using the utility function
-      const authUrl = buildOAuthUrl({
-        provider: effectiveProviderId,
-        service: effectiveServiceId,
-        scopes: requiredScopes,
-        returnUrl: window.location.href,
-      })
-
-      window.location.href = authUrl
+      logger.error('Error redirecting to settings:', { error })
     }
-
-    onClose()
   }
 
-  const handleConnectExisting = () => {
-    // Calculate the provider ID from service ID
-    const effectiveProviderId = getProviderIdFromServiceId(effectiveServiceId)
-
-    // Store OAuth state in localStorage before redirect
-    const oauthState = {
-      providerId: effectiveProviderId,
-      serviceId: effectiveServiceId,
-      requiredScopes,
-      returnUrl: window.location.href,
-      context: 'oauth-required-modal-existing',
-      timestamp: Date.now(),
-    }
-
-    // Use localStorage for OAuth state management
+  const handleConnectDirectly = async () => {
     try {
-      localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
+      // Determine the appropriate serviceId and providerId
+      const providerId = getProviderIdFromServiceId(effectiveServiceId)
 
-      // Navigate to OAuth URL using the utility function
-      const authUrl = buildOAuthUrl({
-        provider: effectiveProviderId,
-        service: effectiveServiceId,
-        scopes: requiredScopes,
-        returnUrl: window.location.href,
+      // Store information about the required connection
+      saveToStorage<string>('pending_service_id', effectiveServiceId)
+      saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
+      saveToStorage<string>('pending_oauth_return_url', window.location.href)
+      saveToStorage<string>('pending_oauth_provider_id', providerId)
+
+      // Close the modal
+      onClose()
+
+      logger.info('Linking OAuth2:', {
+        providerId,
+        requiredScopes,
       })
 
-      window.location.href = authUrl
+      await client.oauth2.link({
+        providerId,
+        callbackURL: window.location.href,
+      })
     } catch (error) {
-      logger.error('Failed to store OAuth state:', error)
-      // Fallback: redirect without state using the utility function
-      const authUrl = buildOAuthUrl({
-        provider: effectiveProviderId,
-        service: effectiveServiceId,
-        scopes: requiredScopes,
-        returnUrl: window.location.href,
-      })
-
-      window.location.href = authUrl
+      logger.error('Error initiating OAuth flow:', { error })
     }
-
-    onClose()
   }
 
   return (
@@ -287,13 +255,13 @@ export function OAuthRequiredModal({
           <Button variant='outline' onClick={onClose} className='sm:order-1'>
             Cancel
           </Button>
-          <Button type='button' onClick={handleConnectAccount} className='sm:order-3'>
+          <Button type='button' onClick={handleConnectDirectly} className='sm:order-3'>
             Connect Now
           </Button>
           <Button
             type='button'
             variant='secondary'
-            onClick={handleConnectExisting}
+            onClick={handleRedirectToSettings}
             className='sm:order-2'
           >
             Go to Settings

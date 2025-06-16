@@ -19,7 +19,7 @@ import {
   getServiceIdFromScopes,
   type OAuthProvider,
 } from '@/lib/oauth'
-import { buildOAuthUrl } from '@/lib/urls/utils'
+import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from '../../credential-selector/components/oauth-required-modal'
 
 export interface ConfluenceFileInfo {
@@ -358,35 +358,14 @@ export function ConfluenceFileSelector({
     const effectiveServiceId = getServiceId()
     const providerId = getProviderId()
 
-    // Store OAuth state in localStorage before redirect
-    const oauthState = {
-      providerId: providerId,
-      serviceId: effectiveServiceId,
-      requiredScopes,
-      returnUrl: window.location.href,
-      context: 'confluence-file-selector',
-      timestamp: Date.now(),
-    }
+    // Store information about the required connection
+    saveToStorage<string>('pending_service_id', effectiveServiceId)
+    saveToStorage<string[]>('pending_oauth_scopes', requiredScopes)
+    saveToStorage<string>('pending_oauth_return_url', window.location.href)
+    saveToStorage<string>('pending_oauth_provider_id', providerId)
 
-    // Use localStorage for OAuth state management
-    try {
-      localStorage.setItem('pending_oauth_state', JSON.stringify(oauthState))
-
-      // Navigate to OAuth URL using the utility function
-      const authUrl = buildOAuthUrl({
-        provider: providerId,
-        service: effectiveServiceId,
-        scopes: requiredScopes,
-        returnUrl: window.location.href,
-      })
-
-      window.location.href = authUrl
-    } catch (error) {
-      console.error('Failed to store OAuth state:', error)
-      // Fallback to OAuth modal
-      setShowOAuthModal(true)
-    }
-
+    // Show the OAuth modal
+    setShowOAuthModal(true)
     setOpen(false)
   }
 

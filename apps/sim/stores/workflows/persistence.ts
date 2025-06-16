@@ -20,6 +20,33 @@ const OAUTH_STATE_KEY = 'pending_oauth_state'
 const OAUTH_STATE_EXPIRY = 10 * 60 * 1000 // 10 minutes
 
 /**
+ * Generic function to save data to localStorage (used by main branch OAuth flow)
+ */
+export function saveToStorage<T>(key: string, data: T): boolean {
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+    return true
+  } catch (error) {
+    logger.error(`Failed to save data to ${key}:`, { error })
+    return false
+  }
+}
+
+/**
+ * Generic function to load data from localStorage
+ */
+export function loadFromStorage<T>(key: string): T | null {
+  try {
+    const stored = localStorage.getItem(key)
+    if (!stored) return null
+    return JSON.parse(stored) as T
+  } catch (error) {
+    logger.error(`Failed to load data from ${key}:`, { error })
+    return null
+  }
+}
+
+/**
  * Save OAuth state to localStorage before redirect
  */
 export function saveOAuthState(state: OAuthState): boolean {
