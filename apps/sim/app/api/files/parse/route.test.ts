@@ -168,10 +168,8 @@ describe('File Parse API Route', () => {
   })
 
   it('should handle S3 access errors gracefully', async () => {
-    // Mock cloud storage mode
     mockIsUsingCloudStorage.mockReturnValue(true)
 
-    // Mock download failure
     mockDownloadFile.mockRejectedValueOnce(new Error('Access denied'))
 
     const req = new NextRequest('http://localhost:3000/api/files/parse', {
@@ -268,7 +266,7 @@ describe('Files Parse API - Path Traversal Security', () => {
         '/root/.bashrc',
         '/app/.env',
         '/var/log/auth.log',
-        'C:\\Windows\\System32\\drivers\\etc\\hosts', // Windows path
+        'C:\\Windows\\System32\\drivers\\etc\\hosts',
       ]
 
       for (const maliciousPath of maliciousPaths) {
@@ -288,7 +286,6 @@ describe('Files Parse API - Path Traversal Security', () => {
     })
 
     it('should allow valid paths within upload directory', async () => {
-      // Test that valid paths don't trigger path validation errors
       const validPaths = [
         '/api/files/serve/document.txt',
         '/api/files/serve/folder/file.pdf',
@@ -306,7 +303,6 @@ describe('Files Parse API - Path Traversal Security', () => {
         const response = await POST(request)
         const result = await response.json()
 
-        // Should not fail due to path validation (may fail for other reasons like file not found)
         if (result.error) {
           expect(result.error).not.toMatch(
             /Access denied|Path outside allowed directory|Invalid path/
@@ -326,7 +322,7 @@ describe('Files Parse API - Path Traversal Security', () => {
         const request = new NextRequest('http://localhost:3000/api/files/parse', {
           method: 'POST',
           body: JSON.stringify({
-            filePath: decodeURIComponent(maliciousPath), // Simulate URL decoding
+            filePath: decodeURIComponent(maliciousPath),
           }),
         })
 
@@ -357,7 +353,6 @@ describe('Files Parse API - Path Traversal Security', () => {
         const result = await response.json()
 
         expect(result.success).toBe(false)
-        // Should be rejected either by path validation or file system access
       }
     })
   })

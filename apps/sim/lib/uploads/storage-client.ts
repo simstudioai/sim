@@ -1,5 +1,4 @@
 import { createLogger } from '@/lib/logs/console-logger'
-// Import Blob functions
 import {
   type FileInfo as BlobFileInfo,
   type CustomBlobConfig,
@@ -9,7 +8,6 @@ import {
   getPresignedUrlWithConfig as getBlobPresignedUrlWithConfig,
   uploadToBlob,
 } from './blob/blob-client'
-// Import S3 functions
 import {
   type CustomS3Config,
   deleteFromS3,
@@ -23,7 +21,6 @@ import { USE_BLOB_STORAGE, USE_S3_STORAGE } from './setup'
 
 const logger = createLogger('StorageClient')
 
-// Re-export common types
 export type FileInfo = S3FileInfo | BlobFileInfo
 export type CustomStorageConfig = CustomS3Config | CustomBlobConfig
 

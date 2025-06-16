@@ -24,13 +24,11 @@ const hasBlobConfig = !!(
 export const USE_BLOB_STORAGE = hasBlobConfig
 export const USE_S3_STORAGE = hasS3Config && !USE_BLOB_STORAGE
 
-// S3 Configuration
 export const S3_CONFIG = {
   bucket: env.S3_BUCKET_NAME || '',
   region: env.AWS_REGION || '',
 }
 
-// Azure Blob Storage Configuration
 export const BLOB_CONFIG = {
   accountName: env.AZURE_ACCOUNT_NAME || '',
   accountKey: env.AZURE_ACCOUNT_KEY || '',
@@ -38,7 +36,6 @@ export const BLOB_CONFIG = {
   containerName: env.AZURE_STORAGE_CONTAINER_NAME || '',
 }
 
-// Knowledge Base specific configurations
 export const S3_KB_CONFIG = {
   bucket: env.S3_KB_BUCKET_NAME || '',
   region: env.AWS_REGION || '',

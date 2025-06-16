@@ -6,7 +6,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('S3 Client', () => {
-  // Mock AWS SDK modules
   const mockSend = vi.fn()
   const mockS3Client = {
     send: mockSend,
@@ -21,7 +20,6 @@ describe('S3 Client', () => {
     vi.resetModules()
     vi.clearAllMocks()
 
-    // Mock the AWS SDK
     vi.doMock('@aws-sdk/client-s3', () => ({
       S3Client: vi.fn(() => mockS3Client),
       PutObjectCommand: mockPutObjectCommand,
@@ -33,7 +31,6 @@ describe('S3 Client', () => {
       getSignedUrl: mockGetSignedUrl,
     }))
 
-    // Mock the setup configuration with test values
     vi.doMock('../setup', () => ({
       S3_CONFIG: {
         bucket: 'test-bucket',
@@ -41,8 +38,7 @@ describe('S3 Client', () => {
       },
     }))
 
-    // Mock Date.now for consistent timestamps
-    vi.spyOn(Date, 'now').mockReturnValue(1672603200000) // Fixed timestamp
+    vi.spyOn(Date, 'now').mockReturnValue(1672603200000)
     vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('2025-06-16T01:13:10.765Z')
   })
 
@@ -52,7 +48,6 @@ describe('S3 Client', () => {
 
   describe('uploadToS3', () => {
     it('should upload a file to S3 and return file info', async () => {
-      // Mock successful upload
       mockSend.mockResolvedValueOnce({})
 
       const { uploadToS3 } = await import('./s3-client')
@@ -63,7 +58,6 @@ describe('S3 Client', () => {
 
       const result = await uploadToS3(file, fileName, contentType)
 
-      // Check that S3 client was called with correct parameters
       expect(mockPutObjectCommand).toHaveBeenCalledWith({
         Bucket: 'test-bucket',
         Key: expect.stringContaining('test-file.txt'),
@@ -77,7 +71,6 @@ describe('S3 Client', () => {
 
       expect(mockSend).toHaveBeenCalledWith(expect.any(Object))
 
-      // Check return value
       expect(result).toEqual({
         path: expect.stringContaining('/api/files/serve/s3/'),
         key: expect.stringContaining('test-file.txt'),
@@ -98,14 +91,12 @@ describe('S3 Client', () => {
 
       const result = await uploadToS3(testFile, fileName, contentType)
 
-      // Check that the filename was sanitized in the key
       expect(mockPutObjectCommand).toHaveBeenCalledWith(
         expect.objectContaining({
           Key: expect.stringContaining('test-file-with-spaces.txt'),
         })
       )
 
-      // But the original name should be preserved in metadata and result
       expect(result.name).toBe(fileName)
     })
 
@@ -189,7 +180,6 @@ describe('S3 Client', () => {
 
   describe('downloadFromS3', () => {
     it('should download a file from S3', async () => {
-      // Mock a readable stream
       const mockStream = {
         on: vi.fn((event, callback) => {
           if (event === 'data') {
@@ -225,7 +215,6 @@ describe('S3 Client', () => {
     })
 
     it('should handle stream errors', async () => {
-      // Mock a readable stream that throws an error
       const mockStream = {
         on: vi.fn((event, callback) => {
           if (event === 'error') {
@@ -294,11 +283,8 @@ describe('S3 Client', () => {
       const { getS3Client } = await import('./s3-client')
       const { S3Client } = await import('@aws-sdk/client-s3')
 
-      // Get the client (this will trigger initialization)
       const client = getS3Client()
 
-      // We can't test the constructor call easily since it happens at import time
-      // Instead, we can test the s3Client properties
       expect(client).toBeDefined()
       // Verify the client was constructed with the right configuration
       expect(S3Client).toBeDefined()
