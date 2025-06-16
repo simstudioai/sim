@@ -64,3 +64,6 @@ start-collector.sh
 
 # Turborepo
 .turbo
+
+# VSCode
+.vscode
