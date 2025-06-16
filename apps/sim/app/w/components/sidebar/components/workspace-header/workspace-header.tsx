@@ -340,8 +340,9 @@ export function WorkspaceHeader({
           setWorkspaces((prev) => [...prev, newWorkspace])
           setActiveWorkspace(newWorkspace)
 
-          // Update the workflow registry store with the new active workspace
-          setActiveWorkspaceId(newWorkspace.id)
+          // Use switchToWorkspace to properly load workflows for the new workspace
+          // This will clear existing workflows, set loading state, and fetch workflows from DB
+          switchToWorkspace(newWorkspace.id)
 
           // Update URL to include new workspace ID
           router.push(`/w/${newWorkspace.id}`)

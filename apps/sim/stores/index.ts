@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
-import type { SubBlockType } from '@/blocks/types'
 import { useCopilotStore } from './copilot/store'
 import { useCustomToolsStore } from './custom-tools/store'
 import { useExecutionStore } from './execution/store'
@@ -14,7 +13,6 @@ import { syncWorkflows } from './workflows'
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
 import { useWorkflowStore } from './workflows/workflow/store'
-import type { BlockState } from './workflows/workflow/types'
 
 const logger = createLogger('Stores')
 
@@ -47,7 +45,7 @@ async function initializeApplication(): Promise<void> {
 
     // Initialize sync system and wait for data to load completely
     const syncInitialized = await initializeSyncManagers()
-    
+
     if (!syncInitialized) {
       logger.error('Failed to initialize sync managers')
       return

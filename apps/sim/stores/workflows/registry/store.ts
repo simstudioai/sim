@@ -220,13 +220,15 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               const data = await response.json()
               const workspaces = data.workspaces || []
               const workspaceExists = workspaces.some((ws: any) => ws.id === savedWorkspaceId)
-              
+
               if (workspaceExists) {
                 // Set the validated workspace ID
                 set({ activeWorkspaceId: savedWorkspaceId })
                 logger.info(`Restored last active workspace from localStorage: ${savedWorkspaceId}`)
               } else {
-                logger.warn(`Saved workspace ${savedWorkspaceId} no longer exists, clearing from localStorage`)
+                logger.warn(
+                  `Saved workspace ${savedWorkspaceId} no longer exists, clearing from localStorage`
+                )
                 localStorage.removeItem('lastActiveWorkspaceId')
               }
             }

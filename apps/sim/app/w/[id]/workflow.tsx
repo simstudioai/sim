@@ -24,7 +24,6 @@ import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { initializeSyncManagers } from '@/stores/sync-registry'
-import { isAppInitialized } from '@/stores'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -77,7 +76,12 @@ function WorkflowContent() {
   const { project, getNodes, fitView } = useReactFlow()
 
   // Store access
-  const { workflows, setActiveWorkflow, createWorkflow, isLoading: workflowsLoading } = useWorkflowRegistry()
+  const {
+    workflows,
+    setActiveWorkflow,
+    createWorkflow,
+    isLoading: workflowsLoading,
+  } = useWorkflowRegistry()
   const {
     blocks,
     edges,
@@ -740,10 +744,10 @@ function WorkflowContent() {
       // If no workflows exist after loading is complete, create initial workflow
       if (workflowIds.length === 0) {
         logger.info('No workflows found after loading complete, creating initial workflow')
-        const newId = createWorkflow({ 
+        const newId = createWorkflow({
           name: 'My First Workflow',
           description: 'Getting started with agents',
-          isInitial: true 
+          isInitial: true,
         })
         router.replace(`/w/${newId}`)
         return

@@ -191,10 +191,10 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     })
 
     // Update registry with loaded workflows
-    useWorkflowRegistry.setState({ 
-      workflows: registryWorkflows, 
+    useWorkflowRegistry.setState({
+      workflows: registryWorkflows,
       isLoading: false,
-      error: null
+      error: null,
     })
 
     // Set first workflow as active if none selected
@@ -204,12 +204,14 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       useWorkflowRegistry.setState({ activeWorkflowId: firstWorkflowId })
     }
 
-    logger.info(`Successfully loaded ${Object.keys(registryWorkflows).length} workflows from database`)
+    logger.info(
+      `Successfully loaded ${Object.keys(registryWorkflows).length} workflows from database`
+    )
   } catch (error) {
     logger.error('Error fetching workflows from DB:', error)
-    useWorkflowRegistry.setState({ 
+    useWorkflowRegistry.setState({
       isLoading: false,
-      error: `Failed to load workflows: ${error instanceof Error ? error.message : 'Unknown error'}`
+      error: `Failed to load workflows: ${error instanceof Error ? error.message : 'Unknown error'}`,
     })
     // Re-throw to allow caller to handle the error appropriately
     throw error
