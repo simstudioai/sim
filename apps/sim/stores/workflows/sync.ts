@@ -121,6 +121,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     if (!response.ok) {
       if (response.status === 401) {
         logger.warn('User not authenticated for workflow fetch')
+        useWorkflowRegistry.setState({ workflows: {}, isLoading: false })
         return
       }
       throw new Error(`Failed to fetch workflows: ${response.statusText}`)
@@ -130,7 +131,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 
     if (!data || !Array.isArray(data)) {
       logger.info('No workflows found in database')
-      useWorkflowRegistry.setState({ workflows: {} })
+      useWorkflowRegistry.setState({ workflows: {}, isLoading: false })
       return
     }
 
@@ -189,8 +190,12 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       }))
     })
 
-    // Update registry
-    useWorkflowRegistry.setState({ workflows: registryWorkflows })
+    // Update registry with loaded workflows
+    useWorkflowRegistry.setState({ 
+      workflows: registryWorkflows, 
+      isLoading: false,
+      error: null
+    })
 
     // Set first workflow as active if none selected
     const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
@@ -199,11 +204,15 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       useWorkflowRegistry.setState({ activeWorkflowId: firstWorkflowId })
     }
 
-    logger.info(`Loaded ${Object.keys(registryWorkflows).length} workflows`)
+    logger.info(`Successfully loaded ${Object.keys(registryWorkflows).length} workflows from database`)
   } catch (error) {
     logger.error('Error fetching workflows from DB:', error)
-  } finally {
-    useWorkflowRegistry.getState().setLoading(false)
+    useWorkflowRegistry.setState({ 
+      isLoading: false,
+      error: `Failed to load workflows: ${error instanceof Error ? error.message : 'Unknown error'}`
+    })
+    // Re-throw to allow caller to handle the error appropriately
+    throw error
   }
 }
 

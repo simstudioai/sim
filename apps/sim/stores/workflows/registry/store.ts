@@ -173,6 +173,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
           logger.info(`Switching workspace from ${currentWorkspaceId || 'none'} to ${workspaceId}`)
 
+          // IMPORTANT: Save to localStorage first before any async operations
+          get().setActiveWorkspaceId(workspaceId)
+
           // Clear current workspace state
           resetWorkflowStores()
 
@@ -204,10 +207,32 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       loadLastActiveWorkspace: async () => {
         try {
           const savedWorkspaceId = localStorage.getItem('lastActiveWorkspaceId')
-          if (savedWorkspaceId && savedWorkspaceId !== get().activeWorkspaceId) {
-            // Set the workspace without triggering a full switch (since we're initializing)
-            set({ activeWorkspaceId: savedWorkspaceId })
-            logger.info(`Restored last active workspace from localStorage: ${savedWorkspaceId}`)
+          if (!savedWorkspaceId || savedWorkspaceId === get().activeWorkspaceId) {
+            return // No saved workspace or already active
+          }
+
+          logger.info(`Attempting to restore last active workspace: ${savedWorkspaceId}`)
+
+          // Validate that the workspace exists by making a simple API call
+          try {
+            const response = await fetch('/api/workspaces')
+            if (response.ok) {
+              const data = await response.json()
+              const workspaces = data.workspaces || []
+              const workspaceExists = workspaces.some((ws: any) => ws.id === savedWorkspaceId)
+              
+              if (workspaceExists) {
+                // Set the validated workspace ID
+                set({ activeWorkspaceId: savedWorkspaceId })
+                logger.info(`Restored last active workspace from localStorage: ${savedWorkspaceId}`)
+              } else {
+                logger.warn(`Saved workspace ${savedWorkspaceId} no longer exists, clearing from localStorage`)
+                localStorage.removeItem('lastActiveWorkspaceId')
+              }
+            }
+          } catch (apiError) {
+            logger.warn('Failed to validate saved workspace, will use default:', apiError)
+            // Don't remove from localStorage in case it's a temporary network issue
           }
         } catch (error) {
           logger.warn('Failed to load last active workspace from localStorage:', error)

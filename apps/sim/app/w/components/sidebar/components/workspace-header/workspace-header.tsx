@@ -316,7 +316,7 @@ export function WorkspaceHeader({
     setActiveWorkspace(workspace)
     setIsOpen(false)
 
-    // Use full workspace switch to clear workflows and load new ones
+    // Use full workspace switch which now handles localStorage automatically
     switchToWorkspace(workspace.id)
 
     // Update URL to include workspace ID

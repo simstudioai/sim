@@ -26,19 +26,17 @@ export async function initializeSyncManagers(): Promise<boolean> {
     // Initialize sync managers
     managers = [workflowSync]
 
-    // Fetch data from DB
-    try {
-      await fetchWorkflowsFromDB()
-      logger.info('Workflows loaded from database')
-    } catch (error) {
-      logger.error('Error fetching data from DB:', error)
-    }
+    // Fetch data from DB and properly await completion
+    await fetchWorkflowsFromDB()
+    logger.info('Workflows loaded from database successfully')
 
     initialized = true
     return true
   } catch (error) {
     logger.error('Error initializing sync managers:', error)
-    return false
+    // Still mark as initialized to allow the app to function with empty state
+    initialized = true
+    return true
   } finally {
     initializing = false
   }
