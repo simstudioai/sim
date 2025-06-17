@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { format } from 'date-fns'
+import { format, formatDistanceToNow } from 'date-fns'
 import {
+  AlertCircle,
   Circle,
   CircleOff,
   FileText,
@@ -83,7 +84,12 @@ const getStatusDisplay = (doc: DocumentData) => {
       }
     case 'failed':
       return {
-        text: 'Failed',
+        text: (
+          <>
+            Failed
+            {doc.processingError && <AlertCircle className='ml-1.5 h-3 w-3' />}
+          </>
+        ),
         className:
           'inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300',
       }
@@ -154,6 +160,16 @@ export function KnowledgeBase({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<{
+    message: string
+    timestamp: number
+  } | null>(null)
+  const [uploadProgress, setUploadProgress] = useState<{
+    stage: 'idle' | 'uploading' | 'processing' | 'completing'
+    filesCompleted: number
+    totalFiles: number
+    currentFile?: string
+  }>({ stage: 'idle', filesCompleted: 0, totalFiles: 0 })
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -181,6 +197,16 @@ export function KnowledgeBase({
 
     return () => clearInterval(refreshInterval)
   }, [documents, refreshDocuments, isUploading, isDeleting])
+
+  // Auto-dismiss upload error after 8 seconds
+  useEffect(() => {
+    if (uploadError) {
+      const timer = setTimeout(() => {
+        setUploadError(null)
+      }, 8000)
+      return () => clearTimeout(timer)
+    }
+  }, [uploadError])
 
   // Filter documents based on search query
   const filteredDocuments = documents.filter((doc) =>
@@ -371,11 +397,15 @@ export function KnowledgeBase({
 
     try {
       setIsUploading(true)
+      setUploadError(null)
+      setUploadProgress({ stage: 'uploading', filesCompleted: 0, totalFiles: files.length })
 
       // Upload all files and start processing
       const uploadedFiles: UploadedFile[] = []
+      const fileArray = Array.from(files)
 
-      for (const file of Array.from(files)) {
+      for (const [index, file] of fileArray.entries()) {
+        setUploadProgress((prev) => ({ ...prev, currentFile: file.name, filesCompleted: index }))
         const formData = new FormData()
         formData.append('file', file)
 
@@ -390,6 +420,12 @@ export function KnowledgeBase({
         }
 
         const uploadResult = await uploadResponse.json()
+
+        // Validate upload result structure
+        if (!uploadResult.path) {
+          throw new Error(`Invalid upload response for ${file.name}: missing file path`)
+        }
+
         uploadedFiles.push({
           filename: file.name,
           fileUrl: uploadResult.path.startsWith('http')
@@ -400,6 +436,12 @@ export function KnowledgeBase({
           fileHash: undefined,
         })
       }
+
+      setUploadProgress((prev) => ({
+        ...prev,
+        stage: 'processing',
+        filesCompleted: fileArray.length,
+      }))
 
       // Start async document processing
       const processResponse = await fetch(`/api/knowledge/${id}/process-documents`, {
@@ -419,15 +461,34 @@ export function KnowledgeBase({
       })
 
       if (!processResponse.ok) {
-        throw new Error('Failed to start document processing')
+        const errorData = await processResponse.json()
+        throw new Error(
+          `Failed to start document processing: ${errorData.error || 'Unknown error'}`
+        )
       }
 
       const processResult = await processResponse.json()
 
+      // Validate process result structure
+      if (!processResult.success) {
+        throw new Error(`Document processing failed: ${processResult.error || 'Unknown error'}`)
+      }
+
+      if (!processResult.data || !processResult.data.documentsCreated) {
+        throw new Error('Invalid processing response: missing document data')
+      }
+
       // Create pending document objects and add them to the store immediately
-      if (processResult.success && processResult.data.documentsCreated) {
-        const pendingDocuments: DocumentData[] = processResult.data.documentsCreated.map(
-          (doc: ProcessedDocumentResponse, index: number) => ({
+      const pendingDocuments: DocumentData[] = processResult.data.documentsCreated.map(
+        (doc: ProcessedDocumentResponse, index: number) => {
+          if (!doc.documentId || !doc.filename) {
+            logger.error(`Invalid document data received:`, doc)
+            throw new Error(
+              `Invalid document data for ${uploadedFiles[index]?.filename || 'unknown file'}`
+            )
+          }
+
+          return {
             id: doc.documentId,
             knowledgeBaseId: id,
             filename: doc.filename,
@@ -444,18 +505,36 @@ export function KnowledgeBase({
             processingError: null,
             enabled: true,
             uploadedAt: new Date().toISOString(),
-          })
-        )
+          }
+        }
+      )
 
-        // Add pending documents to store for immediate UI update
-        useKnowledgeStore.getState().addPendingDocuments(id, pendingDocuments)
-      }
+      // Add pending documents to store for immediate UI update
+      useKnowledgeStore.getState().addPendingDocuments(id, pendingDocuments)
 
-      logger.info(`Started processing ${uploadedFiles.length} documents`)
+      logger.info(`Successfully started processing ${uploadedFiles.length} documents`)
+
+      setUploadProgress((prev) => ({ ...prev, stage: 'completing' }))
+
+      // Trigger a refresh to ensure documents are properly loaded
+      await refreshDocuments()
+
+      setUploadProgress({ stage: 'idle', filesCompleted: 0, totalFiles: 0 })
     } catch (err) {
       logger.error('Error uploading documents:', err)
+
+      const errorMessage =
+        err instanceof Error ? err.message : 'Unknown error occurred during upload'
+      setUploadError({
+        message: errorMessage,
+        timestamp: Date.now(),
+      })
+
+      // Show user-friendly error message in console for debugging
+      console.error('Document upload failed:', errorMessage)
     } finally {
       setIsUploading(false)
+      setUploadProgress({ stage: 'idle', filesCompleted: 0, totalFiles: 0 })
       // Reset the file input
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
@@ -572,7 +651,15 @@ export function KnowledgeBase({
                     className='flex items-center gap-1 bg-[#701FFC] font-[480] text-white shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
                   >
                     <Plus className='h-3.5 w-3.5' />
-                    {isUploading ? 'Uploading...' : 'Add Documents'}
+                    {isUploading
+                      ? uploadProgress.stage === 'uploading'
+                        ? `Uploading ${uploadProgress.filesCompleted + 1}/${uploadProgress.totalFiles}...`
+                        : uploadProgress.stage === 'processing'
+                          ? 'Processing...'
+                          : uploadProgress.stage === 'completing'
+                            ? 'Completing...'
+                            : 'Uploading...'
+                      : 'Add Documents'}
                   </Button>
                 </div>
               </div>
@@ -832,7 +919,25 @@ export function KnowledgeBase({
 
                               {/* Status column */}
                               <td className='px-4 py-3'>
-                                <div className={statusDisplay.className}>{statusDisplay.text}</div>
+                                {doc.processingStatus === 'failed' && doc.processingError ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div
+                                        className={statusDisplay.className}
+                                        style={{ cursor: 'help' }}
+                                      >
+                                        {statusDisplay.text}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side='top' className='max-w-xs'>
+                                      {doc.processingError}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <div className={statusDisplay.className}>
+                                    {statusDisplay.text}
+                                  </div>
+                                )}
                               </td>
 
                               {/* Actions column */}
@@ -948,6 +1053,39 @@ export function KnowledgeBase({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Toast Notification */}
+      {uploadError && (
+        <div className='slide-in-from-bottom-2 fixed right-4 bottom-4 z-50 max-w-md animate-in duration-300'>
+          <div className='flex cursor-pointer items-start gap-3 rounded-lg border bg-background p-4 shadow-lg'>
+            <div className='flex-shrink-0'>
+              <AlertCircle className='h-4 w-4 text-destructive' />
+            </div>
+            <div className='flex min-w-0 flex-1 flex-col gap-1'>
+              <div className='flex items-center gap-2'>
+                <span className='font-medium text-xs'>Error</span>
+                <span className='text-muted-foreground text-xs'>
+                  {formatDistanceToNow(uploadError.timestamp, { addSuffix: true }).replace(
+                    'less than a minute ago',
+                    '<1 minute ago'
+                  )}
+                </span>
+              </div>
+              <p className='overflow-wrap-anywhere hyphens-auto whitespace-normal break-normal text-foreground text-sm'>
+                {uploadError.message.length > 100
+                  ? `${uploadError.message.slice(0, 60)}...`
+                  : uploadError.message}
+              </p>
+            </div>
+            <button
+              onClick={() => setUploadError(null)}
+              className='flex-shrink-0 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring'
+            >
+              <X className='h-4 w-4' />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

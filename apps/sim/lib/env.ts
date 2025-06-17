@@ -48,12 +48,21 @@ export const env = createEnv({
     NEXT_TELEMETRY_DISABLED: z.string().optional(),
     NEXT_RUNTIME: z.string().optional(),
     VERCEL_ENV: z.string().optional(),
+
+    // Storage
     AWS_REGION: z.string().optional(),
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
     S3_BUCKET_NAME: z.string().optional(),
     S3_LOGS_BUCKET_NAME: z.string().optional(),
     S3_KB_BUCKET_NAME: z.string().optional(),
+    AZURE_ACCOUNT_NAME: z.string().optional(),
+    AZURE_ACCOUNT_KEY: z.string().optional(),
+    AZURE_CONNECTION_STRING: z.string().optional(),
+    AZURE_STORAGE_CONTAINER_NAME: z.string().optional(),
+    AZURE_STORAGE_KB_CONTAINER_NAME: z.string().optional(),
+
+    // Miscellaneous
     CRON_SECRET: z.string().optional(),
     FREE_PLAN_LOG_RETENTION_DAYS: z.string().optional(),
     NODE_ENV: z.string().optional(),
