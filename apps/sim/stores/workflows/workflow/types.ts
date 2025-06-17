@@ -60,7 +60,7 @@ export interface BlockData {
   // Loop-specific properties
   collection?: any // The items to iterate over in a loop
   count?: number // Number of iterations for numeric loops
-  loopType?: string // Type of loop ('for', 'forEach', etc.)
+  loopType?: 'for' | 'forEach' // Type of loop - must match Loop interface
 
   // Container node type (for ReactFlow node type determination)
   type?: string
