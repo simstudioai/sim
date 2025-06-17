@@ -169,7 +169,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         try {
           logger.info(`Switching workspace from ${currentWorkspaceId || 'none'} to ${workspaceId}`)
 
-          // IMPORTANT: Save to localStorage first before any async operations
+          // Save to localStorage first before any async operations
           get().setActiveWorkspaceId(workspaceId)
 
           // Clear current workspace state

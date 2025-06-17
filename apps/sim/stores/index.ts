@@ -52,7 +52,7 @@ async function initializeApplication(): Promise<void> {
       return
     }
 
-    // CRITICAL: Mark data as initialized only AFTER sync managers have loaded data from DB
+    // Mark data as initialized only after sync managers have loaded data from DB
     dataInitialized = true
 
     // Register cleanup

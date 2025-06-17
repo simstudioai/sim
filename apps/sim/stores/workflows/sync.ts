@@ -2,11 +2,10 @@
 
 import { createLogger } from '@/lib/logs/console-logger'
 import { API_ENDPOINTS } from '../constants'
+import { isDataInitialized } from '../index'
 import { createSingletonSyncManager } from '../sync'
 import { getAllWorkflowsWithValues } from '.'
-import { useWorkflowRegistry } from './registry/store'
-import { isWorkspaceInTransition } from './registry/store'
-import { isDataInitialized } from '../index'
+import { isWorkspaceInTransition, useWorkflowRegistry } from './registry/store'
 import type { WorkflowMetadata } from './registry/types'
 import { useSubBlockStore } from './subblock/store'
 import type { BlockState } from './workflow/types'
@@ -27,7 +26,7 @@ const workflowSyncConfig = {
   preparePayload: () => {
     if (typeof window === 'undefined') return { skipSync: true }
 
-    // CRITICAL: Never sync until data is loaded from database
+    // Skip sync if data is not yet initialized from database
     if (!isDataInitialized()) {
       logger.info('Skipping sync: Data not yet initialized from database')
       return { skipSync: true }
@@ -38,7 +37,7 @@ const workflowSyncConfig = {
       return { skipSync: true }
     }
 
-    // CRITICAL: Block sync during workspace transitions to prevent race conditions
+    // Block sync during workspace transitions to prevent race conditions
     if (isWorkspaceInTransition()) {
       logger.info('Skipping sync: Workspace transition in progress')
       return { skipSync: true }
@@ -52,7 +51,7 @@ const workflowSyncConfig = {
       return { skipSync: true }
     }
 
-    // SAFETY CHECK: Never sync if any workflow has empty state
+    // Safety check: Never sync if any workflow has empty state
     // A valid workflow should always have at least a start block
     const allWorkflowsHaveBlocks = Object.values(allWorkflowsData).every((workflow) => {
       const blocks = workflow.state?.blocks || {}

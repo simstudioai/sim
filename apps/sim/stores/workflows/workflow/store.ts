@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import { resolveOutputType } from '@/blocks/utils'
+import { isDataInitialized } from '../../index'
 import { pushHistory, type WorkflowStoreWithHistory, withHistory } from '../middleware'
 import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
@@ -10,8 +11,6 @@ import { markWorkflowsDirty, workflowSync } from '../sync'
 import { mergeSubblockState } from '../utils'
 import type { Position, SubBlockState, SyncControl, WorkflowState } from './types'
 import { generateLoopBlocks, generateParallelBlocks } from './utils'
-import { useGeneralStore } from '@/stores/settings/general/store'
-import { isDataInitialized } from '../../index'
 
 const initialState = {
   blocks: {},
