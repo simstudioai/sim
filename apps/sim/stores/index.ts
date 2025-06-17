@@ -19,6 +19,7 @@ const logger = createLogger('Stores')
 // Track initialization state
 let isInitializing = false
 let appFullyInitialized = false
+let dataInitialized = false // Flag for actual data loading completion
 
 /**
  * Initialize the application state and sync system
@@ -51,6 +52,9 @@ async function initializeApplication(): Promise<void> {
       return
     }
 
+    // CRITICAL: Mark data as initialized only AFTER sync managers have loaded data from DB
+    dataInitialized = true
+
     // Register cleanup
     window.addEventListener('beforeunload', handleBeforeUnload)
 
@@ -64,6 +68,8 @@ async function initializeApplication(): Promise<void> {
     logger.error('Error during application initialization:', { error })
     // Still mark as initialized to prevent being stuck in initializing state
     appFullyInitialized = true
+    // But don't mark data as initialized on error
+    dataInitialized = false
   } finally {
     isInitializing = false
   }
@@ -74,6 +80,14 @@ async function initializeApplication(): Promise<void> {
  */
 export function isAppInitialized(): boolean {
   return appFullyInitialized
+}
+
+/**
+ * Checks if data has been loaded from the database
+ * This should be checked before any sync operations
+ */
+export function isDataInitialized(): boolean {
+  return dataInitialized
 }
 
 /**
@@ -131,6 +145,7 @@ export async function clearUserData(): Promise<void> {
 
     // Reset application initialization state
     appFullyInitialized = false
+    dataInitialized = false
 
     logger.info('User data cleared successfully')
   } catch (error) {
@@ -172,6 +187,7 @@ export async function reinitializeAfterLogin(): Promise<void> {
   try {
     // Reset application initialization state
     appFullyInitialized = false
+    dataInitialized = false
 
     // Reset sync managers to prevent any active syncs during reinitialization
     disposeSyncManagers()

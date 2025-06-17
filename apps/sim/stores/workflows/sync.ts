@@ -4,7 +4,9 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { API_ENDPOINTS } from '../constants'
 import { createSingletonSyncManager } from '../sync'
 import { getAllWorkflowsWithValues } from '.'
-import { isWorkspaceInTransition, useWorkflowRegistry } from './registry/store'
+import { useWorkflowRegistry } from './registry/store'
+import { isWorkspaceInTransition } from './registry/store'
+import { isDataInitialized } from '../index'
 import type { WorkflowMetadata } from './registry/types'
 import { useSubBlockStore } from './subblock/store'
 import type { BlockState } from './workflow/types'
@@ -24,6 +26,12 @@ const workflowSyncConfig = {
   endpoint: API_ENDPOINTS.SYNC,
   preparePayload: () => {
     if (typeof window === 'undefined') return { skipSync: true }
+
+    // CRITICAL: Never sync until data is loaded from database
+    if (!isDataInitialized()) {
+      logger.info('Skipping sync: Data not yet initialized from database')
+      return { skipSync: true }
+    }
 
     // Prevent concurrent syncs
     if (isSyncing) {

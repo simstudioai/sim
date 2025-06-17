@@ -10,6 +10,8 @@ import { markWorkflowsDirty, workflowSync } from '../sync'
 import { mergeSubblockState } from '../utils'
 import type { Position, SubBlockState, SyncControl, WorkflowState } from './types'
 import { generateLoopBlocks, generateParallelBlocks } from './utils'
+import { useGeneralStore } from '@/stores/settings/general/store'
+import { isDataInitialized } from '../../index'
 
 const initialState = {
   blocks: {},
@@ -50,6 +52,10 @@ const initialState = {
  */
 const createSyncControl = (): SyncControl => ({
   markDirty: () => {
+    // Only mark dirty if data is initialized
+    if (!isDataInitialized()) {
+      return
+    }
     // Simply mark workflows as dirty for sync
     markWorkflowsDirty()
   },
@@ -58,6 +64,10 @@ const createSyncControl = (): SyncControl => ({
     return true
   },
   forceSync: () => {
+    // Only force sync if data is initialized
+    if (!isDataInitialized()) {
+      return
+    }
     // Force sync by marking dirty and syncing
     markWorkflowsDirty()
     // Small delay to ensure state has settled
