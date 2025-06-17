@@ -15,6 +15,7 @@ const logger = createLogger('WorkflowsSync')
 let lastSyncedData = ''
 let isSyncing = false
 let isFetching = false // Add lock to prevent concurrent fetches
+let lastFetchTimestamp = 0 // Track when we last fetched to prevent race conditions
 
 /**
  * Simplified workflow sync - no more complex flags and initialization checks
@@ -113,6 +114,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     return
   }
 
+  const fetchStartTime = Date.now()
   isFetching = true
 
   try {
@@ -136,10 +138,31 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       throw new Error(`Failed to fetch workflows: ${response.statusText}`)
     }
 
+    // Check if this fetch is still relevant (not superseded by a newer fetch)
+    if (fetchStartTime < lastFetchTimestamp) {
+      logger.info('Fetch superseded by newer operation, discarding results')
+      return
+    }
+
+    // Update timestamp to mark this as the most recent fetch
+    lastFetchTimestamp = fetchStartTime
+
     const { data } = await response.json()
 
     if (!data || !Array.isArray(data)) {
       logger.info('No workflows found in database')
+      
+      // Only clear workflows if we're confident this is a legitimate empty state
+      // Avoid overwriting existing workflows during race conditions
+      const currentWorkflows = useWorkflowRegistry.getState().workflows
+      const hasExistingWorkflows = Object.keys(currentWorkflows).length > 0
+      
+      if (hasExistingWorkflows) {
+        logger.warn('Received empty workflow data but local workflows exist - possible race condition, preserving local state')
+        useWorkflowRegistry.setState({ isLoading: false })
+        return
+      }
+      
       useWorkflowRegistry.setState({ workflows: {}, isLoading: false })
       return
     }

@@ -10,17 +10,22 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
  * when workflows are loaded or after a timeout
  */
 export function useRegistryLoading() {
-  const { workflows, setLoading } = useWorkflowRegistry()
+  const { workflows, setLoading, isLoading } = useWorkflowRegistry()
 
   useEffect(() => {
-    // Set loading state initially
-    setLoading(true)
+    // Only set loading if we don't have workflows and aren't already loading
+    if (Object.keys(workflows).length === 0 && !isLoading) {
+      setLoading(true)
+    }
 
     // If workflows are already loaded, clear loading state
-    if (Object.keys(workflows).length > 0) {
-      setTimeout(() => setLoading(false), 300)
+    if (Object.keys(workflows).length > 0 && isLoading) {
+      setTimeout(() => setLoading(false), 100)
       return
     }
+
+    // Only create timeout if we're actually loading
+    if (!isLoading) return
 
     // Create a timeout to clear loading state after max time
     const timeout = setTimeout(() => {
@@ -40,5 +45,5 @@ export function useRegistryLoading() {
       clearTimeout(timeout)
       clearInterval(checkInterval)
     }
-  }, [setLoading, workflows])
+  }, [setLoading, workflows, isLoading])
 }

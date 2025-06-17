@@ -97,10 +97,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
       // Set loading state
       setLoading: (loading: boolean) => {
-        // Only set loading to true if workflows is empty
-        if (!loading || Object.keys(get().workflows).length === 0) {
-          set({ isLoading: loading })
-        }
+        // Remove the broken logic that prevents loading when workflows exist
+        // This was causing race conditions during deletion and sync operations
+        set({ isLoading: loading })
       },
 
       // Handle cleanup on workspace deletion
@@ -1119,6 +1118,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return
         }
 
+        // Set loading state to prevent concurrent operations during deletion
+        set({ isLoading: true, error: null })
+
         try {
           // Call DELETE endpoint to remove from database
           const response = await fetch(`/api/workflows/${id}`, {
@@ -1135,6 +1137,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           logger.error(`Failed to delete workflow ${id} from database:`, error)
           set({
             error: `Failed to delete workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            isLoading: false,
           })
           return
         }
@@ -1156,6 +1159,12 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           if (state.activeWorkflowId === id) {
             const remainingIds = Object.keys(newWorkflows)
             newActiveWorkflowId = remainingIds[0] || null
+
+            // Ensure the workflow we're switching to actually exists
+            if (newActiveWorkflowId && !newWorkflows[newActiveWorkflowId]) {
+              logger.warn(`Attempted to switch to non-existent workflow ${newActiveWorkflowId}`)
+              newActiveWorkflowId = null
+            }
 
             if (!newActiveWorkflowId) {
               // No workflows left, initialize empty state
@@ -1211,6 +1220,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             workflows: newWorkflows,
             activeWorkflowId: newActiveWorkflowId,
             error: null,
+            isLoading: false, // Clear loading state after successful deletion
           }
         })
       },
