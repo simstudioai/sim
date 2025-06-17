@@ -38,6 +38,18 @@ const workflowSyncConfig = {
       return { skipSync: true }
     }
 
+    // SAFETY CHECK: Never sync if any workflow has empty state
+    // A valid workflow should always have at least a start block
+    const allWorkflowsHaveBlocks = Object.values(allWorkflowsData).every(workflow => {
+      const blocks = workflow.state?.blocks || {}
+      return Object.keys(blocks).length > 0
+    })
+
+    if (!allWorkflowsHaveBlocks) {
+      logger.warn('Skipping sync: One or more workflows have empty state (no blocks). This indicates corrupted or incomplete workflow data.')
+      return { skipSync: true }
+    }
+
     // Skip sync if no changes detected
     const currentDataHash = JSON.stringify(allWorkflowsData)
     if (currentDataHash === lastSyncedData) {
@@ -151,18 +163,20 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 
     if (!data || !Array.isArray(data)) {
       logger.info('No workflows found in database')
-      
+
       // Only clear workflows if we're confident this is a legitimate empty state
       // Avoid overwriting existing workflows during race conditions
       const currentWorkflows = useWorkflowRegistry.getState().workflows
       const hasExistingWorkflows = Object.keys(currentWorkflows).length > 0
-      
+
       if (hasExistingWorkflows) {
-        logger.warn('Received empty workflow data but local workflows exist - possible race condition, preserving local state')
+        logger.warn(
+          'Received empty workflow data but local workflows exist - possible race condition, preserving local state'
+        )
         useWorkflowRegistry.setState({ isLoading: false })
         return
       }
-      
+
       useWorkflowRegistry.setState({ workflows: {}, isLoading: false })
       return
     }
