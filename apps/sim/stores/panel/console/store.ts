@@ -7,28 +7,6 @@ const MAX_ENTRIES = 50 // MAX across all workflows
 const MAX_IMAGE_DATA_SIZE = 1000 // Maximum size of image data to store (in characters)
 
 /**
- * Gets a nested property value from an object using a path string
- * @param obj The object to get the value from
- * @param path The path to the value (e.g. 'response.content')
- * @returns The value at the path, or undefined if not found
- */
-const getValueByPath = (obj: any, path: string): any => {
-  if (!obj || !path) return undefined
-
-  const pathParts = path.split('.')
-  let current = obj
-
-  for (const part of pathParts) {
-    if (current === null || current === undefined || typeof current !== 'object') {
-      return undefined
-    }
-    current = current[part]
-  }
-
-  return current
-}
-
-/**
  * Checks if a string is likely a base64 encoded image or large data blob
  */
 const isLikelyBase64Data = (value: string): boolean => {
@@ -168,9 +146,9 @@ export const useConsoleStore = create<ConsoleStore>()(
 
         clearConsole: (workflowId: string | null) => {
           set((state) => ({
-            entries: state.entries.filter(
-              (entry) => !workflowId || entry.workflowId !== workflowId
-            ),
+            entries: workflowId
+              ? state.entries.filter((entry) => entry.workflowId !== workflowId)
+              : [],
           }))
         },
 
@@ -182,15 +160,57 @@ export const useConsoleStore = create<ConsoleStore>()(
           set((state) => ({ isOpen: !state.isOpen }))
         },
 
-        updateConsole: (blockId: string, newContent: string) => {
+        updateConsole: (blockId: string, update: string | import('./types').ConsoleUpdate) => {
           set((state) => {
             const updatedEntries = state.entries.map((entry) => {
               if (entry.blockId === blockId) {
-                const newOutput = { ...(entry.output as any) }
-                if (newOutput.response) {
-                  newOutput.response.content = newContent
+                if (typeof update === 'string') {
+                  // Simple content update for backward compatibility
+                  const newOutput = { ...(entry.output as any) }
+                  if (newOutput.response) {
+                    newOutput.response.content = update
+                  }
+                  return { ...entry, output: newOutput }
                 }
-                return { ...entry, output: newOutput }
+                // Complex update with multiple fields
+                const updatedEntry = { ...entry }
+
+                if (update.content !== undefined) {
+                  const newOutput = { ...(entry.output as any) }
+                  if (newOutput.response) {
+                    newOutput.response.content = update.content
+                  }
+                  updatedEntry.output = newOutput
+                }
+
+                if (update.output !== undefined) {
+                  updatedEntry.output = {
+                    ...(entry.output as any),
+                    ...update.output,
+                  }
+                }
+
+                if (update.error !== undefined) {
+                  updatedEntry.error = update.error
+                }
+
+                if (update.warning !== undefined) {
+                  updatedEntry.warning = update.warning
+                }
+
+                if (update.success !== undefined) {
+                  updatedEntry.success = update.success
+                }
+
+                if (update.endedAt !== undefined) {
+                  updatedEntry.endedAt = update.endedAt
+                }
+
+                if (update.durationMs !== undefined) {
+                  updatedEntry.durationMs = update.durationMs
+                }
+
+                return updatedEntry
               }
               return entry
             })

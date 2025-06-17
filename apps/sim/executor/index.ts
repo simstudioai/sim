@@ -233,21 +233,47 @@ export class Executor {
                   const [streamForClient, streamForExecutor] = streamingExec.stream.tee()
 
                   const clientStreamingExec = { ...streamingExec, stream: streamForClient }
-                  context.onStream(clientStreamingExec)
 
+                  try {
+                    // Handle client stream with proper error handling
+                    await context.onStream(clientStreamingExec)
+                  } catch (streamError: any) {
+                    logger.error('Error in onStream callback:', streamError)
+                    // Continue execution even if stream callback fails
+                  }
+
+                  // Process executor stream with proper cleanup
                   const reader = streamForExecutor.getReader()
                   const decoder = new TextDecoder()
                   let fullContent = ''
-                  while (true) {
-                    const { done, value } = await reader.read()
-                    if (done) break
-                    fullContent += decoder.decode(value)
-                  }
 
-                  const blockId = (streamingExec.execution as any).blockId
-                  const blockState = context.blockStates.get(blockId)
-                  if (blockState?.output?.response) {
-                    blockState.output.response.content = fullContent
+                  try {
+                    while (true) {
+                      const { done, value } = await reader.read()
+                      if (done) break
+                      fullContent += decoder.decode(value, { stream: true })
+                    }
+
+                    const blockId = (streamingExec.execution as any).blockId
+                    const blockState = context.blockStates.get(blockId)
+                    if (blockState?.output?.response) {
+                      blockState.output.response.content = fullContent
+                    }
+                  } catch (readerError: any) {
+                    logger.error('Error reading stream for executor:', readerError)
+                    // Set partial content if available
+                    const blockId = (streamingExec.execution as any).blockId
+                    const blockState = context.blockStates.get(blockId)
+                    if (blockState?.output?.response && fullContent) {
+                      blockState.output.response.content = fullContent
+                    }
+                  } finally {
+                    try {
+                      reader.releaseLock()
+                    } catch (releaseError: any) {
+                      // Reader might already be released
+                      logger.debug('Reader already released:', releaseError)
+                    }
                   }
                 }
               }
@@ -1199,6 +1225,7 @@ export class Executor {
         if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
           addConsole({
             output: blockLog.output,
+            success: true,
             durationMs: blockLog.durationMs,
             startedAt: blockLog.startedAt,
             endedAt: blockLog.endedAt,
@@ -1261,6 +1288,7 @@ export class Executor {
       if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
         addConsole({
           output: blockLog.output,
+          success: true,
           durationMs: blockLog.durationMs,
           startedAt: blockLog.startedAt,
           endedAt: blockLog.endedAt,
@@ -1326,6 +1354,7 @@ export class Executor {
       if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
         addConsole({
           output: {},
+          success: false,
           error:
             error.message ||
             `Error executing ${block.metadata?.id || 'unknown'} block: ${String(error)}`,
@@ -1333,6 +1362,7 @@ export class Executor {
           startedAt: blockLog.startedAt,
           endedAt: blockLog.endedAt,
           workflowId: context.workflowId,
+          blockId: parallelInfo ? blockId : block.id,
           blockName: parallelInfo
             ? `${block.metadata?.name || 'Unnamed Block'} (iteration ${parallelInfo.iterationIndex + 1})`
             : block.metadata?.name || 'Unnamed Block',

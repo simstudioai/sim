@@ -285,6 +285,12 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       scrollToMessage(userMessage.id, true)
     }, 100)
 
+    // Create abort controller for request cancellation
+    const abortController = new AbortController()
+    const timeoutId = setTimeout(() => {
+      abortController.abort()
+    }, 300000) // 5 minute timeout
+
     try {
       // Send structured payload to maintain chat context
       const payload = {
@@ -303,7 +309,11 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
         },
         body: JSON.stringify(payload),
         credentials: 'same-origin',
+        signal: abortController.signal,
       })
+
+      // Clear timeout since request succeeded
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -316,73 +326,123 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
 
       const messageIdMap = new Map<string, string>()
       setIsLoading(true)
+
+      // Get reader with proper cleanup
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
 
       const processStream = async () => {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) {
-            setIsLoading(false)
-            break
+        let streamAborted = false
+
+        // Add cleanup handler for abort
+        const cleanup = () => {
+          streamAborted = true
+          try {
+            reader.releaseLock()
+          } catch (error) {
+            // Reader might already be released
+            logger.debug('Reader already released:', error)
           }
+          setIsLoading(false)
+        }
 
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n\n')
+        // Listen for abort events
+        abortController.signal.addEventListener('abort', cleanup)
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const json = JSON.parse(line.substring(6))
-                const { blockId, chunk: contentChunk, event: eventType } = json
+        try {
+          while (!streamAborted) {
+            const { done, value } = await reader.read()
 
-                if (eventType === 'final') {
-                  setIsLoading(false)
-                  return
-                }
+            if (done) {
+              setIsLoading(false)
+              break
+            }
 
-                if (blockId && contentChunk) {
-                  if (!messageIdMap.has(blockId)) {
-                    const newMessageId = crypto.randomUUID()
-                    messageIdMap.set(blockId, newMessageId)
-                    setMessages((prev) => [
-                      ...prev,
-                      {
-                        id: newMessageId,
-                        content: contentChunk,
-                        type: 'assistant',
-                        timestamp: new Date(),
-                        isStreaming: true,
-                      },
-                    ])
-                  } else {
+            if (streamAborted) {
+              break
+            }
+
+            const chunk = decoder.decode(value, { stream: true })
+            const lines = chunk.split('\n\n')
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const json = JSON.parse(line.substring(6))
+                  const { blockId, chunk: contentChunk, event: eventType } = json
+
+                  if (eventType === 'final') {
+                    setIsLoading(false)
+                    return
+                  }
+
+                  if (blockId && contentChunk) {
+                    if (!messageIdMap.has(blockId)) {
+                      const newMessageId = crypto.randomUUID()
+                      messageIdMap.set(blockId, newMessageId)
+                      setMessages((prev) => [
+                        ...prev,
+                        {
+                          id: newMessageId,
+                          content: contentChunk,
+                          type: 'assistant',
+                          timestamp: new Date(),
+                          isStreaming: true,
+                        },
+                      ])
+                    } else {
+                      const messageId = messageIdMap.get(blockId)!
+                      setMessages((prev) =>
+                        prev.map((msg) =>
+                          msg.id === messageId
+                            ? { ...msg, content: msg.content + contentChunk }
+                            : msg
+                        )
+                      )
+                    }
+                  } else if (blockId && eventType === 'end') {
                     const messageId = messageIdMap.get(blockId)!
-                    setMessages((prev) =>
-                      prev.map((msg) =>
-                        msg.id === messageId ? { ...msg, content: msg.content + contentChunk } : msg
+                    if (messageId) {
+                      setMessages((prev) =>
+                        prev.map((msg) =>
+                          msg.id === messageId ? { ...msg, isStreaming: false } : msg
+                        )
                       )
-                    )
+                    }
                   }
-                } else if (blockId && eventType === 'end') {
-                  const messageId = messageIdMap.get(blockId)!
-                  if (messageId) {
-                    setMessages((prev) =>
-                      prev.map((msg) =>
-                        msg.id === messageId ? { ...msg, isStreaming: false } : msg
-                      )
-                    )
-                  }
+                } catch (parseError) {
+                  logger.error('Error parsing stream data:', parseError)
+                  // Continue processing other lines even if one fails
                 }
-              } catch (error) {
-                logger.error('Error parsing stream data:', error)
               }
             }
           }
+        } catch (streamError: any) {
+          if (streamError.name === 'AbortError') {
+            logger.info('Stream processing aborted by user')
+            return
+          }
+
+          logger.error('Error processing stream:', streamError)
+          throw streamError
+        } finally {
+          // Ensure cleanup always happens
+          cleanup()
+          abortController.signal.removeEventListener('abort', cleanup)
         }
       }
 
       await processStream()
-    } catch (error) {
+    } catch (error: any) {
+      // Clear timeout in case of error
+      clearTimeout(timeoutId)
+
+      if (error.name === 'AbortError') {
+        logger.info('Request aborted by user or timeout')
+        setIsLoading(false)
+        return
+      }
+
       logger.error('Error sending message:', error)
       setIsLoading(false)
       const errorMessage: ChatMessage = {
