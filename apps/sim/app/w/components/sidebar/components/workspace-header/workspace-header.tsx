@@ -286,16 +286,8 @@ export function WorkspaceHeader({
                   setActiveWorkspaceId(fallbackWorkspace.id)
                 }
               }
-            } else {
-              // No active workspace in registry yet - wait for loadLastActiveWorkspace() to complete
-              // If there's only one workspace, we can safely select it
-              if (fetchedWorkspaces.length === 1) {
-                const onlyWorkspace = fetchedWorkspaces[0]
-                setActiveWorkspace(onlyWorkspace)
-                setActiveWorkspaceId(onlyWorkspace.id)
-              }
-              // For multiple workspaces, wait for the saved preference to load
             }
+            // If no activeWorkspaceId, let loadWorkspaceFromWorkflowId handle workspace selection
           }
           setIsWorkspacesLoading(false)
         })

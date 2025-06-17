@@ -43,8 +43,11 @@ async function initializeApplication(): Promise<void> {
     // Load custom tools from server
     await useCustomToolsStore.getState().loadCustomTools()
 
-    // Load user's last active workspace from localStorage (with validation)
-    await useWorkflowRegistry.getState().loadLastActiveWorkspace()
+    // Extract workflow ID from URL for smart workspace selection
+    const workflowIdFromUrl = extractWorkflowIdFromUrl()
+    
+    // Load workspace based on workflow ID in URL, with fallback to last active workspace
+    await useWorkflowRegistry.getState().loadWorkspaceFromWorkflowId(workflowIdFromUrl)
 
     // Initialize sync system and wait for data to load completely
     const syncInitialized = await initializeSyncManagers()
@@ -74,6 +77,31 @@ async function initializeApplication(): Promise<void> {
     dataInitialized = false
   } finally {
     isInitializing = false
+  }
+}
+
+/**
+ * Extract workflow ID from current URL
+ * @returns workflow ID if found in URL, null otherwise
+ */
+function extractWorkflowIdFromUrl(): string | null {
+  if (typeof window === 'undefined') return null
+  
+  try {
+    const pathSegments = window.location.pathname.split('/')
+    // Check if URL matches pattern /w/{workflowId}
+    if (pathSegments.length >= 3 && pathSegments[1] === 'w') {
+      const workflowId = pathSegments[2]
+      // Basic UUID validation (36 characters, contains hyphens)
+      if (workflowId && workflowId.length === 36 && workflowId.includes('-')) {
+        logger.info(`Extracted workflow ID from URL: ${workflowId}`)
+        return workflowId
+      }
+    }
+    return null
+  } catch (error) {
+    logger.warn('Failed to extract workflow ID from URL:', error)
+    return null
   }
 }
 

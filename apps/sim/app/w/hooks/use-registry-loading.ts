@@ -1,17 +1,78 @@
 'use client'
 
 import { useEffect } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 /**
- * Custom hook to manage workflow registry loading state
+ * Extract workflow ID from pathname
+ * @param pathname - Current pathname
+ * @returns workflow ID if found, null otherwise
+ */
+function extractWorkflowIdFromPathname(pathname: string): string | null {
+  try {
+    const pathSegments = pathname.split('/')
+    // Check if URL matches pattern /w/{workflowId}
+    if (pathSegments.length >= 3 && pathSegments[1] === 'w') {
+      const workflowId = pathSegments[2]
+      // Basic UUID validation (36 characters, contains hyphens)
+      if (workflowId && workflowId.length === 36 && workflowId.includes('-')) {
+        return workflowId
+      }
+    }
+    return null
+  } catch (error) {
+    console.warn('Failed to extract workflow ID from pathname:', error)
+    return null
+  }
+}
+
+/**
+ * Custom hook to manage workflow registry loading state and handle first-time navigation
  *
  * This hook initializes the loading state and automatically clears it
- * when workflows are loaded or after a timeout
+ * when workflows are loaded. It also handles smart workspace selection 
+ * and navigation for first-time users.
  */
 export function useRegistryLoading() {
-  const { workflows, setLoading, isLoading } = useWorkflowRegistry()
+  const { 
+    workflows, 
+    setLoading, 
+    isLoading, 
+    activeWorkspaceId, 
+    loadWorkspaceFromWorkflowId 
+  } = useWorkflowRegistry()
+  const pathname = usePathname()
+  const router = useRouter()
 
+  // Handle workspace selection from URL
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      const workflowIdFromUrl = extractWorkflowIdFromPathname(pathname)
+      if (workflowIdFromUrl) {
+        loadWorkspaceFromWorkflowId(workflowIdFromUrl).catch((error) => {
+          console.warn('Failed to load workspace from workflow ID:', error)
+        })
+      }
+    }
+  }, [activeWorkspaceId, pathname, loadWorkspaceFromWorkflowId])
+
+  // Handle first-time navigation: if we're at /w and have workflows, navigate to first one
+  useEffect(() => {
+    if (!isLoading && activeWorkspaceId && Object.keys(workflows).length > 0) {
+      const workflowCount = Object.keys(workflows).length
+      const currentWorkflowId = extractWorkflowIdFromPathname(pathname)
+      
+      // If we're at a generic workspace URL (/w, /w/, or /w/workspaceId) without a specific workflow
+      if (!currentWorkflowId && (pathname === '/w' || pathname === '/w/' || pathname === `/w/${activeWorkspaceId}`)) {
+        const firstWorkflowId = Object.keys(workflows)[0]
+        console.log('First-time navigation: redirecting to first workflow:', firstWorkflowId)
+        router.replace(`/w/${firstWorkflowId}`)
+      }
+    }
+  }, [isLoading, activeWorkspaceId, workflows, pathname, router])
+
+  // Handle loading states
   useEffect(() => {
     // Only set loading if we don't have workflows and aren't already loading
     if (Object.keys(workflows).length === 0 && !isLoading) {

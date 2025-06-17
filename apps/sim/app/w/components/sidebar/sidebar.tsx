@@ -35,6 +35,7 @@ export function Sidebar() {
   const isLoading = workflowsLoading || sessionLoading
   const router = useRouter()
   const pathname = usePathname()
+
   const [showSettings, setShowSettings] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showInviteMembers, setShowInviteMembers] = useState(false)
