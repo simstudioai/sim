@@ -4,8 +4,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { API_ENDPOINTS } from '../constants'
 import { createSingletonSyncManager } from '../sync'
 import { getAllWorkflowsWithValues } from '.'
-import { useWorkflowRegistry } from './registry/store'
-import { isWorkspaceInTransition } from './registry/store'
+import { isWorkspaceInTransition, useWorkflowRegistry } from './registry/store'
 import type { WorkflowMetadata } from './registry/types'
 import { useSubBlockStore } from './subblock/store'
 import type { BlockState } from './workflow/types'
@@ -47,13 +46,15 @@ const workflowSyncConfig = {
 
     // SAFETY CHECK: Never sync if any workflow has empty state
     // A valid workflow should always have at least a start block
-    const allWorkflowsHaveBlocks = Object.values(allWorkflowsData).every(workflow => {
+    const allWorkflowsHaveBlocks = Object.values(allWorkflowsData).every((workflow) => {
       const blocks = workflow.state?.blocks || {}
       return Object.keys(blocks).length > 0
     })
 
     if (!allWorkflowsHaveBlocks) {
-      logger.warn('Skipping sync: One or more workflows have empty state (no blocks). This indicates corrupted or incomplete workflow data.')
+      logger.warn(
+        'Skipping sync: One or more workflows have empty state (no blocks). This indicates corrupted or incomplete workflow data.'
+      )
       return { skipSync: true }
     }
 
