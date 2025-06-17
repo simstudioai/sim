@@ -131,7 +131,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
           // Properly await workflow fetching to prevent race conditions
           await fetchWorkflowsFromDB()
-          
+
           set({ isLoading: false })
           logger.info(`Successfully switched to workspace after deletion: ${newWorkspaceId}`)
         } catch (error) {
