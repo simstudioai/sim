@@ -5,8 +5,10 @@ import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSession } from '@/lib/auth-client'
 
 interface InviteModalProps {
   open: boolean
@@ -19,6 +21,21 @@ interface EmailTagProps {
   onRemove: () => void
   disabled?: boolean
   isInvalid?: boolean
+}
+
+interface UserPermissions {
+  email: string
+  admin: boolean
+  read: boolean
+  edit: boolean
+  deploy: boolean
+  isCurrentUser?: boolean
+}
+
+interface PermissionsTableProps {
+  userPermissions: UserPermissions[]
+  onPermissionChange: (email: string, permission: keyof Omit<UserPermissions, 'email'>, value: boolean) => void
+  disabled?: boolean
 }
 
 const EmailTag = ({ email, onRemove, disabled, isInvalid }: EmailTagProps) => (
@@ -39,6 +56,133 @@ const EmailTag = ({ email, onRemove, disabled, isInvalid }: EmailTagProps) => (
   </div>
 )
 
+const PermissionsTable = ({ userPermissions, onPermissionChange, disabled }: PermissionsTableProps) => {
+  const { data: session } = useSession()
+  
+  if (userPermissions.length === 0 && !session?.user?.email) return null
+
+  // Create current user entry
+  const currentUser: UserPermissions | null = session?.user?.email ? {
+    email: session.user.email,
+    admin: true,
+    read: true,
+    edit: true,
+    deploy: true,
+    isCurrentUser: true
+  } : null
+
+  // Combine current user with invited users
+  const allUsers: UserPermissions[] = currentUser ? [currentUser, ...userPermissions] : userPermissions
+
+  return (
+    <div className='space-y-2'>
+      <label className='font-medium text-sm text-foreground'>Member Permissions</label>
+      <div className='rounded-lg border border-border bg-card'>
+        <div className='max-h-64 overflow-y-auto'>
+          <table className='w-full text-sm'>
+            <thead className='sticky top-0 bg-muted/50 border-b border-border'>
+              <tr>
+                <th className='px-4 py-3 text-left font-medium text-muted-foreground'>Email</th>
+                <th className='px-4 py-3 text-center font-medium text-muted-foreground'>Admin</th>
+                <th className='px-4 py-3 text-center font-medium text-muted-foreground'>Read</th>
+                <th className='px-4 py-3 text-center font-medium text-muted-foreground'>Edit</th>
+                <th className='px-4 py-3 text-center font-medium text-muted-foreground'>Deploy</th>
+              </tr>
+            </thead>
+            <tbody className='divide-y divide-border'>
+              {allUsers.map((user, index) => {
+                const isCurrentUser = user.isCurrentUser === true
+                return (
+                  <tr 
+                    key={user.email} 
+                    className={cn(
+                      'transition-colors hover:bg-muted/50',
+                      index % 2 === 0 ? 'bg-card' : 'bg-muted/20',
+                      isCurrentUser && 'bg-primary/5 border-primary/20'
+                    )}
+                  >
+                    <td className='px-4 py-3 font-medium text-card-foreground max-w-[200px] truncate'>
+                      {user.email}
+                      {isCurrentUser && (
+                        <span className='ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary'>
+                          You
+                        </span>
+                      )}
+                    </td>
+                    <td className='px-4 py-3 text-center'>
+                      <div className='flex justify-center'>
+                        <Checkbox
+                          checked={user.admin}
+                          onCheckedChange={isCurrentUser ? undefined : (checked) => 
+                            onPermissionChange(user.email, 'admin', Boolean(checked))
+                          }
+                          disabled={disabled || isCurrentUser}
+                          className={cn(
+                            'data-[state=checked]:bg-primary data-[state=checked]:border-primary',
+                            isCurrentUser && 'opacity-75 cursor-not-allowed'
+                          )}
+                        />
+                      </div>
+                    </td>
+                    <td className='px-4 py-3 text-center'>
+                      <div className='flex justify-center'>
+                        <Checkbox
+                          checked={user.read}
+                          onCheckedChange={isCurrentUser ? undefined : (checked) => 
+                            onPermissionChange(user.email, 'read', Boolean(checked))
+                          }
+                          disabled={disabled || user.admin || isCurrentUser}
+                          className={cn(
+                            'data-[state=checked]:bg-primary data-[state=checked]:border-primary',
+                            (user.admin || isCurrentUser) && 'opacity-50 cursor-not-allowed'
+                          )}
+                        />
+                      </div>
+                    </td>
+                    <td className='px-4 py-3 text-center'>
+                      <div className='flex justify-center'>
+                        <Checkbox
+                          checked={user.edit}
+                          onCheckedChange={isCurrentUser ? undefined : (checked) => 
+                            onPermissionChange(user.email, 'edit', Boolean(checked))
+                          }
+                          disabled={disabled || user.admin || isCurrentUser}
+                          className={cn(
+                            'data-[state=checked]:bg-primary data-[state=checked]:border-primary',
+                            (user.admin || isCurrentUser) && 'opacity-50 cursor-not-allowed'
+                          )}
+                        />
+                      </div>
+                    </td>
+                    <td className='px-4 py-3 text-center'>
+                      <div className='flex justify-center'>
+                        <Checkbox
+                          checked={user.deploy}
+                          onCheckedChange={isCurrentUser ? undefined : (checked) => 
+                            onPermissionChange(user.email, 'deploy', Boolean(checked))
+                          }
+                          disabled={disabled || user.admin || isCurrentUser}
+                          className={cn(
+                            'data-[state=checked]:bg-primary data-[state=checked]:border-primary',
+                            (user.admin || isCurrentUser) && 'opacity-50 cursor-not-allowed'
+                          )}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p className='text-xs text-muted-foreground'>
+        Admin grants all permissions automatically. Individual permissions can be configured when admin is not selected.
+      </p>
+    </div>
+  )
+}
+
 const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   return emailRegex.test(email)
@@ -48,6 +192,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const [inputValue, setInputValue] = useState('')
   const [emails, setEmails] = useState<string[]>([])
   const [invalidEmails, setInvalidEmails] = useState<string[]>([])
+  const [userPermissions, setUserPermissions] = useState<UserPermissions[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSent, setShowSent] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -74,20 +219,79 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
     // Add to emails array
     setEmails([...emails, normalizedEmail])
+    
+    // Add to permissions table with default permissions
+    setUserPermissions(prev => [
+      ...prev,
+      {
+        email: normalizedEmail,
+        admin: false,  // Default: no admin access
+        read: true,    // Default: grant read access
+        edit: false,   // Default: no edit access
+        deploy: false  // Default: no deploy access
+      }
+    ])
+    
     setInputValue('')
     return true
   }
 
   const removeEmail = (index: number) => {
+    const emailToRemove = emails[index]
     const newEmails = [...emails]
     newEmails.splice(index, 1)
     setEmails(newEmails)
+    
+    // Remove from permissions table
+    setUserPermissions(prev => prev.filter(user => user.email !== emailToRemove))
   }
 
   const removeInvalidEmail = (index: number) => {
     const newInvalidEmails = [...invalidEmails]
     newInvalidEmails.splice(index, 1)
     setInvalidEmails(newInvalidEmails)
+  }
+
+  const handlePermissionChange = (email: string, permission: keyof Omit<UserPermissions, 'email'>, value: boolean) => {
+    setUserPermissions(prev => prev.map(user => {
+      if (user.email === email) {
+        const updatedUser = { ...user, [permission]: value }
+        
+        // Admin permission logic
+        if (permission === 'admin') {
+          if (value) {
+            // When admin is enabled, grant all permissions
+            updatedUser.read = true
+            updatedUser.edit = true
+            updatedUser.deploy = true
+          } else {
+            // When admin is disabled, revert to sensible defaults
+            updatedUser.read = true  // Keep read access
+            updatedUser.edit = false // Remove edit access
+            updatedUser.deploy = false // Remove deploy access
+          }
+        }
+        // If admin is already enabled, don't allow individual permission changes
+        else if (user.admin) {
+          return user // Return unchanged if admin is enabled
+        }
+        // Regular permission logic (when admin is not enabled)
+        else {
+          // If read is disabled, disable all other permissions
+          if (permission === 'read' && !value) {
+            updatedUser.edit = false
+            updatedUser.deploy = false
+          }
+          // If edit or deploy is enabled, ensure read is enabled
+          else if ((permission === 'edit' || permission === 'deploy') && value) {
+            updatedUser.read = true
+          }
+        }
+        
+        return updatedUser
+      }
+      return user
+    }))
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -151,6 +355,20 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       const results = await Promise.all(
         emails.map(async (email) => {
           try {
+            // Find permissions for this email
+            const userPermission = userPermissions.find(up => up.email === email)
+            const permissions = userPermission ? {
+              admin: userPermission.admin,
+              read: userPermission.read,
+              edit: userPermission.edit,
+              deploy: userPermission.deploy
+            } : {
+              admin: false,
+              read: true,
+              edit: false,
+              deploy: false
+            }
+
             const response = await fetch('/api/workspaces/invitations', {
               method: 'POST',
               headers: {
@@ -160,6 +378,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                 workspaceId: activeWorkspaceId,
                 email: email,
                 role: 'member', // Default role for invited members
+                permissions: permissions, // Include permissions
               }),
             })
 
@@ -199,8 +418,11 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         // Only keep emails that failed in the emails array
         if (failedInvites.length > 0) {
           setEmails(failedInvites)
+          // Keep permissions only for failed invites
+          setUserPermissions(prev => prev.filter(user => failedInvites.includes(user.email)))
         } else {
           setEmails([])
+          setUserPermissions([])
           // Set success message when all invitations are successful
           setSuccessMessage(
             successCount === 1
@@ -229,6 +451,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     setInputValue('')
     setEmails([])
     setInvalidEmails([])
+    setUserPermissions([])
     setShowSent(false)
     setErrorMessage(null)
     setSuccessMessage(null)
@@ -245,7 +468,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       }}
     >
       <DialogContent
-        className='flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[500px]'
+        className='flex flex-col gap-0 overflow-hidden p-0 sm:max-w-[600px]'
         hideCloseButton
       >
         <DialogHeader className='flex-shrink-0 border-b px-6 py-4'>
@@ -263,7 +486,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
           </div>
         </DialogHeader>
 
-        <div className='px-6 pt-4 pb-6'>
+        <div className='px-6 pt-4 pb-6 max-h-[80vh] overflow-y-auto'>
           <form onSubmit={handleSubmit}>
             <div className='space-y-4'>
               <div className='space-y-2'>
@@ -328,6 +551,12 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     'Press Enter, comma, or space after each email.'}
                 </p>
               </div>
+
+              <PermissionsTable
+                userPermissions={userPermissions}
+                onPermissionChange={handlePermissionChange}
+                disabled={isSubmitting}
+              />
 
               <div className='flex justify-end'>
                 <Button
