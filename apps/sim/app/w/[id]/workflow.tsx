@@ -12,7 +12,6 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
-import { LoadingAgent } from '@/components/ui/loading-agent'
 import { createLogger } from '@/lib/logs/console-logger'
 import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
@@ -30,6 +29,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorBoundary } from './components/error/index'
 import { Panel } from './components/panel/panel'
+import { SkeletonLoading } from './components/skeleton-loading/skeleton-loading'
 import { Toolbar } from './components/toolbar/toolbar'
 import { WorkflowBlock } from './components/workflow-block/workflow-block'
 import { WorkflowEdge } from './components/workflow-edge/workflow-edge'
@@ -56,7 +56,7 @@ const edgeTypes: EdgeTypes = { workflowEdge: WorkflowEdge }
 
 function WorkflowContent() {
   // State
-  const [isInitialized, setIsInitialized] = useState(false)
+  const [isWorkflowReady, setIsWorkflowReady] = useState(false)
   const { mode, isExpanded } = useSidebarStore()
   // In hover mode, act as if sidebar is always collapsed for layout purposes
   const isSidebarCollapsed =
@@ -78,6 +78,7 @@ function WorkflowContent() {
   // Store access
   const {
     workflows,
+    activeWorkflowId,
     setActiveWorkflow,
     createWorkflow,
     isLoading: workflowsLoading,
@@ -252,13 +253,13 @@ function WorkflowContent() {
     }
   }, [debouncedAutoLayout])
 
-  // Initialize workflow
+  // Initialize workflow system
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const initSync = async () => {
         // Initialize sync system if not already initialized
         await initializeSyncManagers()
-        setIsInitialized(true)
+        // Note: setIsWorkflowReady is handled in the workflow data tracking effect below
       }
 
       // Initialize sync system
@@ -727,10 +728,38 @@ function WorkflowContent() {
     [project, isPointInLoopNodeWrapper, getNodes]
   )
 
+  // Track when workflow is fully ready for rendering
+  useEffect(() => {
+    const currentId = params.id as string
+
+    // Reset workflow ready state when workflow changes
+    if (activeWorkflowId !== currentId) {
+      setIsWorkflowReady(false)
+      return
+    }
+
+    // Check if we have the necessary data to render the workflow
+    const hasActiveWorkflow = activeWorkflowId === currentId
+    const hasWorkflowInRegistry = Boolean(workflows[currentId])
+    const isNotLoading = !workflowsLoading
+
+    // Workflow is ready when:
+    // 1. We have an active workflow that matches the URL
+    // 2. The workflow exists in the registry
+    // 3. Workflows are not currently loading
+    if (hasActiveWorkflow && hasWorkflowInRegistry && isNotLoading) {
+      // Add a small delay to ensure blocks state has settled
+      const timeoutId = setTimeout(() => {
+        setIsWorkflowReady(true)
+      }, 100)
+
+      return () => clearTimeout(timeoutId)
+    }
+    setIsWorkflowReady(false)
+  }, [activeWorkflowId, params.id, workflows, workflowsLoading])
+
   // Init workflow
   useEffect(() => {
-    if (!isInitialized) return
-
     const validateAndNavigate = async () => {
       const workflowIds = Object.keys(workflows)
       const currentId = params.id as string
@@ -789,7 +818,6 @@ function WorkflowContent() {
     setActiveWorkflow,
     createWorkflow,
     router,
-    isInitialized,
     markAllAsRead,
     resetVariablesLoaded,
   ])
@@ -1339,10 +1367,27 @@ function WorkflowContent() {
     }
   }, [setSubBlockValue])
 
-  if (!isInitialized) {
+  // Show skeleton UI while loading, then smoothly transition to real content
+  const showSkeletonUI = !isWorkflowReady
+
+  if (showSkeletonUI) {
     return (
-      <div className='flex h-[calc(100vh-4rem)] w-full items-center justify-center'>
-        <LoadingAgent size='lg' />
+      <div className='flex h-screen w-full flex-col overflow-hidden'>
+        <SkeletonLoading showSkeleton={true} isSidebarCollapsed={isSidebarCollapsed}>
+          <ControlBar />
+        </SkeletonLoading>
+        <Toolbar />
+        <div
+          className={`relative h-full w-full flex-1 transition-all duration-200 ${isSidebarCollapsed ? 'pl-14' : 'pl-60'}`}
+        >
+          <div className='fixed top-0 right-0 z-10'>
+            <Panel />
+            <NotificationList />
+          </div>
+          <div className='workflow-container h-full'>
+            <Background />
+          </div>
+        </div>
       </div>
     )
   }
@@ -1383,7 +1428,6 @@ function WorkflowContent() {
           }}
           connectionLineType={ConnectionLineType.SmoothStep}
           onNodeClick={(e, node) => {
-            // Allow selecting nodes, but stop propagation to prevent triggering other events
             e.stopPropagation()
           }}
           onPaneClick={onPaneClick}
