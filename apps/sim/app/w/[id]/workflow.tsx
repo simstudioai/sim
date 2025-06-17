@@ -744,12 +744,12 @@ function WorkflowContent() {
       // If no workflows exist after loading is complete, create initial workflow
       if (workflowIds.length === 0) {
         logger.info('No workflows found after loading complete, creating initial workflow')
-        
+
         // Generate numbered workflow name based on existing workflows
         const existingWorkflowCount = Object.keys(workflows).length
         const workflowNumber = existingWorkflowCount + 1
         const workflowName = `Workflow ${workflowNumber}`
-        
+
         const newId = createWorkflow({
           name: workflowName,
           description: 'Getting started with agents',

@@ -155,17 +155,18 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           return
         }
 
+        const { activeWorkspaceId: currentWorkspaceId } = get()
+
+        // Early return if switching to the same workspace (before setting flag)
+        if (currentWorkspaceId === workspaceId) {
+          logger.info(`Already in workspace ${workspaceId}`)
+          return
+        }
+
+        // Only set transition flag AFTER validating the switch is needed
         setWorkspaceTransitioning(true)
 
         try {
-          const { activeWorkspaceId: currentWorkspaceId } = get()
-
-          // Early return if switching to the same workspace
-          if (currentWorkspaceId === workspaceId) {
-            logger.info(`Already in workspace ${workspaceId}`)
-            return
-          }
-
           logger.info(`Switching workspace from ${currentWorkspaceId || 'none'} to ${workspaceId}`)
 
           // IMPORTANT: Save to localStorage first before any async operations

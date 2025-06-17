@@ -5,6 +5,7 @@ import { API_ENDPOINTS } from '../constants'
 import { createSingletonSyncManager } from '../sync'
 import { getAllWorkflowsWithValues } from '.'
 import { useWorkflowRegistry } from './registry/store'
+import { isWorkspaceInTransition } from './registry/store'
 import type { WorkflowMetadata } from './registry/types'
 import { useSubBlockStore } from './subblock/store'
 import type { BlockState } from './workflow/types'
@@ -27,6 +28,12 @@ const workflowSyncConfig = {
 
     // Prevent concurrent syncs
     if (isSyncing) {
+      return { skipSync: true }
+    }
+
+    // CRITICAL: Block sync during workspace transitions to prevent race conditions
+    if (isWorkspaceInTransition()) {
+      logger.info('Skipping sync: Workspace transition in progress')
       return { skipSync: true }
     }
 
