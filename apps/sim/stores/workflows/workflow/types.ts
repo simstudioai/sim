@@ -52,16 +52,16 @@ export interface BlockData {
   // Parent-child relationships for container nodes
   parentId?: string
   extent?: 'parent'
-  
+
   // Container dimensions
   width?: number
   height?: number
-  
+
   // Loop-specific properties
   collection?: any // The items to iterate over in a loop
   count?: number // Number of iterations for numeric loops
   loopType?: string // Type of loop ('for', 'forEach', etc.)
-  
+
   // Container node type (for ReactFlow node type determination)
   type?: string
 }
