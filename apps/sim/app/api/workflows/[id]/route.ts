@@ -1,31 +1,32 @@
 import { and, eq } from 'drizzle-orm'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflow, workspaceMember } from '@/db/schema'
 
-const logger = createLogger('WorkflowDetailAPI')
+const logger = createLogger('WorkflowByIdAPI')
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+/**
+ * GET /api/workflows/[id]
+ * Fetch a single workflow by ID
+ */
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
   const startTime = Date.now()
+  const { id: workflowId } = await params
 
   try {
     // Get the session
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized workflow access attempt`)
+      logger.warn(`[${requestId}] Unauthorized access attempt for workflow ${workflowId}`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workflowId } = await params
+    const userId = session.user.id
 
-    if (!workflowId) {
-      return NextResponse.json({ error: 'Workflow ID is required' }, { status: 400 })
-    }
-
-    // Fetch the workflow from database
+    // Fetch the workflow
     const workflowData = await db
       .select()
       .from(workflow)
@@ -38,42 +39,124 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
 
     // Check if user has access to this workflow
-    // User can access if they own it OR if it's in a workspace they're part of
-    const canAccess = workflowData.userId === session.user.id
+    let hasAccess = false
 
-    if (!canAccess && workflowData.workspaceId) {
-      // Check workspace membership
+    // Case 1: User owns the workflow
+    if (workflowData.userId === userId) {
+      hasAccess = true
+    }
+
+    // Case 2: Workflow belongs to a workspace the user is a member of
+    if (!hasAccess && workflowData.workspaceId) {
       const membership = await db
-        .select()
+        .select({ id: workspaceMember.id })
         .from(workspaceMember)
         .where(
           and(
             eq(workspaceMember.workspaceId, workflowData.workspaceId),
-            eq(workspaceMember.userId, session.user.id)
+            eq(workspaceMember.userId, userId)
           )
         )
         .then((rows) => rows[0])
 
       if (membership) {
-        // User is a member of the workspace, allow access
-        const elapsed = Date.now() - startTime
-        logger.info(`[${requestId}] Workflow ${workflowId} fetched in ${elapsed}ms`)
-        return NextResponse.json({ data: workflowData }, { status: 200 })
+        hasAccess = true
       }
-    } else if (canAccess) {
-      // User owns the workflow, allow access
-      const elapsed = Date.now() - startTime
-      logger.info(`[${requestId}] Workflow ${workflowId} fetched in ${elapsed}ms`)
-      return NextResponse.json({ data: workflowData }, { status: 200 })
     }
 
-    logger.warn(
-      `[${requestId}] User ${session.user.id} attempted to access workflow ${workflowId} without permission`
-    )
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    if (!hasAccess) {
+      logger.warn(`[${requestId}] User ${userId} denied access to workflow ${workflowId}`)
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    const elapsed = Date.now() - startTime
+    logger.info(`[${requestId}] Successfully fetched workflow ${workflowId} in ${elapsed}ms`)
+
+    return NextResponse.json({ data: workflowData }, { status: 200 })
   } catch (error: any) {
     const elapsed = Date.now() - startTime
-    logger.error(`[${requestId}] Error fetching workflow after ${elapsed}ms:`, error)
-    return NextResponse.json({ error: 'Failed to fetch workflow' }, { status: 500 })
+    logger.error(`[${requestId}] Error fetching workflow ${workflowId} after ${elapsed}ms`, error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE /api/workflows/[id]
+ * Delete a workflow by ID
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const startTime = Date.now()
+  const { id: workflowId } = await params
+
+  try {
+    // Get the session
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized deletion attempt for workflow ${workflowId}`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = session.user.id
+
+    // Fetch the workflow to check ownership/access
+    const workflowData = await db
+      .select()
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .then((rows) => rows[0])
+
+    if (!workflowData) {
+      logger.warn(`[${requestId}] Workflow ${workflowId} not found for deletion`)
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    // Check if user has permission to delete this workflow
+    let canDelete = false
+
+    // Case 1: User owns the workflow
+    if (workflowData.userId === userId) {
+      canDelete = true
+    }
+
+    // Case 2: Workflow belongs to a workspace and user has admin/owner role
+    if (!canDelete && workflowData.workspaceId) {
+      const membership = await db
+        .select({ role: workspaceMember.role })
+        .from(workspaceMember)
+        .where(
+          and(
+            eq(workspaceMember.workspaceId, workflowData.workspaceId),
+            eq(workspaceMember.userId, userId)
+          )
+        )
+        .then((rows) => rows[0])
+
+      if (membership && (membership.role === 'owner' || membership.role === 'admin')) {
+        canDelete = true
+      }
+    }
+
+    if (!canDelete) {
+      logger.warn(
+        `[${requestId}] User ${userId} denied permission to delete workflow ${workflowId}`
+      )
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Delete the workflow
+    await db.delete(workflow).where(eq(workflow.id, workflowId))
+
+    const elapsed = Date.now() - startTime
+    logger.info(`[${requestId}] Successfully deleted workflow ${workflowId} in ${elapsed}ms`)
+
+    return NextResponse.json({ success: true }, { status: 200 })
+  } catch (error: any) {
+    const elapsed = Date.now() - startTime
+    logger.error(`[${requestId}] Error deleting workflow ${workflowId} after ${elapsed}ms`, error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

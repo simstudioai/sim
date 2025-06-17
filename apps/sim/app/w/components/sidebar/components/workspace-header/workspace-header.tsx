@@ -241,7 +241,7 @@ export function WorkspaceHeader({
   const router = useRouter()
 
   // Get workflowRegistry state and actions
-  const { activeWorkspaceId, setActiveWorkspace: setActiveWorkspaceId } = useWorkflowRegistry()
+  const { activeWorkspaceId, switchToWorkspace, setActiveWorkspaceId } = useWorkflowRegistry()
 
   const userName = sessionData?.user?.name || sessionData?.user?.email || 'User'
 
@@ -271,21 +271,23 @@ export function WorkspaceHeader({
             const fetchedWorkspaces = data.workspaces as Workspace[]
             setWorkspaces(fetchedWorkspaces)
 
-            // Find workspace that matches the active ID from registry or use first workspace
-            const matchingWorkspace = fetchedWorkspaces.find(
-              (workspace) => workspace.id === activeWorkspaceId
-            )
-            const workspaceToActivate = matchingWorkspace || fetchedWorkspaces[0]
-
-            // If we found a workspace, set it as active and update registry if needed
-            if (workspaceToActivate) {
-              setActiveWorkspace(workspaceToActivate)
-
-              // If active workspace in UI doesn't match registry, update registry
-              if (workspaceToActivate.id !== activeWorkspaceId) {
-                setActiveWorkspaceId(workspaceToActivate.id)
+            // Only update workspace if we have a valid activeWorkspaceId from registry
+            if (activeWorkspaceId) {
+              const matchingWorkspace = fetchedWorkspaces.find(
+                (workspace) => workspace.id === activeWorkspaceId
+              )
+              if (matchingWorkspace) {
+                setActiveWorkspace(matchingWorkspace)
+              } else {
+                // Active workspace not found, fallback to first workspace
+                const fallbackWorkspace = fetchedWorkspaces[0]
+                if (fallbackWorkspace) {
+                  setActiveWorkspace(fallbackWorkspace)
+                  setActiveWorkspaceId(fallbackWorkspace.id)
+                }
               }
             }
+            // If no activeWorkspaceId, let loadWorkspaceFromWorkflowId handle workspace selection
           }
           setIsWorkspacesLoading(false)
         })
@@ -306,8 +308,8 @@ export function WorkspaceHeader({
     setActiveWorkspace(workspace)
     setIsOpen(false)
 
-    // Update the workflow registry store with the new active workspace
-    setActiveWorkspaceId(workspace.id)
+    // Use full workspace switch which now handles localStorage automatically
+    switchToWorkspace(workspace.id)
 
     // Update URL to include workspace ID
     router.push(`/w/${workspace.id}`)
@@ -330,8 +332,9 @@ export function WorkspaceHeader({
           setWorkspaces((prev) => [...prev, newWorkspace])
           setActiveWorkspace(newWorkspace)
 
-          // Update the workflow registry store with the new active workspace
-          setActiveWorkspaceId(newWorkspace.id)
+          // Use switchToWorkspace to properly load workflows for the new workspace
+          // This will clear existing workflows, set loading state, and fetch workflows from DB
+          switchToWorkspace(newWorkspace.id)
 
           // Update URL to include new workspace ID
           router.push(`/w/${newWorkspace.id}`)

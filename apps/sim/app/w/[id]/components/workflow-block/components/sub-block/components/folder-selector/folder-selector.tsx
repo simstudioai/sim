@@ -14,11 +14,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createLogger } from '@/lib/logs/console-logger'
-import {
-  type Credential,
-  getProviderIdFromServiceId,
-  getServiceIdFromScopes,
-} from '@/lib/oauth/oauth'
+import { type Credential, getProviderIdFromServiceId, getServiceIdFromScopes } from '@/lib/oauth'
 import { OAuthRequiredModal } from '@/app/w/[id]/components/workflow-block/components/sub-block/components/credential-selector/components/oauth-required-modal'
 import { saveToStorage } from '@/stores/workflows/persistence'
 
