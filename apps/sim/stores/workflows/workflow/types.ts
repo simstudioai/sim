@@ -62,6 +62,9 @@ export interface BlockData {
   count?: number // Number of iterations for numeric loops
   loopType?: 'for' | 'forEach' // Type of loop - must match Loop interface
 
+  // Parallel-specific properties
+  parallelType?: 'collection' | 'count' // Type of parallel execution
+
   // Container node type (for ReactFlow node type determination)
   type?: string
 }
