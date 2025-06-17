@@ -179,11 +179,6 @@ export function Credentials({ onOpenChange }: CredentialsProps) {
     }
   }, [searchParams, router, userId])
 
-  // Check for pending OAuth connections and return URL
-  useEffect(() => {
-    // OAuth state managed via localStorage - no additional client-side state management needed
-  }, [authSuccess, onOpenChange, router])
-
   // Fetch services on mount
   useEffect(() => {
     if (userId) {
