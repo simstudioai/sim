@@ -2,6 +2,47 @@ import type { Edge } from 'reactflow'
 import type { BlockOutput, SubBlockType } from '@/blocks/types'
 import type { DeploymentStatus } from '../registry/types'
 
+// Centralized subflow type system - easy to extend without database changes
+export const SUBFLOW_TYPES = {
+  LOOP: 'loop',
+  PARALLEL: 'parallel',
+  // Future types can be added here:
+  // CONDITIONAL: 'conditional',
+  // RETRY: 'retry',
+  // BATCH: 'batch',
+} as const
+
+export type SubflowType = typeof SUBFLOW_TYPES[keyof typeof SUBFLOW_TYPES]
+
+// Type guard for runtime validation
+export function isValidSubflowType(type: string): type is SubflowType {
+  return Object.values(SUBFLOW_TYPES).includes(type as SubflowType)
+}
+
+// Subflow configuration interfaces
+export interface LoopConfig {
+  nodes: string[]
+  iterations: number
+  loopType: 'for' | 'forEach'
+  forEachItems?: any[] | Record<string, any> | string
+}
+
+export interface ParallelConfig {
+  nodes: string[]
+  distribution?: any[] | Record<string, any> | string
+  parallelType?: 'count' | 'collection'
+}
+
+// Generic subflow interface
+export interface Subflow {
+  id: string
+  workflowId: string
+  type: SubflowType
+  config: LoopConfig | ParallelConfig
+  createdAt: Date
+  updatedAt: Date
+}
+
 export interface Position {
   x: number
   y: number
