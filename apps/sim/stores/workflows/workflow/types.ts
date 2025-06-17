@@ -12,7 +12,7 @@ export const SUBFLOW_TYPES = {
   // BATCH: 'batch',
 } as const
 
-export type SubflowType = typeof SUBFLOW_TYPES[keyof typeof SUBFLOW_TYPES]
+export type SubflowType = (typeof SUBFLOW_TYPES)[keyof typeof SUBFLOW_TYPES]
 
 // Type guard for runtime validation
 export function isValidSubflowType(type: string): type is SubflowType {
