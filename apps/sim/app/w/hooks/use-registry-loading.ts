@@ -2,7 +2,10 @@
 
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const logger = createLogger('UseRegistryLoading')
 
 /**
  * Extract workflow ID from pathname
@@ -22,7 +25,7 @@ function extractWorkflowIdFromPathname(pathname: string): string | null {
     }
     return null
   } catch (error) {
-    console.warn('Failed to extract workflow ID from pathname:', error)
+    logger.warn('Failed to extract workflow ID from pathname:', error)
     return null
   }
 }
@@ -46,7 +49,7 @@ export function useRegistryLoading() {
       const workflowIdFromUrl = extractWorkflowIdFromPathname(pathname)
       if (workflowIdFromUrl) {
         loadWorkspaceFromWorkflowId(workflowIdFromUrl).catch((error) => {
-          console.warn('Failed to load workspace from workflow ID:', error)
+          logger.warn('Failed to load workspace from workflow ID:', error)
         })
       }
     }
@@ -64,7 +67,7 @@ export function useRegistryLoading() {
         (pathname === '/w' || pathname === '/w/' || pathname === `/w/${activeWorkspaceId}`)
       ) {
         const firstWorkflowId = Object.keys(workflows)[0]
-        console.log('First-time navigation: redirecting to first workflow:', firstWorkflowId)
+        logger.info('First-time navigation: redirecting to first workflow:', firstWorkflowId)
         router.replace(`/w/${firstWorkflowId}`)
       }
     }
