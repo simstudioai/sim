@@ -48,6 +48,12 @@ export interface Position {
   y: number
 }
 
+export interface BlockData {
+  parentId?: string
+  extent?: 'parent'
+  [key: string]: any // Allow other arbitrary properties while still typing the known ones
+}
+
 export interface BlockState {
   id: string
   type: string
@@ -60,7 +66,7 @@ export interface BlockState {
   isWide?: boolean
   height?: number
   advancedMode?: boolean
-  data?: Record<string, any>
+  data?: BlockData
 }
 
 export interface SubBlockState {

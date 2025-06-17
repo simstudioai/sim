@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { workflow, workspaceMember } from '@/db/schema'
 
@@ -10,6 +11,7 @@ const logger = createLogger('WorkflowByIdAPI')
 /**
  * GET /api/workflows/[id]
  * Fetch a single workflow by ID
+ * Uses hybrid approach: try normalized tables first, fallback to JSON blob
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID().slice(0, 8)
@@ -69,10 +71,43 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
+    // Try to load from normalized tables first
+    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+
+    const finalWorkflowData = { ...workflowData }
+
+    if (normalizedData) {
+      // Use normalized table data - reconstruct complete state object
+      // First get any existing state properties, then override with normalized data
+      const existingState =
+        workflowData.state && typeof workflowData.state === 'object' ? workflowData.state : {}
+
+      finalWorkflowData.state = {
+        // Default values for expected properties
+        deploymentStatuses: {},
+        hasActiveSchedule: false,
+        hasActiveWebhook: false,
+        // Preserve any existing state properties
+        ...existingState,
+        // Override with normalized data (this takes precedence)
+        blocks: normalizedData.blocks,
+        edges: normalizedData.edges,
+        loops: normalizedData.loops,
+        parallels: normalizedData.parallels,
+        lastSaved: Date.now(),
+        isDeployed: workflowData.isDeployed || false,
+        deployedAt: workflowData.deployedAt,
+      }
+      logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
+    } else {
+      // Fallback to JSON blob
+      logger.info(`[${requestId}] Using JSON blob for workflow ${workflowId}`)
+    }
+
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully fetched workflow ${workflowId} in ${elapsed}ms`)
 
-    return NextResponse.json({ data: workflowData }, { status: 200 })
+    return NextResponse.json({ data: finalWorkflowData }, { status: 200 })
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Error fetching workflow ${workflowId} after ${elapsed}ms`, error)
