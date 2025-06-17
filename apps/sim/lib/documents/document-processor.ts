@@ -1,16 +1,40 @@
 import { type Chunk, TextChunker } from '@/lib/documents/chunker'
 import { env } from '@/lib/env'
-import { isSupportedFileType, parseBuffer, parseFile } from '@/lib/file-parsers'
+import { parseBuffer, parseFile } from '@/lib/file-parsers'
 import { createLogger } from '@/lib/logs/console-logger'
-import { type CustomS3Config, getPresignedUrlWithConfig, uploadToS3 } from '@/lib/uploads/s3-client'
+import { getPresignedUrlWithConfig, getStorageProvider, uploadFile } from '@/lib/uploads'
+import { BLOB_KB_CONFIG, S3_KB_CONFIG } from '@/lib/uploads/setup'
 import { mistralParserTool } from '@/tools/mistral/parser'
 import { retryWithExponentialBackoff } from './utils'
 
 const logger = createLogger('DocumentProcessor')
 
-const S3_KB_CONFIG: CustomS3Config = {
-  bucket: env.S3_KB_BUCKET_NAME || '',
-  region: env.AWS_REGION || '',
+type S3Config = {
+  bucket: string
+  region: string
+}
+
+type BlobConfig = {
+  containerName: string
+  accountName: string
+  accountKey?: string
+  connectionString?: string
+}
+
+function getKBConfig(): S3Config | BlobConfig {
+  const provider = getStorageProvider()
+  if (provider === 'blob') {
+    return {
+      containerName: BLOB_KB_CONFIG.containerName,
+      accountName: BLOB_KB_CONFIG.accountName,
+      accountKey: BLOB_KB_CONFIG.accountKey,
+      connectionString: BLOB_KB_CONFIG.connectionString,
+    }
+  }
+  return {
+    bucket: S3_KB_CONFIG.bucket,
+    region: S3_KB_CONFIG.region,
+  }
 }
 
 class APIError extends Error {
@@ -23,55 +47,69 @@ class APIError extends Error {
   }
 }
 
-export interface ProcessedDocument {
-  content: string
+/**
+ * Process a document by parsing it and chunking the content
+ */
+export async function processDocument(
+  fileUrl: string,
+  filename: string,
+  mimeType: string,
+  chunkSize = 1000,
+  chunkOverlap = 200
+): Promise<{
   chunks: Chunk[]
   metadata: {
     filename: string
     fileSize: number
     mimeType: string
-    characterCount: number
-    tokenCount: number
     chunkCount: number
+    tokenCount: number
+    characterCount: number
     processingMethod: 'file-parser' | 'mistral-ocr'
-    s3Url?: string
+    cloudUrl?: string
   }
-}
+}> {
+  logger.info(`Processing document: ${filename}`)
 
-export interface DocumentProcessingOptions {
-  knowledgeBaseId: string
-  chunkSize?: number
-  minCharactersPerChunk?: number
-  recipe?: string
-  lang?: string
+  try {
+    // Parse the document
+    const { content, processingMethod, cloudUrl } = await parseDocument(fileUrl, filename, mimeType)
+
+    // Create chunker and process content
+    const chunker = new TextChunker({
+      chunkSize,
+      overlap: chunkOverlap,
+    })
+
+    const chunks = await chunker.chunk(content)
+
+    // Calculate metadata
+    const characterCount = content.length
+    const tokenCount = chunks.reduce((sum: number, chunk: Chunk) => sum + chunk.tokenCount, 0)
+
+    logger.info(`Document processed successfully: ${chunks.length} chunks, ${tokenCount} tokens`)
+
+    return {
+      chunks,
+      metadata: {
+        filename,
+        fileSize: content.length, // Using content length as file size approximation
+        mimeType,
+        chunkCount: chunks.length,
+        tokenCount,
+        characterCount,
+        processingMethod,
+        cloudUrl,
+      },
+    }
+  } catch (error) {
+    logger.error(`Error processing document ${filename}:`, error)
+    throw error
+  }
 }
 
 /**
- * Determines the appropriate processing method for a file based on its type
- */
-function determineProcessingMethod(
-  mimeType: string,
-  filename: string
-): 'file-parser' | 'mistral-ocr' {
-  // Use Mistral OCR for PDFs since it provides better results
-  if (mimeType === 'application/pdf' || filename.toLowerCase().endsWith('.pdf')) {
-    return 'mistral-ocr'
-  }
-
-  // Extract file extension for supported file type check
-  const extension = filename.split('.').pop()?.toLowerCase()
-
-  // Use file parser for supported non-PDF types
-  if (extension && isSupportedFileType(extension)) {
-    return 'file-parser'
-  }
-
-  // For unsupported types, try file parser first (it might handle text files)
-  return 'file-parser'
-}
-
-/**
- * Parse a document using the appropriate method (file parser or Mistral OCR)
+ * Parse a document from a URL or file path
  */
 async function parseDocument(
   fileUrl: string,
@@ -80,145 +118,219 @@ async function parseDocument(
 ): Promise<{
   content: string
   processingMethod: 'file-parser' | 'mistral-ocr'
-  s3Url?: string
+  cloudUrl?: string
 }> {
-  const processingMethod = determineProcessingMethod(mimeType, filename)
+  // Check if we should use Mistral OCR for PDFs
+  const shouldUseMistralOCR = mimeType === 'application/pdf' && env.MISTRAL_API_KEY
 
-  logger.info(`Processing document "${filename}" using ${processingMethod}`)
+  if (shouldUseMistralOCR) {
+    logger.info(`Using Mistral OCR for PDF: ${filename}`)
+    return await parseWithMistralOCR(fileUrl, filename, mimeType)
+  }
 
-  try {
-    if (processingMethod === 'mistral-ocr') {
-      // Use Mistral OCR for PDFs - but first ensure we have an HTTPS URL
-      const mistralApiKey = env.MISTRAL_API_KEY
-      if (!mistralApiKey) {
-        throw new Error('MISTRAL_API_KEY not configured')
+  // Use standard file parser
+  logger.info(`Using file parser for: ${filename}`)
+  return await parseWithFileParser(fileUrl, filename, mimeType)
+}
+
+/**
+ * Parse document using Mistral OCR
+ */
+async function parseWithMistralOCR(
+  fileUrl: string,
+  filename: string,
+  mimeType: string
+): Promise<{
+  content: string
+  processingMethod: 'file-parser' | 'mistral-ocr'
+  cloudUrl?: string
+}> {
+  const mistralApiKey = env.MISTRAL_API_KEY
+  if (!mistralApiKey) {
+    throw new Error('Mistral API key is required for OCR processing')
+  }
+
+  let httpsUrl = fileUrl
+  let cloudUrl: string | undefined
+
+  // If the URL is not HTTPS, we need to upload to cloud storage first
+  if (!fileUrl.startsWith('https://')) {
+    logger.info(`Uploading "${filename}" to cloud storage for Mistral OCR access`)
+
+    // Download the file content
+    const response = await fetch(fileUrl)
+    if (!response.ok) {
+      throw new Error(`Failed to download file for cloud upload: ${response.statusText}`)
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer())
+
+    // Always upload to cloud storage for Mistral OCR, even in development
+    const kbConfig = getKBConfig()
+    const provider = getStorageProvider()
+
+    if (provider === 'blob') {
+      const blobConfig = kbConfig as BlobConfig
+      if (
+        !blobConfig.containerName ||
+        (!blobConfig.connectionString && (!blobConfig.accountName || !blobConfig.accountKey))
+      ) {
+        throw new Error(
+          'Azure Blob configuration missing for PDF processing with Mistral OCR. Set AZURE_CONNECTION_STRING or both AZURE_ACCOUNT_NAME + AZURE_ACCOUNT_KEY, and AZURE_KB_CONTAINER_NAME.'
+        )
       }
-
-      let httpsUrl = fileUrl
-      let s3Url: string | undefined
-
-      // If the URL is not HTTPS, we need to upload to S3 first
-      if (!fileUrl.startsWith('https://')) {
-        logger.info(`Uploading "${filename}" to S3 for Mistral OCR access`)
-
-        // Download the file content
-        const response = await fetch(fileUrl)
-        if (!response.ok) {
-          throw new Error(`Failed to download file for S3 upload: ${response.statusText}`)
-        }
-
-        const buffer = Buffer.from(await response.arrayBuffer())
-
-        // Always upload to S3 for Mistral OCR, even in development
-        if (!S3_KB_CONFIG.bucket || !S3_KB_CONFIG.region) {
-          throw new Error(
-            'S3 configuration missing: AWS_REGION and S3_KB_BUCKET_NAME environment variables are required for PDF processing with Mistral OCR'
-          )
-        }
-
-        try {
-          // Upload to S3
-          const s3Result = await uploadToS3(buffer, filename, mimeType, S3_KB_CONFIG)
-          // Generate presigned URL with 15 minutes expiration
-          httpsUrl = await getPresignedUrlWithConfig(s3Result.key, S3_KB_CONFIG, 900)
-          s3Url = httpsUrl
-          logger.info(`Successfully uploaded to S3 for Mistral OCR: ${s3Result.key}`)
-        } catch (uploadError) {
-          logger.error('Failed to upload to S3 for Mistral OCR:', uploadError)
-          throw new Error(
-            `S3 upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}. S3 upload is required for PDF processing with Mistral OCR.`
-          )
-        }
-      }
-
-      if (!mistralParserTool.request?.body) {
-        throw new Error('Mistral parser tool not properly configured')
-      }
-
-      const requestBody = mistralParserTool.request.body({
-        filePath: httpsUrl,
-        apiKey: mistralApiKey,
-        resultType: 'text',
-      })
-
-      // Make the actual API call to Mistral with retry logic
-      const response = await retryWithExponentialBackoff(
-        async () => {
-          logger.info(`Calling Mistral OCR API for "${filename}"`)
-
-          const response = await fetch('https://api.mistral.ai/v1/ocr', {
-            method: mistralParserTool.request.method,
-            headers: mistralParserTool.request.headers({
-              filePath: httpsUrl,
-              apiKey: mistralApiKey,
-              resultType: 'text',
-            }),
-            body: JSON.stringify(requestBody),
-          })
-
-          if (!response.ok) {
-            const errorText = await response.text()
-            const error = new APIError(
-              `Mistral API error: ${response.status} ${response.statusText} - ${errorText}`,
-              response.status
-            )
-            throw error
-          }
-
-          return response
-        },
-        {
-          maxRetries: 5,
-          initialDelayMs: 2000, // Start with 2 seconds for Mistral OCR
-          maxDelayMs: 120000, // Max 2 minutes delay for OCR processing
-          backoffMultiplier: 2,
-        }
-      )
-
-      if (!mistralParserTool.transformResponse) {
-        throw new Error('Mistral parser transform function not available')
-      }
-
-      const result = await mistralParserTool.transformResponse(response, {
-        filePath: httpsUrl,
-        apiKey: mistralApiKey,
-        resultType: 'text',
-      })
-
-      if (!result.success) {
-        throw new Error('Mistral OCR processing failed')
-      }
-
-      return {
-        content: result.output.content,
-        processingMethod: 'mistral-ocr',
-        s3Url,
+    } else {
+      const s3Config = kbConfig as S3Config
+      if (!s3Config.bucket || !s3Config.region) {
+        throw new Error(
+          'S3 configuration missing for PDF processing with Mistral OCR. Set AWS_REGION and S3_KB_BUCKET_NAME environment variables.'
+        )
       }
     }
 
-    // Use file parser for other supported types
+    try {
+      // Upload to cloud storage
+      const cloudResult = await uploadFile(buffer, filename, mimeType, kbConfig as any)
+      // Generate presigned URL with 15 minutes expiration
+      httpsUrl = await getPresignedUrlWithConfig(cloudResult.key, kbConfig as any, 900)
+      cloudUrl = httpsUrl
+      logger.info(`Successfully uploaded to cloud storage for Mistral OCR: ${cloudResult.key}`)
+    } catch (uploadError) {
+      logger.error('Failed to upload to cloud storage for Mistral OCR:', uploadError)
+      throw new Error(
+        `Cloud upload failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}. Cloud upload is required for PDF processing with Mistral OCR.`
+      )
+    }
+  }
+
+  if (!mistralParserTool.request?.body) {
+    throw new Error('Mistral parser tool not properly configured')
+  }
+
+  const requestBody = mistralParserTool.request.body({
+    filePath: httpsUrl,
+    apiKey: mistralApiKey,
+    resultType: 'text',
+  })
+
+  try {
+    const response = await retryWithExponentialBackoff(
+      async () => {
+        const url =
+          typeof mistralParserTool.request!.url === 'function'
+            ? mistralParserTool.request!.url({
+                filePath: httpsUrl,
+                apiKey: mistralApiKey,
+                resultType: 'text',
+              })
+            : mistralParserTool.request!.url
+
+        const headers =
+          typeof mistralParserTool.request!.headers === 'function'
+            ? mistralParserTool.request!.headers({
+                filePath: httpsUrl,
+                apiKey: mistralApiKey,
+                resultType: 'text',
+              })
+            : mistralParserTool.request!.headers
+
+        const res = await fetch(url, {
+          method: mistralParserTool.request!.method,
+          headers,
+          body: JSON.stringify(requestBody),
+        })
+
+        if (!res.ok) {
+          const errorText = await res.text()
+          throw new APIError(
+            `Mistral OCR failed: ${res.status} ${res.statusText} - ${errorText}`,
+            res.status
+          )
+        }
+
+        return res
+      },
+      {
+        maxRetries: 3,
+        initialDelayMs: 1000,
+        maxDelayMs: 10000,
+      }
+    )
+
+    const result = await mistralParserTool.transformResponse!(response, {
+      filePath: httpsUrl,
+      apiKey: mistralApiKey,
+      resultType: 'text',
+    })
+
+    if (!result.success) {
+      throw new Error(`Mistral OCR processing failed: ${result.error || 'Unknown error'}`)
+    }
+
+    const content = result.output?.content || ''
+    if (!content.trim()) {
+      throw new Error('Mistral OCR returned empty content')
+    }
+
+    logger.info(`Mistral OCR completed successfully for ${filename}`)
+    return {
+      content,
+      processingMethod: 'mistral-ocr',
+      cloudUrl,
+    }
+  } catch (error) {
+    logger.error(`Mistral OCR failed for ${filename}:`, {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : 'Unknown',
+    })
+
+    // Fall back to file parser
+    logger.info(`Falling back to file parser for ${filename}`)
+    return await parseWithFileParser(fileUrl, filename, mimeType)
+  }
+}
+
+/**
+ * Parse document using standard file parser
+ */
+async function parseWithFileParser(
+  fileUrl: string,
+  filename: string,
+  mimeType: string
+): Promise<{
+  content: string
+  processingMethod: 'file-parser' | 'mistral-ocr'
+  cloudUrl?: string
+}> {
+  try {
     let content: string
 
-    if (fileUrl.startsWith('http')) {
-      // Download the file and parse buffer
+    if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+      // Download and parse remote file
       const response = await fetch(fileUrl)
       if (!response.ok) {
-        throw new Error(`Failed to download file: ${response.statusText}`)
+        throw new Error(`Failed to download file: ${response.status} ${response.statusText}`)
       }
 
       const buffer = Buffer.from(await response.arrayBuffer())
-      const extension = filename.split('.').pop()?.toLowerCase()
 
+      // Extract file extension from filename
+      const extension = filename.split('.').pop()?.toLowerCase() || ''
       if (!extension) {
-        throw new Error('Could not determine file extension')
+        throw new Error(`Could not determine file extension from filename: ${filename}`)
       }
 
-      const parseResult = await parseBuffer(buffer, extension)
-      content = parseResult.content
+      const result = await parseBuffer(buffer, extension)
+      content = result.content
     } else {
-      // Local file path
-      const parseResult = await parseFile(fileUrl)
-      content = parseResult.content
+      // Parse local file
+      const result = await parseFile(fileUrl)
+      content = result.content
+    }
+
+    if (!content.trim()) {
+      throw new Error('File parser returned empty content')
     }
 
     return {
@@ -226,163 +338,7 @@ async function parseDocument(
       processingMethod: 'file-parser',
     }
   } catch (error) {
-    logger.error(`Failed to parse document "${filename}":`, error)
-    throw new Error(
-      `Document parsing failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
-  }
-}
-
-/**
- * Chunk text content using TextChunker
- */
-async function chunkContent(content: string, options: DocumentProcessingOptions): Promise<Chunk[]> {
-  const chunker = new TextChunker({
-    chunkSize: options.chunkSize || 512,
-    minChunkSize: options.minCharactersPerChunk || 24,
-  })
-
-  try {
-    logger.info('Chunking content with TextChunker', {
-      contentLength: content.length,
-      chunkSize: options.chunkSize || 512,
-    })
-
-    const chunks = await chunker.chunk(content)
-
-    logger.info(`Successfully created ${chunks.length} chunks`)
-    return chunks
-  } catch (error) {
-    logger.error('Chunking failed:', error)
-    throw new Error(
-      `Text chunking failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
-  }
-}
-
-/**
- * Process a single document: parse content and create chunks
- */
-export async function processDocument(
-  fileUrl: string,
-  filename: string,
-  mimeType: string,
-  fileSize: number,
-  options: DocumentProcessingOptions
-): Promise<ProcessedDocument> {
-  const startTime = Date.now()
-  logger.info(`Starting document processing for "${filename}"`)
-
-  try {
-    // Step 1: Parse the document
-    const { content, processingMethod, s3Url } = await parseDocument(fileUrl, filename, mimeType)
-
-    if (!content || content.trim().length === 0) {
-      throw new Error('No content extracted from document')
-    }
-
-    // Step 2: Chunk the content
-    const chunks = await chunkContent(content, options)
-
-    if (chunks.length === 0) {
-      throw new Error('No chunks created from content')
-    }
-
-    // Step 3: Calculate metadata
-    const characterCount = content.length
-    const tokenCount = chunks.reduce((acc, chunk) => acc + chunk.tokenCount, 0)
-    const chunkCount = chunks.length
-
-    const processedDocument: ProcessedDocument = {
-      content,
-      chunks,
-      metadata: {
-        filename,
-        fileSize,
-        mimeType,
-        characterCount,
-        tokenCount,
-        chunkCount,
-        processingMethod,
-        s3Url,
-      },
-    }
-
-    const processingTime = Date.now() - startTime
-    logger.info(`Document processing completed for "${filename}"`, {
-      processingTime: `${processingTime}ms`,
-      contentLength: characterCount,
-      chunkCount,
-      tokenCount,
-      processingMethod,
-    })
-
-    return processedDocument
-  } catch (error) {
-    const processingTime = Date.now() - startTime
-    logger.error(`Document processing failed for "${filename}" after ${processingTime}ms:`, error)
-    throw error
-  }
-}
-
-/**
- * Process multiple documents in parallel
- */
-export async function processDocuments(
-  documents: Array<{
-    fileUrl: string
-    filename: string
-    mimeType: string
-    fileSize: number
-  }>,
-  options: DocumentProcessingOptions
-): Promise<ProcessedDocument[]> {
-  const startTime = Date.now()
-  logger.info(`Starting batch processing of ${documents.length} documents`)
-
-  try {
-    // Process all documents in parallel
-    const processingPromises = documents.map((doc) =>
-      processDocument(doc.fileUrl, doc.filename, doc.mimeType, doc.fileSize, options)
-    )
-
-    const results = await Promise.allSettled(processingPromises)
-
-    // Separate successful and failed results
-    const successfulResults: ProcessedDocument[] = []
-    const errors: string[] = []
-
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        successfulResults.push(result.value)
-      } else {
-        const filename = documents[index].filename
-        const errorMessage =
-          result.reason instanceof Error ? result.reason.message : 'Unknown error'
-        errors.push(`${filename}: ${errorMessage}`)
-        logger.error(`Failed to process document "${filename}":`, result.reason)
-      }
-    })
-
-    const processingTime = Date.now() - startTime
-    logger.info(`Batch processing completed in ${processingTime}ms`, {
-      totalDocuments: documents.length,
-      successful: successfulResults.length,
-      failed: errors.length,
-    })
-
-    if (errors.length > 0) {
-      logger.warn('Some documents failed to process:', errors)
-    }
-
-    if (successfulResults.length === 0) {
-      throw new Error(`All documents failed to process. Errors: ${errors.join('; ')}`)
-    }
-
-    return successfulResults
-  } catch (error) {
-    const processingTime = Date.now() - startTime
-    logger.error(`Batch processing failed after ${processingTime}ms:`, error)
+    logger.error(`File parser failed for ${filename}:`, error)
     throw error
   }
 }

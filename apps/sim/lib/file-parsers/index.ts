@@ -89,6 +89,14 @@ function getParserInstances(): Record<string, FileParser> {
       } catch (error) {
         logger.error('Failed to load MD parser:', error)
       }
+
+      try {
+        const { XlsxParser } = require('./xlsx-parser')
+        parserInstances.xlsx = new XlsxParser()
+        parserInstances.xls = new XlsxParser() // Both xls and xlsx use the same parser
+      } catch (error) {
+        logger.error('Failed to load XLSX parser:', error)
+      }
     } catch (error) {
       logger.error('Error loading file parsers:', error)
     }
