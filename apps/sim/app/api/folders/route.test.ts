@@ -5,7 +5,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  type CapturedFolderValues,
   createMockRequest,
+  createMockTransaction,
   mockAuth,
   mockLogger,
   setupCommonApiMocks,
@@ -252,25 +254,12 @@ describe('Folders API Route', () => {
     it('should create subfolder with parent reference', async () => {
       mockAuthenticatedUser()
 
-      mockTransaction.mockImplementationOnce(async (callback: any) => {
-        const tx = {
-          select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue({
-              where: vi.fn().mockReturnValue({
-                orderBy: vi.fn().mockReturnValue({
-                  limit: vi.fn().mockReturnValue([]),
-                }),
-              }),
-            }),
-          }),
-          insert: vi.fn().mockReturnValue({
-            values: vi.fn().mockReturnValue({
-              returning: vi.fn().mockReturnValue([{ ...mockFolders[1] }]),
-            }),
-          }),
-        }
-        return await callback(tx)
-      })
+      mockTransaction.mockImplementationOnce(
+        createMockTransaction({
+          selectData: [], // No existing folders
+          insertResult: [{ ...mockFolders[1] }],
+        })
+      )
 
       const req = createMockRequest('POST', {
         name: 'Subfolder',
@@ -357,7 +346,7 @@ describe('Folders API Route', () => {
     it('should trim folder name when creating', async () => {
       mockAuthenticatedUser()
 
-      let capturedValues: any = null
+      let capturedValues: CapturedFolderValues | null = null
 
       mockTransaction.mockImplementationOnce(async (callback: any) => {
         const tx = {
@@ -390,13 +379,14 @@ describe('Folders API Route', () => {
       const { POST } = await import('./route')
       await POST(req)
 
-      expect(capturedValues.name).toBe('Test Folder With Spaces')
+      expect(capturedValues).not.toBeNull()
+      expect(capturedValues!.name).toBe('Test Folder With Spaces')
     })
 
     it('should use default color when not provided', async () => {
       mockAuthenticatedUser()
 
-      let capturedValues: any = null
+      let capturedValues: CapturedFolderValues | null = null
 
       mockTransaction.mockImplementationOnce(async (callback: any) => {
         const tx = {
@@ -429,7 +419,8 @@ describe('Folders API Route', () => {
       const { POST } = await import('./route')
       await POST(req)
 
-      expect(capturedValues.color).toBe('#6B7280')
+      expect(capturedValues).not.toBeNull()
+      expect(capturedValues!.color).toBe('#6B7280')
     })
   })
 })

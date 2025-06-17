@@ -14,14 +14,54 @@ export interface MockAuthResult {
   mockUnauthenticated: () => void
 }
 
+// Database result types
+export interface DatabaseSelectResult {
+  id: string
+  [key: string]: any
+}
+
+export interface DatabaseInsertResult {
+  id: string
+  [key: string]: any
+}
+
+export interface DatabaseUpdateResult {
+  id: string
+  updatedAt?: Date
+  [key: string]: any
+}
+
+export interface DatabaseDeleteResult {
+  id: string
+  [key: string]: any
+}
+
 export interface MockDatabaseOptions {
-  selectData?: any[]
-  insertResult?: any[]
-  updateResult?: any[]
-  deleteResult?: any[]
+  selectData?: DatabaseSelectResult[]
+  insertResult?: DatabaseInsertResult[]
+  updateResult?: DatabaseUpdateResult[]
+  deleteResult?: DatabaseDeleteResult[]
   throwError?: boolean
   errorType?: 'connection' | 'constraint' | 'timeout' | 'generic'
   errorMessage?: string
+}
+
+export interface CapturedFolderValues {
+  name?: string
+  color?: string
+  parentId?: string | null
+  isExpanded?: boolean
+  sortOrder?: number
+  updatedAt?: Date
+}
+
+export interface CapturedWorkflowValues {
+  name?: string
+  description?: string
+  color?: string
+  folderId?: string | null
+  state?: any
+  updatedAt?: Date
 }
 
 export const sampleWorkflowState = {
@@ -627,21 +667,11 @@ export function createMockDatabase(options: MockDatabaseOptions = {}) {
       delete: vi.fn().mockImplementation(() => ({
         where: vi.fn().mockResolvedValue(deleteResult),
       })),
-      transaction: vi.fn().mockImplementation(async (callback) => {
-        return await callback({
-          select: vi.fn().mockImplementation(() => createQueryBuilderMock(selectData)),
-          insert: vi.fn().mockImplementation(() => ({
-            values: vi.fn().mockResolvedValue(insertResult),
-          })),
-          update: vi.fn().mockImplementation(() => ({
-            set: vi.fn().mockImplementation(() => ({
-              where: vi.fn().mockResolvedValue(updateResult),
-            })),
-          })),
-          delete: vi.fn().mockImplementation(() => ({
-            where: vi.fn().mockResolvedValue(deleteResult),
-          })),
-        })
+      transaction: createMockTransaction({
+        selectData,
+        insertResult,
+        updateResult,
+        deleteResult,
       }),
     },
   }
@@ -748,4 +778,48 @@ export class TestDataFactory {
       ...overrides,
     }
   }
+}
+
+/**
+ * Create a mock transaction function for database testing
+ * @param mockData - Data to return from transaction operations
+ * @returns Mock transaction function
+ */
+export function createMockTransaction(
+  mockData: {
+    selectData?: DatabaseSelectResult[]
+    insertResult?: DatabaseInsertResult[]
+    updateResult?: DatabaseUpdateResult[]
+    deleteResult?: DatabaseDeleteResult[]
+  } = {}
+) {
+  const { selectData = [], insertResult = [], updateResult = [], deleteResult = [] } = mockData
+
+  return vi.fn().mockImplementation(async (callback: any) => {
+    const tx = {
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            orderBy: vi.fn().mockReturnValue({
+              limit: vi.fn().mockReturnValue(selectData),
+            }),
+          }),
+        }),
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockReturnValue(insertResult),
+        }),
+      }),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue(updateResult),
+        }),
+      }),
+      delete: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue(deleteResult),
+      }),
+    }
+    return await callback(tx)
+  })
 }

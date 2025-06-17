@@ -5,6 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  type CapturedFolderValues,
   createMockRequest,
   type MockUser,
   mockAuth,
@@ -12,8 +13,14 @@ import {
   setupCommonApiMocks,
 } from '@/app/api/__test-utils__/utils'
 
+interface FolderDbMockOptions {
+  folderLookupResult?: any
+  updateResult?: any[]
+  throwError?: boolean
+  circularCheckResults?: any[]
+}
+
 describe('Individual Folder API Route', () => {
-  // Test data constants
   const TEST_USER: MockUser = {
     id: 'user-123',
     email: 'test@example.com',
@@ -34,14 +41,7 @@ describe('Individual Folder API Route', () => {
 
   const { mockAuthenticatedUser, mockUnauthenticated } = mockAuth(TEST_USER)
 
-  function createFolderDbMock(
-    options: {
-      folderLookupResult?: any
-      updateResult?: any[]
-      throwError?: boolean
-      circularCheckResults?: any[]
-    } = {}
-  ) {
+  function createFolderDbMock(options: FolderDbMockOptions = {}) {
     const {
       folderLookupResult = mockFolder,
       updateResult = [{ ...mockFolder, name: 'Updated Folder' }],
@@ -206,7 +206,7 @@ describe('Individual Folder API Route', () => {
     it('should trim folder name when updating', async () => {
       mockAuthenticatedUser()
 
-      let capturedUpdates: any = null
+      let capturedUpdates: CapturedFolderValues | null = null
       const dbMock = createFolderDbMock({
         updateResult: [{ ...mockFolder, name: 'Folder With Spaces' }],
       })
@@ -231,7 +231,8 @@ describe('Individual Folder API Route', () => {
 
       await PUT(req, { params })
 
-      expect(capturedUpdates.name).toBe('Folder With Spaces')
+      expect(capturedUpdates).not.toBeNull()
+      expect(capturedUpdates!.name).toBe('Folder With Spaces')
     })
 
     it('should handle database errors gracefully', async () => {

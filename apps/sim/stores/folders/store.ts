@@ -5,6 +5,16 @@ import { useWorkflowRegistry } from '../workflows/registry/store'
 
 const logger = createLogger('FoldersStore')
 
+export interface Workflow {
+  id: string
+  folderId?: string | null
+  name?: string
+  description?: string
+  userId?: string
+  workspaceId?: string
+  [key: string]: any // For additional properties
+}
+
 export interface WorkflowFolder {
   id: string
   name: string
@@ -64,7 +74,7 @@ interface FolderState {
   deleteFolder: (id: string) => Promise<void>
 
   // Helper functions
-  isWorkflowInDeletedSubfolder: (workflow: any, deletedFolderId: string) => boolean
+  isWorkflowInDeletedSubfolder: (workflow: Workflow, deletedFolderId: string) => boolean
   removeSubfoldersRecursively: (parentFolderId: string) => void
 }
 
@@ -318,11 +328,11 @@ export const useFolderStore = create<FolderState>()(
           try {
             const workflows = Object.values(workflowRegistry.workflows)
             const workflowsToDelete = workflows.filter(
-              (workflow: any) =>
+              (workflow) =>
                 workflow.folderId === id || get().isWorkflowInDeletedSubfolder(workflow, id)
             )
 
-            workflowsToDelete.forEach((workflow: any) => {
+            workflowsToDelete.forEach((workflow) => {
               workflowRegistry.removeWorkflow(workflow.id)
             })
 
@@ -342,11 +352,11 @@ export const useFolderStore = create<FolderState>()(
         }
       },
 
-      isWorkflowInDeletedSubfolder: (workflow: any, deletedFolderId: string) => {
+      isWorkflowInDeletedSubfolder: (workflow: Workflow, deletedFolderId: string) => {
         if (!workflow.folderId) return false
 
         const folders = get().folders
-        let currentFolderId = workflow.folderId
+        let currentFolderId: string | null = workflow.folderId
 
         while (currentFolderId && folders[currentFolderId]) {
           if (currentFolderId === deletedFolderId) {
