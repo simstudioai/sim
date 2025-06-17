@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { createLogger } from '@/lib/logs/console-logger'
 import { clearWorkflowVariablesTracking } from '@/stores/panel/variables/store'
-import { API_ENDPOINTS, STORAGE_KEYS } from '../../constants'
+import { STORAGE_KEYS } from '../../constants'
 import {
   loadWorkflowState,
   removeFromStorage,
@@ -1083,19 +1083,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           removeFromStorage(STORAGE_KEYS.WORKFLOW(id))
           removeFromStorage(STORAGE_KEYS.SUBBLOCK(id))
           saveRegistry(newWorkflows)
-
-          // Ensure any schedule for this workflow is cancelled
-          // The API will handle the deletion of the schedule
-          fetch(API_ENDPOINTS.SCHEDULE, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              workflowId: id,
-              state: { blocks: {} }, // Empty blocks will signal to cancel the schedule
-            }),
-          }).catch((error) => {
-            logger.error(`Error cancelling schedule for deleted workflow ${id}:`, { error })
-          })
 
           // Mark as dirty to ensure sync
           useWorkflowStore.getState().sync.markDirty()

@@ -427,3 +427,177 @@ export function mockScheduleExecuteDb({
     return { db: { select, update } }
   })
 }
+
+/**
+ * Mock authentication for API tests
+ */
+export function mockAuth(user: any = mockUser) {
+  const mockGetSession = vi.fn()
+
+  vi.doMock('@/lib/auth', () => ({
+    getSession: mockGetSession,
+  }))
+
+  return {
+    mockGetSession,
+    mockAuthenticatedUser: () => mockGetSession.mockResolvedValueOnce({ user }),
+    mockUnauthenticated: () => mockGetSession.mockResolvedValueOnce(null),
+  }
+}
+
+/**
+ * Create a flexible query builder mock for database operations
+ */
+export function createQueryBuilderMock(data: any[] = []) {
+  return {
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    offset: vi.fn().mockReturnThis(),
+    then: vi.fn().mockResolvedValue(data),
+  }
+}
+
+/**
+ * Mock common schema patterns
+ */
+export function mockCommonSchemas() {
+  vi.doMock('@/db/schema', () => ({
+    workflowFolder: {
+      id: 'id',
+      userId: 'userId',
+      parentId: 'parentId',
+      updatedAt: 'updatedAt',
+      workspaceId: 'workspaceId',
+      sortOrder: 'sortOrder',
+      createdAt: 'createdAt',
+    },
+    workflow: {
+      id: 'id',
+      folderId: 'folderId',
+      userId: 'userId',
+      updatedAt: 'updatedAt',
+    },
+    account: {
+      userId: 'userId',
+      providerId: 'providerId',
+    },
+    user: {
+      email: 'email',
+      id: 'id',
+    },
+  }))
+}
+
+/**
+ * Mock drizzle-orm operators
+ */
+export function mockDrizzleOrm() {
+  vi.doMock('drizzle-orm', () => ({
+    and: vi.fn((...conditions) => ({ conditions, type: 'and' })),
+    eq: vi.fn((field, value) => ({ field, value, type: 'eq' })),
+    or: vi.fn((...conditions) => ({ type: 'or', conditions })),
+    gte: vi.fn((field, value) => ({ type: 'gte', field, value })),
+    lte: vi.fn((field, value) => ({ type: 'lte', field, value })),
+    asc: vi.fn((field) => ({ field, type: 'asc' })),
+    desc: vi.fn((field) => ({ field, type: 'desc' })),
+    isNull: vi.fn((field) => ({ field, type: 'isNull' })),
+    sql: vi.fn((strings, ...values) => ({
+      type: 'sql',
+      sql: strings,
+      values,
+    })),
+  }))
+}
+
+/**
+ * Mock console logger
+ */
+export function mockConsoleLogger() {
+  vi.doMock('@/lib/logs/console-logger', () => ({
+    createLogger: vi.fn().mockReturnValue(mockLogger),
+  }))
+}
+
+/**
+ * Setup common API test mocks (auth, logger, schema, drizzle)
+ */
+export function setupCommonApiMocks() {
+  mockCommonSchemas()
+  mockDrizzleOrm()
+  mockConsoleLogger()
+}
+
+/**
+ * Create mock database with CRUD operations
+ */
+export function createMockDatabase(
+  options: {
+    selectData?: any[]
+    insertResult?: any[]
+    updateResult?: any[]
+    deleteResult?: any[]
+    throwError?: boolean
+  } = {}
+) {
+  const {
+    selectData = [],
+    insertResult = [],
+    updateResult = [],
+    deleteResult = [],
+    throwError = false,
+  } = options
+
+  if (throwError) {
+    const throwingMock = vi.fn().mockImplementation(() => {
+      throw new Error('Database error')
+    })
+
+    return {
+      db: {
+        select: throwingMock,
+        insert: throwingMock,
+        update: throwingMock,
+        delete: throwingMock,
+      },
+    }
+  }
+
+  return {
+    db: {
+      select: vi.fn().mockImplementation(() => createQueryBuilderMock(selectData)),
+      insert: vi.fn().mockImplementation(() => ({
+        values: vi.fn().mockImplementation(() => ({
+          returning: vi.fn().mockReturnValue(insertResult),
+          onConflictDoUpdate: vi.fn().mockResolvedValue({}),
+        })),
+      })),
+      update: vi.fn().mockImplementation(() => ({
+        set: vi.fn().mockImplementation(() => ({
+          where: vi.fn().mockResolvedValue(updateResult),
+        })),
+      })),
+      delete: vi.fn().mockImplementation(() => ({
+        where: vi.fn().mockResolvedValue(deleteResult),
+      })),
+      transaction: vi.fn().mockImplementation(async (callback) => {
+        return await callback({
+          select: vi.fn().mockImplementation(() => createQueryBuilderMock(selectData)),
+          insert: vi.fn().mockImplementation(() => ({
+            values: vi.fn().mockResolvedValue(insertResult),
+          })),
+          update: vi.fn().mockImplementation(() => ({
+            set: vi.fn().mockImplementation(() => ({
+              where: vi.fn().mockResolvedValue(updateResult),
+            })),
+          })),
+          delete: vi.fn().mockImplementation(() => ({
+            where: vi.fn().mockResolvedValue(deleteResult),
+          })),
+        })
+      }),
+    },
+  }
+}

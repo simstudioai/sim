@@ -1,5 +1,9 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { createLogger } from '@/lib/logs/console-logger'
+import { useWorkflowRegistry } from '../workflows/registry/store'
+
+const logger = createLogger('FoldersStore')
 
 export interface WorkflowFolder {
   id: string
@@ -57,7 +61,11 @@ interface FolderState {
     color?: string
   }) => Promise<WorkflowFolder>
   updateFolderAPI: (id: string, updates: Partial<WorkflowFolder>) => Promise<WorkflowFolder>
-  deleteFolder: (id: string, moveWorkflowsTo?: string) => Promise<void>
+  deleteFolder: (id: string) => Promise<void>
+
+  // Helper functions
+  isWorkflowInDeletedSubfolder: (workflow: any, deletedFolderId: string) => boolean
+  removeSubfoldersRecursively: (parentFolderId: string) => void
 }
 
 export const useFolderStore = create<FolderState>()(
@@ -233,7 +241,7 @@ export const useFolderStore = create<FolderState>()(
           })
           set({ expandedFolders: expandedSet })
         } catch (error) {
-          console.error('Error fetching folders:', error)
+          logger.error('Error fetching folders:', error)
         } finally {
           set({ isLoading: false })
         }
@@ -286,17 +294,15 @@ export const useFolderStore = create<FolderState>()(
         return processedFolder
       },
 
-      deleteFolder: async (id, moveWorkflowsTo) => {
-        const url = moveWorkflowsTo
-          ? `/api/folders/${id}?moveWorkflowsTo=${moveWorkflowsTo}`
-          : `/api/folders/${id}`
-
-        const response = await fetch(url, { method: 'DELETE' })
+      deleteFolder: async (id: string) => {
+        const response = await fetch(`/api/folders/${id}`, { method: 'DELETE' })
 
         if (!response.ok) {
           const error = await response.json()
           throw new Error(error.error || 'Failed to delete folder')
         }
+
+        const responseData = await response.json()
 
         get().removeFolder(id)
 
@@ -305,6 +311,62 @@ export const useFolderStore = create<FolderState>()(
           const newExpanded = new Set(state.expandedFolders)
           newExpanded.delete(id)
           return { expandedFolders: newExpanded }
+        })
+
+        const workflowRegistry = useWorkflowRegistry.getState()
+        if (responseData.deletedItems) {
+          try {
+            const workflows = Object.values(workflowRegistry.workflows)
+            const workflowsToDelete = workflows.filter(
+              (workflow: any) =>
+                workflow.folderId === id || get().isWorkflowInDeletedSubfolder(workflow, id)
+            )
+
+            workflowsToDelete.forEach((workflow: any) => {
+              workflowRegistry.removeWorkflow(workflow.id)
+            })
+
+            get().removeSubfoldersRecursively(id)
+
+            logger.info(
+              `Deleted ${responseData.deletedItems.workflows} workflow(s) and ${responseData.deletedItems.folders} folder(s)`
+            )
+          } catch (error) {
+            logger.error('Error updating local state after folder deletion:', error)
+          }
+        }
+
+        if (workflowRegistry.activeWorkspaceId) {
+          const { fetchWorkflowsFromDB } = await import('../workflows/sync')
+          await fetchWorkflowsFromDB()
+        }
+      },
+
+      isWorkflowInDeletedSubfolder: (workflow: any, deletedFolderId: string) => {
+        if (!workflow.folderId) return false
+
+        const folders = get().folders
+        let currentFolderId = workflow.folderId
+
+        while (currentFolderId && folders[currentFolderId]) {
+          if (currentFolderId === deletedFolderId) {
+            return true
+          }
+          currentFolderId = folders[currentFolderId].parentId
+        }
+
+        return false
+      },
+
+      removeSubfoldersRecursively: (parentFolderId: string) => {
+        const folders = get().folders
+        const childFolderIds = Object.keys(folders).filter(
+          (id) => folders[id].parentId === parentFolderId
+        )
+
+        childFolderIds.forEach((childId) => {
+          get().removeSubfoldersRecursively(childId)
+          get().removeFolder(childId)
         })
       },
     }),
