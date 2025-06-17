@@ -6,7 +6,6 @@ import type { VariableType } from '@/stores/panel/variables/types'
  * to minimize type conversion issues and ensure predictable behavior.
  */
 
-// biome-ignore lint: false positive
 export class VariableManager {
   /**
    * Core method to convert any value to its appropriate native JavaScript type
