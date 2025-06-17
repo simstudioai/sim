@@ -2,9 +2,11 @@ import { useCallback, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { createLogger } from '@/lib/logs/console-logger'
 import { buildTraceSpans } from '@/lib/logs/trace-spans'
+import type { BlockOutput } from '@/blocks/types'
 import { Executor } from '@/executor'
 import type { BlockLog, ExecutionResult, StreamingExecution } from '@/executor/types'
 import { Serializer } from '@/serializer'
+import type { SerializedWorkflow } from '@/serializer/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -17,6 +19,27 @@ import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('useWorkflowExecution')
+
+// Interface for executor options
+interface ExecutorOptions {
+  workflow: SerializedWorkflow
+  currentBlockStates?: Record<string, BlockOutput>
+  envVarValues?: Record<string, string>
+  workflowInput?: any
+  workflowVariables?: Record<string, any>
+  contextExtensions?: {
+    stream?: boolean
+    selectedOutputIds?: string[]
+    edges?: Array<{ source: string; target: string }>
+    onStream?: (streamingExecution: StreamingExecution) => Promise<void>
+  }
+}
+
+// Interface for stream error handling
+interface StreamError extends Error {
+  name: string
+  message: string
+}
 
 export function useWorkflowExecution() {
   const { blocks, edges, loops, parallels } = useWorkflowStore()
@@ -140,11 +163,11 @@ export function useWorkflowExecution() {
             const streamedContent = new Map<string, string>()
             const streamReadingPromises: Promise<void>[] = []
 
-            const onStream = (streamingExecution: any) => {
+            const onStream = async (streamingExecution: StreamingExecution) => {
               const promise = (async () => {
                 if (!streamingExecution.stream) return
                 const reader = streamingExecution.stream.getReader()
-                const blockId = streamingExecution.execution?.blockId
+                const blockId = (streamingExecution.execution as any)?.blockId
                 if (blockId) {
                   streamedContent.set(blockId, '')
                 }
@@ -293,7 +316,7 @@ export function useWorkflowExecution() {
 
   const executeWorkflow = async (
     workflowInput?: any,
-    onStream?: (se: any) => void
+    onStream?: (se: StreamingExecution) => Promise<void>
   ): Promise<ExecutionResult | StreamingExecution> => {
     // Use the mergeSubblockState utility to get all block states
     const mergedStates = mergeSubblockState(blocks)
@@ -350,7 +373,7 @@ export function useWorkflowExecution() {
     }
 
     // Create executor options
-    const executorOptions: any = {
+    const executorOptions: ExecutorOptions = {
       workflow,
       currentBlockStates,
       envVarValues,

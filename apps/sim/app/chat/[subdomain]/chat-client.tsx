@@ -19,6 +19,9 @@ import { useChatStreaming } from './hooks/use-chat-streaming'
 
 const logger = createLogger('ChatClient')
 
+// Chat timeout configuration (5 minutes)
+const CHAT_REQUEST_TIMEOUT_MS = 300000
+
 interface ChatConfig {
   id: string
   title: string
@@ -289,7 +292,7 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     const abortController = new AbortController()
     const timeoutId = setTimeout(() => {
       abortController.abort()
-    }, 300000) // 5 minute timeout
+    }, CHAT_REQUEST_TIMEOUT_MS)
 
     try {
       // Send structured payload to maintain chat context
@@ -325,7 +328,6 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
       }
 
       const messageIdMap = new Map<string, string>()
-      setIsLoading(true)
 
       // Get reader with proper cleanup
       const reader = response.body.getReader()
@@ -391,17 +393,19 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
                         },
                       ])
                     } else {
-                      const messageId = messageIdMap.get(blockId)!
-                      setMessages((prev) =>
-                        prev.map((msg) =>
-                          msg.id === messageId
-                            ? { ...msg, content: msg.content + contentChunk }
-                            : msg
+                      const messageId = messageIdMap.get(blockId)
+                      if (messageId) {
+                        setMessages((prev) =>
+                          prev.map((msg) =>
+                            msg.id === messageId
+                              ? { ...msg, content: msg.content + contentChunk }
+                              : msg
+                          )
                         )
-                      )
+                      }
                     }
                   } else if (blockId && eventType === 'end') {
-                    const messageId = messageIdMap.get(blockId)!
+                    const messageId = messageIdMap.get(blockId)
                     if (messageId) {
                       setMessages((prev) =>
                         prev.map((msg) =>
@@ -417,8 +421,8 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
               }
             }
           }
-        } catch (streamError: any) {
-          if (streamError.name === 'AbortError') {
+        } catch (streamError: unknown) {
+          if (streamError instanceof Error && streamError.name === 'AbortError') {
             logger.info('Stream processing aborted by user')
             return
           }

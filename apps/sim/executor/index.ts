@@ -1353,7 +1353,7 @@ export class Executor {
       // Skip console logging for infrastructure blocks like loops and parallels
       if (block.metadata?.id !== 'loop' && block.metadata?.id !== 'parallel') {
         addConsole({
-          output: {},
+          output: { response: {} },
           success: false,
           error:
             error.message ||

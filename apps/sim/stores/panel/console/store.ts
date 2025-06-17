@@ -1,10 +1,30 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/utils'
+import type { NormalizedBlockOutput } from '@/executor/types'
 import type { ConsoleEntry, ConsoleStore } from './types'
 
 const MAX_ENTRIES = 50 // MAX across all workflows
 const MAX_IMAGE_DATA_SIZE = 1000 // Maximum size of image data to store (in characters)
+
+/**
+ * Safely clone and update a NormalizedBlockOutput
+ */
+const updateBlockOutput = (
+  existingOutput: NormalizedBlockOutput | undefined,
+  contentUpdate: string
+): NormalizedBlockOutput => {
+  const defaultOutput: NormalizedBlockOutput = { response: {} }
+  const baseOutput = existingOutput || defaultOutput
+
+  return {
+    ...baseOutput,
+    response: {
+      ...baseOutput.response,
+      content: contentUpdate,
+    },
+  }
+}
 
 /**
  * Checks if a string is likely a base64 encoded image or large data blob
@@ -166,27 +186,26 @@ export const useConsoleStore = create<ConsoleStore>()(
               if (entry.blockId === blockId) {
                 if (typeof update === 'string') {
                   // Simple content update for backward compatibility
-                  const newOutput = { ...(entry.output as any) }
-                  if (newOutput.response) {
-                    newOutput.response.content = update
-                  }
+                  const newOutput = updateBlockOutput(entry.output, update)
                   return { ...entry, output: newOutput }
                 }
                 // Complex update with multiple fields
                 const updatedEntry = { ...entry }
 
                 if (update.content !== undefined) {
-                  const newOutput = { ...(entry.output as any) }
-                  if (newOutput.response) {
-                    newOutput.response.content = update.content
-                  }
+                  const newOutput = updateBlockOutput(entry.output, update.content)
                   updatedEntry.output = newOutput
                 }
 
                 if (update.output !== undefined) {
+                  const existingOutput = entry.output || { response: {} }
                   updatedEntry.output = {
-                    ...(entry.output as any),
+                    ...existingOutput,
                     ...update.output,
+                    response: {
+                      ...(existingOutput.response || {}),
+                      ...(update.output.response || {}),
+                    },
                   }
                 }
 

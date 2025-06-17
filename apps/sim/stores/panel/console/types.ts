@@ -11,7 +11,7 @@ export interface ConsoleEntry {
   endedAt?: string
   durationMs?: number
   success: boolean
-  output?: NormalizedBlockOutput | any
+  output?: NormalizedBlockOutput
   input?: any
   error?: string
   warning?: string

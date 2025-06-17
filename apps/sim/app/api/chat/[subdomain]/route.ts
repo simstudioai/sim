@@ -115,6 +115,7 @@ export async function POST(
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
         },
       })
       return addCorsHeaders(streamResponse, request)

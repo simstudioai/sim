@@ -82,6 +82,13 @@ describe('Executor', () => {
 
       expect(executor).toBeDefined()
       expect(executor).toBeInstanceOf(Executor)
+
+      // Verify that all properties are properly initialized
+      expect((executor as any).actualWorkflow).toBe(workflow)
+      expect((executor as any).initialBlockStates).toEqual(initialStates)
+      expect((executor as any).environmentVariables).toEqual(envVars)
+      expect((executor as any).workflowInput).toEqual(workflowInput)
+      expect((executor as any).workflowVariables).toEqual(workflowVariables)
     })
 
     test('should accept streaming context extensions', () => {

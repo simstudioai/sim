@@ -5,7 +5,7 @@ import { ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import type { ExecutionResult } from '@/executor/types'
+import type { BlockLog, ExecutionResult } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -184,15 +184,17 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
                     const newMessageId = crypto.randomUUID()
                     messageIdMap.set(blockId, newMessageId)
                     addMessage({
+                      id: newMessageId,
                       content: contentChunk,
                       workflowId: activeWorkflowId,
                       type: 'workflow',
                       isStreaming: true,
-                      id: newMessageId,
-                    } as any)
+                    })
                   } else {
-                    const existingMessageId = messageIdMap.get(blockId)!
-                    appendMessageContent(existingMessageId, contentChunk)
+                    const existingMessageId = messageIdMap.get(blockId)
+                    if (existingMessageId) {
+                      appendMessageContent(existingMessageId, contentChunk)
+                    }
                   }
                 } else if (blockId && event === 'end') {
                   const existingMessageId = messageIdMap.get(blockId)
@@ -216,7 +218,7 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
         for (const outputId of selectedOutputs) {
           // Find the log that corresponds to the start of the outputId
           const log = result.logs?.find(
-            (l: any) => l.blockId === outputId || outputId.startsWith(`${l.blockId}_`)
+            (l: BlockLog) => l.blockId === outputId || outputId.startsWith(`${l.blockId}_`)
           )
 
           if (log) {
@@ -257,7 +259,8 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
           content = output
         } else if (output && typeof output === 'object') {
           // Handle cases where output is { response: ... }
-          const response = (output as any).response
+          const outputObj = output as Record<string, any>
+          const response = outputObj.response
           if (response) {
             if (typeof response.content === 'string') {
               content = response.content

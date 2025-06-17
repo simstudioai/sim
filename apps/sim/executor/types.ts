@@ -73,7 +73,7 @@ export interface ExecutionMetadata {
 export interface BlockState {
   output: NormalizedBlockOutput // Current output data from the block
   executed: boolean // Whether the block has been executed
-  executionTime?: number // Time taken to execute in milliseconds
+  executionTime: number // Time taken to execute in milliseconds
 }
 
 /**
@@ -81,10 +81,7 @@ export interface BlockState {
  */
 export interface ExecutionContext {
   workflowId: string // Unique identifier for this workflow execution
-  blockStates: Map<
-    string,
-    { output: NormalizedBlockOutput; executed: boolean; executionTime: number }
-  >
+  blockStates: Map<string, BlockState>
   blockLogs: BlockLog[] // Chronological log of block executions
   metadata: ExecutionMetadata // Timing metadata for the execution
   environmentVariables: Record<string, string> // Environment variables available during execution
@@ -96,7 +93,7 @@ export interface ExecutionContext {
   }
 
   loopIterations: Map<string, number> // Tracks current iteration count for each loop
-  loopItems: Map<string, any[]> // Tracks current item for forEach loops
+  loopItems: Map<string, any[] | Record<string, any>> // Tracks current item for forEach loops and parallel distribution
   completedLoops: Set<string> // Tracks which loops have completed all iterations
 
   // Parallel execution tracking
