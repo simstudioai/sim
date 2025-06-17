@@ -31,17 +31,12 @@ function extractWorkflowIdFromPathname(pathname: string): string | null {
  * Custom hook to manage workflow registry loading state and handle first-time navigation
  *
  * This hook initializes the loading state and automatically clears it
- * when workflows are loaded. It also handles smart workspace selection 
+ * when workflows are loaded. It also handles smart workspace selection
  * and navigation for first-time users.
  */
 export function useRegistryLoading() {
-  const { 
-    workflows, 
-    setLoading, 
-    isLoading, 
-    activeWorkspaceId, 
-    loadWorkspaceFromWorkflowId 
-  } = useWorkflowRegistry()
+  const { workflows, setLoading, isLoading, activeWorkspaceId, loadWorkspaceFromWorkflowId } =
+    useWorkflowRegistry()
   const pathname = usePathname()
   const router = useRouter()
 
@@ -62,9 +57,12 @@ export function useRegistryLoading() {
     if (!isLoading && activeWorkspaceId && Object.keys(workflows).length > 0) {
       const workflowCount = Object.keys(workflows).length
       const currentWorkflowId = extractWorkflowIdFromPathname(pathname)
-      
+
       // If we're at a generic workspace URL (/w, /w/, or /w/workspaceId) without a specific workflow
-      if (!currentWorkflowId && (pathname === '/w' || pathname === '/w/' || pathname === `/w/${activeWorkspaceId}`)) {
+      if (
+        !currentWorkflowId &&
+        (pathname === '/w' || pathname === '/w/' || pathname === `/w/${activeWorkspaceId}`)
+      ) {
         const firstWorkflowId = Object.keys(workflows)[0]
         console.log('First-time navigation: redirecting to first workflow:', firstWorkflowId)
         router.replace(`/w/${firstWorkflowId}`)

@@ -242,7 +242,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       loadWorkspaceFromWorkflowId: async (workflowId: string | null) => {
         try {
           logger.info(`Loading workspace for workflow ID: ${workflowId}`)
-          
+
           // If workflow ID provided, try to get its workspace
           if (workflowId) {
             try {
@@ -250,15 +250,17 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               if (response.ok) {
                 const data = await response.json()
                 const workflow = data.data
-                
-                if (workflow && workflow.workspaceId) {
+
+                if (workflow?.workspaceId) {
                   // Validate workspace access
                   const workspacesResponse = await fetch('/api/workspaces')
                   if (workspacesResponse.ok) {
                     const workspacesData = await workspacesResponse.json()
                     const workspaces = workspacesData.workspaces || []
-                    const workspaceExists = workspaces.some((ws: any) => ws.id === workflow.workspaceId)
-                    
+                    const workspaceExists = workspaces.some(
+                      (ws: any) => ws.id === workflow.workspaceId
+                    )
+
                     if (workspaceExists) {
                       set({ activeWorkspaceId: workflow.workspaceId })
                       localStorage.setItem('lastActiveWorkspaceId', workflow.workspaceId)
@@ -272,24 +274,25 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               logger.warn('Error fetching workflow:', error)
             }
           }
-          
+
           // Fallback: use last active workspace or first available
           const savedWorkspaceId = localStorage.getItem('lastActiveWorkspaceId')
           const response = await fetch('/api/workspaces')
-          
+
           if (response.ok) {
             const data = await response.json()
             const workspaces = data.workspaces || []
-            
+
             if (workspaces.length === 0) {
               logger.warn('No workspaces found')
               return
             }
-            
+
             // Try saved workspace first
-            let targetWorkspace = savedWorkspaceId ? 
-              workspaces.find((ws: any) => ws.id === savedWorkspaceId) : null
-            
+            let targetWorkspace = savedWorkspaceId
+              ? workspaces.find((ws: any) => ws.id === savedWorkspaceId)
+              : null
+
             // Fall back to first workspace
             if (!targetWorkspace) {
               targetWorkspace = workspaces[0]
@@ -297,12 +300,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 localStorage.removeItem('lastActiveWorkspaceId')
               }
             }
-            
+
             set({ activeWorkspaceId: targetWorkspace.id })
             localStorage.setItem('lastActiveWorkspaceId', targetWorkspace.id)
             logger.info(`Set active workspace: ${targetWorkspace.id}`)
           }
-          
         } catch (error) {
           logger.error('Error in loadWorkspaceFromWorkflowId:', error)
         }
@@ -1278,7 +1280,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               state: {
                 blocks: {},
                 edges: [],
-                loops: [],
+                loops: {},
               },
             }),
           }).catch((error) => {

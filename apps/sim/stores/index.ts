@@ -45,7 +45,7 @@ async function initializeApplication(): Promise<void> {
 
     // Extract workflow ID from URL for smart workspace selection
     const workflowIdFromUrl = extractWorkflowIdFromUrl()
-    
+
     // Load workspace based on workflow ID in URL, with fallback to last active workspace
     await useWorkflowRegistry.getState().loadWorkspaceFromWorkflowId(workflowIdFromUrl)
 
@@ -86,7 +86,7 @@ async function initializeApplication(): Promise<void> {
  */
 function extractWorkflowIdFromUrl(): string | null {
   if (typeof window === 'undefined') return null
-  
+
   try {
     const pathSegments = window.location.pathname.split('/')
     // Check if URL matches pattern /w/{workflowId}
