@@ -81,7 +81,10 @@ export interface BlockState {
  */
 export interface ExecutionContext {
   workflowId: string // Unique identifier for this workflow execution
-  blockStates: Map<string, BlockState> // Map of block states indexed by block ID
+  blockStates: Map<
+    string,
+    { output: NormalizedBlockOutput; executed: boolean; executionTime: number }
+  >
   blockLogs: BlockLog[] // Chronological log of block executions
   metadata: ExecutionMetadata // Timing metadata for the execution
   environmentVariables: Record<string, string> // Environment variables available during execution
@@ -93,7 +96,7 @@ export interface ExecutionContext {
   }
 
   loopIterations: Map<string, number> // Tracks current iteration count for each loop
-  loopItems: Map<string, any> // Tracks current item for forEach loops
+  loopItems: Map<string, any[]> // Tracks current item for forEach loops
   completedLoops: Set<string> // Tracks which loops have completed all iterations
 
   // Parallel execution tracking
@@ -145,6 +148,9 @@ export interface ExecutionContext {
   stream?: boolean // Whether to use streaming responses when available
   selectedOutputIds?: string[] // IDs of blocks selected for streaming output
   edges?: Array<{ source: string; target: string }> // Workflow edge connections
+
+  // New context extensions
+  onStream?: (streamingExecution: StreamingExecution) => Promise<string>
 }
 
 /**

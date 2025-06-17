@@ -288,169 +288,110 @@ export default function ChatClient({ subdomain }: { subdomain: string }) {
     try {
       // Send structured payload to maintain chat context
       const payload = {
-        message: userMessage.content,
+        message:
+          typeof userMessage.content === 'string'
+            ? userMessage.content
+            : JSON.stringify(userMessage.content),
         conversationId,
       }
 
-      // Create a new AbortController for this request
-      abortControllerRef.current = new AbortController()
-
-      // Use relative URL with credentials
       const response = await fetch(`/api/chat/${subdomain}`, {
         method: 'POST',
-        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify(payload),
-        signal: abortControllerRef.current.signal,
+        credentials: 'same-origin',
       })
 
       if (!response.ok) {
-        throw new Error('Failed to get response')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to get response')
       }
 
-      // Detect streaming response via content-type (text/plain) or absence of JSON content-type
-      const contentType = response.headers.get('Content-Type') || ''
+      if (!response.body) {
+        throw new Error('Response body is missing')
+      }
 
-      if (contentType.includes('text/plain')) {
-        const shouldPlayAudio = isVoiceInput || isVoiceFirstMode
+      const messageIdMap = new Map<string, string>()
+      setIsLoading(true)
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
 
-        const audioStreamHandler = shouldPlayAudio
-          ? createAudioStreamHandler(streamTextToAudio, DEFAULT_VOICE_SETTINGS.voiceId)
-          : undefined
-
-        // Handle streaming response with audio support
-        await handleStreamedResponse(
-          response,
-          setMessages,
-          setIsLoading,
-          scrollToBottom,
-          userHasScrolled,
-          {
-            voiceSettings: {
-              isVoiceEnabled: true,
-              voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-              autoPlayResponses: isVoiceInput || isVoiceFirstMode,
-            },
-            audioStreamHandler,
+      const processStream = async () => {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) {
+            setIsLoading(false)
+            break
           }
-        )
-      } else {
-        // Fallback to JSON response handling
-        const responseData = await response.json()
-        logger.info('Message response:', responseData)
 
-        // Handle different response formats from API
-        if (
-          responseData.multipleOutputs &&
-          responseData.contents &&
-          Array.isArray(responseData.contents)
-        ) {
-          // For multiple outputs, create separate assistant messages for each
-          const assistantMessages = responseData.contents.map((content: any) => {
-            // Format the content appropriately
-            let formattedContent = content
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n\n')
 
-            // Convert objects to strings for display
-            if (typeof formattedContent === 'object' && formattedContent !== null) {
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
               try {
-                formattedContent = JSON.stringify(formattedContent)
-              } catch (_e) {
-                formattedContent = 'Received structured data response'
-              }
-            }
+                const json = JSON.parse(line.substring(6))
+                const { blockId, chunk: contentChunk, event: eventType } = json
 
-            return {
-              id: crypto.randomUUID(),
-              content: formattedContent || 'No content found',
-              type: 'assistant' as const,
-              timestamp: new Date(),
-            }
-          })
-
-          // Add all messages at once
-          setMessages((prev) => [...prev, ...assistantMessages])
-
-          // Play audio for the full response if voice mode is enabled
-          if (isVoiceInput || isVoiceFirstMode) {
-            const fullContent = assistantMessages.map((m: ChatMessage) => m.content).join(' ')
-            if (fullContent.trim()) {
-              try {
-                await streamTextToAudio(fullContent, {
-                  voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                  onError: (error) => {
-                    logger.error('Audio playback error:', error)
-                  },
-                })
-              } catch (error) {
-                logger.error('TTS error:', error)
-              }
-            }
-          }
-        } else {
-          // Handle single output as before
-          let messageContent = responseData.output
-
-          if (!messageContent && responseData.content) {
-            if (typeof responseData.content === 'object') {
-              if (responseData.content.text) {
-                messageContent = responseData.content.text
-              } else {
-                try {
-                  messageContent = JSON.stringify(responseData.content)
-                } catch (_e) {
-                  messageContent = 'Received structured data response'
+                if (eventType === 'final') {
+                  setIsLoading(false)
+                  return
                 }
+
+                if (blockId && contentChunk) {
+                  if (!messageIdMap.has(blockId)) {
+                    const newMessageId = crypto.randomUUID()
+                    messageIdMap.set(blockId, newMessageId)
+                    setMessages((prev) => [
+                      ...prev,
+                      {
+                        id: newMessageId,
+                        content: contentChunk,
+                        type: 'assistant',
+                        timestamp: new Date(),
+                        isStreaming: true,
+                      },
+                    ])
+                  } else {
+                    const messageId = messageIdMap.get(blockId)!
+                    setMessages((prev) =>
+                      prev.map((msg) =>
+                        msg.id === messageId ? { ...msg, content: msg.content + contentChunk } : msg
+                      )
+                    )
+                  }
+                } else if (blockId && eventType === 'end') {
+                  const messageId = messageIdMap.get(blockId)!
+                  if (messageId) {
+                    setMessages((prev) =>
+                      prev.map((msg) =>
+                        msg.id === messageId ? { ...msg, isStreaming: false } : msg
+                      )
+                    )
+                  }
+                }
+              } catch (error) {
+                logger.error('Error parsing stream data:', error)
               }
-            } else {
-              messageContent = responseData.content
-            }
-          }
-
-          const assistantMessage: ChatMessage = {
-            id: crypto.randomUUID(),
-            content: messageContent || "Sorry, I couldn't process your request.",
-            type: 'assistant',
-            timestamp: new Date(),
-          }
-
-          setMessages((prev) => [...prev, assistantMessage])
-
-          // Play audio for the response if voice mode is enabled
-          if ((isVoiceInput || isVoiceFirstMode) && assistantMessage.content) {
-            const contentString =
-              typeof assistantMessage.content === 'string'
-                ? assistantMessage.content
-                : JSON.stringify(assistantMessage.content)
-
-            try {
-              await streamTextToAudio(contentString, {
-                voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-                onError: (error) => {
-                  logger.error('Audio playback error:', error)
-                },
-              })
-            } catch (error) {
-              logger.error('TTS error:', error)
             }
           }
         }
       }
+
+      await processStream()
     } catch (error) {
       logger.error('Error sending message:', error)
-
+      setIsLoading(false)
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         content: 'Sorry, there was an error processing your message. Please try again.',
         type: 'assistant',
         timestamp: new Date(),
       }
-
       setMessages((prev) => [...prev, errorMessage])
-    } finally {
-      setIsLoading(false)
     }
   }
 

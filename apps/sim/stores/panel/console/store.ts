@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { redactApiKeys } from '@/lib/utils'
-import { useChatStore } from '../chat/store'
 import type { ConsoleEntry, ConsoleStore } from './types'
 
 const MAX_ENTRIES = 50 // MAX across all workflows
@@ -160,71 +159,6 @@ export const useConsoleStore = create<ConsoleStore>()(
             // Keep only the last MAX_ENTRIES
             const newEntries = [newEntry, ...state.entries].slice(0, MAX_ENTRIES)
 
-            // If the block produced a streaming output, skip automatic chat message creation
-            if (isStreamingOutput) {
-              return { entries: newEntries }
-            }
-
-            // Check if this block matches a selected workflow output
-            if (entry.workflowId && entry.blockName) {
-              const chatStore = useChatStore.getState()
-              const selectedOutputIds = chatStore.getSelectedWorkflowOutput(entry.workflowId)
-
-              if (selectedOutputIds && selectedOutputIds.length > 0) {
-                // Process each selected output that matches this block
-                for (const selectedOutputId of selectedOutputIds) {
-                  // The selectedOutputId format is "{blockId}_{path}"
-                  // We need to extract both components
-                  const idParts = selectedOutputId.split('_')
-                  const selectedBlockId = idParts[0]
-                  // Reconstruct the path by removing the blockId part
-                  const selectedPath = idParts.slice(1).join('.')
-
-                  // If this block matches the selected output for this workflow
-                  if (selectedBlockId && entry.blockId === selectedBlockId) {
-                    // Extract the specific value from the output using the path
-                    let specificValue: any
-
-                    if (selectedPath) {
-                      specificValue = getValueByPath(entry.output, selectedPath)
-                    } else {
-                      specificValue = entry.output
-                    }
-
-                    // Format the value appropriately for display
-                    let formattedValue: string
-                    // For streaming responses, use empty string and set isStreaming flag
-                    if (isStreamingOutput) {
-                      // Skip adding a message since we'll handle streaming in workflow execution
-                      // This prevents the "Output value not found" message for streams
-                      continue
-                    }
-                    if (specificValue === undefined) {
-                      formattedValue = 'Output value not found'
-                    } else if (typeof specificValue === 'object') {
-                      formattedValue = JSON.stringify(specificValue, null, 2)
-                    } else {
-                      formattedValue = String(specificValue)
-                    }
-
-                    // Skip empty content messages (important for preventing empty entries)
-                    if (!formattedValue || formattedValue.trim() === '') {
-                      continue
-                    }
-
-                    // Add the specific value to chat, not the whole output
-                    chatStore.addMessage({
-                      content: formattedValue,
-                      workflowId: entry.workflowId,
-                      type: 'workflow',
-                      blockId: entry.blockId,
-                      isStreaming: isStreamingOutput,
-                    })
-                  }
-                }
-              }
-            }
-
             return { entries: newEntries }
           })
 
@@ -248,22 +182,19 @@ export const useConsoleStore = create<ConsoleStore>()(
           set((state) => ({ isOpen: !state.isOpen }))
         },
 
-        updateConsole: (
-          entryId: string,
-          updatedData: Partial<Omit<ConsoleEntry, 'id' | 'timestamp'>>
-        ) => {
+        updateConsole: (blockId: string, newContent: string) => {
           set((state) => {
             const updatedEntries = state.entries.map((entry) => {
-              if (entry.id === entryId) {
-                return {
-                  ...entry,
-                  ...updatedData,
-                  output: updatedData.output ? redactApiKeys(updatedData.output) : entry.output,
+              if (entry.blockId === blockId) {
+                const newOutput = { ...(entry.output as any) }
+                if (newOutput.response) {
+                  newOutput.response.content = newContent
                 }
+                return { ...entry, output: newOutput }
               }
               return entry
             })
-            return { entries: updatedEntries }
+            return { ...state, entries: updatedEntries }
           })
         },
       }),
