@@ -1,6 +1,29 @@
 import { NextRequest } from 'next/server'
 import { vi } from 'vitest'
 
+// Add type definitions for better type safety
+export interface MockUser {
+  id: string
+  email: string
+  name?: string
+}
+
+export interface MockAuthResult {
+  mockGetSession: ReturnType<typeof vi.fn>
+  mockAuthenticatedUser: (user?: MockUser) => void
+  mockUnauthenticated: () => void
+}
+
+export interface MockDatabaseOptions {
+  selectData?: any[]
+  insertResult?: any[]
+  updateResult?: any[]
+  deleteResult?: any[]
+  throwError?: boolean
+  errorType?: 'connection' | 'constraint' | 'timeout' | 'generic'
+  errorMessage?: string
+}
+
 export const sampleWorkflowState = {
   blocks: {
     'starter-id': {
@@ -430,8 +453,10 @@ export function mockScheduleExecuteDb({
 
 /**
  * Mock authentication for API tests
+ * @param user - Optional user object to use for authenticated requests
+ * @returns Object with authentication helper functions
  */
-export function mockAuth(user: any = mockUser) {
+export function mockAuth(user: MockUser = mockUser): MockAuthResult {
   const mockGetSession = vi.fn()
 
   vi.doMock('@/lib/auth', () => ({
@@ -440,7 +465,8 @@ export function mockAuth(user: any = mockUser) {
 
   return {
     mockGetSession,
-    mockAuthenticatedUser: () => mockGetSession.mockResolvedValueOnce({ user }),
+    mockAuthenticatedUser: (customUser?: MockUser) =>
+      mockGetSession.mockResolvedValueOnce({ user: customUser || user }),
     mockUnauthenticated: () => mockGetSession.mockResolvedValueOnce(null),
   }
 }
@@ -532,27 +558,45 @@ export function setupCommonApiMocks() {
 
 /**
  * Create mock database with CRUD operations
+ * @param options - Configuration options for the mock database
+ * @returns Mock database object with all necessary methods
  */
-export function createMockDatabase(
-  options: {
-    selectData?: any[]
-    insertResult?: any[]
-    updateResult?: any[]
-    deleteResult?: any[]
-    throwError?: boolean
-  } = {}
-) {
+export function createMockDatabase(options: MockDatabaseOptions = {}) {
   const {
     selectData = [],
     insertResult = [],
     updateResult = [],
     deleteResult = [],
     throwError = false,
+    errorType = 'generic',
+    errorMessage = 'Database error',
   } = options
 
   if (throwError) {
+    const createError = () => {
+      switch (errorType) {
+        case 'connection': {
+          const connError = new Error(`Connection failed: ${errorMessage}`)
+          ;(connError as any).code = 'ECONNREFUSED'
+          return connError
+        }
+        case 'constraint': {
+          const constraintError = new Error(`Constraint violation: ${errorMessage}`)
+          ;(constraintError as any).code = '23505' // PostgreSQL unique violation
+          return constraintError
+        }
+        case 'timeout': {
+          const timeoutError = new Error(`Query timeout: ${errorMessage}`)
+          ;(timeoutError as any).code = 'ETIMEDOUT'
+          return timeoutError
+        }
+        default:
+          return new Error(errorMessage)
+      }
+    }
+
     const throwingMock = vi.fn().mockImplementation(() => {
-      throw new Error('Database error')
+      throw createError()
     })
 
     return {
@@ -561,6 +605,7 @@ export function createMockDatabase(
         insert: throwingMock,
         update: throwingMock,
         delete: throwingMock,
+        transaction: throwingMock,
       },
     }
   }
@@ -599,5 +644,108 @@ export function createMockDatabase(
         })
       }),
     },
+  }
+}
+
+/**
+ * Measure execution time of an async function
+ * @param fn - The async function to measure
+ * @param label - Optional label for logging
+ * @returns Promise with result and execution time
+ */
+export async function measureExecutionTime<T>(
+  fn: () => Promise<T>,
+  label?: string
+): Promise<{ result: T; executionTime: number }> {
+  const startTime = performance.now()
+  const result = await fn()
+  const executionTime = performance.now() - startTime
+
+  if (label) {
+    console.log(`${label} executed in ${executionTime.toFixed(2)}ms`)
+  }
+
+  return { result, executionTime }
+}
+
+/**
+ * Assert that a function executes within a time limit
+ * @param fn - The async function to test
+ * @param maxTime - Maximum allowed execution time in milliseconds
+ * @param label - Optional label for better error messages
+ */
+export async function expectWithinTimeLimit<T>(
+  fn: () => Promise<T>,
+  maxTime: number,
+  label = 'Function'
+): Promise<T> {
+  const { result, executionTime } = await measureExecutionTime(fn, label)
+
+  if (executionTime > maxTime) {
+    throw new Error(
+      `${label} took ${executionTime.toFixed(2)}ms, which exceeds the limit of ${maxTime}ms`
+    )
+  }
+
+  return result
+}
+
+/**
+ * Test data factory for creating consistent test objects
+ */
+export class TestDataFactory {
+  /**
+   * Create a mock user with optional overrides
+   */
+  static createUser(overrides: Partial<MockUser> = {}): MockUser {
+    return {
+      id: `user-${Date.now()}`,
+      email: `test-${Date.now()}@example.com`,
+      name: 'Test User',
+      ...overrides,
+    }
+  }
+
+  /**
+   * Create a mock folder with optional overrides
+   */
+  static createFolder(overrides: Record<string, any> = {}) {
+    const now = new Date()
+    return {
+      id: `folder-${Date.now()}`,
+      name: `Test Folder ${Date.now()}`,
+      userId: 'user-123',
+      workspaceId: 'workspace-123',
+      parentId: null,
+      color: '#6B7280',
+      sortOrder: 1,
+      createdAt: now,
+      updatedAt: now,
+      ...overrides,
+    }
+  }
+
+  /**
+   * Create a mock workflow with optional overrides
+   */
+  static createWorkflow(overrides: Record<string, any> = {}) {
+    const now = new Date()
+    return {
+      id: `workflow-${Date.now()}`,
+      name: `Test Workflow ${Date.now()}`,
+      userId: 'user-123',
+      workspaceId: 'workspace-123',
+      folderId: null,
+      description: 'Test workflow description',
+      color: '#3B82F6',
+      state: {
+        blocks: {},
+        edges: [],
+        loops: {},
+      },
+      createdAt: now,
+      updatedAt: now,
+      ...overrides,
+    }
   }
 }

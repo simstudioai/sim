@@ -6,25 +6,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createMockRequest,
+  type MockUser,
   mockAuth,
   mockLogger,
   setupCommonApiMocks,
 } from '@/app/api/__test-utils__/utils'
 
 describe('Individual Folder API Route', () => {
+  // Test data constants
+  const TEST_USER: MockUser = {
+    id: 'user-123',
+    email: 'test@example.com',
+    name: 'Test User',
+  }
+
   const mockFolder = {
     id: 'folder-1',
     name: 'Test Folder',
-    userId: 'user-123',
+    userId: TEST_USER.id,
     workspaceId: 'workspace-123',
     parentId: null,
     color: '#6B7280',
     sortOrder: 1,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    createdAt: new Date('2024-01-01T00:00:00Z'),
+    updatedAt: new Date('2024-01-01T00:00:00Z'),
   }
 
-  const { mockAuthenticatedUser, mockUnauthenticated } = mockAuth()
+  const { mockAuthenticatedUser, mockUnauthenticated } = mockAuth(TEST_USER)
 
   function createFolderDbMock(
     options: {
@@ -253,6 +261,51 @@ describe('Individual Folder API Route', () => {
     })
   })
 
+  describe('Input Validation', () => {
+    it('should handle empty folder name', async () => {
+      mockAuthenticatedUser()
+
+      const dbMock = createFolderDbMock()
+      vi.doMock('@/db', () => dbMock)
+
+      const req = createMockRequest('PUT', {
+        name: '', // Empty name
+      })
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { PUT } = await import('./route')
+
+      const response = await PUT(req, { params })
+
+      // Should still work as the API doesn't validate empty names
+      expect(response.status).toBe(200)
+    })
+
+    it('should handle invalid JSON payload', async () => {
+      mockAuthenticatedUser()
+
+      const dbMock = createFolderDbMock()
+      vi.doMock('@/db', () => dbMock)
+
+      // Create a request with invalid JSON
+      const req = new Request('http://localhost:3000/api/folders/folder-1', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: 'invalid-json',
+      }) as any
+
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { PUT } = await import('./route')
+
+      const response = await PUT(req, { params })
+
+      expect(response.status).toBe(500) // Should handle JSON parse error gracefully
+    })
+  })
+
   describe('Circular Reference Prevention', () => {
     it('should prevent circular references when updating parent', async () => {
       mockAuthenticatedUser()
@@ -286,6 +339,75 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Cannot create circular folder reference')
+    })
+  })
+
+  describe('DELETE /api/folders/[id]', () => {
+    it('should delete folder and all contents successfully', async () => {
+      mockAuthenticatedUser()
+
+      const dbMock = createFolderDbMock({
+        folderLookupResult: mockFolder,
+      })
+
+      // Mock the recursive deletion function
+      vi.doMock('@/db', () => dbMock)
+
+      const req = createMockRequest('DELETE')
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { DELETE } = await import('./route')
+
+      const response = await DELETE(req, { params })
+
+      expect(response.status).toBe(200)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('success', true)
+      expect(data).toHaveProperty('deletedItems')
+    })
+
+    it('should return 401 for unauthenticated delete requests', async () => {
+      mockUnauthenticated()
+
+      const dbMock = createFolderDbMock()
+      vi.doMock('@/db', () => dbMock)
+
+      const req = createMockRequest('DELETE')
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { DELETE } = await import('./route')
+
+      const response = await DELETE(req, { params })
+
+      expect(response.status).toBe(401)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('error', 'Unauthorized')
+    })
+
+    it('should handle database errors during deletion', async () => {
+      mockAuthenticatedUser()
+
+      const dbMock = createFolderDbMock({
+        throwError: true,
+      })
+      vi.doMock('@/db', () => dbMock)
+
+      const req = createMockRequest('DELETE')
+      const params = Promise.resolve({ id: 'folder-1' })
+
+      const { DELETE } = await import('./route')
+
+      const response = await DELETE(req, { params })
+
+      expect(response.status).toBe(500)
+
+      const data = await response.json()
+      expect(data).toHaveProperty('error', 'Internal server error')
+      expect(mockLogger.error).toHaveBeenCalledWith('Error deleting folder:', {
+        error: expect.any(Error),
+      })
     })
   })
 })
