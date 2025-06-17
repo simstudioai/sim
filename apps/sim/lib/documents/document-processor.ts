@@ -216,7 +216,6 @@ async function parseWithMistralOCR(
   try {
     const response = await retryWithExponentialBackoff(
       async () => {
-        // Get the URL from the tool
         const url =
           typeof mistralParserTool.request!.url === 'function'
             ? mistralParserTool.request!.url({
@@ -226,7 +225,6 @@ async function parseWithMistralOCR(
               })
             : mistralParserTool.request!.url
 
-        // Get headers from the tool
         const headers =
           typeof mistralParserTool.request!.headers === 'function'
             ? mistralParserTool.request!.headers({
@@ -259,7 +257,6 @@ async function parseWithMistralOCR(
       }
     )
 
-    // Use the tool's transformResponse function to process the response
     const result = await mistralParserTool.transformResponse!(response, {
       filePath: httpsUrl,
       apiKey: mistralApiKey,
@@ -282,7 +279,6 @@ async function parseWithMistralOCR(
       cloudUrl,
     }
   } catch (error) {
-    // Log the full error details for debugging
     logger.error(`Mistral OCR failed for ${filename}:`, {
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,

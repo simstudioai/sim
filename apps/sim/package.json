@@ -109,6 +109,7 @@
     "tailwindcss-animate": "^1.0.7",
     "three": "0.177.0",
     "uuid": "^11.1.0",
+    "xlsx": "0.18.5",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -121,6 +122,7 @@
     "@types/prismjs": "^1.26.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/xlsx": "0.0.36",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^3.0.8",
     "critters": "^0.0.23",
