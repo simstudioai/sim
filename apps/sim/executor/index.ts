@@ -13,6 +13,7 @@ import {
   GenericBlockHandler,
   LoopBlockHandler,
   ParallelBlockHandler,
+  ResponseBlockHandler,
   RouterBlockHandler,
   WorkflowBlockHandler,
 } from './handlers/index'
@@ -142,6 +143,7 @@ export class Executor {
       new ApiBlockHandler(),
       new LoopBlockHandler(this.resolver),
       new ParallelBlockHandler(this.resolver),
+      new ResponseBlockHandler(),
       new WorkflowBlockHandler(),
       new GenericBlockHandler(),
     ]
@@ -312,7 +314,9 @@ export class Executor {
                         }
 
                         // Update the console UI with the final content
-                        consoleStore.updateConsole(consoleEntryId, { output: updatedOutput })
+                        consoleStore.updateConsole(consoleEntryId, {
+                          output: updatedOutput,
+                        })
 
                         // Update the execution data itself with the final content
                         // so that when logs are persisted, they have the complete content
