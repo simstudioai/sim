@@ -429,7 +429,10 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      const result = await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, mockWorkflowState)
+      const result = await dbHelpers.saveWorkflowToNormalizedTables(
+        mockWorkflowId,
+        mockWorkflowState
+      )
 
       expect(result.success).toBe(true)
       expect(result.jsonBlob).toBeDefined()
@@ -469,7 +472,10 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      const result = await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, emptyWorkflowState)
+      const result = await dbHelpers.saveWorkflowToNormalizedTables(
+        mockWorkflowId,
+        emptyWorkflowState
+      )
 
       expect(result.success).toBe(true)
       expect(result.jsonBlob.blocks).toEqual({})
@@ -482,7 +488,10 @@ describe('Database Helpers', () => {
       const mockTransaction = vi.fn().mockRejectedValue(new Error('Transaction failed'))
       mockDb.transaction = mockTransaction
 
-      const result = await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, mockWorkflowState)
+      const result = await dbHelpers.saveWorkflowToNormalizedTables(
+        mockWorkflowId,
+        mockWorkflowState
+      )
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Transaction failed')
@@ -495,7 +504,10 @@ describe('Database Helpers', () => {
       const mockTransaction = vi.fn().mockRejectedValue(constraintError)
       mockDb.transaction = mockTransaction
 
-      const result = await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, mockWorkflowState)
+      const result = await dbHelpers.saveWorkflowToNormalizedTables(
+        mockWorkflowId,
+        mockWorkflowState
+      )
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Unique constraint violation')
@@ -641,7 +653,10 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      const result = await dbHelpers.migrateWorkflowToNormalizedTables(mockWorkflowId, mockJsonState)
+      const result = await dbHelpers.migrateWorkflowToNormalizedTables(
+        mockWorkflowId,
+        mockJsonState
+      )
 
       expect(result.success).toBe(true)
       expect(result.error).toBeUndefined()
@@ -651,7 +666,10 @@ describe('Database Helpers', () => {
       const mockTransaction = vi.fn().mockRejectedValue(new Error('Migration failed'))
       mockDb.transaction = mockTransaction
 
-      const result = await dbHelpers.migrateWorkflowToNormalizedTables(mockWorkflowId, mockJsonState)
+      const result = await dbHelpers.migrateWorkflowToNormalizedTables(
+        mockWorkflowId,
+        mockJsonState
+      )
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Migration failed')
@@ -678,7 +696,10 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      const result = await dbHelpers.migrateWorkflowToNormalizedTables(mockWorkflowId, incompleteJsonState)
+      const result = await dbHelpers.migrateWorkflowToNormalizedTables(
+        mockWorkflowId,
+        incompleteJsonState
+      )
 
       expect(result.success).toBe(true)
     })
@@ -741,11 +762,14 @@ describe('Database Helpers', () => {
 
       mockDb.transaction = mockTransaction
 
-      const result = await dbHelpers.saveWorkflowToNormalizedTables(mockWorkflowId, largeWorkflowState)
+      const result = await dbHelpers.saveWorkflowToNormalizedTables(
+        mockWorkflowId,
+        largeWorkflowState
+      )
 
       expect(result.success).toBe(true)
       expect(Object.keys(result.jsonBlob.blocks)).toHaveLength(1000)
       expect(result.jsonBlob.edges).toHaveLength(999)
     })
   })
-}) 
+})
