@@ -101,7 +101,7 @@ export class LoopBlockHandler implements BlockHandler {
     // For forEach loops, set the current item BEFORE incrementing
     if (loop.loopType === 'forEach' && forEachItems) {
       // Store the full items array for access via <loop.items>
-      context.loopItems.set(`${block.id}_items`, forEachItems)
+      context.loopItems.set(`${block.id}_items`, forEachItems as any[])
 
       const currentItem = Array.isArray(forEachItems)
         ? forEachItems[currentIteration]
