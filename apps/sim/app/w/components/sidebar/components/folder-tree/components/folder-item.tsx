@@ -133,7 +133,8 @@ export function FolderItem({
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure you want to delete "{folder.name}"?</AlertDialogTitle>
               <AlertDialogDescription>
-                Child folders and workflows will be moved to the parent folder.
+                This will permanently delete the folder and all its contents, including subfolders
+                and workflows. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -143,7 +144,7 @@ export function FolderItem({
                 disabled={isDeleting}
                 className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
               >
-                {isDeleting ? 'Deleting...' : 'Delete'}
+                {isDeleting ? 'Deleting...' : 'Delete Forever'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -197,7 +198,8 @@ export function FolderItem({
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure you want to delete "{folder.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              Child folders and workflows will be moved to the parent folder.
+              This will permanently delete the folder and all its contents, including subfolders and
+              workflows. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -207,7 +209,7 @@ export function FolderItem({
               disabled={isDeleting}
               className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
             >
-              {isDeleting ? 'Deleting...' : 'Delete'}
+              {isDeleting ? 'Deleting...' : 'Delete Forever'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

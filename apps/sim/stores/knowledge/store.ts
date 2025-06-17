@@ -676,7 +676,16 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
   addPendingDocuments: (knowledgeBaseId: string, newDocuments: DocumentData[]) => {
     set((state) => {
       const existingDocuments = state.documents[knowledgeBaseId] || []
-      const updatedDocuments = [...existingDocuments, ...newDocuments]
+
+      const existingIds = new Set(existingDocuments.map((doc) => doc.id))
+      const uniqueNewDocuments = newDocuments.filter((doc) => !existingIds.has(doc.id))
+
+      if (uniqueNewDocuments.length === 0) {
+        logger.warn(`No new documents to add - all ${newDocuments.length} documents already exist`)
+        return state
+      }
+
+      const updatedDocuments = [...existingDocuments, ...uniqueNewDocuments]
 
       return {
         documents: {
@@ -686,7 +695,7 @@ export const useKnowledgeStore = create<KnowledgeStore>((set, get) => ({
       }
     })
     logger.info(
-      `Added ${newDocuments.length} pending documents for knowledge base: ${knowledgeBaseId}`
+      `Added ${newDocuments.filter((doc) => !get().documents[knowledgeBaseId]?.some((existing) => existing.id === doc.id)).length} pending documents for knowledge base: ${knowledgeBaseId}`
     )
   },
 

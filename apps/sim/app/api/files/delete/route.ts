@@ -3,17 +3,20 @@ import { unlink } from 'fs/promises'
 import { join } from 'path'
 import type { NextRequest } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
-import { deleteFromS3 } from '@/lib/uploads/s3-client'
-import { UPLOAD_DIR, USE_S3_STORAGE } from '@/lib/uploads/setup'
+import { deleteFile, isUsingCloudStorage } from '@/lib/uploads'
+import { UPLOAD_DIR } from '@/lib/uploads/setup'
 import '@/lib/uploads/setup.server'
 
 import {
   createErrorResponse,
   createOptionsResponse,
   createSuccessResponse,
+  extractBlobKey,
   extractFilename,
   extractS3Key,
   InvalidRequestError,
+  isBlobPath,
+  isCloudPath,
   isS3Path,
 } from '../utils'
 
@@ -38,8 +41,8 @@ export async function POST(request: NextRequest) {
     try {
       // Use appropriate handler based on path and environment
       const result =
-        isS3Path(filePath) || USE_S3_STORAGE
-          ? await handleS3FileDelete(filePath)
+        isCloudPath(filePath) || isUsingCloudStorage()
+          ? await handleCloudFileDelete(filePath)
           : await handleLocalFileDelete(filePath)
 
       // Return success response
@@ -57,24 +60,24 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Handle S3 file deletion
+ * Handle cloud file deletion (S3 or Azure Blob)
  */
-async function handleS3FileDelete(filePath: string) {
-  // Extract the S3 key from the path
-  const s3Key = extractS3Key(filePath)
-  logger.info(`Deleting file from S3: ${s3Key}`)
+async function handleCloudFileDelete(filePath: string) {
+  // Extract the key from the path (works for both S3 and Blob paths)
+  const key = extractCloudKey(filePath)
+  logger.info(`Deleting file from cloud storage: ${key}`)
 
   try {
-    // Delete from S3
-    await deleteFromS3(s3Key)
-    logger.info(`File successfully deleted from S3: ${s3Key}`)
+    // Delete from cloud storage using abstraction layer
+    await deleteFile(key)
+    logger.info(`File successfully deleted from cloud storage: ${key}`)
 
     return {
       success: true as const,
-      message: 'File deleted successfully from S3',
+      message: 'File deleted successfully from cloud storage',
     }
   } catch (error) {
-    logger.error('Error deleting file from S3:', error)
+    logger.error('Error deleting file from cloud storage:', error)
     throw error
   }
 }
@@ -83,30 +86,52 @@ async function handleS3FileDelete(filePath: string) {
  * Handle local file deletion
  */
 async function handleLocalFileDelete(filePath: string) {
-  // Extract the filename from the path
   const filename = extractFilename(filePath)
-  logger.info('Extracted filename for deletion:', filename)
-
   const fullPath = join(UPLOAD_DIR, filename)
-  logger.info('Full file path for deletion:', fullPath)
 
-  // Check if file exists
+  logger.info(`Deleting local file: ${fullPath}`)
+
   if (!existsSync(fullPath)) {
-    logger.info(`File not found for deletion at path: ${fullPath}`)
+    logger.info(`File not found, but that's okay: ${fullPath}`)
     return {
       success: true as const,
       message: "File not found, but that's okay",
     }
   }
 
-  // Delete the file
-  await unlink(fullPath)
-  logger.info(`File successfully deleted: ${fullPath}`)
+  try {
+    await unlink(fullPath)
+    logger.info(`File successfully deleted: ${fullPath}`)
 
-  return {
-    success: true as const,
-    message: 'File deleted successfully',
+    return {
+      success: true as const,
+      message: 'File deleted successfully',
+    }
+  } catch (error) {
+    logger.error('Error deleting local file:', error)
+    throw error
   }
+}
+
+/**
+ * Extract cloud storage key from file path (works for both S3 and Blob)
+ */
+function extractCloudKey(filePath: string): string {
+  if (isS3Path(filePath)) {
+    return extractS3Key(filePath)
+  }
+
+  if (isBlobPath(filePath)) {
+    return extractBlobKey(filePath)
+  }
+
+  // Backwards-compatibility: allow generic paths like "/api/files/serve/<key>"
+  if (filePath.startsWith('/api/files/serve/')) {
+    return decodeURIComponent(filePath.substring('/api/files/serve/'.length))
+  }
+
+  // As a last resort assume the incoming string is already a raw key.
+  return filePath
 }
 
 /**

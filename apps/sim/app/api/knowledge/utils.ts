@@ -1,6 +1,6 @@
 import crypto from 'crypto'
 import { and, eq, isNull, sql } from 'drizzle-orm'
-import { processDocuments } from '@/lib/documents/document-processor'
+import { processDocument } from '@/lib/documents/document-processor'
 import { retryWithExponentialBackoff } from '@/lib/documents/utils'
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
@@ -377,6 +377,7 @@ export async function processDocumentAsync(
     minCharactersPerChunk?: number
     recipe?: string
     lang?: string
+    chunkOverlap?: number
   }
 ): Promise<void> {
   const startTime = Date.now()
@@ -395,26 +396,14 @@ export async function processDocumentAsync(
 
     logger.info(`[${documentId}] Status updated to 'processing', starting document processor`)
 
-    const processedDocuments = await processDocuments(
-      [
-        {
-          fileUrl: docData.fileUrl,
-          filename: docData.filename,
-          mimeType: docData.mimeType,
-          fileSize: docData.fileSize,
-        },
-      ],
-      {
-        knowledgeBaseId,
-        ...processingOptions,
-      }
+    const processed = await processDocument(
+      docData.fileUrl,
+      docData.filename,
+      docData.mimeType,
+      processingOptions.chunkSize || 1000,
+      processingOptions.chunkOverlap || 200
     )
 
-    if (processedDocuments.length === 0) {
-      throw new Error('No document was processed')
-    }
-
-    const processed = processedDocuments[0]
     const now = new Date()
 
     logger.info(

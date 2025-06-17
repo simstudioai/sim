@@ -68,7 +68,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// DELETE - Delete a folder
+// DELETE - Delete a folder and all its contents
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -80,8 +80,6 @@ export async function DELETE(
     }
 
     const { id } = await params
-    const { searchParams } = new URL(request.url)
-    const moveWorkflowsTo = searchParams.get('moveWorkflowsTo') // Optional: move workflows to another folder
 
     // Verify the folder exists and belongs to the user
     const existingFolder = await db
@@ -94,62 +92,66 @@ export async function DELETE(
       return NextResponse.json({ error: 'Folder not found' }, { status: 404 })
     }
 
-    // Check if folder has child folders
-    const childFolders = await db
-      .select({ id: workflowFolder.id })
-      .from(workflowFolder)
-      .where(eq(workflowFolder.parentId, id))
+    // Recursively delete folder and all its contents
+    const deletionStats = await deleteFolderRecursively(id, session.user.id)
 
-    // Check if folder has workflows
-    const workflowsInFolder = await db
-      .select({ id: workflow.id })
-      .from(workflow)
-      .where(eq(workflow.folderId, id))
-
-    // Handle child folders - move them to parent or root
-    if (childFolders.length > 0) {
-      await db
-        .update(workflowFolder)
-        .set({
-          parentId: existingFolder.parentId, // Move to the parent of the deleted folder
-          updatedAt: new Date(),
-        })
-        .where(eq(workflowFolder.parentId, id))
-    }
-
-    // Handle workflows in the folder
-    if (workflowsInFolder.length > 0) {
-      const newFolderId = moveWorkflowsTo || null // Move to specified folder or root
-      await db
-        .update(workflow)
-        .set({
-          folderId: newFolderId,
-          updatedAt: new Date(),
-        })
-        .where(eq(workflow.folderId, id))
-    }
-
-    // Delete the folder
-    await db.delete(workflowFolder).where(eq(workflowFolder.id, id))
-
-    logger.info('Deleted folder:', {
+    logger.info('Deleted folder and all contents:', {
       id,
-      childFoldersCount: childFolders.length,
-      workflowsCount: workflowsInFolder.length,
-      movedWorkflowsTo: moveWorkflowsTo,
+      deletionStats,
     })
 
     return NextResponse.json({
       success: true,
-      movedItems: {
-        childFolders: childFolders.length,
-        workflows: workflowsInFolder.length,
-      },
+      deletedItems: deletionStats,
     })
   } catch (error) {
     logger.error('Error deleting folder:', { error })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
+}
+
+// Helper function to recursively delete a folder and all its contents
+async function deleteFolderRecursively(
+  folderId: string,
+  userId: string
+): Promise<{ folders: number; workflows: number }> {
+  const stats = { folders: 0, workflows: 0 }
+
+  // Get all child folders first
+  const childFolders = await db
+    .select({ id: workflowFolder.id })
+    .from(workflowFolder)
+    .where(and(eq(workflowFolder.parentId, folderId), eq(workflowFolder.userId, userId)))
+
+  // Recursively delete child folders
+  for (const childFolder of childFolders) {
+    const childStats = await deleteFolderRecursively(childFolder.id, userId)
+    stats.folders += childStats.folders
+    stats.workflows += childStats.workflows
+  }
+
+  // Delete all workflows in this folder
+  const workflowsInFolder = await db
+    .select({ id: workflow.id })
+    .from(workflow)
+    .where(and(eq(workflow.folderId, folderId), eq(workflow.userId, userId)))
+
+  if (workflowsInFolder.length > 0) {
+    await db
+      .delete(workflow)
+      .where(and(eq(workflow.folderId, folderId), eq(workflow.userId, userId)))
+
+    stats.workflows += workflowsInFolder.length
+  }
+
+  // Delete this folder
+  await db
+    .delete(workflowFolder)
+    .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.userId, userId)))
+
+  stats.folders += 1
+
+  return stats
 }
 
 // Helper function to check for circular references

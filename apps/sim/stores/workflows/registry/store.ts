@@ -1190,8 +1190,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           logger.warn(`Attempted to delete non-existent workflow: ${id}`)
           return
         }
-
-        // Set loading state to prevent concurrent operations during deletion
         set({ isLoading: true, error: null })
 
         try {
