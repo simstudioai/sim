@@ -7,11 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
 
 describe('Chat Subdomain API Route', () => {
-  // Create a mock ReadableStream for executeWorkflowForChat
   const createMockStream = () => {
     return new ReadableStream({
       start(controller) {
-        // Simulate SSE data
         controller.enqueue(
           new TextEncoder().encode('data: {"blockId":"agent-1","chunk":"Hello"}\n\n')
         )
@@ -26,13 +24,11 @@ describe('Chat Subdomain API Route', () => {
     })
   }
 
-  // Mock functions
   const mockAddCorsHeaders = vi.fn().mockImplementation((response) => response)
   const mockValidateChatAuth = vi.fn().mockResolvedValue({ authorized: true })
   const mockSetChatAuthCookie = vi.fn()
   const mockExecuteWorkflowForChat = vi.fn().mockResolvedValue(createMockStream())
 
-  // Mock database return values
   const mockChatResult = [
     {
       id: 'chat-id',
@@ -71,7 +67,6 @@ describe('Chat Subdomain API Route', () => {
   beforeEach(() => {
     vi.resetModules()
 
-    // Mock chat API utils
     vi.doMock('../utils', () => ({
       addCorsHeaders: mockAddCorsHeaders,
       validateChatAuth: mockValidateChatAuth,
@@ -80,7 +75,6 @@ describe('Chat Subdomain API Route', () => {
       executeWorkflowForChat: mockExecuteWorkflowForChat,
     }))
 
-    // Mock logger
     vi.doMock('@/lib/logs/console-logger', () => ({
       createLogger: vi.fn().mockReturnValue({
         debug: vi.fn(),
@@ -90,12 +84,9 @@ describe('Chat Subdomain API Route', () => {
       }),
     }))
 
-    // Mock database - need to handle multiple queries properly
     vi.doMock('@/db', () => {
       const mockSelect = vi.fn().mockImplementation((fields) => {
-        // Check if this is a workflow query by looking for isDeployed field
         if (fields && fields.isDeployed !== undefined) {
-          // This is a workflow query
           return {
             from: vi.fn().mockReturnValue({
               where: vi.fn().mockReturnValue({
@@ -104,7 +95,6 @@ describe('Chat Subdomain API Route', () => {
             }),
           }
         }
-        // This is a chat query
         return {
           from: vi.fn().mockReturnValue({
             where: vi.fn().mockReturnValue({
@@ -123,7 +113,6 @@ describe('Chat Subdomain API Route', () => {
       }
     })
 
-    // Mock API response helpers
     vi.doMock('@/app/api/workflows/utils', () => ({
       createErrorResponse: vi.fn().mockImplementation((message, status, code) => {
         return new Response(
