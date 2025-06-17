@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { useCopilotStore } from './copilot/store'

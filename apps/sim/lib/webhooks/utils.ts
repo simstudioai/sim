@@ -12,7 +12,7 @@ import { db } from '@/db'
 import { environment, userStats, webhook } from '@/db/schema'
 import { Executor } from '@/executor'
 import { Serializer } from '@/serializer'
-import { mergeSubblockStateAsync } from '@/stores/workflows/utils'
+import { mergeSubblockStateAsync } from '@/stores/workflows/server-utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WebhookUtils')
