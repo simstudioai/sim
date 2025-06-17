@@ -5,9 +5,7 @@ import { ArrowUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { buildTraceSpans } from '@/lib/logs/trace-spans'
-import type { BlockLog } from '@/executor/types'
-import { calculateCost } from '@/providers/utils'
+import type { BlockLog, ExecutionResult } from '@/executor/types'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useChatStore } from '@/stores/panel/chat/store'
 import { useConsoleStore } from '@/stores/panel/console/store'
@@ -113,189 +111,182 @@ export function Chat({ panelWidth, chatMessage, setChatMessage }: ChatProps) {
 
     // Check if we got a streaming response
     if (result && 'stream' in result && result.stream instanceof ReadableStream) {
-      // Generate a unique ID for the message
-      const messageId = crypto.randomUUID()
+      const messageIdMap = new Map<string, string>()
 
-      // Create a content buffer to collect initial content
-      let initialContent = ''
-      let fullContent = '' // Store the complete content for updating logs later
-      let hasAddedMessage = false
-      const executionResult = (result as any).execution // Store the execution result with type assertion
+      const reader = result.stream.getReader()
+      const decoder = new TextDecoder()
 
-      try {
-        // Process the stream
-        const reader = result.stream.getReader()
-        const decoder = new TextDecoder()
-
-        console.log('Starting to read from stream')
-
+      const processStream = async () => {
         while (true) {
-          try {
-            const { done, value } = await reader.read()
-            if (done) {
-              console.log('Stream complete')
-              break
-            }
-
-            // Decode and append chunk
-            const chunk = decoder.decode(value, { stream: true }) // Use stream option
-
-            if (chunk) {
-              initialContent += chunk
-              fullContent += chunk
-
-              // Only add the message to UI once we have some actual content to show
-              if (!hasAddedMessage && initialContent.trim().length > 0) {
-                // Add message with initial content - cast to any to bypass type checking for id
-                addMessage({
-                  content: initialContent,
-                  workflowId: activeWorkflowId,
-                  type: 'workflow',
-                  isStreaming: true,
-                  id: messageId,
-                } as any)
-                hasAddedMessage = true
-              } else if (hasAddedMessage) {
-                // Append to existing message
-                appendMessageContent(messageId, chunk)
-              }
-            }
-          } catch (streamError) {
-            console.error('Error reading from stream:', streamError)
-            // Break the loop on error
+          const { done, value } = await reader.read()
+          if (done) {
+            // Finalize all streaming messages
+            messageIdMap.forEach((id) => finalizeMessageStream(id))
             break
           }
-        }
 
-        // If we never added a message (no content received), add it now
-        if (!hasAddedMessage && initialContent.trim().length > 0) {
-          addMessage({
-            content: initialContent,
-            workflowId: activeWorkflowId,
-            type: 'workflow',
-            id: messageId,
-          } as any)
-        }
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n\n')
 
-        // Update logs with the full streaming content if available
-        if (executionResult && fullContent.trim().length > 0) {
-          try {
-            // Format the final content properly to match what's shown for manual executions
-            // Include all the markdown and formatting from the streamed response
-            const formattedContent = fullContent
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const json = JSON.parse(line.substring(6))
+                const { blockId, chunk: contentChunk, event, data } = json
 
-            // Calculate cost based on token usage if available
-            let costData: any
+                if (event === 'final' && data) {
+                  const result = data as ExecutionResult
+                  const nonStreamingLogs =
+                    result.logs?.filter((log) => !messageIdMap.has(log.blockId)) || []
 
-            if (executionResult.output?.response?.tokens) {
-              const tokens = executionResult.output.response.tokens
-              const model = executionResult.output?.response?.model || 'gpt-4o'
-              const cost = calculateCost(
-                model,
-                tokens.prompt || 0,
-                tokens.completion || 0,
-                false // Don't use cached input for chat responses
-              )
-              costData = { ...cost, model } as any
-            }
-
-            // Build trace spans and total duration before persisting
-            const { traceSpans, totalDuration } = buildTraceSpans(executionResult as any)
-
-            // Create a completed execution ID
-            const completedExecutionId =
-              executionResult.metadata?.executionId || crypto.randomUUID()
-
-            // Import the workflow execution hook for direct access to the workflow service
-            const workflowExecutionApi = await fetch(`/api/workflows/${activeWorkflowId}/log`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                executionId: completedExecutionId,
-                result: {
-                  ...executionResult,
-                  output: {
-                    ...executionResult.output,
-                    response: {
-                      ...executionResult.output?.response,
-                      content: formattedContent,
-                      model: executionResult.output?.response?.model,
-                      tokens: executionResult.output?.response?.tokens,
-                      toolCalls: executionResult.output?.response?.toolCalls,
-                      providerTiming: executionResult.output?.response?.providerTiming,
-                      cost: costData || executionResult.output?.response?.cost,
-                    },
-                  },
-                  cost: costData,
-                  // Update the message to include the formatted content
-                  logs: (executionResult.logs || []).map((log: BlockLog) => {
-                    // Check if this is the streaming block by comparing with the selected output IDs
-                    // Selected output IDs typically include the block ID we are streaming from
-                    const isStreamingBlock = selectedOutputs.some(
-                      (outputId) =>
-                        outputId === log.blockId || outputId.startsWith(`${log.blockId}_`)
+                  if (nonStreamingLogs.length > 0) {
+                    const outputsToRender = selectedOutputs.filter((outputId) =>
+                      nonStreamingLogs.some((log) => log.blockId === outputId.split('.')[0])
                     )
 
-                    if (isStreamingBlock && log.blockType === 'agent' && log.output?.response) {
-                      return {
-                        ...log,
-                        output: {
-                          ...log.output,
-                          response: {
-                            ...log.output.response,
-                            content: formattedContent,
-                            providerTiming: log.output.response.providerTiming,
-                            cost: costData || log.output.response.cost,
-                          },
-                        },
+                    for (const outputId of outputsToRender) {
+                      const blockIdForOutput = outputId.split('.')[0]
+                      const path = outputId.substring(blockIdForOutput.length + 1)
+                      const log = nonStreamingLogs.find((l) => l.blockId === blockIdForOutput)
+
+                      if (log) {
+                        let outputValue: any = log.output
+                        if (path) {
+                          const pathParts = path.split('.')
+                          for (const part of pathParts) {
+                            if (
+                              outputValue &&
+                              typeof outputValue === 'object' &&
+                              part in outputValue
+                            ) {
+                              outputValue = outputValue[part]
+                            } else {
+                              outputValue = undefined
+                              break
+                            }
+                          }
+                        }
+                        if (outputValue !== undefined) {
+                          addMessage({
+                            content:
+                              typeof outputValue === 'string'
+                                ? outputValue
+                                : `\`\`\`json\n${JSON.stringify(outputValue, null, 2)}\n\`\`\``,
+                            workflowId: activeWorkflowId,
+                            type: 'workflow',
+                          })
+                        }
                       }
                     }
-                    return log
-                  }),
-                  metadata: {
-                    ...executionResult.metadata,
-                    source: 'chat',
-                    completedAt: new Date().toISOString(),
-                    isStreamingComplete: true,
-                    cost: costData || executionResult.metadata?.cost,
-                    providerTiming: executionResult.output?.response?.providerTiming,
-                  },
-                  traceSpans: traceSpans,
-                  totalDuration: totalDuration,
-                },
-              }),
-            })
-
-            if (!workflowExecutionApi.ok) {
-              console.error('Failed to log complete streaming execution')
+                  }
+                } else if (blockId && contentChunk) {
+                  if (!messageIdMap.has(blockId)) {
+                    const newMessageId = crypto.randomUUID()
+                    messageIdMap.set(blockId, newMessageId)
+                    addMessage({
+                      id: newMessageId,
+                      content: contentChunk,
+                      workflowId: activeWorkflowId,
+                      type: 'workflow',
+                      isStreaming: true,
+                    })
+                  } else {
+                    const existingMessageId = messageIdMap.get(blockId)
+                    if (existingMessageId) {
+                      appendMessageContent(existingMessageId, contentChunk)
+                    }
+                  }
+                } else if (blockId && event === 'end') {
+                  const existingMessageId = messageIdMap.get(blockId)
+                  if (existingMessageId) {
+                    finalizeMessageStream(existingMessageId)
+                  }
+                }
+              } catch (e) {
+                console.error('Error parsing stream data:', e)
+              }
             }
-          } catch (logError) {
-            console.error('Error logging complete streaming execution:', logError)
           }
         }
-      } catch (error) {
-        console.error('Error processing stream:', error)
+      }
 
-        // If there's an error and we haven't added a message yet, add an error message
-        if (!hasAddedMessage) {
-          addMessage({
-            content: 'Error: Failed to process the streaming response.',
-            workflowId: activeWorkflowId,
-            type: 'workflow',
-            id: messageId,
-          } as any)
-        } else {
-          // Otherwise append the error to the existing message
-          appendMessageContent(messageId, '\n\nError: Failed to process the streaming response.')
-        }
-      } finally {
-        console.log('Finalizing stream')
-        if (hasAddedMessage) {
-          finalizeMessageStream(messageId)
+      processStream().catch((e) => console.error('Error processing stream:', e))
+    } else if (result && 'success' in result && result.success && 'logs' in result) {
+      const finalOutputs: any[] = []
+
+      if (selectedOutputs && selectedOutputs.length > 0) {
+        for (const outputId of selectedOutputs) {
+          // Find the log that corresponds to the start of the outputId
+          const log = result.logs?.find(
+            (l: BlockLog) => l.blockId === outputId || outputId.startsWith(`${l.blockId}_`)
+          )
+
+          if (log) {
+            let output = log.output
+            // Check if there is a path to traverse
+            if (outputId.length > log.blockId.length) {
+              const path = outputId.substring(log.blockId.length + 1)
+              if (path) {
+                const pathParts = path.split('.')
+                let current = output
+                for (const part of pathParts) {
+                  if (current && typeof current === 'object' && part in current) {
+                    current = current[part]
+                  } else {
+                    current = undefined
+                    break
+                  }
+                }
+                output = current
+              }
+            }
+            if (output !== undefined) {
+              finalOutputs.push(output)
+            }
+          }
         }
       }
+
+      // If no specific outputs could be resolved, fall back to the final workflow output
+      if (finalOutputs.length === 0 && result.output) {
+        finalOutputs.push(result.output)
+      }
+
+      // Add a new message for each resolved output
+      finalOutputs.forEach((output) => {
+        let content = ''
+        if (typeof output === 'string') {
+          content = output
+        } else if (output && typeof output === 'object') {
+          // Handle cases where output is { response: ... }
+          const outputObj = output as Record<string, any>
+          const response = outputObj.response
+          if (response) {
+            if (typeof response.content === 'string') {
+              content = response.content
+            } else {
+              // Pretty print for better readability
+              content = `\`\`\`json\n${JSON.stringify(response, null, 2)}\n\`\`\``
+            }
+          } else {
+            content = `\`\`\`json\n${JSON.stringify(output, null, 2)}\n\`\`\``
+          }
+        }
+
+        if (content) {
+          addMessage({
+            content,
+            workflowId: activeWorkflowId,
+            type: 'workflow',
+          })
+        }
+      })
+    } else if (result && 'success' in result && !result.success) {
+      addMessage({
+        content: `Error: ${'error' in result ? result.error : 'Workflow execution failed.'}`,
+        workflowId: activeWorkflowId,
+        type: 'workflow',
+      })
     }
   }
 
