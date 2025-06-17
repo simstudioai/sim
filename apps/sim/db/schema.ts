@@ -196,8 +196,12 @@ export const workflowEdges = pgTable(
       .references(() => workflow.id, { onDelete: 'cascade' }), // Link to parent workflow
 
     // Connection definition (from ReactFlow Edge interface)
-    sourceBlockId: text('source_block_id').notNull(), // Source block ID
-    targetBlockId: text('target_block_id').notNull(), // Target block ID
+    sourceBlockId: text('source_block_id')
+      .notNull()
+      .references(() => workflowBlocks.id, { onDelete: 'cascade' }), // Source block ID
+    targetBlockId: text('target_block_id')
+      .notNull()
+      .references(() => workflowBlocks.id, { onDelete: 'cascade' }), // Target block ID
     sourceHandle: text('source_handle'), // Specific output handle (optional)
     targetHandle: text('target_handle'), // Specific input handle (optional)
 
@@ -223,10 +227,6 @@ export const workflowEdges = pgTable(
       table.workflowId,
       table.targetBlockId
     ),
-
-    // Foreign key constraints (need to be added manually since source/target reference blocks)
-    sourceBlockFk: index('workflow_edges_source_block_fk_idx').on(table.sourceBlockId),
-    targetBlockFk: index('workflow_edges_target_block_fk_idx').on(table.targetBlockId),
   })
 )
 
