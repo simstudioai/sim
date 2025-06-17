@@ -3,7 +3,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { isValidSubflowType, SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
+import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDBHelpers')
 
@@ -166,11 +166,6 @@ export async function saveWorkflowToNormalizedTables(
 
       // Add loops
       Object.values(state.loops || {}).forEach((loop) => {
-        if (!isValidSubflowType(SUBFLOW_TYPES.LOOP)) {
-          logger.warn(`Invalid loop type for loop ${loop.id}`)
-          return
-        }
-
         subflowInserts.push({
           id: loop.id,
           workflowId: workflowId,
@@ -181,11 +176,6 @@ export async function saveWorkflowToNormalizedTables(
 
       // Add parallels
       Object.values(state.parallels || {}).forEach((parallel) => {
-        if (!isValidSubflowType(SUBFLOW_TYPES.PARALLEL)) {
-          logger.warn(`Invalid parallel type for parallel ${parallel.id}`)
-          return
-        }
-
         subflowInserts.push({
           id: parallel.id,
           workflowId: workflowId,

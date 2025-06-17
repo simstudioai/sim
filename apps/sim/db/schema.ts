@@ -161,7 +161,7 @@ export const workflowBlocks = pgTable(
     data: jsonb('data').default('{}'), // Additional block-specific data
 
     // Hierarchy support (for loop/parallel child blocks)
-    parentId: text('parent_id').references(() => workflowBlocks.id, { onDelete: 'cascade' }), // Self-referential FK
+    parentId: text('parent_id'), // Self-reference handled by foreign key constraint in migration
     extent: text('extent'), // 'parent' or null - for ReactFlow parent constraint
 
     // Timestamps
