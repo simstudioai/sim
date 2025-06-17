@@ -14,6 +14,7 @@ const logger = createLogger('WorkflowsSync')
 // Simplified sync state tracking
 let lastSyncedData = ''
 let isSyncing = false
+let isFetching = false // Add lock to prevent concurrent fetches
 
 /**
  * Simplified workflow sync - no more complex flags and initialization checks
@@ -106,6 +107,14 @@ export const workflowSync = createSingletonSyncManager('workflow-sync', () => wo
 export async function fetchWorkflowsFromDB(): Promise<void> {
   if (typeof window === 'undefined') return
 
+  // Prevent concurrent fetch operations
+  if (isFetching) {
+    logger.info('Fetch already in progress, skipping duplicate request')
+    return
+  }
+
+  isFetching = true
+
   try {
     useWorkflowRegistry.getState().setLoading(true)
 
@@ -197,11 +206,13 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       error: null,
     })
 
-    // Set first workflow as active if none selected
-    const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
-    if (!activeWorkflowId && Object.keys(registryWorkflows).length > 0) {
+    // Only set first workflow as active if no active workflow is set and we have workflows
+    // This prevents race conditions from overriding an already-set active workflow
+    const currentState = useWorkflowRegistry.getState()
+    if (!currentState.activeWorkflowId && Object.keys(registryWorkflows).length > 0) {
       const firstWorkflowId = Object.keys(registryWorkflows)[0]
       useWorkflowRegistry.setState({ activeWorkflowId: firstWorkflowId })
+      logger.info(`Set first workflow as active: ${firstWorkflowId}`)
     }
 
     logger.info(
@@ -215,6 +226,8 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
     })
     // Re-throw to allow caller to handle the error appropriately
     throw error
+  } finally {
+    isFetching = false
   }
 }
 

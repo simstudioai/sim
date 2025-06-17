@@ -115,39 +115,35 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Set transition state
         setWorkspaceTransitioning(true)
 
-        logger.info(`Switching from deleted workspace ${currentWorkspaceId} to ${newWorkspaceId}`)
+        try {
+          logger.info(`Switching from deleted workspace ${currentWorkspaceId} to ${newWorkspaceId}`)
 
-        // Reset all workflow state
-        resetWorkflowStores()
+          // Reset all workflow state
+          resetWorkflowStores()
 
-        // No longer saving workspace to localStorage
-
-        // Set loading state while we fetch workflows
-        set({
-          isLoading: true,
-          workflows: {},
-          activeWorkspaceId: newWorkspaceId,
-          activeWorkflowId: null,
-        })
-
-        // Fetch workflows specifically for this workspace
-        fetchWorkflowsFromDB()
-          .then(() => {
-            set({ isLoading: false })
-
-            // End transition state
-            setWorkspaceTransitioning(false)
+          // Set loading state while we fetch workflows
+          set({
+            isLoading: true,
+            workflows: {},
+            activeWorkspaceId: newWorkspaceId,
+            activeWorkflowId: null,
           })
-          .catch((error) => {
-            logger.error('Error fetching workflows after workspace deletion:', {
-              error,
-              workspaceId: newWorkspaceId,
-            })
-            set({ isLoading: false, error: 'Failed to load workspace data' })
 
-            // End transition state even on error
-            setWorkspaceTransitioning(false)
+          // Properly await workflow fetching to prevent race conditions
+          await fetchWorkflowsFromDB()
+          
+          set({ isLoading: false })
+          logger.info(`Successfully switched to workspace after deletion: ${newWorkspaceId}`)
+        } catch (error) {
+          logger.error('Error fetching workflows after workspace deletion:', {
+            error,
+            workspaceId: newWorkspaceId,
           })
+          set({ isLoading: false, error: 'Failed to load workspace data' })
+        } finally {
+          // End transition state
+          setWorkspaceTransitioning(false)
+        }
       },
 
       // Switch to workspace with comprehensive error handling and loading states
