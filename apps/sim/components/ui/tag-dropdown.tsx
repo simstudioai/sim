@@ -475,7 +475,23 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         }
       }
 
-      const newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${processedTag}>${textAfterCursor}`
+      // Check if there's a closing bracket in textAfterCursor that belongs to the current tag
+      // Find the first '>' in textAfterCursor (if any)
+      const nextCloseBracket = textAfterCursor.indexOf('>')
+      let remainingTextAfterCursor = textAfterCursor
+
+      // If there's a '>' right after the cursor or with only whitespace/tag content in between,
+      // it's likely part of the existing tag being edited, so we should skip it
+      if (nextCloseBracket !== -1) {
+        const textBetween = textAfterCursor.slice(0, nextCloseBracket)
+        // If the text between cursor and '>' contains only tag-like characters (letters, dots, numbers)
+        // then it's likely part of the current tag being edited
+        if (/^[a-zA-Z0-9._]*$/.test(textBetween)) {
+          remainingTextAfterCursor = textAfterCursor.slice(nextCloseBracket + 1)
+        }
+      }
+
+      const newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${processedTag}>${remainingTextAfterCursor}`
 
       onSelect(newValue)
       onClose?.()
