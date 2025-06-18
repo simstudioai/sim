@@ -93,17 +93,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -175,17 +166,8 @@
           "name": "api_key_user_id_user_id_fk",
           "tableFrom": "api_key",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -195,13 +177,7 @@
         "api_key_key_unique": {
           "name": "api_key_key_unique",
           "nullsNotDistinct": false,
-<<<<<<< HEAD
           "columns": ["key"]
-=======
-          "columns": [
-            "key"
-          ]
->>>>>>> b108da10 (fix: removed unused schema columns)
         }
       },
       "policies": {},
@@ -326,17 +302,8 @@
           "name": "chat_workflow_id_workflow_id_fk",
           "tableFrom": "chat",
           "tableTo": "workflow",
-<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -344,17 +311,8 @@
           "name": "chat_user_id_user_id_fk",
           "tableFrom": "chat",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -420,17 +378,8 @@
           "name": "custom_tools_user_id_user_id_fk",
           "tableFrom": "custom_tools",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -481,15 +430,12 @@
           "primaryKey": false,
           "notNull": true
         },
-<<<<<<< HEAD
         "file_hash": {
           "name": "file_hash",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-=======
->>>>>>> b108da10 (fix: removed unused schema columns)
         "chunk_count": {
           "name": "chunk_count",
           "type": "integer",
@@ -573,7 +519,6 @@
           "method": "btree",
           "with": {}
         },
-<<<<<<< HEAD
         "doc_file_hash_idx": {
           "name": "doc_file_hash_idx",
           "columns": [
@@ -589,8 +534,6 @@
           "method": "btree",
           "with": {}
         },
-=======
->>>>>>> b108da10 (fix: removed unused schema columns)
         "doc_filename_idx": {
           "name": "doc_filename_idx",
           "columns": [
@@ -654,17 +597,8 @@
           "name": "document_knowledge_base_id_knowledge_base_id_fk",
           "tableFrom": "document",
           "tableTo": "knowledge_base",
-<<<<<<< HEAD
           "columnsFrom": ["knowledge_base_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "knowledge_base_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -752,7 +686,6 @@
           "primaryKey": false,
           "notNull": true
         },
-<<<<<<< HEAD
         "overlap_tokens": {
           "name": "overlap_tokens",
           "type": "integer",
@@ -760,8 +693,6 @@
           "notNull": true,
           "default": 0
         },
-=======
->>>>>>> b108da10 (fix: removed unused schema columns)
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
@@ -769,7 +700,6 @@
           "notNull": true,
           "default": "'{}'"
         },
-<<<<<<< HEAD
         "search_rank": {
           "name": "search_rank",
           "type": "numeric",
@@ -796,8 +726,6 @@
           "primaryKey": false,
           "notNull": false
         },
-=======
->>>>>>> b108da10 (fix: removed unused schema columns)
         "enabled": {
           "name": "enabled",
           "type": "boolean",
@@ -903,7 +831,6 @@
           "method": "btree",
           "with": {}
         },
-<<<<<<< HEAD
         "emb_chunk_hash_idx": {
           "name": "emb_chunk_hash_idx",
           "columns": [
@@ -961,8 +888,6 @@
           "method": "btree",
           "with": {}
         },
-=======
->>>>>>> b108da10 (fix: removed unused schema columns)
         "emb_kb_enabled_idx": {
           "name": "emb_kb_enabled_idx",
           "columns": [
@@ -1060,17 +985,8 @@
           "name": "embedding_knowledge_base_id_knowledge_base_id_fk",
           "tableFrom": "embedding",
           "tableTo": "knowledge_base",
-<<<<<<< HEAD
           "columnsFrom": ["knowledge_base_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "knowledge_base_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1078,17 +994,8 @@
           "name": "embedding_document_id_document_id_fk",
           "tableFrom": "embedding",
           "tableTo": "document",
-<<<<<<< HEAD
           "columnsFrom": ["document_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "document_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1140,17 +1047,8 @@
           "name": "environment_user_id_user_id_fk",
           "tableFrom": "environment",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1160,13 +1058,7 @@
         "environment_user_id_unique": {
           "name": "environment_user_id_unique",
           "nullsNotDistinct": false,
-<<<<<<< HEAD
           "columns": ["user_id"]
-=======
-          "columns": [
-            "user_id"
-          ]
->>>>>>> b108da10 (fix: removed unused schema columns)
         }
       },
       "policies": {},
@@ -1233,17 +1125,8 @@
           "name": "invitation_inviter_id_user_id_fk",
           "tableFrom": "invitation",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["inviter_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "inviter_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1251,17 +1134,8 @@
           "name": "invitation_organization_id_organization_id_fk",
           "tableFrom": "invitation",
           "tableTo": "organization",
-<<<<<<< HEAD
           "columnsFrom": ["organization_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1428,17 +1302,8 @@
           "name": "knowledge_base_user_id_user_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1446,17 +1311,8 @@
           "name": "knowledge_base_workspace_id_workspace_id_fk",
           "tableFrom": "knowledge_base",
           "tableTo": "workspace",
-<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1547,17 +1403,8 @@
           "name": "marketplace_workflow_id_workflow_id_fk",
           "tableFrom": "marketplace",
           "tableTo": "workflow",
-<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1565,17 +1412,8 @@
           "name": "marketplace_author_id_user_id_fk",
           "tableFrom": "marketplace",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["author_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "author_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -1628,17 +1466,8 @@
           "name": "member_user_id_user_id_fk",
           "tableFrom": "member",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1646,17 +1475,8 @@
           "name": "member_organization_id_organization_id_fk",
           "tableFrom": "member",
           "tableTo": "organization",
-<<<<<<< HEAD
           "columnsFrom": ["organization_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1780,17 +1600,8 @@
           "name": "memory_workflow_id_workflow_id_fk",
           "tableFrom": "memory",
           "tableTo": "workflow",
-<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1923,17 +1734,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1941,17 +1743,8 @@
           "name": "session_active_organization_id_organization_id_fk",
           "tableFrom": "session",
           "tableTo": "organization",
-<<<<<<< HEAD
           "columnsFrom": ["active_organization_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "active_organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1961,13 +1754,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-<<<<<<< HEAD
           "columns": ["token"]
-=======
-          "columns": [
-            "token"
-          ]
->>>>>>> b108da10 (fix: removed unused schema columns)
         }
       },
       "policies": {},
@@ -2060,17 +1847,8 @@
           "name": "settings_user_id_user_id_fk",
           "tableFrom": "settings",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2080,13 +1858,7 @@
         "settings_user_id_unique": {
           "name": "settings_user_id_unique",
           "nullsNotDistinct": false,
-<<<<<<< HEAD
           "columns": ["user_id"]
-=======
-          "columns": [
-            "user_id"
-          ]
->>>>>>> b108da10 (fix: removed unused schema columns)
         }
       },
       "policies": {},
@@ -2244,13 +2016,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-<<<<<<< HEAD
           "columns": ["email"]
-=======
-          "columns": [
-            "email"
-          ]
->>>>>>> b108da10 (fix: removed unused schema columns)
         }
       },
       "policies": {},
@@ -2336,17 +2102,8 @@
           "name": "user_stats_user_id_user_id_fk",
           "tableFrom": "user_stats",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2356,13 +2113,7 @@
         "user_stats_user_id_unique": {
           "name": "user_stats_user_id_unique",
           "nullsNotDistinct": false,
-<<<<<<< HEAD
           "columns": ["user_id"]
-=======
-          "columns": [
-            "user_id"
-          ]
->>>>>>> b108da10 (fix: removed unused schema columns)
         }
       },
       "policies": {},
@@ -2463,13 +2214,7 @@
         "waitlist_email_unique": {
           "name": "waitlist_email_unique",
           "nullsNotDistinct": false,
-<<<<<<< HEAD
           "columns": ["email"]
-=======
-          "columns": [
-            "email"
-          ]
->>>>>>> b108da10 (fix: removed unused schema columns)
         }
       },
       "policies": {},
@@ -2554,17 +2299,8 @@
           "name": "webhook_workflow_id_workflow_id_fk",
           "tableFrom": "webhook",
           "tableTo": "workflow",
-<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2712,17 +2448,8 @@
           "name": "workflow_user_id_user_id_fk",
           "tableFrom": "workflow",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2730,17 +2457,8 @@
           "name": "workflow_workspace_id_workspace_id_fk",
           "tableFrom": "workflow",
           "tableTo": "workspace",
-<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -2748,17 +2466,8 @@
           "name": "workflow_folder_id_workflow_folder_id_fk",
           "tableFrom": "workflow",
           "tableTo": "workflow_folder",
-<<<<<<< HEAD
           "columnsFrom": ["folder_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "folder_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2799,21 +2508,13 @@
         },
         "position_x": {
           "name": "position_x",
-<<<<<<< HEAD
           "type": "numeric",
-=======
-          "type": "integer",
->>>>>>> b108da10 (fix: removed unused schema columns)
           "primaryKey": false,
           "notNull": true
         },
         "position_y": {
           "name": "position_y",
-<<<<<<< HEAD
           "type": "numeric",
-=======
-          "type": "integer",
->>>>>>> b108da10 (fix: removed unused schema columns)
           "primaryKey": false,
           "notNull": true
         },
@@ -2840,17 +2541,10 @@
         },
         "height": {
           "name": "height",
-<<<<<<< HEAD
           "type": "numeric",
           "primaryKey": false,
           "notNull": true,
           "default": "'0'"
-=======
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
->>>>>>> b108da10 (fix: removed unused schema columns)
         },
         "sub_blocks": {
           "name": "sub_blocks",
@@ -2979,17 +2673,8 @@
           "name": "workflow_blocks_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_blocks",
           "tableTo": "workflow",
-<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3142,17 +2827,8 @@
           "name": "workflow_edges_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_edges",
           "tableTo": "workflow",
-<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3160,17 +2836,8 @@
           "name": "workflow_edges_source_block_id_workflow_blocks_id_fk",
           "tableFrom": "workflow_edges",
           "tableTo": "workflow_blocks",
-<<<<<<< HEAD
           "columnsFrom": ["source_block_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "source_block_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3178,17 +2845,8 @@
           "name": "workflow_edges_target_block_id_workflow_blocks_id_fk",
           "tableFrom": "workflow_edges",
           "tableTo": "workflow_blocks",
-<<<<<<< HEAD
           "columnsFrom": ["target_block_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "target_block_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3333,17 +2991,8 @@
           "name": "workflow_folder_user_id_user_id_fk",
           "tableFrom": "workflow_folder",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3351,17 +3000,8 @@
           "name": "workflow_folder_workspace_id_workspace_id_fk",
           "tableFrom": "workflow_folder",
           "tableTo": "workspace",
-<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3438,17 +3078,8 @@
           "name": "workflow_logs_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_logs",
           "tableTo": "workflow",
-<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3547,17 +3178,8 @@
           "name": "workflow_schedule_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_schedule",
           "tableTo": "workflow",
-<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3567,13 +3189,7 @@
         "workflow_schedule_workflow_id_unique": {
           "name": "workflow_schedule_workflow_id_unique",
           "nullsNotDistinct": false,
-<<<<<<< HEAD
           "columns": ["workflow_id"]
-=======
-          "columns": [
-            "workflow_id"
-          ]
->>>>>>> b108da10 (fix: removed unused schema columns)
         }
       },
       "policies": {},
@@ -3667,17 +3283,8 @@
           "name": "workflow_subflows_workflow_id_workflow_id_fk",
           "tableFrom": "workflow_subflows",
           "tableTo": "workflow",
-<<<<<<< HEAD
           "columnsFrom": ["workflow_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workflow_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3731,17 +3338,8 @@
           "name": "workspace_owner_id_user_id_fk",
           "tableFrom": "workspace",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["owner_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "owner_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3827,17 +3425,8 @@
           "name": "workspace_invitation_workspace_id_workspace_id_fk",
           "tableFrom": "workspace_invitation",
           "tableTo": "workspace",
-<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3845,17 +3434,8 @@
           "name": "workspace_invitation_inviter_id_user_id_fk",
           "tableFrom": "workspace_invitation",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["inviter_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "inviter_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -3865,13 +3445,7 @@
         "workspace_invitation_token_unique": {
           "name": "workspace_invitation_token_unique",
           "nullsNotDistinct": false,
-<<<<<<< HEAD
           "columns": ["token"]
-=======
-          "columns": [
-            "token"
-          ]
->>>>>>> b108da10 (fix: removed unused schema columns)
         }
       },
       "policies": {},
@@ -3950,17 +3524,8 @@
           "name": "workspace_member_workspace_id_workspace_id_fk",
           "tableFrom": "workspace_member",
           "tableTo": "workspace",
-<<<<<<< HEAD
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -3968,17 +3533,8 @@
           "name": "workspace_member_user_id_user_id_fk",
           "tableFrom": "workspace_member",
           "tableTo": "user",
-<<<<<<< HEAD
           "columnsFrom": ["user_id"],
           "columnsTo": ["id"],
-=======
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
->>>>>>> b108da10 (fix: removed unused schema columns)
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -4001,8 +3557,4 @@
     "schemas": {},
     "tables": {}
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> b108da10 (fix: removed unused schema columns)
