@@ -12,7 +12,7 @@ const logger = createLogger('DocumentProcessor')
 // Timeout constants (in milliseconds)
 const TIMEOUTS = {
   FILE_DOWNLOAD: 60000, // 60 seconds
-  MISTRAL_OCR_API: 180000, // 3 minutes
+  MISTRAL_OCR_API: 90000, // 90 seconds
 } as const
 
 type S3Config = {

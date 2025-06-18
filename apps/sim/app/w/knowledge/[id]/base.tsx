@@ -103,7 +103,7 @@ const getStatusDisplay = (doc: DocumentData) => {
         : {
             text: 'Disabled',
             className:
-              'inline-flex items-center rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+              'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
           }
     default:
       return {
@@ -184,7 +184,7 @@ export function KnowledgeBase({
   // Check for documents stuck in processing due to dead processes
   const checkForDeadProcesses = async () => {
     const now = new Date()
-    const PROCESSING_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+    const DEAD_PROCESS_THRESHOLD_MS = 150 * 1000 // 150 seconds (2.5 minutes)
 
     const staleDocuments = documents.filter((doc) => {
       if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) {
@@ -192,22 +192,37 @@ export function KnowledgeBase({
       }
 
       const processingDuration = now.getTime() - new Date(doc.processingStartedAt).getTime()
-      return processingDuration > PROCESSING_TIMEOUT_MS
+      return processingDuration > DEAD_PROCESS_THRESHOLD_MS
     })
 
     if (staleDocuments.length === 0) return
 
     logger.warn(`Found ${staleDocuments.length} documents with dead processes`)
 
-    // Mark stale documents as failed in local state
-    staleDocuments.forEach((doc) => {
-      logger.info(`Marking dead process as failed for document: ${doc.filename}`)
-      updateDocument(doc.id, {
-        processingStatus: 'failed',
-        processingError: 'Processing timed out - background process may have been terminated',
-        processingCompletedAt: new Date().toISOString(),
-      })
+    // Mark stale documents as failed via API to sync with database
+    const markFailedPromises = staleDocuments.map(async (doc) => {
+      try {
+        const response = await fetch(`/api/knowledge/${id}/documents/${doc.id}/mark-failed`, {
+          method: 'POST',
+        })
+
+        if (!response.ok) {
+          // If API call fails, log but don't throw to avoid stopping other recoveries
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+          logger.error(`Failed to mark document ${doc.id} as failed: ${errorData.error}`)
+          return
+        }
+
+        const result = await response.json()
+        if (result.success) {
+          logger.info(`Successfully marked dead process as failed for document: ${doc.filename}`)
+        }
+      } catch (error) {
+        logger.error(`Error marking document ${doc.id} as failed:`, error)
+      }
     })
+
+    await Promise.allSettled(markFailedPromises)
   }
 
   // Auto-dismiss upload error after 8 seconds
@@ -279,14 +294,22 @@ export function KnowledgeBase({
         throw new Error(result.error || 'Failed to retry document processing')
       }
 
-      // Force a refresh after a short delay to allow processing to start
-      setTimeout(async () => {
-        try {
-          await refreshDocuments()
-        } catch (error) {
-          logger.error('Error refreshing documents after retry:', error)
-        }
-      }, 1000) // Wait 1 second before first refresh
+      // Immediately refresh to get the current DB state
+      await refreshDocuments()
+
+      // Set up multiple refreshes to catch the status transition from pending -> processing
+      const refreshTimes = [500, 1500, 3000] // 0.5s, 1.5s, 3s
+      refreshTimes.forEach((delay) => {
+        setTimeout(async () => {
+          try {
+            await refreshDocuments()
+          } catch (error) {
+            logger.error('Error refreshing documents after retry:', error)
+          }
+        }, delay)
+      })
+
+      logger.info(`Document retry initiated successfully for: ${docId}`)
     } catch (err) {
       logger.error('Error retrying document:', err)
       // Revert the status change on error - get the current document first to avoid overwriting other fields
@@ -965,7 +988,7 @@ export function KnowledgeBase({
                                             e.stopPropagation()
                                             handleRetryDocument(doc.id)
                                           }}
-                                          className='h-8 w-8 p-0 text-gray-500 hover:text-blue-600'
+                                          className='h-8 w-8 p-0 text-gray-500 hover:text-gray-700'
                                         >
                                           <RotateCcw className='h-4 w-4' />
                                         </Button>

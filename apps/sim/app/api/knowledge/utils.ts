@@ -11,7 +11,7 @@ const logger = createLogger('KnowledgeUtils')
 
 // Timeout constants (in milliseconds)
 const TIMEOUTS = {
-  OVERALL_PROCESSING: 300000, // 5 minutes
+  OVERALL_PROCESSING: 150000, // 150 seconds (2.5 minutes)
   EMBEDDINGS_API: 60000, // 60 seconds per batch
 } as const
 
