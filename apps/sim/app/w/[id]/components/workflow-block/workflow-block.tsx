@@ -9,6 +9,7 @@ import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, formatDateTime, validateName } from '@/lib/utils'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { useExecutionStore } from '@/stores/execution/store'
+import { useOllamaStore } from '@/stores/ollama/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -279,6 +280,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     }
 
     const isAdvancedMode = useWorkflowStore.getState().blocks[blockId]?.advancedMode ?? false
+    const ollamaModels = useOllamaStore.getState().models
 
     // Filter visible blocks and those that meet their conditions
     const visibleSubBlocks = subBlocks.filter((block) => {
@@ -299,15 +301,25 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         ? stateToUse[block.condition.and.field]?.value
         : undefined
 
+      // Special handling for Ollama models condition
+      let conditionValue = block.condition.value
+      if (
+        block.condition.field === 'model' &&
+        Array.isArray(conditionValue) &&
+        conditionValue.length === 0
+      ) {
+        conditionValue = ollamaModels
+      }
+
       // Check if the condition value is an array
-      const isValueMatch = Array.isArray(block.condition.value)
+      const isValueMatch = Array.isArray(conditionValue)
         ? fieldValue != null &&
           (block.condition.not
-            ? !block.condition.value.includes(fieldValue as string | number | boolean)
-            : block.condition.value.includes(fieldValue as string | number | boolean))
+            ? !conditionValue.includes(fieldValue as string | number | boolean)
+            : conditionValue.includes(fieldValue as string | number | boolean))
         : block.condition.not
-          ? fieldValue !== block.condition.value
-          : fieldValue === block.condition.value
+          ? fieldValue !== conditionValue
+          : fieldValue === conditionValue
 
       // Check both conditions if 'and' is present
       const isAndValueMatch =

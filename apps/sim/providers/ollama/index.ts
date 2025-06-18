@@ -7,7 +7,7 @@ import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } f
 import type { ModelsObject } from './types'
 
 const logger = createLogger('OllamaProvider')
-const OLLAMA_HOST = env.OLLAMA_URL || 'http://localhost:11434'
+const OLLAMA_HOST = env.NEXT_PUBLIC_OLLAMA_URL || 'http://localhost:11434'
 
 export const ollamaProvider: ProviderConfig = {
   id: 'ollama',
@@ -19,13 +19,9 @@ export const ollamaProvider: ProviderConfig = {
 
   // Initialize the provider by fetching available models
   async initialize() {
-    // Disabled too allow for client side initialization
-    // if (typeof window !== 'undefined') {
-    //   logger.info('Skipping Ollama initialization on client side to avoid CORS issues')
-    //   return
-    // }
-
+    const OLLAMA_HOST = env.NEXT_PUBLIC_OLLAMA_URL || 'http://localhost:11434'
     try {
+      logger.info('Ollama host', { OLLAMA_HOST })
       const response = await fetch(`${OLLAMA_HOST}/api/tags`)
       if (!response.ok) {
         console.log('response', response)
@@ -45,7 +41,6 @@ export const ollamaProvider: ProviderConfig = {
   },
 
   executeRequest: async (request: ProviderRequest): Promise<ProviderResponse> => {
-    console.log(request)
     logger.info('Preparing Ollama request', {
       model: request.model,
       hasSystemPrompt: !!request.systemPrompt,

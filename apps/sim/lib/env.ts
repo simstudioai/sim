@@ -113,6 +113,7 @@ export const env = createEnv({
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
     NEXT_PUBLIC_GOOGLE_API_KEY: z.string().optional(),
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: z.string().optional(),
+    NEXT_PUBLIC_OLLAMA_URL: z.string().url().optional(),
   },
 
   // Only need to define client variables, server variables are automatically handled
@@ -123,5 +124,6 @@ export const env = createEnv({
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID'),
     NEXT_PUBLIC_GOOGLE_API_KEY: getEnv('NEXT_PUBLIC_GOOGLE_API_KEY'),
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER'),
+    NEXT_PUBLIC_OLLAMA_URL: getEnv('NEXT_PUBLIC_OLLAMA_URL'),
   },
 })

@@ -1,5 +1,4 @@
 import { AgentIcon } from '@/components/icons'
-import { isHosted } from '@/lib/environment'
 import { createLogger } from '@/lib/logs/console-logger'
 import { MODELS_TEMP_RANGE_0_1, MODELS_TEMP_RANGE_0_2 } from '@/providers/model-capabilities'
 import { getAllModelProviders, getBaseModelProviders } from '@/providers/utils'
@@ -121,39 +120,12 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
       placeholder: 'Enter your API key',
       password: true,
       connectionDroppable: false,
-      // Hide API key for all OpenAI and Claude models when running on hosted version
-      condition: isHosted
-        ? {
-            field: 'model',
-            // Include all OpenAI models and Claude models for which we don't show the API key field
-            value: [
-              // OpenAI models
-              'gpt-4o',
-              'o1',
-              'o1-mini',
-              'o1-preview',
-              'o3',
-              'o3-preview',
-              'o4-mini',
-              'gpt-4.1',
-              // Claude models
-              'claude-sonnet-4-20250514',
-              'claude-opus-4-20250514',
-              'claude-3-7-sonnet-20250219',
-              'claude-3-5-sonnet-20240620',
-
-            ],
-            not: true, // Show for all models EXCEPT those listed
-          }
-        : {
-          field: 'model',
-          // Include all Ollama models for which we don't show the API key field
-          value: [
-            // Ollama models
-            ...useOllamaStore.getState().models,
-          ],
-          not: true, // Show for all models EXCEPT those listed
-        }, // Show for all models in non-hosted environments
+      condition: {
+        // Hide API key for all OpenAI and Claude models when running on hosted version
+        field: 'model', // Include all Ollama models for which we don't show the API key field
+        value: useOllamaStore.getState().models,
+        not: true, // Show for all models EXCEPT those listed
+      }, // Show for all models in non-hosted environments
     },
     {
       id: 'tools',

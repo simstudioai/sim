@@ -484,8 +484,9 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
   // Use server key rotation for all OpenAI models and Anthropic's Claude models on the hosted platform
   const isOpenAIModel = provider === 'openai'
   const isClaudeModel = provider === 'anthropic'
+  const isOllamaModel = provider === 'ollama'
 
-  if (isHosted && (isOpenAIModel || isClaudeModel)) {
+  if (isHosted && (isOpenAIModel || (isClaudeModel && !isOllamaModel))) {
     try {
       // Import the key rotation function
       const { getRotatingApiKey } = require('@/lib/utils')
@@ -496,7 +497,6 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
       if (hasUserKey) {
         return userProvidedKey!
       }
-
       // Otherwise, throw an error
       throw new Error(`No API key available for ${provider} ${model}`)
     }
@@ -504,6 +504,9 @@ export function getApiKey(provider: string, model: string, userProvidedKey?: str
 
   // For all other cases, require user-provided key
   if (!hasUserKey) {
+    if (isOllamaModel) {
+      return 'ollama'
+    }
     throw new Error(`API key is required for ${provider} ${model}`)
   }
 
