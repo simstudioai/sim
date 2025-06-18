@@ -9,12 +9,15 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
-import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
+import { user, workspace, workspaceInvitation, workspaceMember, permissionTypeEnum } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('WorkspaceInvitationsAPI')
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
+
+// Define the permission type
+type PermissionType = typeof permissionTypeEnum.enumValues[number]
 
 // Get all invitations for the user's workspaces
 export async function GET(req: NextRequest) {
@@ -66,11 +69,23 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { workspaceId, email, role = 'member' } = await req.json()
+    const { workspaceId, email, role = 'member', permissions } = await req.json()
 
     if (!workspaceId || !email) {
       return NextResponse.json({ error: 'Workspace ID and email are required' }, { status: 400 })
     }
+
+    // Convert permissions object to array format for the database
+    const permissionsArray: PermissionType[] = []
+    if (permissions) {
+      if (permissions.admin) permissionsArray.push('admin')
+      if (permissions.read) permissionsArray.push('read')
+      if (permissions.edit) permissionsArray.push('edit')
+      if (permissions.deploy) permissionsArray.push('deploy')
+    }
+
+    // If no permissions specified, use default permissions (read only)
+    const finalPermissions: PermissionType[] = permissionsArray.length > 0 ? permissionsArray : ['read']
 
     // Check if user is authorized to invite to this workspace (must be owner)
     const membership = await db
@@ -170,6 +185,7 @@ export async function POST(req: NextRequest) {
         role,
         status: 'pending',
         token,
+        permissions: finalPermissions,
         expiresAt,
         createdAt: new Date(),
         updatedAt: new Date(),

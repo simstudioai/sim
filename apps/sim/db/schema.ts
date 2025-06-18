@@ -565,7 +565,7 @@ export const permissions = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     entityType: text('entity_type').notNull(), // 'workspace', 'workflow', 'organization', etc.
     entityId: text('entity_id').notNull(), // ID of the workspace, workflow, etc.
-    permissionType: text('permission_type').notNull(), // 'admin', 'read', 'write', 'deploy'
+    permissionType: permissionTypeEnum('permission_type').notNull(), // Use enum instead of text
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

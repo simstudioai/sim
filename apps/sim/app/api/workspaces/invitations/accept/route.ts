@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { db } from '@/db'
-import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
+import { user, workspace, workspaceInvitation, workspaceMember, permissions } from '@/db/schema'
 
 // Accept an invitation via token
 export async function GET(req: NextRequest) {
@@ -162,6 +162,21 @@ export async function GET(req: NextRequest) {
       joinedAt: new Date(),
       updatedAt: new Date(),
     })
+
+    // Add permissions to the permissions table based on the invitation
+    const permissionsToInsert = invitation.permissions.map((permissionType) => ({
+      id: randomUUID(),
+      userId: session.user.id,
+      entityType: 'workspace',
+      entityId: invitation.workspaceId,
+      permissionType: permissionType,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }))
+
+    if (permissionsToInsert.length > 0) {
+      await db.insert(permissions).values(permissionsToInsert)
+    }
 
     // Mark invitation as accepted
     await db

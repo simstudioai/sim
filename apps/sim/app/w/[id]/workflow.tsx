@@ -13,6 +13,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 
 import { createLogger } from '@/lib/logs/console-logger'
+import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
@@ -74,15 +75,17 @@ function WorkflowContent() {
   const params = useParams()
   const router = useRouter()
   const { project, getNodes, fitView } = useReactFlow()
+  
+  // Get workspace ID from current workflow
+  const workflowId = params.id as string
+  const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
+  const currentWorkflow = workflows[workflowId]
+  const workspaceId = currentWorkflow?.workspaceId
+  
+  // Workspace permissions - only fetch if we have a workspace ID
+  const { permissions: workspacePermissions, loading: permissionsLoading, error: permissionsError } = useWorkspacePermissions(workspaceId || '')
 
   // Store access
-  const {
-    workflows,
-    activeWorkflowId,
-    setActiveWorkflow,
-    createWorkflow,
-    isLoading: workflowsLoading,
-  } = useWorkflowRegistry()
   const {
     blocks,
     edges,
@@ -102,6 +105,30 @@ function WorkflowContent() {
   const { activeBlockIds, pendingBlocks } = useExecutionStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
+
+  // Log permissions when they load
+  useEffect(() => {
+    if (workspacePermissions) {
+      logger.info('Workspace permissions loaded in workflow', {
+        workspaceId,
+        userCount: workspacePermissions.total,
+        permissions: workspacePermissions.users.map(u => ({
+          email: u.email,
+          permissions: u.permissions
+        }))
+      })
+    }
+  }, [workspacePermissions, workspaceId])
+
+  // Log permissions errors
+  useEffect(() => {
+    if (permissionsError) {
+      logger.error('Failed to load workspace permissions', {
+        workspaceId,
+        error: permissionsError
+      })
+    }
+  }, [permissionsError, workspaceId])
 
   // Helper function to update a node's parent with proper position calculation
   const updateNodeParent = useCallback(

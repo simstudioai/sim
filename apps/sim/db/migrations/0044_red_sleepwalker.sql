@@ -1,0 +1,1 @@
+ALTER TABLE "permissions" ALTER COLUMN "permission_type" SET DATA TYPE "public"."permission_type" USING "permission_type"::"public"."permission_type";

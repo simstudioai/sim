@@ -316,6 +316,13 @@
       "when": 1750379637336,
       "tag": "0045_sour_chameleon",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1750203578510,
+      "tag": "0044_red_sleepwalker",
+      "breakpoints": true
     }
   ]
 }
