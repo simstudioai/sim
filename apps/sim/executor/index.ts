@@ -770,11 +770,14 @@ export class Executor {
         */
         // Handle structured input (like API calls or chat messages)
         if (this.workflowInput && typeof this.workflowInput === 'object') {
-          // Preserve complete workflowInput structure to maintain JSON format
-          // when referenced through <start.response.input>
+          // Extract the actual input data - if workflowInput has an `input` field, use that
+          // Otherwise use the entire workflowInput object
+          const inputData =
+            this.workflowInput.input !== undefined ? this.workflowInput.input : this.workflowInput
+
           const starterOutput = {
             response: {
-              input: this.workflowInput,
+              input: inputData,
               // Add top-level fields for backward compatibility
               message: this.workflowInput.input,
               conversationId: this.workflowInput.conversationId,
@@ -805,9 +808,12 @@ export class Executor {
         logger.warn('Error processing starter block input format:', e)
 
         // Error handler fallback - preserve structure for both direct access and backward compatibility
+        const inputData =
+          this.workflowInput?.input !== undefined ? this.workflowInput.input : this.workflowInput
+
         const starterOutput = {
           response: {
-            input: this.workflowInput,
+            input: inputData,
             message: this.workflowInput?.input,
             conversationId: this.workflowInput?.conversationId,
           },
