@@ -3,6 +3,7 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
+import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 import { prepareToolsWithUsageControl, trackForcedToolUsage } from '../utils'
 
@@ -56,8 +57,8 @@ export const azureOpenAIProvider: ProviderConfig = {
   name: 'Azure OpenAI',
   description: 'Microsoft Azure OpenAI Service models',
   version: '1.0.0',
-  models: ['azure/gpt-4o', 'azure/o3', 'azure/o4-mini', 'azure/gpt-4.1', 'azure/model-router'],
-  defaultModel: 'azure/gpt-4o',
+  models: getProviderModels('azure-openai'),
+  defaultModel: getProviderDefaultModel('azure-openai'),
 
   executeRequest: async (
     request: ProviderRequest

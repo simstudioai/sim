@@ -1,17 +1,19 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { StreamingExecution } from '@/executor/types'
-import { supportsTemperature } from './model-capabilities'
 import type { ProviderRequest, ProviderResponse } from './types'
-import { calculateCost, generateStructuredOutputInstructions, getProvider } from './utils'
+import {
+  calculateCost,
+  generateStructuredOutputInstructions,
+  getProvider,
+  supportsTemperature,
+} from './utils'
 
 const logger = createLogger('Providers')
 
 // Sanitize the request by removing parameters that aren't supported by the model
 function sanitizeRequest(request: ProviderRequest): ProviderRequest {
-  // Create a shallow copy of the request
   const sanitizedRequest = { ...request }
 
-  // Remove temperature if the model doesn't support it
   if (sanitizedRequest.model && !supportsTemperature(sanitizedRequest.model)) {
     sanitizedRequest.temperature = undefined
   }
@@ -19,12 +21,10 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   return sanitizedRequest
 }
 
-// Type guard for StreamingExecution
 function isStreamingExecution(response: any): response is StreamingExecution {
   return response && typeof response === 'object' && 'stream' in response && 'execution' in response
 }
 
-// Type guard for ReadableStream
 function isReadableStream(response: any): response is ReadableStream {
   return response instanceof ReadableStream
 }

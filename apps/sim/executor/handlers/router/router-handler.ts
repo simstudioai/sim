@@ -2,7 +2,7 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { generateRouterPrompt } from '@/blocks/blocks/router'
 import type { BlockOutput } from '@/blocks/types'
-import { getProviderFromModel } from '@/providers/utils'
+import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import type { PathTracker } from '../../path'
 import type { BlockHandler, ExecutionContext } from '../../types'
@@ -92,6 +92,14 @@ export class RouterBlockHandler implements BlockHandler {
 
       const tokens = result.tokens || { prompt: 0, completion: 0, total: 0 }
 
+      // Calculate cost based on token usage, similar to how providers do it
+      const cost = calculateCost(
+        result.model,
+        tokens.prompt || 0,
+        tokens.completion || 0,
+        false // Router blocks don't typically use cached input
+      )
+
       return {
         response: {
           content: inputs.prompt,
@@ -100,6 +108,11 @@ export class RouterBlockHandler implements BlockHandler {
             prompt: tokens.prompt || 0,
             completion: tokens.completion || 0,
             total: tokens.total || 0,
+          },
+          cost: {
+            input: cost.input,
+            output: cost.output,
+            total: cost.total,
           },
           selectedPath: {
             blockId: chosenBlock.id,

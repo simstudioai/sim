@@ -119,7 +119,7 @@ describe('mailer', () => {
       expect(mockSend).not.toHaveBeenCalled()
     })
 
-    it('should handle Resend API errors', async () => {
+    it.concurrent('should handle Resend API errors', async () => {
       mockSend.mockResolvedValue({
         data: null,
         error: { message: 'API rate limit exceeded' },
@@ -131,7 +131,7 @@ describe('mailer', () => {
       expect(result.message).toBe('API rate limit exceeded')
     })
 
-    it('should handle unexpected errors', async () => {
+    it.concurrent('should handle unexpected errors', async () => {
       mockSend.mockRejectedValue(new Error('Network error'))
 
       const result = await sendEmail(testEmailOptions)
@@ -140,7 +140,7 @@ describe('mailer', () => {
       expect(result.message).toBe('Failed to send email')
     })
 
-    it('should use custom from address when provided', async () => {
+    it.concurrent('should use custom from address when provided', async () => {
       await sendEmail({
         ...testEmailOptions,
         from: 'custom@example.com',
@@ -168,7 +168,7 @@ describe('mailer', () => {
       )
     })
 
-    it('should replace unsubscribe token placeholders in HTML', async () => {
+    it.concurrent('should replace unsubscribe token placeholders in HTML', async () => {
       const htmlWithPlaceholder = '<p>Content</p><a href="{{UNSUBSCRIBE_TOKEN}}">Unsubscribe</a>'
 
       await sendEmail({
