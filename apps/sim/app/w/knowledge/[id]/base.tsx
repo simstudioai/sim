@@ -487,8 +487,9 @@ export function KnowledgeBase({
         body: JSON.stringify({
           documents: uploadedFiles,
           processingOptions: {
-            chunkSize: 1024,
-            minCharactersPerChunk: 24,
+            chunkSize: knowledgeBase?.chunkingConfig?.maxSize || 1024,
+            minCharactersPerChunk: knowledgeBase?.chunkingConfig?.minSize || 100,
+            chunkOverlap: knowledgeBase?.chunkingConfig?.overlap || 200,
             recipe: 'default',
             lang: 'en',
           },

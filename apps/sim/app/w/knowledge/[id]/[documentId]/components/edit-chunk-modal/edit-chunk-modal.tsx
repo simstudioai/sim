@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertCircle, FileText, Loader2, X } from 'lucide-react'
+import { AlertCircle, Loader2, X } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -133,11 +133,10 @@ export function EditChunkModal({
 
           <div className='flex flex-1 flex-col overflow-hidden'>
             <div className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
-              <div className='py-4'>
-                <div className='space-y-4'>
-                  {/* Document Info */}
+              <div className='flex min-h-full flex-col py-4'>
+                {/* Document Info Section - Fixed at top */}
+                <div className='flex-shrink-0 space-y-4'>
                   <div className='flex items-center gap-3 rounded-lg border bg-muted/30 p-4'>
-                    <FileText className='h-5 w-5 text-muted-foreground' />
                     <div className='min-w-0 flex-1'>
                       <p className='font-medium text-sm'>
                         {document?.filename || 'Unknown Document'}
@@ -145,28 +144,6 @@ export function EditChunkModal({
                       <p className='text-muted-foreground text-xs'>
                         Editing chunk #{chunk.chunkIndex}
                       </p>
-                    </div>
-                  </div>
-
-                  {/* Content Input */}
-                  <div className='space-y-2'>
-                    <Label htmlFor='content' className='font-medium text-sm'>
-                      Chunk Content
-                    </Label>
-                    <Textarea
-                      id='content'
-                      value={editedContent}
-                      onChange={(e) => setEditedContent(e.target.value)}
-                      placeholder='Enter chunk content...'
-                      className='min-h-[300px] resize-none'
-                      disabled={isSaving}
-                    />
-                    <div className='flex items-center justify-between text-muted-foreground text-xs'>
-                      <span>{editedContent.length}/10000 characters</span>
-                      <span>Tokens: ~{Math.ceil(editedContent.length / 4)}</span>
-                      {editedContent.length > 10000 && (
-                        <span className='text-red-500'>Content too long</span>
-                      )}
                     </div>
                   </div>
 
@@ -178,39 +155,44 @@ export function EditChunkModal({
                     </div>
                   )}
                 </div>
+
+                {/* Content Input Section - Expands to fill remaining space */}
+                <div className='mt-4 flex flex-1 flex-col'>
+                  <Label htmlFor='content' className='mb-2 font-medium text-sm'>
+                    Chunk Content
+                  </Label>
+                  <Textarea
+                    id='content'
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    placeholder='Enter chunk content...'
+                    className='flex-1 resize-none'
+                    disabled={isSaving}
+                  />
+                </div>
               </div>
             </div>
 
             {/* Footer */}
             <div className='mt-auto border-t px-6 pt-4 pb-6'>
-              <div className='flex items-center justify-between'>
-                <div className='text-muted-foreground text-xs'>
-                  {hasUnsavedChanges && (
-                    <span className='flex items-center gap-1 text-amber-600'>
-                      <div className='h-1.5 w-1.5 rounded-full bg-amber-500' />
-                      Unsaved changes
-                    </span>
+              <div className='flex justify-between'>
+                <Button variant='outline' onClick={handleCloseAttempt} disabled={isSaving}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveContent}
+                  disabled={!isFormValid || isSaving || !hasUnsavedChanges}
+                  className='bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
                   )}
-                </div>
-                <div className='flex justify-between gap-3'>
-                  <Button variant='outline' onClick={handleCloseAttempt} disabled={isSaving}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSaveContent}
-                    disabled={!isFormValid || isSaving || !hasUnsavedChanges}
-                    className='bg-[#701FFC] font-[480] text-primary-foreground shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                        Saving...
-                      </>
-                    ) : (
-                      'Save Changes'
-                    )}
-                  </Button>
-                </div>
+                </Button>
               </div>
             </div>
           </div>

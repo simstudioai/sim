@@ -20,11 +20,11 @@ const ProcessDocumentsSchema = z.object({
     })
   ),
   processingOptions: z.object({
-    chunkSize: z.number(),
-    minCharactersPerChunk: z.number(),
+    chunkSize: z.number().min(100).max(4000),
+    minCharactersPerChunk: z.number().min(50).max(2000),
     recipe: z.string(),
     lang: z.string(),
-    chunkOverlap: z.number().optional(),
+    chunkOverlap: z.number().min(0).max(500),
   }),
 })
 
