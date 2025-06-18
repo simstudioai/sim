@@ -63,7 +63,6 @@ export interface DocumentData {
   fileUrl: string
   fileSize: number
   mimeType: string
-  fileHash?: string | null
   chunkCount: number
   tokenCount: number
   characterCount: number
@@ -89,12 +88,7 @@ export interface EmbeddingData {
   embeddingModel: string
   startOffset: number
   endOffset: number
-  overlapTokens: number
   metadata: unknown
-  searchRank?: string | null
-  accessCount: number
-  lastAccessedAt?: Date | null
-  qualityScore?: string | null
   enabled: boolean
   createdAt: Date
   updatedAt: Date
@@ -406,7 +400,6 @@ export async function processDocumentAsync(
     fileUrl: string
     fileSize: number
     mimeType: string
-    fileHash?: string | null
   },
   processingOptions: {
     chunkSize?: number
@@ -467,12 +460,7 @@ export async function processDocumentAsync(
           embeddingModel: 'text-embedding-3-small',
           startOffset: chunk.metadata.startIndex,
           endOffset: chunk.metadata.endIndex,
-          overlapTokens: 0,
           metadata: {},
-          searchRank: '1.0',
-          accessCount: 0,
-          lastAccessedAt: null,
-          qualityScore: null,
           createdAt: now,
           updatedAt: now,
         }))

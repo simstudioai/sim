@@ -51,6 +51,4 @@ export interface KnowledgeUploadChunkParams {
   documentId: string
   content: string
   enabled?: boolean
-  searchRank?: number
-  qualityScore?: number
 }

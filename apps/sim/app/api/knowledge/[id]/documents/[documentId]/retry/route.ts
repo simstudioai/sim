@@ -75,7 +75,6 @@ export async function POST(
       fileUrl: doc.fileUrl,
       fileSize: doc.fileSize,
       mimeType: doc.mimeType,
-      fileHash: doc.fileHash,
     }
 
     processDocumentAsync(knowledgeBaseId, documentId, docData, processingOptions).catch(

@@ -280,7 +280,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
           fileUrl: string
           fileSize: number
           mimeType: string
-          fileHash: string | undefined
         }
 
         const uploadedFiles: UploadedFile[] = []
@@ -330,7 +329,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                   : `${window.location.origin}${presignedData.fileInfo.path}`,
                 fileSize: file.size,
                 mimeType: file.type,
-                fileHash: undefined,
               })
             } else {
               const formData = new FormData()
@@ -356,7 +354,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                   : `${window.location.origin}${uploadResult.path}`,
                 fileSize: file.size,
                 mimeType: file.type,
-                fileHash: undefined,
               })
             }
           } catch (error) {
@@ -403,7 +400,6 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
               fileUrl: uploadedFiles[index].fileUrl,
               fileSize: uploadedFiles[index].fileSize,
               mimeType: uploadedFiles[index].mimeType,
-              fileHash: uploadedFiles[index].fileHash || null,
               chunkCount: 0,
               tokenCount: 0,
               characterCount: 0,

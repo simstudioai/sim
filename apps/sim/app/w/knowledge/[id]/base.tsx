@@ -429,7 +429,6 @@ export function KnowledgeBase({
       fileUrl: string
       fileSize: number
       mimeType: string
-      fileHash: string | undefined
     }
 
     try {
@@ -470,7 +469,6 @@ export function KnowledgeBase({
             : `${window.location.origin}${uploadResult.path}`,
           fileSize: file.size,
           mimeType: file.type,
-          fileHash: undefined,
         })
       }
 
@@ -533,7 +531,6 @@ export function KnowledgeBase({
             fileUrl: uploadedFiles[index].fileUrl,
             fileSize: uploadedFiles[index].fileSize,
             mimeType: uploadedFiles[index].mimeType,
-            fileHash: uploadedFiles[index].fileHash || null,
             chunkCount: 0,
             tokenCount: 0,
             characterCount: 0,

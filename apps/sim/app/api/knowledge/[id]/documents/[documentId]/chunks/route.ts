@@ -112,10 +112,7 @@ export async function GET(
         enabled: embedding.enabled,
         startOffset: embedding.startOffset,
         endOffset: embedding.endOffset,
-        overlapTokens: embedding.overlapTokens,
         metadata: embedding.metadata,
-        searchRank: embedding.searchRank,
-        qualityScore: embedding.qualityScore,
         createdAt: embedding.createdAt,
         updatedAt: embedding.updatedAt,
       })
@@ -236,12 +233,7 @@ export async function POST(
           embeddingModel: 'text-embedding-3-small',
           startOffset: 0, // Manual chunks don't have document offsets
           endOffset: validatedData.content.length,
-          overlapTokens: 0,
           metadata: { manual: true }, // Mark as manually created
-          searchRank: '1.0',
-          accessCount: 0,
-          lastAccessedAt: null,
-          qualityScore: null,
           enabled: validatedData.enabled,
           createdAt: now,
           updatedAt: now,

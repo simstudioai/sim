@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -16,7 +17,6 @@ const ProcessDocumentsSchema = z.object({
       fileUrl: z.string().url('File URL must be valid'),
       fileSize: z.number().min(1, 'File size must be greater than 0'),
       mimeType: z.string().min(1, 'MIME type is required'),
-      fileHash: z.string().optional(),
     })
   ),
   processingOptions: z.object({
@@ -45,10 +45,15 @@ async function processDocumentsWithConcurrencyControl(
     fileUrl: string
     fileSize: number
     mimeType: string
-    fileHash?: string
   }>,
   knowledgeBaseId: string,
-  processingOptions: any,
+  processingOptions: {
+    chunkSize: number
+    minCharactersPerChunk: number
+    recipe: string
+    lang: string
+    chunkOverlap: number
+  },
   requestId: string
 ): Promise<void> {
   const totalDocuments = createdDocuments.length
@@ -88,10 +93,15 @@ async function processBatchWithConcurrency(
     fileUrl: string
     fileSize: number
     mimeType: string
-    fileHash?: string
   }>,
   knowledgeBaseId: string,
-  processingOptions: any,
+  processingOptions: {
+    chunkSize: number
+    minCharactersPerChunk: number
+    recipe: string
+    lang: string
+    chunkOverlap: number
+  },
   requestId: string
 ): Promise<void> {
   const semaphore = new Array(PROCESSING_CONFIG.maxConcurrentDocuments).fill(0)
@@ -128,7 +138,6 @@ async function processBatchWithConcurrency(
           fileUrl: doc.fileUrl,
           fileSize: doc.fileSize,
           mimeType: doc.mimeType,
-          fileHash: doc.fileHash,
         },
         processingOptions
       )
@@ -212,7 +221,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             fileUrl: docData.fileUrl,
             fileSize: docData.fileSize,
             mimeType: docData.mimeType,
-            fileHash: docData.fileHash || null,
             chunkCount: 0,
             tokenCount: 0,
             characterCount: 0,
