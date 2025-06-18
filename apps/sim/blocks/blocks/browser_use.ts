@@ -43,7 +43,6 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
       layout: 'half',
       options: [
         { label: 'gpt-4o', id: 'gpt-4o' },
-        { label: 'gpt-4.1', id: 'gpt-4.1' },
         { label: 'gemini-2.0-flash', id: 'gemini-2.0-flash' },
         { label: 'gemini-2.0-flash-lite', id: 'gemini-2.0-flash-lite' },
         { label: 'claude-3-7-sonnet-20250219', id: 'claude-3-7-sonnet-20250219' },
