@@ -24,7 +24,7 @@ interface UseWorkspacePermissionsReturn {
   permissions: WorkspacePermissions | null
   loading: boolean
   error: string | null
-  refetch: () => void
+  updatePermissions: (newPermissions: WorkspacePermissions) => void
 }
 
 /**
@@ -38,7 +38,7 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchPermissions = async (id: string) => {
+  const fetchPermissions = async (id: string): Promise<void> => {
     try {
       setLoading(true)
       setError(null)
@@ -76,10 +76,13 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
     }
   }
 
-  const refetch = () => {
-    if (workspaceId) {
-      fetchPermissions(workspaceId)
-    }
+  const updatePermissions = (newPermissions: WorkspacePermissions): void => {
+    setPermissions(newPermissions)
+    logger.info('Workspace permissions updated locally', {
+      workspaceId,
+      userCount: newPermissions.total,
+      users: newPermissions.users.map(u => ({ email: u.email, permissions: u.permissions }))
+    })
   }
 
   useEffect(() => {
@@ -97,6 +100,6 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
     permissions,
     loading,
     error,
-    refetch
+    updatePermissions
   }
 } 

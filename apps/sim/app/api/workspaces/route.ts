@@ -2,7 +2,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { workflow, workspace, workspaceMember } from '@/db/schema'
+import { workflow, workspace, workspaceMember, permissions } from '@/db/schema'
 
 // Get all workspaces for the current user
 export async function GET() {
@@ -97,6 +97,20 @@ async function createWorkspace(userId: string, name: string) {
     joinedAt: new Date(),
     updatedAt: new Date(),
   })
+
+  // Create permissions entries for the workspace owner
+  const ownerPermissions = ['admin', 'deploy', 'edit', 'read'] as const
+  const permissionEntries = ownerPermissions.map(permission => ({
+    id: crypto.randomUUID(),
+    entityType: 'workspace' as const,
+    entityId: workspaceId,
+    userId,
+    permissionType: permission,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }))
+
+  await db.insert(permissions).values(permissionEntries)
 
   // Return the workspace data directly instead of querying again
   return {
