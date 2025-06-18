@@ -633,7 +633,6 @@ export const document = pgTable(
     fileUrl: text('file_url').notNull(),
     fileSize: integer('file_size').notNull(), // Size in bytes
     mimeType: text('mime_type').notNull(), // e.g., 'application/pdf', 'text/plain'
-    fileHash: text('file_hash'), // SHA-256 hash for deduplication
 
     // Content statistics
     chunkCount: integer('chunk_count').notNull().default(0),
@@ -656,8 +655,6 @@ export const document = pgTable(
   (table) => ({
     // Primary access pattern - documents by knowledge base
     knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
-    // File deduplication
-    fileHashIdx: index('doc_file_hash_idx').on(table.fileHash),
     // Search by filename (for search functionality)
     filenameIdx: index('doc_filename_idx').on(table.filename),
     // Order by upload date (for listing documents)
@@ -695,18 +692,9 @@ export const embedding = pgTable(
     // Chunk boundaries and overlap
     startOffset: integer('start_offset').notNull(),
     endOffset: integer('end_offset').notNull(),
-    overlapTokens: integer('overlap_tokens').notNull().default(0),
 
     // Rich metadata for advanced filtering
     metadata: jsonb('metadata').notNull().default('{}'),
-
-    // Search optimization
-    searchRank: decimal('search_rank').default('1.0'),
-    accessCount: integer('access_count').notNull().default(0),
-    lastAccessedAt: timestamp('last_accessed_at'),
-
-    // Quality metrics
-    qualityScore: decimal('quality_score'),
 
     // Chunk state - enable/disable from knowledge base
     enabled: boolean('enabled').notNull().default(true),
@@ -732,15 +720,6 @@ export const embedding = pgTable(
 
     // Model-specific queries for A/B testing or migrations
     kbModelIdx: index('emb_kb_model_idx').on(table.knowledgeBaseId, table.embeddingModel),
-
-    // Deduplication
-    chunkHashIdx: index('emb_chunk_hash_idx').on(table.chunkHash),
-
-    // Access patterns for hot data
-    kbAccessIdx: index('emb_kb_access_idx').on(table.knowledgeBaseId, table.lastAccessedAt),
-
-    // Search rank optimization
-    kbRankIdx: index('emb_kb_rank_idx').on(table.knowledgeBaseId, table.searchRank),
 
     // Enabled state filtering indexes (for chunk enable/disable functionality)
     kbEnabledIdx: index('emb_kb_enabled_idx').on(table.knowledgeBaseId, table.enabled),
