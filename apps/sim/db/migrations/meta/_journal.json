@@ -295,6 +295,13 @@
       "when": 1749784177503,
       "tag": "0042_breezy_miracleman",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1750193663357,
+      "tag": "0043_silent_the_anarchist",
+      "breakpoints": true
     }
   ]
 }
