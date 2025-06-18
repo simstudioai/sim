@@ -29,12 +29,13 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { ActionBar } from '@/app/w/knowledge/[id]/components/action-bar/action-bar'
 import { getDocumentIcon } from '@/app/w/knowledge/components/icons/document-icons'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
-import { KnowledgeBaseLoading } from './components/knowledge-base-loading'
+import { KnowledgeBaseLoading } from './components/knowledge-base-loading/knowledge-base-loading'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -140,6 +141,7 @@ export function KnowledgeBase({
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<{
     message: string
@@ -577,6 +579,131 @@ export function KnowledgeBase({
       }
     }
   }
+
+  const handleBulkEnable = async () => {
+    const documentsToEnable = documents.filter(
+      (doc) => selectedDocuments.has(doc.id) && !doc.enabled
+    )
+
+    if (documentsToEnable.length === 0) return
+
+    try {
+      setIsBulkOperating(true)
+
+      const updatePromises = documentsToEnable.map((doc) =>
+        fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            enabled: true,
+          }),
+        })
+      )
+
+      const results = await Promise.allSettled(updatePromises)
+
+      // Update successful documents in the store
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.ok) {
+          const docId = documentsToEnable[index].id
+          updateDocument(docId, { enabled: true })
+        }
+      })
+
+      // Clear selection after successful operation
+      setSelectedDocuments(new Set())
+
+      logger.info(`Successfully enabled ${documentsToEnable.length} documents`)
+    } catch (err) {
+      logger.error('Error enabling documents:', err)
+    } finally {
+      setIsBulkOperating(false)
+    }
+  }
+
+  const handleBulkDisable = async () => {
+    const documentsToDisable = documents.filter(
+      (doc) => selectedDocuments.has(doc.id) && doc.enabled
+    )
+
+    if (documentsToDisable.length === 0) return
+
+    try {
+      setIsBulkOperating(true)
+
+      const updatePromises = documentsToDisable.map((doc) =>
+        fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            enabled: false,
+          }),
+        })
+      )
+
+      const results = await Promise.allSettled(updatePromises)
+
+      // Update successful documents in the store
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.ok) {
+          const docId = documentsToDisable[index].id
+          updateDocument(docId, { enabled: false })
+        }
+      })
+
+      // Clear selection after successful operation
+      setSelectedDocuments(new Set())
+
+      logger.info(`Successfully disabled ${documentsToDisable.length} documents`)
+    } catch (err) {
+      logger.error('Error disabling documents:', err)
+    } finally {
+      setIsBulkOperating(false)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const documentsToDelete = documents.filter((doc) => selectedDocuments.has(doc.id))
+
+    if (documentsToDelete.length === 0) return
+
+    try {
+      setIsBulkOperating(true)
+
+      const deletePromises = documentsToDelete.map((doc) =>
+        fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
+          method: 'DELETE',
+        })
+      )
+
+      const results = await Promise.allSettled(deletePromises)
+
+      // Refresh documents list to reflect deletions
+      await refreshDocuments()
+
+      // Clear selection after successful operation
+      setSelectedDocuments(new Set())
+
+      const successCount = results.filter(
+        (result) => result.status === 'fulfilled' && result.value.ok
+      ).length
+
+      logger.info(`Successfully deleted ${successCount} documents`)
+    } catch (err) {
+      logger.error('Error deleting documents:', err)
+    } finally {
+      setIsBulkOperating(false)
+    }
+  }
+
+  // Calculate bulk operation counts
+  const selectedDocumentsList = documents.filter((doc) => selectedDocuments.has(doc.id))
+  const enabledCount = selectedDocumentsList.filter((doc) => doc.enabled).length
+  const disabledCount = selectedDocumentsList.filter((doc) => !doc.enabled).length
 
   // Breadcrumbs for the knowledge base page
   const breadcrumbs = [
@@ -1122,6 +1249,17 @@ export function KnowledgeBase({
           </div>
         </div>
       )}
+
+      {/* Bulk Action Bar */}
+      <ActionBar
+        selectedCount={selectedDocuments.size}
+        onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
+        onDisable={enabledCount > 0 ? handleBulkDisable : undefined}
+        onDelete={handleBulkDelete}
+        enabledCount={enabledCount}
+        disabledCount={disabledCount}
+        isLoading={isBulkOperating}
+      />
     </div>
   )
 }

@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { ActionBar } from '@/app/w/knowledge/[id]/components/action-bar/action-bar'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -64,6 +65,7 @@ export function Document({
   const [isCreateChunkModalOpen, setIsCreateChunkModalOpen] = useState(false)
   const [chunkToDelete, setChunkToDelete] = useState<ChunkData | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isBulkOperating, setIsBulkOperating] = useState(false)
 
   const [document, setDocument] = useState<DocumentData | null>(null)
   const [isLoadingDocument, setIsLoadingDocument] = useState(true)
@@ -266,6 +268,127 @@ export function Document({
     // Refresh the chunks list to include the new chunk
     await refreshChunks()
   }
+
+  const handleBulkEnable = async () => {
+    const chunksToEnable = chunks.filter((chunk) => selectedChunks.has(chunk.id) && !chunk.enabled)
+
+    if (chunksToEnable.length === 0) return
+
+    try {
+      setIsBulkOperating(true)
+
+      const updatePromises = chunksToEnable.map((chunk) =>
+        fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunk.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            enabled: true,
+          }),
+        })
+      )
+
+      const results = await Promise.allSettled(updatePromises)
+
+      // Update successful chunks in the store
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.ok) {
+          const chunkId = chunksToEnable[index].id
+          updateChunk(chunkId, { enabled: true })
+        }
+      })
+
+      // Clear selection after successful operation
+      setSelectedChunks(new Set())
+
+      logger.info(`Successfully enabled ${chunksToEnable.length} chunks`)
+    } catch (err) {
+      logger.error('Error enabling chunks:', err)
+    } finally {
+      setIsBulkOperating(false)
+    }
+  }
+
+  const handleBulkDisable = async () => {
+    const chunksToDisable = chunks.filter((chunk) => selectedChunks.has(chunk.id) && chunk.enabled)
+
+    if (chunksToDisable.length === 0) return
+
+    try {
+      setIsBulkOperating(true)
+
+      const updatePromises = chunksToDisable.map((chunk) =>
+        fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunk.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            enabled: false,
+          }),
+        })
+      )
+
+      const results = await Promise.allSettled(updatePromises)
+
+      // Update successful chunks in the store
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.ok) {
+          const chunkId = chunksToDisable[index].id
+          updateChunk(chunkId, { enabled: false })
+        }
+      })
+
+      // Clear selection after successful operation
+      setSelectedChunks(new Set())
+
+      logger.info(`Successfully disabled ${chunksToDisable.length} chunks`)
+    } catch (err) {
+      logger.error('Error disabling chunks:', err)
+    } finally {
+      setIsBulkOperating(false)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const chunksToDelete = chunks.filter((chunk) => selectedChunks.has(chunk.id))
+
+    if (chunksToDelete.length === 0) return
+
+    try {
+      setIsBulkOperating(true)
+
+      const deletePromises = chunksToDelete.map((chunk) =>
+        fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunk.id}`, {
+          method: 'DELETE',
+        })
+      )
+
+      const results = await Promise.allSettled(deletePromises)
+
+      // Refresh chunks list to reflect deletions
+      await refreshChunks()
+
+      // Clear selection after successful operation
+      setSelectedChunks(new Set())
+
+      const successCount = results.filter(
+        (result) => result.status === 'fulfilled' && result.value.ok
+      ).length
+
+      logger.info(`Successfully deleted ${successCount} chunks`)
+    } catch (err) {
+      logger.error('Error deleting chunks:', err)
+    } finally {
+      setIsBulkOperating(false)
+    }
+  }
+
+  // Calculate bulk operation counts
+  const selectedChunksList = chunks.filter((chunk) => selectedChunks.has(chunk.id))
+  const enabledCount = selectedChunksList.filter((chunk) => chunk.enabled).length
+  const disabledCount = selectedChunksList.filter((chunk) => !chunk.enabled).length
 
   const isAllSelected = chunks.length > 0 && selectedChunks.size === chunks.length
 
@@ -705,6 +828,17 @@ export function Document({
         isOpen={isDeleteModalOpen}
         onClose={handleCloseDeleteModal}
         onChunkDeleted={handleChunkDeleted}
+      />
+
+      {/* Bulk Action Bar */}
+      <ActionBar
+        selectedCount={selectedChunks.size}
+        onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
+        onDisable={enabledCount > 0 ? handleBulkDisable : undefined}
+        onDelete={handleBulkDelete}
+        enabledCount={enabledCount}
+        disabledCount={disabledCount}
+        isLoading={isBulkOperating}
       />
     </div>
   )
