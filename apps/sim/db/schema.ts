@@ -131,6 +131,131 @@ export const workflow = pgTable('workflow', {
   marketplaceData: json('marketplace_data'),
 })
 
+// New normalized workflow tables
+export const workflowBlocks = pgTable(
+  'workflow_blocks',
+  {
+    // Primary identification
+    id: text('id').primaryKey(), // Block UUID from the current JSON structure
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }), // Link to parent workflow
+
+    // Block properties (from current BlockState interface)
+    type: text('type').notNull(), // e.g., 'starter', 'agent', 'api', 'function'
+    name: text('name').notNull(), // Display name of the block
+
+    // Position coordinates (from position.x, position.y)
+    positionX: integer('position_x').notNull(), // X coordinate on canvas
+    positionY: integer('position_y').notNull(), // Y coordinate on canvas
+
+    // Block behavior flags (from current BlockState)
+    enabled: boolean('enabled').notNull().default(true), // Whether block is active
+    horizontalHandles: boolean('horizontal_handles').notNull().default(true), // UI layout preference
+    isWide: boolean('is_wide').notNull().default(false), // Whether block uses wide layout
+    height: integer('height').notNull().default(0), // Custom height override
+
+    // Block data (keeping JSON for flexibility as current system does)
+    subBlocks: jsonb('sub_blocks').notNull().default('{}'), // All subblock configurations
+    outputs: jsonb('outputs').notNull().default('{}'), // Output type definitions
+    data: jsonb('data').default('{}'), // Additional block-specific data
+
+    // Hierarchy support (for loop/parallel child blocks)
+    parentId: text('parent_id'), // Self-reference handled by foreign key constraint in migration
+    extent: text('extent'), // 'parent' or null - for ReactFlow parent constraint
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access pattern: get all blocks for a workflow
+    workflowIdIdx: index('workflow_blocks_workflow_id_idx').on(table.workflowId),
+
+    // For finding child blocks of a parent (loop/parallel containers)
+    parentIdIdx: index('workflow_blocks_parent_id_idx').on(table.parentId),
+
+    // Composite index for efficient parent-child queries
+    workflowParentIdx: index('workflow_blocks_workflow_parent_idx').on(
+      table.workflowId,
+      table.parentId
+    ),
+
+    // For block type filtering/analytics
+    workflowTypeIdx: index('workflow_blocks_workflow_type_idx').on(table.workflowId, table.type),
+  })
+)
+
+export const workflowEdges = pgTable(
+  'workflow_edges',
+  {
+    // Primary identification
+    id: text('id').primaryKey(), // Edge UUID from ReactFlow
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }), // Link to parent workflow
+
+    // Connection definition (from ReactFlow Edge interface)
+    sourceBlockId: text('source_block_id')
+      .notNull()
+      .references(() => workflowBlocks.id, { onDelete: 'cascade' }), // Source block ID
+    targetBlockId: text('target_block_id')
+      .notNull()
+      .references(() => workflowBlocks.id, { onDelete: 'cascade' }), // Target block ID
+    sourceHandle: text('source_handle'), // Specific output handle (optional)
+    targetHandle: text('target_handle'), // Specific input handle (optional)
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access pattern: get all edges for a workflow
+    workflowIdIdx: index('workflow_edges_workflow_id_idx').on(table.workflowId),
+
+    // For finding outgoing connections from a block
+    sourceBlockIdx: index('workflow_edges_source_block_idx').on(table.sourceBlockId),
+
+    // For finding incoming connections to a block
+    targetBlockIdx: index('workflow_edges_target_block_idx').on(table.targetBlockId),
+
+    // For comprehensive workflow topology queries
+    workflowSourceIdx: index('workflow_edges_workflow_source_idx').on(
+      table.workflowId,
+      table.sourceBlockId
+    ),
+    workflowTargetIdx: index('workflow_edges_workflow_target_idx').on(
+      table.workflowId,
+      table.targetBlockId
+    ),
+  })
+)
+
+export const workflowSubflows = pgTable(
+  'workflow_subflows',
+  {
+    // Primary identification
+    id: text('id').primaryKey(), // Subflow UUID (currently loop/parallel ID)
+    workflowId: text('workflow_id')
+      .notNull()
+      .references(() => workflow.id, { onDelete: 'cascade' }), // Link to parent workflow
+
+    // Subflow type and configuration
+    type: text('type').notNull(), // 'loop' or 'parallel' (extensible for future types)
+    config: jsonb('config').notNull().default('{}'), // Type-specific configuration
+
+    // Timestamps
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access pattern: get all subflows for a workflow
+    workflowIdIdx: index('workflow_subflows_workflow_id_idx').on(table.workflowId),
+
+    // For filtering by subflow type
+    workflowTypeIdx: index('workflow_subflows_workflow_type_idx').on(table.workflowId, table.type),
+  })
+)
+
 export const waitlist = pgTable('waitlist', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),

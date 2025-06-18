@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { workflow, workspace, workspaceMember } from '@/db/schema'
 
@@ -386,6 +387,34 @@ export async function POST(req: NextRequest) {
         // Ensure the workflow has the correct workspaceId
         const effectiveWorkspaceId = clientWorkflow.workspaceId || workspaceId
 
+        // Save to normalized tables for all workflows (hybrid approach)
+        const normalizedResult = await saveWorkflowToNormalizedTables(id, {
+          blocks: clientWorkflow.state.blocks || {},
+          edges: clientWorkflow.state.edges || [],
+          loops: clientWorkflow.state.loops || {},
+          parallels: clientWorkflow.state.parallels || {},
+          lastSaved: clientWorkflow.state.lastSaved,
+          isDeployed: clientWorkflow.state.isDeployed,
+          deployedAt: clientWorkflow.state.deployedAt,
+          deploymentStatuses: (clientWorkflow.state as any).deploymentStatuses || {},
+          hasActiveSchedule: (clientWorkflow.state as any).hasActiveSchedule,
+          hasActiveWebhook: (clientWorkflow.state as any).hasActiveWebhook,
+        })
+
+        // Use the JSON blob from normalized save for compatibility, or fallback to original state
+        const stateToSave =
+          normalizedResult.success && normalizedResult.jsonBlob
+            ? normalizedResult.jsonBlob
+            : clientWorkflow.state
+
+        if (normalizedResult.success) {
+          logger.info(`[${requestId}] Saved workflow ${id} to normalized tables`)
+        } else {
+          logger.warn(
+            `[${requestId}] Failed to save workflow ${id} to normalized tables: ${normalizedResult.error}`
+          )
+        }
+
         if (!dbWorkflow) {
           // New workflow - create (state is required by schema)
           operations.push(
@@ -397,7 +426,7 @@ export async function POST(req: NextRequest) {
               name: clientWorkflow.name,
               description: clientWorkflow.description,
               color: clientWorkflow.color,
-              state: clientWorkflow.state,
+              state: stateToSave,
               marketplaceData: clientWorkflow.marketplaceData || null,
               lastSynced: now,
               createdAt: now,
@@ -451,8 +480,8 @@ export async function POST(req: NextRequest) {
           }
 
           // Always update state since we only sync the active workflow with valid state
-          if (JSON.stringify(dbWorkflow.state) !== JSON.stringify(clientWorkflow.state)) {
-            updateData.state = clientWorkflow.state
+          if (JSON.stringify(dbWorkflow.state) !== JSON.stringify(stateToSave)) {
+            updateData.state = stateToSave
             needsUpdate = true
           }
 
