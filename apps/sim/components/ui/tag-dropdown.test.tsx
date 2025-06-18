@@ -485,3 +485,117 @@ describe('TagDropdown Tag Ordering', () => {
     expect(tagIndexMap.get('nonexistent')).toBeUndefined()
   })
 })
+
+describe('TagDropdown Tag Selection Logic', () => {
+  test('should handle existing closing bracket correctly when editing tags', () => {
+    const testCases = [
+      {
+        description: 'should remove existing closing bracket from incomplete tag',
+        inputValue: 'Hello <start.response.>',
+        cursorPosition: 21, // cursor after the dot
+        tag: 'start.response.input',
+        expectedResult: 'Hello <start.response.input>',
+      },
+      {
+        description: 'should remove existing closing bracket when replacing tag content',
+        inputValue: 'Hello <start.response.input>',
+        cursorPosition: 22, // cursor after 'response.'
+        tag: 'start.response.data',
+        expectedResult: 'Hello <start.response.data>',
+      },
+      {
+        description: 'should preserve content after closing bracket',
+        inputValue: 'Hello <start.response.> world',
+        cursorPosition: 21,
+        tag: 'start.response.input',
+        expectedResult: 'Hello <start.response.input> world',
+      },
+      {
+        description:
+          'should not affect closing bracket if text between contains invalid characters',
+        inputValue: 'Hello <start.response.input> and <other>',
+        cursorPosition: 22,
+        tag: 'start.response.data',
+        expectedResult: 'Hello <start.response.data> and <other>',
+      },
+      {
+        description: 'should handle case with no existing closing bracket',
+        inputValue: 'Hello <start.response',
+        cursorPosition: 21,
+        tag: 'start.response.input',
+        expectedResult: 'Hello <start.response.input>',
+      },
+    ]
+
+    testCases.forEach(({ description, inputValue, cursorPosition, tag, expectedResult }) => {
+      // Simulate the handleTagSelect logic
+      const textBeforeCursor = inputValue.slice(0, cursorPosition)
+      const textAfterCursor = inputValue.slice(cursorPosition)
+      const lastOpenBracket = textBeforeCursor.lastIndexOf('<')
+
+      // Apply the new logic for handling existing closing brackets
+      const nextCloseBracket = textAfterCursor.indexOf('>')
+      let remainingTextAfterCursor = textAfterCursor
+
+      if (nextCloseBracket !== -1) {
+        const textBetween = textAfterCursor.slice(0, nextCloseBracket)
+        if (/^[a-zA-Z0-9._]*$/.test(textBetween)) {
+          remainingTextAfterCursor = textAfterCursor.slice(nextCloseBracket + 1)
+        }
+      }
+
+      const newValue = `${textBeforeCursor.slice(0, lastOpenBracket)}<${tag}>${remainingTextAfterCursor}`
+
+      expect(newValue).toBe(expectedResult)
+    })
+  })
+
+  test('should validate tag-like character regex correctly', () => {
+    const regex = /^[a-zA-Z0-9._]*$/
+
+    // Valid tag-like text
+    expect(regex.test('')).toBe(true) // empty string
+    expect(regex.test('input')).toBe(true)
+    expect(regex.test('response.data')).toBe(true)
+    expect(regex.test('user_name')).toBe(true)
+    expect(regex.test('item123')).toBe(true)
+    expect(regex.test('response.data.item_1')).toBe(true)
+
+    // Invalid tag-like text (should not remove closing bracket)
+    expect(regex.test('input> and more')).toBe(false)
+    expect(regex.test('response data')).toBe(false) // space
+    expect(regex.test('user-name')).toBe(false) // hyphen
+    expect(regex.test('data[')).toBe(false) // bracket
+    expect(regex.test('response.data!')).toBe(false) // exclamation
+  })
+
+  test('should find correct position of last open bracket', () => {
+    const testCases = [
+      { input: 'Hello <start.response', expected: 6 },
+      { input: 'Hello <var> and <start.response', expected: 16 },
+      { input: 'No brackets here', expected: -1 },
+      { input: '<start.response', expected: 0 },
+      { input: 'Multiple < < < <last', expected: 15 },
+    ]
+
+    testCases.forEach(({ input, expected }) => {
+      const lastOpenBracket = input.lastIndexOf('<')
+      expect(lastOpenBracket).toBe(expected)
+    })
+  })
+
+  test('should find correct position of next closing bracket', () => {
+    const testCases = [
+      { input: 'input>', expected: 5 },
+      { input: 'response.data> more text', expected: 13 },
+      { input: 'no closing bracket', expected: -1 },
+      { input: '>', expected: 0 },
+      { input: 'multiple > > > >last', expected: 9 },
+    ]
+
+    testCases.forEach(({ input, expected }) => {
+      const nextCloseBracket = input.indexOf('>')
+      expect(nextCloseBracket).toBe(expected)
+    })
+  })
+})
