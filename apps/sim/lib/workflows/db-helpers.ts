@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
+import { workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
 
@@ -135,9 +135,9 @@ export async function saveWorkflowToNormalizedTables(
         .where(eq(workflowSubflows.workflowId, workflowId))
 
       // Create maps for quick lookup of existing deploy_hash values
-      const blockDeployHashes = new Map(existingBlocks.map(b => [b.id, b.deployHash]))
-      const edgeDeployHashes = new Map(existingEdges.map(e => [e.id, e.deployHash]))
-      const subflowDeployHashes = new Map(existingSubflows.map(s => [s.id, s.deployHash]))
+      const blockDeployHashes = new Map(existingBlocks.map((b) => [b.id, b.deployHash]))
+      const edgeDeployHashes = new Map(existingEdges.map((e) => [e.id, e.deployHash]))
+      const subflowDeployHashes = new Map(existingSubflows.map((s) => [s.id, s.deployHash]))
 
       // Clear existing data for this workflow
       await Promise.all([
@@ -233,7 +233,9 @@ export async function saveWorkflowToNormalizedTables(
       hasActiveWebhook: state.hasActiveWebhook,
     }
 
-    logger.info(`Successfully saved workflow ${workflowId} to normalized tables (preserving deploy_hash values)`)
+    logger.info(
+      `Successfully saved workflow ${workflowId} to normalized tables (preserving deploy_hash values)`
+    )
 
     return {
       success: true,
@@ -370,6 +372,15 @@ export async function loadDeployedWorkflowState(
       db.select().from(workflowSubflows).where(eq(workflowSubflows.deployHash, deployHash)),
     ])
 
+    // If no blocks found with this deploy_hash, return failure to trigger fallback
+    if (blocks.length === 0) {
+      logger.warn(`No blocks found for deployment hash ${deployHash}, fallback needed`)
+      return {
+        success: false,
+        error: `No deployed state found for hash ${deployHash}`,
+      }
+    }
+
     // Convert blocks to the expected format
     const blocksMap: Record<string, any> = {}
     blocks.forEach((block) => {
@@ -437,7 +448,10 @@ export async function loadDeployedWorkflowState(
 
     return { success: true, state: deployedState }
   } catch (error) {
-    logger.error(`Error loading deployed state for workflow ${workflowId} with hash ${deployHash}:`, error)
+    logger.error(
+      `Error loading deployed state for workflow ${workflowId} with hash ${deployHash}:`,
+      error
+    )
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

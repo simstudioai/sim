@@ -192,7 +192,10 @@ export const workflowBlocks = pgTable(
     deployHashIdx: index('workflow_blocks_deploy_hash_idx').on(table.deployHash),
 
     // Composite index for deployed workflow reconstruction
-    workflowDeployIdx: index('workflow_blocks_workflow_deploy_idx').on(table.workflowId, table.deployHash),
+    workflowDeployIdx: index('workflow_blocks_workflow_deploy_idx').on(
+      table.workflowId,
+      table.deployHash
+    ),
   })
 )
 
@@ -245,7 +248,10 @@ export const workflowEdges = pgTable(
     deployHashIdx: index('workflow_edges_deploy_hash_idx').on(table.deployHash),
 
     // Composite index for deployed workflow reconstruction
-    workflowDeployIdx: index('workflow_edges_workflow_deploy_idx').on(table.workflowId, table.deployHash),
+    workflowDeployIdx: index('workflow_edges_workflow_deploy_idx').on(
+      table.workflowId,
+      table.deployHash
+    ),
   })
 )
 
@@ -280,7 +286,10 @@ export const workflowSubflows = pgTable(
     deployHashIdx: index('workflow_subflows_deploy_hash_idx').on(table.deployHash),
 
     // Composite index for deployed workflow reconstruction
-    workflowDeployIdx: index('workflow_subflows_workflow_deploy_idx').on(table.workflowId, table.deployHash),
+    workflowDeployIdx: index('workflow_subflows_workflow_deploy_idx').on(
+      table.workflowId,
+      table.deployHash
+    ),
   })
 )
 

@@ -638,7 +638,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             },
           }))
 
-          logger.info(`Loaded deployment status from database: isDeployed=${workflowData.isDeployed}, deployedAt=${workflowData.deployedAt}`)
+          logger.info(
+            `Loaded deployment status from database: isDeployed=${workflowData.isDeployed}, deployedAt=${workflowData.deployedAt}`
+          )
         }
 
         logger.info(`Switched to workflow ${id}`)

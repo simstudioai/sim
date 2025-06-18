@@ -64,14 +64,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     // Try hash-based approach first (new system)
     if (workflowData.deployedHash) {
-      logger.debug(`[${requestId}] Attempting to load deployed state using hash: ${workflowData.deployedHash}`)
+      logger.debug(
+        `[${requestId}] Attempting to load deployed state using hash: ${workflowData.deployedHash}`
+      )
       const deployedStateResult = await loadDeployedWorkflowState(id, workflowData.deployedHash)
-      
+
       if (deployedStateResult.success) {
         deployedState = deployedStateResult.state
         logger.info(`[${requestId}] Successfully loaded deployed state using hash`)
       } else {
-        logger.warn(`[${requestId}] Failed to load deployed state using hash: ${deployedStateResult.error}`)
+        logger.warn(
+          `[${requestId}] Failed to load deployed state using hash: ${deployedStateResult.error}`
+        )
       }
     }
 

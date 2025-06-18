@@ -34,6 +34,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         deployedAt: workflow.deployedAt,
         userId: workflow.userId,
         state: workflow.state,
+        deployedState: workflow.deployedState,
         deployedHash: workflow.deployedHash,
       })
       .from(workflow)
@@ -147,7 +148,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // CRITICAL: Force sync current workflow state to normalized tables BEFORE deployment
     // This ensures tagWorkflowAsDeployed finds current data to tag with deployment hash
     logger.info(`[${requestId}] Syncing workflow state to normalized tables before deployment...`)
-    
+
     try {
       const { saveWorkflowToNormalizedTables } = await import('@/lib/workflows/db-helpers')
       const syncResult = await saveWorkflowToNormalizedTables(id, {
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         hasActiveSchedule: currentState.hasActiveSchedule,
         hasActiveWebhook: currentState.hasActiveWebhook,
       })
-      
+
       if (!syncResult.success) {
         logger.warn(`[${requestId}] Failed to sync to normalized tables: ${syncResult.error}`)
         // Continue with deployment using legacy fallback
@@ -225,7 +226,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
       .where(eq(workflow.id, id))
 
-    logger.info(`[${requestId}] Workflow deployed successfully: ${id} with hash ${deployHash} (also stored legacy state)`)
+    logger.info(
+      `[${requestId}] Workflow deployed successfully: ${id} with hash ${deployHash} (also stored legacy state)`
+    )
     return createSuccessResponse({ apiKey: userKey, isDeployed: true, deployedAt })
   } catch (error: any) {
     logger.error(`[${requestId}] Error deploying workflow: ${id}`, error)
@@ -260,7 +263,9 @@ export async function DELETE(
       })
       .where(eq(workflow.id, id))
 
-    logger.info(`[${requestId}] Workflow undeployed successfully: ${id} (cleared both hash and legacy state)`)
+    logger.info(
+      `[${requestId}] Workflow undeployed successfully: ${id} (cleared both hash and legacy state)`
+    )
     return createSuccessResponse({
       isDeployed: false,
       deployedAt: null,
