@@ -34,7 +34,7 @@ async function generateSearchEmbedding(query: string): Promise<number[]> {
   }
 
   try {
-    return await retryWithExponentialBackoff(
+    const embedding = await retryWithExponentialBackoff(
       async () => {
         const response = await fetch('https://api.openai.com/v1/embeddings', {
           method: 'POST',
@@ -73,6 +73,8 @@ async function generateSearchEmbedding(query: string): Promise<number[]> {
         backoffMultiplier: 2,
       }
     )
+
+    return embedding
   } catch (error) {
     logger.error('Failed to generate search embedding:', error)
     throw new Error(
@@ -102,18 +104,22 @@ export async function POST(request: NextRequest) {
     try {
       const validatedData = VectorSearchSchema.parse(searchParams)
 
-      // Verify the knowledge base exists and user has access
-      const kb = await db
-        .select()
-        .from(knowledgeBase)
-        .where(
-          and(
-            eq(knowledgeBase.id, validatedData.knowledgeBaseId),
-            eq(knowledgeBase.userId, userId),
-            isNull(knowledgeBase.deletedAt)
+      const [kb, queryEmbedding] = await Promise.all([
+        // Knowledge base verification
+        db
+          .select()
+          .from(knowledgeBase)
+          .where(
+            and(
+              eq(knowledgeBase.id, validatedData.knowledgeBaseId),
+              eq(knowledgeBase.userId, userId),
+              isNull(knowledgeBase.deletedAt)
+            )
           )
-        )
-        .limit(1)
+          .limit(1),
+        // Embedding generation
+        generateSearchEmbedding(validatedData.query),
+      ])
 
       if (kb.length === 0) {
         logger.warn(
@@ -125,13 +131,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Generate embedding for the search query
-      logger.info(`[${requestId}] Generating embedding for search query`)
-      const queryEmbedding = await generateSearchEmbedding(validatedData.query)
-
-      // Perform vector similarity search using pgvector cosine similarity
-      logger.info(`[${requestId}] Performing vector search with topK=${validatedData.topK}`)
-
+      const queryVector = JSON.stringify(queryEmbedding)
       const results = await db
         .select({
           id: embedding.id,
@@ -139,16 +139,17 @@ export async function POST(request: NextRequest) {
           documentId: embedding.documentId,
           chunkIndex: embedding.chunkIndex,
           metadata: embedding.metadata,
-          similarity: sql<number>`1 - (${embedding.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector)`,
+          distance: sql<number>`${embedding.embedding} <=> ${queryVector}::vector`.as('distance'),
         })
         .from(embedding)
         .where(
           and(
             eq(embedding.knowledgeBaseId, validatedData.knowledgeBaseId),
-            eq(embedding.enabled, true)
+            eq(embedding.enabled, true),
+            sql`${embedding.embedding} <=> ${queryVector}::vector < 1.0`
           )
         )
-        .orderBy(sql`${embedding.embedding} <=> ${JSON.stringify(queryEmbedding)}::vector`)
+        .orderBy(sql`${embedding.embedding} <=> ${queryVector}::vector`)
         .limit(validatedData.topK)
 
       logger.info(`[${requestId}] Vector search completed. Found ${results.length} results`)
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
             documentId: result.documentId,
             chunkIndex: result.chunkIndex,
             metadata: result.metadata,
-            similarity: result.similarity,
+            similarity: 1 - result.distance, // Convert distance to similarity
           })),
           query: validatedData.query,
           knowledgeBaseId: validatedData.knowledgeBaseId,
