@@ -39,6 +39,7 @@ export const setupHandlerMocks = () => {
     ParallelBlockHandler: createMockHandler('parallel'),
     WorkflowBlockHandler: createMockHandler('workflow'),
     GenericBlockHandler: createMockHandler('generic'),
+    ResponseBlockHandler: createMockHandler('response'),
   }))
 }
 
@@ -400,6 +401,48 @@ export const createWorkflowWithParallel = (distribution?: any): SerializedWorkfl
       distribution: distribution || ['apple', 'banana', 'cherry'],
     },
   },
+})
+
+export const createWorkflowWithResponse = (): SerializedWorkflow => ({
+  version: '1.0',
+  blocks: [
+    {
+      id: 'starter',
+      position: { x: 0, y: 0 },
+      config: { tool: 'test-tool', params: {} },
+      inputs: {
+        input: 'json',
+      },
+      outputs: {
+        response: {
+          input: 'json',
+        },
+      },
+      enabled: true,
+      metadata: { id: 'starter', name: 'Starter Block' },
+    },
+    {
+      id: 'response',
+      position: { x: 100, y: 0 },
+      config: { tool: 'test-tool', params: {} },
+      inputs: {
+        data: 'json',
+        status: 'number',
+        headers: 'json',
+      },
+      outputs: {
+        response: {
+          data: 'json',
+          status: 'number',
+          headers: 'json',
+        },
+      },
+      enabled: true,
+      metadata: { id: 'response', name: 'Response Block' },
+    },
+  ],
+  connections: [{ source: 'starter', target: 'response' }],
+  loops: {},
 })
 
 /**
