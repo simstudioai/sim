@@ -136,11 +136,13 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
               'o3-preview',
               'o4-mini',
               'gpt-4.1',
+              'gpt-4.1-nano',
+              'gpt-4.1-mini',
               // Claude models
-              'claude-sonnet-4-20250514',
-              'claude-opus-4-20250514',
-              'claude-3-7-sonnet-20250219',
-              'claude-3-5-sonnet-20240620',
+              'claude-sonnet-4-0',
+              'claude-opus-4-0',
+              'claude-3-7-sonnet-latest',
+              'claude-3-5-sonnet-latest',
             ],
             not: true, // Show for all models EXCEPT those listed
           }

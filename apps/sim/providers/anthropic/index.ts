@@ -37,12 +37,12 @@ export const anthropicProvider: ProviderConfig = {
   description: "Anthropic's Claude models",
   version: '1.0.0',
   models: [
-    'claude-sonnet-4-20250514',
-    'claude-opus-4-20250514',
-    'claude-3-7-sonnet-20250219',
-    'claude-3-5-sonnet-20240620',
+    'claude-sonnet-4-0',
+    'claude-opus-4-0',
+    'claude-3-7-sonnet-latest',
+    'claude-3-5-sonnet-latest',
   ],
-  defaultModel: 'claude-sonnet-4-20250514',
+  defaultModel: 'claude-sonnet-4-0',
 
   executeRequest: async (
     request: ProviderRequest
