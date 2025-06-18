@@ -38,7 +38,7 @@ interface DocumentProps {
 function getStatusBadgeStyles(enabled: boolean) {
   return enabled
     ? 'inline-flex items-center rounded-md bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-    : 'inline-flex items-center rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+    : 'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'
 }
 
 function truncateContent(content: string, maxLength = 150): string {

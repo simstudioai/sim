@@ -13,6 +13,7 @@ export interface KnowledgeSearchResponse {
     results: KnowledgeSearchResult[]
     query: string
     knowledgeBaseId: string
+    knowledgeBaseIds?: string[]
     topK: number
     totalResults: number
     message: string
@@ -21,7 +22,7 @@ export interface KnowledgeSearchResponse {
 }
 
 export interface KnowledgeSearchParams {
-  knowledgeBaseId: string
+  knowledgeBaseIds: string | string[]
   query: string
   topK?: number
 }
