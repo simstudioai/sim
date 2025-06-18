@@ -26,8 +26,6 @@ function resetWorkflowStores() {
     blocks: {},
     edges: [],
     loops: {},
-    isDeployed: false,
-    deployedAt: undefined,
     deploymentStatuses: {}, // Reset deployment statuses map
     hasActiveSchedule: false,
     history: {
@@ -38,8 +36,6 @@ function resetWorkflowStores() {
           edges: [],
           loops: {},
           parallels: {},
-          isDeployed: false,
-          deployedAt: undefined,
         },
         timestamp: Date.now(),
         action: 'Initial state',
@@ -454,11 +450,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             edges: workflowData.state.edges || [],
             loops: workflowData.state.loops || {},
             parallels: workflowData.state.parallels || {},
-            isDeployed: workflowData.isDeployed || false,
-            deployedAt: workflowData.deployedAt ? new Date(workflowData.deployedAt) : undefined,
-            apiKey: workflowData.apiKey,
             lastSaved: Date.now(),
-            marketplaceData: workflowData.marketplaceData || null,
             deploymentStatuses: {},
             hasActiveSchedule: false,
             history: {
@@ -588,8 +580,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             edges: [],
             loops: {},
             parallels: {},
-            isDeployed: false,
-            deployedAt: undefined,
+            lastSaved: Date.now(),
             deploymentStatuses: {},
             hasActiveSchedule: false,
             history: {
@@ -609,7 +600,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               },
               future: [],
             },
-            lastSaved: Date.now(),
           }
 
           // Initialize subblock values for starter block
@@ -632,6 +622,24 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         // Update the active workflow ID
         set({ activeWorkflowId: id, error: null })
+
+        // CRITICAL: Store deployment status from database in registry's deploymentStatuses
+        // This ensures the deployment status persists across page refreshes
+        if (workflowData?.isDeployed || workflowData?.deployedAt || workflowData?.apiKey) {
+          set((state) => ({
+            deploymentStatuses: {
+              ...state.deploymentStatuses,
+              [id]: {
+                isDeployed: workflowData.isDeployed || false,
+                deployedAt: workflowData.deployedAt ? new Date(workflowData.deployedAt) : undefined,
+                apiKey: workflowData.apiKey || undefined,
+                needsRedeployment: false, // Will be updated by change detection if needed
+              },
+            },
+          }))
+
+          logger.info(`Loaded deployment status from database: isDeployed=${workflowData.isDeployed}, deployedAt=${workflowData.deployedAt}`)
+        }
 
         logger.info(`Switched to workflow ${id}`)
       },
@@ -902,8 +910,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           edges: state.edges || [],
           loops: state.loops || {},
           parallels: state.parallels || {},
-          isDeployed: false,
-          deployedAt: undefined,
           history: {
             past: [],
             present: {
@@ -912,8 +918,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 edges: state.edges || [],
                 loops: state.loops || {},
                 parallels: state.parallels || {},
-                isDeployed: false,
-                deployedAt: undefined,
               },
               timestamp: Date.now(),
               action: 'Imported from marketplace',
@@ -1104,9 +1108,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           edges: sourceState.edges,
           loops: sourceState.loops,
           parallels: sourceState.parallels,
-          isDeployed: false,
-          deployedAt: undefined,
-          workspaceId,
           deploymentStatuses: {},
           history: {
             past: [],
@@ -1116,9 +1117,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 edges: sourceState.edges,
                 loops: sourceState.loops,
                 parallels: sourceState.parallels,
-                isDeployed: false,
-                deployedAt: undefined,
-                workspaceId,
               },
               timestamp: Date.now(),
               action: 'Duplicated workflow',
@@ -1244,8 +1242,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                 edges: [],
                 loops: {},
                 parallels: {},
-                isDeployed: false,
-                deployedAt: undefined,
                 hasActiveSchedule: false,
                 history: {
                   past: [],
@@ -1255,8 +1251,6 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
                       edges: [],
                       loops: {},
                       parallels: {},
-                      isDeployed: false,
-                      deployedAt: undefined,
                     },
                     timestamp: Date.now(),
                     action: 'Initial state',

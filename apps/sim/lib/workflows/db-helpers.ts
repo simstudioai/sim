@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
+import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
 
@@ -109,6 +109,7 @@ export async function loadWorkflowFromNormalizedTables(
 /**
  * Save workflow state to normalized tables
  * Also returns the JSON blob for backward compatibility
+ * IMPORTANT: Preserves existing deploy_hash values to maintain deployment state
  */
 export async function saveWorkflowToNormalizedTables(
   workflowId: string,
@@ -117,6 +118,27 @@ export async function saveWorkflowToNormalizedTables(
   try {
     // Start a transaction
     const result = await db.transaction(async (tx) => {
+      // Get existing deploy_hash values before updating
+      const existingBlocks = await tx
+        .select({ id: workflowBlocks.id, deployHash: workflowBlocks.deployHash })
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.workflowId, workflowId))
+
+      const existingEdges = await tx
+        .select({ id: workflowEdges.id, deployHash: workflowEdges.deployHash })
+        .from(workflowEdges)
+        .where(eq(workflowEdges.workflowId, workflowId))
+
+      const existingSubflows = await tx
+        .select({ id: workflowSubflows.id, deployHash: workflowSubflows.deployHash })
+        .from(workflowSubflows)
+        .where(eq(workflowSubflows.workflowId, workflowId))
+
+      // Create maps for quick lookup of existing deploy_hash values
+      const blockDeployHashes = new Map(existingBlocks.map(b => [b.id, b.deployHash]))
+      const edgeDeployHashes = new Map(existingEdges.map(e => [e.id, e.deployHash]))
+      const subflowDeployHashes = new Map(existingSubflows.map(s => [s.id, s.deployHash]))
+
       // Clear existing data for this workflow
       await Promise.all([
         tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId)),
@@ -124,7 +146,7 @@ export async function saveWorkflowToNormalizedTables(
         tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId)),
       ])
 
-      // Insert blocks
+      // Insert blocks (preserving existing deploy_hash values)
       if (Object.keys(state.blocks).length > 0) {
         const blockInserts = Object.values(state.blocks).map((block) => ({
           id: block.id,
@@ -142,12 +164,14 @@ export async function saveWorkflowToNormalizedTables(
           data: block.data || {},
           parentId: block.data?.parentId || null,
           extent: block.data?.extent || null,
+          // PRESERVE existing deploy_hash value if it exists
+          deployHash: blockDeployHashes.get(block.id) || null,
         }))
 
         await tx.insert(workflowBlocks).values(blockInserts)
       }
 
-      // Insert edges
+      // Insert edges (preserving existing deploy_hash values)
       if (state.edges.length > 0) {
         const edgeInserts = state.edges.map((edge) => ({
           id: edge.id,
@@ -156,12 +180,14 @@ export async function saveWorkflowToNormalizedTables(
           targetBlockId: edge.target,
           sourceHandle: edge.sourceHandle || null,
           targetHandle: edge.targetHandle || null,
+          // PRESERVE existing deploy_hash value if it exists
+          deployHash: edgeDeployHashes.get(edge.id) || null,
         }))
 
         await tx.insert(workflowEdges).values(edgeInserts)
       }
 
-      // Insert subflows (loops and parallels)
+      // Insert subflows (loops and parallels) preserving existing deploy_hash values
       const subflowInserts: any[] = []
 
       // Add loops
@@ -171,6 +197,8 @@ export async function saveWorkflowToNormalizedTables(
           workflowId: workflowId,
           type: SUBFLOW_TYPES.LOOP,
           config: loop,
+          // PRESERVE existing deploy_hash value if it exists
+          deployHash: subflowDeployHashes.get(loop.id) || null,
         })
       })
 
@@ -181,6 +209,8 @@ export async function saveWorkflowToNormalizedTables(
           workflowId: workflowId,
           type: SUBFLOW_TYPES.PARALLEL,
           config: parallel,
+          // PRESERVE existing deploy_hash value if it exists
+          deployHash: subflowDeployHashes.get(parallel.id) || null,
         })
       })
 
@@ -198,14 +228,12 @@ export async function saveWorkflowToNormalizedTables(
       loops: state.loops || {},
       parallels: state.parallels || {},
       lastSaved: Date.now(),
-      isDeployed: state.isDeployed,
-      deployedAt: state.deployedAt,
       deploymentStatuses: state.deploymentStatuses,
       hasActiveSchedule: state.hasActiveSchedule,
       hasActiveWebhook: state.hasActiveWebhook,
     }
 
-    logger.info(`Successfully saved workflow ${workflowId} to normalized tables`)
+    logger.info(`Successfully saved workflow ${workflowId} to normalized tables (preserving deploy_hash values)`)
 
     return {
       success: true,
@@ -253,8 +281,6 @@ export async function migrateWorkflowToNormalizedTables(
       loops: jsonState.loops || {},
       parallels: jsonState.parallels || {},
       lastSaved: jsonState.lastSaved,
-      isDeployed: jsonState.isDeployed,
-      deployedAt: jsonState.deployedAt,
       deploymentStatuses: jsonState.deploymentStatuses || {},
       hasActiveSchedule: jsonState.hasActiveSchedule,
       hasActiveWebhook: jsonState.hasActiveWebhook,
@@ -269,6 +295,149 @@ export async function migrateWorkflowToNormalizedTables(
     return { success: false, error: result.error }
   } catch (error) {
     logger.error(`Error migrating workflow ${workflowId} to normalized tables:`, error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Generate a unique deployment hash
+ */
+function generateDeploymentHash(): string {
+  return `deploy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+}
+
+/**
+ * Tag current workflow state with deployment hash
+ * This marks the current state as deployed without duplicating data
+ */
+export async function tagWorkflowAsDeployed(
+  workflowId: string
+): Promise<{ success: boolean; deployHash?: string; error?: string }> {
+  try {
+    // Generate unique deployment hash
+    const deployHash = generateDeploymentHash()
+
+    // Start a transaction to tag current state with deployment hash
+    const result = await db.transaction(async (tx) => {
+      // Tag existing blocks with deployment hash
+      await tx
+        .update(workflowBlocks)
+        .set({ deployHash: deployHash })
+        .where(eq(workflowBlocks.workflowId, workflowId))
+
+      // Tag existing edges with deployment hash
+      await tx
+        .update(workflowEdges)
+        .set({ deployHash: deployHash })
+        .where(eq(workflowEdges.workflowId, workflowId))
+
+      // Tag existing subflows with deployment hash
+      await tx
+        .update(workflowSubflows)
+        .set({ deployHash: deployHash })
+        .where(eq(workflowSubflows.workflowId, workflowId))
+
+      return { success: true, deployHash }
+    })
+
+    logger.info(`Successfully tagged workflow ${workflowId} as deployed with hash ${deployHash}`)
+    return result
+  } catch (error) {
+    logger.error(`Error tagging workflow ${workflowId} as deployed:`, error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Load deployed workflow state by deployment hash
+ * This reconstructs the exact state that was deployed
+ */
+export async function loadDeployedWorkflowState(
+  workflowId: string,
+  deployHash: string
+): Promise<{ success: boolean; state?: any; error?: string }> {
+  try {
+    // Load all components by deployment hash
+    const [blocks, edges, subflows] = await Promise.all([
+      db.select().from(workflowBlocks).where(eq(workflowBlocks.deployHash, deployHash)),
+      db.select().from(workflowEdges).where(eq(workflowEdges.deployHash, deployHash)),
+      db.select().from(workflowSubflows).where(eq(workflowSubflows.deployHash, deployHash)),
+    ])
+
+    // Convert blocks to the expected format
+    const blocksMap: Record<string, any> = {}
+    blocks.forEach((block) => {
+      blocksMap[block.id] = {
+        id: block.id,
+        type: block.type,
+        name: block.name,
+        position: {
+          x: block.positionX,
+          y: block.positionY,
+        },
+        enabled: block.enabled,
+        horizontalHandles: block.horizontalHandles,
+        isWide: block.isWide,
+        height: block.height,
+        subBlocks: block.subBlocks || {},
+        outputs: block.outputs || {},
+        data: block.data || {},
+        parentId: (block.data as any)?.parentId || null,
+        extent: (block.data as any)?.extent || null,
+      }
+    })
+
+    // Convert edges to the expected format
+    const edgesArray = edges.map((edge) => ({
+      id: edge.id,
+      source: edge.sourceBlockId,
+      target: edge.targetBlockId,
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle,
+    }))
+
+    // Convert subflows to loops and parallels
+    const loops: Record<string, any> = {}
+    const parallels: Record<string, any> = {}
+
+    subflows.forEach((subflow) => {
+      const config = subflow.config || {}
+
+      if (subflow.type === SUBFLOW_TYPES.LOOP) {
+        loops[subflow.id] = {
+          id: subflow.id,
+          ...config,
+        }
+      } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
+        parallels[subflow.id] = {
+          id: subflow.id,
+          ...config,
+        }
+      }
+    })
+
+    const deployedState = {
+      blocks: blocksMap,
+      edges: edgesArray,
+      loops,
+      parallels,
+      lastSaved: Date.now(),
+      // Don't include deployment fields in state - managed by database columns
+    }
+
+    logger.info(
+      `Loaded deployed state for workflow ${workflowId} with hash ${deployHash}: ${Object.keys(blocksMap).length} blocks, ${edgesArray.length} edges, ${Object.keys(loops).length} loops, ${Object.keys(parallels).length} parallels`
+    )
+
+    return { success: true, state: deployedState }
+  } catch (error) {
+    logger.error(`Error loading deployed state for workflow ${workflowId} with hash ${deployHash}:`, error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

@@ -121,7 +121,8 @@ export const workflow = pgTable('workflow', {
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
   isDeployed: boolean('is_deployed').notNull().default(false),
-  deployedState: json('deployed_state'),
+  deployedState: json('deployed_state'), // Legacy field for backward compatibility
+  deployedHash: text('deployed_hash'), // New hash-based deployed state tracking
   deployedAt: timestamp('deployed_at'),
   collaborators: json('collaborators').notNull().default('[]'),
   runCount: integer('run_count').notNull().default(0),
@@ -136,7 +137,7 @@ export const workflowBlocks = pgTable(
   'workflow_blocks',
   {
     // Primary identification
-    id: text('id').primaryKey(), // Block UUID from the current JSON structure
+    id: text('id').primaryKey(),
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }), // Link to parent workflow
@@ -164,6 +165,9 @@ export const workflowBlocks = pgTable(
     parentId: text('parent_id'), // Self-reference handled by foreign key constraint in migration
     extent: text('extent'), // 'parent' or null - for ReactFlow parent constraint
 
+    // Deployment tracking
+    deployHash: text('deploy_hash'), // Hash to identify deployed versions
+
     // Timestamps
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -183,6 +187,12 @@ export const workflowBlocks = pgTable(
 
     // For block type filtering/analytics
     workflowTypeIdx: index('workflow_blocks_workflow_type_idx').on(table.workflowId, table.type),
+
+    // For querying deployed versions by hash
+    deployHashIdx: index('workflow_blocks_deploy_hash_idx').on(table.deployHash),
+
+    // Composite index for deployed workflow reconstruction
+    workflowDeployIdx: index('workflow_blocks_workflow_deploy_idx').on(table.workflowId, table.deployHash),
   })
 )
 
@@ -204,6 +214,9 @@ export const workflowEdges = pgTable(
       .references(() => workflowBlocks.id, { onDelete: 'cascade' }), // Target block ID
     sourceHandle: text('source_handle'), // Specific output handle (optional)
     targetHandle: text('target_handle'), // Specific input handle (optional)
+
+    // Deployment tracking
+    deployHash: text('deploy_hash'), // Hash to identify deployed versions
 
     // Timestamps
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -227,6 +240,12 @@ export const workflowEdges = pgTable(
       table.workflowId,
       table.targetBlockId
     ),
+
+    // For querying deployed versions by hash
+    deployHashIdx: index('workflow_edges_deploy_hash_idx').on(table.deployHash),
+
+    // Composite index for deployed workflow reconstruction
+    workflowDeployIdx: index('workflow_edges_workflow_deploy_idx').on(table.workflowId, table.deployHash),
   })
 )
 
@@ -243,6 +262,9 @@ export const workflowSubflows = pgTable(
     type: text('type').notNull(), // 'loop' or 'parallel' (extensible for future types)
     config: jsonb('config').notNull().default('{}'), // Type-specific configuration
 
+    // Deployment tracking
+    deployHash: text('deploy_hash'), // Hash to identify deployed versions
+
     // Timestamps
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -253,6 +275,12 @@ export const workflowSubflows = pgTable(
 
     // For filtering by subflow type
     workflowTypeIdx: index('workflow_subflows_workflow_type_idx').on(table.workflowId, table.type),
+
+    // For querying deployed versions by hash
+    deployHashIdx: index('workflow_subflows_deploy_hash_idx').on(table.deployHash),
+
+    // Composite index for deployed workflow reconstruction
+    workflowDeployIdx: index('workflow_subflows_workflow_deploy_idx').on(table.workflowId, table.deployHash),
   })
 )
 

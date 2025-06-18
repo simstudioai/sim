@@ -394,8 +394,6 @@ export async function POST(req: NextRequest) {
           loops: clientWorkflow.state.loops || {},
           parallels: clientWorkflow.state.parallels || {},
           lastSaved: clientWorkflow.state.lastSaved,
-          isDeployed: clientWorkflow.state.isDeployed,
-          deployedAt: clientWorkflow.state.deployedAt,
           deploymentStatuses: (clientWorkflow.state as any).deploymentStatuses || {},
           hasActiveSchedule: (clientWorkflow.state as any).hasActiveSchedule,
           hasActiveWebhook: (clientWorkflow.state as any).hasActiveWebhook,

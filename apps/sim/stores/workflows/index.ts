@@ -40,8 +40,6 @@ export function getWorkflowWithValues(workflowId: string) {
     edges: currentState.edges,
     loops: currentState.loops,
     parallels: currentState.parallels,
-    isDeployed: deploymentStatus?.isDeployed || false,
-    deployedAt: deploymentStatus?.deployedAt,
     lastSaved: currentState.lastSaved,
   }
 
@@ -62,8 +60,8 @@ export function getWorkflowWithValues(workflowId: string) {
       loops: workflowState.loops,
       parallels: workflowState.parallels,
       lastSaved: workflowState.lastSaved,
-      isDeployed: workflowState.isDeployed,
-      deployedAt: workflowState.deployedAt,
+      isDeployed: deploymentStatus?.isDeployed || false,
+      deployedAt: deploymentStatus?.deployedAt,
     },
   }
 }
@@ -117,8 +115,6 @@ export function getAllWorkflowsWithValues() {
       edges: currentState.edges || [],
       loops: currentState.loops || {},
       parallels: currentState.parallels || {},
-      isDeployed: deploymentStatus?.isDeployed || false,
-      deployedAt: deploymentStatus?.deployedAt,
       lastSaved: currentState.lastSaved || Date.now(),
     }
 
@@ -141,8 +137,8 @@ export function getAllWorkflowsWithValues() {
         loops: workflowState.loops,
         parallels: workflowState.parallels,
         lastSaved: workflowState.lastSaved,
-        isDeployed: workflowState.isDeployed,
-        deployedAt: workflowState.deployedAt,
+        isDeployed: deploymentStatus?.isDeployed || false,
+        deployedAt: deploymentStatus?.deployedAt,
         marketplaceData: metadata.marketplaceData || null,
       },
       // Include API key if available
