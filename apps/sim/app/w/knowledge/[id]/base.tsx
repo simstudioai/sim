@@ -114,25 +114,6 @@ const getStatusDisplay = (doc: DocumentData) => {
   }
 }
 
-const getProcessingTime = (doc: DocumentData) => {
-  if (doc.processingStatus === 'pending') return null
-  if (doc.processingStartedAt && doc.processingCompletedAt) {
-    const start = new Date(doc.processingStartedAt)
-    const end = new Date(doc.processingCompletedAt)
-    const durationMs = end.getTime() - start.getTime()
-    const durationSec = Math.round(durationMs / 1000)
-    return `${durationSec}s`
-  }
-  if (doc.processingStartedAt && doc.processingStatus === 'processing') {
-    const start = new Date(doc.processingStartedAt)
-    const now = new Date()
-    const durationMs = now.getTime() - start.getTime()
-    const durationSec = Math.round(durationMs / 1000)
-    return `${durationSec}s`
-  }
-  return null
-}
-
 export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
@@ -188,6 +169,8 @@ export function KnowledgeBase({
       try {
         // Only refresh if we're not in the middle of other operations
         if (!isUploading && !isDeleting) {
+          // Check for dead processes before refreshing
+          await checkForDeadProcesses()
           await refreshDocuments()
         }
       } catch (error) {
@@ -197,6 +180,35 @@ export function KnowledgeBase({
 
     return () => clearInterval(refreshInterval)
   }, [documents, refreshDocuments, isUploading, isDeleting])
+
+  // Check for documents stuck in processing due to dead processes
+  const checkForDeadProcesses = async () => {
+    const now = new Date()
+    const PROCESSING_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+
+    const staleDocuments = documents.filter((doc) => {
+      if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) {
+        return false
+      }
+
+      const processingDuration = now.getTime() - new Date(doc.processingStartedAt).getTime()
+      return processingDuration > PROCESSING_TIMEOUT_MS
+    })
+
+    if (staleDocuments.length === 0) return
+
+    logger.warn(`Found ${staleDocuments.length} documents with dead processes`)
+
+    // Mark stale documents as failed in local state
+    staleDocuments.forEach((doc) => {
+      logger.info(`Marking dead process as failed for document: ${doc.filename}`)
+      updateDocument(doc.id, {
+        processingStatus: 'failed',
+        processingError: 'Processing timed out - background process may have been terminated',
+        processingCompletedAt: new Date().toISOString(),
+      })
+    })
+  }
 
   // Auto-dismiss upload error after 8 seconds
   useEffect(() => {
