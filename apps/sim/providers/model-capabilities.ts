@@ -10,8 +10,8 @@ export const MODELS_TEMP_RANGE_0_2 = [
   // Azure OpenAI models
   'azure/gpt-4o',
   // Google models
-  'gemini-2.5-pro-exp-03-25',
-  'gemini-2.5-flash-preview-04-17',
+  'gemini-2.5-pro',
+  'gemini-2.5-flash',
   // Deepseek models
   'deepseek-v3',
 ]
@@ -19,10 +19,10 @@ export const MODELS_TEMP_RANGE_0_2 = [
 // Models that support temperature with range 0-1
 export const MODELS_TEMP_RANGE_0_1 = [
   // Anthropic models
-  'claude-sonnet-4-20250514',
-  'claude-opus-4-20250514',
-  'claude-3-7-sonnet-20250219',
-  'claude-3-5-sonnet-20240620',
+  'claude-sonnet-4-0',
+  'claude-opus-4-0',
+  'claude-3-7-sonnet-latest',
+  'claude-3-5-sonnet-latest',
   // xAI models
   'grok-3-latest',
   'grok-3-fast-latest',
