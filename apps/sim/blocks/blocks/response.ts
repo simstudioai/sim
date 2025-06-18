@@ -1,4 +1,4 @@
-import { ApiIcon } from '@/components/icons'
+import { ResponseIcon } from '@/components/icons'
 import type { ResponseBlockOutput } from '@/tools/response/types'
 import type { BlockConfig } from '../types'
 
@@ -11,7 +11,7 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   docsLink: 'https://docs.simstudio.ai/blocks/response',
   category: 'blocks',
   bgColor: '#2F55FF',
-  icon: ApiIcon,
+  icon: ResponseIcon,
   subBlocks: [
     {
       id: 'data',
@@ -20,6 +20,7 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
       layout: 'full',
       placeholder: '{\n  "message": "Hello world",\n  "userId": "<variable.userId>"\n}',
       language: 'json',
+      generationType: 'json-object',
       description:
         'Data that will be sent as the response body on API calls. Use <variable.name> to reference workflow variables.',
     },
