@@ -10,33 +10,45 @@ const modelPricing: ModelPricingMap = {
   // OpenAI Models
   'gpt-4o': {
     input: 2.5,
-    cachedInput: 1.25, // 50% discount for cached input
+    cachedInput: 1.25,
     output: 10.0,
-    updatedAt: '2025-03-21',
+    updatedAt: '2025-06-17',
   },
   o1: {
     input: 15.0,
-    cachedInput: 7.5, // 50% discount for cached input
+    cachedInput: 7.5,
     output: 60,
-    updatedAt: '2025-04-16',
+    updatedAt: '2025-06-17',
   },
   o3: {
-    input: 10,
-    cachedInput: 2.5,
-    output: 40,
-    updatedAt: '2025-04-16',
+    input: 2,
+    cachedInput: 0.5,
+    output: 8,
+    updatedAt: '2025-06-17',
   },
   'o4-mini': {
     input: 1.1,
     cachedInput: 0.275,
     output: 4.4,
-    updatedAt: '2025-04-16',
+    updatedAt: '2025-06-17',
   },
   'gpt-4.1': {
     input: 2.0,
     cachedInput: 0.5,
     output: 8.0,
-    updatedAt: '2025-05-13',
+    updatedAt: '2025-06-17',
+  },
+  'gpt-4.1-nano': {
+    input: 0.1,
+    cachedInput: 0.025,
+    output: 0.4,
+    updatedAt: '2025-06-17',
+  },
+  'gpt-4.1-mini': {
+    input: 0.4,
+    cachedInput: 0.1,
+    output: 1.6,
+    updatedAt: '2025-06-17',
   },
 
   // Azure OpenAI Models (same pricing as OpenAI)
@@ -72,43 +84,43 @@ const modelPricing: ModelPricingMap = {
   },
 
   // Anthropic Models
-  'claude-3-5-sonnet-20240620': {
+  'claude-3-5-sonnet-latest': {
     input: 3.0,
     cachedInput: 1.5,
     output: 15.0,
-    updatedAt: '2024-06-20',
+    updatedAt: '2025-06-17',
   },
-  'claude-3-7-sonnet-20250219': {
+  'claude-3-7-sonnet-latest': {
     input: 3.0,
     cachedInput: 1.5,
     output: 15.0,
-    updatedAt: '2025-03-21',
+    updatedAt: '2025-06-17',
   },
-  'claude-sonnet-4-20250514': {
+  'claude-sonnet-4-0': {
     input: 3.0,
     cachedInput: 1.5,
     output: 15.0,
-    updatedAt: '2025-05-22',
+    updatedAt: '2025-06-17',
   },
-  'claude-opus-4-20250514': {
+  'claude-opus-4-0': {
     input: 15.0,
     cachedInput: 7.5,
     output: 75.0,
-    updatedAt: '2025-05-22',
+    updatedAt: '2025-06-17',
   },
 
   // Google Models
-  'gemini-2.5-pro-exp-03-25': {
+  'gemini-2.5-pro': {
     input: 0.15,
     cachedInput: 0.075,
     output: 0.6,
-    updatedAt: '2025-03-25',
+    updatedAt: '2025-06-17',
   },
-  'gemini-2.5-flash-preview-04-17': {
+  'gemini-2.5-flash': {
     input: 0.15,
     cachedInput: 0.075,
     output: 0.6,
-    updatedAt: '2025-04-19',
+    updatedAt: '2025-06-17',
   },
 
   // Deepseek Models
@@ -152,19 +164,19 @@ const modelPricing: ModelPricingMap = {
     input: 0.4,
     cachedInput: 0.2,
     output: 0.6,
-    updatedAt: '2025-04-06',
+    updatedAt: '2025-06-17',
   },
   'groq/deepseek-r1-distill-llama-70b': {
     input: 0.75,
     cachedInput: 0.38,
     output: 0.99,
-    updatedAt: '2025-03-21',
+    updatedAt: '2025-06-17',
   },
-  'groq/qwen-2.5-32b': {
-    input: 0.79,
-    cachedInput: 0.4,
-    output: 0.79,
-    updatedAt: '2025-03-21',
+  'groq/qwen-qwq-32b': {
+    input: 0.29,
+    cachedInput: 0.29,
+    output: 0.39,
+    updatedAt: '2025-06-17',
   },
 }
 

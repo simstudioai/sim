@@ -409,21 +409,25 @@ export function ControlBar() {
   /**
    * Workflow deletion handler
    */
-  const handleDeleteWorkflow = () => {
+  const handleDeleteWorkflow = async () => {
     if (!activeWorkflowId) return
 
-    // Get remaining workflow IDs
+    // Navigate to another workflow first
     const remainingIds = Object.keys(workflows).filter((id) => id !== activeWorkflowId)
 
-    // Navigate before removing the workflow to avoid any state inconsistencies
     if (remainingIds.length > 0) {
       router.push(`/w/${remainingIds[0]}`)
     } else {
       router.push('/')
     }
 
-    // Remove the workflow from the registry
-    removeWorkflow(activeWorkflowId)
+    // Remove the workflow from the registry (now async)
+    try {
+      await removeWorkflow(activeWorkflowId)
+    } catch (error) {
+      // Handle error gracefully - could show user notification instead
+      logger.error('Failed to delete workflow:', error)
+    }
   }
 
   // /**

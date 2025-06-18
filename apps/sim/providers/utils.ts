@@ -28,7 +28,7 @@ export const providers: Record<
 > = {
   openai: {
     ...openaiProvider,
-    models: ['gpt-4o', 'o1', 'o3', 'o4-mini', 'gpt-4.1'],
+    models: ['gpt-4o', 'o1', 'o3', 'o4-mini', 'gpt-4.1', 'gpt-4.1-nano', 'gpt-4.1-mini'],
     computerUseModels: ['computer-use-preview'],
     modelPatterns: [/^gpt/, /^o1/],
   },
@@ -40,17 +40,17 @@ export const providers: Record<
   anthropic: {
     ...anthropicProvider,
     models: [
-      'claude-sonnet-4-20250514',
-      'claude-opus-4-20250514',
-      'claude-3-7-sonnet-20250219',
-      'claude-3-5-sonnet-20240620',
+      'claude-sonnet-4-0',
+      'claude-opus-4-0',
+      'claude-3-7-sonnet-latest',
+      'claude-3-5-sonnet-latest',
     ],
-    computerUseModels: ['claude-3-5-sonnet-20240620', 'claude-3-7-sonnet-20250219'],
+    computerUseModels: ['claude-3-5-sonnet-latest', 'claude-3-7-sonnet-latest'],
     modelPatterns: [/^claude/],
   },
   google: {
     ...googleProvider,
-    models: ['gemini-2.5-pro-exp-03-25', 'gemini-2.5-flash-preview-04-17'],
+    models: ['gemini-2.5-pro', 'gemini-2.5-flash'],
     modelPatterns: [/^gemini/],
   },
   deepseek: {
@@ -73,7 +73,7 @@ export const providers: Record<
     models: [
       'groq/meta-llama/llama-4-scout-17b-16e-instruct',
       'groq/deepseek-r1-distill-llama-70b',
-      'groq/qwen-2.5-32b',
+      'groq/qwen-qwq-32b',
     ],
     modelPatterns: [/^groq/],
   },

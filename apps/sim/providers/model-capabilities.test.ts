@@ -27,11 +27,11 @@ describe('supportsTemperature', () => {
   it('should return true for models that support temperature', () => {
     const supportedModels = [
       'gpt-4o',
-      'gemini-2.5-flash-preview-04-17',
-      'claude-sonnet-4-20250514',
-      'claude-opus-4-20250514',
-      'claude-3-7-sonnet-20250219',
-      'claude-3-5-sonnet-20240620',
+      'gemini-2.5-flash',
+      'claude-sonnet-4-0',
+      'claude-opus-4-0',
+      'claude-3-7-sonnet-latest',
+      'claude-3-5-sonnet-latest',
       'grok-3-latest',
       'grok-3-fast-latest',
     ]
@@ -52,7 +52,7 @@ describe('supportsTemperature', () => {
 
 describe('getMaxTemperature', () => {
   it('should return 2 for models with temperature range 0-2', () => {
-    const models = ['gpt-4o', 'gemini-2.5-flash-preview-04-17', 'deepseek-v3']
+    const models = ['gpt-4o', 'gemini-2.5-flash', 'deepseek-v3']
 
     for (const model of models) {
       expect(getMaxTemperature(model)).toBe(2)
@@ -61,10 +61,10 @@ describe('getMaxTemperature', () => {
 
   it('should return 1 for models with temperature range 0-1', () => {
     const models = [
-      'claude-sonnet-4-20250514',
-      'claude-opus-4-20250514',
-      'claude-3-7-sonnet-20250219',
-      'claude-3-5-sonnet-20240620',
+      'claude-sonnet-4-0',
+      'claude-opus-4-0',
+      'claude-3-7-sonnet-latest',
+      'claude-3-5-sonnet-latest',
       'grok-3-latest',
       'grok-3-fast-latest',
     ]

@@ -20,7 +20,7 @@ import {
   OAUTH_PROVIDERS,
   type OAuthProvider,
   parseProvider,
-} from '@/lib/oauth/oauth'
+} from '@/lib/oauth'
 import { saveToStorage } from '@/stores/workflows/persistence'
 import { OAuthRequiredModal } from './components/oauth-required-modal'
 

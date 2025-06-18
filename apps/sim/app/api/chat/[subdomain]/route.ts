@@ -108,105 +108,17 @@ export async function POST(
       // Execute workflow with structured input (message + conversationId for context)
       const result = await executeWorkflowForChat(deployment.id, message, conversationId)
 
-      // If the executor returned a ReadableStream, stream it directly to the client
-      if (result instanceof ReadableStream) {
-        const streamResponse = new NextResponse(result, {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
-          },
-        })
-        return addCorsHeaders(streamResponse, request)
-      }
-
-      // Handle StreamingExecution format
-      if (result && typeof result === 'object' && 'stream' in result && 'execution' in result) {
-        const streamResponse = new NextResponse(result.stream as ReadableStream, {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/plain; charset=utf-8',
-          },
-        })
-        return addCorsHeaders(streamResponse, request)
-      }
-
-      // Format the result for the client
-      // If result.content is an object, preserve it for structured handling
-      // If it's text or another primitive, make sure it's accessible
-      let formattedResult: any = { output: null }
-
-      if (result) {
-        // Check if we have multiple outputs
-        if (result.multipleOutputs && Array.isArray(result.contents)) {
-          // Format multiple outputs in a way that they can be displayed as separate messages
-          // Join all contents, ensuring each is on a new line if they're strings
-          const formattedContents = result.contents.map((content) => {
-            if (typeof content === 'string') {
-              return content
-            }
-
-            try {
-              return JSON.stringify(content)
-            } catch (error) {
-              logger.warn(`[${requestId}] Error stringifying content:`, error)
-              return '[Object cannot be serialized]'
-            }
-          })
-
-          // Set output to be the joined contents
-          formattedResult = {
-            ...result,
-            output: formattedContents.join('\n\n'), // Separate each output with double newline
-          }
-
-          // Keep the original contents for clients that can handle structured data
-          formattedResult.multipleOutputs = true
-          formattedResult.contents = result.contents
-        } else if (result.content) {
-          // Handle single output cases
-          if (typeof result.content === 'object') {
-            // For objects like { text: "some content" }
-            if (result.content.text) {
-              formattedResult.output = result.content.text
-            } else {
-              // Keep the original structure but also add an output field
-              try {
-                formattedResult = {
-                  ...result,
-                  output: JSON.stringify(result.content),
-                }
-              } catch (error) {
-                logger.warn(`[${requestId}] Error stringifying content:`, error)
-                formattedResult = {
-                  ...result,
-                  output: '[Object cannot be serialized]',
-                }
-              }
-            }
-          } else {
-            // For direct string content
-            formattedResult = {
-              ...result,
-              output: result.content,
-            }
-          }
-        } else {
-          // Fallback if no content
-          formattedResult = {
-            ...result,
-            output: 'No output returned from workflow',
-          }
-        }
-      }
-
-      logger.info(`[${requestId}] Returning formatted chat response:`, {
-        hasOutput: !!formattedResult.output,
-        outputType: typeof formattedResult.output,
-        isMultipleOutputs: !!formattedResult.multipleOutputs,
+      // The result is always a ReadableStream that we can pipe to the client
+      const streamResponse = new NextResponse(result, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
       })
-
-      // Add CORS headers before returning the response
-      return addCorsHeaders(createSuccessResponse(formattedResult), request)
+      return addCorsHeaders(streamResponse, request)
     } catch (error: any) {
       logger.error(`[${requestId}] Error processing chat request:`, error)
       return addCorsHeaders(

@@ -35,7 +35,7 @@ export const groqProvider: ProviderConfig = {
   models: [
     'groq/meta-llama/llama-4-scout-17b-16e-instruct',
     'groq/deepseek-r1-distill-llama-70b',
-    'groq/qwen-2.5-32b',
+    'groq/qwen-qwq-32b',
   ],
   defaultModel: 'groq/meta-llama/llama-4-scout-17b-16e-instruct',
 

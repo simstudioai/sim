@@ -1,80 +1,201 @@
+import React, { type HTMLAttributes, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+
+function LinkWithPreview({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>
+        <a
+          href={href}
+          className='font-mono text-blue-600 text-sm underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
+          target='_blank'
+          rel='noopener noreferrer'
+        >
+          {children}
+        </a>
+      </TooltipTrigger>
+      <TooltipContent side='top' align='center' sideOffset={5} className='max-w-sm p-3'>
+        <span className='truncate font-medium text-xs'>{href}</span>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
 
 export default function LogMarkdownRenderer({ content }: { content: string }) {
-  // Process text to clean up unnecessary whitespace and formatting issues
-  const processedContent = content
-    .replace(/\n{2,}/g, '\n\n') // Replace multiple newlines with exactly double newlines
-    .replace(/^(#{1,6})\s+(.+?)\n{2,}/gm, '$1 $2\n') // Reduce space after headings to single newline
-    .replace(/^(#{1,6}.+)\n\n(-|\*)/gm, '$1\n$2') // Remove double newline between heading and list
-    .trim()
+  // Minimal content processing - just trim whitespace
+  const processedContent = content.trim()
 
   const customComponents = {
-    // Default component to ensure monospace font with minimal spacing
+    // Paragraph with appropriate spacing for logs
     p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => (
-      <p className='my-0.5 whitespace-pre-wrap font-mono text-sm leading-tight'>{children}</p>
+      <p className='mb-3 font-mono text-gray-800 text-sm leading-relaxed last:mb-0 dark:text-gray-200'>
+        {children}
+      </p>
     ),
 
-    // Inline code - no background to maintain clean appearance
+    // Headings with subtle styling
+    h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
+      <h1 className='mt-5 mb-3 font-mono font-semibold text-base text-gray-900 dark:text-gray-100'>
+        {children}
+      </h1>
+    ),
+    h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
+      <h2 className='mt-4 mb-2 font-mono font-semibold text-gray-900 text-sm dark:text-gray-100'>
+        {children}
+      </h2>
+    ),
+    h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
+      <h3 className='mt-4 mb-2 font-mono font-semibold text-gray-900 text-sm dark:text-gray-100'>
+        {children}
+      </h3>
+    ),
+    h4: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
+      <h4 className='mt-3 mb-1 font-mono font-semibold text-gray-900 text-sm dark:text-gray-100'>
+        {children}
+      </h4>
+    ),
+
+    // Lists with proper spacing
+    ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
+      <ul
+        className='mb-3 space-y-1 pl-4 font-mono text-gray-800 text-sm dark:text-gray-200'
+        style={{ listStyleType: 'disc' }}
+      >
+        {children}
+      </ul>
+    ),
+    ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
+      <ol
+        className='mb-3 space-y-1 pl-4 font-mono text-gray-800 text-sm dark:text-gray-200'
+        style={{ listStyleType: 'decimal' }}
+      >
+        {children}
+      </ol>
+    ),
+    li: ({ children }: React.LiHTMLAttributes<HTMLLIElement>) => (
+      <li
+        className='font-mono text-gray-800 text-sm dark:text-gray-200'
+        style={{ display: 'list-item' }}
+      >
+        {children}
+      </li>
+    ),
+
+    // Code blocks with subtle background
+    pre: ({ children }: HTMLAttributes<HTMLPreElement>) => {
+      let codeProps: HTMLAttributes<HTMLElement> = {}
+      let codeContent: ReactNode = children
+
+      if (
+        React.isValidElement<{ className?: string; children?: ReactNode }>(children) &&
+        children.type === 'code'
+      ) {
+        const childElement = children as React.ReactElement<{
+          className?: string
+          children?: ReactNode
+        }>
+        codeProps = { className: childElement.props.className }
+        codeContent = childElement.props.children
+      }
+
+      return (
+        <div className='my-4 rounded bg-gray-100 text-sm dark:bg-gray-800'>
+          <div className='flex items-center justify-between border-gray-200 border-b px-3 py-1 dark:border-gray-700'>
+            <span className='font-mono text-gray-500 text-xs dark:text-gray-400'>
+              {codeProps.className?.replace('language-', '') || 'code'}
+            </span>
+          </div>
+          <pre className='overflow-x-auto p-3 font-mono text-gray-800 text-sm dark:text-gray-200'>
+            {codeContent}
+          </pre>
+        </div>
+      )
+    },
+
+    // Inline code with subtle background
     code: ({
       inline,
       className,
       children,
       ...props
     }: React.HTMLAttributes<HTMLElement> & { className?: string; inline?: boolean }) => {
+      if (inline) {
+        return (
+          <code
+            className='rounded bg-gray-100 px-1 py-0.5 font-mono text-gray-800 text-sm dark:bg-gray-700 dark:text-gray-200'
+            {...props}
+          >
+            {children}
+          </code>
+        )
+      }
       return (
-        <code className='font-mono text-sm' {...props}>
+        <code className={className} {...props}>
           {children}
         </code>
       )
     },
 
-    // Links - maintain monospace while adding subtle link styling
-    a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-      <a
-        href={href}
-        className='font-mono text-blue-600 text-sm hover:underline dark:text-blue-400'
-        target='_blank'
-        rel='noopener noreferrer'
-        {...props}
-      >
-        {children}
-      </a>
-    ),
-
-    // Tighter lists with minimal spacing
-    ul: ({ children }: React.HTMLAttributes<HTMLUListElement>) => (
-      <ul className='-mt-1.5 mb-1 list-disc pl-5 font-mono text-sm leading-none'>{children}</ul>
-    ),
-    ol: ({ children }: React.HTMLAttributes<HTMLOListElement>) => (
-      <ol className='-mt-1.5 mb-1 list-decimal pl-5 font-mono text-sm leading-none'>{children}</ol>
-    ),
-    li: ({ children }: React.HTMLAttributes<HTMLLIElement>) => (
-      <li className='mb-0 font-mono text-sm leading-tight'>{children}</li>
-    ),
-
-    // Keep blockquotes minimal
+    // Blockquotes
     blockquote: ({ children }: React.HTMLAttributes<HTMLQuoteElement>) => (
-      <blockquote className='my-0 font-mono text-sm'>{children}</blockquote>
+      <blockquote className='my-3 border-gray-300 border-l-2 py-1 pl-3 font-mono text-gray-700 text-sm italic dark:border-gray-600 dark:text-gray-300'>
+        {children}
+      </blockquote>
     ),
 
-    // Make headings compact with minimal spacing after
-    h1: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h1 className='mt-2 mb-0 font-medium font-mono text-sm'>{children}</h1>
+    // Horizontal rule
+    hr: () => <hr className='my-5 border-gray-500/[.15] border-t dark:border-gray-400/[.15]' />,
+
+    // Links with hover effect and preview
+    a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+      <LinkWithPreview href={href || '#'} {...props}>
+        {children}
+      </LinkWithPreview>
     ),
-    h2: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h2 className='mt-2 mb-0 font-medium font-mono text-sm'>{children}</h2>
+
+    // Tables
+    table: ({ children }: React.TableHTMLAttributes<HTMLTableElement>) => (
+      <div className='my-4 w-full overflow-x-auto'>
+        <table className='min-w-full table-auto border border-gray-300 font-mono text-sm dark:border-gray-700'>
+          {children}
+        </table>
+      </div>
     ),
-    h3: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h3 className='mt-1.5 mb-0 font-medium font-mono text-sm'>{children}</h3>
+    thead: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
+      <thead className='bg-gray-50 text-left dark:bg-gray-800'>{children}</thead>
     ),
-    h4: ({ children }: React.HTMLAttributes<HTMLHeadingElement>) => (
-      <h4 className='mt-1.5 mb-0 font-medium font-mono text-sm'>{children}</h4>
+    tbody: ({ children }: React.HTMLAttributes<HTMLTableSectionElement>) => (
+      <tbody className='divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900'>
+        {children}
+      </tbody>
+    ),
+    tr: ({ children }: React.HTMLAttributes<HTMLTableRowElement>) => (
+      <tr className='border-gray-200 border-b dark:border-gray-700'>{children}</tr>
+    ),
+    th: ({ children }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
+      <th className='border-gray-300 border-r px-2 py-1 font-medium text-gray-700 text-xs last:border-r-0 dark:border-gray-700 dark:text-gray-300'>
+        {children}
+      </th>
+    ),
+    td: ({ children }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
+      <td className='break-words border-gray-300 border-r px-2 py-1 text-gray-800 text-xs last:border-r-0 dark:border-gray-700 dark:text-gray-200'>
+        {children}
+      </td>
+    ),
+
+    // Images
+    img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => (
+      <img src={src} alt={alt || 'Image'} className='my-3 h-auto max-w-full rounded' {...props} />
     ),
   }
 
   return (
-    <div className='[&>h2+ul]:-mt-2.5 [&>h3+ul]:-mt-2.5 w-full overflow-visible whitespace-pre-wrap font-mono text-sm leading-tight [&>ul]:mt-0'>
-      <ReactMarkdown components={customComponents}>{processedContent}</ReactMarkdown>
+    <div className='break-words font-mono text-gray-800 text-sm leading-relaxed dark:text-gray-200'>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={customComponents}>
+        {processedContent}
+      </ReactMarkdown>
     </div>
   )
 }

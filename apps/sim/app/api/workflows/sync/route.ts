@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
+import { saveWorkflowToNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
 import { workflow, workspace, workspaceMember } from '@/db/schema'
 
@@ -377,17 +378,45 @@ export async function POST(req: NextRequest) {
         processedIds.add(id)
         const dbWorkflow = dbWorkflowMap.get(id)
 
-        // Handle legacy published workflows migration
+        // Handle legacy published workflows migration (only if state is provided)
         // If client workflow has isPublished but no marketplaceData, create marketplaceData with owner status
-        if (clientWorkflow.state.isPublished && !clientWorkflow.marketplaceData) {
+        if (clientWorkflow.state?.isPublished && !clientWorkflow.marketplaceData) {
           clientWorkflow.marketplaceData = { id: clientWorkflow.id, status: 'owner' }
         }
 
         // Ensure the workflow has the correct workspaceId
         const effectiveWorkspaceId = clientWorkflow.workspaceId || workspaceId
 
+        // Save to normalized tables for all workflows (hybrid approach)
+        const normalizedResult = await saveWorkflowToNormalizedTables(id, {
+          blocks: clientWorkflow.state.blocks || {},
+          edges: clientWorkflow.state.edges || [],
+          loops: clientWorkflow.state.loops || {},
+          parallels: clientWorkflow.state.parallels || {},
+          lastSaved: clientWorkflow.state.lastSaved,
+          isDeployed: clientWorkflow.state.isDeployed,
+          deployedAt: clientWorkflow.state.deployedAt,
+          deploymentStatuses: (clientWorkflow.state as any).deploymentStatuses || {},
+          hasActiveSchedule: (clientWorkflow.state as any).hasActiveSchedule,
+          hasActiveWebhook: (clientWorkflow.state as any).hasActiveWebhook,
+        })
+
+        // Use the JSON blob from normalized save for compatibility, or fallback to original state
+        const stateToSave =
+          normalizedResult.success && normalizedResult.jsonBlob
+            ? normalizedResult.jsonBlob
+            : clientWorkflow.state
+
+        if (normalizedResult.success) {
+          logger.info(`[${requestId}] Saved workflow ${id} to normalized tables`)
+        } else {
+          logger.warn(
+            `[${requestId}] Failed to save workflow ${id} to normalized tables: ${normalizedResult.error}`
+          )
+        }
+
         if (!dbWorkflow) {
-          // New workflow - create
+          // New workflow - create (state is required by schema)
           operations.push(
             db.insert(workflow).values({
               id: clientWorkflow.id,
@@ -397,7 +426,7 @@ export async function POST(req: NextRequest) {
               name: clientWorkflow.name,
               description: clientWorkflow.description,
               color: clientWorkflow.color,
-              state: clientWorkflow.state,
+              state: stateToSave,
               marketplaceData: clientWorkflow.marketplaceData || null,
               lastSynced: now,
               createdAt: now,
@@ -417,60 +446,56 @@ export async function POST(req: NextRequest) {
             continue // Skip this workflow update and move to the next one
           }
 
-          // Existing workflow - update if needed
-          const needsUpdate =
-            JSON.stringify(dbWorkflow.state) !== JSON.stringify(clientWorkflow.state) ||
-            dbWorkflow.name !== clientWorkflow.name ||
-            dbWorkflow.description !== clientWorkflow.description ||
-            dbWorkflow.color !== clientWorkflow.color ||
-            dbWorkflow.workspaceId !== effectiveWorkspaceId ||
-            dbWorkflow.folderId !== (clientWorkflow.folderId || null) ||
+          // For existing workflows, determine what needs updating
+          let needsUpdate = false
+          const updateData: any = {}
+
+          // Check metadata changes
+          if (dbWorkflow.name !== clientWorkflow.name) {
+            updateData.name = clientWorkflow.name
+            needsUpdate = true
+          }
+          if (dbWorkflow.description !== clientWorkflow.description) {
+            updateData.description = clientWorkflow.description
+            needsUpdate = true
+          }
+          if (dbWorkflow.color !== clientWorkflow.color) {
+            updateData.color = clientWorkflow.color
+            needsUpdate = true
+          }
+          if (dbWorkflow.workspaceId !== effectiveWorkspaceId) {
+            updateData.workspaceId = effectiveWorkspaceId
+            needsUpdate = true
+          }
+          if (dbWorkflow.folderId !== (clientWorkflow.folderId || null)) {
+            updateData.folderId = clientWorkflow.folderId || null
+            needsUpdate = true
+          }
+          if (
             JSON.stringify(dbWorkflow.marketplaceData) !==
-              JSON.stringify(clientWorkflow.marketplaceData)
+            JSON.stringify(clientWorkflow.marketplaceData)
+          ) {
+            updateData.marketplaceData = clientWorkflow.marketplaceData || null
+            needsUpdate = true
+          }
+
+          // Always update state since we only sync the active workflow with valid state
+          if (JSON.stringify(dbWorkflow.state) !== JSON.stringify(stateToSave)) {
+            updateData.state = stateToSave
+            needsUpdate = true
+          }
 
           if (needsUpdate) {
-            operations.push(
-              db
-                .update(workflow)
-                .set({
-                  name: clientWorkflow.name,
-                  description: clientWorkflow.description,
-                  color: clientWorkflow.color,
-                  workspaceId: effectiveWorkspaceId,
-                  folderId: clientWorkflow.folderId || null,
-                  state: clientWorkflow.state,
-                  marketplaceData: clientWorkflow.marketplaceData || null,
-                  lastSynced: now,
-                  updatedAt: now,
-                })
-                .where(eq(workflow.id, id))
-            )
+            updateData.lastSynced = now
+            updateData.updatedAt = now
+
+            operations.push(db.update(workflow).set(updateData).where(eq(workflow.id, id)))
           }
         }
       }
 
-      // Handle deletions - workflows in DB but not in client
-      // Only delete workflows for the current workspace and only those the user can modify
-      for (const dbWorkflow of dbWorkflows) {
-        if (
-          !processedIds.has(dbWorkflow.id) &&
-          (!workspaceId || dbWorkflow.workspaceId === workspaceId)
-        ) {
-          // Check if the user has permission to delete this workflow
-          // Users can delete their own workflows, or any workflow if they're a workspace owner/admin
-          const canDelete =
-            dbWorkflow.userId === session.user.id ||
-            (workspaceId && (userRole === 'owner' || userRole === 'admin' || userRole === 'member'))
-
-          if (canDelete) {
-            operations.push(db.delete(workflow).where(eq(workflow.id, dbWorkflow.id)))
-          } else {
-            logger.warn(
-              `[${requestId}] User ${session.user.id} attempted to delete workflow ${dbWorkflow.id} without permission`
-            )
-          }
-        }
-      }
+      // NOTE: We don't delete workflows here since we're only syncing the active workflow
+      // Other workflows remain untouched in the database
 
       // Execute all operations in parallel
       await Promise.all(operations)
