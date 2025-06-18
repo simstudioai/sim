@@ -153,53 +153,6 @@ Use the `<variable.name>` syntax to dynamically insert workflow variables into y
 
 Here's an example of how a Response block might be configured for a user search API:
 
-```json
-{
-  "success": true,
-  "data": {
-    "users": "<variable.searchResults>",
-    "pagination": {
-      "page": "<variable.currentPage>",
-      "limit": "<variable.pageSize>",
-      "total": "<variable.totalUsers>"
-    }
-  },
-  "query": {
-    "searchTerm": "<variable.searchTerm>",
-    "filters": "<variable.appliedFilters>"
-  }
-}
-```
-
-With status code: `200` and headers:
-| Key | Value |
-|-----|-------|
-| Content-Type | application/json |
-| X-Total-Count | `<variable.totalUsers>` |
-| Cache-Control | public, max-age=300 |
-
-## Error Handling Example
-
-For error responses, you might configure:
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "<variable.errorMessage>",
-    "details": "<variable.validationErrors>"
-  },
-  "timestamp": "<variable.timestamp>"
-}
-```
-
-With status code: `400`
-
-## Example Usage
-
-Here's an example of how a Response block might be configured for a user search API:
-
 ```yaml
 data: |
   {
@@ -215,7 +168,7 @@ data: |
     "query": {
       "searchTerm": "<variable.searchTerm>",
       "filters": "<variable.appliedFilters>"
-    }
+    },
     "timestamp": "<variable.timestamp>"
   }
 status: 200

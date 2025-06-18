@@ -48,7 +48,11 @@ export class ResponseBlockHandler implements BlockHandler {
 
   private parseStatus(status?: string): number {
     if (!status) return 200
-    return Number(status)
+    const parsed = Number(status)
+    if (Number.isNaN(parsed) || parsed < 100 || parsed > 599) {
+      return 200
+    }
+    return parsed
   }
 
   private parseHeaders(
