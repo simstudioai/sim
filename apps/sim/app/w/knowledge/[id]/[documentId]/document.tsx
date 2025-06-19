@@ -286,7 +286,7 @@ export function Document({
           },
           body: JSON.stringify({
             operation: 'enable',
-            chunkIds: chunksToEnable.map(chunk => chunk.id),
+            chunkIds: chunksToEnable.map((chunk) => chunk.id),
           }),
         }
       )
@@ -336,7 +336,7 @@ export function Document({
           },
           body: JSON.stringify({
             operation: 'disable',
-            chunkIds: chunksToDisable.map(chunk => chunk.id),
+            chunkIds: chunksToDisable.map((chunk) => chunk.id),
           }),
         }
       )
@@ -386,7 +386,7 @@ export function Document({
           },
           body: JSON.stringify({
             operation: 'delete',
-            chunkIds: chunksToDelete.map(chunk => chunk.id),
+            chunkIds: chunksToDelete.map((chunk) => chunk.id),
           }),
         }
       )

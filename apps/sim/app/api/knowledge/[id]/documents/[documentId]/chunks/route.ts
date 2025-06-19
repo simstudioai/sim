@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { and, asc, eq, ilike, sql, inArray } from 'drizzle-orm'
+import { and, asc, eq, ilike, inArray, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -28,7 +28,10 @@ const CreateChunkSchema = z.object({
 // Schema for batch operations
 const BatchOperationSchema = z.object({
   operation: z.enum(['enable', 'disable', 'delete']),
-  chunkIds: z.array(z.string()).min(1, 'At least one chunk ID is required').max(100, 'Cannot operate on more than 100 chunks at once'),
+  chunkIds: z
+    .array(z.string())
+    .min(1, 'At least one chunk ID is required')
+    .max(100, 'Cannot operate on more than 100 chunks at once'),
 })
 
 export async function GET(
@@ -326,7 +329,7 @@ export async function PATCH(
 
       const results = []
       let successCount = 0
-      let errorCount = 0
+      const errorCount = 0
 
       if (operation === 'delete') {
         // Handle batch delete with transaction for consistency
@@ -339,12 +342,7 @@ export async function PATCH(
               contentLength: embedding.contentLength,
             })
             .from(embedding)
-            .where(
-              and(
-                eq(embedding.documentId, documentId),
-                inArray(embedding.id, chunkIds)
-              )
-            )
+            .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
 
           if (chunksToDelete.length === 0) {
             throw new Error('No valid chunks found to delete')
@@ -353,16 +351,14 @@ export async function PATCH(
           // Delete chunks
           await tx
             .delete(embedding)
-            .where(
-              and(
-                eq(embedding.documentId, documentId),
-                inArray(embedding.id, chunkIds)
-              )
-            )
+            .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
 
           // Update document statistics
           const totalTokens = chunksToDelete.reduce((sum, chunk) => sum + chunk.tokenCount, 0)
-          const totalCharacters = chunksToDelete.reduce((sum, chunk) => sum + chunk.contentLength, 0)
+          const totalCharacters = chunksToDelete.reduce(
+            (sum, chunk) => sum + chunk.contentLength,
+            0
+          )
 
           await tx
             .update(document)
@@ -377,33 +373,28 @@ export async function PATCH(
           results.push({
             operation: 'delete',
             deletedCount: chunksToDelete.length,
-            chunkIds: chunksToDelete.map(c => c.id),
+            chunkIds: chunksToDelete.map((c) => c.id),
           })
         })
       } else {
         // Handle batch enable/disable
         const enabled = operation === 'enable'
-        
+
         // Update chunks in a single query
         const updateResult = await db
           .update(embedding)
-          .set({ 
+          .set({
             enabled,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
-          .where(
-            and(
-              eq(embedding.documentId, documentId),
-              inArray(embedding.id, chunkIds)
-            )
-          )
+          .where(and(eq(embedding.documentId, documentId), inArray(embedding.id, chunkIds)))
           .returning({ id: embedding.id })
 
         successCount = updateResult.length
         results.push({
           operation,
           updatedCount: updateResult.length,
-          chunkIds: updateResult.map(r => r.id),
+          chunkIds: updateResult.map((r) => r.id),
         })
       }
 
