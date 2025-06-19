@@ -44,7 +44,7 @@ export default function Templates() {
 
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const contentRef = useRef<HTMLDivElement>(null)
-  const initialFetchCompleted = useRef(false)
+  const [initialFetchCompleted, setInitialFetchCompleted] = useState(false)
 
   const observerRef = useRef<IntersectionObserver | null>(null)
 
@@ -234,7 +234,7 @@ export default function Templates() {
         setLoadedSections(allSections)
 
         setTemplateData(combinedData)
-        initialFetchCompleted.current = true
+        setInitialFetchCompleted(true)
 
         setActiveSection('popular')
         setLoading(false)
@@ -262,7 +262,7 @@ export default function Templates() {
   }
 
   useEffect(() => {
-    if (!initialFetchCompleted.current) return
+    if (!initialFetchCompleted) return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -287,11 +287,11 @@ export default function Templates() {
     return () => {
       observer.disconnect()
     }
-  }, [initialFetchCompleted.current])
+  }, [initialFetchCompleted])
 
   // Intersection observer for lazy loading template states
   useEffect(() => {
-    if (!initialFetchCompleted.current) return
+    if (!initialFetchCompleted) return
 
     const lazyLoadObserver = new IntersectionObserver(
       (entries) => {
@@ -320,7 +320,7 @@ export default function Templates() {
       lazyLoadObserver.disconnect()
       observerRef.current = null
     }
-  }, [initialFetchCompleted.current, stateLoadedTemplates])
+  }, [initialFetchCompleted, stateLoadedTemplates])
 
   return (
     <div

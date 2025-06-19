@@ -96,8 +96,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       category: currentTemplate.category,
       total: similarTemplates.length,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Error fetching similar templates`, error)
-    return createErrorResponse(`Failed to fetch similar templates: ${error.message}`, 500)
+    return createErrorResponse(`Failed to fetch similar templates: ${'Unknown error'}`, 500)
   }
 }

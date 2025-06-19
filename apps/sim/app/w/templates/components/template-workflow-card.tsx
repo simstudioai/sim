@@ -36,7 +36,7 @@ export function TemplateWorkflowCard({ workflow, onHover, onMount }: TemplateWor
     if (workflow.workflowState && !isPreviewReady) {
       setIsPreviewReady(true)
     }
-  }, [workflow.workflowState, isPreviewReady])
+  }, [workflow.workflowState])
 
   // Register with intersection observer when component mounts
   useEffect(() => {
@@ -58,7 +58,7 @@ export function TemplateWorkflowCard({ workflow, onHover, onMount }: TemplateWor
   /**
    * Handle template card click - navigate to template detail page
    */
-  const handleClick = async () => {
+  const handleClick = () => {
     router.push(`/w/templates/${workflow.id}`)
   }
 

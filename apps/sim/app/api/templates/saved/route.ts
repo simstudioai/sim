@@ -74,8 +74,11 @@ export async function GET(request: NextRequest) {
       saved: formattedTemplates,
       total: formattedTemplates.length,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Error fetching saved templates:`, error)
-    return createErrorResponse(`Failed to fetch saved templates: ${error.message}`, 500)
+    return createErrorResponse(
+      `Failed to fetch saved templates: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      500
+    )
   }
 }

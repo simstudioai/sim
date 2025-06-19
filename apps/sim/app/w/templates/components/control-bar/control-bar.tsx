@@ -324,8 +324,6 @@ export function ControlBar({
             }
           >
             {visibleCategories.map((categoryValue) => {
-              const isSpecial = categoryValue === 'popular'
-              const category = CATEGORIES.find((cat) => cat.value === categoryValue)
               const isActive = activeSection === categoryValue
               const categoryColor = getCategoryColor(categoryValue)
               const hoverColor = getCategoryHoverColor(categoryValue)

@@ -53,8 +53,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           }
         : {}),
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Error checking saved status:`, error)
-    return createErrorResponse(`Failed to check saved status: ${error.message}`, 500)
+    return createErrorResponse(`Failed to check saved status: ${'Unknown error'}`, 500)
   }
 }

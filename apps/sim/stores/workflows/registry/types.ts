@@ -49,8 +49,8 @@ export interface WorkflowRegistryActions {
     workspaceId?: string
     folderId?: string | null
   }) => string
-  createMarketplaceWorkflow: (
-    marketplaceId: string,
+  createTemplatesWorkflow: (
+    templatesId: string,
     state: any,
     metadata: Partial<WorkflowMetadata>
   ) => string

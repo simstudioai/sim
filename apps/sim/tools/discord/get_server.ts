@@ -88,7 +88,7 @@ export const discordGetServerTool: ToolConfig<DiscordGetServerParams, DiscordGet
     }
   },
 
-  transformError: (error: Error | unknown): string => {
+  transformError: (error: unknown): string => {
     logger.error('Error fetching Discord server', { error })
     return `Error fetching Discord server: ${error instanceof Error ? error.message : String(error)}`
   },

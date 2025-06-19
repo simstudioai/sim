@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logs/console-logger'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import { CATEGORIES } from '@/app/w/templates/constants/categories'
+import type { TemplateData, WorkflowState } from '@/app/w/templates/types'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
 
@@ -10,6 +11,53 @@ const logger = createLogger('TemplatesWorkflowsAPI')
 
 // Cache for 5 minutes but can be revalidated on-demand
 export const revalidate = 300
+
+// API-specific types for this route
+interface SingleTemplate {
+  id: string
+  name: string
+  shortDescription: string | null
+  longDescription: string | null
+  authorId: string
+  authorName: string
+  category: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+interface SingleTemplateWithState extends SingleTemplate {
+  workflowState: WorkflowState // Proper workflow state type
+}
+
+interface TemplateCollectionResponse {
+  popular: TemplateData[]
+  recent: TemplateData[]
+  byCategory: Record<string, TemplateData[]>
+}
+
+interface FetchSingleTemplateResult {
+  data?: SingleTemplate | SingleTemplateWithState
+  error?: string
+  status?: number
+}
+
+// Database query result types based on schema
+interface DbTemplateBase {
+  id: string
+  name: string
+  shortDescription: string | null
+  longDescription: string | null
+  authorName: string
+  views: number
+  category: string | null
+  price: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+interface DbTemplateWithState extends DbTemplateBase {
+  state: WorkflowState // Proper workflow state type
+}
 
 /**
  * Fetches a single template entry by ID with optional state inclusion
@@ -19,7 +67,7 @@ async function fetchSingleTemplate(
   condition: 'workflowId' | 'templateId',
   includeState: boolean,
   requestId: string
-) {
+): Promise<FetchSingleTemplateResult> {
   // Define base fields
   const baseFields = {
     id: schema.templates.id,
@@ -59,12 +107,11 @@ async function fetchSingleTemplate(
   }
 
   // Transform response data
-  const responseData =
+  const responseData: SingleTemplate | SingleTemplateWithState =
     includeState && 'state' in templateEntry
       ? {
           ...templateEntry,
-          workflowState: templateEntry.state,
-          state: undefined,
+          workflowState: templateEntry.state as WorkflowState,
         }
       : templateEntry
 
@@ -124,11 +171,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Handle featured/collection requests
-    const result: {
-      popular: any[]
-      recent: any[]
-      byCategory: Record<string, any[]>
-    } = {
+    const result: TemplateCollectionResponse = {
       popular: [],
       recent: [],
       byCategory: {},
@@ -200,14 +243,14 @@ export async function GET(request: NextRequest) {
           const categoryItems = categoryTemplates
             .filter((item) => item.category === categoryValue)
             .slice(0, limit)
-          result.byCategory[categoryValue] = categoryItems
+          result.byCategory[categoryValue] = categoryItems.map(transformToTemplateData)
         })
       }
     }
 
     // Get popular items if requested (optimized with views index)
     if (sections.includes('popular')) {
-      result.popular = includeState
+      const popularItems = includeState
         ? await db
             .select(fieldsWithState)
             .from(schema.templates)
@@ -218,11 +261,13 @@ export async function GET(request: NextRequest) {
             .from(schema.templates)
             .orderBy(desc(schema.templates.views))
             .limit(popularLimit)
+
+      result.popular = popularItems.map(transformToTemplateData)
     }
 
     // Get recent items if requested (optimized with createdAt index)
     if (sections.includes('recent')) {
-      result.recent = includeState
+      const recentItems = includeState
         ? await db
             .select(fieldsWithState)
             .from(schema.templates)
@@ -233,46 +278,43 @@ export async function GET(request: NextRequest) {
             .from(schema.templates)
             .orderBy(desc(schema.templates.createdAt))
             .limit(limit)
-    }
 
-    // Transform the data if state was included to match the expected format
-    if (includeState) {
-      const transformSection = (section: any[]) => {
-        return section.map((item) => {
-          if ('state' in item) {
-            const { state, ...rest } = item
-            return {
-              ...rest,
-              workflowState: state,
-            }
-          }
-          return item
-        })
-      }
-
-      if (result.popular.length > 0) {
-        result.popular = transformSection(result.popular)
-      }
-
-      if (result.recent.length > 0) {
-        result.recent = transformSection(result.recent)
-      }
-
-      Object.keys(result.byCategory).forEach((category) => {
-        if (result.byCategory[category].length > 0) {
-          result.byCategory[category] = transformSection(result.byCategory[category])
-        }
-      })
+      result.recent = recentItems.map(transformToTemplateData)
     }
 
     const duration = Date.now() - startTime
 
     return NextResponse.json(result)
-  } catch (error: any) {
+  } catch (error: unknown) {
     const duration = Date.now() - startTime
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] Error fetching template items after ${duration}ms`, error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
+}
+
+// Helper function to transform database results to TemplateData format
+function transformToTemplateData(item: DbTemplateBase | DbTemplateWithState): TemplateData {
+  const baseTemplate: TemplateData = {
+    id: item.id,
+    workflowId: item.id, // Assuming workflowId maps to id
+    name: item.name,
+    shortDescription: item.shortDescription,
+    longDescription: item.longDescription,
+    authorName: item.authorName,
+    views: item.views,
+    category: item.category,
+    price: item.price,
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+  }
+
+  // Add workflowState if it exists
+  if ('state' in item && item.state) {
+    baseTemplate.workflowState = item.state
+  }
+
+  return baseTemplate
 }
 
 /**
@@ -312,8 +354,9 @@ export async function POST(request: NextRequest) {
     const result = await viewResponse.json()
 
     return createSuccessResponse(result)
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
     logger.error(`[${requestId}] Error in deprecated view tracking endpoint`, error)
-    return createErrorResponse(`Failed to track view: ${error.message}`, 500)
+    return createErrorResponse(`Failed to track view: ${errorMessage}`, 500)
   }
 }

@@ -271,6 +271,7 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
   const [isUnpublishing, setIsUnpublishing] = useState(false)
   const [templatesInfo, setTemplatesInfo] = useState<TemplatesInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [shouldCleanupOnClose, setShouldCleanupOnClose] = useState(false)
   const { addNotification } = useNotificationStore()
   const { activeWorkflowId, workflows, updateWorkflow } = useWorkflowRegistry()
 
@@ -374,6 +375,21 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
       form.setValue('longDescription', '')
     }
   }, [open, activeWorkflowId, workflows, form])
+
+  // Handle modal close with cleanup
+  const handleModalChange = (newOpen: boolean) => {
+    // If modal is closing and we need to cleanup
+    if (!newOpen && shouldCleanupOnClose && activeWorkflowId) {
+      // Remove the templates data from the workflow registry
+      updateWorkflow(activeWorkflowId, {
+        templatesData: null,
+      })
+      setShouldCleanupOnClose(false)
+    }
+
+    // Call the original onOpenChange
+    onOpenChange(newOpen)
+  }
 
   // Listen for the custom event to open the templates modal
   useEffect(() => {
@@ -500,16 +516,11 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
         workflowId: activeWorkflowId,
       })
 
-      // First close the modal to prevent any flashing
-      onOpenChange(false)
+      // Mark that we should cleanup when modal closes
+      setShouldCleanupOnClose(true)
 
-      // Then update the workflow state after modal is closed
-      setTimeout(() => {
-        // Remove the templates data from the workflow registry
-        updateWorkflow(activeWorkflowId, {
-          templatesData: null,
-        })
-      }, 100)
+      // Close the modal - cleanup will happen in onOpenChange
+      onOpenChange(false)
     } catch (error: any) {
       console.error('Error unpublishing workflow:', error)
       addNotification('error', `Failed to unpublish workflow: ${error.message}`, activeWorkflowId)
@@ -738,7 +749,7 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
         />
 
         <div className='flex justify-between gap-2'>
-          <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
+          <Button type='button' variant='outline' onClick={() => handleModalChange(false)}>
             Cancel
           </Button>
           <Button
@@ -768,7 +779,7 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
   )
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleModalChange}>
       <DialogContent className='flex flex-col gap-0 p-0 sm:max-w-[600px]' hideCloseButton>
         <DialogHeader className='border-b px-6 py-4'>
           <div className='flex items-center justify-between'>
@@ -779,7 +790,7 @@ export function TemplatesModal({ open, onOpenChange }: TemplatesModalProps) {
               variant='ghost'
               size='icon'
               className='h-8 w-8 p-0'
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleModalChange(false)}
             >
               <X className='h-4 w-4' />
               <span className='sr-only'>Close</span>

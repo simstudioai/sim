@@ -139,15 +139,8 @@ export const CATEGORY_GROUPS = {
 export type CategoryGroup = keyof typeof CATEGORY_GROUPS
 
 // Helper functions to get category information
-export const getCategoryByValue = (
-  value: string
-): Category | typeof SPECIAL_CATEGORIES.popular | typeof SPECIAL_CATEGORIES.recent => {
-  // Check special categories first
-  if (value === 'popular') return SPECIAL_CATEGORIES.popular
-  if (value === 'recent') return SPECIAL_CATEGORIES.recent
-
-  // Default handling for regular categories
-  return CATEGORIES.find((cat) => cat.value === value) || CATEGORIES[CATEGORIES.length - 1]
+export function getCategoryByValue(value: string) {
+  return CATEGORIES.find((cat) => cat.value === value)
 }
 
 export const getCategoryLabel = (value: string): string => {
@@ -156,19 +149,39 @@ export const getCategoryLabel = (value: string): string => {
   if (value === 'recent') return SPECIAL_CATEGORIES.recent.label
 
   // Default handling for regular categories
-  return getCategoryByValue(value).label
+  const category = getCategoryByValue(value)
+  if (!category) {
+    console.warn(`Unknown category: ${value}`)
+    return ''
+  }
+  return category.label
 }
 
 export const getCategoryIcon = (value: string): ReactNode => {
-  return getCategoryByValue(value).icon
+  const category = getCategoryByValue(value)
+  if (!category) {
+    console.warn(`Unknown category: ${value}`)
+    return null
+  }
+  return category.icon
 }
 
 export const getCategoryColor = (value: string): string => {
-  return getCategoryByValue(value).color
+  const category = getCategoryByValue(value)
+  if (!category) {
+    console.warn(`Unknown category: ${value}`)
+    return ''
+  }
+  return category.color
 }
 
 export const getCategoryHoverColor = (value: string): string => {
-  return getCategoryByValue(value).hoverColor
+  const category = getCategoryByValue(value)
+  if (!category) {
+    console.warn(`Unknown category: ${value}`)
+    return ''
+  }
+  return category.hoverColor
 }
 
 export const getCategoriesByGroup = (group: CategoryGroup): Category[] => {

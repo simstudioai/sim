@@ -18,6 +18,7 @@ interface TemplateBadgesProps {
 export function TemplateBadges({ authorName, views, price, className = '' }: TemplateBadgesProps) {
   // Get author initials for avatar fallback
   const getAuthorInitials = (name: string) => {
+    if (!name || name.trim() === '') return '??'
     return name
       .split(' ')
       .map((word) => word[0])

@@ -123,11 +123,13 @@ export const workflow = pgTable('workflow', {
   isDeployed: boolean('is_deployed').notNull().default(false),
   deployedState: json('deployed_state'),
   deployedAt: timestamp('deployed_at'),
-  collaborators: json('collaborators').notNull().default([]),
+  collaborators: json('collaborators').notNull().default('[]'),
   runCount: integer('run_count').notNull().default(0),
   lastRunAt: timestamp('last_run_at'),
   variables: json('variables').default('{}'),
-  templatesData: json('templates_data'), // Format: { id: string, status: 'owner' | 'temp' }
+  isPublished: boolean('is_published').notNull().default(false),
+  // templatesData: json('templates_data'), // Format: { id: string, status: 'owner' | 'temp' }
+  marketplaceData: json('marketplace_data'),
 })
 
 // New normalized workflow tables
@@ -364,6 +366,24 @@ export const apiKey = pgTable('api_key', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   expiresAt: timestamp('expires_at'),
+})
+
+export const marketplace = pgTable('marketplace', {
+  id: text('id').primaryKey(),
+  workflowId: text('workflow_id')
+    .notNull()
+    .references(() => workflow.id, { onDelete: 'cascade' }),
+  state: json('state').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  authorId: text('author_id')
+    .notNull()
+    .references(() => user.id),
+  authorName: text('author_name').notNull(),
+  views: integer('views').notNull().default(0),
+  category: text('category'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 export const userStats = pgTable('user_stats', {
@@ -756,7 +776,7 @@ export const templates = pgTable(
     longDescription: text('long_description'),
     authorId: text('author_id')
       .notNull()
-      .references(() => user.id),
+      .references(() => user.id, { onDelete: 'cascade' }),
     authorName: text('author_name').notNull(),
     views: integer('views').notNull().default(0),
     category: text('category'),

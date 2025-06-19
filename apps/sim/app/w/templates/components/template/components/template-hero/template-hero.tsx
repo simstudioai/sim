@@ -177,7 +177,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   const handleShareTemplate = async () => {
     try {
       const templateUrl = `https://simstudio.ai/w/templates/${template.id}`
-      const shareText = `Check this template out on Sim Studio! ${templateUrl}`
+      const shareText = templateUrl
 
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(shareText)
@@ -215,6 +215,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
   }
 
   const getAuthorInitials = (name: string) => {
+    if (!name || name.trim() === '') return '??'
     return name
       .split(' ')
       .map((word) => word[0])
@@ -290,7 +291,7 @@ export function TemplateHero({ template }: TemplateHeroProps) {
           ) : (
             <>
               <Download className='mr-2 h-4 w-4' />
-              Use This Template
+              Use Template
             </>
           )}
         </Button>

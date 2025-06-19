@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ArrowUpDown, Eye, Heart, Loader2, MoreHorizontal } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -47,56 +47,36 @@ export function SavedModal({ open, onOpenChange }: SavedModalProps) {
   const [sortBy, setSortBy] = useState<SortOption>('recent')
   const [error, setError] = useState<string | null>(null)
 
-  // Fetch saved templates
+  // Extract the shared fetch logic
+  const fetchSavedTemplates = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await fetch('/api/templates/saved')
+      if (!response.ok) {
+        throw new Error('Failed to fetch saved templates')
+      }
+
+      const data = await response.json()
+      setSavedTemplates(data.saved || [])
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load saved templates'
+      logger.error('Error fetching saved templates:', err)
+      setError(errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }, []) // Empty dependency array since it doesn't depend on any props/state
+
   useEffect(() => {
     if (!open) return
-
-    const fetchSavedTemplates = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const response = await fetch('/api/templates/saved')
-        if (!response.ok) {
-          throw new Error('Failed to fetch saved templates')
-        }
-
-        const data = await response.json()
-        setSavedTemplates(data.saved || [])
-      } catch (err: any) {
-        logger.error('Error fetching saved templates:', err)
-        setError(err.message || 'Failed to load saved templates')
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchSavedTemplates()
-  }, [open])
+  }, [open, fetchSavedTemplates])
 
-  // Retry function for failed requests
+  // Simplified retry function
   const handleRetry = () => {
-    setError(null)
-    setLoading(true)
-
-    const refetchSavedTemplates = async () => {
-      try {
-        const response = await fetch('/api/templates/saved')
-        if (!response.ok) {
-          throw new Error('Failed to fetch saved templates')
-        }
-
-        const data = await response.json()
-        setSavedTemplates(data.saved || [])
-      } catch (err: any) {
-        logger.error('Error fetching saved templates:', err)
-        setError(err.message || 'Failed to load saved templates')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    refetchSavedTemplates()
+    fetchSavedTemplates()
   }
 
   const sortedTemplates = [...savedTemplates].sort((a, b) => {
@@ -127,6 +107,7 @@ export function SavedModal({ open, onOpenChange }: SavedModalProps) {
   }
 
   const getAuthorInitials = (name: string) => {
+    if (!name || name.trim() === '') return '??'
     return name
       .split(' ')
       .map((word) => word[0])

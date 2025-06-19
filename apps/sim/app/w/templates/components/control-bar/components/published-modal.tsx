@@ -114,6 +114,26 @@ export function PublishedModal({ open, onOpenChange }: PublishedModalProps) {
     }
   }
 
+  const handleRetry = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await fetch('/api/templates/published')
+      if (!response.ok) {
+        throw new Error('Failed to fetch published templates')
+      }
+
+      const data = await response.json()
+      setPublishedTemplates(data.published || [])
+    } catch (err: unknown) {
+      logger.error('Error fetching published templates:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load published templates')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='flex max-h-[80vh] flex-col sm:max-w-4xl'>
@@ -161,12 +181,7 @@ export function PublishedModal({ open, onOpenChange }: PublishedModalProps) {
             <div className='flex items-center justify-center py-12'>
               <div className='text-center'>
                 <p className='text-destructive text-sm'>{error}</p>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  className='mt-2'
-                  onClick={() => window.location.reload()}
-                >
+                <Button variant='outline' size='sm' className='mt-2' onClick={handleRetry}>
                   Try Again
                 </Button>
               </div>

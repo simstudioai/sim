@@ -16,15 +16,15 @@ interface BrowseAllButtonProps {
 
 // Create a type guard function
 function isOperationsCategory(category: string): category is OperationsCategory {
-  return CATEGORY_GROUPS.operations.includes(category as OperationsCategory)
+  return CATEGORY_GROUPS.operations.some((op) => op === category)
 }
 
 function isPersonalCategory(category: string): category is PersonalCategory {
-  return CATEGORY_GROUPS.personal.includes(category as PersonalCategory)
+  return CATEGORY_GROUPS.personal.some((op) => op === category)
 }
 
 function isTechnicalCategory(category: string): category is TechnicalCategory {
-  return CATEGORY_GROUPS.technical.includes(category as TechnicalCategory)
+  return CATEGORY_GROUPS.technical.some((op) => op === category)
 }
 
 export function BrowseAllButton({ category, className }: BrowseAllButtonProps) {

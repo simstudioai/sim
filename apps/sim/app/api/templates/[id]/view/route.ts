@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       success: true,
       views: result[0].views,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error(`[${requestId}] Error incrementing template view count`, error)
     return NextResponse.json({ error: 'Failed to track view' }, { status: 500 })
   }

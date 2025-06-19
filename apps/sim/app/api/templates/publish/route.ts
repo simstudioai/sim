@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
           .returning()
       }
 
-      logger.info(`[${requestId}] Successfully published templates to templates`, {
+      logger.info(`[${requestId}] Successfully published template`, {
         workflowId,
         templatesId,
         userId,

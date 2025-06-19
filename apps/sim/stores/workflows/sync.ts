@@ -223,27 +223,13 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         name,
         description: description || '',
         color: color || '#3972F6',
-        // Use createdAt for sorting if available, otherwise fall back to lastSynced
-        lastModified: createdAt ? new Date(createdAt) : new Date(lastSynced),
+        lastModified: createdAt ? new Date(createdAt) : new Date(),
         templatesData: templatesData || null,
-        workspaceId, // Include workspaceId in metadata
-        folderId: folderId || null, // Include folderId in metadata
+        workspaceId,
+        folderId: folderId || null,
       }
 
-      // 2. Prepare workflow state data
-      const workflowState = {
-        blocks: state.blocks || {},
-        edges: state.edges || [],
-        loops: state.loops || {},
-        parallels: state.parallels || {},
-        isDeployed: isDeployed || false,
-        deployedAt: deployedAt ? new Date(deployedAt) : undefined,
-        apiKey,
-        lastSaved: Date.now(),
-        templatesData: templatesData || null,
-      }
-
-      // 3. Initialize subblock values from the workflow state
+      // Initialize subblock values
       const subblockValues: Record<string, Record<string, any>> = {}
       if (state?.blocks) {
         Object.entries(state.blocks).forEach(([blockId, block]) => {

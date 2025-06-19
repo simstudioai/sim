@@ -51,25 +51,22 @@ export function TemplateDetailPage({
   }, [])
 
   useEffect(() => {
-    // Don't set loading if we have valid initial data
-    if (!initialTemplateData) {
-      setLoading(true)
-    }
-
     setError(null)
     setSavedModalOpen(false)
     setPublishedModalOpen(false)
 
     const fetchTemplate = async () => {
+      // Handle initial data case
       if (initialTemplateData?.workflowState) {
         setTemplate(initialTemplateData)
-        if (loading) setLoading(false)
+        setLoading(false) // Ensure loading is false
         trackView(templateId)
         return
       }
 
+      // Handle fetch case
       if (!template || template.id !== templateId) {
-        setLoading(true)
+        setLoading(true) // Set loading only once, here
 
         try {
           const response = await fetch(`/api/templates/${templateId}/info?includeState=true`)
@@ -97,7 +94,7 @@ export function TemplateDetailPage({
     }
 
     fetchTemplate()
-  }, [templateId]) // Remove initialTemplateData from deps
+  }, [templateId])
 
   const trackView = async (id: string) => {
     try {

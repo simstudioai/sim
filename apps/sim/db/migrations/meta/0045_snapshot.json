@@ -2160,7 +2160,7 @@
           "tableTo": "user",
           "columnsFrom": ["author_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "templates_workflow_id_workflow_id_fk": {
