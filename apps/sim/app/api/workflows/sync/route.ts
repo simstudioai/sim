@@ -428,6 +428,11 @@ export async function POST(req: NextRequest) {
               color: clientWorkflow.color,
               state: stateToSave,
               marketplaceData: clientWorkflow.marketplaceData || null,
+              // Include deployment status from client state
+              isDeployed: clientWorkflow.state.isDeployed || false,
+              deployedAt: clientWorkflow.state.deployedAt || null,
+              // deployedState is null for new workflows - only set during deployment
+              deployedState: null,
               lastSynced: now,
               createdAt: now,
               updatedAt: now,
@@ -484,6 +489,32 @@ export async function POST(req: NextRequest) {
             updateData.state = stateToSave
             needsUpdate = true
           }
+
+          // Check deployment status changes - ensure dual-write consistency
+          const clientIsDeployed = clientWorkflow.state.isDeployed || false
+          const clientDeployedAt = clientWorkflow.state.deployedAt || null
+
+          if (dbWorkflow.isDeployed !== clientIsDeployed) {
+            updateData.isDeployed = clientIsDeployed
+            needsUpdate = true
+          }
+
+          // Handle deployedAt comparison (convert to comparable format)
+          const dbDeployedAtTime = dbWorkflow.deployedAt
+            ? new Date(dbWorkflow.deployedAt).getTime()
+            : null
+          const clientDeployedAtTime = clientDeployedAt
+            ? new Date(clientDeployedAt).getTime()
+            : null
+
+          if (dbDeployedAtTime !== clientDeployedAtTime) {
+            updateData.deployedAt = clientDeployedAt
+            needsUpdate = true
+          }
+
+          // CRITICAL: Always preserve deployedState - it should only be modified by deploy/undeploy operations
+          // The sync operation should never touch deployedState to prevent data loss
+          // Note: We don't add deployedState to updateData because we want to preserve the existing value
 
           if (needsUpdate) {
             updateData.lastSynced = now

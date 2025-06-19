@@ -630,6 +630,21 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Set the workflow state in the store
         useWorkflowStore.setState(workflowState)
 
+        // CRITICAL: Set deployment status in registry when switching to workflow
+        if (workflowData?.isDeployed || workflowData?.deployedAt) {
+          set((state) => ({
+            deploymentStatuses: {
+              ...state.deploymentStatuses,
+              [id]: {
+                isDeployed: workflowData.isDeployed || false,
+                deployedAt: workflowData.deployedAt ? new Date(workflowData.deployedAt) : undefined,
+                apiKey: workflowData.apiKey || undefined,
+                needsRedeployment: false, // Default to false when loading from DB
+              },
+            },
+          }))
+        }
+
         // Update the active workflow ID
         set({ activeWorkflowId: id, error: null })
 
