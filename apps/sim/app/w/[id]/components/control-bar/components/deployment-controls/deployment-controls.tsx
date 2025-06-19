@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { DeployModal } from '../deploy-modal/deploy-modal'
 
 interface DeploymentControlsProps {
@@ -16,6 +17,7 @@ interface DeploymentControlsProps {
   deployedState: WorkflowState | null
   isLoadingDeployedState: boolean
   refetchDeployedState: () => Promise<void>
+  userPermissions: WorkspaceUserPermissions
 }
 
 export function DeploymentControls({
@@ -25,6 +27,7 @@ export function DeploymentControls({
   deployedState,
   isLoadingDeployedState,
   refetchDeployedState,
+  userPermissions,
 }: DeploymentControlsProps) {
   const deploymentStatus = useWorkflowRegistry((state) =>
     state.getWorkflowDeploymentStatus(activeWorkflowId)
@@ -52,6 +55,25 @@ export function DeploymentControls({
     } catch (error) {}
   }
 
+  const canDeploy = userPermissions.canDeployApi
+  const isDisabled = isDeploying || !canDeploy
+
+  const getTooltipText = () => {
+    if (!canDeploy) {
+      return 'Deploy permissions required to deploy workflows as API'
+    }
+    if (isDeploying) {
+      return 'Deploying...'
+    }
+    if (isDeployed && workflowNeedsRedeployment) {
+      return 'Workflow changes detected'
+    }
+    if (isDeployed) {
+      return 'Deployment Settings'
+    }
+    return 'Deploy as API'
+  }
+
   return (
     <>
       <Tooltip>
@@ -60,9 +82,13 @@ export function DeploymentControls({
             <Button
               variant='ghost'
               size='icon'
-              onClick={() => setIsModalOpen(true)}
-              disabled={isDeploying}
-              className={cn('hover:text-[#802FFF]', isDeployed && 'text-[#802FFF]')}
+              onClick={() => canDeploy && setIsModalOpen(true)}
+              disabled={isDisabled}
+              className={cn(
+                'hover:text-[#802FFF]', 
+                isDeployed && 'text-[#802FFF]',
+                isDisabled && 'opacity-50 cursor-not-allowed'
+              )}
             >
               {isDeploying ? (
                 <Loader2 className='h-5 w-5 animate-spin' />
@@ -84,13 +110,7 @@ export function DeploymentControls({
           </div>
         </TooltipTrigger>
         <TooltipContent>
-          {isDeploying
-            ? 'Deploying...'
-            : isDeployed && workflowNeedsRedeployment
-              ? 'Workflow changes detected'
-              : isDeployed
-                ? 'Deployment Settings'
-                : 'Deploy as API'}
+          {getTooltipText()}
         </TooltipContent>
       </Tooltip>
 

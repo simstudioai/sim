@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, formatDateTime, validateName } from '@/lib/utils'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -403,6 +404,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
   const shouldShowScheduleBadge = isStarterBlock && !isLoadingScheduleInfo && scheduleInfo !== null
 
+  const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const currentWorkflow = useWorkflowRegistry((state) => 
+    workflowId ? state.workflows[workflowId] : null
+  )
+  const workspaceId = currentWorkflow?.workspaceId || null
+  const userPermissions = useUserPermissions(workspaceId)
+
   return (
     <div className='group relative'>
       <Card
@@ -425,7 +433,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         <ActionBar blockId={id} blockType={type} />
-        <ConnectionBlocks blockId={id} setIsConnecting={setIsConnecting} />
+        <ConnectionBlocks 
+          blockId={id} 
+          setIsConnecting={setIsConnecting} 
+          canInteract={userPermissions.canInteractWithBlocks}
+        />
 
         {/* Input Handle - Don't show for starter blocks */}
         {type !== 'starter' && (
@@ -727,6 +739,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         isConnecting={isConnecting}
                         isPreview={data.isPreview}
                         subBlockValues={data.subBlockValues}
+                        disabled={userPermissions.isReadOnly}
                       />
                     </div>
                   ))}

@@ -15,6 +15,7 @@ interface TimeInputProps {
   isPreview?: boolean
   previewValue?: string | null
   className?: string
+  disabled?: boolean
 }
 
 export function TimeInput({
@@ -24,6 +25,7 @@ export function TimeInput({
   isPreview = false,
   previewValue,
   className,
+  disabled = false,
 }: TimeInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
 
@@ -53,7 +55,7 @@ export function TimeInput({
 
   // Update the time when any component changes
   const updateTime = (newHour?: string, newMinute?: string, newAmpm?: 'AM' | 'PM') => {
-    if (isPreview) return
+    if (isPreview || disabled) return
     const h = Number.parseInt(newHour ?? hour) || 12
     const m = Number.parseInt(newMinute ?? minute) || 0
     const p = newAmpm ?? ampm
@@ -91,7 +93,7 @@ export function TimeInput({
       <PopoverTrigger asChild>
         <Button
           variant='outline'
-          disabled={isPreview}
+          disabled={isPreview || disabled}
           className={cn(
             'w-full justify-start text-left font-normal',
             !value && 'text-muted-foreground',

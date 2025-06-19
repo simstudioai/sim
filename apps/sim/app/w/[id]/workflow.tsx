@@ -14,6 +14,7 @@ import 'reactflow/dist/style.css'
 
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
@@ -84,6 +85,9 @@ function WorkflowContent() {
   
   // Workspace permissions - only fetch if we have a workspace ID
   const { permissions: workspacePermissions, loading: permissionsLoading, error: permissionsError } = useWorkspacePermissions(workspaceId || '')
+  
+  // User permissions - get current user's specific permissions
+  const userPermissions = useUserPermissions(workspaceId || null)
 
   // Store access
   const {
@@ -347,6 +351,11 @@ function WorkflowContent() {
   // Listen for toolbar block click events
   useEffect(() => {
     const handleAddBlockFromToolbar = (event: CustomEvent) => {
+      // Check if user has permission to interact with blocks
+      if (!userPermissions.canInteractWithBlocks) {
+        return
+      }
+      
       const { type } = event.detail
 
       if (!type) return
@@ -1437,11 +1446,11 @@ function WorkflowContent() {
           edges={edgesWithSelection}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
+          onConnect={userPermissions.canInteractWithBlocks ? onConnect : undefined}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
+          onDrop={userPermissions.canInteractWithBlocks ? onDrop : undefined}
+          onDragOver={userPermissions.canInteractWithBlocks ? onDragOver : undefined}
           fitView
           minZoom={0.1}
           maxZoom={1.3}
@@ -1461,22 +1470,22 @@ function WorkflowContent() {
           onEdgeClick={onEdgeClick}
           elementsSelectable={true}
           selectNodesOnDrag={false}
-          nodesConnectable={true}
-          nodesDraggable={true}
+          nodesConnectable={userPermissions.canInteractWithBlocks}
+          nodesDraggable={userPermissions.canInteractWithBlocks}
           draggable={false}
           noWheelClassName='allow-scroll'
           edgesFocusable={true}
-          edgesUpdatable={true}
+          edgesUpdatable={userPermissions.canInteractWithBlocks}
           className='workflow-container h-full'
-          onNodeDrag={onNodeDrag}
-          onNodeDragStop={onNodeDragStop}
-          onNodeDragStart={onNodeDragStart}
+          onNodeDrag={userPermissions.canInteractWithBlocks ? onNodeDrag : undefined}
+          onNodeDragStop={userPermissions.canInteractWithBlocks ? onNodeDragStop : undefined}
+          onNodeDragStart={userPermissions.canInteractWithBlocks ? onNodeDragStart : undefined}
           snapToGrid={false}
           snapGrid={[20, 20]}
           elevateEdgesOnSelect={true}
           elevateNodesOnSelect={true}
-          autoPanOnConnect={true}
-          autoPanOnNodeDrag={true}
+          autoPanOnConnect={userPermissions.canInteractWithBlocks}
+          autoPanOnNodeDrag={userPermissions.canInteractWithBlocks}
         >
           <Background />
         </ReactFlow>

@@ -1,10 +1,12 @@
 import { Card } from '@/components/ui/card'
 import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { cn } from '@/lib/utils'
 
 interface ConnectionBlocksProps {
   blockId: string
   setIsConnecting: (isConnecting: boolean) => void
+  canInteract?: boolean
 }
 
 interface ResponseField {
@@ -13,7 +15,7 @@ interface ResponseField {
   description?: string
 }
 
-export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksProps) {
+export function ConnectionBlocks({ blockId, setIsConnecting, canInteract = true }: ConnectionBlocksProps) {
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(blockId)
 
   if (!hasIncomingConnections) return null
@@ -23,6 +25,11 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
     connection: ConnectedBlock,
     field?: ResponseField
   ) => {
+    if (!canInteract) {
+      e.preventDefault()
+      return
+    }
+    
     e.stopPropagation() // Prevent parent drag handlers from firing
     setIsConnecting(true)
     e.dataTransfer.setData(
@@ -127,10 +134,15 @@ export function ConnectionBlocks({ blockId, setIsConnecting }: ConnectionBlocksP
     return (
       <Card
         key={`${field ? field.name : connection.id}`}
-        draggable
+        draggable={canInteract}
         onDragStart={(e) => handleDragStart(e, connection, field)}
         onDragEnd={handleDragEnd}
-        className='group flex w-max cursor-grab items-center rounded-lg border bg-card p-2 shadow-sm transition-colors hover:bg-accent/50 active:cursor-grabbing'
+        className={cn(
+          'group flex w-max items-center rounded-lg border bg-card p-2 shadow-sm transition-colors',
+          canInteract 
+            ? 'cursor-grab hover:bg-accent/50 active:cursor-grabbing'
+            : 'cursor-not-allowed opacity-60'
+        )}
       >
         <div className='text-sm'>
           <span className='font-medium leading-none'>{displayName}</span>
