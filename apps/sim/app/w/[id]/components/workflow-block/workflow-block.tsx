@@ -432,7 +432,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           </div>
         )}
 
-        <ActionBar blockId={id} blockType={type} />
+        <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
         <ConnectionBlocks 
           blockId={id} 
           setIsConnecting={setIsConnecting} 
@@ -702,8 +702,16 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 <Button
                   variant='ghost'
                   size='sm'
-                  onClick={() => toggleBlockWide(id)}
-                  className='h-7 p-1 text-gray-500'
+                  onClick={() => {
+                    if (userPermissions.canEdit) {
+                      toggleBlockWide(id)
+                    }
+                  }}
+                  className={cn(
+                    'h-7 p-1 text-gray-500',
+                    !userPermissions.canEdit && 'opacity-50 cursor-not-allowed'
+                  )}
+                  disabled={!userPermissions.canEdit}
                 >
                   {isWide ? (
                     <RectangleHorizontal className='h-5 w-5' />
@@ -712,7 +720,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side='top'>{isWide ? 'Narrow Block' : 'Expand Block'}</TooltipContent>
+              <TooltipContent side='top'>
+                {!userPermissions.canEdit ? 'Read-only mode' : (isWide ? 'Narrow Block' : 'Expand Block')}
+              </TooltipContent>
             </Tooltip>
           </div>
         </div>
@@ -739,7 +749,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         isConnecting={isConnecting}
                         isPreview={data.isPreview}
                         subBlockValues={data.subBlockValues}
-                        disabled={userPermissions.isReadOnly}
+                        disabled={!userPermissions.canEdit}
                       />
                     </div>
                   ))}

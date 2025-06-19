@@ -106,14 +106,14 @@ export function Toolbar() {
                 <ToolbarBlock 
                   key={block.type} 
                   config={block} 
-                  disabled={userPermissions.isReadOnly}
+                  disabled={!userPermissions.canEdit}
                   canInteract={userPermissions.canInteractWithBlocks}
                 />
               ))}
               {activeTab === 'blocks' && !searchQuery && (
                 <>
-                  <LoopToolbarItem disabled={userPermissions.isReadOnly} />
-                  <ParallelToolbarItem disabled={userPermissions.isReadOnly} />
+                  <LoopToolbarItem disabled={!userPermissions.canEdit} />
+                  <ParallelToolbarItem disabled={!userPermissions.canEdit} />
                 </>
               )}
             </div>

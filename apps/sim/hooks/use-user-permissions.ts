@@ -109,21 +109,6 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
     const isReadOnly = !canEdit && !canDeploy && !canAdmin // Read-only if they don't have edit permissions
     const hasAnyEditPermission = canEdit || canDeploy || canAdmin
 
-    logger.debug('User permissions calculated', {
-      userEmail: session?.user?.email,
-      workspaceId,
-      permissions: userPerms,
-      computed: {
-        canRead,
-        canEdit,
-        canDeploy,
-        canAdmin,
-        canInteractWithBlocks,
-        isReadOnly,
-        hasAnyEditPermission,
-      },
-    })
-
     return {
       canRead,
       canEdit,
