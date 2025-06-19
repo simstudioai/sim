@@ -576,8 +576,8 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
               body: JSON.stringify({
                 workspaceId: activeWorkspaceId,
                 email: email,
-                role: 'member', // Default role for invited members
-                permissions: permissions, // Include permissions
+                role: 'member', // Default role for invited members (kept for compatibility)
+                permissions: permissions, // Include permissions object
               }),
             })
 

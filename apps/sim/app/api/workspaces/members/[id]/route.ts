@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { workspaceMember } from '@/db/schema'
+import { workspaceMember, permissions } from '@/db/schema'
 
 // Update a member's role
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -50,8 +50,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       )
       .then((rows) => rows[0])
 
-    if (!currentUserMembership || currentUserMembership.role !== 'owner') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    const hasAdminPermission = await db
+      .select()
+      .from(permissions)
+      .where(and(
+        eq(permissions.userId, session.user.id),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, membership.workspaceId),
+        eq(permissions.permissionType, 'admin')
+      ))
+      .limit(1)
+
+    if (hasAdminPermission.length === 0) {
+      return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
     }
 
     // Prevent changing your own role if you're the owner

@@ -2,7 +2,48 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { workspace, workspaceMember, permissions } from '@/db/schema'
+import { workspace, workspaceMember, permissions, permissionTypeEnum } from '@/db/schema'
+
+// Extract the enum type from Drizzle schema
+type PermissionType = typeof permissionTypeEnum.enumValues[number]
+
+/**
+ * Helper function to check if a user has a specific permission for a workspace
+ */
+async function hasWorkspacePermission(
+  userId: string, 
+  workspaceId: string, 
+  permission: PermissionType
+): Promise<boolean> {
+  const result = await db
+    .select()
+    .from(permissions)
+    .where(and(
+      eq(permissions.userId, userId),
+      eq(permissions.entityType, 'workspace'),
+      eq(permissions.entityId, workspaceId),
+      eq(permissions.permissionType, permission)
+    ))
+    .limit(1)
+    
+  return result.length > 0
+}
+
+/**
+ * Helper function to get user's permissions for a workspace
+ */
+async function getUserWorkspacePermissions(userId: string, workspaceId: string): Promise<PermissionType[]> {
+  const userPermissions = await db
+    .select({ permissionType: permissions.permissionType })
+    .from(permissions)
+    .where(and(
+      eq(permissions.userId, userId),
+      eq(permissions.entityType, 'workspace'),
+      eq(permissions.entityId, workspaceId)
+    ))
+  
+  return userPermissions.map(p => p.permissionType)
+}
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -14,16 +55,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const workspaceId = id
 
-  // Check if user is a member of this workspace
-  const membership = await db
-    .select()
-    .from(workspaceMember)
-    .where(
-      and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, session.user.id))
-    )
-    .then((rows) => rows[0])
-
-  if (!membership) {
+  // Check if user has read access to this workspace
+  const hasReadAccess = await hasWorkspacePermission(session.user.id, workspaceId, 'read')
+  
+  if (!hasReadAccess) {
     return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
   }
 
@@ -38,10 +73,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
   }
 
+  // Get user's permissions for this workspace
+  const userPermissions = await getUserWorkspacePermissions(session.user.id, workspaceId)
+
   return NextResponse.json({
     workspace: {
       ...workspaceDetails,
-      role: membership.role,
+      permissions: userPermissions,
     },
   })
 }
@@ -56,21 +94,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const workspaceId = id
 
-  // Check if user is a member with appropriate permissions
-  const membership = await db
-    .select()
-    .from(workspaceMember)
-    .where(
-      and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, session.user.id))
-    )
-    .then((rows) => rows[0])
-
-  if (!membership) {
-    return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
-  }
-
-  // For now, only allow owners to update workspace
-  if (membership.role !== 'owner') {
+  // Check if user has admin permissions to update workspace
+  const hasAdminAccess = await hasWorkspacePermission(session.user.id, workspaceId, 'admin')
+  
+  if (!hasAdminAccess) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
@@ -97,10 +124,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .where(eq(workspace.id, workspaceId))
       .then((rows) => rows[0])
 
+    // Get user's permissions for this workspace
+    const userPermissions = await getUserWorkspacePermissions(session.user.id, workspaceId)
+
     return NextResponse.json({
       workspace: {
         ...updatedWorkspace,
-        role: membership.role,
+        permissions: userPermissions,
       },
     })
   } catch (error) {
@@ -122,16 +152,10 @@ export async function DELETE(
 
   const workspaceId = id
 
-  // Check if user is the owner
-  const membership = await db
-    .select()
-    .from(workspaceMember)
-    .where(
-      and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, session.user.id))
-    )
-    .then((rows) => rows[0])
-
-  if (!membership || membership.role !== 'owner') {
+  // Check if user has admin permissions to delete workspace
+  const hasAdminAccess = await hasWorkspacePermission(session.user.id, workspaceId, 'admin')
+  
+  if (!hasAdminAccess) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
