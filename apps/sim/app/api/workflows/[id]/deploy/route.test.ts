@@ -3,17 +3,9 @@
  *
  * @vitest-environment node
  */
-
-import type { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-// Create the request helper
-function createMockRequest(method: string): NextRequest {
-  return {
-    method,
-    headers: new Map([['content-type', 'application/json']]),
-  } as NextRequest
-}
+import { createMockRequest } from '@/app/api/__test-utils__/utils'
+import { type NextRequest } from 'next/server'
 
 describe('Workflow Deployment API Route', () => {
   beforeEach(() => {
