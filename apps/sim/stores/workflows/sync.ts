@@ -198,6 +198,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
 
     // Process workflows
     const registryWorkflows: Record<string, WorkflowMetadata> = {}
+    const deploymentStatuses: Record<string, any> = {}
 
     data.forEach((workflow) => {
       const {
@@ -208,8 +209,11 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         state,
         createdAt,
         templatesData,
-        workspaceId, // Extract workspaceId
-        folderId, // Extract folderId
+        workspaceId,
+        folderId,
+        isDeployed,
+        deployedAt,
+        apiKey,
       } = workflow
 
       // Skip if workflow doesn't belong to active workspace
@@ -227,6 +231,16 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         templatesData: templatesData || null,
         workspaceId,
         folderId: folderId || null,
+      }
+
+      // CRITICAL: Extract deployment status from database and add to registry
+      if (isDeployed || deployedAt) {
+        deploymentStatuses[id] = {
+          isDeployed: isDeployed || false,
+          deployedAt: deployedAt ? new Date(deployedAt) : undefined,
+          apiKey: apiKey || undefined,
+          needsRedeployment: false, // Default to false when loading from DB
+        }
       }
 
       // Initialize subblock values
@@ -251,9 +265,10 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
       }))
     })
 
-    // Update registry with loaded workflows
+    // Update registry with loaded workflows and deployment statuses
     useWorkflowRegistry.setState({
       workflows: registryWorkflows,
+      deploymentStatuses: deploymentStatuses,
       isLoading: false,
       error: null,
     })

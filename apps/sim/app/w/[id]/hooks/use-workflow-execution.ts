@@ -92,9 +92,13 @@ export function useWorkflowExecution() {
           const streamingBlockId = (result.metadata as any)?.streamingBlockId || null
 
           for (const log of enrichedResult.logs) {
-            // Only update the specific agent block that was streamed
+            // Only update the specific LLM block (agent/router) that was streamed
             const isStreamingBlock = streamingBlockId && log.blockId === streamingBlockId
-            if (isStreamingBlock && log.blockType === 'agent' && log.output?.response) {
+            if (
+              isStreamingBlock &&
+              (log.blockType === 'agent' || log.blockType === 'router') &&
+              log.output?.response
+            ) {
               log.output.response.content = streamContent
             }
           }

@@ -2,6 +2,7 @@ import { Cerebras } from '@cerebras/cerebras_cloud_sdk'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
+import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
 const logger = createLogger('CerebrasProvider')
@@ -36,8 +37,9 @@ export const cerebrasProvider: ProviderConfig = {
   name: 'Cerebras',
   description: 'Cerebras Cloud LLMs',
   version: '1.0.0',
-  models: ['cerebras/llama-3.3-70b'],
-  defaultModel: 'cerebras/llama-3.3-70b',
+  models: getProviderModels('cerebras'),
+  defaultModel: getProviderDefaultModel('cerebras'),
+
   executeRequest: async (
     request: ProviderRequest
   ): Promise<ProviderResponse | StreamingExecution> => {
