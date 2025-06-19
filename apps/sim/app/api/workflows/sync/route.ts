@@ -500,8 +500,12 @@ export async function POST(req: NextRequest) {
           }
 
           // Handle deployedAt comparison (convert to comparable format)
-          const dbDeployedAtTime = dbWorkflow.deployedAt ? new Date(dbWorkflow.deployedAt).getTime() : null
-          const clientDeployedAtTime = clientDeployedAt ? new Date(clientDeployedAt).getTime() : null
+          const dbDeployedAtTime = dbWorkflow.deployedAt
+            ? new Date(dbWorkflow.deployedAt).getTime()
+            : null
+          const clientDeployedAtTime = clientDeployedAt
+            ? new Date(clientDeployedAt).getTime()
+            : null
 
           if (dbDeployedAtTime !== clientDeployedAtTime) {
             updateData.deployedAt = clientDeployedAt
