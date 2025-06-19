@@ -204,7 +204,6 @@ const mockWorkflowState: WorkflowState = {
     },
   },
   lastSaved: Date.now(),
-  isDeployed: false,
   deploymentStatuses: {},
   hasActiveSchedule: false,
   hasActiveWebhook: false,
@@ -417,6 +416,11 @@ describe('Database Helpers', () => {
     it('should successfully save workflow data to normalized tables', async () => {
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]), // Return empty arrays for existing deploy_hash queries
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -452,7 +456,6 @@ describe('Database Helpers', () => {
         loops: {},
         parallels: {},
         lastSaved: Date.now(),
-        isDeployed: false,
         deploymentStatuses: {},
         hasActiveSchedule: false,
         hasActiveWebhook: false,
@@ -460,6 +463,11 @@ describe('Database Helpers', () => {
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]), // Return empty arrays for existing deploy_hash queries
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -520,6 +528,11 @@ describe('Database Helpers', () => {
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]), // Return empty arrays for existing deploy_hash queries
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -632,7 +645,6 @@ describe('Database Helpers', () => {
       loops: mockWorkflowState.loops,
       parallels: mockWorkflowState.parallels,
       lastSaved: Date.now(),
-      isDeployed: false,
       deploymentStatuses: {},
       hasActiveSchedule: false,
       hasActiveWebhook: false,
@@ -641,6 +653,11 @@ describe('Database Helpers', () => {
     it('should successfully migrate workflow from JSON to normalized tables', async () => {
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]), // Return empty arrays for existing deploy_hash queries
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -684,6 +701,11 @@ describe('Database Helpers', () => {
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]), // Return empty arrays for existing deploy_hash queries
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),
@@ -720,7 +742,6 @@ describe('Database Helpers', () => {
         loops: {},
         parallels: {},
         lastSaved: Date.now(),
-        isDeployed: false,
         deploymentStatuses: {},
         hasActiveSchedule: false,
         hasActiveWebhook: false,
@@ -750,6 +771,11 @@ describe('Database Helpers', () => {
 
       const mockTransaction = vi.fn().mockImplementation(async (callback) => {
         const tx = {
+          select: vi.fn().mockReturnValue({
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([]), // Return empty arrays for existing deploy_hash queries
+            }),
+          }),
           delete: vi.fn().mockReturnValue({
             where: vi.fn().mockResolvedValue([]),
           }),

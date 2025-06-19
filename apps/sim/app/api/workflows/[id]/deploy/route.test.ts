@@ -5,6 +5,15 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockRequest } from '@/app/api/__test-utils__/utils'
+import { type NextRequest } from 'next/server'
+
+// Create the request helper
+function createMockRequest(method: string): NextRequest {
+  return {
+    method,
+    headers: new Map([['content-type', 'application/json']]),
+  } as NextRequest
+}
 
 describe('Workflow Deployment API Route', () => {
   beforeEach(() => {
@@ -114,10 +123,91 @@ describe('Workflow Deployment API Route', () => {
   })
 
   /**
+   * Test GET deployment status for undeployed workflow
+   */
+  it('should return undeployed status when workflow is not deployed', async () => {
+    // Mock middleware to allow access
+    vi.doMock('../../middleware', () => ({
+      validateWorkflowAccess: vi.fn().mockResolvedValue({
+        workflow: { id: 'workflow-id', userId: 'user-id' },
+      }),
+    }))
+
+    // Mock the DB for this test
+    vi.doMock('@/db', () => ({
+      db: {
+        select: vi.fn().mockReturnValue({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue([
+                {
+                  isDeployed: false,
+                  deployedAt: null,
+                  userId: 'user-id',
+                  state: null,
+                  deployedState: null,
+                  deployedHash: null,
+                },
+              ]),
+            }),
+          }),
+        }),
+      },
+    }))
+
+    // Create a mock request
+    const req = createMockRequest('GET')
+
+    // Create params
+    const params = Promise.resolve({ id: 'workflow-id' })
+
+    // Import the handler after mocks are set up
+    const { GET } = await import('./route')
+
+    // Call the handler
+    const response = await GET(req, { params })
+
+    // Check response
+    expect(response.status).toBe(200)
+
+    // Parse the response body
+    const data = await response.json()
+
+    // Verify response structure
+    expect(data).toHaveProperty('isDeployed', false)
+    expect(data).toHaveProperty('apiKey', null)
+    expect(data).toHaveProperty('deployedAt', null)
+  })
+
+  /**
    * Test POST deployment with no existing API key
    * This should generate a new API key
    */
   it('should create new API key when deploying workflow for user with no API key', async () => {
+    // Mock middleware to allow access
+    vi.doMock('../../middleware', () => ({
+      validateWorkflowAccess: vi.fn().mockResolvedValue({
+        workflow: { id: 'workflow-id', userId: 'user-id' },
+      }),
+    }))
+
+    // Mock the tagWorkflowAsDeployed function
+    vi.doMock('@/lib/workflows/db-helpers', () => ({
+      tagWorkflowAsDeployed: vi.fn().mockResolvedValue({
+        success: true,
+        deployHash: 'test-deploy-hash-123',
+      }),
+      saveWorkflowToNormalizedTables: vi.fn().mockResolvedValue({
+        success: true,
+        jsonBlob: {},
+      }),
+    }))
+
+    // Mock generateApiKey utility
+    vi.doMock('@/lib/utils', () => ({
+      generateApiKey: vi.fn().mockReturnValue('sim_testkeygenerated12345'),
+    }))
+
     // Mock DB for this test
     const mockInsert = vi.fn().mockReturnValue({
       values: vi.fn().mockReturnValue(undefined),
@@ -139,6 +229,7 @@ describe('Workflow Deployment API Route', () => {
                 limit: vi.fn().mockResolvedValue([
                   {
                     userId: 'user-id',
+                    state: { blocks: {}, edges: [] },
                   },
                 ]),
               }),
@@ -189,6 +280,25 @@ describe('Workflow Deployment API Route', () => {
    * This should use the existing API key
    */
   it('should use existing API key when deploying workflow', async () => {
+    // Mock middleware to allow access
+    vi.doMock('../../middleware', () => ({
+      validateWorkflowAccess: vi.fn().mockResolvedValue({
+        workflow: { id: 'workflow-id', userId: 'user-id' },
+      }),
+    }))
+
+    // Mock the tagWorkflowAsDeployed function
+    vi.doMock('@/lib/workflows/db-helpers', () => ({
+      tagWorkflowAsDeployed: vi.fn().mockResolvedValue({
+        success: true,
+        deployHash: 'test-deploy-hash-123',
+      }),
+      saveWorkflowToNormalizedTables: vi.fn().mockResolvedValue({
+        success: true,
+        jsonBlob: {},
+      }),
+    }))
+
     // Mock DB for this test
     const mockInsert = vi.fn()
 
@@ -208,6 +318,7 @@ describe('Workflow Deployment API Route', () => {
                 limit: vi.fn().mockResolvedValue([
                   {
                     userId: 'user-id',
+                    state: { blocks: {}, edges: [] },
                   },
                 ]),
               }),
