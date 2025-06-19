@@ -277,32 +277,41 @@ export function Document({
     try {
       setIsBulkOperating(true)
 
-      const updatePromises = chunksToEnable.map((chunk) =>
-        fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunk.id}`, {
-          method: 'PUT',
+      const response = await fetch(
+        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks`,
+        {
+          method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            enabled: true,
+            operation: 'enable',
+            chunkIds: chunksToEnable.map(chunk => chunk.id),
           }),
-        })
+        }
       )
 
-      const results = await Promise.allSettled(updatePromises)
+      if (!response.ok) {
+        throw new Error('Failed to enable chunks')
+      }
 
-      // Update successful chunks in the store
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled' && result.value.ok) {
-          const chunkId = chunksToEnable[index].id
-          updateChunk(chunkId, { enabled: true })
-        }
-      })
+      const result = await response.json()
+
+      if (result.success) {
+        // Update successful chunks in the store
+        result.data.results.forEach((opResult: any) => {
+          if (opResult.operation === 'enable') {
+            opResult.chunkIds.forEach((chunkId: string) => {
+              updateChunk(chunkId, { enabled: true })
+            })
+          }
+        })
+
+        logger.info(`Successfully enabled ${result.data.successCount} chunks`)
+      }
 
       // Clear selection after successful operation
       setSelectedChunks(new Set())
-
-      logger.info(`Successfully enabled ${chunksToEnable.length} chunks`)
     } catch (err) {
       logger.error('Error enabling chunks:', err)
     } finally {
@@ -318,32 +327,41 @@ export function Document({
     try {
       setIsBulkOperating(true)
 
-      const updatePromises = chunksToDisable.map((chunk) =>
-        fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunk.id}`, {
-          method: 'PUT',
+      const response = await fetch(
+        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks`,
+        {
+          method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            enabled: false,
+            operation: 'disable',
+            chunkIds: chunksToDisable.map(chunk => chunk.id),
           }),
-        })
+        }
       )
 
-      const results = await Promise.allSettled(updatePromises)
+      if (!response.ok) {
+        throw new Error('Failed to disable chunks')
+      }
 
-      // Update successful chunks in the store
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled' && result.value.ok) {
-          const chunkId = chunksToDisable[index].id
-          updateChunk(chunkId, { enabled: false })
-        }
-      })
+      const result = await response.json()
+
+      if (result.success) {
+        // Update successful chunks in the store
+        result.data.results.forEach((opResult: any) => {
+          if (opResult.operation === 'disable') {
+            opResult.chunkIds.forEach((chunkId: string) => {
+              updateChunk(chunkId, { enabled: false })
+            })
+          }
+        })
+
+        logger.info(`Successfully disabled ${result.data.successCount} chunks`)
+      }
 
       // Clear selection after successful operation
       setSelectedChunks(new Set())
-
-      logger.info(`Successfully disabled ${chunksToDisable.length} chunks`)
     } catch (err) {
       logger.error('Error disabling chunks:', err)
     } finally {
@@ -359,25 +377,35 @@ export function Document({
     try {
       setIsBulkOperating(true)
 
-      const deletePromises = chunksToDelete.map((chunk) =>
-        fetch(`/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks/${chunk.id}`, {
-          method: 'DELETE',
-        })
+      const response = await fetch(
+        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            operation: 'delete',
+            chunkIds: chunksToDelete.map(chunk => chunk.id),
+          }),
+        }
       )
 
-      const results = await Promise.allSettled(deletePromises)
+      if (!response.ok) {
+        throw new Error('Failed to delete chunks')
+      }
 
-      // Refresh chunks list to reflect deletions
-      await refreshChunks()
+      const result = await response.json()
+
+      if (result.success) {
+        // Refresh chunks list to reflect deletions
+        await refreshChunks()
+
+        logger.info(`Successfully deleted ${result.data.successCount} chunks`)
+      }
 
       // Clear selection after successful operation
       setSelectedChunks(new Set())
-
-      const successCount = results.filter(
-        (result) => result.status === 'fulfilled' && result.value.ok
-      ).length
-
-      logger.info(`Successfully deleted ${successCount} chunks`)
     } catch (err) {
       logger.error('Error deleting chunks:', err)
     } finally {

@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { and, asc, eq, ilike, sql } from 'drizzle-orm'
+import { and, asc, eq, ilike, sql, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -23,6 +23,12 @@ const GetChunksQuerySchema = z.object({
 const CreateChunkSchema = z.object({
   content: z.string().min(1, 'Content is required').max(10000, 'Content too long'),
   enabled: z.boolean().optional().default(true),
+})
+
+// Schema for batch operations
+const BatchOperationSchema = z.object({
+  operation: z.enum(['enable', 'disable', 'delete']),
+  chunkIds: z.array(z.string()).min(1, 'At least one chunk ID is required').max(100, 'Cannot operate on more than 100 chunks at once'),
 })
 
 export async function GET(
@@ -276,5 +282,158 @@ export async function POST(
   } catch (error) {
     logger.error(`[${requestId}] Error creating chunk`, error)
     return NextResponse.json({ error: 'Failed to create chunk' }, { status: 500 })
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; documentId: string }> }
+) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const { id: knowledgeBaseId, documentId } = await params
+
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized batch chunk operation attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const accessCheck = await checkDocumentAccess(knowledgeBaseId, documentId, session.user.id)
+
+    if (!accessCheck.hasAccess) {
+      if (accessCheck.notFound) {
+        logger.warn(
+          `[${requestId}] ${accessCheck.reason}: KB=${knowledgeBaseId}, Doc=${documentId}`
+        )
+        return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${session.user.id} attempted unauthorized batch chunk operation: ${accessCheck.reason}`
+      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+
+    try {
+      const validatedData = BatchOperationSchema.parse(body)
+      const { operation, chunkIds } = validatedData
+
+      logger.info(
+        `[${requestId}] Starting batch ${operation} operation on ${chunkIds.length} chunks for document ${documentId}`
+      )
+
+      const results = []
+      let successCount = 0
+      let errorCount = 0
+
+      if (operation === 'delete') {
+        // Handle batch delete with transaction for consistency
+        await db.transaction(async (tx) => {
+          // Get chunks to delete for statistics update
+          const chunksToDelete = await tx
+            .select({
+              id: embedding.id,
+              tokenCount: embedding.tokenCount,
+              contentLength: embedding.contentLength,
+            })
+            .from(embedding)
+            .where(
+              and(
+                eq(embedding.documentId, documentId),
+                inArray(embedding.id, chunkIds)
+              )
+            )
+
+          if (chunksToDelete.length === 0) {
+            throw new Error('No valid chunks found to delete')
+          }
+
+          // Delete chunks
+          await tx
+            .delete(embedding)
+            .where(
+              and(
+                eq(embedding.documentId, documentId),
+                inArray(embedding.id, chunkIds)
+              )
+            )
+
+          // Update document statistics
+          const totalTokens = chunksToDelete.reduce((sum, chunk) => sum + chunk.tokenCount, 0)
+          const totalCharacters = chunksToDelete.reduce((sum, chunk) => sum + chunk.contentLength, 0)
+
+          await tx
+            .update(document)
+            .set({
+              chunkCount: sql`${document.chunkCount} - ${chunksToDelete.length}`,
+              tokenCount: sql`${document.tokenCount} - ${totalTokens}`,
+              characterCount: sql`${document.characterCount} - ${totalCharacters}`,
+            })
+            .where(eq(document.id, documentId))
+
+          successCount = chunksToDelete.length
+          results.push({
+            operation: 'delete',
+            deletedCount: chunksToDelete.length,
+            chunkIds: chunksToDelete.map(c => c.id),
+          })
+        })
+      } else {
+        // Handle batch enable/disable
+        const enabled = operation === 'enable'
+        
+        // Update chunks in a single query
+        const updateResult = await db
+          .update(embedding)
+          .set({ 
+            enabled,
+            updatedAt: new Date()
+          })
+          .where(
+            and(
+              eq(embedding.documentId, documentId),
+              inArray(embedding.id, chunkIds)
+            )
+          )
+          .returning({ id: embedding.id })
+
+        successCount = updateResult.length
+        results.push({
+          operation,
+          updatedCount: updateResult.length,
+          chunkIds: updateResult.map(r => r.id),
+        })
+      }
+
+      logger.info(
+        `[${requestId}] Batch ${operation} operation completed: ${successCount} successful, ${errorCount} errors`
+      )
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          operation,
+          successCount,
+          errorCount,
+          results,
+        },
+      })
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        logger.warn(`[${requestId}] Invalid batch operation data`, {
+          errors: validationError.errors,
+        })
+        return NextResponse.json(
+          { error: 'Invalid request data', details: validationError.errors },
+          { status: 400 }
+        )
+      }
+      throw validationError
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Error in batch chunk operation`, error)
+    return NextResponse.json({ error: 'Failed to perform batch operation' }, { status: 500 })
   }
 }
