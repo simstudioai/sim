@@ -128,8 +128,8 @@ export const workflow = pgTable('workflow', {
   lastRunAt: timestamp('last_run_at'),
   variables: json('variables').default('{}'),
   isPublished: boolean('is_published').notNull().default(false),
-  // templatesData: json('templates_data'), // Format: { id: string, status: 'owner' | 'temp' }
-  marketplaceData: json('marketplace_data'),
+  templatesData: json('templates_data'), // Format: { id: string, status: 'owner' | 'temp' }
+  // marketplaceData: json('marketplace_data'),
 })
 
 // New normalized workflow tables
