@@ -91,6 +91,11 @@ describe('EvaluatorBlockHandler', () => {
         content: 'This is the content to evaluate.',
         model: 'mock-model',
         tokens: { prompt: 50, completion: 10, total: 60 },
+        cost: {
+          input: 0,
+          output: 0,
+          total: 0,
+        },
         score1: 5,
         score2: 8,
       },

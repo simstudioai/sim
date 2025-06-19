@@ -16,41 +16,41 @@ afterAll(() => {
 
 describe('Subscription Utilities', () => {
   describe('checkEnterprisePlan', () => {
-    it('returns true for active enterprise subscription', () => {
+    it.concurrent('returns true for active enterprise subscription', () => {
       expect(checkEnterprisePlan({ plan: 'enterprise', status: 'active' })).toBeTruthy()
     })
 
-    it('returns false for inactive enterprise subscription', () => {
+    it.concurrent('returns false for inactive enterprise subscription', () => {
       expect(checkEnterprisePlan({ plan: 'enterprise', status: 'canceled' })).toBeFalsy()
     })
 
-    it('returns false when plan is not enterprise', () => {
+    it.concurrent('returns false when plan is not enterprise', () => {
       expect(checkEnterprisePlan({ plan: 'pro', status: 'active' })).toBeFalsy()
     })
   })
 
   describe('calculateUsageLimit', () => {
-    it('returns free-tier limit when subscription is null', () => {
+    it.concurrent('returns free-tier limit when subscription is null', () => {
       expect(calculateUsageLimit(null)).toBe(5)
     })
 
-    it('returns free-tier limit when subscription is undefined', () => {
+    it.concurrent('returns free-tier limit when subscription is undefined', () => {
       expect(calculateUsageLimit(undefined)).toBe(5)
     })
 
-    it('returns free-tier limit when subscription is not active', () => {
+    it.concurrent('returns free-tier limit when subscription is not active', () => {
       expect(calculateUsageLimit({ plan: 'pro', status: 'canceled', seats: 1 })).toBe(5)
     })
 
-    it('returns pro limit for active pro plan', () => {
+    it.concurrent('returns pro limit for active pro plan', () => {
       expect(calculateUsageLimit({ plan: 'pro', status: 'active', seats: 1 })).toBe(20)
     })
 
-    it('returns team limit multiplied by seats', () => {
+    it.concurrent('returns team limit multiplied by seats', () => {
       expect(calculateUsageLimit({ plan: 'team', status: 'active', seats: 3 })).toBe(3 * 40)
     })
 
-    it('returns enterprise limit using perSeatAllowance metadata', () => {
+    it.concurrent('returns enterprise limit using perSeatAllowance metadata', () => {
       const sub = {
         plan: 'enterprise',
         status: 'active',
@@ -60,7 +60,7 @@ describe('Subscription Utilities', () => {
       expect(calculateUsageLimit(sub)).toBe(10 * 150)
     })
 
-    it('returns enterprise limit using totalAllowance metadata', () => {
+    it.concurrent('returns enterprise limit using totalAllowance metadata', () => {
       const sub = {
         plan: 'enterprise',
         status: 'active',
@@ -70,7 +70,7 @@ describe('Subscription Utilities', () => {
       expect(calculateUsageLimit(sub)).toBe(5000)
     })
 
-    it('falls back to default enterprise tier when metadata missing', () => {
+    it.concurrent('falls back to default enterprise tier when metadata missing', () => {
       const sub = { plan: 'enterprise', status: 'active', seats: 2, metadata: {} }
       expect(calculateUsageLimit(sub)).toBe(2 * 200)
     })
