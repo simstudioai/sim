@@ -1,0 +1,1 @@
+ALTER TABLE "templates" ADD COLUMN "price" numeric DEFAULT '0' NOT NULL;

@@ -116,7 +116,7 @@ export const discordSendMessageTool: ToolConfig<
     }
   },
 
-  transformError: (error: Error | unknown): string => {
+  transformError: (error: unknown): string => {
     logger.error('Error sending Discord message', { error })
     return `Error sending Discord message: ${error instanceof Error ? error.message : String(error)}`
   },

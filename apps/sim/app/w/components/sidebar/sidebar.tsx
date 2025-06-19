@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { HelpCircle, LibraryBig, ScrollText, Send, Settings } from 'lucide-react'
+import { HelpCircle, LibraryBig, ScrollText, Send, Settings, Shapes } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -77,7 +77,7 @@ export function Sidebar() {
     }
   }, [isAnyModalOpen])
 
-  // Separate regular workflows from temporary marketplace workflows
+  // Separate regular workflows from temporary templates workflows
   const { regularWorkflows, tempWorkflows } = useMemo(() => {
     const regular: WorkflowMetadata[] = []
     const temp: WorkflowMetadata[] = []
@@ -89,7 +89,7 @@ export function Sidebar() {
         // 1. Belong to the active workspace, OR
         // 2. Don't have a workspace ID (legacy workflows)
         if (workflow.workspaceId === activeWorkspaceId || !workflow.workspaceId) {
-          if (workflow.marketplaceData?.status === 'temp') {
+          if (workflow.templatesData?.status === 'temp') {
             temp.push(workflow)
           } else {
             regular.push(workflow)
@@ -187,33 +187,6 @@ export function Sidebar() {
         />
       </div>
 
-      {/* Main navigation - Fixed at top below header */}
-      {/* <div className="flex-shrink-0 px-2 pt-0">
-        <NavSection isLoading={isLoading} itemCount={2} isCollapsed={isCollapsed}>
-          <NavSection.Item
-            icon={<Home className="h-[18px] w-[18px]" />}
-            href="/w/1"
-            label="Home"
-            active={pathname === '/w/1'}
-            isCollapsed={isCollapsed}
-          />
-          <NavSection.Item
-            icon={<Shapes className="h-[18px] w-[18px]" />}
-            href="/w/templates"
-            label="Templates"
-            active={pathname === '/w/templates'}
-            isCollapsed={isCollapsed}
-          />
-          <NavSection.Item
-            icon={<Store className="h-[18px] w-[18px]" />}
-            href="/w/marketplace"
-            label="Marketplace"
-            active={pathname === '/w/marketplace'}
-            isCollapsed={isCollapsed}
-          />
-        </NavSection>
-      </div> */}
-
       {/* Scrollable Content Area - Contains Workflows and Logs/Settings */}
       <div className='scrollbar-none flex flex-1 flex-col overflow-auto px-2 py-0'>
         {/* Workflows Section */}
@@ -233,16 +206,16 @@ export function Sidebar() {
           </div>
           <FolderTree
             regularWorkflows={regularWorkflows}
-            marketplaceWorkflows={tempWorkflows}
+            templatesWorkflows={tempWorkflows}
             isCollapsed={isCollapsed}
             isLoading={isLoading}
             onCreateWorkflow={handleCreateWorkflow}
           />
         </div>
 
-        {/* Logs and Settings Navigation - Follows workflows */}
+        {/* Logs, Settings, Templates, Navigation - Follows workflows */}
         <div className='mt-6 flex-shrink-0'>
-          <NavSection isLoading={isLoading} itemCount={3} isCollapsed={isCollapsed}>
+          <NavSection isLoading={isLoading} itemCount={4} isCollapsed={isCollapsed}>
             <NavSection.Item
               icon={<ScrollText className='h-[18px] w-[18px]' />}
               href='/w/logs'
@@ -265,6 +238,13 @@ export function Sidebar() {
               icon={<Settings className='h-[18px] w-[18px]' />}
               onClick={() => setShowSettings(true)}
               label='Settings'
+              isCollapsed={isCollapsed}
+            />
+            <NavSection.Item
+              icon={<Shapes className='h-[18px] w-[18px]' />}
+              href='/w/templates'
+              label='Templates'
+              active={pathname === '/w/templates'}
               isCollapsed={isCollapsed}
             />
           </NavSection>

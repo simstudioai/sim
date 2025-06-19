@@ -208,7 +208,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         color,
         state,
         createdAt,
-        marketplaceData,
+        templatesData,
         workspaceId,
         folderId,
         isDeployed,
@@ -228,7 +228,7 @@ export async function fetchWorkflowsFromDB(): Promise<void> {
         description: description || '',
         color: color || '#3972F6',
         lastModified: createdAt ? new Date(createdAt) : new Date(),
-        marketplaceData: marketplaceData || null,
+        templatesData: templatesData || null,
         workspaceId,
         folderId: folderId || null,
       }

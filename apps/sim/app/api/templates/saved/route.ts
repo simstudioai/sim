@@ -1,0 +1,84 @@
+import { eq } from 'drizzle-orm'
+import type { NextRequest } from 'next/server'
+import { auth } from '@/lib/auth'
+import { createLogger } from '@/lib/logs/console-logger'
+import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
+import { db } from '@/db'
+import { savedTemplates, templates } from '@/db/schema'
+
+const logger = createLogger('SavedTemplatesAPI')
+
+export async function GET(request: NextRequest) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+
+  try {
+    // Validate authentication
+    const session = await auth.api.getSession({ headers: request.headers })
+    if (!session?.user?.id) {
+      return createErrorResponse('Unauthorized', 401)
+    }
+
+    const url = new URL(request.url)
+    const includeState = url.searchParams.get('includeState') === 'true'
+
+    logger.info(
+      `[${requestId}] Fetching saved templates for user ${session.user.id}${includeState ? ' with state' : ''}`
+    )
+
+    // Get saved templates with template data
+    const savedTemplatesList = await db
+      .select({
+        id: templates.id,
+        name: templates.name,
+        shortDescription: templates.shortDescription,
+        longDescription: templates.longDescription,
+        authorId: templates.authorId,
+        authorName: templates.authorName,
+        category: templates.category,
+        createdAt: templates.createdAt,
+        updatedAt: templates.updatedAt,
+        // Include state if requested
+        ...(includeState ? { state: templates.state } : {}),
+        // Include saved template metadata
+        timesUsed: savedTemplates.timesUsed,
+        lastUsedAt: savedTemplates.lastUsedAt,
+        savedAt: savedTemplates.createdAt,
+      })
+      .from(savedTemplates)
+      .innerJoin(templates, eq(savedTemplates.templateId, templates.id))
+      .where(eq(savedTemplates.userId, session.user.id))
+      .orderBy(savedTemplates.createdAt) // Most recently saved first
+
+    // Transform to match expected format
+    const formattedTemplates = savedTemplatesList.map((template) => ({
+      id: template.id,
+      name: template.name,
+      shortDescription: template.shortDescription,
+      longDescription: template.longDescription,
+      authorId: template.authorId,
+      authorName: template.authorName,
+      category: template.category,
+      createdAt: template.createdAt,
+      updatedAt: template.updatedAt,
+      // Include state as workflowState if requested
+      ...(includeState && 'state' in template ? { workflowState: template.state } : {}),
+      // Add saved-specific metadata
+      timesUsed: template.timesUsed,
+      lastUsedAt: template.lastUsedAt,
+      savedAt: template.savedAt,
+    }))
+
+    logger.info(`[${requestId}] Successfully fetched ${formattedTemplates.length} saved templates`)
+
+    return createSuccessResponse({
+      saved: formattedTemplates,
+      total: formattedTemplates.length,
+    })
+  } catch (error: unknown) {
+    logger.error(`[${requestId}] Error fetching saved templates:`, error)
+    return createErrorResponse(
+      `Failed to fetch saved templates: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      500
+    )
+  }
+}

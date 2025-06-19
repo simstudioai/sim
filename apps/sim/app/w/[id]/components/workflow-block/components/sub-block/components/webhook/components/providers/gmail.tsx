@@ -135,6 +135,7 @@ interface GmailConfigProps {
   setMarkAsRead?: (markAsRead: boolean) => void
   includeRawEmail?: boolean
   setIncludeRawEmail?: (includeRawEmail: boolean) => void
+  isPreview?: boolean
 }
 
 export function GmailConfig({
@@ -144,6 +145,7 @@ export function GmailConfig({
   setLabelFilterBehavior,
   markAsRead = false,
   setMarkAsRead = () => {},
+  isPreview = false,
   includeRawEmail = false,
   setIncludeRawEmail = () => {},
 }: GmailConfigProps) {
@@ -153,6 +155,8 @@ export function GmailConfig({
 
   // Fetch Gmail labels
   useEffect(() => {
+    if (isPreview) return // Skip API calls in preview mode
+
     let mounted = true
     const fetchLabels = async () => {
       setIsLoadingLabels(true)
@@ -197,7 +201,7 @@ export function GmailConfig({
     return () => {
       mounted = false
     }
-  }, [])
+  }, [isPreview])
 
   const toggleLabel = (labelId: string) => {
     if (selectedLabels.includes(labelId)) {
