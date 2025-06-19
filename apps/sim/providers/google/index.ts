@@ -1,6 +1,7 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import type { StreamingExecution } from '@/executor/types'
 import { executeTool } from '@/tools'
+import { getProviderDefaultModel, getProviderModels } from '../models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse, TimeSegment } from '../types'
 
 const logger = createLogger('GoogleProvider')
@@ -90,8 +91,8 @@ export const googleProvider: ProviderConfig = {
   name: 'Google',
   description: "Google's Gemini models",
   version: '1.0.0',
-  models: ['gemini-2.5-pro', 'gemini-2.5-flash'],
-  defaultModel: 'gemini-2.5-pro',
+  models: getProviderModels('google'),
+  defaultModel: getProviderDefaultModel('google'),
 
   executeRequest: async (
     request: ProviderRequest

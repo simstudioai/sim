@@ -1,7 +1,7 @@
 import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { BlockOutput } from '@/blocks/types'
-import { getProviderFromModel } from '@/providers/utils'
+import { calculateCost, getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import type { BlockHandler, ExecutionContext } from '../../types'
 
@@ -241,6 +241,14 @@ export class EvaluatorBlockHandler implements BlockHandler {
         logger.error('Error extracting metric scores:', e)
       }
 
+      // Calculate cost based on token usage, similar to how providers do it
+      const costCalculation = calculateCost(
+        result.model,
+        result.tokens?.prompt || 0,
+        result.tokens?.completion || 0,
+        false // Evaluator blocks don't typically use cached input
+      )
+
       // Create result with metrics as direct fields for easy access
       const outputResult = {
         response: {
@@ -250,6 +258,11 @@ export class EvaluatorBlockHandler implements BlockHandler {
             prompt: result.tokens?.prompt || 0,
             completion: result.tokens?.completion || 0,
             total: result.tokens?.total || 0,
+          },
+          cost: {
+            input: costCalculation.input,
+            output: costCalculation.output,
+            total: costCalculation.total,
           },
           ...metricScores,
         },
