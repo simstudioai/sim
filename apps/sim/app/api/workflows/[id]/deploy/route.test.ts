@@ -3,9 +3,9 @@
  *
  * @vitest-environment node
  */
+
+import type { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
-import { type NextRequest } from 'next/server'
 
 // Create the request helper
 function createMockRequest(method: string): NextRequest {

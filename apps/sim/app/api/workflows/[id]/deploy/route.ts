@@ -163,14 +163,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       })
 
       if (!syncResult.success) {
-        logger.warn(`[${requestId}] Failed to sync to normalized tables: ${syncResult.error}`)
-        // Continue with deployment using legacy fallback
-      } else {
-        logger.info(`[${requestId}] Successfully synced workflow state to normalized tables`)
+        logger.error(`[${requestId}] Failed to sync to normalized tables: ${syncResult.error}`)
+        return createErrorResponse(
+          `Failed to sync workflow data before deployment: ${syncResult.error}`,
+          500
+        )
       }
+
+      logger.info(`[${requestId}] Successfully synced workflow state to normalized tables`)
     } catch (syncError) {
-      logger.warn(`[${requestId}] Error during pre-deployment sync:`, syncError)
-      // Continue with deployment using legacy fallback
+      logger.error(`[${requestId}] Error during pre-deployment sync:`, syncError)
+      return createErrorResponse(
+        `Failed to sync workflow data before deployment: ${syncError instanceof Error ? syncError.message : 'Unknown error'}`,
+        500
+      )
     }
 
     // Tag current workflow state with deployment hash
