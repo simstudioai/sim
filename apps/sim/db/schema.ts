@@ -146,14 +146,14 @@ export const workflowBlocks = pgTable(
     name: text('name').notNull(), // Display name of the block
 
     // Position coordinates (from position.x, position.y)
-    positionX: integer('position_x').notNull(), // X coordinate on canvas
-    positionY: integer('position_y').notNull(), // Y coordinate on canvas
+    positionX: decimal('position_x').notNull(), // X coordinate on canvas
+    positionY: decimal('position_y').notNull(), // Y coordinate on canvas
 
     // Block behavior flags (from current BlockState)
     enabled: boolean('enabled').notNull().default(true), // Whether block is active
     horizontalHandles: boolean('horizontal_handles').notNull().default(true), // UI layout preference
     isWide: boolean('is_wide').notNull().default(false), // Whether block uses wide layout
-    height: integer('height').notNull().default(0), // Custom height override
+    height: decimal('height').notNull().default('0'), // Custom height override
 
     // Block data (keeping JSON for flexibility as current system does)
     subBlocks: jsonb('sub_blocks').notNull().default('{}'), // All subblock configurations
