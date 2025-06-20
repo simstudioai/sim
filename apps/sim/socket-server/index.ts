@@ -27,6 +27,22 @@ const logger = createLogger('CollaborativeSocketServer')
 
 // Enhanced server configuration
 const httpServer = createServer((req, res) => {
+  // Handle health check for Railway
+  if (req.method === 'GET' && req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(
+      JSON.stringify({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        connections: Array.from(workflowRooms.values()).reduce(
+          (total, room) => total + room.activeConnections,
+          0
+        ),
+      })
+    )
+    return
+  }
+
   // Handle workflow deletion notifications from the main API
   if (req.method === 'POST' && req.url === '/api/workflow-deleted') {
     let body = ''
@@ -55,7 +71,12 @@ const httpServer = createServer((req, res) => {
 
 const io = new Server(httpServer, {
   cors: {
-    origin: 'http://localhost:3000', // Specific origin required when credentials: true
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? [process.env.NEXT_PUBLIC_APP_URL, process.env.VERCEL_URL].filter((url): url is string =>
+            Boolean(url)
+          )
+        : ['http://localhost:3000', 'http://localhost:3001'],
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'socket.io'],
     credentials: true, // Enable credentials to accept cookies
@@ -1538,8 +1559,8 @@ io.engine.on('connection_error', (err) => {
 })
 
 // Start the server
-const PORT = process.env.SOCKET_PORT || 3002
-httpServer.listen(PORT, () => {
+const PORT = Number(process.env.PORT || process.env.SOCKET_PORT || 3002)
+httpServer.listen(PORT, '0.0.0.0', () => {
   logger.info(`Socket.IO server running on port ${PORT}`)
 })
 

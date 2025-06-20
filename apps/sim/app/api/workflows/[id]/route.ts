@@ -206,7 +206,8 @@ export async function DELETE(
     // This prevents "Block not found" errors when collaborative updates try to process
     // after the workflow has been deleted
     try {
-      const socketResponse = await fetch('http://localhost:3002/api/workflow-deleted', {
+      const socketUrl = process.env.SOCKET_SERVER_URL || 'http://localhost:3002'
+      const socketResponse = await fetch(`${socketUrl}/api/workflow-deleted`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workflowId }),

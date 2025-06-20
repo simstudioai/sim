@@ -103,7 +103,11 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     logger.info('Initializing socket connection for user:', user.id)
     setIsConnecting(true)
 
-    const socketUrl = 'http://localhost:3002' // Hardcode for testing
+    const socketUrl =
+      process.env.NODE_ENV === 'production'
+        ? process.env.NEXT_PUBLIC_SOCKET_URL || 'wss://your-railway-app.railway.app'
+        : 'http://localhost:3002'
+
     logger.info('Attempting to connect to Socket.IO server', {
       url: socketUrl,
       userId: user?.id || 'no-user',
