@@ -59,9 +59,7 @@ export const auth = betterAuth({
   baseURL: getBaseURL(),
   trustedOrigins: [
     env.NEXT_PUBLIC_APP_URL,
-    ...(env.NEXT_PUBLIC_VERCEL_URL ? [`https://${env.NEXT_PUBLIC_VERCEL_URL}`] : []),
-    'http://localhost:3000',
-    'http://localhost:3001',
+    ...(env.NEXT_PUBLIC_VERCEL_URL ? [`https://${env.NEXT_PUBLIC_VERCEL_URL}`] : [])
   ].filter(Boolean),
   database: drizzleAdapter(db, {
     provider: 'pg',
