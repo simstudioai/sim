@@ -14,6 +14,27 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   icon: ResponseIcon,
   subBlocks: [
     {
+      id: 'dataMode',
+      title: 'Response Data Mode',
+      type: 'dropdown',
+      layout: 'full',
+      options: [
+        { label: 'Builder', id: 'structured' },
+        { label: 'Editor', id: 'json' },
+      ],
+      value: () => 'structured',
+      description: 'Choose how to define your response data structure',
+    },
+    {
+      id: 'builderData',
+      title: 'Response Structure',
+      type: 'response-format',
+      layout: 'full',
+      condition: { field: 'dataMode', value: 'structured' },
+      description:
+        'Define the structure of your response data. Use <variable.name> in field names to reference workflow variables.',
+    },
+    {
       id: 'data',
       title: 'Response Data',
       type: 'code',
@@ -21,6 +42,7 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
       placeholder: '{\n  "message": "Hello world",\n  "userId": "<variable.userId>"\n}',
       language: 'json',
       generationType: 'json-object',
+      condition: { field: 'dataMode', value: 'json' },
       description:
         'Data that will be sent as the response body on API calls. Use <variable.name> to reference workflow variables.',
     },
@@ -43,6 +65,16 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   ],
   tools: { access: [] },
   inputs: {
+    dataMode: {
+      type: 'string',
+      required: false,
+      description: 'Mode for defining response data structure',
+    },
+    builderData: {
+      type: 'json',
+      required: false,
+      description: 'The JSON data to send in the response body',
+    },
     data: {
       type: 'json',
       required: false,
