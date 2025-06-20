@@ -11,7 +11,6 @@ import { checkDocumentAccess, generateEmbeddings } from '../../../../utils'
 
 const logger = createLogger('DocumentChunksAPI')
 
-// Schema for query parameters
 const GetChunksQuerySchema = z.object({
   search: z.string().optional(),
   enabled: z.enum(['true', 'false', 'all']).optional().default('all'),
@@ -19,13 +18,11 @@ const GetChunksQuerySchema = z.object({
   offset: z.coerce.number().min(0).optional().default(0),
 })
 
-// Schema for creating manual chunks
 const CreateChunkSchema = z.object({
   content: z.string().min(1, 'Content is required').max(10000, 'Content too long'),
   enabled: z.boolean().optional().default(true),
 })
 
-// Schema for batch operations
 const BatchOperationSchema = z.object({
   operation: z.enum(['enable', 'disable', 'delete']),
   chunkIds: z

@@ -20,7 +20,6 @@ class APIError extends Error {
   }
 }
 
-// Schema for vector search request
 const VectorSearchSchema = z.object({
   knowledgeBaseIds: z.union([
     z.string().min(1, 'Knowledge base ID is required'),
@@ -86,7 +85,6 @@ async function generateSearchEmbedding(query: string): Promise<number[]> {
   }
 }
 
-// Adaptive query configuration based on KB count and result size
 function getQueryStrategy(kbCount: number, topK: number) {
   const useParallel = kbCount > 4 || (kbCount > 2 && topK > 50)
   const distanceThreshold = kbCount > 3 ? 0.8 : 1.0
@@ -100,7 +98,6 @@ function getQueryStrategy(kbCount: number, topK: number) {
   }
 }
 
-// Execute parallel queries for multiple knowledge bases
 async function executeParallelQueries(
   knowledgeBaseIds: string[],
   queryVector: string,
@@ -138,7 +135,6 @@ async function executeParallelQueries(
   return parallelResults.flat()
 }
 
-// Execute optimized single query for fewer knowledge bases
 async function executeSingleQuery(
   knowledgeBaseIds: string[],
   queryVector: string,
@@ -166,7 +162,6 @@ async function executeSingleQuery(
     .limit(topK)
 }
 
-// Merge and rank results from parallel queries while preserving similarity order
 function mergeAndRankResults(results: any[], topK: number) {
   return results.sort((a, b) => a.distance - b.distance).slice(0, topK)
 }

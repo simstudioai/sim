@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { vi } from 'vitest'
 
-// Add type definitions for better type safety
 export interface MockUser {
   id: string
   email: string
@@ -14,7 +13,6 @@ export interface MockAuthResult {
   mockUnauthenticated: () => void
 }
 
-// Database result types
 export interface DatabaseSelectResult {
   id: string
   [key: string]: any
@@ -234,7 +232,6 @@ export function createMockRequest(
 ): NextRequest {
   const url = 'http://localhost:3000/api/test'
 
-  // Use the URL constructor to create a proper URL object
   return new NextRequest(new URL(url), {
     method,
     headers: new Headers(headers),
@@ -248,7 +245,6 @@ export function mockExecutionDependencies() {
     return {
       ...(actual as any),
       decryptSecret: vi.fn().mockImplementation((encrypted: string) => {
-        // Map from encrypted to decrypted
         const entries = Object.entries(mockEnvironmentVars)
         const found = entries.find(([_, val]) => val === encrypted)
         const key = found ? found[0] : null
@@ -570,11 +566,63 @@ export function mockDrizzleOrm() {
     asc: vi.fn((field) => ({ field, type: 'asc' })),
     desc: vi.fn((field) => ({ field, type: 'desc' })),
     isNull: vi.fn((field) => ({ field, type: 'isNull' })),
+    count: vi.fn((field) => ({ field, type: 'count' })),
     sql: vi.fn((strings, ...values) => ({
       type: 'sql',
       sql: strings,
       values,
     })),
+  }))
+}
+
+/**
+ * Mock knowledge-related database schemas
+ */
+export function mockKnowledgeSchemas() {
+  vi.doMock('@/db/schema', () => ({
+    knowledgeBase: {
+      id: 'kb_id',
+      userId: 'user_id',
+      name: 'kb_name',
+      description: 'description',
+      tokenCount: 'token_count',
+      embeddingModel: 'embedding_model',
+      embeddingDimension: 'embedding_dimension',
+      chunkingConfig: 'chunking_config',
+      workspaceId: 'workspace_id',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+      deletedAt: 'deleted_at',
+    },
+    document: {
+      id: 'doc_id',
+      knowledgeBaseId: 'kb_id',
+      filename: 'filename',
+      fileUrl: 'file_url',
+      fileSize: 'file_size',
+      mimeType: 'mime_type',
+      chunkCount: 'chunk_count',
+      tokenCount: 'token_count',
+      characterCount: 'character_count',
+      processingStatus: 'processing_status',
+      processingStartedAt: 'processing_started_at',
+      processingCompletedAt: 'processing_completed_at',
+      processingError: 'processing_error',
+      enabled: 'enabled',
+      uploadedAt: 'uploaded_at',
+      deletedAt: 'deleted_at',
+    },
+    embedding: {
+      id: 'embedding_id',
+      documentId: 'doc_id',
+      knowledgeBaseId: 'kb_id',
+      chunkIndex: 'chunk_index',
+      content: 'content',
+      embedding: 'embedding',
+      tokenCount: 'token_count',
+      characterCount: 'character_count',
+      createdAt: 'created_at',
+    },
   }))
 }
 

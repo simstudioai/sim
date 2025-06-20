@@ -269,10 +269,12 @@ export function Document({
     await refreshChunks()
   }
 
-  const handleBulkEnable = async () => {
-    const chunksToEnable = chunks.filter((chunk) => selectedChunks.has(chunk.id) && !chunk.enabled)
-
-    if (chunksToEnable.length === 0) return
+  // Shared utility function for bulk chunk operations
+  const performBulkChunkOperation = async (
+    operation: 'enable' | 'disable' | 'delete',
+    chunks: ChunkData[]
+  ) => {
+    if (chunks.length === 0) return
 
     try {
       setIsBulkOperating(true)
@@ -285,132 +287,58 @@ export function Document({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            operation: 'enable',
-            chunkIds: chunksToEnable.map((chunk) => chunk.id),
+            operation,
+            chunkIds: chunks.map((chunk) => chunk.id),
           }),
         }
       )
 
       if (!response.ok) {
-        throw new Error('Failed to enable chunks')
+        throw new Error(`Failed to ${operation} chunks`)
       }
 
       const result = await response.json()
 
       if (result.success) {
-        // Update successful chunks in the store
-        result.data.results.forEach((opResult: any) => {
-          if (opResult.operation === 'enable') {
-            opResult.chunkIds.forEach((chunkId: string) => {
-              updateChunk(chunkId, { enabled: true })
-            })
-          }
-        })
+        if (operation === 'delete') {
+          // Refresh chunks list to reflect deletions
+          await refreshChunks()
+        } else {
+          // Update successful chunks in the store for enable/disable operations
+          result.data.results.forEach((opResult: any) => {
+            if (opResult.operation === operation) {
+              opResult.chunkIds.forEach((chunkId: string) => {
+                updateChunk(chunkId, { enabled: operation === 'enable' })
+              })
+            }
+          })
+        }
 
-        logger.info(`Successfully enabled ${result.data.successCount} chunks`)
+        logger.info(`Successfully ${operation}d ${result.data.successCount} chunks`)
       }
 
       // Clear selection after successful operation
       setSelectedChunks(new Set())
     } catch (err) {
-      logger.error('Error enabling chunks:', err)
+      logger.error(`Error ${operation}ing chunks:`, err)
     } finally {
       setIsBulkOperating(false)
     }
+  }
+
+  const handleBulkEnable = async () => {
+    const chunksToEnable = chunks.filter((chunk) => selectedChunks.has(chunk.id) && !chunk.enabled)
+    await performBulkChunkOperation('enable', chunksToEnable)
   }
 
   const handleBulkDisable = async () => {
     const chunksToDisable = chunks.filter((chunk) => selectedChunks.has(chunk.id) && chunk.enabled)
-
-    if (chunksToDisable.length === 0) return
-
-    try {
-      setIsBulkOperating(true)
-
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            operation: 'disable',
-            chunkIds: chunksToDisable.map((chunk) => chunk.id),
-          }),
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to disable chunks')
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        // Update successful chunks in the store
-        result.data.results.forEach((opResult: any) => {
-          if (opResult.operation === 'disable') {
-            opResult.chunkIds.forEach((chunkId: string) => {
-              updateChunk(chunkId, { enabled: false })
-            })
-          }
-        })
-
-        logger.info(`Successfully disabled ${result.data.successCount} chunks`)
-      }
-
-      // Clear selection after successful operation
-      setSelectedChunks(new Set())
-    } catch (err) {
-      logger.error('Error disabling chunks:', err)
-    } finally {
-      setIsBulkOperating(false)
-    }
+    await performBulkChunkOperation('disable', chunksToDisable)
   }
 
   const handleBulkDelete = async () => {
     const chunksToDelete = chunks.filter((chunk) => selectedChunks.has(chunk.id))
-
-    if (chunksToDelete.length === 0) return
-
-    try {
-      setIsBulkOperating(true)
-
-      const response = await fetch(
-        `/api/knowledge/${knowledgeBaseId}/documents/${documentId}/chunks`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            operation: 'delete',
-            chunkIds: chunksToDelete.map((chunk) => chunk.id),
-          }),
-        }
-      )
-
-      if (!response.ok) {
-        throw new Error('Failed to delete chunks')
-      }
-
-      const result = await response.json()
-
-      if (result.success) {
-        // Refresh chunks list to reflect deletions
-        await refreshChunks()
-
-        logger.info(`Successfully deleted ${result.data.successCount} chunks`)
-      }
-
-      // Clear selection after successful operation
-      setSelectedChunks(new Set())
-    } catch (err) {
-      logger.error('Error deleting chunks:', err)
-    } finally {
-      setIsBulkOperating(false)
-    }
+    await performBulkChunkOperation('delete', chunksToDelete)
   }
 
   // Calculate bulk operation counts

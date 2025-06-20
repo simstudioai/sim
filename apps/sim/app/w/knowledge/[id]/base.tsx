@@ -10,7 +10,6 @@ import {
   Loader2,
   Plus,
   RotateCcw,
-  Search,
   Trash2,
   X,
 } from 'lucide-react'
@@ -31,6 +30,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { createLogger } from '@/lib/logs/console-logger'
 import { ActionBar } from '@/app/w/knowledge/[id]/components/action-bar/action-bar'
 import { getDocumentIcon } from '@/app/w/knowledge/components/icons/document-icons'
+import { PrimaryButton } from '@/app/w/knowledge/components/primary-button/primary-button'
+import { SearchInput } from '@/app/w/knowledge/components/search-input/search-input'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -204,8 +205,14 @@ export function KnowledgeBase({
     // Mark stale documents as failed via API to sync with database
     const markFailedPromises = staleDocuments.map(async (doc) => {
       try {
-        const response = await fetch(`/api/knowledge/${id}/documents/${doc.id}/mark-failed`, {
-          method: 'POST',
+        const response = await fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            markFailedDueToTimeout: true,
+          }),
         })
 
         if (!response.ok) {
@@ -282,8 +289,14 @@ export function KnowledgeBase({
         processingCompletedAt: null,
       })
 
-      const response = await fetch(`/api/knowledge/${id}/documents/${docId}/retry`, {
-        method: 'POST',
+      const response = await fetch(`/api/knowledge/${id}/documents/${docId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          retryProcessing: true,
+        }),
       })
 
       if (!response.ok) {
@@ -299,17 +312,26 @@ export function KnowledgeBase({
       // Immediately refresh to get the current DB state
       await refreshDocuments()
 
-      // Set up multiple refreshes to catch the status transition from pending -> processing
-      const refreshTimes = [500, 1500, 3000] // 0.5s, 1.5s, 3s
-      refreshTimes.forEach((delay) => {
-        setTimeout(async () => {
-          try {
-            await refreshDocuments()
-          } catch (error) {
-            logger.error('Error refreshing documents after retry:', error)
+      // Set up a single interval-based refresh to catch the status transition from pending -> processing
+      let refreshAttempts = 0
+      const maxRefreshAttempts = 3
+      const refreshInterval = setInterval(async () => {
+        try {
+          refreshAttempts++
+          await refreshDocuments()
+          if (refreshAttempts >= maxRefreshAttempts) {
+            clearInterval(refreshInterval)
           }
-        }, delay)
-      })
+        } catch (error) {
+          logger.error('Error refreshing documents after retry:', error)
+          clearInterval(refreshInterval)
+        }
+      }, 1000) // Check every second for 3 seconds
+
+      // Clear interval after maximum time to prevent memory leaks
+      setTimeout(() => {
+        clearInterval(refreshInterval)
+      }, 4000)
 
       logger.info(`Document retry initiated successfully for: ${docId}`)
     } catch (err) {
@@ -479,7 +501,7 @@ export function KnowledgeBase({
       }))
 
       // Start async document processing
-      const processResponse = await fetch(`/api/knowledge/${id}/process-documents`, {
+      const processResponse = await fetch(`/api/knowledge/${id}/documents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -493,6 +515,7 @@ export function KnowledgeBase({
             recipe: 'default',
             lang: 'en',
           },
+          bulk: true,
         }),
       })
 
@@ -781,35 +804,15 @@ export function KnowledgeBase({
 
               {/* Search and Create Section */}
               <div className='mb-4 flex items-center justify-between pt-1'>
-                <div className='relative max-w-md flex-1'>
-                  <div className='relative flex items-center'>
-                    <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
-                    <input
-                      type='text'
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder='Search documents...'
-                      className='h-10 w-full rounded-md border bg-background px-9 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:font-medium file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className='-translate-y-1/2 absolute top-1/2 right-3 transform text-muted-foreground hover:text-foreground'
-                      >
-                        <X className='h-[18px] w-[18px]' />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                <SearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder='Search documents...'
+                />
 
                 <div className='flex items-center gap-3'>
                   {/* Add Documents Button */}
-                  <Button
-                    onClick={handleAddDocuments}
-                    disabled={isUploading}
-                    size='sm'
-                    className='flex items-center gap-1 bg-[#701FFC] font-[480] text-white shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-                  >
+                  <PrimaryButton onClick={handleAddDocuments} disabled={isUploading}>
                     <Plus className='h-3.5 w-3.5' />
                     {isUploading
                       ? uploadProgress.stage === 'uploading'
@@ -820,7 +823,7 @@ export function KnowledgeBase({
                             ? 'Completing...'
                             : 'Uploading...'
                       : 'Add Documents'}
-                  </Button>
+                  </PrimaryButton>
                 </div>
               </div>
 

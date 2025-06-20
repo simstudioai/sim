@@ -235,6 +235,19 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
     return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
   }
 
+  // Helper function to create uploadedFiles array from file uploads
+  const createUploadedFile = (
+    filename: string,
+    fileUrl: string,
+    fileSize: number,
+    mimeType: string
+  ) => ({
+    filename,
+    fileUrl: fileUrl.startsWith('http') ? fileUrl : `${window.location.origin}${fileUrl}`,
+    fileSize,
+    mimeType,
+  })
+
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true)
     setSubmitStatus(null)
@@ -322,14 +335,9 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
                 )
               }
 
-              uploadedFiles.push({
-                filename: file.name,
-                fileUrl: presignedData.fileInfo.path.startsWith('http')
-                  ? presignedData.fileInfo.path
-                  : `${window.location.origin}${presignedData.fileInfo.path}`,
-                fileSize: file.size,
-                mimeType: file.type,
-              })
+              uploadedFiles.push(
+                createUploadedFile(file.name, presignedData.fileInfo.path, file.size, file.type)
+              )
             } else {
               const formData = new FormData()
               formData.append('file', file)
@@ -347,14 +355,9 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
               }
 
               const uploadResult = await uploadResponse.json()
-              uploadedFiles.push({
-                filename: file.name,
-                fileUrl: uploadResult.path.startsWith('http')
-                  ? uploadResult.path
-                  : `${window.location.origin}${uploadResult.path}`,
-                fileSize: file.size,
-                mimeType: file.type,
-              })
+              uploadedFiles.push(
+                createUploadedFile(file.name, uploadResult.path, file.size, file.type)
+              )
             }
           } catch (error) {
             throw new Error(
@@ -364,25 +367,23 @@ export function CreateModal({ open, onOpenChange, onKnowledgeBaseCreated }: Crea
         }
 
         // Start async document processing
-        const processResponse = await fetch(
-          `/api/knowledge/${newKnowledgeBase.id}/process-documents`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
+        const processResponse = await fetch(`/api/knowledge/${newKnowledgeBase.id}/documents`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            documents: uploadedFiles,
+            processingOptions: {
+              chunkSize: data.maxChunkSize,
+              minCharactersPerChunk: data.minChunkSize,
+              chunkOverlap: data.overlapSize,
+              recipe: 'default',
+              lang: 'en',
             },
-            body: JSON.stringify({
-              documents: uploadedFiles,
-              processingOptions: {
-                chunkSize: data.maxChunkSize,
-                minCharactersPerChunk: data.minChunkSize,
-                chunkOverlap: data.overlapSize,
-                recipe: 'default',
-                lang: 'en',
-              },
-            }),
-          }
-        )
+            bulk: true,
+          }),
+        })
 
         if (!processResponse.ok) {
           throw new Error('Failed to start document processing')

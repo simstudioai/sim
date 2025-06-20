@@ -46,7 +46,9 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       const requestBody = {
         knowledgeBaseIds,
         query: params.query,
-        topK: params.topK ? Number.parseInt(params.topK.toString()) : 10,
+        topK: params.topK
+          ? Math.max(1, Math.min(100, Number.parseInt(params.topK.toString()) || 10))
+          : 10,
         ...(workflowId && { workflowId }),
       }
 
