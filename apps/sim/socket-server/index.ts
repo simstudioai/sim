@@ -6,6 +6,7 @@ interface AuthenticatedSocket extends Socket {
   userId?: string
   userName?: string
   userEmail?: string
+  activeOrganizationId?: string
 }
 
 import { and, eq, isNull, or } from 'drizzle-orm'
@@ -143,12 +144,8 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
     // Extract session from socket handshake
     const cookies = socket.handshake.headers.cookie
     if (!cookies) {
-      logger.warn(`Socket ${socket.id} has no cookies, using fallback authentication`)
-      // Allow connection with fallback user info for testing
-      socket.userId = `fallback-user-${socket.id.slice(0, 8)}`
-      socket.userName = `Fallback User ${socket.id.slice(0, 8)}`
-      socket.userEmail = 'fallback@example.com'
-      return next()
+      logger.warn(`Socket ${socket.id} rejected: No cookies found`)
+      return next(new Error('Authentication required'))
     }
 
     // Parse cookies to find the session cookie
@@ -163,12 +160,8 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
     // Look for better-auth session cookie (usually named 'better-auth.session_token')
     const sessionToken = cookieMap.get('better-auth.session_token')
     if (!sessionToken) {
-      logger.warn(`Socket ${socket.id} has no session token, using fallback authentication`)
-      // Allow connection with fallback user info for testing
-      socket.userId = `fallback-user-${socket.id.slice(0, 8)}`
-      socket.userName = `Fallback User ${socket.id.slice(0, 8)}`
-      socket.userEmail = 'fallback@example.com'
-      return next()
+      logger.warn(`Socket ${socket.id} rejected: No session token found`)
+      return next(new Error('Authentication required'))
     }
 
     // Validate session with better-auth
@@ -190,21 +183,22 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
       socket.userId = session.user.id
       socket.userName = session.user.name || session.user.email || 'Unknown User'
       socket.userEmail = session.user.email
+      socket.activeOrganizationId = session.session.activeOrganizationId || undefined
 
       logger.info(
-        `Socket ${socket.id} authenticated for user ${session.user.id} (${socket.userName})`
+        `✅ Socket.IO user authenticated: ${socket.id}`, {
+          userId: session.user.id,
+          userName: socket.userName,
+          organizationId: socket.activeOrganizationId
+        }
       )
       next()
     } catch (sessionError) {
       logger.warn(
-        `Session validation failed for socket ${socket.id}, allowing with fallback:`,
+        `Session validation failed for socket ${socket.id}:`,
         sessionError
       )
-      // Allow connection with fallback user info for testing
-      socket.userId = `fallback-user-${socket.id.slice(0, 8)}`
-      socket.userName = `Fallback User ${socket.id.slice(0, 8)}`
-      socket.userEmail = 'fallback@example.com'
-      next()
+      return next(new Error('Session validation failed'))
     }
   } catch (error) {
     logger.error(`Socket authentication error for ${socket.id}:`, error)
@@ -942,24 +936,32 @@ io.on('connection', (socket: AuthenticatedSocket) => {
   // Handle joining a workflow room with enhanced authentication
   socket.on('join-workflow', async ({ workflowId }) => {
     try {
-      // Use authenticated user info from socket, or fallback for testing
-      const userId = socket.userId || `test-user-${socket.id.slice(0, 8)}`
-      const userName = socket.userName || `Test User ${socket.id.slice(0, 8)}`
+      // Use authenticated user info from socket
+      const userId = socket.userId
+      const userName = socket.userName
+
+      if (!userId || !userName) {
+        logger.warn(`Join workflow rejected: Socket ${socket.id} not authenticated`)
+        socket.emit('join-workflow-error', { error: 'Authentication required' })
+        return
+      }
 
       logger.info(`Join workflow request from ${userId} (${userName}) for workflow ${workflowId}`)
 
-      // Verify workflow access with fallback for testing
+      // Verify workflow access
       try {
         const accessInfo = await verifyWorkflowAccess(userId, workflowId)
         if (!accessInfo.hasAccess) {
           logger.warn(
-            `User ${userId} (${userName}) denied access to workflow ${workflowId}, allowing for testing`
+            `User ${userId} (${userName}) denied access to workflow ${workflowId}`
           )
-          // Allow access for testing but log the issue
+          socket.emit('join-workflow-error', { error: 'Access denied to workflow' })
+          return
         }
       } catch (error) {
-        logger.warn(`Error verifying workflow access for ${userId}, allowing for testing:`, error)
-        // Allow access for testing
+        logger.warn(`Error verifying workflow access for ${userId}:`, error)
+        socket.emit('join-workflow-error', { error: 'Failed to verify workflow access' })
+        return
       }
 
       // Leave any previous workflow room
@@ -1074,17 +1076,16 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         target
       )
       if (!permissionCheck.allowed) {
-        // Temporarily allow all operations for testing
         logger.warn(
-          `User ${session.userId} would be forbidden from ${operation} on ${target}: ${permissionCheck.reason}, but allowing for testing`
+          `User ${session.userId} forbidden from ${operation} on ${target}: ${permissionCheck.reason}`
         )
-        // socket.emit('operation-forbidden', {
-        //   type: 'INSUFFICIENT_PERMISSIONS',
-        //   message: permissionCheck.reason || 'Insufficient permissions for this operation',
-        //   operation,
-        //   target,
-        // })
-        // return
+        socket.emit('operation-forbidden', {
+          type: 'INSUFFICIENT_PERMISSIONS',
+          message: permissionCheck.reason || 'Insufficient permissions for this operation',
+          operation,
+          target,
+        })
+        return
       }
 
       // Update user activity
