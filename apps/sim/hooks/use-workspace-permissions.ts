@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
 import { permissionTypeEnum } from '@/db/schema'
+import { API_ENDPOINTS } from '@/stores/constants'
 
 const logger = createLogger('useWorkspacePermissions')
 
@@ -43,7 +44,7 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`/api/workspaces/${id}/permissions`)
+      const response = await fetch(API_ENDPOINTS.WORKSPACE_PERMISSIONS(id))
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -78,11 +79,6 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
 
   const updatePermissions = (newPermissions: WorkspacePermissions): void => {
     setPermissions(newPermissions)
-    logger.info('Workspace permissions updated locally', {
-      workspaceId,
-      userCount: newPermissions.total,
-      users: newPermissions.users.map(u => ({ email: u.email, permissions: u.permissions }))
-    })
   }
 
   useEffect(() => {

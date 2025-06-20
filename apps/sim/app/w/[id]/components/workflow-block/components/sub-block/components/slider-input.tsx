@@ -59,11 +59,7 @@ export function SliderInput({
         min={min}
         max={max}
         step={integer ? 1 : step}
-        onValueChange={(value) => {
-          if (!disabled) {
-            setStoreValue(integer ? Math.round(value[0]) : value[0])
-          }
-        }}
+        onValueChange={handleValueChange}
         disabled={isPreview || disabled}
         className='[&_[class*=SliderTrack]]:h-1 [&_[role=slider]]:h-4 [&_[role=slider]]:w-4'
       />

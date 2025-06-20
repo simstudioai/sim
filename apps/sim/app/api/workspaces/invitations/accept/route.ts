@@ -153,39 +153,42 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Add user to workspace
-    await db.insert(workspaceMember).values({
-      id: randomUUID(),
-      workspaceId: invitation.workspaceId,
-      userId: session.user.id,
-      role: invitation.role,
-      joinedAt: new Date(),
-      updatedAt: new Date(),
-    })
-
-    // Add permissions to the permissions table based on the invitation
-    const permissionsToInsert = invitation.permissions.map((permissionType) => ({
-      id: randomUUID(),
-      userId: session.user.id,
-      entityType: 'workspace',
-      entityId: invitation.workspaceId,
-      permissionType: permissionType,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }))
-
-    if (permissionsToInsert.length > 0) {
-      await db.insert(permissions).values(permissionsToInsert)
-    }
-
-    // Mark invitation as accepted
-    await db
-      .update(workspaceInvitation)
-      .set({
-        status: 'accepted',
+    // Add user to workspace, permissions, and mark invitation as accepted in a transaction
+    await db.transaction(async (tx) => {
+      // Add user to workspace
+      await tx.insert(workspaceMember).values({
+        id: randomUUID(),
+        workspaceId: invitation.workspaceId,
+        userId: session.user.id,
+        role: invitation.role,
+        joinedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(workspaceInvitation.id, invitation.id))
+
+      // Add permissions to the permissions table based on the invitation
+      const permissionsToInsert = (invitation.permissions || []).map((permissionType) => ({
+        id: randomUUID(),
+        userId: session.user.id,
+        entityType: 'workspace',
+        entityId: invitation.workspaceId,
+        permissionType: permissionType,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }))
+
+      if (permissionsToInsert.length > 0) {
+        await tx.insert(permissions).values(permissionsToInsert)
+      }
+
+      // Mark invitation as accepted
+      await tx
+        .update(workspaceInvitation)
+        .set({
+          status: 'accepted',
+          updatedAt: new Date(),
+        })
+        .where(eq(workspaceInvitation.id, invitation.id))
+    })
 
     // Redirect to the workspace
     return NextResponse.redirect(

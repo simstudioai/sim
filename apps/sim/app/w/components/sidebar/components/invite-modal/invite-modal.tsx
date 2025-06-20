@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSession } from '@/lib/auth-client'
 import { useWorkspacePermissions, WorkspacePermissions } from '@/hooks/use-workspace-permissions'
+import { API_ENDPOINTS } from '@/stores/constants'
 
 interface InviteModalProps {
   open: boolean
@@ -447,9 +448,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         }
       }))
 
-      console.log('Saving changes:', updates) // DEBUG
-
-      const response = await fetch(`/api/workspaces/${activeWorkspaceId}/permissions`, {
+      const response = await fetch(API_ENDPOINTS.WORKSPACE_PERMISSIONS(activeWorkspaceId), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

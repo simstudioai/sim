@@ -307,7 +307,7 @@ export function SubBlock({
           <FileSelectorInput
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isDisabled}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />
@@ -317,7 +317,7 @@ export function SubBlock({
           <ProjectSelectorInput
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isDisabled}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />
@@ -327,7 +327,7 @@ export function SubBlock({
           <FolderSelectorInput
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isDisabled}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />
@@ -337,7 +337,7 @@ export function SubBlock({
           <KnowledgeBaseSelector
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isDisabled}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />
@@ -347,7 +347,7 @@ export function SubBlock({
           <DocumentSelector
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isDisabled}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />
@@ -367,7 +367,7 @@ export function SubBlock({
           <ChannelSelectorInput
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isDisabled}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />

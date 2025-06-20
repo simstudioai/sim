@@ -257,7 +257,7 @@ export function ScheduleConfig({
   }
 
   const handleDeleteSchedule = async (): Promise<boolean> => {
-    if (isPreview || disabled) return false
+    if (isPreview || !scheduleId || disabled) return false
 
     setIsDeleting(true)
     try {

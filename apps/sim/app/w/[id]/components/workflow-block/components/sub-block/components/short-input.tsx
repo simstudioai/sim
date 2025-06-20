@@ -95,7 +95,10 @@ export function ShortInput({
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Don't allow changes if disabled
-    if (disabled) return
+    if (disabled) {
+      e.preventDefault()
+      return
+    }
     
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0

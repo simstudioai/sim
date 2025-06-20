@@ -73,7 +73,7 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
       })
 
       return {
-        canRead: true,
+        canRead: false,
         canEdit: false,
         canDeploy: false,
         canAdmin: false,
