@@ -495,13 +495,20 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               ) : (
                 <span
                   className={cn(
-                    'inline-block cursor-text font-medium text-md hover:text-muted-foreground',
+                    'block cursor-text font-medium text-md hover:text-muted-foreground',
+                    'overflow-hidden text-ellipsis whitespace-nowrap',
                     !isEnabled && 'text-muted-foreground'
                   )}
                   onClick={handleNameClick}
                   title={name}
                   style={{
-                    maxWidth: !isEnabled ? (isWide ? '200px' : '140px') : '180px',
+                    maxWidth: !isEnabled
+                      ? isWide
+                        ? '200px'
+                        : '140px'
+                      : isWide
+                        ? '220px'
+                        : '180px',
                   }}
                 >
                   {name}
