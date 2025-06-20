@@ -148,7 +148,9 @@ export function useCollaborativeWorkflow() {
 
       // If the deleted workflow is the currently active one, we need to handle this gracefully
       if (activeWorkflowId === workflowId) {
-        logger.info(`Currently active workflow ${workflowId} was deleted, stopping collaborative operations`)
+        logger.info(
+          `Currently active workflow ${workflowId} was deleted, stopping collaborative operations`
+        )
         // The workflow registry should handle switching to another workflow
         // We just need to stop any pending collaborative operations
         isApplyingRemoteChange.current = false
@@ -303,7 +305,12 @@ export function useCollaborativeWorkflow() {
       subBlockStore.setValue(blockId, subblockId, value)
 
       // Then broadcast to other clients, but only if we have a valid workflow connection
-      if (!isApplyingRemoteChange.current && isConnected && currentWorkflowId && activeWorkflowId === currentWorkflowId) {
+      if (
+        !isApplyingRemoteChange.current &&
+        isConnected &&
+        currentWorkflowId &&
+        activeWorkflowId === currentWorkflowId
+      ) {
         emitSubblockUpdate(blockId, subblockId, value)
       } else if (!isConnected || !currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
         logger.debug('Skipping subblock update broadcast', {

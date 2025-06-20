@@ -720,9 +720,11 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
         // Emit a global event to notify that the active workflow has changed
         // This allows the workflow component to join the socket room
-        window.dispatchEvent(new CustomEvent('active-workflow-changed', {
-          detail: { workflowId: id }
-        }))
+        window.dispatchEvent(
+          new CustomEvent('active-workflow-changed', {
+            detail: { workflowId: id },
+          })
+        )
 
         logger.info(`Switched to workflow ${id}`)
       },
@@ -1484,7 +1486,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
               lastSaved: Date.now(),
             })
 
-            logger.info(`Cleared active workflow ${id} - user will need to manually select another workflow`)
+            logger.info(
+              `Cleared active workflow ${id} - user will need to manually select another workflow`
+            )
           }
 
           // Cancel any schedule for this workflow (async, don't wait)

@@ -270,7 +270,10 @@ function WorkflowContent() {
     window.addEventListener('active-workflow-changed', handleActiveWorkflowChanged as EventListener)
 
     return () => {
-      window.removeEventListener('active-workflow-changed', handleActiveWorkflowChanged as EventListener)
+      window.removeEventListener(
+        'active-workflow-changed',
+        handleActiveWorkflowChanged as EventListener
+      )
     }
   }, [isConnected, joinWorkflow])
 
