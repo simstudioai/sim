@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui/card'
 import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { getBlock } from '@/blocks'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 
 interface ConnectionBlocksProps {
   blockId: string
@@ -15,7 +15,11 @@ interface ResponseField {
   description?: string
 }
 
-export function ConnectionBlocks({ blockId, horizontalHandles, setIsConnecting }: ConnectionBlocksProps) {
+export function ConnectionBlocks({
+  blockId,
+  horizontalHandles,
+  setIsConnecting,
+}: ConnectionBlocksProps) {
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(blockId)
 
   if (!hasIncomingConnections) return null
@@ -109,8 +113,8 @@ export function ConnectionBlocks({ blockId, horizontalHandles, setIsConnecting }
   }
 
   // Use connections in distance order (already sorted by the hook)
-  const sortedConnections = incomingConnections.filter((connection, index, arr) => 
-    arr.findIndex(c => c.id === connection.id) === index
+  const sortedConnections = incomingConnections.filter(
+    (connection, index, arr) => arr.findIndex((c) => c.id === connection.id) === index
   )
 
   // Helper function to render a connection card
@@ -147,7 +151,7 @@ export function ConnectionBlocks({ blockId, horizontalHandles, setIsConnecting }
 
   // Generate all connection cards
   const connectionCards: React.ReactNode[] = []
-  
+
   sortedConnections.forEach((connection, index) => {
     // Special handling for starter blocks with input format
     if (connection.type === 'starter') {
@@ -186,9 +190,5 @@ export function ConnectionBlocks({ blockId, horizontalHandles, setIsConnecting }
     ? 'absolute bottom-full left-0 flex max-w-[600px] flex-wrap-reverse gap-2 pb-3'
     : 'absolute top-0 right-full flex max-h-[400px] max-w-[200px] flex-col items-end gap-2 overflow-y-auto pr-3'
 
-  return (
-    <div className={containerClasses}>
-      {connectionCards}
-    </div>
-  )
+  return <div className={containerClasses}>{connectionCards}</div>
 }

@@ -425,7 +425,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         <ActionBar blockId={id} blockType={type} />
-        <ConnectionBlocks blockId={id} horizontalHandles={horizontalHandles} setIsConnecting={setIsConnecting} />
+        <ConnectionBlocks
+          blockId={id}
+          horizontalHandles={horizontalHandles}
+          setIsConnecting={setIsConnecting}
+        />
 
         {/* Input Handle - Don't show for starter blocks */}
         {type !== 'starter' && (
@@ -487,13 +491,20 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
               ) : (
                 <span
                   className={cn(
-                    'inline-block cursor-text font-medium text-md hover:text-muted-foreground',
+                    'block cursor-text font-medium text-md hover:text-muted-foreground',
+                    'overflow-hidden text-ellipsis whitespace-nowrap',
                     !isEnabled && 'text-muted-foreground'
                   )}
                   onClick={handleNameClick}
                   title={name}
                   style={{
-                    maxWidth: !isEnabled ? (isWide ? '200px' : '140px') : '180px',
+                    maxWidth: !isEnabled
+                      ? isWide
+                        ? '200px'
+                        : '140px'
+                      : isWide
+                        ? '220px'
+                        : '180px',
                   }}
                 >
                   {name}
