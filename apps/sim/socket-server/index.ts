@@ -30,7 +30,7 @@ const httpServer = createServer((req, res) => {
   // Handle workflow deletion notifications from the main API
   if (req.method === 'POST' && req.url === '/api/workflow-deleted') {
     let body = ''
-    req.on('data', chunk => {
+    req.on('data', (chunk) => {
       body += chunk.toString()
     })
     req.on('end', () => {
@@ -429,7 +429,7 @@ function handleWorkflowDeletion(workflowId: string) {
   })
 
   // Clean up each socket connection
-  socketsToDisconnect.forEach(socketId => {
+  socketsToDisconnect.forEach((socketId) => {
     const socket = io.sockets.sockets.get(socketId)
     if (socket) {
       socket.leave(workflowId)
@@ -440,7 +440,9 @@ function handleWorkflowDeletion(workflowId: string) {
 
   // Clean up the room completely
   workflowRooms.delete(workflowId)
-  logger.info(`Cleaned up workflow room ${workflowId} after deletion (${socketsToDisconnect.length} users disconnected)`)
+  logger.info(
+    `Cleaned up workflow room ${workflowId} after deletion (${socketsToDisconnect.length} users disconnected)`
+  )
 }
 
 // Database helper functions
@@ -797,11 +799,15 @@ async function handleEdgeOperation(
 
         if (sourceBlock.length === 0) {
           // For new workflows, blocks might not be persisted yet - log warning but don't fail
-          logger.warn(`Source block ${payload.source} not found in database - may be a new workflow`)
+          logger.warn(
+            `Source block ${payload.source} not found in database - may be a new workflow`
+          )
           throw new Error(`Source block ${payload.source} not found`)
         }
         if (targetBlock.length === 0) {
-          logger.warn(`Target block ${payload.target} not found in database - may be a new workflow`)
+          logger.warn(
+            `Target block ${payload.target} not found in database - may be a new workflow`
+          )
           throw new Error(`Target block ${payload.target} not found`)
         }
 
@@ -1280,9 +1286,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         const [block] = await tx
           .select({ data: workflowBlocks.data })
           .from(workflowBlocks)
-          .where(
-            and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
-          )
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
           .limit(1)
 
         if (!block) {
@@ -1306,13 +1310,13 @@ io.on('connection', (socket: AuthenticatedSocket) => {
           .update(workflowBlocks)
           .set({
             data: blockData,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
-          .where(
-            and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
-          )
+          .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
 
-        logger.debug(`✅ Persisted subblock update: ${workflowId}/${blockId}.${subblockId} = ${JSON.stringify(value)}`)
+        logger.debug(
+          `✅ Persisted subblock update: ${workflowId}/${blockId}.${subblockId} = ${JSON.stringify(value)}`
+        )
       })
 
       // Broadcast to other clients after successful persistence

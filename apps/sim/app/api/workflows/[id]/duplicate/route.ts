@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import crypto from 'crypto'
+import { and, eq } from 'drizzle-orm'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
 
 const logger = createLogger('WorkflowDuplicateAPI')
 
@@ -18,10 +18,7 @@ const DuplicateRequestSchema = z.object({
 })
 
 // POST /api/workflows/[id]/duplicate - Duplicate a workflow with all its blocks, edges, and subflows
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: sourceWorkflowId } = await params
   const requestId = crypto.randomUUID().slice(0, 8)
   const startTime = Date.now()
@@ -29,14 +26,18 @@ export async function POST(
   try {
     const session = await getSession()
     if (!session?.user?.id) {
-      logger.warn(`[${requestId}] Unauthorized workflow duplication attempt for ${sourceWorkflowId}`)
+      logger.warn(
+        `[${requestId}] Unauthorized workflow duplication attempt for ${sourceWorkflowId}`
+      )
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await req.json()
     const { name, description, color, workspaceId, folderId } = DuplicateRequestSchema.parse(body)
 
-    logger.info(`[${requestId}] Duplicating workflow ${sourceWorkflowId} for user ${session.user.id}`)
+    logger.info(
+      `[${requestId}] Duplicating workflow ${sourceWorkflowId} for user ${session.user.id}`
+    )
 
     // Generate new workflow ID
     const newWorkflowId = crypto.randomUUID()
@@ -91,7 +92,7 @@ export async function POST(
       let updatedState = source.state
 
       if (sourceBlocks.length > 0) {
-        const newBlocks = sourceBlocks.map(block => {
+        const newBlocks = sourceBlocks.map((block) => {
           const newBlockId = crypto.randomUUID()
           blockIdMapping.set(block.id, newBlockId)
 
@@ -115,7 +116,7 @@ export async function POST(
         .where(eq(workflowEdges.workflowId, sourceWorkflowId))
 
       if (sourceEdges.length > 0) {
-        const newEdges = sourceEdges.map(edge => ({
+        const newEdges = sourceEdges.map((edge) => ({
           ...edge,
           id: crypto.randomUUID(), // Generate new edge ID
           workflowId: newWorkflowId,
@@ -126,7 +127,9 @@ export async function POST(
         }))
 
         await tx.insert(workflowEdges).values(newEdges)
-        logger.info(`[${requestId}] Copied ${sourceEdges.length} edges with updated block references`)
+        logger.info(
+          `[${requestId}] Copied ${sourceEdges.length} edges with updated block references`
+        )
       }
 
       // Copy all subflows from source workflow with new IDs and updated block references
@@ -136,7 +139,7 @@ export async function POST(
         .where(eq(workflowSubflows.workflowId, sourceWorkflowId))
 
       if (sourceSubflows.length > 0) {
-        const newSubflows = sourceSubflows.map(subflow => {
+        const newSubflows = sourceSubflows.map((subflow) => {
           // Update block references in subflow config
           let updatedConfig = subflow.config
           if (subflow.config && typeof subflow.config === 'object') {
@@ -144,8 +147,8 @@ export async function POST(
 
             // Update node references in config if they exist
             if (updatedConfig.nodes && Array.isArray(updatedConfig.nodes)) {
-              updatedConfig.nodes = updatedConfig.nodes.map((nodeId: string) =>
-                blockIdMapping.get(nodeId) || nodeId
+              updatedConfig.nodes = updatedConfig.nodes.map(
+                (nodeId: string) => blockIdMapping.get(nodeId) || nodeId
               )
             }
           }
@@ -161,7 +164,9 @@ export async function POST(
         })
 
         await tx.insert(workflowSubflows).values(newSubflows)
-        logger.info(`[${requestId}] Copied ${sourceSubflows.length} subflows with updated block references`)
+        logger.info(
+          `[${requestId}] Copied ${sourceSubflows.length} subflows with updated block references`
+        )
       }
 
       // Update the JSON state to use new block IDs
@@ -212,10 +217,11 @@ export async function POST(
       }
 
       // Update the workflow state with the new block IDs
-      await tx.update(workflow)
+      await tx
+        .update(workflow)
         .set({
           state: updatedState,
-          updatedAt: now
+          updatedAt: now,
         })
         .where(eq(workflow.id, newWorkflowId))
 
@@ -233,12 +239,16 @@ export async function POST(
     })
 
     const elapsed = Date.now() - startTime
-    logger.info(`[${requestId}] Successfully duplicated workflow ${sourceWorkflowId} to ${newWorkflowId} in ${elapsed}ms`)
+    logger.info(
+      `[${requestId}] Successfully duplicated workflow ${sourceWorkflowId} to ${newWorkflowId} in ${elapsed}ms`
+    )
 
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof Error && error.message === 'Source workflow not found or access denied') {
-      logger.warn(`[${requestId}] Source workflow ${sourceWorkflowId} not found or access denied for user ${session.user.id}`)
+      logger.warn(
+        `[${requestId}] Source workflow ${sourceWorkflowId} not found or access denied for user ${session.user.id}`
+      )
       return NextResponse.json({ error: 'Source workflow not found' }, { status: 404 })
     }
 
@@ -251,7 +261,10 @@ export async function POST(
     }
 
     const elapsed = Date.now() - startTime
-    logger.error(`[${requestId}] Error duplicating workflow ${sourceWorkflowId} after ${elapsed}ms:`, error)
+    logger.error(
+      `[${requestId}] Error duplicating workflow ${sourceWorkflowId} after ${elapsed}ms:`,
+      error
+    )
     return NextResponse.json({ error: 'Failed to duplicate workflow' }, { status: 500 })
   }
 }

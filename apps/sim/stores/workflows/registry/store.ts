@@ -692,7 +692,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             lastSaved: Date.now(),
           }
 
-          logger.warn(`Workflow ${id} has no state in DB - this should not happen with server-side start block creation`)
+          logger.warn(
+            `Workflow ${id} has no state in DB - this should not happen with server-side start block creation`
+          )
         }
 
         // Set the workflow state in the store
@@ -966,7 +968,9 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
 
             if (!response.ok) {
               const errorData = await response.json()
-              throw new Error(`Failed to create workflow: ${errorData.error || response.statusText}`)
+              throw new Error(
+                `Failed to create workflow: ${errorData.error || response.statusText}`
+              )
             }
 
             const createdWorkflow = await response.json()
@@ -1007,7 +1011,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         try {
           finalId = await persistWorkflow()
         } catch (error) {
-          logger.error(`Critical: Failed to persist new workflow ${id}, Socket.IO operations may fail:`, error)
+          logger.error(
+            `Critical: Failed to persist new workflow ${id}, Socket.IO operations may fail:`,
+            error
+          )
           // Don't throw - allow workflow creation to continue in memory
         }
 
@@ -1122,7 +1129,10 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         try {
           await persistWorkflow()
         } catch (error) {
-          logger.error(`Critical: Failed to persist marketplace workflow ${id}, Socket.IO operations may fail:`, error)
+          logger.error(
+            `Critical: Failed to persist marketplace workflow ${id}, Socket.IO operations may fail:`,
+            error
+          )
           // Don't throw - allow workflow creation to continue in memory
         }
 
@@ -1166,10 +1176,14 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           }
 
           duplicatedWorkflow = await response.json()
-          logger.info(`Successfully duplicated workflow ${sourceId} to ${duplicatedWorkflow.id} with ${duplicatedWorkflow.blocksCount} blocks, ${duplicatedWorkflow.edgesCount} edges, ${duplicatedWorkflow.subflowsCount} subflows`)
+          logger.info(
+            `Successfully duplicated workflow ${sourceId} to ${duplicatedWorkflow.id} with ${duplicatedWorkflow.blocksCount} blocks, ${duplicatedWorkflow.edgesCount} edges, ${duplicatedWorkflow.subflowsCount} subflows`
+          )
         } catch (error) {
           logger.error(`Failed to duplicate workflow ${sourceId}:`, error)
-          set({ error: `Failed to duplicate workflow: ${error instanceof Error ? error.message : 'Unknown error'}` })
+          set({
+            error: `Failed to duplicate workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          })
           return null
         }
 

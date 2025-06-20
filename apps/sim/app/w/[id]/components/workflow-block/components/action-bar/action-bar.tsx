@@ -2,8 +2,8 @@ import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, Trash2 } from 'lu
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface ActionBarProps {
   blockId: string

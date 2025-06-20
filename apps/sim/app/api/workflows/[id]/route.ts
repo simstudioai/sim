@@ -4,7 +4,13 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
-import { workflow, workspaceMember, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
+import {
+  workflow,
+  workflowBlocks,
+  workflowEdges,
+  workflowSubflows,
+  workspaceMember,
+} from '@/db/schema'
 
 const logger = createLogger('WorkflowByIdAPI')
 
@@ -207,12 +213,19 @@ export async function DELETE(
       })
 
       if (socketResponse.ok) {
-        logger.info(`[${requestId}] Notified Socket.IO server about workflow ${workflowId} deletion`)
+        logger.info(
+          `[${requestId}] Notified Socket.IO server about workflow ${workflowId} deletion`
+        )
       } else {
-        logger.warn(`[${requestId}] Failed to notify Socket.IO server about workflow ${workflowId} deletion`)
+        logger.warn(
+          `[${requestId}] Failed to notify Socket.IO server about workflow ${workflowId} deletion`
+        )
       }
     } catch (error) {
-      logger.warn(`[${requestId}] Error notifying Socket.IO server about workflow ${workflowId} deletion:`, error)
+      logger.warn(
+        `[${requestId}] Error notifying Socket.IO server about workflow ${workflowId} deletion:`,
+        error
+      )
       // Don't fail the deletion if Socket.IO notification fails
     }
 

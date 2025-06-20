@@ -3,7 +3,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
-import { workspace, workspaceMember, workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
+import {
+  workflow,
+  workflowBlocks,
+  workflowEdges,
+  workflowSubflows,
+  workspace,
+  workspaceMember,
+} from '@/db/schema'
 
 const logger = createLogger('WorkspaceByIdAPI')
 

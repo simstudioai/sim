@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import crypto from 'crypto'
+import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
@@ -258,7 +258,9 @@ export async function POST(req: NextRequest) {
         updatedAt: now,
       })
 
-      logger.info(`[${requestId}] Successfully created workflow ${workflowId} with start block in workflow_blocks table`)
+      logger.info(
+        `[${requestId}] Successfully created workflow ${workflowId} with start block in workflow_blocks table`
+      )
     })
 
     return NextResponse.json({

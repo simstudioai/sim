@@ -6,7 +6,6 @@ import { StartIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { LoopBadges } from './components/loop-badges'
 
