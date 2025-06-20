@@ -433,11 +433,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
-        <ConnectionBlocks
-          blockId={id}
-          setIsConnecting={setIsConnecting}
-          isDisabled={!userPermissions.canEdit}
-        />
+        <ConnectionBlocks blockId={id} horizontalHandles={horizontalHandles} setIsConnecting={setIsConnecting} isDisabled={!userPermissions.canEdit} />
 
         {/* Input Handle - Don't show for starter blocks */}
         {type !== 'starter' && (

@@ -2,9 +2,11 @@ import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { getBlock } from '@/blocks'
 
 interface ConnectionBlocksProps {
   blockId: string
+  horizontalHandles: boolean
   setIsConnecting: (isConnecting: boolean) => void
   isDisabled?: boolean
 }
@@ -17,7 +19,7 @@ interface ResponseField {
 
 export function ConnectionBlocks({
   blockId,
-  setIsConnecting,
+  horizontalHandles, setIsConnecting,
   isDisabled = false,
 }: ConnectionBlocksProps) {
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(blockId)
@@ -117,86 +119,92 @@ export function ConnectionBlocks({
     }
   }
 
-  // Deduplicate connections by ID
-  const connectionMap = incomingConnections.reduce(
-    (acc, connection) => {
-      acc[connection.id] = connection
-      return acc
-    },
-    {} as Record<string, ConnectedBlock>
-  )
-
-  // Sort connections by name
-  const sortedConnections = Object.values(connectionMap).sort((a, b) =>
-    a.name.localeCompare(b.name)
+  // Use connections in distance order (already sorted by the hook)
+  const sortedConnections = incomingConnections.filter((connection, index, arr) => 
+    arr.findIndex(c => c.id === connection.id) === index
   )
 
   // Helper function to render a connection card
   const renderConnectionCard = (connection: ConnectedBlock, field?: ResponseField) => {
-    const displayName = connection.name.replace(/\s+/g, '').toLowerCase()
+    // Get block configuration for icon and color
+    const blockConfig = getBlock(connection.type)
+    const displayName = connection.name // Use the actual block name instead of transforming it
+    const Icon = blockConfig?.icon
+    const bgColor = blockConfig?.bgColor || '#6B7280' // Fallback to gray
 
     return (
       <Card
-        key={`${field ? field.name : connection.id}`}
+        key={`${connection.id}-${field ? field.name : 'default'}`}
         draggable={!isDisabled}
         onDragStart={(e) => handleDragStart(e, connection, field)}
         onDragEnd={handleDragEnd}
         className={cn(
-          'group flex w-max items-center rounded-lg border bg-card p-2 shadow-sm transition-colors',
+          'group flex w-max items-center gap-2 rounded-lg border bg-card p-2 shadow-sm transition-colors',
           !isDisabled
             ? 'cursor-grab hover:bg-accent/50 active:cursor-grabbing'
             : 'cursor-not-allowed opacity-60'
         )}
       >
+        {/* Block icon with color */}
+        {Icon && (
+          <div
+            className='flex h-5 w-5 flex-shrink-0 items-center justify-center rounded'
+            style={{ backgroundColor: bgColor }}
+          >
+            <Icon className='h-3 w-3 text-white' />
+          </div>
+        )}
         <div className='text-sm'>
           <span className='font-medium leading-none'>{displayName}</span>
-          <span className='text-muted-foreground'>
-            {field
-              ? `.${field.name}`
-              : typeof connection.outputType === 'string'
-                ? `.${connection.outputType}`
-                : ''}
-          </span>
         </div>
       </Card>
     )
   }
 
-  return (
-    <div className='absolute top-0 right-full flex max-h-[400px] flex-col items-end space-y-2 overflow-y-auto pr-5'>
-      {sortedConnections.map((connection, index) => {
-        // Special handling for starter blocks with input format
-        if (connection.type === 'starter') {
-          const starterFields = extractFieldsFromStarterInput(connection)
+  // Generate all connection cards
+  const connectionCards: React.ReactNode[] = []
+  
+  sortedConnections.forEach((connection, index) => {
+    // Special handling for starter blocks with input format
+    if (connection.type === 'starter') {
+      const starterFields = extractFieldsFromStarterInput(connection)
 
-          if (starterFields.length > 0) {
-            return (
-              <div key={connection.id} className='space-y-2'>
-                {starterFields.map((field) => renderConnectionCard(connection, field))}
-              </div>
-            )
-          }
+      if (starterFields.length > 0) {
+        starterFields.forEach((field) => {
+          connectionCards.push(renderConnectionCard(connection, field))
+        })
+        return
+      }
+    }
+
+    // Regular connection handling
+    if (Array.isArray(connection.outputType)) {
+      // Handle array of field names
+      connection.outputType.forEach((fieldName) => {
+        // Try to find field in response format
+        const fields = extractFieldsFromSchema(connection)
+        const field = fields.find((f) => f.name === fieldName) || {
+          name: fieldName,
+          type: 'string',
         }
 
-        // Regular connection handling
-        return (
-          <div key={`${connection.id}-${index}`} className='space-y-2'>
-            {Array.isArray(connection.outputType)
-              ? // Handle array of field names
-                connection.outputType.map((fieldName) => {
-                  // Try to find field in response format
-                  const fields = extractFieldsFromSchema(connection)
-                  const field = fields.find((f) => f.name === fieldName) || {
-                    name: fieldName,
-                    type: 'string',
-                  }
+        connectionCards.push(renderConnectionCard(connection, field))
+      })
+    } else {
+      connectionCards.push(renderConnectionCard(connection))
+    }
+  })
 
-                  return renderConnectionCard(connection, field)
-                })
-              : renderConnectionCard(connection)}
-          </div>
-        )
-      })}
+  // Position and layout based on handle orientation - reverse of ports
+  // When ports are horizontal: connection blocks on top, aligned to left, closest blocks on bottom row
+  // When ports are vertical (default): connection blocks on left, stack vertically, aligned to right
+  const containerClasses = horizontalHandles
+    ? 'absolute bottom-full left-0 flex max-w-[600px] flex-wrap-reverse gap-2 pb-3'
+    : 'absolute top-0 right-full flex max-h-[400px] max-w-[200px] flex-col items-end gap-2 overflow-y-auto pr-3'
+
+  return (
+    <div className={containerClasses}>
+      {connectionCards}
     </div>
   )
 }

@@ -59,9 +59,9 @@ function extractFieldsFromSchema(schema: any): Field[] {
  * along connected paths
  * @param edges - List of all edges in the graph
  * @param targetNodeId - ID of the target block we're finding connections for
- * @returns Array of unique ancestor node IDs
+ * @returns Array of objects with node IDs and their distances from target
  */
-function findAllPathNodes(edges: any[], targetNodeId: string): string[] {
+function findAllPathNodes(edges: any[], targetNodeId: string): Array<{ nodeId: string; distance: number }> {
   // We'll use a reverse topological sort approach by tracking "distance" from target
   const nodeDistances = new Map<string, number>()
   const visited = new Set<string>()
@@ -107,7 +107,10 @@ function findAllPathNodes(edges: any[], targetNodeId: string): string[] {
     }
   }
 
+  // Return nodes sorted by distance (closest first)
   return Array.from(pathNodes)
+    .map(nodeId => ({ nodeId, distance: nodeDistances.get(nodeId) || 0 }))
+    .sort((a, b) => a.distance - b.distance)
 }
 
 export function useBlockConnections(blockId: string) {
@@ -120,11 +123,11 @@ export function useBlockConnections(blockId: string) {
   )
 
   // Find all blocks along paths leading to this block
-  const allPathNodeIds = findAllPathNodes(edges, blockId)
+  const allPathNodes = findAllPathNodes(edges, blockId)
 
   // Map each path node to a ConnectedBlock structure
-  const allPathConnections = allPathNodeIds
-    .map((sourceId) => {
+  const allPathConnections = allPathNodes
+    .map(({ nodeId: sourceId }) => {
       const sourceBlock = blocks[sourceId]
       if (!sourceBlock) return null
 
