@@ -96,6 +96,7 @@ export function ControlBar() {
     workflows,
     updateWorkflow,
     activeWorkflowId,
+    activeWorkspaceId,
     removeWorkflow,
     duplicateWorkflow,
     setDeploymentStatus,
@@ -106,10 +107,9 @@ export function ControlBar() {
 
   // Get current workflow and workspace ID for permissions
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
-  const workspaceId = currentWorkflow?.workspaceId || null
   
-  // User permissions - get current user's specific permissions
-  const userPermissions = useUserPermissions(workspaceId)
+  // User permissions - use stable activeWorkspaceId from registry instead of deriving from currentWorkflow
+  const userPermissions = useUserPermissions(activeWorkspaceId)
 
   // Debug mode state
   const { isDebugModeEnabled, toggleDebugMode } = useGeneralStore()
@@ -1046,7 +1046,8 @@ export function ControlBar() {
    */
   const renderRunButton = () => {
     const canRun = userPermissions.canRead // Running only requires read permissions
-    const isButtonDisabled = isExecuting || isMultiRunning || isCancelling || !canRun
+    const isLoadingPermissions = userPermissions.isLoading
+    const isButtonDisabled = isExecuting || isMultiRunning || isCancelling || (!canRun && !isLoadingPermissions)
 
     return (
       <div className='flex items-center'>
@@ -1120,7 +1121,7 @@ export function ControlBar() {
               </Button>
             </TooltipTrigger>
             <TooltipContent command={getKeyboardShortcutText('Enter', true)}>
-              {!canRun ? (
+              {!canRun && !isLoadingPermissions ? (
                 'Read permissions required to run workflows'
               ) : usageExceeded ? (
                 <div className='text-center'>
