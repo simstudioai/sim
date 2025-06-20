@@ -18,6 +18,7 @@ import { db } from '@/db'
 import * as schema from '@/db/schema'
 import { env, isTruthy } from './env'
 import { getEmailDomain } from './urls/utils'
+import { getBaseURL } from './auth-client'
 
 const logger = createLogger('Auth')
 
@@ -55,6 +56,13 @@ const resend = validResendAPIKEY
     }
 
 export const auth = betterAuth({
+  baseURL: getBaseURL(),
+  trustedOrigins: [
+    env.NEXT_PUBLIC_APP_URL,
+    ...(env.NEXT_PUBLIC_VERCEL_URL ? [`https://${env.NEXT_PUBLIC_VERCEL_URL}`] : []),
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ].filter(Boolean),
   database: drizzleAdapter(db, {
     provider: 'pg',
     schema,
