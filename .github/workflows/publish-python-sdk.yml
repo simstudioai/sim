@@ -17,11 +17,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
 
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build twine pytest requests
+          pip install build twine pytest requests tomli
 
       - name: Run tests
         working-directory: packages/python-sdk
@@ -31,7 +32,7 @@ jobs:
       - name: Get package version
         id: package_version
         working-directory: packages/python-sdk
-        run: echo "version=$(python -c "import re; print(re.search(r'version = \"(.+?)\"', open('pyproject.toml').read()).group(1))")" >> $GITHUB_OUTPUT
+        run: echo "version=$(python -c "import tomli; print(tomli.load(open('pyproject.toml', 'rb'))['project']['version'])")" >> $GITHUB_OUTPUT
 
       - name: Check if version already exists
         id: version_check
@@ -66,12 +67,12 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.version_check.outputs.exists == 'false'
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: python-sdk-v${{ steps.package_version.outputs.version }}
-          release_name: Python SDK v${{ steps.package_version.outputs.version }}
+          name: Python SDK v${{ steps.package_version.outputs.version }}
           body: |
             ## Python SDK v${{ steps.package_version.outputs.version }}
             

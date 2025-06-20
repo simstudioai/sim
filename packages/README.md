@@ -73,8 +73,7 @@ Both SDKs provide the same core functionality:
 
 Both SDKs are built on top of the same REST API endpoints:
 
-- `POST /api/workflows/{id}/execute` - Execute workflow with input
-- `GET /api/workflows/{id}/execute` - Execute workflow without input  
+- `POST /api/workflows/{id}/execute` - Execute workflow (with or without input)
 - `GET /api/workflows/{id}/status` - Get workflow status
 
 ## Authentication
@@ -107,6 +106,7 @@ Both SDKs provide consistent error handling with these error codes:
 | `UNAUTHORIZED` | Invalid API key |
 | `TIMEOUT` | Request timed out |
 | `USAGE_LIMIT_EXCEEDED` | Account usage limit exceeded |
+| `INVALID_JSON` | Invalid JSON in request body |
 | `EXECUTION_ERROR` | General execution error |
 | `STATUS_ERROR` | Error getting workflow status |
 

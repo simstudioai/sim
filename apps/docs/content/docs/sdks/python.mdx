@@ -128,8 +128,6 @@ result = client.execute_workflow_sync(
 - `workflow_id` (str): The ID of the workflow to execute
 - `input_data` (dict, optional): Input data to pass to the workflow
 - `timeout` (float): Timeout for the initial request in seconds
-- `poll_interval` (float): Reserved for future async support (currently unused)
-- `max_wait_time` (float): Reserved for future async support (currently unused)
 
 **Returns:** `WorkflowExecutionResult`
 
@@ -189,6 +187,7 @@ class WorkflowStatus:
 ```python
 class SimStudioError(Exception):
     def __init__(self, message: str, code: Optional[str] = None, status: Optional[int] = None):
+        super().__init__(message)
         self.code = code
         self.status = status
 ```
@@ -267,6 +266,8 @@ def execute_with_error_handling():
             print("Workflow execution timed out")
         elif error.code == "USAGE_LIMIT_EXCEEDED":
             print("Usage limit exceeded")
+        elif error.code == "INVALID_JSON":
+            print("Invalid JSON in request body")
         else:
             print(f"Workflow error: {error}")
         raise

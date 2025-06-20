@@ -49,7 +49,7 @@ export class SimStudioClient {
 
   constructor(config: SimStudioConfig) {
     this.apiKey = config.apiKey
-    this.baseUrl = config.baseUrl || 'https://simstudio.ai'
+    this.baseUrl = (config.baseUrl || 'https://simstudio.ai').replace(/\/+$/, '')
   }
 
   /**
@@ -69,12 +69,12 @@ export class SimStudioClient {
       })
 
       const fetchPromise = fetch(url, {
-        method: input ? 'POST' : 'GET',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': this.apiKey,
         },
-        body: input ? JSON.stringify(input) : undefined,
+        body: JSON.stringify(input || {}),
       })
 
       const response = await Promise.race([fetchPromise, timeoutPromise])
@@ -142,13 +142,11 @@ export class SimStudioClient {
    */
   async executeWorkflowSync(
     workflowId: string,
-    options: ExecutionOptions & { pollInterval?: number; maxWaitTime?: number } = {}
+    options: ExecutionOptions = {}
   ): Promise<WorkflowExecutionResult> {
-    const { pollInterval = 1000, maxWaitTime = 300000, ...executeOptions } = options
-
     // For now, the API is synchronous, so we just execute directly
     // In the future, if async execution is added, this method can be enhanced
-    return this.executeWorkflow(workflowId, executeOptions)
+    return this.executeWorkflow(workflowId, options)
   }
 
   /**
@@ -174,7 +172,7 @@ export class SimStudioClient {
    * Set a new base URL
    */
   setBaseUrl(baseUrl: string): void {
-    this.baseUrl = baseUrl
+    this.baseUrl = baseUrl.replace(/\/+$/, '')
   }
 }
 

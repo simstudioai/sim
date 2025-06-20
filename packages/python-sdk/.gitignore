@@ -50,7 +50,6 @@ coverage.xml
 .pytest_cache/
 
 # Virtual environments
-.env
 .venv
 env/
 venv/
