@@ -51,6 +51,7 @@ def test_validate_workflow_returns_false_on_error(mock_get):
     result = client.validate_workflow("test-workflow-id")
     
     assert result is False
+    mock_get.assert_called_once_with("https://simstudio.ai/api/workflows/test-workflow-id/status")
 
 
 def test_simstudio_error():
@@ -87,8 +88,10 @@ def test_workflow_status():
     assert status.needs_redeployment is False
 
 
-def test_context_manager():
+@patch('simstudio.requests.Session.close')
+def test_context_manager(mock_close):
     """Test SimStudioClient as context manager."""
     with SimStudioClient(api_key="test-api-key") as client:
         assert client.api_key == "test-api-key"
-    # Should close without error 
+    # Should close without error
+    mock_close.assert_called_once() 

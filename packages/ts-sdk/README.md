@@ -269,6 +269,50 @@ const client = new SimStudioClient({
 4. Select or create an API key during the deployment process
 5. Copy the API key to use in your application
 
+## Development
+
+### Running Tests
+
+To run the tests locally:
+
+1. Clone the repository and navigate to the TypeScript SDK directory:
+   ```bash
+   cd packages/ts-sdk
+   ```
+
+2. Install dependencies:
+   ```bash
+   bun install
+   ```
+
+3. Run the tests:
+   ```bash
+   bun run test
+   ```
+
+### Building
+
+Build the TypeScript SDK:
+
+```bash
+bun run build
+```
+
+This will compile TypeScript files to JavaScript and generate type declarations in the `dist/` directory.
+
+### Development Mode
+
+For development with auto-rebuild:
+
+```bash
+bun run dev
+```
+
+## Requirements
+
+- Node.js 18+
+- TypeScript 5.0+ (for TypeScript projects)
+
 ## License
 
 Apache-2.0 

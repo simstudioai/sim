@@ -80,7 +80,7 @@ export class SimStudioClient {
       const response = await Promise.race([fetchPromise, timeoutPromise])
 
       if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as any
+        const errorData = (await response.json().catch(() => ({}))) as unknown as any
         throw new SimStudioError(
           errorData.error || `HTTP ${response.status}: ${response.statusText}`,
           errorData.code,
@@ -118,7 +118,7 @@ export class SimStudioClient {
       })
 
       if (!response.ok) {
-        const errorData = (await response.json().catch(() => ({}))) as any
+        const errorData = (await response.json().catch(() => ({}))) as unknown as any
         throw new SimStudioError(
           errorData.error || `HTTP ${response.status}: ${response.statusText}`,
           errorData.code,

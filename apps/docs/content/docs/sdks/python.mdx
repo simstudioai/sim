@@ -74,7 +74,7 @@ result = client.execute_workflow(
 **Parameters:**
 - `workflow_id` (str): The ID of the workflow to execute
 - `input_data` (dict, optional): Input data to pass to the workflow
-- `timeout` (float): Timeout in seconds (default: 30.0)
+- `timeout` (float, optional): Timeout in seconds (default: 30.0)
 
 **Returns:** `WorkflowExecutionResult`
 
@@ -165,9 +165,9 @@ class WorkflowExecutionResult:
     success: bool
     output: Optional[Any] = None
     error: Optional[str] = None
-    logs: Optional[list] = None
+    logs: Optional[List[Any]] = None
     metadata: Optional[Dict[str, Any]] = None
-    trace_spans: Optional[list] = None
+    trace_spans: Optional[List[Any]] = None
     total_duration: Optional[float] = None
 ```
 

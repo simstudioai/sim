@@ -4,8 +4,6 @@ Sim Studio SDK for Python
 Official Python SDK for Sim Studio, allowing you to execute workflows programmatically.
 """
 
-import json
-import time
 from typing import Any, Dict, Optional
 from dataclasses import dataclass
 

@@ -11,11 +11,12 @@ pip install simstudio-sdk
 ## Quick Start
 
 ```python
+import os
 from simstudio import SimStudioClient
 
 # Initialize the client
 client = SimStudioClient(
-    api_key="your-api-key-here",
+    api_key=os.getenv("SIMSTUDIO_API_KEY", "your-api-key-here"),
     base_url="https://simstudio.ai"  # optional, defaults to https://simstudio.ai
 )
 
@@ -318,6 +319,51 @@ for result in results:
 3. Click on "Deploy" to deploy your workflow
 4. Select or create an API key during the deployment process
 5. Copy the API key to use in your application
+
+## Development
+
+### Running Tests
+
+To run the tests locally:
+
+1. Clone the repository and navigate to the Python SDK directory:
+   ```bash
+   cd packages/python-sdk
+   ```
+
+2. Create and activate a virtual environment:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install the package in development mode with test dependencies:
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
+4. Run the tests:
+   ```bash
+   pytest tests/ -v
+   ```
+
+### Code Quality
+
+Run code quality checks:
+
+```bash
+# Code formatting
+black simstudio/
+
+# Linting
+flake8 simstudio/ --max-line-length=100
+
+# Type checking
+mypy simstudio/
+
+# Import sorting
+isort simstudio/
+```
 
 ## Requirements
 

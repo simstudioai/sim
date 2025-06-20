@@ -45,7 +45,7 @@ describe('SimStudioClient', () => {
     it('should update the base URL', () => {
       const newBaseUrl = 'https://new.simstudio.ai'
       client.setBaseUrl(newBaseUrl)
-      expect(client.setBaseUrl).toBeDefined()
+      expect((client as any).baseUrl).toBe(newBaseUrl)
     })
 
     it('should strip trailing slash from base URL', () => {
@@ -80,6 +80,23 @@ describe('SimStudioClient', () => {
 
       const result = await client.validateWorkflow('test-workflow-id')
       expect(result).toBe(true)
+    })
+
+    it('should return false when workflow is not deployed', async () => {
+      const fetch = await import('node-fetch')
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          isDeployed: false,
+          deployedAt: null,
+          isPublished: false,
+          needsRedeployment: true,
+        }),
+      }
+      vi.mocked(fetch.default).mockResolvedValue(mockResponse as any)
+
+      const result = await client.validateWorkflow('test-workflow-id')
+      expect(result).toBe(false)
     })
   })
 })

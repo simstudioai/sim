@@ -132,13 +132,20 @@ def batch_execution_example():
             status = "✅ Success" if result.success else "❌ Failed"
             print(f"{status}: {workflow_id}")
             
+        except SimStudioError as error:
+            results.append({
+                "workflow_id": workflow_id,
+                "success": False,
+                "error": str(error)
+            })
+            print(f"❌ SDK Error in {workflow_id}: {error}")
         except Exception as error:
             results.append({
                 "workflow_id": workflow_id,
                 "success": False,
                 "error": str(error)
             })
-            print(f"❌ Error in {workflow_id}: {error}")
+            print(f"❌ Unexpected error in {workflow_id}: {error}")
     
     # Summary
     successful = sum(1 for r in results if r["success"])

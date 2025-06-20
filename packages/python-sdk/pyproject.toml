@@ -41,6 +41,7 @@ dev = [
     "flake8>=4.0.0",
     "mypy>=0.910",
     "isort>=5.0.0",
+    "types-requests>=2.25.0",
 ]
 
 [project.urls]

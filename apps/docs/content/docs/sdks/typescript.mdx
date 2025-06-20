@@ -309,8 +309,13 @@ Configure the client using environment variables:
     import { SimStudioClient } from 'simstudio-ts-sdk';
 
     // Development configuration
+    const apiKey = process.env.SIMSTUDIO_API_KEY;
+    if (!apiKey) {
+      throw new Error('SIMSTUDIO_API_KEY environment variable is required');
+    }
+
     const client = new SimStudioClient({
-      apiKey: process.env.SIMSTUDIO_API_KEY!,
+      apiKey,
       baseUrl: process.env.SIMSTUDIO_BASE_URL // optional
     });
     ```
