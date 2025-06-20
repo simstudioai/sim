@@ -425,7 +425,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         <ActionBar blockId={id} blockType={type} />
-        <ConnectionBlocks blockId={id} setIsConnecting={setIsConnecting} />
+        <ConnectionBlocks blockId={id} horizontalHandles={horizontalHandles} setIsConnecting={setIsConnecting} />
 
         {/* Input Handle - Don't show for starter blocks */}
         {type !== 'starter' && (
