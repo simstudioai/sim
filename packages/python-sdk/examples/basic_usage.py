@@ -9,10 +9,7 @@ from simstudio import SimStudioClient, SimStudioError
 
 def basic_example():
     """Example 1: Basic workflow execution"""
-    client = SimStudioClient(
-        api_key=os.getenv("SIMSTUDIO_API_KEY"),
-        base_url="https://simstudio.ai"
-    )
+    client = SimStudioClient(api_key=os.getenv("SIMSTUDIO_API_KEY"))
 
     try:
         # Execute a workflow without input
@@ -53,10 +50,18 @@ def with_input_example():
             timeout=60.0  # 60 seconds
         )
 
-        print(f"Execution result: {result}")
+        if result.success:
+            print("✅ Workflow executed successfully!")
+            print(f"Output: {result.output}")
+            if result.metadata:
+                print(f"Duration: {result.metadata.get('duration')} ms")
+        else:
+            print(f"❌ Workflow failed: {result.error}")
         
+    except SimStudioError as error:
+        print(f"SDK Error: {error} (Code: {error.code})")
     except Exception as error:
-        print(f"Error: {error}")
+        print(f"Unexpected error: {error}")
 
 
 def status_example():
@@ -149,7 +154,14 @@ def error_handling_example():
 
     try:
         result = client.execute_workflow("your-workflow-id")
-        return result
+        
+        if result.success:
+            print("✅ Workflow executed successfully!")
+            print(f"Output: {result.output}")
+            return result
+        else:
+            print(f"❌ Workflow failed: {result.error}")
+            return result
     except SimStudioError as error:
         if error.code == "UNAUTHORIZED":
             print("❌ Invalid API key")
@@ -157,6 +169,8 @@ def error_handling_example():
             print("⏱️  Workflow execution timed out")
         elif error.code == "USAGE_LIMIT_EXCEEDED":
             print("💳 Usage limit exceeded")
+        elif error.code == "INVALID_JSON":
+            print("📝 Invalid JSON in request body")
         elif error.status == 404:
             print("🔍 Workflow not found")
         elif error.status == 403:

@@ -49,9 +49,21 @@ async function withInputExample() {
       timeout: 60000, // 60 seconds
     })
 
-    console.log('Execution result:', result)
+    if (result.success) {
+      console.log('✅ Workflow executed successfully!')
+      console.log('Output:', result.output)
+      if (result.metadata?.duration) {
+        console.log('Duration:', result.metadata.duration, 'ms')
+      }
+    } else {
+      console.log('❌ Workflow failed:', result.error)
+    }
   } catch (error) {
-    console.error('Error:', error)
+    if (error instanceof SimStudioError) {
+      console.error('SDK Error:', error.message, 'Code:', error.code)
+    } else {
+      console.error('Unexpected error:', error)
+    }
   }
 }
 
@@ -78,26 +90,41 @@ async function statusExample() {
     if (status.isDeployed) {
       // Execute the workflow
       const result = await client.executeWorkflow('your-workflow-id')
-      console.log('Result:', result)
+
+      if (result.success) {
+        console.log('✅ Workflow executed successfully!')
+        console.log('Output:', result.output)
+      } else {
+        console.log('❌ Workflow failed:', result.error)
+      }
     }
   } catch (error) {
-    console.error('Error:', error)
+    if (error instanceof SimStudioError) {
+      console.error('SDK Error:', error.message, 'Code:', error.code)
+    } else {
+      console.error('Unexpected error:', error)
+    }
   }
 }
 
 // Run examples
 if (require.main === module) {
-  console.log('🚀 Running Sim Studio SDK Examples\n')
+  async function runExamples() {
+    console.log('🚀 Running Sim Studio SDK Examples\n')
 
-  basicExample()
-    .then(() => console.log('\n✅ Basic example completed'))
-    .catch(console.error)
+    try {
+      await basicExample()
+      console.log('\n✅ Basic example completed')
 
-  withInputExample()
-    .then(() => console.log('\n✅ Input example completed'))
-    .catch(console.error)
+      await withInputExample()
+      console.log('\n✅ Input example completed')
 
-  statusExample()
-    .then(() => console.log('\n✅ Status example completed'))
-    .catch(console.error)
+      await statusExample()
+      console.log('\n✅ Status example completed')
+    } catch (error) {
+      console.error('Error running examples:', error)
+    }
+  }
+
+  runExamples()
 }

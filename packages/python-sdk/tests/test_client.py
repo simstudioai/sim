@@ -45,7 +45,6 @@ def test_set_base_url_strips_trailing_slash():
 @patch('simstudio.requests.Session.get')
 def test_validate_workflow_returns_false_on_error(mock_get):
     """Test that validate_workflow returns False when request fails."""
-    from simstudio import SimStudioError
     mock_get.side_effect = SimStudioError("Network error")
     
     client = SimStudioClient(api_key="test-api-key")

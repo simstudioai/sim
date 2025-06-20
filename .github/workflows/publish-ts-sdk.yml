@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js for npm publishing
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
           registry-url: 'https://registry.npmjs.org/'
 
       - name: Install dependencies
@@ -63,12 +63,12 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.version_check.outputs.exists == 'false'
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: typescript-sdk-v${{ steps.package_version.outputs.version }}
-          release_name: TypeScript SDK v${{ steps.package_version.outputs.version }}
+          name: TypeScript SDK v${{ steps.package_version.outputs.version }}
           body: |
             ## TypeScript SDK v${{ steps.package_version.outputs.version }}
             

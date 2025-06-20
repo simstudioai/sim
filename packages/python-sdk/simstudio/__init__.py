@@ -6,7 +6,7 @@ Official Python SDK for Sim Studio, allowing you to execute workflows programmat
 
 import json
 import time
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 from dataclasses import dataclass
 
 import requests
@@ -87,14 +87,11 @@ class SimStudioClient:
         url = f"{self.base_url}/api/workflows/{workflow_id}/execute"
         
         try:
-            if input_data:
-                response = self._session.post(
-                    url,
-                    json=input_data,
-                    timeout=timeout
-                )
-            else:
-                response = self._session.get(url, timeout=timeout)
+            response = self._session.post(
+                url,
+                json=input_data or {},
+                timeout=timeout
+            )
             
             if not response.ok:
                 try:
@@ -110,7 +107,7 @@ class SimStudioClient:
             result_data = response.json()
             
             return WorkflowExecutionResult(
-                success=result_data.get('success', True),
+                success=result_data['success'],
                 output=result_data.get('output'),
                 error=result_data.get('error'),
                 logs=result_data.get('logs'),
@@ -185,9 +182,7 @@ class SimStudioClient:
         self,
         workflow_id: str,
         input_data: Optional[Dict[str, Any]] = None,
-        timeout: float = 30.0,
-        poll_interval: float = 1.0,
-        max_wait_time: float = 300.0
+        timeout: float = 30.0
     ) -> WorkflowExecutionResult:
         """
         Execute a workflow and poll for completion (useful for long-running workflows).
@@ -199,8 +194,6 @@ class SimStudioClient:
             workflow_id: The ID of the workflow to execute
             input_data: Input data to pass to the workflow
             timeout: Timeout for the initial request in seconds
-            poll_interval: Polling interval in seconds (default: 1.0)
-            max_wait_time: Maximum wait time in seconds (default: 300.0)
             
         Returns:
             WorkflowExecutionResult object containing the execution result

@@ -140,11 +140,9 @@ const result = await client.executeWorkflowSync('workflow-id', {
 
 **Parameters:**
 - `workflowId` (string): The ID of the workflow to execute
-- `options` (ExecutionOptions & polling options, optional):
+- `options` (ExecutionOptions, optional):
   - `input` (any): Input data to pass to the workflow
   - `timeout` (number): Timeout for the initial request in milliseconds
-  - `pollInterval` (number): Reserved for future async support (currently unused)
-  - `maxWaitTime` (number): Reserved for future async support (currently unused)
 
 **Returns:** `Promise<WorkflowExecutionResult>`
 
@@ -286,6 +284,9 @@ async function executeWithErrorHandling() {
           break;
         case 'USAGE_LIMIT_EXCEEDED':
           console.error('Usage limit exceeded');
+          break;
+        case 'INVALID_JSON':
+          console.error('Invalid JSON in request body');
           break;
         default:
           console.error('Workflow error:', error.message);

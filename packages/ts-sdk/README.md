@@ -103,19 +103,15 @@ Execute a workflow and poll for completion (useful for long-running workflows).
 ```typescript
 const result = await client.executeWorkflowSync('workflow-id', {
   input: { data: 'some input' },
-  timeout: 60000,
-  pollInterval: 2000,
-  maxWaitTime: 300000
+  timeout: 60000
 });
 ```
 
 **Parameters:**
 - `workflowId` (string): The ID of the workflow to execute
-- `options` (ExecutionOptions & polling options, optional):
+- `options` (ExecutionOptions, optional):
   - `input` (any): Input data to pass to the workflow
   - `timeout` (number): Timeout for the initial request in milliseconds
-  - `pollInterval` (number): Polling interval in milliseconds (default: 1000)
-  - `maxWaitTime` (number): Maximum wait time in milliseconds (default: 300000)
 
 **Returns:** `Promise<WorkflowExecutionResult>`
 
@@ -240,6 +236,9 @@ async function executeWithErrorHandling() {
           break;
         case 'USAGE_LIMIT_EXCEEDED':
           console.error('Usage limit exceeded');
+          break;
+        case 'INVALID_JSON':
+          console.error('Invalid JSON in request body');
           break;
         default:
           console.error('Workflow error:', error.message);

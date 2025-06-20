@@ -36,6 +36,8 @@ describe('SimStudioClient', () => {
 
       // Verify the method exists
       expect(client.setApiKey).toBeDefined()
+      // Verify the API key was actually updated
+      expect((client as any).apiKey).toBe(newApiKey)
     })
   })
 
@@ -49,7 +51,8 @@ describe('SimStudioClient', () => {
     it('should strip trailing slash from base URL', () => {
       const urlWithSlash = 'https://test.simstudio.ai/'
       client.setBaseUrl(urlWithSlash)
-      expect(client.setBaseUrl).toBeDefined()
+      // Verify the trailing slash was actually stripped
+      expect((client as any).baseUrl).toBe('https://test.simstudio.ai')
     })
   })
 
@@ -60,6 +63,23 @@ describe('SimStudioClient', () => {
 
       const result = await client.validateWorkflow('test-workflow-id')
       expect(result).toBe(false)
+    })
+
+    it('should return true when workflow is deployed', async () => {
+      const fetch = await import('node-fetch')
+      const mockResponse = {
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          isDeployed: true,
+          deployedAt: '2023-01-01T00:00:00Z',
+          isPublished: false,
+          needsRedeployment: false,
+        }),
+      }
+      vi.mocked(fetch.default).mockResolvedValue(mockResponse as any)
+
+      const result = await client.validateWorkflow('test-workflow-id')
+      expect(result).toBe(true)
     })
   })
 })
