@@ -10,7 +10,6 @@ import {
   Loader2,
   Plus,
   RotateCcw,
-  Search,
   Trash2,
   X,
 } from 'lucide-react'
@@ -29,12 +28,15 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
+import { ActionBar } from '@/app/w/knowledge/[id]/components/action-bar/action-bar'
 import { getDocumentIcon } from '@/app/w/knowledge/components/icons/document-icons'
+import { PrimaryButton } from '@/app/w/knowledge/components/primary-button/primary-button'
+import { SearchInput } from '@/app/w/knowledge/components/search-input/search-input'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { KnowledgeHeader } from '../components/knowledge-header/knowledge-header'
-import { KnowledgeBaseLoading } from './components/knowledge-base-loading'
+import { KnowledgeBaseLoading } from './components/knowledge-base-loading/knowledge-base-loading'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -103,7 +105,7 @@ const getStatusDisplay = (doc: DocumentData) => {
         : {
             text: 'Disabled',
             className:
-              'inline-flex items-center rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+              'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
           }
     default:
       return {
@@ -112,25 +114,6 @@ const getStatusDisplay = (doc: DocumentData) => {
           'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300',
       }
   }
-}
-
-const getProcessingTime = (doc: DocumentData) => {
-  if (doc.processingStatus === 'pending') return null
-  if (doc.processingStartedAt && doc.processingCompletedAt) {
-    const start = new Date(doc.processingStartedAt)
-    const end = new Date(doc.processingCompletedAt)
-    const durationMs = end.getTime() - start.getTime()
-    const durationSec = Math.round(durationMs / 1000)
-    return `${durationSec}s`
-  }
-  if (doc.processingStartedAt && doc.processingStatus === 'processing') {
-    const start = new Date(doc.processingStartedAt)
-    const now = new Date()
-    const durationMs = now.getTime() - start.getTime()
-    const durationSec = Math.round(durationMs / 1000)
-    return `${durationSec}s`
-  }
-  return null
 }
 
 export function KnowledgeBase({
@@ -159,6 +142,7 @@ export function KnowledgeBase({
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(new Set())
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isBulkOperating, setIsBulkOperating] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<{
     message: string
@@ -188,6 +172,8 @@ export function KnowledgeBase({
       try {
         // Only refresh if we're not in the middle of other operations
         if (!isUploading && !isDeleting) {
+          // Check for dead processes before refreshing
+          await checkForDeadProcesses()
           await refreshDocuments()
         }
       } catch (error) {
@@ -197,6 +183,56 @@ export function KnowledgeBase({
 
     return () => clearInterval(refreshInterval)
   }, [documents, refreshDocuments, isUploading, isDeleting])
+
+  // Check for documents stuck in processing due to dead processes
+  const checkForDeadProcesses = async () => {
+    const now = new Date()
+    const DEAD_PROCESS_THRESHOLD_MS = 150 * 1000 // 150 seconds (2.5 minutes)
+
+    const staleDocuments = documents.filter((doc) => {
+      if (doc.processingStatus !== 'processing' || !doc.processingStartedAt) {
+        return false
+      }
+
+      const processingDuration = now.getTime() - new Date(doc.processingStartedAt).getTime()
+      return processingDuration > DEAD_PROCESS_THRESHOLD_MS
+    })
+
+    if (staleDocuments.length === 0) return
+
+    logger.warn(`Found ${staleDocuments.length} documents with dead processes`)
+
+    // Mark stale documents as failed via API to sync with database
+    const markFailedPromises = staleDocuments.map(async (doc) => {
+      try {
+        const response = await fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            markFailedDueToTimeout: true,
+          }),
+        })
+
+        if (!response.ok) {
+          // If API call fails, log but don't throw to avoid stopping other recoveries
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+          logger.error(`Failed to mark document ${doc.id} as failed: ${errorData.error}`)
+          return
+        }
+
+        const result = await response.json()
+        if (result.success) {
+          logger.info(`Successfully marked dead process as failed for document: ${doc.filename}`)
+        }
+      } catch (error) {
+        logger.error(`Error marking document ${doc.id} as failed:`, error)
+      }
+    })
+
+    await Promise.allSettled(markFailedPromises)
+  }
 
   // Auto-dismiss upload error after 8 seconds
   useEffect(() => {
@@ -253,8 +289,14 @@ export function KnowledgeBase({
         processingCompletedAt: null,
       })
 
-      const response = await fetch(`/api/knowledge/${id}/documents/${docId}/retry`, {
-        method: 'POST',
+      const response = await fetch(`/api/knowledge/${id}/documents/${docId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          retryProcessing: true,
+        }),
       })
 
       if (!response.ok) {
@@ -267,14 +309,31 @@ export function KnowledgeBase({
         throw new Error(result.error || 'Failed to retry document processing')
       }
 
-      // Force a refresh after a short delay to allow processing to start
-      setTimeout(async () => {
+      // Immediately refresh to get the current DB state
+      await refreshDocuments()
+
+      // Set up a single interval-based refresh to catch the status transition from pending -> processing
+      let refreshAttempts = 0
+      const maxRefreshAttempts = 3
+      const refreshInterval = setInterval(async () => {
         try {
+          refreshAttempts++
           await refreshDocuments()
+          if (refreshAttempts >= maxRefreshAttempts) {
+            clearInterval(refreshInterval)
+          }
         } catch (error) {
           logger.error('Error refreshing documents after retry:', error)
+          clearInterval(refreshInterval)
         }
-      }, 1000) // Wait 1 second before first refresh
+      }, 1000) // Check every second for 3 seconds
+
+      // Clear interval after maximum time to prevent memory leaks
+      setTimeout(() => {
+        clearInterval(refreshInterval)
+      }, 4000)
+
+      logger.info(`Document retry initiated successfully for: ${docId}`)
     } catch (err) {
       logger.error('Error retrying document:', err)
       // Revert the status change on error - get the current document first to avoid overwriting other fields
@@ -392,7 +451,6 @@ export function KnowledgeBase({
       fileUrl: string
       fileSize: number
       mimeType: string
-      fileHash: string | undefined
     }
 
     try {
@@ -433,7 +491,6 @@ export function KnowledgeBase({
             : `${window.location.origin}${uploadResult.path}`,
           fileSize: file.size,
           mimeType: file.type,
-          fileHash: undefined,
         })
       }
 
@@ -444,7 +501,7 @@ export function KnowledgeBase({
       }))
 
       // Start async document processing
-      const processResponse = await fetch(`/api/knowledge/${id}/process-documents`, {
+      const processResponse = await fetch(`/api/knowledge/${id}/documents`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -452,11 +509,13 @@ export function KnowledgeBase({
         body: JSON.stringify({
           documents: uploadedFiles,
           processingOptions: {
-            chunkSize: 1024,
-            minCharactersPerChunk: 24,
+            chunkSize: knowledgeBase?.chunkingConfig?.maxSize || 1024,
+            minCharactersPerChunk: knowledgeBase?.chunkingConfig?.minSize || 100,
+            chunkOverlap: knowledgeBase?.chunkingConfig?.overlap || 200,
             recipe: 'default',
             lang: 'en',
           },
+          bulk: true,
         }),
       })
 
@@ -495,7 +554,6 @@ export function KnowledgeBase({
             fileUrl: uploadedFiles[index].fileUrl,
             fileSize: uploadedFiles[index].fileSize,
             mimeType: uploadedFiles[index].mimeType,
-            fileHash: uploadedFiles[index].fileHash || null,
             chunkCount: 0,
             tokenCount: 0,
             characterCount: 0,
@@ -541,6 +599,142 @@ export function KnowledgeBase({
       }
     }
   }
+
+  const handleBulkEnable = async () => {
+    const documentsToEnable = documents.filter(
+      (doc) => selectedDocuments.has(doc.id) && !doc.enabled
+    )
+
+    if (documentsToEnable.length === 0) return
+
+    try {
+      setIsBulkOperating(true)
+
+      const response = await fetch(`/api/knowledge/${id}/documents`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'enable',
+          documentIds: documentsToEnable.map((doc) => doc.id),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to enable documents')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update successful documents in the store
+        result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
+          updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
+        })
+
+        logger.info(`Successfully enabled ${result.data.successCount} documents`)
+      }
+
+      // Clear selection after successful operation
+      setSelectedDocuments(new Set())
+    } catch (err) {
+      logger.error('Error enabling documents:', err)
+    } finally {
+      setIsBulkOperating(false)
+    }
+  }
+
+  const handleBulkDisable = async () => {
+    const documentsToDisable = documents.filter(
+      (doc) => selectedDocuments.has(doc.id) && doc.enabled
+    )
+
+    if (documentsToDisable.length === 0) return
+
+    try {
+      setIsBulkOperating(true)
+
+      const response = await fetch(`/api/knowledge/${id}/documents`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'disable',
+          documentIds: documentsToDisable.map((doc) => doc.id),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to disable documents')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update successful documents in the store
+        result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
+          updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
+        })
+
+        logger.info(`Successfully disabled ${result.data.successCount} documents`)
+      }
+
+      // Clear selection after successful operation
+      setSelectedDocuments(new Set())
+    } catch (err) {
+      logger.error('Error disabling documents:', err)
+    } finally {
+      setIsBulkOperating(false)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const documentsToDelete = documents.filter((doc) => selectedDocuments.has(doc.id))
+
+    if (documentsToDelete.length === 0) return
+
+    try {
+      setIsBulkOperating(true)
+
+      const response = await fetch(`/api/knowledge/${id}/documents`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'delete',
+          documentIds: documentsToDelete.map((doc) => doc.id),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete documents')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        logger.info(`Successfully deleted ${result.data.successCount} documents`)
+      }
+
+      // Refresh documents list to reflect deletions
+      await refreshDocuments()
+
+      // Clear selection after successful operation
+      setSelectedDocuments(new Set())
+    } catch (err) {
+      logger.error('Error deleting documents:', err)
+    } finally {
+      setIsBulkOperating(false)
+    }
+  }
+
+  // Calculate bulk operation counts
+  const selectedDocumentsList = documents.filter((doc) => selectedDocuments.has(doc.id))
+  const enabledCount = selectedDocumentsList.filter((doc) => doc.enabled).length
+  const disabledCount = selectedDocumentsList.filter((doc) => !doc.enabled).length
 
   // Breadcrumbs for the knowledge base page
   const breadcrumbs = [
@@ -621,35 +815,15 @@ export function KnowledgeBase({
 
               {/* Search and Create Section */}
               <div className='mb-4 flex items-center justify-between pt-1'>
-                <div className='relative max-w-md flex-1'>
-                  <div className='relative flex items-center'>
-                    <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-[18px] w-[18px] transform text-muted-foreground' />
-                    <input
-                      type='text'
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder='Search documents...'
-                      className='h-10 w-full rounded-md border bg-background px-9 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:font-medium file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50'
-                    />
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery('')}
-                        className='-translate-y-1/2 absolute top-1/2 right-3 transform text-muted-foreground hover:text-foreground'
-                      >
-                        <X className='h-[18px] w-[18px]' />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                <SearchInput
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  placeholder='Search documents...'
+                />
 
                 <div className='flex items-center gap-3'>
                   {/* Add Documents Button */}
-                  <Button
-                    onClick={handleAddDocuments}
-                    disabled={isUploading}
-                    size='sm'
-                    className='flex items-center gap-1 bg-[#701FFC] font-[480] text-white shadow-[0_0_0_0_#701FFC] transition-all duration-200 hover:bg-[#6518E6] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]'
-                  >
+                  <PrimaryButton onClick={handleAddDocuments} disabled={isUploading}>
                     <Plus className='h-3.5 w-3.5' />
                     {isUploading
                       ? uploadProgress.stage === 'uploading'
@@ -660,7 +834,7 @@ export function KnowledgeBase({
                             ? 'Completing...'
                             : 'Uploading...'
                       : 'Add Documents'}
-                  </Button>
+                  </PrimaryButton>
                 </div>
               </div>
 
@@ -953,7 +1127,7 @@ export function KnowledgeBase({
                                             e.stopPropagation()
                                             handleRetryDocument(doc.id)
                                           }}
-                                          className='h-8 w-8 p-0 text-gray-500 hover:text-blue-600'
+                                          className='h-8 w-8 p-0 text-gray-500 hover:text-gray-700'
                                         >
                                           <RotateCcw className='h-4 w-4' />
                                         </Button>
@@ -1086,6 +1260,17 @@ export function KnowledgeBase({
           </div>
         </div>
       )}
+
+      {/* Bulk Action Bar */}
+      <ActionBar
+        selectedCount={selectedDocuments.size}
+        onEnable={disabledCount > 0 ? handleBulkEnable : undefined}
+        onDisable={enabledCount > 0 ? handleBulkDisable : undefined}
+        onDelete={handleBulkDelete}
+        enabledCount={enabledCount}
+        disabledCount={disabledCount}
+        isLoading={isBulkOperating}
+      />
     </div>
   )
 }
