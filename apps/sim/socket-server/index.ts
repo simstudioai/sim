@@ -1,5 +1,6 @@
 import { createServer } from 'http'
 import { Server, type Socket } from 'socket.io'
+import { getSessionCookie } from 'better-auth/cookies'
 
 // Extend Socket interface to include user data
 interface AuthenticatedSocket extends Socket {
@@ -28,10 +29,10 @@ const logger = createLogger('CollaborativeSocketServer')
 const httpServer = createServer()
 const io = new Server(httpServer, {
   cors: {
-    origin: '*', // Temporarily allow all origins for testing
+    origin: 'http://localhost:3000', // Specific origin required when credentials: true
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'socket.io'],
-    credentials: false, // Temporarily disable credentials for testing
+    credentials: true, // Enable credentials to accept cookies
   },
   transports: ['polling', 'websocket'],
   allowEIO3: true,
@@ -143,24 +144,32 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
   try {
     // Extract session from socket handshake
     const cookies = socket.handshake.headers.cookie
+    logger.info(`Socket ${socket.id} handshake headers:`, {
+      cookie: cookies,
+      allHeaders: Object.keys(socket.handshake.headers)
+    })
+
     if (!cookies) {
       logger.warn(`Socket ${socket.id} rejected: No cookies found`)
       return next(new Error('Authentication required'))
     }
 
-    // Parse cookies to find the session cookie
-    const cookieMap = new Map<string, string>()
-    cookies.split(';').forEach((cookie: string) => {
-      const [name, value] = cookie.trim().split('=')
-      if (name && value) {
-        cookieMap.set(name, decodeURIComponent(value))
-      }
-    })
+    // Create a mock request object to use Better Auth's cookie utility
+    const mockRequest = {
+      headers: {
+        get: (name: string) => {
+          if (name.toLowerCase() === 'cookie') {
+            return cookies
+          }
+          return null
+        },
+      },
+    } as any
 
-    // Look for better-auth session cookie (usually named 'better-auth.session_token')
-    const sessionToken = cookieMap.get('better-auth.session_token')
-    if (!sessionToken) {
-      logger.warn(`Socket ${socket.id} rejected: No session token found`)
+    // Use Better Auth's utility to get the session cookie
+    const sessionCookie = getSessionCookie(mockRequest)
+    if (!sessionCookie) {
+      logger.warn(`Socket ${socket.id} rejected: No session cookie found`)
       return next(new Error('Authentication required'))
     }
 
@@ -185,19 +194,14 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
       socket.userEmail = session.user.email
       socket.activeOrganizationId = session.session.activeOrganizationId || undefined
 
-      logger.info(
-        `✅ Socket.IO user authenticated: ${socket.id}`, {
-          userId: session.user.id,
-          userName: socket.userName,
-          organizationId: socket.activeOrganizationId
-        }
-      )
+      logger.info(`✅ Socket.IO user authenticated: ${socket.id}`, {
+        userId: session.user.id,
+        userName: socket.userName,
+        organizationId: socket.activeOrganizationId,
+      })
       next()
     } catch (sessionError) {
-      logger.warn(
-        `Session validation failed for socket ${socket.id}:`,
-        sessionError
-      )
+      logger.warn(`Session validation failed for socket ${socket.id}:`, sessionError)
       return next(new Error('Session validation failed'))
     }
   } catch (error) {
@@ -952,9 +956,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
       try {
         const accessInfo = await verifyWorkflowAccess(userId, workflowId)
         if (!accessInfo.hasAccess) {
-          logger.warn(
-            `User ${userId} (${userName}) denied access to workflow ${workflowId}`
-          )
+          logger.warn(`User ${userId} (${userName}) denied access to workflow ${workflowId}`)
           socket.emit('join-workflow-error', { error: 'Access denied to workflow' })
           return
         }

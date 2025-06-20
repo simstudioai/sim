@@ -109,7 +109,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
     const socketInstance = io(socketUrl, {
       transports: ['polling', 'websocket'],
-      withCredentials: false, // Temporarily disable credentials for testing
+      withCredentials: true, // Enable credentials to send cookies with connection
       reconnectionAttempts: 5,
       timeout: 10000,
     })
