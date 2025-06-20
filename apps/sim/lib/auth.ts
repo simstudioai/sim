@@ -16,9 +16,9 @@ import {
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import * as schema from '@/db/schema'
+import { getBaseURL } from './auth-client'
 import { env, isTruthy } from './env'
 import { getEmailDomain } from './urls/utils'
-import { getBaseURL } from './auth-client'
 
 const logger = createLogger('Auth')
 
