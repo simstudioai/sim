@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket Integration Test</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .log { background-color: #f8f9fa; padding: 10px; margin: 10px 0; border-radius: 5px; max-height: 300px; overflow-y: auto; }
+        button { padding: 10px 20px; margin: 5px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 3px; }
+        .presence { background-color: #e7f3ff; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Socket.IO Collaborative Workflow Test</h1>
+        
+        <div id="status" class="status disconnected">
+            Disconnected
+        </div>
+        
+        <div class="presence">
+            <h3>Presence Users:</h3>
+            <div id="presence-users">None</div>
+        </div>
+        
+        <div>
+            <h3>Test Workflow Operations:</h3>
+            <input type="text" id="workflow-id" placeholder="Workflow ID" value="test-workflow-123">
+            <button onclick="joinWorkflow()">Join Workflow</button>
+            <button onclick="leaveWorkflow()">Leave Workflow</button>
+        </div>
+        
+        <div>
+            <h3>Block Operations:</h3>
+            <button onclick="addTestBlock()">Add Test Block</button>
+            <button onclick="removeTestBlock()">Remove Test Block</button>
+            <button onclick="updateBlockPosition()">Update Block Position</button>
+        </div>
+        
+        <div>
+            <h3>Edge Operations:</h3>
+            <button onclick="addTestEdge()">Add Test Edge</button>
+            <button onclick="removeTestEdge()">Remove Test Edge</button>
+        </div>
+        
+        <div class="log">
+            <h3>Event Log:</h3>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentWorkflowId = null;
+        let testBlockId = 'test-block-' + Math.random().toString(36).substr(2, 9);
+        let testEdgeId = 'test-edge-' + Math.random().toString(36).substr(2, 9);
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(connected) {
+            const statusDiv = document.getElementById('status');
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = 'Connected to Socket.IO server';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = 'Disconnected from Socket.IO server';
+            }
+        }
+
+        function updatePresence(users) {
+            const presenceDiv = document.getElementById('presence-users');
+            if (users.length === 0) {
+                presenceDiv.textContent = 'None';
+            } else {
+                presenceDiv.innerHTML = users.map(user => 
+                    `<div>• ${user.userName} (${user.userId})</div>`
+                ).join('');
+            }
+        }
+
+        // Initialize socket connection
+        function initSocket() {
+            socket = io('http://localhost:3002', {
+                withCredentials: false, // Disable for testing
+                transports: ['polling', 'websocket'],
+                forceNew: true,
+                timeout: 5000
+            });
+
+            socket.on('connect', () => {
+                log('✅ Connected to socket server');
+                updateStatus(true);
+            });
+
+            socket.on('disconnect', (reason) => {
+                log(`❌ Disconnected: ${reason}`);
+                updateStatus(false);
+                updatePresence([]);
+            });
+
+            socket.on('error', (error) => {
+                log(`🚨 Socket error: ${JSON.stringify(error)}`);
+            });
+
+            socket.on('workflow-operation', (data) => {
+                log(`📝 Received operation: ${data.operation} on ${data.target} from ${data.userName || data.userId}`);
+                log(`   Payload: ${JSON.stringify(data.payload)}`);
+            });
+
+            socket.on('user-joined', (data) => {
+                log(`👋 User joined: ${data.userName || data.userId}`);
+            });
+
+            socket.on('user-left', (data) => {
+                log(`👋 User left: ${data.userId}`);
+            });
+
+            socket.on('presence-update', (users) => {
+                log(`👥 Presence update: ${users.length} users`);
+                updatePresence(users);
+            });
+
+            socket.on('operation-confirmed', (data) => {
+                log(`✅ Operation confirmed: ${data.operation} on ${data.target}`);
+            });
+
+            socket.on('operation-error', (error) => {
+                log(`❌ Operation error: ${error.message || error.error}`);
+            });
+
+            socket.on('operation-forbidden', (error) => {
+                log(`🚫 Operation forbidden: ${error.message}`);
+            });
+        }
+
+        function joinWorkflow() {
+            const workflowId = document.getElementById('workflow-id').value;
+            if (!workflowId || !socket) return;
+
+            currentWorkflowId = workflowId;
+            socket.emit('join-workflow', { workflowId });
+            log(`🔗 Joining workflow: ${workflowId}`);
+        }
+
+        function leaveWorkflow() {
+            if (!socket) return;
+            socket.emit('leave-workflow');
+            currentWorkflowId = null;
+            log('🔗 Left workflow');
+            updatePresence([]);
+        }
+
+        function addTestBlock() {
+            if (!socket || !currentWorkflowId) {
+                log('❌ Not connected to a workflow');
+                return;
+            }
+
+            const operation = {
+                operation: 'add',
+                target: 'block',
+                payload: {
+                    id: testBlockId,
+                    type: 'action',
+                    name: 'Test Block',
+                    position: { x: Math.random() * 400, y: Math.random() * 300 },
+                    data: {}
+                },
+                timestamp: Date.now()
+            };
+
+            socket.emit('workflow-operation', operation);
+            log(`📤 Sent add block operation: ${testBlockId}`);
+        }
+
+        function removeTestBlock() {
+            if (!socket || !currentWorkflowId) {
+                log('❌ Not connected to a workflow');
+                return;
+            }
+
+            const operation = {
+                operation: 'remove',
+                target: 'block',
+                payload: { id: testBlockId },
+                timestamp: Date.now()
+            };
+
+            socket.emit('workflow-operation', operation);
+            log(`📤 Sent remove block operation: ${testBlockId}`);
+        }
+
+        function updateBlockPosition() {
+            if (!socket || !currentWorkflowId) {
+                log('❌ Not connected to a workflow');
+                return;
+            }
+
+            const operation = {
+                operation: 'update-position',
+                target: 'block',
+                payload: {
+                    id: testBlockId,
+                    position: { x: Math.random() * 400, y: Math.random() * 300 }
+                },
+                timestamp: Date.now()
+            };
+
+            socket.emit('workflow-operation', operation);
+            log(`📤 Sent update position operation: ${testBlockId}`);
+        }
+
+        function addTestEdge() {
+            if (!socket || !currentWorkflowId) {
+                log('❌ Not connected to a workflow');
+                return;
+            }
+
+            const operation = {
+                operation: 'add',
+                target: 'edge',
+                payload: {
+                    id: testEdgeId,
+                    source: 'source-block-id',
+                    target: 'target-block-id',
+                    sourceHandle: 'source',
+                    targetHandle: 'target'
+                },
+                timestamp: Date.now()
+            };
+
+            socket.emit('workflow-operation', operation);
+            log(`📤 Sent add edge operation: ${testEdgeId}`);
+        }
+
+        function removeTestEdge() {
+            if (!socket || !currentWorkflowId) {
+                log('❌ Not connected to a workflow');
+                return;
+            }
+
+            const operation = {
+                operation: 'remove',
+                target: 'edge',
+                payload: { id: testEdgeId },
+                timestamp: Date.now()
+            };
+
+            socket.emit('workflow-operation', operation);
+            log(`📤 Sent remove edge operation: ${testEdgeId}`);
+        }
+
+        // Initialize on page load
+        window.onload = () => {
+            log('🚀 Initializing socket connection...');
+            initSocket();
+        };
+    </script>
+</body>
+</html>

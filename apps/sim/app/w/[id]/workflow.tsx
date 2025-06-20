@@ -12,11 +12,13 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
+import { PresenceIndicator } from '@/components/workflow/presence-indicator'
 import { createLogger } from '@/lib/logs/console-logger'
 import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
 import { getBlock } from '@/blocks'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -26,8 +28,6 @@ import { initializeSyncManagers } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { PresenceIndicator } from '@/components/workflow/presence-indicator'
 import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorBoundary } from './components/error/index'
 import { Panel } from './components/panel/panel'
@@ -85,11 +85,7 @@ function WorkflowContent() {
     createWorkflow,
     isLoading: workflowsLoading,
   } = useWorkflowRegistry()
-  const {
-    blocks,
-    edges,
-    updateNodeDimensions,
-  } = useWorkflowStore()
+  const { blocks, edges, updateNodeDimensions } = useWorkflowStore()
 
   // Use collaborative operations for real-time sync
   const {
@@ -99,11 +95,10 @@ function WorkflowContent() {
     collaborativeUpdateBlockPosition: updateBlockPosition,
     collaborativeRemoveBlock: removeBlock,
     collaborativeUpdateParentId: updateParentId,
+    collaborativeSetSubblockValue: setSubBlockValue,
     isConnected,
     presenceUsers,
   } = useCollaborativeWorkflow()
-
-  const { setValue: setSubBlockValue } = useSubBlockStore()
   const { markAllAsRead } = useNotificationStore()
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
 
@@ -1416,7 +1411,7 @@ function WorkflowContent() {
         </div>
 
         {/* Collaborative presence indicator */}
-        <div className='fixed top-4 left-1/2 transform -translate-x-1/2 z-20'>
+        <div className='-translate-x-1/2 fixed top-4 left-1/2 z-20 transform'>
           <PresenceIndicator />
         </div>
         <ReactFlow

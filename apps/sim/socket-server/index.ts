@@ -1,5 +1,5 @@
 import { createServer } from 'http'
-import { Server, Socket } from 'socket.io'
+import { Server, type Socket } from 'socket.io'
 
 // Extend Socket interface to include user data
 interface AuthenticatedSocket extends Socket {
@@ -7,12 +7,19 @@ interface AuthenticatedSocket extends Socket {
   userName?: string
   userEmail?: string
 }
-import { createLogger } from '../lib/logs/console-logger'
-import { db } from '../db'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows, workspaceMember } from '../db/schema'
-import { eq, and, or, isNull } from 'drizzle-orm'
-import { getSession, auth } from '../lib/auth'
+
+import { and, eq, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
+import { db } from '../db'
+import {
+  workflow,
+  workflowBlocks,
+  workflowEdges,
+  workflowSubflows,
+  workspaceMember,
+} from '../db/schema'
+import { auth } from '../lib/auth'
+import { createLogger } from '../lib/logs/console-logger'
 
 const logger = createLogger('CollaborativeSocketServer')
 
@@ -20,7 +27,7 @@ const logger = createLogger('CollaborativeSocketServer')
 const httpServer = createServer()
 const io = new Server(httpServer, {
   cors: {
-    origin: "*", // Temporarily allow all origins for testing
+    origin: '*', // Temporarily allow all origins for testing
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'socket.io'],
     credentials: false, // Temporarily disable credentials for testing
@@ -70,7 +77,15 @@ const PositionSchema = z.object({
 })
 
 const BlockOperationSchema = z.object({
-  operation: z.enum(['add', 'remove', 'update-position', 'update-name', 'toggle-enabled', 'update-parent', 'duplicate']),
+  operation: z.enum([
+    'add',
+    'remove',
+    'update-position',
+    'update-name',
+    'toggle-enabled',
+    'update-parent',
+    'duplicate',
+  ]),
   target: z.literal('block'),
   payload: z.object({
     id: z.string(),
@@ -176,10 +191,15 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
       socket.userName = session.user.name || session.user.email || 'Unknown User'
       socket.userEmail = session.user.email
 
-      logger.info(`Socket ${socket.id} authenticated for user ${session.user.id} (${socket.userName})`)
+      logger.info(
+        `Socket ${socket.id} authenticated for user ${session.user.id} (${socket.userName})`
+      )
       next()
     } catch (sessionError) {
-      logger.warn(`Session validation failed for socket ${socket.id}, allowing with fallback:`, sessionError)
+      logger.warn(
+        `Session validation failed for socket ${socket.id}, allowing with fallback:`,
+        sessionError
+      )
       // Allow connection with fallback user info for testing
       socket.userId = `fallback-user-${socket.id.slice(0, 8)}`
       socket.userName = `Fallback User ${socket.id.slice(0, 8)}`
@@ -196,7 +216,10 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
 io.use(authenticateSocket)
 
 // Utility functions
-async function verifyWorkspaceMembership(userId: string, workspaceId: string): Promise<string | null> {
+async function verifyWorkspaceMembership(
+  userId: string,
+  workspaceId: string
+): Promise<string | null> {
   try {
     const membership = await db
       .select({ role: workspaceMember.role })
@@ -210,13 +233,16 @@ async function verifyWorkspaceMembership(userId: string, workspaceId: string): P
     return null
   }
 }
-async function verifyWorkflowAccess(userId: string, workflowId: string): Promise<{ hasAccess: boolean; role?: string; workspaceId?: string }> {
+async function verifyWorkflowAccess(
+  userId: string,
+  workflowId: string
+): Promise<{ hasAccess: boolean; role?: string; workspaceId?: string }> {
   try {
     const workflowData = await db
       .select({
         userId: workflow.userId,
         workspaceId: workflow.workspaceId,
-        name: workflow.name
+        name: workflow.name,
       })
       .from(workflow)
       .where(eq(workflow.id, workflowId))
@@ -239,19 +265,25 @@ async function verifyWorkflowAccess(userId: string, workflowId: string): Promise
     if (workspaceId) {
       const userRole = await verifyWorkspaceMembership(userId, workspaceId)
       if (userRole) {
-        logger.debug(`User ${userId} has ${userRole} access to workflow ${workflowId} via workspace ${workspaceId}`)
+        logger.debug(
+          `User ${userId} has ${userRole} access to workflow ${workflowId} via workspace ${workspaceId}`
+        )
         return { hasAccess: true, role: userRole, workspaceId }
-      } else {
-        logger.warn(`User ${userId} is not a member of workspace ${workspaceId} for workflow ${workflowId}`)
-        return { hasAccess: false }
       }
+      logger.warn(
+        `User ${userId} is not a member of workspace ${workspaceId} for workflow ${workflowId}`
+      )
+      return { hasAccess: false }
     }
 
     // Workflow doesn't belong to a workspace and user doesn't own it
     logger.warn(`User ${userId} has no access to workflow ${workflowId} (no workspace, not owner)`)
     return { hasAccess: false }
   } catch (error) {
-    logger.error(`Error verifying workflow access for user ${userId}, workflow ${workflowId}:`, error)
+    logger.error(
+      `Error verifying workflow access for user ${userId}, workflow ${workflowId}:`,
+      error
+    )
     return { hasAccess: false }
   }
 }
@@ -272,9 +304,33 @@ async function verifyOperationPermission(
 
     // Define operation permissions based on role
     const rolePermissions = {
-      owner: ['add', 'remove', 'update', 'update-position', 'update-name', 'toggle-enabled', 'duplicate'],
-      admin: ['add', 'remove', 'update', 'update-position', 'update-name', 'toggle-enabled', 'duplicate'],
-      member: ['add', 'remove', 'update', 'update-position', 'update-name', 'toggle-enabled', 'duplicate'],
+      owner: [
+        'add',
+        'remove',
+        'update',
+        'update-position',
+        'update-name',
+        'toggle-enabled',
+        'duplicate',
+      ],
+      admin: [
+        'add',
+        'remove',
+        'update',
+        'update-position',
+        'update-name',
+        'toggle-enabled',
+        'duplicate',
+      ],
+      member: [
+        'add',
+        'remove',
+        'update',
+        'update-position',
+        'update-name',
+        'toggle-enabled',
+        'duplicate',
+      ],
       viewer: ['update-position'], // Viewers can only move things around
     }
 
@@ -283,7 +339,7 @@ async function verifyOperationPermission(
     if (!allowedOperations.includes(operation)) {
       return {
         allowed: false,
-        reason: `Role '${accessInfo.role}' not permitted to perform '${operation}' on '${target}'`
+        reason: `Role '${accessInfo.role}' not permitted to perform '${operation}' on '${target}'`,
       }
     }
 
@@ -378,13 +434,18 @@ async function persistWorkflowOperation(workflowId: string, operation: any) {
 
     logger.debug(`✅ Persisted ${op} operation on ${target} for workflow ${workflowId}`)
   } catch (error) {
-    logger.error(`❌ Error persisting workflow operation (${operation.operation} on ${operation.target}):`, error)
+    logger.error(
+      `❌ Error persisting workflow operation (${operation.operation} on ${operation.target}):`,
+      error
+    )
     throw error
   }
 }
 
 // Add data consistency validation
-async function validateWorkflowConsistency(workflowId: string): Promise<{ valid: boolean; issues: string[] }> {
+async function validateWorkflowConsistency(
+  workflowId: string
+): Promise<{ valid: boolean; issues: string[] }> {
   try {
     const issues: string[] = []
 
@@ -393,7 +454,7 @@ async function validateWorkflowConsistency(workflowId: string): Promise<{ valid:
       .select({
         id: workflowEdges.id,
         sourceBlockId: workflowEdges.sourceBlockId,
-        targetBlockId: workflowEdges.targetBlockId
+        targetBlockId: workflowEdges.targetBlockId,
       })
       .from(workflowEdges)
       .leftJoin(workflowBlocks, eq(workflowEdges.sourceBlockId, workflowBlocks.id))
@@ -418,35 +479,76 @@ async function validateWorkflowConsistency(workflowId: string): Promise<{ valid:
 }
 
 // Transaction-based operation handlers for data consistency
-async function handleBlockOperationTx(tx: any, workflowId: string, operation: string, payload: any, userId: string) {
+async function handleBlockOperationTx(
+  tx: any,
+  workflowId: string,
+  operation: string,
+  payload: any,
+  userId: string
+) {
   return handleBlockOperationImpl(tx, workflowId, operation, payload, userId)
 }
 
-async function handleEdgeOperationTx(tx: any, workflowId: string, operation: string, payload: any, userId: string) {
+async function handleEdgeOperationTx(
+  tx: any,
+  workflowId: string,
+  operation: string,
+  payload: any,
+  userId: string
+) {
   return handleEdgeOperationImpl(tx, workflowId, operation, payload, userId)
 }
 
-async function handleSubflowOperationTx(tx: any, workflowId: string, operation: string, payload: any, userId: string) {
+async function handleSubflowOperationTx(
+  tx: any,
+  workflowId: string,
+  operation: string,
+  payload: any,
+  userId: string
+) {
   return handleSubflowOperationImpl(tx, workflowId, operation, payload, userId)
 }
 
 // Implementation functions that work with both db and transaction
-async function handleEdgeOperationImpl(dbOrTx: any, workflowId: string, operation: string, payload: any, userId: string) {
+async function handleEdgeOperationImpl(
+  dbOrTx: any,
+  workflowId: string,
+  operation: string,
+  payload: any,
+  userId: string
+) {
   // Move the existing handleEdgeOperation logic here
   return handleEdgeOperation(workflowId, operation, payload, userId)
 }
 
-async function handleSubflowOperationImpl(dbOrTx: any, workflowId: string, operation: string, payload: any, userId: string) {
+async function handleSubflowOperationImpl(
+  dbOrTx: any,
+  workflowId: string,
+  operation: string,
+  payload: any,
+  userId: string
+) {
   // Move the existing handleSubflowOperation logic here
   return handleSubflowOperation(workflowId, operation, payload, userId)
 }
 
 // Enhanced operation handlers with comprehensive validation
-async function handleBlockOperation(workflowId: string, operation: string, payload: any, userId: string) {
+async function handleBlockOperation(
+  workflowId: string,
+  operation: string,
+  payload: any,
+  userId: string
+) {
   return handleBlockOperationImpl(db, workflowId, operation, payload, userId)
 }
 
-async function handleBlockOperationImpl(dbOrTx: any, workflowId: string, operation: string, payload: any, userId: string) {
+async function handleBlockOperationImpl(
+  dbOrTx: any,
+  workflowId: string,
+  operation: string,
+  payload: any,
+  userId: string
+) {
   try {
     switch (operation) {
       case 'add':
@@ -471,7 +573,7 @@ async function handleBlockOperationImpl(dbOrTx: any, workflowId: string, operati
         logger.debug(`Added block ${payload.id} (${payload.type}) to workflow ${workflowId}`)
         break
 
-      case 'update-position':
+      case 'update-position': {
         if (!payload.id || !payload.position) {
           throw new Error('Missing required fields for update position operation')
         }
@@ -490,6 +592,7 @@ async function handleBlockOperationImpl(dbOrTx: any, workflowId: string, operati
           throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
         }
         break
+      }
 
       case 'update-name':
         if (!payload.id || !payload.name) {
@@ -560,7 +663,7 @@ async function handleBlockOperationImpl(dbOrTx: any, workflowId: string, operati
           .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
         break
 
-      case 'duplicate':
+      case 'duplicate': {
         if (!payload.id || !payload.newId || !payload.position) {
           throw new Error('Missing required fields for duplicate operation')
         }
@@ -587,6 +690,7 @@ async function handleBlockOperationImpl(dbOrTx: any, workflowId: string, operati
           updatedAt: new Date(),
         })
         break
+      }
 
       default:
         logger.warn(`Unknown block operation: ${operation}`)
@@ -598,10 +702,15 @@ async function handleBlockOperationImpl(dbOrTx: any, workflowId: string, operati
   }
 }
 
-async function handleEdgeOperation(workflowId: string, operation: string, payload: any, userId: string) {
+async function handleEdgeOperation(
+  workflowId: string,
+  operation: string,
+  payload: any,
+  userId: string
+) {
   try {
     switch (operation) {
-      case 'add':
+      case 'add': {
         // Validate required fields
         if (!payload.id || !payload.source || !payload.target) {
           throw new Error('Missing required fields for add edge operation')
@@ -611,13 +720,17 @@ async function handleEdgeOperation(workflowId: string, operation: string, payloa
         const sourceBlock = await db
           .select({ id: workflowBlocks.id })
           .from(workflowBlocks)
-          .where(and(eq(workflowBlocks.id, payload.source), eq(workflowBlocks.workflowId, workflowId)))
+          .where(
+            and(eq(workflowBlocks.id, payload.source), eq(workflowBlocks.workflowId, workflowId))
+          )
           .limit(1)
 
         const targetBlock = await db
           .select({ id: workflowBlocks.id })
           .from(workflowBlocks)
-          .where(and(eq(workflowBlocks.id, payload.target), eq(workflowBlocks.workflowId, workflowId)))
+          .where(
+            and(eq(workflowBlocks.id, payload.target), eq(workflowBlocks.workflowId, workflowId))
+          )
           .limit(1)
 
         if (sourceBlock.length === 0) {
@@ -658,8 +771,9 @@ async function handleEdgeOperation(workflowId: string, operation: string, payloa
 
         logger.debug(`Added edge ${payload.id}: ${payload.source} -> ${payload.target}`)
         break
+      }
 
-      case 'remove':
+      case 'remove': {
         if (!payload.id) {
           throw new Error('Missing edge ID for remove operation')
         }
@@ -675,6 +789,7 @@ async function handleEdgeOperation(workflowId: string, operation: string, payloa
 
         logger.debug(`Removed edge ${payload.id} from workflow ${workflowId}`)
         break
+      }
 
       default:
         logger.warn(`Unknown edge operation: ${operation}`)
@@ -686,7 +801,12 @@ async function handleEdgeOperation(workflowId: string, operation: string, payloa
   }
 }
 
-async function handleSubflowOperation(workflowId: string, operation: string, payload: any, userId: string) {
+async function handleSubflowOperation(
+  workflowId: string,
+  operation: string,
+  payload: any,
+  userId: string
+) {
   try {
     switch (operation) {
       case 'add':
@@ -724,7 +844,7 @@ async function handleSubflowOperation(workflowId: string, operation: string, pay
         logger.debug(`Added ${payload.type} subflow ${payload.id} to workflow ${workflowId}`)
         break
 
-      case 'update':
+      case 'update': {
         if (!payload.id || !payload.config) {
           throw new Error('Missing required fields for update subflow operation')
         }
@@ -735,7 +855,9 @@ async function handleSubflowOperation(workflowId: string, operation: string, pay
             config: payload.config,
             updatedAt: new Date(),
           })
-          .where(and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId)))
+          .where(
+            and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
+          )
           .returning({ id: workflowSubflows.id })
 
         if (updateResult.length === 0) {
@@ -744,15 +866,18 @@ async function handleSubflowOperation(workflowId: string, operation: string, pay
 
         logger.debug(`Updated subflow ${payload.id} in workflow ${workflowId}`)
         break
+      }
 
-      case 'remove':
+      case 'remove': {
         if (!payload.id) {
           throw new Error('Missing subflow ID for remove operation')
         }
 
         const deleteResult = await db
           .delete(workflowSubflows)
-          .where(and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId)))
+          .where(
+            and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
+          )
           .returning({ id: workflowSubflows.id })
 
         if (deleteResult.length === 0) {
@@ -761,6 +886,7 @@ async function handleSubflowOperation(workflowId: string, operation: string, pay
 
         logger.debug(`Removed subflow ${payload.id} from workflow ${workflowId}`)
         break
+      }
 
       default:
         logger.warn(`Unknown subflow operation: ${operation}`)
@@ -826,7 +952,9 @@ io.on('connection', (socket: AuthenticatedSocket) => {
       try {
         const accessInfo = await verifyWorkflowAccess(userId, workflowId)
         if (!accessInfo.hasAccess) {
-          logger.warn(`User ${userId} (${userName}) denied access to workflow ${workflowId}, allowing for testing`)
+          logger.warn(
+            `User ${userId} (${userName}) denied access to workflow ${workflowId}, allowing for testing`
+          )
           // Allow access for testing but log the issue
         }
       } catch (error) {
@@ -887,12 +1015,14 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         socketId: socket.id,
       })
 
-      logger.info(`User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${room.activeConnections} users.`)
+      logger.info(
+        `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${room.activeConnections} users.`
+      )
     } catch (error) {
       logger.error('Error joining workflow:', error)
       socket.emit('error', {
         type: 'JOIN_ERROR',
-        message: 'Failed to join workflow'
+        message: 'Failed to join workflow',
       })
     }
   })
@@ -905,7 +1035,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
     if (!workflowId || !session) {
       socket.emit('error', {
         type: 'NOT_JOINED',
-        message: 'Not joined to any workflow'
+        message: 'Not joined to any workflow',
       })
       return
     }
@@ -914,7 +1044,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
     if (!room) {
       socket.emit('error', {
         type: 'ROOM_NOT_FOUND',
-        message: 'Workflow room not found'
+        message: 'Workflow room not found',
       })
       return
     }
@@ -937,10 +1067,17 @@ io.on('connection', (socket: AuthenticatedSocket) => {
       }
 
       // Check operation permissions (temporarily bypassed for testing)
-      const permissionCheck = await verifyOperationPermission(session.userId, workflowId, operation, target)
+      const permissionCheck = await verifyOperationPermission(
+        session.userId,
+        workflowId,
+        operation,
+        target
+      )
       if (!permissionCheck.allowed) {
         // Temporarily allow all operations for testing
-        logger.warn(`User ${session.userId} would be forbidden from ${operation} on ${target}: ${permissionCheck.reason}, but allowing for testing`)
+        logger.warn(
+          `User ${session.userId} would be forbidden from ${operation} on ${target}: ${permissionCheck.reason}, but allowing for testing`
+        )
         // socket.emit('operation-forbidden', {
         //   type: 'INSUFFICIENT_PERMISSIONS',
         //   message: permissionCheck.reason || 'Insufficient permissions for this operation',
@@ -982,7 +1119,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         metadata: {
           workflowId,
           operationId: crypto.randomUUID(), // Unique operation ID for tracking
-        }
+        },
       }
 
       socket.to(workflowId).emit('workflow-operation', broadcastData)
@@ -1032,7 +1169,10 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             target: data.target,
           })
         }
-        logger.error(`Operation error for ${session.userId} (${data.operation} on ${data.target}):`, error)
+        logger.error(
+          `Operation error for ${session.userId} (${data.operation} on ${data.target}):`,
+          error
+        )
       } else {
         socket.emit('operation-error', {
           type: 'UNKNOWN_ERROR',
@@ -1147,10 +1287,12 @@ io.on('connection', (socket: AuthenticatedSocket) => {
       socket.to(workflowId).emit('user-left', {
         userId: session.userId,
         socketId: socket.id,
-        reason: reason
+        reason: reason,
       })
 
-      logger.info(`User ${session.userId} (${session.userName}) disconnected from workflow ${workflowId} - reason: ${reason}`)
+      logger.info(
+        `User ${session.userId} (${session.userName}) disconnected from workflow ${workflowId} - reason: ${reason}`
+      )
     }
 
     // Clear any pending operations for this socket
@@ -1207,7 +1349,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
       socket.to(workflowId).emit('user-left', {
         userId: session.userId,
-        socketId: socket.id
+        socketId: socket.id,
       })
 
       logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)
