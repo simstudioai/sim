@@ -118,7 +118,6 @@ describe('Model Capabilities', () => {
         'grok-3-latest',
         'grok-3-fast-latest',
         'deepseek-v3',
-        'deepseek-chat',
       ]
 
       for (const model of supportedModels) {
@@ -131,6 +130,21 @@ describe('Model Capabilities', () => {
         'unsupported-model',
         'cerebras/llama-3.3-70b', // Cerebras models don't have temperature defined
         'groq/meta-llama/llama-4-scout-17b-16e-instruct', // Groq models don't have temperature defined
+        // Reasoning models that don't support temperature
+        'o1',
+        'o3',
+        'o4-mini',
+        'azure/o3',
+        'azure/o4-mini',
+        'deepseek-r1',
+        // Chat models that don't support temperature
+        'deepseek-chat',
+        // GPT-4.1 family models that don't support temperature
+        'gpt-4.1',
+        'gpt-4.1-nano',
+        'gpt-4.1-mini',
+        'azure/gpt-4.1',
+        'azure/model-router',
       ]
 
       for (const model of unsupportedModels) {
@@ -148,15 +162,10 @@ describe('Model Capabilities', () => {
     it.concurrent('should return 2 for models with temperature range 0-2', () => {
       const modelsRange02 = [
         'gpt-4o',
-        'o1',
-        'o3',
-        'o4-mini',
         'azure/gpt-4o',
         'gemini-2.5-pro',
         'gemini-2.5-flash',
         'deepseek-v3',
-        'deepseek-chat',
-        'deepseek-r1',
       ]
 
       for (const model of modelsRange02) {
@@ -183,6 +192,13 @@ describe('Model Capabilities', () => {
       expect(getMaxTemperature('unsupported-model')).toBeUndefined()
       expect(getMaxTemperature('cerebras/llama-3.3-70b')).toBeUndefined()
       expect(getMaxTemperature('groq/meta-llama/llama-4-scout-17b-16e-instruct')).toBeUndefined()
+      // Reasoning models that don't support temperature
+      expect(getMaxTemperature('o1')).toBeUndefined()
+      expect(getMaxTemperature('o3')).toBeUndefined()
+      expect(getMaxTemperature('o4-mini')).toBeUndefined()
+      expect(getMaxTemperature('azure/o3')).toBeUndefined()
+      expect(getMaxTemperature('azure/o4-mini')).toBeUndefined()
+      expect(getMaxTemperature('deepseek-r1')).toBeUndefined()
     })
 
     it.concurrent('should be case insensitive', () => {
