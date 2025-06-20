@@ -26,6 +26,8 @@ import { initializeSyncManagers } from '@/stores/sync-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { PresenceIndicator } from '@/components/workflow/presence-indicator'
 import { ControlBar } from './components/control-bar/control-bar'
 import { ErrorBoundary } from './components/error/index'
 import { Panel } from './components/panel/panel'
@@ -86,14 +88,21 @@ function WorkflowContent() {
   const {
     blocks,
     edges,
-    addBlock,
     updateNodeDimensions,
-    updateBlockPosition,
-    addEdge,
-    removeEdge,
-    updateParentId,
-    removeBlock,
   } = useWorkflowStore()
+
+  // Use collaborative operations for real-time sync
+  const {
+    collaborativeAddBlock: addBlock,
+    collaborativeAddEdge: addEdge,
+    collaborativeRemoveEdge: removeEdge,
+    collaborativeUpdateBlockPosition: updateBlockPosition,
+    collaborativeRemoveBlock: removeBlock,
+    collaborativeUpdateParentId: updateParentId,
+    isConnected,
+    presenceUsers,
+  } = useCollaborativeWorkflow()
+
   const { setValue: setSubBlockValue } = useSubBlockStore()
   const { markAllAsRead } = useNotificationStore()
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
@@ -1404,6 +1413,11 @@ function WorkflowContent() {
         <div className='fixed top-0 right-0 z-10'>
           <Panel />
           <NotificationList />
+        </div>
+
+        {/* Collaborative presence indicator */}
+        <div className='fixed top-4 left-1/2 transform -translate-x-1/2 z-20'>
+          <PresenceIndicator />
         </div>
         <ReactFlow
           nodes={nodes}

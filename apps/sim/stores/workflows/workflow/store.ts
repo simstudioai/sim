@@ -7,7 +7,7 @@ import { isDataInitialized } from '../../index'
 import { pushHistory, type WorkflowStoreWithHistory, withHistory } from '../middleware'
 import { useWorkflowRegistry } from '../registry/store'
 import { useSubBlockStore } from '../subblock/store'
-import { markWorkflowsDirty, workflowSync } from '../sync'
+// import { markWorkflowsDirty, workflowSync } from '../sync' // Disabled for socket-based sync
 import { mergeSubblockState } from '../utils'
 import type { Position, SubBlockState, SyncControl, WorkflowState } from './types'
 import { generateLoopBlocks, generateParallelBlocks } from './utils'
@@ -47,32 +47,18 @@ const initialState = {
 
 // Create a consolidated sync control implementation
 /**
- * Simplified SyncControl implementation
+ * Socket-based SyncControl implementation (replaces HTTP sync)
  */
 const createSyncControl = (): SyncControl => ({
   markDirty: () => {
-    // Only mark dirty if data is initialized
-    if (!isDataInitialized()) {
-      return
-    }
-    // Simply mark workflows as dirty for sync
-    markWorkflowsDirty()
+    // No-op: Socket-based sync handles this automatically
   },
   isDirty: () => {
-    // Always return true - let the sync system decide if sync is needed
-    return true
+    // Always return false since socket sync is real-time
+    return false
   },
   forceSync: () => {
-    // Only force sync if data is initialized
-    if (!isDataInitialized()) {
-      return
-    }
-    // Force sync by marking dirty and syncing
-    markWorkflowsDirty()
-    // Small delay to ensure state has settled
-    setTimeout(() => {
-      workflowSync.sync()
-    }, 100)
+    // No-op: Socket-based sync is always in sync
   },
 })
 
@@ -136,7 +122,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           set(newState)
           pushHistory(set, get, newState, `Add ${type} node`)
           get().updateLastSaved()
-          get().sync.markDirty()
+          // get().sync.markDirty() // Disabled: Using socket-based sync
           return
         }
 
@@ -185,7 +171,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Add ${type} block`)
         get().updateLastSaved()
-        get().sync.markDirty()
+        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       updateBlockPosition: (id: string, position: Position) => {
@@ -400,7 +386,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Add connection')
         get().updateLastSaved()
-        get().sync.markDirty()
+        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       removeEdge: (edgeId: string) => {
@@ -423,7 +409,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Remove connection')
         get().updateLastSaved()
-        get().sync.markDirty()
+        // get().sync.markDirty() // Disabled: Using socket-based sync
       },
 
       clear: () => {
