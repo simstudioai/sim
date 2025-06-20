@@ -8,7 +8,6 @@ export interface ChunkingConfig {
   minCharactersPerChunk?: number
   recipe?: string
   lang?: string
-  overlapTokens?: number
   strategy?: 'recursive' | 'semantic' | 'sentence' | 'paragraph'
   [key: string]: unknown
 }
@@ -33,7 +32,6 @@ export interface DocumentData {
   fileUrl: string
   fileSize: number
   mimeType: string
-  fileHash?: string | null
   chunkCount: number
   tokenCount: number
   characterCount: number
@@ -54,10 +52,7 @@ export interface ChunkData {
   enabled: boolean
   startOffset: number
   endOffset: number
-  overlapTokens: number
   metadata: Record<string, unknown>
-  searchRank: string
-  qualityScore: string | null
   createdAt: string
   updatedAt: string
 }

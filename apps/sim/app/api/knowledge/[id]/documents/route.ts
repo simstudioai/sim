@@ -1,20 +1,178 @@
-import { and, eq, isNull } from 'drizzle-orm'
+import crypto from 'node:crypto'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { document } from '@/db/schema'
-import { checkKnowledgeBaseAccess } from '../../utils'
+import { checkKnowledgeBaseAccess, processDocumentAsync } from '../../utils'
 
 const logger = createLogger('DocumentsAPI')
+
+const PROCESSING_CONFIG = {
+  maxConcurrentDocuments: 3,
+  batchSize: 5,
+  delayBetweenBatches: 1000,
+  delayBetweenDocuments: 500,
+}
+
+async function processDocumentsWithConcurrencyControl(
+  createdDocuments: Array<{
+    documentId: string
+    filename: string
+    fileUrl: string
+    fileSize: number
+    mimeType: string
+  }>,
+  knowledgeBaseId: string,
+  processingOptions: {
+    chunkSize: number
+    minCharactersPerChunk: number
+    recipe: string
+    lang: string
+    chunkOverlap: number
+  },
+  requestId: string
+): Promise<void> {
+  const totalDocuments = createdDocuments.length
+  const batches = []
+
+  for (let i = 0; i < totalDocuments; i += PROCESSING_CONFIG.batchSize) {
+    batches.push(createdDocuments.slice(i, i + PROCESSING_CONFIG.batchSize))
+  }
+
+  logger.info(`[${requestId}] Processing ${totalDocuments} documents in ${batches.length} batches`)
+
+  for (const [batchIndex, batch] of batches.entries()) {
+    logger.info(
+      `[${requestId}] Starting batch ${batchIndex + 1}/${batches.length} with ${batch.length} documents`
+    )
+
+    await processBatchWithConcurrency(batch, knowledgeBaseId, processingOptions, requestId)
+
+    if (batchIndex < batches.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, PROCESSING_CONFIG.delayBetweenBatches))
+    }
+  }
+
+  logger.info(`[${requestId}] Completed processing initiation for all ${totalDocuments} documents`)
+}
+
+async function processBatchWithConcurrency(
+  batch: Array<{
+    documentId: string
+    filename: string
+    fileUrl: string
+    fileSize: number
+    mimeType: string
+  }>,
+  knowledgeBaseId: string,
+  processingOptions: {
+    chunkSize: number
+    minCharactersPerChunk: number
+    recipe: string
+    lang: string
+    chunkOverlap: number
+  },
+  requestId: string
+): Promise<void> {
+  const semaphore = new Array(PROCESSING_CONFIG.maxConcurrentDocuments).fill(0)
+  const processingPromises = batch.map(async (doc, index) => {
+    if (index > 0) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, index * PROCESSING_CONFIG.delayBetweenDocuments)
+      )
+    }
+
+    await new Promise<void>((resolve) => {
+      const checkSlot = () => {
+        const availableIndex = semaphore.findIndex((slot) => slot === 0)
+        if (availableIndex !== -1) {
+          semaphore[availableIndex] = 1
+          resolve()
+        } else {
+          setTimeout(checkSlot, 100)
+        }
+      }
+      checkSlot()
+    })
+
+    try {
+      logger.info(`[${requestId}] Starting processing for document: ${doc.filename}`)
+
+      await processDocumentAsync(
+        knowledgeBaseId,
+        doc.documentId,
+        {
+          filename: doc.filename,
+          fileUrl: doc.fileUrl,
+          fileSize: doc.fileSize,
+          mimeType: doc.mimeType,
+        },
+        processingOptions
+      )
+
+      logger.info(`[${requestId}] Successfully initiated processing for document: ${doc.filename}`)
+    } catch (error: unknown) {
+      logger.error(`[${requestId}] Failed to process document: ${doc.filename}`, {
+        documentId: doc.documentId,
+        filename: doc.filename,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
+
+      try {
+        await db
+          .update(document)
+          .set({
+            processingStatus: 'failed',
+            processingError:
+              error instanceof Error ? error.message : 'Failed to initiate processing',
+            processingCompletedAt: new Date(),
+          })
+          .where(eq(document.id, doc.documentId))
+      } catch (dbError: unknown) {
+        logger.error(
+          `[${requestId}] Failed to update document status for failed document: ${doc.documentId}`,
+          dbError
+        )
+      }
+    } finally {
+      const slotIndex = semaphore.findIndex((slot) => slot === 1)
+      if (slotIndex !== -1) {
+        semaphore[slotIndex] = 0
+      }
+    }
+  })
+
+  await Promise.allSettled(processingPromises)
+}
 
 const CreateDocumentSchema = z.object({
   filename: z.string().min(1, 'Filename is required'),
   fileUrl: z.string().url('File URL must be valid'),
   fileSize: z.number().min(1, 'File size must be greater than 0'),
   mimeType: z.string().min(1, 'MIME type is required'),
-  fileHash: z.string().optional(),
+})
+
+const BulkCreateDocumentsSchema = z.object({
+  documents: z.array(CreateDocumentSchema),
+  processingOptions: z.object({
+    chunkSize: z.number().min(100).max(4000),
+    minCharactersPerChunk: z.number().min(50).max(2000),
+    recipe: z.string(),
+    lang: z.string(),
+    chunkOverlap: z.number().min(0).max(500),
+  }),
+  bulk: z.literal(true),
+})
+
+const BulkUpdateDocumentsSchema = z.object({
+  operation: z.enum(['enable', 'disable', 'delete']),
+  documentIds: z
+    .array(z.string())
+    .min(1, 'At least one document ID is required')
+    .max(100, 'Cannot operate on more than 100 documents at once'),
 })
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -58,12 +216,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const documents = await db
       .select({
         id: document.id,
-        knowledgeBaseId: document.knowledgeBaseId,
         filename: document.filename,
         fileUrl: document.fileUrl,
         fileSize: document.fileSize,
         mimeType: document.mimeType,
-        fileHash: document.fileHash,
         chunkCount: document.chunkCount,
         tokenCount: document.tokenCount,
         characterCount: document.characterCount,
@@ -76,7 +232,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       })
       .from(document)
       .where(and(...whereConditions))
-      .orderBy(document.uploadedAt)
+      .orderBy(desc(document.uploadedAt))
 
     logger.info(
       `[${requestId}] Retrieved ${documents.length} documents for knowledge base ${knowledgeBaseId}`
@@ -118,63 +274,251 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const body = await req.json()
 
-    try {
-      const validatedData = CreateDocumentSchema.parse(body)
+    // Check if this is a bulk operation
+    if (body.bulk === true) {
+      // Handle bulk processing (replaces process-documents endpoint)
+      try {
+        const validatedData = BulkCreateDocumentsSchema.parse(body)
 
-      // Check for duplicate file hash if provided
-      if (validatedData.fileHash) {
-        const existingDocument = await db
-          .select({ id: document.id })
-          .from(document)
+        const createdDocuments = await db.transaction(async (tx) => {
+          const documentPromises = validatedData.documents.map(async (docData) => {
+            const documentId = crypto.randomUUID()
+            const now = new Date()
+
+            const newDocument = {
+              id: documentId,
+              knowledgeBaseId,
+              filename: docData.filename,
+              fileUrl: docData.fileUrl,
+              fileSize: docData.fileSize,
+              mimeType: docData.mimeType,
+              chunkCount: 0,
+              tokenCount: 0,
+              characterCount: 0,
+              processingStatus: 'pending' as const,
+              enabled: true,
+              uploadedAt: now,
+            }
+
+            await tx.insert(document).values(newDocument)
+            logger.info(
+              `[${requestId}] Document record created: ${documentId} for file: ${docData.filename}`
+            )
+            return { documentId, ...docData }
+          })
+
+          return await Promise.all(documentPromises)
+        })
+
+        logger.info(
+          `[${requestId}] Starting controlled async processing of ${createdDocuments.length} documents`
+        )
+
+        processDocumentsWithConcurrencyControl(
+          createdDocuments,
+          knowledgeBaseId,
+          validatedData.processingOptions,
+          requestId
+        ).catch((error: unknown) => {
+          logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            total: createdDocuments.length,
+            documentsCreated: createdDocuments.map((doc) => ({
+              documentId: doc.documentId,
+              filename: doc.filename,
+              status: 'pending',
+            })),
+            processingMethod: 'background',
+            processingConfig: {
+              maxConcurrentDocuments: PROCESSING_CONFIG.maxConcurrentDocuments,
+              batchSize: PROCESSING_CONFIG.batchSize,
+              totalBatches: Math.ceil(createdDocuments.length / PROCESSING_CONFIG.batchSize),
+            },
+          },
+        })
+      } catch (validationError) {
+        if (validationError instanceof z.ZodError) {
+          logger.warn(`[${requestId}] Invalid bulk processing request data`, {
+            errors: validationError.errors,
+          })
+          return NextResponse.json(
+            { error: 'Invalid request data', details: validationError.errors },
+            { status: 400 }
+          )
+        }
+        throw validationError
+      }
+    } else {
+      // Handle single document creation
+      try {
+        const validatedData = CreateDocumentSchema.parse(body)
+
+        const documentId = crypto.randomUUID()
+        const now = new Date()
+
+        const newDocument = {
+          id: documentId,
+          knowledgeBaseId,
+          filename: validatedData.filename,
+          fileUrl: validatedData.fileUrl,
+          fileSize: validatedData.fileSize,
+          mimeType: validatedData.mimeType,
+          chunkCount: 0,
+          tokenCount: 0,
+          characterCount: 0,
+          enabled: true,
+          uploadedAt: now,
+        }
+
+        await db.insert(document).values(newDocument)
+
+        logger.info(
+          `[${requestId}] Document created: ${documentId} in knowledge base ${knowledgeBaseId}`
+        )
+
+        return NextResponse.json({
+          success: true,
+          data: newDocument,
+        })
+      } catch (validationError) {
+        if (validationError instanceof z.ZodError) {
+          logger.warn(`[${requestId}] Invalid document data`, {
+            errors: validationError.errors,
+          })
+          return NextResponse.json(
+            { error: 'Invalid request data', details: validationError.errors },
+            { status: 400 }
+          )
+        }
+        throw validationError
+      }
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Error creating document`, error)
+    return NextResponse.json({ error: 'Failed to create document' }, { status: 500 })
+  }
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const { id: knowledgeBaseId } = await params
+
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized bulk document operation attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
+
+    if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${knowledgeBaseId}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${session.user.id} attempted to perform bulk operation on unauthorized knowledge base ${knowledgeBaseId}`
+      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+
+    try {
+      const validatedData = BulkUpdateDocumentsSchema.parse(body)
+      const { operation, documentIds } = validatedData
+
+      logger.info(
+        `[${requestId}] Starting bulk ${operation} operation on ${documentIds.length} documents in knowledge base ${knowledgeBaseId}`
+      )
+
+      // Verify all documents belong to this knowledge base and user has access
+      const documentsToUpdate = await db
+        .select({
+          id: document.id,
+          enabled: document.enabled,
+        })
+        .from(document)
+        .where(
+          and(
+            eq(document.knowledgeBaseId, knowledgeBaseId),
+            inArray(document.id, documentIds),
+            isNull(document.deletedAt)
+          )
+        )
+
+      if (documentsToUpdate.length === 0) {
+        return NextResponse.json({ error: 'No valid documents found to update' }, { status: 404 })
+      }
+
+      if (documentsToUpdate.length !== documentIds.length) {
+        logger.warn(
+          `[${requestId}] Some documents not found or don't belong to knowledge base. Requested: ${documentIds.length}, Found: ${documentsToUpdate.length}`
+        )
+      }
+
+      // Perform the bulk operation
+      let updateResult: Array<{ id: string; enabled?: boolean; deletedAt?: Date | null }>
+      let successCount: number
+
+      if (operation === 'delete') {
+        // Handle bulk soft delete
+        updateResult = await db
+          .update(document)
+          .set({
+            deletedAt: new Date(),
+          })
           .where(
             and(
               eq(document.knowledgeBaseId, knowledgeBaseId),
-              eq(document.fileHash, validatedData.fileHash),
+              inArray(document.id, documentIds),
               isNull(document.deletedAt)
             )
           )
-          .limit(1)
+          .returning({ id: document.id, deletedAt: document.deletedAt })
 
-        if (existingDocument.length > 0) {
-          logger.warn(`[${requestId}] Duplicate file hash detected: ${validatedData.fileHash}`)
-          return NextResponse.json(
-            { error: 'Document with this file hash already exists' },
-            { status: 409 }
+        successCount = updateResult.length
+      } else {
+        // Handle bulk enable/disable
+        const enabled = operation === 'enable'
+
+        updateResult = await db
+          .update(document)
+          .set({
+            enabled,
+          })
+          .where(
+            and(
+              eq(document.knowledgeBaseId, knowledgeBaseId),
+              inArray(document.id, documentIds),
+              isNull(document.deletedAt)
+            )
           )
-        }
+          .returning({ id: document.id, enabled: document.enabled })
+
+        successCount = updateResult.length
       }
-
-      const documentId = crypto.randomUUID()
-      const now = new Date()
-
-      const newDocument = {
-        id: documentId,
-        knowledgeBaseId,
-        filename: validatedData.filename,
-        fileUrl: validatedData.fileUrl,
-        fileSize: validatedData.fileSize,
-        mimeType: validatedData.mimeType,
-        fileHash: validatedData.fileHash || null,
-        chunkCount: 0,
-        tokenCount: 0,
-        characterCount: 0,
-        enabled: true,
-        uploadedAt: now,
-      }
-
-      await db.insert(document).values(newDocument)
 
       logger.info(
-        `[${requestId}] Document created: ${documentId} in knowledge base ${knowledgeBaseId}`
+        `[${requestId}] Bulk ${operation} operation completed: ${successCount} documents updated in knowledge base ${knowledgeBaseId}`
       )
 
       return NextResponse.json({
         success: true,
-        data: newDocument,
+        data: {
+          operation,
+          successCount,
+          updatedDocuments: updateResult,
+        },
       })
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
-        logger.warn(`[${requestId}] Invalid document data`, {
+        logger.warn(`[${requestId}] Invalid bulk operation data`, {
           errors: validationError.errors,
         })
         return NextResponse.json(
@@ -185,7 +529,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       throw validationError
     }
   } catch (error) {
-    logger.error(`[${requestId}] Error creating document`, error)
-    return NextResponse.json({ error: 'Failed to create document' }, { status: 500 })
+    logger.error(`[${requestId}] Error in bulk document operation`, error)
+    return NextResponse.json({ error: 'Failed to perform bulk operation' }, { status: 500 })
   }
 }
