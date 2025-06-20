@@ -90,7 +90,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       workflows: {},
       activeWorkflowId: null,
       activeWorkspaceId: null, // No longer persisted in localStorage
-      isLoading: false,
+      isLoading: true,
       error: null,
       // Initialize deployment statuses
       deploymentStatuses: {},
@@ -1349,7 +1349,7 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
           workflows: {},
           activeWorkflowId: null,
           activeWorkspaceId: null,
-          isLoading: false,
+          isLoading: true,
           error: null,
         })
 
