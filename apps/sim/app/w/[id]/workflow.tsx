@@ -24,7 +24,7 @@ import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
-import { initializeSyncManagers } from '@/stores/sync-registry'
+// Removed sync manager import - Socket.IO handles real-time sync
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { ControlBar } from './components/control-bar/control-bar'
@@ -256,19 +256,7 @@ function WorkflowContent() {
     }
   }, [debouncedAutoLayout])
 
-  // Initialize workflow system
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const initSync = async () => {
-        // Initialize sync system if not already initialized
-        await initializeSyncManagers()
-        // Note: setIsWorkflowReady is handled in the workflow data tracking effect below
-      }
-
-      // Initialize sync system
-      initSync()
-    }
-  }, [])
+  // Note: Workflow initialization now handled by Socket.IO system
 
   // Handle drops
   const findClosestOutput = useCallback(
@@ -773,21 +761,10 @@ function WorkflowContent() {
         return
       }
 
-      // If no workflows exist after loading is complete, create initial workflow
-      if (workflowIds.length === 0) {
-        logger.info('No workflows found after loading complete, creating initial workflow')
-
-        // Generate numbered workflow name based on existing workflows
-        const existingWorkflowCount = Object.keys(workflows).length
-        const workflowNumber = existingWorkflowCount + 1
-        const workflowName = `Workflow ${workflowNumber}`
-
-        const newId = createWorkflow({
-          name: workflowName,
-          description: 'Getting started with agents',
-          isInitial: true,
-        })
-        router.replace(`/w/${newId}`)
+      // If no workflows exist, redirect to workspace root to let server handle workflow creation
+      if (workflowIds.length === 0 && !workflowsLoading) {
+        logger.info('No workflows found, redirecting to workspace root')
+        router.replace('/w')
         return
       }
 

@@ -347,8 +347,8 @@ export const useFolderStore = create<FolderState>()(
         }
 
         if (workflowRegistry.activeWorkspaceId) {
-          const { fetchWorkflowsFromDB } = await import('../workflows/sync')
-          await fetchWorkflowsFromDB()
+          // Trigger workflow refresh through registry store
+          await workflowRegistry.switchWorkspace(workflowRegistry.activeWorkspaceId)
         }
       },
 

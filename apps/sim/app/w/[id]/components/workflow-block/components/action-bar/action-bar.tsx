@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 
 interface ActionBarProps {
   blockId: string
@@ -10,7 +11,7 @@ interface ActionBarProps {
 }
 
 export function ActionBar({ blockId, blockType }: ActionBarProps) {
-  const removeBlock = useWorkflowStore((state) => state.removeBlock)
+  const { collaborativeRemoveBlock } = useCollaborativeWorkflow()
   const toggleBlockEnabled = useWorkflowStore((state) => state.toggleBlockEnabled)
   const toggleBlockHandles = useWorkflowStore((state) => state.toggleBlockHandles)
   const duplicateBlock = useWorkflowStore((state) => state.duplicateBlock)
@@ -103,7 +104,7 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
             <Button
               variant='ghost'
               size='sm'
-              onClick={() => removeBlock(blockId)}
+              onClick={() => collaborativeRemoveBlock(blockId)}
               className='text-gray-500 hover:text-red-600'
             >
               <Trash2 className='h-4 w-4' />

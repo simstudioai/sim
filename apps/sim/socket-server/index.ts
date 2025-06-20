@@ -1,6 +1,6 @@
 import { createServer } from 'http'
-import { Server, type Socket } from 'socket.io'
 import { getSessionCookie } from 'better-auth/cookies'
+import { Server, type Socket } from 'socket.io'
 
 // Extend Socket interface to include user data
 interface AuthenticatedSocket extends Socket {
@@ -26,7 +26,33 @@ import { createLogger } from '../lib/logs/console-logger'
 const logger = createLogger('CollaborativeSocketServer')
 
 // Enhanced server configuration
-const httpServer = createServer()
+const httpServer = createServer((req, res) => {
+  // Handle workflow deletion notifications from the main API
+  if (req.method === 'POST' && req.url === '/api/workflow-deleted') {
+    let body = ''
+    req.on('data', chunk => {
+      body += chunk.toString()
+    })
+    req.on('end', () => {
+      try {
+        const { workflowId } = JSON.parse(body)
+        handleWorkflowDeletion(workflowId)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true }))
+      } catch (error) {
+        logger.error('Error handling workflow deletion notification:', error)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Failed to process deletion notification' }))
+      }
+    })
+    return
+  }
+
+  // Default response for other requests
+  res.writeHead(404, { 'Content-Type': 'application/json' })
+  res.end(JSON.stringify({ error: 'Not found' }))
+})
+
 const io = new Server(httpServer, {
   cors: {
     origin: 'http://localhost:3000', // Specific origin required when credentials: true
@@ -146,7 +172,7 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
     const cookies = socket.handshake.headers.cookie
     logger.info(`Socket ${socket.id} handshake headers:`, {
       cookie: cookies,
-      allHeaders: Object.keys(socket.handshake.headers)
+      allHeaders: Object.keys(socket.handshake.headers),
     })
 
     if (!cookies) {
@@ -377,6 +403,44 @@ function clearPendingOperations(socketId: string) {
   // Clear any pending operations for this socket
   // This would be used if we implement operation queuing
   logger.debug(`Cleared pending operations for socket ${socketId}`)
+}
+
+// Handle workflow deletion notifications
+function handleWorkflowDeletion(workflowId: string) {
+  logger.info(`Handling workflow deletion notification for ${workflowId}`)
+
+  const room = workflowRooms.get(workflowId)
+  if (!room) {
+    logger.debug(`No active room found for deleted workflow ${workflowId}`)
+    return
+  }
+
+  // Notify all users in the room that the workflow has been deleted
+  io.to(workflowId).emit('workflow-deleted', {
+    workflowId,
+    message: 'This workflow has been deleted',
+    timestamp: Date.now(),
+  })
+
+  // Disconnect all sockets from the workflow room
+  const socketsToDisconnect: string[] = []
+  room.users.forEach((presence, socketId) => {
+    socketsToDisconnect.push(socketId)
+  })
+
+  // Clean up each socket connection
+  socketsToDisconnect.forEach(socketId => {
+    const socket = io.sockets.sockets.get(socketId)
+    if (socket) {
+      socket.leave(workflowId)
+      logger.debug(`Disconnected socket ${socketId} from deleted workflow ${workflowId}`)
+    }
+    cleanupUserFromRoom(socketId, workflowId)
+  })
+
+  // Clean up the room completely
+  workflowRooms.delete(workflowId)
+  logger.info(`Cleaned up workflow room ${workflowId} after deletion (${socketsToDisconnect.length} users disconnected)`)
 }
 
 // Database helper functions
@@ -732,9 +796,12 @@ async function handleEdgeOperation(
           .limit(1)
 
         if (sourceBlock.length === 0) {
+          // For new workflows, blocks might not be persisted yet - log warning but don't fail
+          logger.warn(`Source block ${payload.source} not found in database - may be a new workflow`)
           throw new Error(`Source block ${payload.source} not found`)
         }
         if (targetBlock.length === 0) {
+          logger.warn(`Target block ${payload.target} not found in database - may be a new workflow`)
           throw new Error(`Target block ${payload.target} not found`)
         }
 
@@ -1207,8 +1274,48 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         userPresence.lastActivity = Date.now()
       }
 
-      // For subblock updates, we might want to persist to a separate table
-      // or update the block's data field - for now, we'll just broadcast
+      // Persist subblock update to database
+      await db.transaction(async (tx) => {
+        // Get the current block data
+        const [block] = await tx
+          .select({ data: workflowBlocks.data })
+          .from(workflowBlocks)
+          .where(
+            and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
+          )
+          .limit(1)
+
+        if (!block) {
+          throw new Error(`Block ${blockId} not found in workflow ${workflowId}`)
+        }
+
+        // Parse the current block data
+        const blockData = block.data as any
+
+        // Update the subblock value in the block data
+        if (!blockData.subBlocks) {
+          blockData.subBlocks = {}
+        }
+        if (!blockData.subBlocks[subblockId]) {
+          blockData.subBlocks[subblockId] = {}
+        }
+        blockData.subBlocks[subblockId].value = value
+
+        // Save the updated block data back to the database
+        await tx
+          .update(workflowBlocks)
+          .set({
+            data: blockData,
+            updatedAt: new Date()
+          })
+          .where(
+            and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId))
+          )
+
+        logger.debug(`✅ Persisted subblock update: ${workflowId}/${blockId}.${subblockId} = ${JSON.stringify(value)}`)
+      })
+
+      // Broadcast to other clients after successful persistence
       socket.to(workflowId).emit('subblock-update', {
         blockId,
         subblockId,
@@ -1221,6 +1328,14 @@ io.on('connection', (socket: AuthenticatedSocket) => {
       logger.debug(`Subblock update in workflow ${workflowId}: ${blockId}.${subblockId}`)
     } catch (error) {
       logger.error('Error handling subblock update:', error)
+
+      // Send error back to client
+      socket.emit('operation-error', {
+        type: 'SUBBLOCK_UPDATE_FAILED',
+        message: `Failed to update subblock ${blockId}.${subblockId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        operation: 'subblock-update',
+        target: 'subblock',
+      })
     }
   })
 

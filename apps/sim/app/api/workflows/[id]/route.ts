@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
 import { db } from '@/db'
-import { workflow, workspaceMember } from '@/db/schema'
+import { workflow, workspaceMember, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
 
 const logger = createLogger('WorkflowByIdAPI')
 
@@ -182,11 +182,39 @@ export async function DELETE(
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    // Delete the workflow
-    await db.delete(workflow).where(eq(workflow.id, workflowId))
+    // Delete workflow and all related data in a transaction
+    await db.transaction(async (tx) => {
+      // Delete from normalized tables first (foreign key constraints)
+      await tx.delete(workflowSubflows).where(eq(workflowSubflows.workflowId, workflowId))
+      await tx.delete(workflowEdges).where(eq(workflowEdges.workflowId, workflowId))
+      await tx.delete(workflowBlocks).where(eq(workflowBlocks.workflowId, workflowId))
+
+      // Delete the main workflow record
+      await tx.delete(workflow).where(eq(workflow.id, workflowId))
+    })
 
     const elapsed = Date.now() - startTime
     logger.info(`[${requestId}] Successfully deleted workflow ${workflowId} in ${elapsed}ms`)
+
+    // Notify Socket.IO system to disconnect users from this workflow's room
+    // This prevents "Block not found" errors when collaborative updates try to process
+    // after the workflow has been deleted
+    try {
+      const socketResponse = await fetch('http://localhost:3002/api/workflow-deleted', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workflowId }),
+      })
+
+      if (socketResponse.ok) {
+        logger.info(`[${requestId}] Notified Socket.IO server about workflow ${workflowId} deletion`)
+      } else {
+        logger.warn(`[${requestId}] Failed to notify Socket.IO server about workflow ${workflowId} deletion`)
+      }
+    } catch (error) {
+      logger.warn(`[${requestId}] Error notifying Socket.IO server about workflow ${workflowId} deletion:`, error)
+      // Don't fail the deletion if Socket.IO notification fails
+    }
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (error: any) {

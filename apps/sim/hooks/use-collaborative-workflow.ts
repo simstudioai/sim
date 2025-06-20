@@ -190,6 +190,19 @@ export function useCollaborativeWorkflow() {
     [workflowStore, emitWorkflowOperation]
   )
 
+  const collaborativeRemoveBlock = useCallback(
+    (id: string) => {
+      // Apply locally first
+      workflowStore.removeBlock(id)
+
+      // Then broadcast to other clients
+      if (!isApplyingRemoteChange.current) {
+        emitWorkflowOperation('remove', 'block', { id })
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
   const collaborativeUpdateBlockPosition = useCallback(
     (id: string, position: Position) => {
       // Apply locally first
@@ -211,19 +224,6 @@ export function useCollaborativeWorkflow() {
       // Then broadcast to other clients
       if (!isApplyingRemoteChange.current) {
         emitWorkflowOperation('update-name', 'block', { id, name })
-      }
-    },
-    [workflowStore, emitWorkflowOperation]
-  )
-
-  const collaborativeRemoveBlock = useCallback(
-    (id: string) => {
-      // Apply locally first
-      workflowStore.removeBlock(id)
-
-      // Then broadcast to other clients
-      if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('remove', 'block', { id })
       }
     },
     [workflowStore, emitWorkflowOperation]

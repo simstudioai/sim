@@ -204,7 +204,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           edges: [...state.edges],
         }))
         get().updateLastSaved()
-        get().sync.markDirty()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateParentId: (id: string, parentId: string, extent: 'parent') => {
@@ -275,8 +275,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           parentId ? `Set parent for ${block.name}` : `Remove parent for ${block.name}`
         )
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       removeBlock: (id: string) => {
@@ -347,7 +346,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, 'Remove block and children')
         get().updateLastSaved()
-        get().sync.markDirty()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       addEdge: (edge: Edge) => {
@@ -441,13 +440,13 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           hasActiveWebhook: false,
         }
         set(newState)
-        get().sync.markDirty()
+        // Note: Socket.IO handles real-time sync automatically
         return newState
       },
 
       updateLastSaved: () => {
         set({ lastSaved: Date.now() })
-        // Note: Scheduling changes are automatically handled by the workflowSync
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       toggleBlockEnabled: (id: string) => {
@@ -466,7 +465,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
-        get().sync.markDirty()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       duplicateBlock: (id: string) => {
@@ -535,8 +534,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Duplicate ${block.type} block`)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       toggleBlockHandles: (id: string) => {
@@ -554,8 +552,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         set(newState)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateBlockName: (id: string, name: string) => {
@@ -641,8 +638,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `${name} block name updated`)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       toggleBlockWide: (id: string) => {
@@ -658,8 +654,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
           loops: { ...state.loops },
         }))
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateBlockHeight: (id: string, height: number) => {
@@ -764,7 +759,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         if (get().hasActiveSchedule !== hasActiveSchedule) {
           set({ hasActiveSchedule })
           get().updateLastSaved()
-          get().sync.markDirty()
+          // Note: Socket.IO handles real-time sync automatically
         }
       },
 
@@ -778,7 +773,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
           set({ hasActiveWebhook })
           get().updateLastSaved()
-          get().sync.markDirty()
+          // Note: Socket.IO handles real-time sync automatically
         }
       },
 
@@ -845,8 +840,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
 
         pushHistory(set, get, newState, 'Reverted to deployed state')
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       toggleBlockAdvancedMode: (id: string) => {
@@ -897,8 +891,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         }
 
         get().triggerUpdate()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       // Parallel block methods implementation
@@ -927,8 +920,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Update parallel count`)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       updateParallelCollection: (parallelId: string, collection: string) => {
@@ -956,8 +948,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         set(newState)
         pushHistory(set, get, newState, `Update parallel collection`)
         get().updateLastSaved()
-        get().sync.markDirty()
-        get().sync.forceSync()
+        // Note: Socket.IO handles real-time sync automatically
       },
 
       // Function to convert UI parallel blocks to execution format

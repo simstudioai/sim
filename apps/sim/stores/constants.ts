@@ -8,6 +8,4 @@ export const API_ENDPOINTS = {
   WORKFLOWS: '/api/workflows',
 }
 
-export const SYNC_INTERVALS = {
-  DEFAULT: 30000, // 30 seconds
-}
+// Removed SYNC_INTERVALS - Socket.IO handles real-time sync

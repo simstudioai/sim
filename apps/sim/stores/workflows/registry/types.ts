@@ -48,13 +48,13 @@ export interface WorkflowRegistryActions {
     description?: string
     workspaceId?: string
     folderId?: string | null
-  }) => string
+  }) => Promise<string>
   createMarketplaceWorkflow: (
     marketplaceId: string,
     state: any,
     metadata: Partial<WorkflowMetadata>
-  ) => string
-  duplicateWorkflow: (sourceId: string) => string | null
+  ) => Promise<string>
+  duplicateWorkflow: (sourceId: string) => Promise<string | null>
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setDeploymentStatus: (
     workflowId: string | null,
