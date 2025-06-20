@@ -1,5 +1,5 @@
 import crypto from 'node:crypto'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSession } from '@/lib/auth'
@@ -165,6 +165,14 @@ const BulkCreateDocumentsSchema = z.object({
     chunkOverlap: z.number().min(0).max(500),
   }),
   bulk: z.literal(true),
+})
+
+const BulkUpdateDocumentsSchema = z.object({
+  operation: z.enum(['enable', 'disable', 'delete']),
+  documentIds: z
+    .array(z.string())
+    .min(1, 'At least one document ID is required')
+    .max(100, 'Cannot operate on more than 100 documents at once'),
 })
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -392,5 +400,136 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (error) {
     logger.error(`[${requestId}] Error creating document`, error)
     return NextResponse.json({ error: 'Failed to create document' }, { status: 500 })
+  }
+}
+
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const { id: knowledgeBaseId } = await params
+
+  try {
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized bulk document operation attempt`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, session.user.id)
+
+    if (!accessCheck.hasAccess) {
+      if ('notFound' in accessCheck && accessCheck.notFound) {
+        logger.warn(`[${requestId}] Knowledge base not found: ${knowledgeBaseId}`)
+        return NextResponse.json({ error: 'Knowledge base not found' }, { status: 404 })
+      }
+      logger.warn(
+        `[${requestId}] User ${session.user.id} attempted to perform bulk operation on unauthorized knowledge base ${knowledgeBaseId}`
+      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await req.json()
+
+    try {
+      const validatedData = BulkUpdateDocumentsSchema.parse(body)
+      const { operation, documentIds } = validatedData
+
+      logger.info(
+        `[${requestId}] Starting bulk ${operation} operation on ${documentIds.length} documents in knowledge base ${knowledgeBaseId}`
+      )
+
+      // Verify all documents belong to this knowledge base and user has access
+      const documentsToUpdate = await db
+        .select({
+          id: document.id,
+          enabled: document.enabled,
+        })
+        .from(document)
+        .where(
+          and(
+            eq(document.knowledgeBaseId, knowledgeBaseId),
+            inArray(document.id, documentIds),
+            isNull(document.deletedAt)
+          )
+        )
+
+      if (documentsToUpdate.length === 0) {
+        return NextResponse.json({ error: 'No valid documents found to update' }, { status: 404 })
+      }
+
+      if (documentsToUpdate.length !== documentIds.length) {
+        logger.warn(
+          `[${requestId}] Some documents not found or don't belong to knowledge base. Requested: ${documentIds.length}, Found: ${documentsToUpdate.length}`
+        )
+      }
+
+      // Perform the bulk operation
+      let updateResult: Array<{ id: string; enabled?: boolean; deletedAt?: Date | null }>
+      let successCount: number
+
+      if (operation === 'delete') {
+        // Handle bulk soft delete
+        updateResult = await db
+          .update(document)
+          .set({
+            deletedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(document.knowledgeBaseId, knowledgeBaseId),
+              inArray(document.id, documentIds),
+              isNull(document.deletedAt)
+            )
+          )
+          .returning({ id: document.id, deletedAt: document.deletedAt })
+
+        successCount = updateResult.length
+      } else {
+        // Handle bulk enable/disable
+        const enabled = operation === 'enable'
+
+        updateResult = await db
+          .update(document)
+          .set({
+            enabled,
+          })
+          .where(
+            and(
+              eq(document.knowledgeBaseId, knowledgeBaseId),
+              inArray(document.id, documentIds),
+              isNull(document.deletedAt)
+            )
+          )
+          .returning({ id: document.id, enabled: document.enabled })
+
+        successCount = updateResult.length
+      }
+
+      logger.info(
+        `[${requestId}] Bulk ${operation} operation completed: ${successCount} documents updated in knowledge base ${knowledgeBaseId}`
+      )
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          operation,
+          successCount,
+          updatedDocuments: updateResult,
+        },
+      })
+    } catch (validationError) {
+      if (validationError instanceof z.ZodError) {
+        logger.warn(`[${requestId}] Invalid bulk operation data`, {
+          errors: validationError.errors,
+        })
+        return NextResponse.json(
+          { error: 'Invalid request data', details: validationError.errors },
+          { status: 400 }
+        )
+      }
+      throw validationError
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Error in bulk document operation`, error)
+    return NextResponse.json({ error: 'Failed to perform bulk operation' }, { status: 500 })
   }
 }

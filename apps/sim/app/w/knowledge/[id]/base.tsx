@@ -610,32 +610,34 @@ export function KnowledgeBase({
     try {
       setIsBulkOperating(true)
 
-      const updatePromises = documentsToEnable.map((doc) =>
-        fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            enabled: true,
-          }),
-        })
-      )
-
-      const results = await Promise.allSettled(updatePromises)
-
-      // Update successful documents in the store
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled' && result.value.ok) {
-          const docId = documentsToEnable[index].id
-          updateDocument(docId, { enabled: true })
-        }
+      const response = await fetch(`/api/knowledge/${id}/documents`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'enable',
+          documentIds: documentsToEnable.map((doc) => doc.id),
+        }),
       })
+
+      if (!response.ok) {
+        throw new Error('Failed to enable documents')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update successful documents in the store
+        result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
+          updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
+        })
+
+        logger.info(`Successfully enabled ${result.data.successCount} documents`)
+      }
 
       // Clear selection after successful operation
       setSelectedDocuments(new Set())
-
-      logger.info(`Successfully enabled ${documentsToEnable.length} documents`)
     } catch (err) {
       logger.error('Error enabling documents:', err)
     } finally {
@@ -653,32 +655,34 @@ export function KnowledgeBase({
     try {
       setIsBulkOperating(true)
 
-      const updatePromises = documentsToDisable.map((doc) =>
-        fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            enabled: false,
-          }),
-        })
-      )
-
-      const results = await Promise.allSettled(updatePromises)
-
-      // Update successful documents in the store
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled' && result.value.ok) {
-          const docId = documentsToDisable[index].id
-          updateDocument(docId, { enabled: false })
-        }
+      const response = await fetch(`/api/knowledge/${id}/documents`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'disable',
+          documentIds: documentsToDisable.map((doc) => doc.id),
+        }),
       })
+
+      if (!response.ok) {
+        throw new Error('Failed to disable documents')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        // Update successful documents in the store
+        result.data.updatedDocuments.forEach((updatedDoc: { id: string; enabled: boolean }) => {
+          updateDocument(updatedDoc.id, { enabled: updatedDoc.enabled })
+        })
+
+        logger.info(`Successfully disabled ${result.data.successCount} documents`)
+      }
 
       // Clear selection after successful operation
       setSelectedDocuments(new Set())
-
-      logger.info(`Successfully disabled ${documentsToDisable.length} documents`)
     } catch (err) {
       logger.error('Error disabling documents:', err)
     } finally {
@@ -694,25 +698,32 @@ export function KnowledgeBase({
     try {
       setIsBulkOperating(true)
 
-      const deletePromises = documentsToDelete.map((doc) =>
-        fetch(`/api/knowledge/${id}/documents/${doc.id}`, {
-          method: 'DELETE',
-        })
-      )
+      const response = await fetch(`/api/knowledge/${id}/documents`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'delete',
+          documentIds: documentsToDelete.map((doc) => doc.id),
+        }),
+      })
 
-      const results = await Promise.allSettled(deletePromises)
+      if (!response.ok) {
+        throw new Error('Failed to delete documents')
+      }
+
+      const result = await response.json()
+
+      if (result.success) {
+        logger.info(`Successfully deleted ${result.data.successCount} documents`)
+      }
 
       // Refresh documents list to reflect deletions
       await refreshDocuments()
 
       // Clear selection after successful operation
       setSelectedDocuments(new Set())
-
-      const successCount = results.filter(
-        (result) => result.status === 'fulfilled' && result.value.ok
-      ).length
-
-      logger.info(`Successfully deleted ${successCount} documents`)
     } catch (err) {
       logger.error('Error deleting documents:', err)
     } finally {
