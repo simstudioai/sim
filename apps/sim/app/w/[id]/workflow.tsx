@@ -97,6 +97,7 @@ function WorkflowContent() {
     collaborativeSetSubblockValue: setSubBlockValue,
     isConnected,
     presenceUsers,
+    joinWorkflow,
   } = useCollaborativeWorkflow()
   const { markAllAsRead } = useNotificationStore()
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
@@ -255,6 +256,23 @@ function WorkflowContent() {
       if (cleanup) cleanup()
     }
   }, [debouncedAutoLayout])
+
+  // Listen for active workflow changes and join socket room
+  useEffect(() => {
+    const handleActiveWorkflowChanged = (event: CustomEvent) => {
+      const { workflowId } = event.detail
+      if (workflowId && isConnected) {
+        logger.info(`Active workflow changed to ${workflowId}, joining socket room`)
+        joinWorkflow(workflowId)
+      }
+    }
+
+    window.addEventListener('active-workflow-changed', handleActiveWorkflowChanged as EventListener)
+
+    return () => {
+      window.removeEventListener('active-workflow-changed', handleActiveWorkflowChanged as EventListener)
+    }
+  }, [isConnected, joinWorkflow])
 
   // Note: Workflow initialization now handled by Socket.IO system
 
@@ -770,6 +788,7 @@ function WorkflowContent() {
 
       // Navigate to existing workflow or first available
       if (!workflows[currentId]) {
+        logger.info(`Workflow ${currentId} not found, redirecting to first available workflow`)
         router.replace(`/w/${workflowIds[0]}`)
         return
       }

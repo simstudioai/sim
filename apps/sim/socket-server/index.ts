@@ -1266,18 +1266,51 @@ io.on('connection', (socket: AuthenticatedSocket) => {
     const workflowId = socketToWorkflow.get(socket.id)
     const session = userSessions.get(socket.id)
 
-    if (!workflowId || !session) return
+    if (!workflowId || !session) {
+      logger.debug(`Ignoring subblock update: socket not connected to any workflow room`, {
+        socketId: socket.id,
+        hasWorkflowId: !!workflowId,
+        hasSession: !!session,
+      })
+      return
+    }
 
     const { blockId, subblockId, value, timestamp } = data
     const room = workflowRooms.get(workflowId)
 
-    if (!room) return
+    if (!room) {
+      logger.debug(`Ignoring subblock update: workflow room not found`, {
+        socketId: socket.id,
+        workflowId,
+        blockId,
+        subblockId,
+      })
+      return
+    }
 
     try {
       // Update user activity
       const userPresence = room.users.get(socket.id)
       if (userPresence) {
         userPresence.lastActivity = Date.now()
+      }
+
+      // First, verify that the workflow still exists in the database
+      const workflowExists = await db
+        .select({ id: workflow.id })
+        .from(workflow)
+        .where(eq(workflow.id, workflowId))
+        .limit(1)
+
+      if (workflowExists.length === 0) {
+        logger.warn(`Ignoring subblock update: workflow ${workflowId} no longer exists`, {
+          socketId: socket.id,
+          blockId,
+          subblockId,
+        })
+        // Clean up the socket from this non-existent workflow
+        cleanupUserFromRoom(socket.id, workflowId)
+        return
       }
 
       // Persist subblock update to database

@@ -47,6 +47,7 @@ interface SocketContextType {
   onSelectionUpdate: (handler: (data: any) => void) => void
   onUserJoined: (handler: (data: any) => void) => void
   onUserLeft: (handler: (data: any) => void) => void
+  onWorkflowDeleted: (handler: (data: any) => void) => void
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -67,6 +68,7 @@ const SocketContext = createContext<SocketContextType>({
   onSelectionUpdate: () => {},
   onUserJoined: () => {},
   onUserLeft: () => {},
+  onWorkflowDeleted: () => {},
 })
 
 export const useSocket = () => useContext(SocketContext)
@@ -91,6 +93,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     selectionUpdate?: (data: any) => void
     userJoined?: (data: any) => void
     userLeft?: (data: any) => void
+    workflowDeleted?: (data: any) => void
   }>({})
 
   // Initialize socket when user is available
@@ -187,6 +190,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       eventHandlers.current.subblockUpdate?.(data)
     })
 
+    // Workflow deletion events
+    socketInstance.on('workflow-deleted', (data) => {
+      logger.warn(`Workflow ${data.workflowId} has been deleted`)
+      // Clear current workflow ID if it matches the deleted workflow
+      if (currentWorkflowId === data.workflowId) {
+        setCurrentWorkflowId(null)
+        setPresenceUsers([])
+      }
+      eventHandlers.current.workflowDeleted?.(data)
+    })
+
     // Cursor update events
     socketInstance.on('cursor-update', (data) => {
       setPresenceUsers((prev) =>
@@ -281,12 +295,20 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   // Emit subblock value updates
   const emitSubblockUpdate = useCallback(
     (blockId: string, subblockId: string, value: any) => {
+      // Only emit if socket is connected and we're in a valid workflow room
       if (socket && currentWorkflowId) {
         socket.emit('subblock-update', {
           blockId,
           subblockId,
           value,
           timestamp: Date.now(),
+        })
+      } else {
+        logger.warn('Cannot emit subblock update: no socket connection or workflow room', {
+          hasSocket: !!socket,
+          currentWorkflowId,
+          blockId,
+          subblockId,
         })
       }
     },
@@ -338,6 +360,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     eventHandlers.current.userLeft = handler
   }, [])
 
+  const onWorkflowDeleted = useCallback((handler: (data: any) => void) => {
+    eventHandlers.current.workflowDeleted = handler
+  }, [])
+
   return (
     <SocketContext.Provider
       value={{
@@ -358,6 +384,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         onSelectionUpdate,
         onUserJoined,
         onUserLeft,
+        onWorkflowDeleted,
       }}
     >
       {children}

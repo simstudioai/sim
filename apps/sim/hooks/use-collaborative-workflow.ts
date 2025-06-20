@@ -22,6 +22,7 @@ export function useCollaborativeWorkflow() {
     onSubblockUpdate,
     onUserJoined,
     onUserLeft,
+    onWorkflowDeleted,
   } = useSocket()
 
   const { activeWorkflowId } = useWorkflowRegistry()
@@ -141,11 +142,25 @@ export function useCollaborativeWorkflow() {
       logger.info(`User left: ${data.userId}`)
     }
 
+    const handleWorkflowDeleted = (data: any) => {
+      const { workflowId } = data
+      logger.warn(`Workflow ${workflowId} has been deleted`)
+
+      // If the deleted workflow is the currently active one, we need to handle this gracefully
+      if (activeWorkflowId === workflowId) {
+        logger.info(`Currently active workflow ${workflowId} was deleted, stopping collaborative operations`)
+        // The workflow registry should handle switching to another workflow
+        // We just need to stop any pending collaborative operations
+        isApplyingRemoteChange.current = false
+      }
+    }
+
     // Register event handlers
     onWorkflowOperation(handleWorkflowOperation)
     onSubblockUpdate(handleSubblockUpdate)
     onUserJoined(handleUserJoined)
     onUserLeft(handleUserLeft)
+    onWorkflowDeleted(handleWorkflowDeleted)
 
     return () => {
       // Cleanup handled by socket context
@@ -155,6 +170,7 @@ export function useCollaborativeWorkflow() {
     onSubblockUpdate,
     onUserJoined,
     onUserLeft,
+    onWorkflowDeleted,
     workflowStore,
     subBlockStore,
     activeWorkflowId,
@@ -286,12 +302,20 @@ export function useCollaborativeWorkflow() {
       // Apply locally first - the store automatically uses the active workflow ID
       subBlockStore.setValue(blockId, subblockId, value)
 
-      // Then broadcast to other clients
-      if (!isApplyingRemoteChange.current) {
+      // Then broadcast to other clients, but only if we have a valid workflow connection
+      if (!isApplyingRemoteChange.current && isConnected && currentWorkflowId && activeWorkflowId === currentWorkflowId) {
         emitSubblockUpdate(blockId, subblockId, value)
+      } else if (!isConnected || !currentWorkflowId || activeWorkflowId !== currentWorkflowId) {
+        logger.debug('Skipping subblock update broadcast', {
+          isConnected,
+          currentWorkflowId,
+          activeWorkflowId,
+          blockId,
+          subblockId,
+        })
       }
     },
-    [subBlockStore, emitSubblockUpdate]
+    [subBlockStore, emitSubblockUpdate, isConnected, currentWorkflowId, activeWorkflowId]
   )
 
   return {

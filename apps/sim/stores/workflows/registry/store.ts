@@ -718,6 +718,12 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
         // Update the active workflow ID
         set({ activeWorkflowId: id, error: null })
 
+        // Emit a global event to notify that the active workflow has changed
+        // This allows the workflow component to join the socket room
+        window.dispatchEvent(new CustomEvent('active-workflow-changed', {
+          detail: { workflowId: id }
+        }))
+
         logger.info(`Switched to workflow ${id}`)
       },
 
@@ -1443,48 +1449,42 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
             return { workflowValues: newWorkflowValues }
           })
 
-          // If deleting active workflow, switch to another one or clear state
+          // If deleting active workflow, clear active workflow ID immediately
+          // Don't automatically switch to another workflow to prevent race conditions
           let newActiveWorkflowId = state.activeWorkflowId
           if (state.activeWorkflowId === id) {
-            const remainingIds = Object.keys(newWorkflows)
-            newActiveWorkflowId = remainingIds[0] || null
+            newActiveWorkflowId = null
 
-            // Ensure the workflow we're switching to actually exists
-            if (newActiveWorkflowId && !newWorkflows[newActiveWorkflowId]) {
-              logger.warn(`Attempted to switch to non-existent workflow ${newActiveWorkflowId}`)
-              newActiveWorkflowId = null
-            }
-
-            if (!newActiveWorkflowId) {
-              // No workflows left, initialize empty state
-              useWorkflowStore.setState({
-                blocks: {},
-                edges: [],
-                loops: {},
-                parallels: {},
-                isDeployed: false,
-                deployedAt: undefined,
-                hasActiveSchedule: false,
-                history: {
-                  past: [],
-                  present: {
-                    state: {
-                      blocks: {},
-                      edges: [],
-                      loops: {},
-                      parallels: {},
-                      isDeployed: false,
-                      deployedAt: undefined,
-                    },
-                    timestamp: Date.now(),
-                    action: 'Initial state',
-                    subblockValues: {},
+            // Clear workflow store state immediately when deleting active workflow
+            useWorkflowStore.setState({
+              blocks: {},
+              edges: [],
+              loops: {},
+              parallels: {},
+              isDeployed: false,
+              deployedAt: undefined,
+              hasActiveSchedule: false,
+              history: {
+                past: [],
+                present: {
+                  state: {
+                    blocks: {},
+                    edges: [],
+                    loops: {},
+                    parallels: {},
+                    isDeployed: false,
+                    deployedAt: undefined,
                   },
-                  future: [],
+                  timestamp: Date.now(),
+                  action: 'Workflow deleted',
+                  subblockValues: {},
                 },
-                lastSaved: Date.now(),
-              })
-            }
+                future: [],
+              },
+              lastSaved: Date.now(),
+            })
+
+            logger.info(`Cleared active workflow ${id} - user will need to manually select another workflow`)
           }
 
           // Cancel any schedule for this workflow (async, don't wait)
