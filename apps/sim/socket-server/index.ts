@@ -1282,9 +1282,9 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 
       // Persist subblock update to database
       await db.transaction(async (tx) => {
-        // Get the current block data
+        // Get the current block subBlocks data
         const [block] = await tx
-          .select({ data: workflowBlocks.data })
+          .select({ subBlocks: workflowBlocks.subBlocks })
           .from(workflowBlocks)
           .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
           .limit(1)
@@ -1293,23 +1293,20 @@ io.on('connection', (socket: AuthenticatedSocket) => {
           throw new Error(`Block ${blockId} not found in workflow ${workflowId}`)
         }
 
-        // Parse the current block data
-        const blockData = block.data as any
+        // Parse the current subBlocks data
+        const subBlocks = (block.subBlocks as any) || {}
 
-        // Update the subblock value in the block data
-        if (!blockData.subBlocks) {
-          blockData.subBlocks = {}
+        // Update the subblock value in the subBlocks data
+        if (!subBlocks[subblockId]) {
+          subBlocks[subblockId] = {}
         }
-        if (!blockData.subBlocks[subblockId]) {
-          blockData.subBlocks[subblockId] = {}
-        }
-        blockData.subBlocks[subblockId].value = value
+        subBlocks[subblockId].value = value
 
-        // Save the updated block data back to the database
+        // Save the updated subBlocks data back to the database
         await tx
           .update(workflowBlocks)
           .set({
-            data: blockData,
+            subBlocks: subBlocks,
             updatedAt: new Date(),
           })
           .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
