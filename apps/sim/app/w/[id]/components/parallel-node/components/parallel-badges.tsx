@@ -58,7 +58,11 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   const [parallelType, setParallelType] = useState<'count' | 'collection'>(configParallelType)
   const [iterations, setIterations] = useState(configCount)
   const [inputValue, setInputValue] = useState(configCount.toString())
-  const [editorValue, setEditorValue] = useState(configDistribution)
+  const [editorValue, setEditorValue] = useState<string>(
+    typeof configDistribution === 'string'
+      ? configDistribution
+      : JSON.stringify(configDistribution) || ''
+  )
   const [typePopoverOpen, setTypePopoverOpen] = useState(false)
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
@@ -106,13 +110,11 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         setInputValue(newCount.toString())
       }
 
-      if (newDistribution) {
-        if (typeof newDistribution === 'string') {
-          setEditorValue(newDistribution)
-        } else if (Array.isArray(newDistribution) || typeof newDistribution === 'object') {
-          setEditorValue(JSON.stringify(newDistribution))
-        }
-      }
+      // Always ensure editorValue is a string
+      const distributionString = typeof newDistribution === 'string'
+        ? newDistribution
+        : JSON.stringify(newDistribution) || ''
+      setEditorValue(distributionString)
     }
   }, [parallelConfig, parallelType, iterations, nodeId])
 
@@ -130,7 +132,10 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         collaborativeUpdateParallelCount(nodeId, iterations)
       } else {
         collaborativeUpdateParallelCount(nodeId, 1)
-        collaborativeUpdateParallelCollection(nodeId, editorValue || '[]')
+        const collectionValue = typeof editorValue === 'string'
+          ? editorValue || '[]'
+          : JSON.stringify(editorValue) || '[]'
+        collaborativeUpdateParallelCollection(nodeId, collectionValue)
       }
 
       setTypePopoverOpen(false)
