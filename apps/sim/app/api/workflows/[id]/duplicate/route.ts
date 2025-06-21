@@ -6,6 +6,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
+import type { WorkflowState, LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDuplicateAPI')
 
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const blockIdMapping = new Map<string, string>()
 
       // Initialize state for updating with new block IDs
-      let updatedState = source.state
+      let updatedState: WorkflowState = source.state as WorkflowState
 
       if (sourceBlocks.length > 0) {
         const newBlocks = sourceBlocks.map((block) => {
@@ -141,12 +142,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (sourceSubflows.length > 0) {
         const newSubflows = sourceSubflows.map((subflow) => {
           // Update block references in subflow config
-          let updatedConfig = subflow.config
+          let updatedConfig: LoopConfig | ParallelConfig = subflow.config as LoopConfig | ParallelConfig
           if (subflow.config && typeof subflow.config === 'object') {
-            updatedConfig = JSON.parse(JSON.stringify(subflow.config))
+            updatedConfig = JSON.parse(JSON.stringify(subflow.config)) as LoopConfig | ParallelConfig
 
             // Update node references in config if they exist
-            if (updatedConfig.nodes && Array.isArray(updatedConfig.nodes)) {
+            if ('nodes' in updatedConfig && Array.isArray(updatedConfig.nodes)) {
               updatedConfig.nodes = updatedConfig.nodes.map(
                 (nodeId: string) => blockIdMapping.get(nodeId) || nodeId
               )
@@ -171,11 +172,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
       // Update the JSON state to use new block IDs
       if (updatedState && typeof updatedState === 'object') {
-        updatedState = JSON.parse(JSON.stringify(updatedState))
+        updatedState = JSON.parse(JSON.stringify(updatedState)) as WorkflowState
 
         // Update blocks object keys
         if (updatedState.blocks && typeof updatedState.blocks === 'object') {
-          const newBlocks: any = {}
+          const newBlocks = {} as Record<string, typeof updatedState.blocks[string]>
           for (const [oldId, blockData] of Object.entries(updatedState.blocks)) {
             const newId = blockIdMapping.get(oldId) || oldId
             newBlocks[newId] = {
@@ -188,7 +189,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         // Update edges array
         if (updatedState.edges && Array.isArray(updatedState.edges)) {
-          updatedState.edges = updatedState.edges.map((edge: any) => ({
+          updatedState.edges = updatedState.edges.map((edge) => ({
             ...edge,
             id: crypto.randomUUID(),
             source: blockIdMapping.get(edge.source) || edge.source,
@@ -198,7 +199,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         // Update loops and parallels if they exist
         if (updatedState.loops && typeof updatedState.loops === 'object') {
-          const newLoops: any = {}
+          const newLoops = {} as Record<string, typeof updatedState.loops[string]>
           for (const [oldId, loopData] of Object.entries(updatedState.loops)) {
             const newId = blockIdMapping.get(oldId) || oldId
             newLoops[newId] = loopData
@@ -207,7 +208,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         if (updatedState.parallels && typeof updatedState.parallels === 'object') {
-          const newParallels: any = {}
+          const newParallels = {} as Record<string, typeof updatedState.parallels[string]>
           for (const [oldId, parallelData] of Object.entries(updatedState.parallels)) {
             const newId = blockIdMapping.get(oldId) || oldId
             newParallels[newId] = parallelData
@@ -247,7 +248,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (error) {
     if (error instanceof Error && error.message === 'Source workflow not found or access denied') {
       logger.warn(
-        `[${requestId}] Source workflow ${sourceWorkflowId} not found or access denied for user ${session.user.id}`
+        `[${requestId}] Source workflow ${sourceWorkflowId} not found or access denied`
       )
       return NextResponse.json({ error: 'Source workflow not found' }, { status: 404 })
     }
