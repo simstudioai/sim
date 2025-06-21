@@ -15,7 +15,7 @@
   "scripts": {
     "build": "bun run build:tsc",
     "build:tsc": "tsc",
-    "dev": "tsc --watch",
+    "dev:watch": "tsc --watch",
     "prepublishOnly": "bun run build",
     "test": "vitest run",
     "test:watch": "vitest"
