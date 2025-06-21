@@ -210,8 +210,12 @@ export class ParallelBlockHandler implements BlockHandler {
         response: {
           parallelId: block.id,
           parallelCount,
-          distributionType: parallelType === 'count' ? 'count' :
-                           parallelType === 'collection' ? 'distributed' : 'simple',
+          distributionType:
+            parallelType === 'count'
+              ? 'count'
+              : parallelType === 'collection'
+                ? 'distributed'
+                : 'simple',
           started: true,
           message: `Initialized ${parallelCount} parallel execution${parallelCount > 1 ? 's' : ''}`,
         },
