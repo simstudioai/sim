@@ -11,6 +11,7 @@ interface CheckboxListProps {
   layout?: 'full' | 'half'
   isPreview?: boolean
   subBlockValues?: Record<string, any>
+  disabled?: boolean
 }
 
 export function CheckboxList({
@@ -21,6 +22,7 @@ export function CheckboxList({
   layout,
   isPreview = false,
   subBlockValues,
+  disabled = false,
 }: CheckboxListProps) {
   return (
     <div className={cn('grid gap-4', layout === 'half' ? 'grid-cols-2' : 'grid-cols-1', 'pt-1')}>
@@ -35,8 +37,8 @@ export function CheckboxList({
         const value = isPreview ? previewValue : storeValue
 
         const handleChange = (checked: boolean) => {
-          // Only update store when not in preview mode
-          if (!isPreview) {
+          // Only update store when not in preview mode or disabled
+          if (!isPreview && !disabled) {
             setStoreValue(checked)
           }
         }
@@ -47,7 +49,7 @@ export function CheckboxList({
               id={`${blockId}-${option.id}`}
               checked={Boolean(value)}
               onCheckedChange={handleChange}
-              disabled={isPreview}
+              disabled={isPreview || disabled}
             />
             <Label
               htmlFor={`${blockId}-${option.id}`}

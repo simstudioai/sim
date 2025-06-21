@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { db } from '@/db'
-import { user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
+import { permissions, user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
 
 // Accept an invitation via token
 export async function GET(req: NextRequest) {
@@ -153,24 +153,44 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Add user to workspace
-    await db.insert(workspaceMember).values({
-      id: randomUUID(),
-      workspaceId: invitation.workspaceId,
-      userId: session.user.id,
-      role: invitation.role,
-      joinedAt: new Date(),
-      updatedAt: new Date(),
-    })
-
-    // Mark invitation as accepted
-    await db
-      .update(workspaceInvitation)
-      .set({
-        status: 'accepted',
+    // Add user to workspace, permissions, and mark invitation as accepted in a transaction
+    await db.transaction(async (tx) => {
+      // Add user to workspace
+      await tx.insert(workspaceMember).values({
+        id: randomUUID(),
+        workspaceId: invitation.workspaceId,
+        userId: session.user.id,
+        role: invitation.role,
+        joinedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(workspaceInvitation.id, invitation.id))
+
+      // Create permissions for the user
+      const permissionsToInsert = [
+        {
+          id: randomUUID(),
+          entityType: 'workspace' as const,
+          entityId: invitation.workspaceId,
+          userId: session.user.id,
+          permissionType: invitation.permissions || 'read',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]
+
+      if (permissionsToInsert.length > 0) {
+        await tx.insert(permissions).values(permissionsToInsert)
+      }
+
+      // Mark invitation as accepted
+      await tx
+        .update(workspaceInvitation)
+        .set({
+          status: 'accepted',
+          updatedAt: new Date(),
+        })
+        .where(eq(workspaceInvitation.id, invitation.id))
+    })
 
     // Redirect to the workspace
     return NextResponse.redirect(

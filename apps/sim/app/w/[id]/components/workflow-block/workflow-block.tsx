@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, formatDateTime, validateName } from '@/lib/utils'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -403,6 +404,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
 
   const shouldShowScheduleBadge = isStarterBlock && !isLoadingScheduleInfo && scheduleInfo !== null
 
+  const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const currentWorkflow = useWorkflowRegistry((state) =>
+    workflowId ? state.workflows[workflowId] : null
+  )
+  const workspaceId = currentWorkflow?.workspaceId || null
+  const userPermissions = useUserPermissions(workspaceId)
+
   return (
     <div className='group relative'>
       <Card
@@ -424,8 +432,12 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
           </div>
         )}
 
-        <ActionBar blockId={id} blockType={type} />
-        <ConnectionBlocks blockId={id} setIsConnecting={setIsConnecting} />
+        <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
+        <ConnectionBlocks
+          blockId={id}
+          setIsConnecting={setIsConnecting}
+          isDisabled={!userPermissions.canEdit}
+        />
 
         {/* Input Handle - Don't show for starter blocks */}
         {type !== 'starter' && (
@@ -690,8 +702,16 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 <Button
                   variant='ghost'
                   size='sm'
-                  onClick={() => toggleBlockWide(id)}
-                  className='h-7 p-1 text-gray-500'
+                  onClick={() => {
+                    if (userPermissions.canEdit) {
+                      toggleBlockWide(id)
+                    }
+                  }}
+                  className={cn(
+                    'h-7 p-1 text-gray-500',
+                    !userPermissions.canEdit && 'cursor-not-allowed opacity-50'
+                  )}
+                  disabled={!userPermissions.canEdit}
                 >
                   {isWide ? (
                     <RectangleHorizontal className='h-5 w-5' />
@@ -700,7 +720,13 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side='top'>{isWide ? 'Narrow Block' : 'Expand Block'}</TooltipContent>
+              <TooltipContent side='top'>
+                {!userPermissions.canEdit
+                  ? 'Read-only mode'
+                  : isWide
+                    ? 'Narrow Block'
+                    : 'Expand Block'}
+              </TooltipContent>
             </Tooltip>
           </div>
         </div>
@@ -727,6 +753,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                         isConnecting={isConnecting}
                         isPreview={data.isPreview}
                         subBlockValues={data.subBlockValues}
+                        disabled={!userPermissions.canEdit}
                       />
                     </div>
                   ))}

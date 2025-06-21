@@ -29,6 +29,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -243,6 +244,9 @@ export function WorkspaceHeader({
   // Get workflowRegistry state and actions
   const { activeWorkspaceId, switchToWorkspace, setActiveWorkspaceId } = useWorkflowRegistry()
 
+  // Get user permissions for the active workspace
+  const userPermissions = useUserPermissions(activeWorkspace?.id || '')
+
   const userName = sessionData?.user?.name || sessionData?.user?.email || 'User'
 
   // Set isClientLoading to false after hydration
@@ -348,18 +352,14 @@ export function WorkspaceHeader({
   }
 
   const handleUpdateWorkspace = async (id: string, name: string) => {
-    // Check if user has permission to update the workspace
-    const workspace = workspaces.find((w) => w.id === id)
-    if (!workspace || workspace.role !== 'owner') {
-      console.error('Permission denied: Only workspace owners can update workspaces')
-      return
-    }
-
+    // For update operations, we need to check permissions for the specific workspace
+    // Since we can only use hooks at the component level, we'll make the API call
+    // and let the backend handle the permission check
     setIsWorkspacesLoading(true)
 
     try {
       const response = await fetch(`/api/workspaces/${id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -367,19 +367,26 @@ export function WorkspaceHeader({
       })
 
       if (!response.ok) {
+        if (response.status === 403) {
+          console.error(
+            'Permission denied: Only users with admin permissions can update workspaces'
+          )
+        }
         throw new Error('Failed to update workspace')
       }
 
-      const { workspace } = await response.json()
+      const { workspace: updatedWorkspace } = await response.json()
 
       // Update workspaces list
       setWorkspaces((prevWorkspaces) =>
-        prevWorkspaces.map((w) => (w.id === workspace.id ? { ...w, name: workspace.name } : w))
+        prevWorkspaces.map((w) =>
+          w.id === updatedWorkspace.id ? { ...w, name: updatedWorkspace.name } : w
+        )
       )
 
       // If active workspace was updated, update it too
-      if (activeWorkspace?.id === workspace.id) {
-        setActiveWorkspace({ ...activeWorkspace, name: workspace.name } as Workspace)
+      if (activeWorkspace?.id === updatedWorkspace.id) {
+        setActiveWorkspace({ ...activeWorkspace, name: updatedWorkspace.name } as Workspace)
       }
     } catch (err) {
       console.error('Error updating workspace:', err)
@@ -389,13 +396,9 @@ export function WorkspaceHeader({
   }
 
   const handleDeleteWorkspace = async (id: string) => {
-    // Check if user has permission to delete the workspace
-    const workspace = workspaces.find((w) => w.id === id)
-    if (!workspace || workspace.role !== 'owner') {
-      console.error('Permission denied: Only workspace owners can delete workspaces')
-      return
-    }
-
+    // For delete operations, we need to check permissions for the specific workspace
+    // Since we can only use hooks at the component level, we'll make the API call
+    // and let the backend handle the permission check
     setIsDeleting(true)
 
     try {
@@ -404,6 +407,11 @@ export function WorkspaceHeader({
       })
 
       if (!response.ok) {
+        if (response.status === 403) {
+          console.error(
+            'Permission denied: Only users with admin permissions can delete workspaces'
+          )
+        }
         throw new Error('Failed to delete workspace')
       }
 
@@ -429,9 +437,8 @@ export function WorkspaceHeader({
 
   const openEditModal = (workspace: Workspace, e: React.MouseEvent) => {
     e.stopPropagation()
-    // Check if user has permission to edit the workspace
-    if (workspace.role !== 'owner') {
-      console.error('Permission denied: Only workspace owners can edit workspaces')
+    // Only show edit/delete options for the active workspace if user has admin permissions
+    if (activeWorkspace?.id !== workspace.id || !userPermissions.canAdmin) {
       return
     }
     setEditingWorkspace(workspace)
@@ -584,7 +591,7 @@ export function WorkspaceHeader({
                     onClick={() => switchWorkspace(workspace)}
                   >
                     <span className='truncate pr-16'>{workspace.name}</span>
-                    {workspace.role === 'owner' && (
+                    {userPermissions.canAdmin && activeWorkspace?.id === workspace.id && (
                       <div className='absolute right-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100'>
                         <Button
                           variant='ghost'

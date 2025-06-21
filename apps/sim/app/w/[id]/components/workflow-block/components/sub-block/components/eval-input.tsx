@@ -20,6 +20,7 @@ interface EvalInputProps {
   subBlockId: string
   isPreview?: boolean
   previewValue?: EvalMetric[] | null
+  disabled?: boolean
 }
 
 // Default values
@@ -35,6 +36,7 @@ export function EvalInput({
   subBlockId,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: EvalInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<EvalMetric[]>(blockId, subBlockId)
 
@@ -46,7 +48,7 @@ export function EvalInput({
 
   // Metric operations
   const addMetric = () => {
-    if (isPreview) return
+    if (isPreview || disabled) return
 
     const newMetric: EvalMetric = {
       ...DEFAULT_METRIC,
@@ -56,20 +58,20 @@ export function EvalInput({
   }
 
   const removeMetric = (id: string) => {
-    if (isPreview || metrics.length === 1) return
+    if (isPreview || disabled || metrics.length === 1) return
     setStoreValue(metrics.filter((metric) => metric.id !== id))
   }
 
   // Update handlers
   const updateMetric = (id: string, field: keyof EvalMetric, value: any) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
     setStoreValue(
       metrics.map((metric) => (metric.id === id ? { ...metric, [field]: value } : metric))
     )
   }
 
   const updateRange = (id: string, field: 'min' | 'max', value: string) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
     setStoreValue(
       metrics.map((metric) =>
         metric.id === id
@@ -116,7 +118,7 @@ export function EvalInput({
               variant='ghost'
               size='sm'
               onClick={addMetric}
-              disabled={isPreview}
+              disabled={isPreview || disabled}
               className='h-8 w-8'
             >
               <Plus className='h-4 w-4' />
@@ -132,7 +134,7 @@ export function EvalInput({
               variant='ghost'
               size='sm'
               onClick={() => removeMetric(metric.id)}
-              disabled={isPreview || metrics.length === 1}
+              disabled={isPreview || disabled || metrics.length === 1}
               className='h-8 w-8 text-destructive hover:text-destructive'
             >
               <Trash className='h-4 w-4' />
@@ -164,7 +166,7 @@ export function EvalInput({
                 value={metric.name}
                 onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
                 placeholder='Accuracy'
-                disabled={isPreview}
+                disabled={isPreview || disabled}
                 className='placeholder:text-muted-foreground/50'
               />
             </div>
@@ -175,7 +177,7 @@ export function EvalInput({
                 value={metric.description}
                 onChange={(e) => updateMetric(metric.id, 'description', e.target.value)}
                 placeholder='How accurate is the response?'
-                disabled={isPreview}
+                disabled={isPreview || disabled}
                 className='placeholder:text-muted-foreground/50'
               />
             </div>
@@ -188,7 +190,7 @@ export function EvalInput({
                   value={metric.range.min}
                   onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
                   onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
-                  disabled={isPreview}
+                  disabled={isPreview || disabled}
                   className='placeholder:text-muted-foreground/50'
                 />
               </div>
@@ -199,7 +201,7 @@ export function EvalInput({
                   value={metric.range.max}
                   onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
                   onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
-                  disabled={isPreview}
+                  disabled={isPreview || disabled}
                   className='placeholder:text-muted-foreground/50'
                 />
               </div>

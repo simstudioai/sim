@@ -16,6 +16,7 @@ interface DateInputProps {
   placeholder?: string
   isPreview?: boolean
   previewValue?: string | null
+  disabled?: boolean
 }
 
 export function DateInput({
@@ -24,6 +25,7 @@ export function DateInput({
   placeholder,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: DateInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
 
@@ -40,7 +42,7 @@ export function DateInput({
   }, [date])
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
 
     if (selectedDate) {
       const today = new Date()
@@ -58,7 +60,7 @@ export function DateInput({
       <PopoverTrigger asChild>
         <Button
           variant='outline'
-          disabled={isPreview}
+          disabled={isPreview || disabled}
           className={cn(
             'w-full justify-start text-left font-normal',
             !date && 'text-muted-foreground',

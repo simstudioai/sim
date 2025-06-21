@@ -22,6 +22,7 @@ interface ShortInputProps {
   onChange?: (value: string) => void
   isPreview?: boolean
   previewValue?: string | null
+  disabled?: boolean
 }
 
 export function ShortInput({
@@ -35,6 +36,7 @@ export function ShortInput({
   value: propValue,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: ShortInputProps) {
   const [isFocused, setIsFocused] = useState(false)
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -92,6 +94,12 @@ export function ShortInput({
 
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Don't allow changes if disabled
+    if (disabled) {
+      e.preventDefault()
+      return
+    }
+
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0
 
@@ -328,7 +336,7 @@ export function ShortInput({
         onKeyDown={handleKeyDown}
         autoComplete='off'
         style={{ overflowX: 'auto' }}
-        disabled={isPreview}
+        disabled={disabled}
       />
       <div
         ref={overlayRef}

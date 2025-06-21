@@ -18,6 +18,7 @@ interface DropdownProps {
   value?: string
   isPreview?: boolean
   previewValue?: string | null
+  disabled?: boolean
 }
 
 export function Dropdown({
@@ -28,6 +29,7 @@ export function Dropdown({
   value: propValue,
   isPreview = false,
   previewValue,
+  disabled,
 }: DropdownProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
   const [storeInitialized, setStoreInitialized] = useState(false)
@@ -104,12 +106,12 @@ export function Dropdown({
     <Select
       value={isValueInOptions ? effectiveValue : undefined}
       onValueChange={(newValue) => {
-        // Only update store when not in preview mode
-        if (!isPreview) {
+        // Only update store when not in preview mode and not disabled
+        if (!isPreview && !disabled) {
           setStoreValue(newValue)
         }
       }}
-      disabled={isPreview}
+      disabled={isPreview || disabled}
     >
       <SelectTrigger className='text-left'>
         <SelectValue placeholder='Select an option' />

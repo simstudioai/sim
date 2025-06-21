@@ -2,7 +2,49 @@ import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { user, workspaceMember } from '@/db/schema'
+import { permissions, type permissionTypeEnum, user, workspaceMember } from '@/db/schema'
+
+// Extract the enum type from Drizzle schema
+type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
+
+/**
+ * Helper function to check if a user has admin permission for a workspace
+ */
+async function hasAdminPermission(userId: string, workspaceId: string): Promise<boolean> {
+  const result = await db
+    .select()
+    .from(permissions)
+    .where(
+      and(
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId),
+        eq(permissions.permissionType, 'admin')
+      )
+    )
+    .limit(1)
+
+  return result.length > 0
+}
+
+/**
+ * Helper function to create default permissions for a new member
+ */
+async function createMemberPermissions(
+  userId: string,
+  workspaceId: string,
+  memberPermission: PermissionType = 'read'
+): Promise<void> {
+  await db.insert(permissions).values({
+    id: crypto.randomUUID(),
+    userId,
+    entityType: 'workspace' as const,
+    entityId: workspaceId,
+    permissionType: memberPermission,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+}
 
 // Add a member to a workspace
 export async function POST(req: Request) {
@@ -13,7 +55,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { workspaceId, userEmail, role = 'member' } = await req.json()
+    const { workspaceId, userEmail, permission = 'read' } = await req.json()
 
     if (!workspaceId || !userEmail) {
       return NextResponse.json(
@@ -22,19 +64,19 @@ export async function POST(req: Request) {
       )
     }
 
-    // Check if current user is an owner or admin of the workspace
-    const currentUserMembership = await db
-      .select()
-      .from(workspaceMember)
-      .where(
-        and(
-          eq(workspaceMember.workspaceId, workspaceId),
-          eq(workspaceMember.userId, session.user.id)
-        )
+    // Validate permission type
+    const validPermissions: PermissionType[] = ['admin', 'write', 'read']
+    if (!validPermissions.includes(permission)) {
+      return NextResponse.json(
+        { error: `Invalid permission: must be one of ${validPermissions.join(', ')}` },
+        { status: 400 }
       )
-      .then((rows) => rows[0])
+    }
 
-    if (!currentUserMembership || currentUserMembership.role !== 'owner') {
+    // Check if current user has admin permission for the workspace
+    const hasAdmin = await hasAdminPermission(session.user.id, workspaceId)
+
+    if (!hasAdmin) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 
@@ -49,33 +91,53 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Check if user is already a member
-    const existingMembership = await db
+    // Check if user already has permissions for this workspace
+    const existingPermissions = await db
       .select()
-      .from(workspaceMember)
+      .from(permissions)
       .where(
-        and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, targetUser.id))
+        and(
+          eq(permissions.userId, targetUser.id),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.entityId, workspaceId)
+        )
       )
-      .then((rows) => rows[0])
 
-    if (existingMembership) {
+    if (existingPermissions.length > 0) {
       return NextResponse.json(
-        { error: 'User is already a member of this workspace' },
+        { error: 'User already has permissions for this workspace' },
         { status: 400 }
       )
     }
 
-    // Add user to workspace
-    await db.insert(workspaceMember).values({
-      id: crypto.randomUUID(),
-      workspaceId,
-      userId: targetUser.id,
-      role,
-      joinedAt: new Date(),
-      updatedAt: new Date(),
+    // Use a transaction to ensure data consistency
+    await db.transaction(async (tx) => {
+      // Add user to workspace members table (keeping for compatibility)
+      await tx.insert(workspaceMember).values({
+        id: crypto.randomUUID(),
+        workspaceId,
+        userId: targetUser.id,
+        role: 'member', // Default role for compatibility
+        joinedAt: new Date(),
+        updatedAt: new Date(),
+      })
+
+      // Create single permission for the new member
+      await tx.insert(permissions).values({
+        id: crypto.randomUUID(),
+        userId: targetUser.id,
+        entityType: 'workspace' as const,
+        entityId: workspaceId,
+        permissionType: permission,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      message: `User added to workspace with ${permission} permission`,
+    })
   } catch (error) {
     console.error('Error adding workspace member:', error)
     return NextResponse.json({ error: 'Failed to add workspace member' }, { status: 500 })

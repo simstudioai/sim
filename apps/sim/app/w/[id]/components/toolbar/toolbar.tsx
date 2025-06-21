@@ -2,18 +2,33 @@
 
 import { useMemo, useState } from 'react'
 import { PanelLeftClose, PanelRight, Search } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getAllBlocks, getBlocksByCategory } from '@/blocks'
 import type { BlockCategory } from '@/blocks/types'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useSidebarStore } from '@/stores/sidebar/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { ToolbarBlock } from './components/toolbar-block/toolbar-block'
 import LoopToolbarItem from './components/toolbar-loop-block/toolbar-loop-block'
 import ParallelToolbarItem from './components/toolbar-parallel-block/toolbar-parallel-block'
 import { ToolbarTabs } from './components/toolbar-tabs/toolbar-tabs'
 
 export function Toolbar() {
+  const params = useParams()
+  const workflowId = params?.id as string
+
+  // Get the workspace ID from the workflow registry
+  const activeWorkspaceId = useWorkflowRegistry((state) => state.activeWorkspaceId)
+  const currentWorkflow = useWorkflowRegistry((state) =>
+    workflowId ? state.workflows[workflowId] : null
+  )
+  const workspaceId = currentWorkflow?.workspaceId || activeWorkspaceId
+
+  const userPermissions = useUserPermissions(workspaceId)
+
   const [activeTab, setActiveTab] = useState<BlockCategory>('blocks')
   const [searchQuery, setSearchQuery] = useState('')
   const { mode, isExpanded } = useSidebarStore()
@@ -87,12 +102,12 @@ export function Toolbar() {
           <div className='p-4 pb-20'>
             <div className='flex flex-col gap-3'>
               {blocks.map((block) => (
-                <ToolbarBlock key={block.type} config={block} />
+                <ToolbarBlock key={block.type} config={block} disabled={!userPermissions.canEdit} />
               ))}
               {activeTab === 'blocks' && !searchQuery && (
                 <>
-                  <LoopToolbarItem />
-                  <ParallelToolbarItem />
+                  <LoopToolbarItem disabled={!userPermissions.canEdit} />
+                  <ParallelToolbarItem disabled={!userPermissions.canEdit} />
                 </>
               )}
             </div>
