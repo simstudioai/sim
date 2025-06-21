@@ -124,7 +124,7 @@ export const LoopNodeComponent = memo(({ data, selected, id }: NodeProps) => {
             data?.state === 'valid',
             nestingLevel > 0 &&
               `border border-[0.5px] ${nestingLevel % 2 === 0 ? 'border-slate-300/60' : 'border-slate-400/60'}`,
-            data?.hasNestedError && 'border-red-500 border-2 bg-red-50/50'
+            data?.hasNestedError && 'border-2 border-red-500 bg-red-50/50'
           )}
           style={{
             width: data.width || 500,

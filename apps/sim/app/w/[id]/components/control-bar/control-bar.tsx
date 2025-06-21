@@ -1043,7 +1043,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               <div className='text-center'>
                 <p className='font-medium text-destructive'>Workflow Has Errors</p>
                 <p className='text-xs'>
-                  Nested subflows are not supported. Remove subflow blocks from inside other subflow blocks.
+                  Nested subflows are not supported. Remove subflow blocks from inside other subflow
+                  blocks.
                 </p>
               </div>
             ) : usageExceeded ? (
