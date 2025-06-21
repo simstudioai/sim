@@ -32,7 +32,7 @@ export class LoopBlockHandler implements BlockHandler {
       logger.error(`Loop configuration not found for block ${block.id}`, {
         blockId: block.id,
         availableLoops: Object.keys(context.workflow?.loops || {}),
-        workflowLoops: context.workflow?.loops
+        workflowLoops: context.workflow?.loops,
       })
       throw new Error(`Loop configuration not found for block ${block.id}`)
     }

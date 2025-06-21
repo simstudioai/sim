@@ -168,7 +168,7 @@ const DEFAULT_LOOP_ITERATIONS = 5
 // Enum for subflow types
 enum SubflowType {
   LOOP = 'loop',
-  PARALLEL = 'parallel'
+  PARALLEL = 'parallel',
 }
 
 // Helper function to check if a block type is a subflow type
@@ -177,38 +177,27 @@ function isSubflowBlockType(blockType: string): blockType is SubflowType {
 }
 
 // Helper function to update subflow node lists when child blocks are added/removed
-async function updateSubflowNodeList(
-  dbOrTx: any,
-  workflowId: string,
-  parentId: string
-) {
+async function updateSubflowNodeList(dbOrTx: any, workflowId: string, parentId: string) {
   try {
     // Get all child blocks of this parent
     const childBlocks = await dbOrTx
       .select({ id: workflowBlocks.id })
       .from(workflowBlocks)
-      .where(
-        and(
-          eq(workflowBlocks.workflowId, workflowId),
-          eq(workflowBlocks.parentId, parentId)
-        )
-      )
+      .where(and(eq(workflowBlocks.workflowId, workflowId), eq(workflowBlocks.parentId, parentId)))
 
-    const childNodeIds = childBlocks.map(block => block.id)
+    const childNodeIds = childBlocks.map((block) => block.id)
 
     // Get current subflow config
     const subflowData = await dbOrTx
       .select({ config: workflowSubflows.config })
       .from(workflowSubflows)
-      .where(
-        and(eq(workflowSubflows.id, parentId), eq(workflowSubflows.workflowId, workflowId))
-      )
+      .where(and(eq(workflowSubflows.id, parentId), eq(workflowSubflows.workflowId, workflowId)))
       .limit(1)
 
     if (subflowData.length > 0) {
       const updatedConfig = {
         ...subflowData[0].config,
-        nodes: childNodeIds
+        nodes: childNodeIds,
       }
 
       await dbOrTx
@@ -217,9 +206,7 @@ async function updateSubflowNodeList(
           config: updatedConfig,
           updatedAt: new Date(),
         })
-        .where(
-          and(eq(workflowSubflows.id, parentId), eq(workflowSubflows.workflowId, workflowId))
-        )
+        .where(and(eq(workflowSubflows.id, parentId), eq(workflowSubflows.workflowId, workflowId)))
 
       logger.debug(`Updated subflow ${parentId} node list: [${childNodeIds.join(', ')}]`)
     }
@@ -760,7 +747,9 @@ async function handleSubflowOperationImpl(
               and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId))
             )
 
-          logger.debug(`[SERVER] ✅ Also updated loop block ${payload.id} data.count = ${payload.config.iterations}`)
+          logger.debug(
+            `[SERVER] ✅ Also updated loop block ${payload.id} data.count = ${payload.config.iterations}`
+          )
         } else if (payload.type === 'parallel' && payload.config.distribution !== undefined) {
           // Update the parallel block's data.collection property
           await dbOrTx
@@ -782,7 +771,9 @@ async function handleSubflowOperationImpl(
           logger.debug(`[SERVER] ✅ Also updated parallel block ${payload.id} data.collection`)
         }
 
-        logger.debug(`[SERVER] ✅ Successfully updated subflow ${payload.id} in workflow ${workflowId}`)
+        logger.debug(
+          `[SERVER] ✅ Successfully updated subflow ${payload.id} in workflow ${workflowId}`
+        )
         break
       }
 
@@ -843,7 +834,7 @@ async function handleBlockOperationImpl(
 
         logger.debug(`[SERVER] Adding block: ${payload.type} (${payload.id})`, {
           isSubflowType: isSubflowBlockType(payload.type),
-          payload
+          payload,
         })
 
         await dbOrTx.insert(workflowBlocks).values({
@@ -862,21 +853,25 @@ async function handleBlockOperationImpl(
         // Auto-create subflow entry for loop/parallel blocks
         if (isSubflowBlockType(payload.type)) {
           try {
-            const subflowConfig = payload.type === SubflowType.LOOP
-              ? {
-                  id: payload.id,
-                  nodes: [], // Empty initially, will be populated when child blocks are added
-                  iterations: payload.data?.count || DEFAULT_LOOP_ITERATIONS,
-                  loopType: payload.data?.loopType || 'for',
-                  forEachItems: payload.data?.collection || '',
-                }
-              : {
-                  id: payload.id,
-                  nodes: [], // Empty initially, will be populated when child blocks are added
-                  distribution: payload.data?.collection || '',
-                }
+            const subflowConfig =
+              payload.type === SubflowType.LOOP
+                ? {
+                    id: payload.id,
+                    nodes: [], // Empty initially, will be populated when child blocks are added
+                    iterations: payload.data?.count || DEFAULT_LOOP_ITERATIONS,
+                    loopType: payload.data?.loopType || 'for',
+                    forEachItems: payload.data?.collection || '',
+                  }
+                : {
+                    id: payload.id,
+                    nodes: [], // Empty initially, will be populated when child blocks are added
+                    distribution: payload.data?.collection || '',
+                  }
 
-            logger.debug(`[SERVER] Auto-creating ${payload.type} subflow ${payload.id}:`, subflowConfig)
+            logger.debug(
+              `[SERVER] Auto-creating ${payload.type} subflow ${payload.id}:`,
+              subflowConfig
+            )
 
             await dbOrTx.insert(workflowSubflows).values({
               id: payload.id,
@@ -887,7 +882,10 @@ async function handleBlockOperationImpl(
 
             logger.debug(`[SERVER] ✅ Successfully created ${payload.type} subflow ${payload.id}`)
           } catch (subflowError) {
-            logger.error(`[SERVER] ❌ Failed to create ${payload.type} subflow ${payload.id}:`, subflowError)
+            logger.error(
+              `[SERVER] ❌ Failed to create ${payload.type} subflow ${payload.id}:`,
+              subflowError
+            )
             throw subflowError
           }
         }
@@ -968,7 +966,7 @@ async function handleBlockOperationImpl(
         break
       }
 
-      case 'remove':
+      case 'remove': {
         if (!payload.id) {
           throw new Error('Missing block ID for remove operation')
         }
@@ -1024,7 +1022,9 @@ async function handleBlockOperationImpl(
               and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
             )
 
-          logger.debug(`Cascade deleted ${childBlocks.length} child blocks and subflow ${payload.id}`)
+          logger.debug(
+            `Cascade deleted ${childBlocks.length} child blocks and subflow ${payload.id}`
+          )
         }
 
         // Remove any edges connected to this block
@@ -1052,6 +1052,7 @@ async function handleBlockOperationImpl(
 
         logger.debug(`Removed block ${payload.id} and its connections from workflow ${workflowId}`)
         break
+      }
 
       case 'toggle-enabled':
         if (!payload.id || payload.enabled === undefined) {
@@ -1211,8 +1212,6 @@ async function handleEdgeOperation(
     throw error
   }
 }
-
-
 
 // Global error handling
 process.on('uncaughtException', (error) => {

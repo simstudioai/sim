@@ -115,7 +115,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
     } else {
       // Fallback to JSON blob
-      logger.info(`[${requestId}] Using JSON blob for workflow ${workflowId} - no normalized data found`)
+      logger.info(
+        `[${requestId}] Using JSON blob for workflow ${workflowId} - no normalized data found`
+      )
     }
 
     const elapsed = Date.now() - startTime

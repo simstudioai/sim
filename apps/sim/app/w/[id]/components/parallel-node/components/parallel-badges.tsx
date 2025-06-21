@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
@@ -50,16 +50,18 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
     'parallelConfig.count': parallelConfig?.count,
     'data.collection': data?.collection,
     'parallelConfig.distribution': parallelConfig?.distribution,
-    parallelConfig
+    parallelConfig,
   })
 
   // Use parallel config as primary source, fallback to data for backward compatibility
   const configCount = parallelConfig?.count ?? data?.count ?? 5
   const configDistribution = parallelConfig?.distribution ?? data?.collection ?? ''
   // For parallel type, we need to determine it based on the config
-  const configParallelType = parallelConfig ?
-    (parallelConfig.distribution ? 'collection' : 'count') :
-    (data?.parallelType || 'collection')
+  const configParallelType = parallelConfig
+    ? parallelConfig.distribution
+      ? 'collection'
+      : 'count'
+    : data?.parallelType || 'collection'
 
   // State
   const [parallelType, setParallelType] = useState<'count' | 'collection'>(configParallelType)
@@ -74,10 +76,8 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Get collaborative functions
-  const {
-    collaborativeUpdateParallelCount,
-    collaborativeUpdateParallelCollection
-  } = useCollaborativeWorkflow()
+  const { collaborativeUpdateParallelCount, collaborativeUpdateParallelCollection } =
+    useCollaborativeWorkflow()
 
   // Update node data to include parallel type
   const updateNodeData = useCallback(
@@ -111,7 +111,7 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         newCount,
         newDistribution,
         newParallelType,
-        currentIterations: iterations
+        currentIterations: iterations,
       })
 
       if (newParallelType !== parallelType) {

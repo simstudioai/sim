@@ -7,7 +7,6 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { Position } from '@/stores/workflows/workflow/types'
 
-
 const logger = createLogger('CollaborativeWorkflow')
 
 export function useCollaborativeWorkflow() {
@@ -339,8 +338,8 @@ export function useCollaborativeWorkflow() {
         if (block && block.type === 'loop') {
           // Find child nodes
           const childNodes = Object.values(workflowStore.blocks)
-            .filter(b => b.data?.parentId === loopId)
-            .map(b => b.id)
+            .filter((b) => b.data?.parentId === loopId)
+            .map((b) => b.id)
 
           const config = {
             id: loopId,
@@ -372,8 +371,8 @@ export function useCollaborativeWorkflow() {
         if (block && block.type === 'loop') {
           // Find child nodes
           const childNodes = Object.values(workflowStore.blocks)
-            .filter(b => b.data?.parentId === loopId)
-            .map(b => b.id)
+            .filter((b) => b.data?.parentId === loopId)
+            .map((b) => b.id)
 
           const config = {
             id: loopId,
@@ -405,8 +404,8 @@ export function useCollaborativeWorkflow() {
         if (block && block.type === 'loop') {
           // Find child nodes
           const childNodes = Object.values(workflowStore.blocks)
-            .filter(b => b.data?.parentId === loopId)
-            .map(b => b.id)
+            .filter((b) => b.data?.parentId === loopId)
+            .map((b) => b.id)
 
           const config = {
             id: loopId,

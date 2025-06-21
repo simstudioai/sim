@@ -86,8 +86,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .from(workflowBlocks)
         .where(eq(workflowBlocks.workflowId, sourceWorkflowId))
 
-
-
       // Create a mapping from old block IDs to new block IDs
       const blockIdMapping = new Map<string, string>()
 
@@ -140,7 +138,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         })
 
         await tx.insert(workflowBlocks).values(newBlocks)
-        logger.info(`[${requestId}] Copied ${sourceBlocks.length} blocks with updated parent relationships`)
+        logger.info(
+          `[${requestId}] Copied ${sourceBlocks.length} blocks with updated parent relationships`
+        )
       }
 
       // Copy all edges from source workflow with updated block references
@@ -172,8 +172,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .from(workflowSubflows)
         .where(eq(workflowSubflows.workflowId, sourceWorkflowId))
 
-
-
       if (sourceSubflows.length > 0) {
         const newSubflows = sourceSubflows
           .map((subflow) => {
@@ -181,12 +179,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             const newSubflowId = blockIdMapping.get(subflow.id)
 
             if (!newSubflowId) {
-              logger.warn(`[${requestId}] Subflow ${subflow.id} (${subflow.type}) has no corresponding block, skipping`)
+              logger.warn(
+                `[${requestId}] Subflow ${subflow.id} (${subflow.type}) has no corresponding block, skipping`
+              )
               return null
             }
 
             logger.info(`[${requestId}] Mapping subflow ${subflow.id} → ${newSubflowId}`, {
-              subflowType: subflow.type
+              subflowType: subflow.type,
             })
 
             // Update block references in subflow config
@@ -199,6 +199,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 | ParallelConfig
 
               // Update the config ID to match the new subflow ID
+
               ;(updatedConfig as any).id = newSubflowId
 
               // Update node references in config if they exist
@@ -227,13 +228,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         logger.info(
           `[${requestId}] Copied ${newSubflows.length}/${sourceSubflows.length} subflows with updated block references and matching IDs`,
           {
-            subflowMappings: newSubflows.map(sf => ({
-              oldId: sourceSubflows.find(s => blockIdMapping.get(s.id) === sf.id)?.id,
+            subflowMappings: newSubflows.map((sf) => ({
+              oldId: sourceSubflows.find((s) => blockIdMapping.get(s.id) === sf.id)?.id,
               newId: sf.id,
               type: sf.type,
-              config: sf.config
+              config: sf.config,
             })),
-            blockIdMappings: Array.from(blockIdMapping.entries()).map(([oldId, newId]) => ({ oldId, newId }))
+            blockIdMappings: Array.from(blockIdMapping.entries()).map(([oldId, newId]) => ({
+              oldId,
+              newId,
+            })),
           }
         )
       }
@@ -287,9 +291,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               ...loopConfig,
               id: newId,
               // Update node references in loop config
-              nodes: loopConfig.nodes ? loopConfig.nodes.map((nodeId: string) =>
-                blockIdMapping.get(nodeId) || nodeId
-              ) : [],
+              nodes: loopConfig.nodes
+                ? loopConfig.nodes.map((nodeId: string) => blockIdMapping.get(nodeId) || nodeId)
+                : [],
             }
           }
           updatedState.loops = newLoops
@@ -304,9 +308,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               ...parallelConfig,
               id: newId,
               // Update node references in parallel config
-              nodes: parallelConfig.nodes ? parallelConfig.nodes.map((nodeId: string) =>
-                blockIdMapping.get(nodeId) || nodeId
-              ) : [],
+              nodes: parallelConfig.nodes
+                ? parallelConfig.nodes.map((nodeId: string) => blockIdMapping.get(nodeId) || nodeId)
+                : [],
             }
           }
           updatedState.parallels = newParallels
