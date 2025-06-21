@@ -1560,8 +1560,22 @@ io.engine.on('connection_error', (err) => {
 
 // Start the server
 const PORT = Number(process.env.PORT || process.env.SOCKET_PORT || 3002)
+
+logger.info('Starting Socket.IO server...', {
+  port: PORT,
+  nodeEnv: process.env.NODE_ENV,
+  hasDatabase: !!process.env.DATABASE_URL,
+  hasAuth: !!process.env.BETTER_AUTH_SECRET,
+})
+
 httpServer.listen(PORT, '0.0.0.0', () => {
-  logger.info(`Socket.IO server running on port ${PORT}`)
+  logger.info(`✅ Socket.IO server running on port ${PORT}`)
+  logger.info(`🏥 Health check available at: http://localhost:${PORT}/health`)
+})
+
+httpServer.on('error', (error) => {
+  logger.error('❌ Server failed to start:', error)
+  process.exit(1)
 })
 
 // Graceful shutdown
