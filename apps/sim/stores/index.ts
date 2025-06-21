@@ -9,9 +9,7 @@ import { useNotificationStore } from './notifications/store'
 import { useConsoleStore } from './panel/console/store'
 import { useVariablesStore } from './panel/variables/store'
 import { useEnvironmentStore } from './settings/environment/store'
-import { disposeSyncManagers, initializeSyncManagers } from './sync-registry'
-// Import the syncWorkflows function directly
-import { syncWorkflows } from './workflows'
+// Removed sync system imports - Socket.IO handles real-time sync
 import { useWorkflowRegistry } from './workflows/registry/store'
 import { useSubBlockStore } from './workflows/subblock/store'
 import { useWorkflowStore } from './workflows/workflow/store'
@@ -49,13 +47,8 @@ async function initializeApplication(): Promise<void> {
     // Load workspace based on workflow ID in URL, with fallback to last active workspace
     await useWorkflowRegistry.getState().loadWorkspaceFromWorkflowId(workflowIdFromUrl)
 
-    // Initialize sync system and wait for data to load completely
-    const syncInitialized = await initializeSyncManagers()
-
-    if (!syncInitialized) {
-      logger.error('Failed to initialize sync managers')
-      return
-    }
+    // Load workflows from database (replaced sync system)
+    await useWorkflowRegistry.getState().loadWorkflows()
 
     // Mark data as initialized only after sync managers have loaded data from DB
     dataInitialized = true
@@ -138,8 +131,7 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
     }
   }
 
-  // Mark workflows as dirty to ensure sync on exit
-  syncWorkflows()
+  // Note: Socket.IO handles real-time sync automatically
 
   // Standard beforeunload pattern
   event.preventDefault()
@@ -151,7 +143,7 @@ function handleBeforeUnload(event: BeforeUnloadEvent): void {
  */
 function cleanupApplication(): void {
   window.removeEventListener('beforeunload', handleBeforeUnload)
-  disposeSyncManagers()
+  // Note: No sync managers to dispose - Socket.IO handles cleanup
 }
 
 /**
@@ -162,8 +154,7 @@ export async function clearUserData(): Promise<void> {
   if (typeof window === 'undefined') return
 
   try {
-    // Reset all sync managers to prevent any pending syncs
-    disposeSyncManagers()
+    // Note: No sync managers to dispose - Socket.IO handles cleanup
 
     // Reset all stores to their initial state
     resetAllStores()
@@ -219,8 +210,7 @@ export async function reinitializeAfterLogin(): Promise<void> {
     appFullyInitialized = false
     dataInitialized = false
 
-    // Reset sync managers to prevent any active syncs during reinitialization
-    disposeSyncManagers()
+    // Note: No sync managers to dispose - Socket.IO handles cleanup
 
     // Clean existing state to avoid stale data
     resetAllStores()
@@ -299,5 +289,4 @@ export const logAllStores = () => {
   return state
 }
 
-// Re-export sync managers
-export { workflowSync } from './workflows/sync'
+// Removed sync managers - Socket.IO handles real-time sync

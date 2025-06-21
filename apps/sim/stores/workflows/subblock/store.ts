@@ -4,13 +4,11 @@ import type { SubBlockConfig } from '@/blocks/types'
 import { useEnvironmentStore } from '../../settings/environment/store'
 import { useGeneralStore } from '../../settings/general/store'
 import { useWorkflowRegistry } from '../registry/store'
-import { workflowSync } from '../sync'
+// Removed workflowSync import - Socket.IO handles real-time sync
 import type { SubBlockStore } from './types'
 import { extractEnvVarName, findMatchingEnvVar, isEnvVarReference } from './utils'
 
-// Add debounce utility for syncing
-let syncDebounceTimer: NodeJS.Timeout | null = null
-const DEBOUNCE_DELAY = 500 // 500ms delay for sync
+// Removed debounce sync - Socket.IO handles real-time sync immediately
 
 /**
  * SubBlockState stores values for all subblocks in workflows
@@ -70,8 +68,7 @@ export const useSubBlockStore = create<SubBlockStore>()(
         },
       }))
 
-      // Trigger sync to DB immediately on clear
-      workflowSync.sync()
+      // Note: Socket.IO handles real-time sync automatically
     },
 
     initializeFromWorkflow: (workflowId: string, blocks: Record<string, any>) => {
@@ -92,18 +89,9 @@ export const useSubBlockStore = create<SubBlockStore>()(
       }))
     },
 
-    // Debounced sync function to trigger DB sync
+    // Removed syncWithDB - Socket.IO handles real-time sync automatically
     syncWithDB: () => {
-      // Clear any existing timeout
-      if (syncDebounceTimer) {
-        clearTimeout(syncDebounceTimer)
-      }
-
-      // Set new timeout
-      syncDebounceTimer = setTimeout(() => {
-        // Trigger workflow sync to DB
-        workflowSync.sync()
-      }, DEBOUNCE_DELAY)
+      // No-op: Socket.IO handles real-time sync
     },
 
     // Tool params related functionality

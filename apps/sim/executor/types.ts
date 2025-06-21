@@ -93,7 +93,7 @@ export interface ExecutionContext {
   }
 
   loopIterations: Map<string, number> // Tracks current iteration count for each loop
-  loopItems: Map<string, any[] | Record<string, any>> // Tracks current item for forEach loops and parallel distribution
+  loopItems: Map<string, any> // Tracks current item for forEach loops and parallel distribution
   completedLoops: Set<string> // Tracks which loops have completed all iterations
 
   // Parallel execution tracking

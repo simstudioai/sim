@@ -130,6 +130,7 @@ export interface Parallel {
   id: string
   nodes: string[]
   distribution?: any[] | Record<string, any> | string // Items or expression
+  count?: number // Number of parallel executions for count-based parallel
 }
 
 export interface WorkflowState {

@@ -7,7 +7,7 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import type { Variable, VariablesStore } from './types'
 
 const logger = createLogger('VariablesStore')
-const SAVE_DEBOUNCE_DELAY = 500 // 500ms debounce delay
+const SAVE_DEBOUNCE_DELAY = 200 // Reduced debounce for variables (not real-time collaborative)
 
 // Map to store debounce timers for each workflow
 const saveTimers = new Map<string, NodeJS.Timeout>()

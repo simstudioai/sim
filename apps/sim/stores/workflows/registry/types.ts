@@ -37,9 +37,10 @@ export interface WorkflowRegistryActions {
   setActiveWorkspaceId: (id: string) => void
   loadLastActiveWorkspace: () => Promise<void>
   loadWorkspaceFromWorkflowId: (workflowId: string | null) => Promise<void>
+  loadWorkflows: () => Promise<void>
   handleWorkspaceDeletion: (newWorkspaceId: string) => void
   removeWorkflow: (id: string) => Promise<void>
-  updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => void
+  updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => Promise<void>
   createWorkflow: (options?: {
     isInitial?: boolean
     marketplaceId?: string
@@ -48,13 +49,13 @@ export interface WorkflowRegistryActions {
     description?: string
     workspaceId?: string
     folderId?: string | null
-  }) => string
+  }) => Promise<string>
   createMarketplaceWorkflow: (
     marketplaceId: string,
     state: any,
     metadata: Partial<WorkflowMetadata>
-  ) => string
-  duplicateWorkflow: (sourceId: string) => string | null
+  ) => Promise<string>
+  duplicateWorkflow: (sourceId: string) => Promise<string | null>
   getWorkflowDeploymentStatus: (workflowId: string | null) => DeploymentStatus | null
   setDeploymentStatus: (
     workflowId: string | null,

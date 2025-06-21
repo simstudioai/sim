@@ -131,7 +131,7 @@ export function Sidebar() {
   const handleCreateWorkflow = async (folderId?: string) => {
     try {
       // Create the workflow and ensure it's associated with the active workspace and folder
-      const id = createWorkflow({
+      const id = await createWorkflow({
         workspaceId: activeWorkspaceId || undefined,
         folderId: folderId || undefined, // Associate with folder if provided
       })

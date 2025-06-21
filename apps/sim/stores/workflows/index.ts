@@ -1,6 +1,5 @@
 import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from './registry/store'
-import { workflowSync } from './sync'
 import { mergeSubblockState } from './utils'
 import { useWorkflowStore } from './workflow/store'
 import type { BlockState, WorkflowState } from './workflow/types'
@@ -158,13 +157,7 @@ export function getAllWorkflowsWithValues() {
   return result
 }
 
-/**
- * Convenience function to mark workflows as dirty and initiate a sync
- * This is a shortcut for other files to trigger sync operations
- */
-export function syncWorkflows() {
-  workflowSync.sync()
-}
+// Removed syncWorkflows - Socket.IO handles real-time sync automatically
 
 // Workflows store exports - localStorage persistence removed
 
@@ -173,7 +166,6 @@ export type { WorkflowMetadata } from './registry/types'
 export { useSubBlockStore } from './subblock/store'
 export type { SubBlockStore } from './subblock/types'
 // Re-export utilities
-export { workflowSync } from './sync'
 export { mergeSubblockState } from './utils'
 // Re-export store hooks
 export { useWorkflowStore } from './workflow/store'
