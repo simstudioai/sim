@@ -409,6 +409,7 @@ async function verifyOperationPermission(
         'update-position',
         'update-name',
         'toggle-enabled',
+        'update-parent',
         'duplicate',
       ],
       admin: [
@@ -418,6 +419,7 @@ async function verifyOperationPermission(
         'update-position',
         'update-name',
         'toggle-enabled',
+        'update-parent',
         'duplicate',
       ],
       member: [
@@ -427,6 +429,7 @@ async function verifyOperationPermission(
         'update-position',
         'update-name',
         'toggle-enabled',
+        'update-parent',
         'duplicate',
       ],
       viewer: ['update-position'], // Viewers can only move things around
@@ -837,6 +840,19 @@ async function handleBlockOperationImpl(
           payload,
         })
 
+        // Extract parentId and extent from payload.data if they exist there, otherwise from payload directly
+        const parentId = payload.parentId || payload.data?.parentId || null
+        const extent = payload.extent || payload.data?.extent || null
+
+        logger.debug(`[SERVER] Block parent info:`, {
+          blockId: payload.id,
+          hasParent: !!parentId,
+          parentId,
+          extent,
+          payloadParentId: payload.parentId,
+          dataParentId: payload.data?.parentId
+        })
+
         await dbOrTx.insert(workflowBlocks).values({
           id: payload.id,
           workflowId,
@@ -845,8 +861,8 @@ async function handleBlockOperationImpl(
           positionX: payload.position.x,
           positionY: payload.position.y,
           data: payload.data || {},
-          parentId: payload.parentId || null,
-          extent: payload.extent || null,
+          parentId,
+          extent,
           enabled: true, // Default to enabled
         })
 
@@ -891,8 +907,8 @@ async function handleBlockOperationImpl(
         }
 
         // If this block has a parent, update the parent's subflow node list
-        if (payload.parentId) {
-          await updateSubflowNodeList(dbOrTx, workflowId, payload.parentId)
+        if (parentId) {
+          await updateSubflowNodeList(dbOrTx, workflowId, parentId)
         }
 
         logger.debug(`Added block ${payload.id} (${payload.type}) to workflow ${workflowId}`)
@@ -981,7 +997,7 @@ async function handleBlockOperationImpl(
         if (blockToRemove.length > 0 && isSubflowBlockType(blockToRemove[0].type)) {
           // Cascade delete: Remove all child blocks first
           const childBlocks = await dbOrTx
-            .select({ id: workflowBlocks.id })
+            .select({ id: workflowBlocks.id, type: workflowBlocks.type })
             .from(workflowBlocks)
             .where(
               and(
@@ -989,6 +1005,9 @@ async function handleBlockOperationImpl(
                 eq(workflowBlocks.parentId, payload.id)
               )
             )
+
+          logger.debug(`[SERVER] Starting cascade deletion for subflow block ${payload.id} (type: ${blockToRemove[0].type})`)
+          logger.debug(`[SERVER] Found ${childBlocks.length} child blocks to delete: [${childBlocks.map(b => `${b.id} (${b.type})`).join(', ')}]`)
 
           // Remove edges connected to child blocks
           for (const childBlock of childBlocks) {
@@ -1005,7 +1024,7 @@ async function handleBlockOperationImpl(
               )
           }
 
-          // Remove child blocks
+          // Remove child blocks from database
           await dbOrTx
             .delete(workflowBlocks)
             .where(
@@ -1022,9 +1041,7 @@ async function handleBlockOperationImpl(
               and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
             )
 
-          logger.debug(
-            `Cascade deleted ${childBlocks.length} child blocks and subflow ${payload.id}`
-          )
+          logger.debug(`[SERVER] ✅ Cascade deleted ${childBlocks.length} child blocks and subflow ${payload.id}`)
         }
 
         // Remove any edges connected to this block
