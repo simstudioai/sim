@@ -165,16 +165,16 @@ export async function GET(req: NextRequest) {
         updatedAt: new Date(),
       })
 
-      // Add permissions to the permissions table based on the invitation
-      const permissionsToInsert = (invitation.permissions || []).map((permissionType) => ({
+      // Create permissions for the user
+      const permissionsToInsert = [{
         id: randomUUID(),
-        userId: session.user.id,
-        entityType: 'workspace',
+        entityType: 'workspace' as const,
         entityId: invitation.workspaceId,
-        permissionType: permissionType,
+        userId: session.user.id,
+        permissionType: invitation.permissions || 'read',
         createdAt: new Date(),
         updatedAt: new Date(),
-      }))
+      }]
 
       if (permissionsToInsert.length > 0) {
         await tx.insert(permissions).values(permissionsToInsert)

@@ -10,12 +10,7 @@ type PermissionType = typeof permissionTypeEnum.enumValues[number]
 interface UpdatePermissionsRequest {
   updates: Array<{
     userId: string
-    permissions: {
-      admin: boolean
-      read: boolean
-      edit: boolean
-      deploy: boolean
-    }
+    permissions: PermissionType // Single permission type instead of object with booleans
   }>
 }
 
@@ -81,13 +76,14 @@ export async function GET(
       )
       .orderBy(user.email)
 
-    // Group permissions by user
+    // Since we now ensure only one permission per user, we can directly use the results
+    // But we'll still handle potential legacy data with multiple permissions per user
     const userPermissionsMap = new Map<string, {
       userId: string
       email: string
       name: string | null
       image: string | null
-      permissions: PermissionType[]
+      permissionType: PermissionType
     }>()
 
     for (const row of usersWithPermissions) {
@@ -99,22 +95,25 @@ export async function GET(
           email: row.email,
           name: row.name,
           image: row.image,
-          permissions: []
+          permissionType: row.permissionType
         })
+      } else {
+        // Handle legacy data with multiple permissions - keep the highest permission level
+        const existing = userPermissionsMap.get(key)!
+        const currentPermission = existing.permissionType
+        const newPermission = row.permissionType
+        
+        // Permission hierarchy: admin > write > read
+        const permissionOrder: Record<PermissionType, number> = { admin: 3, write: 2, read: 1 }
+        
+        if (permissionOrder[newPermission] > permissionOrder[currentPermission]) {
+          existing.permissionType = newPermission
+        }
       }
-      
-      userPermissionsMap.get(key)!.permissions.push(row.permissionType)
     }
 
-    // Convert map to array and sort permissions consistently
-    const result = Array.from(userPermissionsMap.values()).map(user => ({
-      ...user,
-      permissions: user.permissions.sort((a, b) => {
-        // Sort permissions in logical order: admin, deploy, edit, read
-        const order: Record<PermissionType, number> = { admin: 0, deploy: 1, edit: 2, read: 3 }
-        return order[a] - order[b]
-      })
-    }))
+    // Convert map to array
+    const result = Array.from(userPermissionsMap.values())
 
     return NextResponse.json({
       users: result,
@@ -195,27 +194,26 @@ export async function PATCH(
         )
       }
 
-      if (!update.permissions || typeof update.permissions !== 'object') {
+      if (!update.permissions || typeof update.permissions !== 'string') {
         return NextResponse.json(
-          { error: 'Invalid request: permissions object is required for each update' },
+          { error: 'Invalid request: permissions must be a valid PermissionType' },
           { status: 400 }
         )
       }
 
-      const { admin, read, edit, deploy } = update.permissions
-      if (typeof admin !== 'boolean' || typeof read !== 'boolean' || 
-          typeof edit !== 'boolean' || typeof deploy !== 'boolean') {
+      // Validate permission type
+      const validPermissions: PermissionType[] = ['admin', 'write', 'read']
+      if (!validPermissions.includes(update.permissions)) {
         return NextResponse.json(
-          { error: 'Invalid request: all permission fields must be boolean' },
+          { error: 'Invalid request: permission must be one of: admin, write, read' },
           { status: 400 }
         )
       }
     }
 
     // Prevent users from modifying their own admin permissions
-    const currentUserEmail = session.user.email
     const selfUpdate = body.updates.find(update => update.userId === session.user.id)
-    if (selfUpdate && !selfUpdate.permissions.admin) {
+    if (selfUpdate && selfUpdate.permissions !== 'admin') {
       return NextResponse.json(
         { error: 'Cannot remove your own admin permissions' },
         { status: 400 }
@@ -238,28 +236,16 @@ export async function PATCH(
             )
           )
 
-        // Insert new permissions based on the boolean flags
-        const newPermissions: PermissionType[] = []
-        
-        if (update.permissions.admin) newPermissions.push('admin')
-        if (update.permissions.read) newPermissions.push('read')
-        if (update.permissions.edit) newPermissions.push('edit')
-        if (update.permissions.deploy) newPermissions.push('deploy')
-
-        // Insert the new permissions
-        if (newPermissions.length > 0) {
-          const permissionInserts = newPermissions.map(permissionType => ({
-            id: crypto.randomUUID(),
-            userId,
-            entityType: 'workspace' as const,
-            entityId: workspaceId,
-            permissionType,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }))
-
-          await tx.insert(permissions).values(permissionInserts)
-        }
+        // Insert the single new permission
+        await tx.insert(permissions).values({
+          id: crypto.randomUUID(),
+          userId,
+          entityType: 'workspace' as const,
+          entityId: workspaceId,
+          permissionType: update.permissions,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
       }
     })
 
@@ -282,13 +268,13 @@ export async function PATCH(
       )
       .orderBy(user.email)
 
-    // Group permissions by user
+    // Group permissions by user and determine highest permission level
     const userPermissionsMap = new Map<string, {
       userId: string
       email: string
       name: string | null
       image: string | null
-      permissions: PermissionType[]
+      permissionType: PermissionType
     }>()
 
     for (const row of updatedUsersWithPermissions) {
@@ -300,22 +286,25 @@ export async function PATCH(
           email: row.email,
           name: row.name,
           image: row.image,
-          permissions: []
+          permissionType: row.permissionType
         })
+      } else {
+        // If user already exists, keep the highest permission level
+        const existing = userPermissionsMap.get(key)!
+        const currentPermission = existing.permissionType
+        const newPermission = row.permissionType
+        
+        // Permission hierarchy: admin > write > read
+        const permissionOrder: Record<PermissionType, number> = { admin: 3, write: 2, read: 1 }
+        
+        if (permissionOrder[newPermission] > permissionOrder[currentPermission]) {
+          existing.permissionType = newPermission
+        }
       }
-      
-      userPermissionsMap.get(key)!.permissions.push(row.permissionType)
     }
 
-    // Convert map to array and sort permissions consistently
-    const updatedUsers = Array.from(userPermissionsMap.values()).map(user => ({
-      ...user,
-      permissions: user.permissions.sort((a, b) => {
-        // Sort permissions in logical order: admin, deploy, edit, read
-        const order: Record<PermissionType, number> = { admin: 0, deploy: 1, edit: 2, read: 3 }
-        return order[a] - order[b]
-      })
-    }))
+    // Convert map to array
+    const updatedUsers = Array.from(userPermissionsMap.values())
 
     return NextResponse.json({
       message: 'Permissions updated successfully',

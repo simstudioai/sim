@@ -535,9 +535,9 @@ export const workspaceMember = pgTable(
 )
 
 // Define the permission enum
-export const permissionTypeEnum = pgEnum('permission_type', ['admin', 'read', 'edit', 'deploy'])
+export const permissionTypeEnum = pgEnum('permission_type', ['admin', 'write', 'read'])
 
-// Update workspaceInvitation to use enum array
+
 export const workspaceInvitation = pgTable('workspace_invitation', {
   id: text('id').primaryKey(),
   workspaceId: text('workspace_id')
@@ -550,7 +550,7 @@ export const workspaceInvitation = pgTable('workspace_invitation', {
   role: text('role').notNull().default('member'),
   status: text('status').notNull().default('pending'),
   token: text('token').notNull().unique(),
-  permissions: permissionTypeEnum('permissions').array().notNull().default(sql`ARRAY['admin', 'read', 'edit', 'deploy']::"permission_type"[]`),
+  permissions: permissionTypeEnum('permissions').notNull().default('admin'),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -596,12 +596,11 @@ export const permissions = pgTable(
       table.entityId
     ),
     
-    // Uniqueness constraint - prevent duplicate permission rows
+    // Uniqueness constraint - prevent duplicate permission rows (one permission per user/entity)
     uniquePermissionConstraint: uniqueIndex('permissions_unique_constraint').on(
       table.userId,
       table.entityType,
-      table.entityId,
-      table.permissionType
+      table.entityId
     ),
   })
 )

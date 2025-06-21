@@ -221,7 +221,7 @@ export function Table({
 
   return (
     <div className='relative'>
-      <div className='overflow-hidden rounded-md border'>
+      <div className='overflow-visible rounded-md border'>
         <table className='w-full'>
           {renderHeader()}
           <tbody>

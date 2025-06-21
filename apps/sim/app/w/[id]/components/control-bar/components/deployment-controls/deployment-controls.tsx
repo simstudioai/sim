@@ -55,7 +55,7 @@ export function DeploymentControls({
     } catch (error) {}
   }
 
-  const canDeploy = userPermissions.canDeployApi
+  const canDeploy = userPermissions.canAdmin
   const isDisabled = isDeploying || !canDeploy
 
   const handleDeployClick = useCallback(() => {
@@ -66,7 +66,7 @@ export function DeploymentControls({
 
   const getTooltipText = () => {
     if (!canDeploy) {
-      return 'Deploy permissions required to deploy workflows as API'
+      return 'Admin permissions required to deploy workflows as API'
     }
     if (isDeploying) {
       return 'Deploying...'

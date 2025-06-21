@@ -28,18 +28,16 @@ async function hasAdminPermission(userId: string, workspaceId: string): Promise<
 /**
  * Helper function to create default permissions for a new member
  */
-async function createMemberPermissions(userId: string, workspaceId: string, memberPermissions: PermissionType[] = ['read']): Promise<void> {
-  const permissionInserts = memberPermissions.map(permissionType => ({
+async function createMemberPermissions(userId: string, workspaceId: string, memberPermission: PermissionType = 'read'): Promise<void> {
+  await db.insert(permissions).values({
     id: crypto.randomUUID(),
     userId,
     entityType: 'workspace' as const,
     entityId: workspaceId,
-    permissionType,
+    permissionType: memberPermission,
     createdAt: new Date(),
     updatedAt: new Date(),
-  }))
-
-  await db.insert(permissions).values(permissionInserts)
+  })
 }
 
 // Add a member to a workspace
@@ -51,7 +49,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { workspaceId, userEmail, permissions: memberPermissions = ['read'] } = await req.json()
+    const { workspaceId, userEmail, permission = 'read' } = await req.json()
 
     if (!workspaceId || !userEmail) {
       return NextResponse.json(
@@ -60,20 +58,11 @@ export async function POST(req: Request) {
       )
     }
 
-    // Validate permissions array
-    if (!Array.isArray(memberPermissions) || memberPermissions.length === 0) {
+    // Validate permission type
+    const validPermissions: PermissionType[] = ['admin', 'write', 'read']
+    if (!validPermissions.includes(permission)) {
       return NextResponse.json(
-        { error: 'Valid permissions array is required' },
-        { status: 400 }
-      )
-    }
-
-    // Validate each permission type
-    const validPermissions: PermissionType[] = ['admin', 'read', 'edit', 'deploy']
-    const invalidPermissions = memberPermissions.filter(p => !validPermissions.includes(p))
-    if (invalidPermissions.length > 0) {
-      return NextResponse.json(
-        { error: `Invalid permissions: ${invalidPermissions.join(', ')}` },
+        { error: `Invalid permission: must be one of ${validPermissions.join(', ')}` },
         { status: 400 }
       )
     }
@@ -127,23 +116,21 @@ export async function POST(req: Request) {
         updatedAt: new Date(),
       })
 
-      // Create permissions for the new member
-      const permissionInserts = memberPermissions.map((permissionType: PermissionType) => ({
+      // Create single permission for the new member
+      await tx.insert(permissions).values({
         id: crypto.randomUUID(),
         userId: targetUser.id,
         entityType: 'workspace' as const,
         entityId: workspaceId,
-        permissionType,
+        permissionType: permission,
         createdAt: new Date(),
         updatedAt: new Date(),
-      }))
-
-      await tx.insert(permissions).values(permissionInserts)
+      })
     })
 
     return NextResponse.json({ 
       success: true,
-      message: `User added to workspace with permissions: ${memberPermissions.join(', ')}`
+      message: `User added to workspace with ${permission} permission`
     })
   } catch (error) {
     console.error('Error adding workspace member:', error)

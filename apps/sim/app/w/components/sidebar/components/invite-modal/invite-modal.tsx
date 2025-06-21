@@ -5,12 +5,13 @@ import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSession } from '@/lib/auth-client'
 import { useWorkspacePermissions, WorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { API_ENDPOINTS } from '@/stores/constants'
+import { PermissionType } from '@/lib/permissions/utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 
 interface InviteModalProps {
   open: boolean
@@ -28,16 +29,13 @@ interface EmailTagProps {
 interface UserPermissions {
   userId?: string
   email: string
-  admin: boolean
-  read: boolean
-  edit: boolean
-  deploy: boolean
+  permissionType: PermissionType
   isCurrentUser?: boolean
 }
 
 interface PermissionsTableProps {
   userPermissions: UserPermissions[]
-  onPermissionChange: (userId: string, permission: keyof Omit<UserPermissions, 'email' | 'userId'>, value: boolean) => void
+  onPermissionChange: (userId: string, permissionType: PermissionType) => void
   disabled?: boolean
   existingUserPermissionChanges: Record<string, Partial<UserPermissions>>
   isSaving?: boolean
@@ -63,6 +61,48 @@ const EmailTag = ({ email, onRemove, disabled, isInvalid }: EmailTagProps) => (
   </div>
 )
 
+const PermissionSelector = ({ 
+  value, 
+  onChange, 
+  disabled = false, 
+  className = '' 
+}: { 
+  value: PermissionType
+  onChange: (value: PermissionType) => void
+  disabled?: boolean
+  className?: string
+}) => {
+  const permissionOptions = [
+    { value: 'read' as PermissionType, label: 'Read' },
+    { value: 'write' as PermissionType, label: 'Write' },
+    { value: 'admin' as PermissionType, label: 'Admin' }
+  ]
+  
+  return (
+    <div className={cn('inline-flex rounded-md border border-input bg-background', className)}>
+      {permissionOptions.map((option, index) => (
+        <button
+          key={option.value}
+          type='button'
+          onClick={() => !disabled && onChange(option.value)}
+          disabled={disabled}
+          className={cn(
+            'px-3 py-1.5 text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+            'first:rounded-l-md last:rounded-r-md',
+            disabled && 'opacity-50 cursor-not-allowed',
+            value === option.value
+              ? 'bg-primary text-primary-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
+            index > 0 && 'border-l border-input'
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 const PermissionsTable = ({ 
   userPermissions, 
   onPermissionChange, 
@@ -73,6 +113,8 @@ const PermissionsTable = ({
   permissionsLoading 
 }: PermissionsTableProps) => {
   const { data: session } = useSession()
+  const { activeWorkspaceId } = useWorkflowRegistry()
+  const userPerms = useUserPermissions(activeWorkspaceId)
   
   if (userPermissions.length === 0 && !session?.user?.email && !workspacePermissions?.users?.length) return null
 
@@ -97,17 +139,16 @@ const PermissionsTable = ({
   }
 
   // Convert workspace users to UserPermissions format, merging with pending changes
-  // Simplified logic: always merge changes if they exist, otherwise use original permissions
   const existingUsers: UserPermissions[] = workspacePermissions?.users?.map(user => {
     const changes = existingUserPermissionChanges[user.userId] || {}
+    
+    // Use the single permissionType directly
+    const permissionType = user.permissionType || 'read'
     
     return {
       userId: user.userId,
       email: user.email,
-      admin: changes.admin !== undefined ? changes.admin : user.permissions.includes('admin'),
-      read: changes.read !== undefined ? changes.read : user.permissions.includes('read'),
-      edit: changes.edit !== undefined ? changes.edit : user.permissions.includes('edit'),
-      deploy: changes.deploy !== undefined ? changes.deploy : user.permissions.includes('deploy'),
+      permissionType: changes.permissionType !== undefined ? changes.permissionType : permissionType,
       isCurrentUser: user.email === session?.user?.email
     }
   }) || []
@@ -116,15 +157,12 @@ const PermissionsTable = ({
   const currentUser: UserPermissions | null = session?.user?.email ? 
     existingUsers.find(user => user.isCurrentUser) || {
       email: session.user.email,
-      admin: true, // Fallback if not found in workspace users
-      read: true,
-      edit: true,
-      deploy: true,
-      isCurrentUser: true
+      permissionType: 'admin', // Fallback if not found in workspace users
+      isCurrentUser: true 
     } : null
 
-  // Check if current user has admin permissions
-  const currentUserIsAdmin = currentUser?.admin || false
+  // Use the useUserPermissions hook for admin check instead of manual checking
+  const currentUserIsAdmin = userPerms.canAdmin
 
   // Filter out current user from existing users to avoid duplication
   const filteredExistingUsers = existingUsers.filter(user => !user.isCurrentUser)
@@ -142,19 +180,16 @@ const PermissionsTable = ({
       <div className='rounded-lg border border-border bg-card'>
         <div className='max-h-64 overflow-y-auto'>
           <table className='w-full text-sm'>
-            <thead className='sticky top-0 bg-muted/50 border-b border-border'>
+            <thead className='sticky top-0 z-10 bg-card border-b border-border'>
               <tr>
-                <th className='px-4 py-3 text-left font-medium text-muted-foreground'>Email</th>
-                <th className='px-4 py-3 text-center font-medium text-muted-foreground'>Admin</th>
-                <th className='px-4 py-3 text-center font-medium text-muted-foreground'>Read</th>
-                <th className='px-4 py-3 text-center font-medium text-muted-foreground'>Edit</th>
-                <th className='px-4 py-3 text-center font-medium text-muted-foreground'>Deploy</th>
+                <th className='px-4 py-3 text-left font-medium text-muted-foreground bg-card'>Email</th>
+                <th className='px-4 py-3 text-center font-medium text-muted-foreground bg-card'>Permission Level</th>
               </tr>
             </thead>
             <tbody className='divide-y divide-border'>
               {permissionsLoading && (
                 <tr>
-                  <td colSpan={5} className='px-4 py-3 text-center text-muted-foreground'>
+                  <td colSpan={2} className='px-4 py-3 text-center text-muted-foreground'>
                     <Loader2 className='h-4 w-4 animate-spin inline-block mr-2' />
                     Loading workspace members...
                   </td>
@@ -201,60 +236,10 @@ const PermissionsTable = ({
                     </td>
                     <td className='px-4 py-3 text-center'>
                       <div className='flex justify-center'>
-                        <Checkbox
-                          checked={user.admin}
-                          onCheckedChange={!currentUserIsAdmin ? undefined : 
-                            (isCurrentUser && user.admin) ? undefined : 
-                            (checked) => onPermissionChange(userIdentifier, 'admin', Boolean(checked))
-                          }
-                          disabled={disabled || !currentUserIsAdmin || (isCurrentUser && user.admin)}
-                          className={cn(
-                            'data-[state=checked]:bg-primary data-[state=checked]:border-primary',
-                            (!currentUserIsAdmin || (isCurrentUser && user.admin)) && 'opacity-50 cursor-not-allowed'
-                          )}
-                        />
-                      </div>
-                    </td>
-                    <td className='px-4 py-3 text-center'>
-                      <div className='flex justify-center'>
-                        <Checkbox
-                          checked={true}
-                          onCheckedChange={undefined}
-                          disabled={true}
-                          className={cn(
-                            'data-[state=checked]:bg-primary data-[state=checked]:border-primary',
-                            'opacity-50 cursor-not-allowed'
-                          )}
-                        />
-                      </div>
-                    </td>
-                    <td className='px-4 py-3 text-center'>
-                      <div className='flex justify-center'>
-                        <Checkbox
-                          checked={user.edit}
-                          onCheckedChange={!currentUserIsAdmin ? undefined : (checked) => 
-                            onPermissionChange(userIdentifier, 'edit', Boolean(checked))
-                          }
-                          disabled={disabled || user.admin || !currentUserIsAdmin}
-                          className={cn(
-                            'data-[state=checked]:bg-primary data-[state=checked]:border-primary',
-                            (user.admin || !currentUserIsAdmin) && 'opacity-50 cursor-not-allowed'
-                          )}
-                        />
-                      </div>
-                    </td>
-                    <td className='px-4 py-3 text-center'>
-                      <div className='flex justify-center'>
-                        <Checkbox
-                          checked={user.deploy}
-                          onCheckedChange={!currentUserIsAdmin ? undefined : (checked) => 
-                            onPermissionChange(userIdentifier, 'deploy', Boolean(checked))
-                          }
-                          disabled={disabled || user.admin || !currentUserIsAdmin}
-                          className={cn(
-                            'data-[state=checked]:bg-primary data-[state=checked]:border-primary',
-                            (user.admin || !currentUserIsAdmin) && 'opacity-50 cursor-not-allowed'
-                          )}
+                        <PermissionSelector
+                          value={user.permissionType}
+                          onChange={(newPermissionType) => onPermissionChange(userIdentifier, newPermissionType)}
+                          disabled={disabled || !currentUserIsAdmin || (isCurrentUser && user.permissionType === 'admin')}
                         />
                       </div>
                     </td>
@@ -268,7 +253,7 @@ const PermissionsTable = ({
       <p className='text-xs text-muted-foreground'>
         {!currentUserIsAdmin 
           ? 'Only administrators can invite new members and modify permissions.'
-          : 'Admin grants all permissions automatically. Read access is always granted and cannot be removed. Modified permissions are highlighted and require saving.'
+          : 'Admin grants all permissions automatically. Modified permissions are highlighted and require saving.'
         }
       </p>
     </div>
@@ -294,11 +279,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const { activeWorkspaceId } = useWorkflowRegistry()
   const { data: session } = useSession()
   const { permissions: workspacePermissions, loading: permissionsLoading, updatePermissions } = useWorkspacePermissions(activeWorkspaceId)
-
-  // Check if current user has admin permissions
-  const currentUserIsAdmin = workspacePermissions?.users?.find(
-    user => user.email === session?.user?.email
-  )?.permissions.includes('admin') || false
+  const userPerms = useUserPermissions(activeWorkspaceId)
 
   // Check if there are pending changes to existing users
   const hasPendingChanges = Object.keys(existingUserPermissionChanges).length > 0
@@ -332,10 +313,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       ...prev,
       {
         email: normalizedEmail,
-        admin: false,  // Default: no admin access
-        read: true,    // Default: grant read access
-        edit: false,   // Default: no edit access
-        deploy: false  // Default: no deploy access
+        permissionType: 'read' // Default: read access
       }
     ])
     
@@ -359,82 +337,28 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     setInvalidEmails(newInvalidEmails)
   }
 
-  const handlePermissionChange = (identifier: string, permission: keyof Omit<UserPermissions, 'email' | 'userId'>, value: boolean) => {
+  const handlePermissionChange = (identifier: string, permissionType: PermissionType) => {
     // Check if this is an existing user by looking for userId in workspace permissions
     const existingUser = workspacePermissions?.users?.find(user => user.userId === identifier)
     
     if (existingUser) {
       // Handle existing user permission changes using userId
-      setExistingUserPermissionChanges(prev => {
-        const currentChanges = prev[identifier] || {}
-        
-        // Get the current permissions (original + any changes)
-        const currentPermissions = {
-          admin: currentChanges.admin !== undefined ? currentChanges.admin : existingUser.permissions.includes('admin'),
-          read: currentChanges.read !== undefined ? currentChanges.read : existingUser.permissions.includes('read'),
-          edit: currentChanges.edit !== undefined ? currentChanges.edit : existingUser.permissions.includes('edit'),
-          deploy: currentChanges.deploy !== undefined ? currentChanges.deploy : existingUser.permissions.includes('deploy'),
-        }
-
-        const updatedPermissions = { ...currentPermissions, [permission]: value }
-        
-        // Admin permission logic
-        if (permission === 'admin') {
-          if (value) {
-            updatedPermissions.read = true
-            updatedPermissions.edit = true
-            updatedPermissions.deploy = true
-          } else {
-            updatedPermissions.read = true
-            updatedPermissions.edit = false
-            updatedPermissions.deploy = false
-          }
-        } else if (currentPermissions.admin) {
-          return prev // Don't allow changes if admin is enabled
-        } else {
-          if ((permission === 'edit' || permission === 'deploy') && value) {
-            updatedPermissions.read = true
-          }
-        }
-
-        return {
-          ...prev,
-          [identifier]: updatedPermissions
-        }
-      })
+      setExistingUserPermissionChanges(prev => ({
+        ...prev,
+        [identifier]: { permissionType }
+      }))
     } else {
       // Handle new invites (using email as identifier)
-      setUserPermissions(prev => prev.map(user => {
-        if (user.email === identifier) {
-          const updatedUser = { ...user, [permission]: value }
-          
-          if (permission === 'admin') {
-            if (value) {
-              updatedUser.read = true
-              updatedUser.edit = true
-              updatedUser.deploy = true
-            } else {
-              updatedUser.read = true
-              updatedUser.edit = false
-              updatedUser.deploy = false
-            }
-          } else if (user.admin) {
-            return user
-          } else {
-            if ((permission === 'edit' || permission === 'deploy') && value) {
-              updatedUser.read = true
-            }
-          }
-          
-          return updatedUser
-        }
-        return user
-      }))
+      setUserPermissions(prev => prev.map(user => 
+        user.email === identifier 
+          ? { ...user, permissionType }
+          : user
+      ))
     }
   }
 
   const handleSaveChanges = async () => {
-    if (!currentUserIsAdmin || !hasPendingChanges || !activeWorkspaceId) return
+    if (!userPerms.canAdmin || !hasPendingChanges || !activeWorkspaceId) return
 
     setIsSaving(true)
     setErrorMessage(null)
@@ -443,12 +367,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       // Convert existingUserPermissionChanges to the API format using userId
       const updates = Object.entries(existingUserPermissionChanges).map(([userId, changes]) => ({
         userId,
-        permissions: {
-          admin: changes.admin ?? false,
-          read: changes.read ?? true,
-          edit: changes.edit ?? false,
-          deploy: changes.deploy ?? false,
-        }
+        permissions: changes.permissionType || 'read'
       }))
 
       const response = await fetch(API_ENDPOINTS.WORKSPACE_PERMISSIONS(activeWorkspaceId), {
@@ -486,7 +405,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   }
 
   const handleRestoreChanges = () => {
-    if (!currentUserIsAdmin || !hasPendingChanges) return
+    if (!userPerms.canAdmin || !hasPendingChanges) return
     
     // Clear all pending changes to revert to original permissions
     setExistingUserPermissionChanges({})
@@ -558,17 +477,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
           try {
             // Find permissions for this email
             const userPermission = userPermissions.find(up => up.email === email)
-            const permissions = userPermission ? {
-              admin: userPermission.admin,
-              read: userPermission.read,
-              edit: userPermission.edit,
-              deploy: userPermission.deploy
-            } : {
-              admin: false,
-              read: true,
-              edit: false,
-              deploy: false
-            }
+            const permissionType = userPermission?.permissionType || 'read'
 
             const response = await fetch('/api/workspaces/invitations', {
               method: 'POST',
@@ -579,7 +488,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                 workspaceId: activeWorkspaceId,
                 email: email,
                 role: 'member', // Default role for invited members (kept for compatibility)
-                permissions: permissions, // Include permissions object
+                permission: permissionType, // Single permission type - changed from 'permissions' to 'permission'
               }),
             })
 
@@ -707,7 +616,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                       key={`invalid-${index}`}
                       email={email}
                       onRemove={() => removeInvalidEmail(index)}
-                      disabled={isSubmitting || !currentUserIsAdmin}
+                      disabled={isSubmitting || !userPerms.canAdmin}
                       isInvalid={true}
                     />
                   ))}
@@ -716,7 +625,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                       key={`valid-${index}`}
                       email={email}
                       onRemove={() => removeEmail(index)}
-                      disabled={isSubmitting || !currentUserIsAdmin}
+                      disabled={isSubmitting || !userPerms.canAdmin}
                     />
                   ))}
                   <Input
@@ -728,7 +637,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     onPaste={handlePaste}
                     onBlur={() => inputValue.trim() && addEmail(inputValue)}
                     placeholder={
-                      !currentUserIsAdmin
+                      !userPerms.canAdmin
                         ? 'Only administrators can invite new members'
                         : emails.length > 0 || invalidEmails.length > 0
                         ? 'Add another email'
@@ -738,8 +647,8 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                       'h-7 min-w-[180px] flex-1 border-none py-1 focus-visible:ring-0 focus-visible:ring-offset-0',
                       emails.length > 0 || invalidEmails.length > 0 ? 'pl-1' : 'pl-0'
                     )}
-                    autoFocus={currentUserIsAdmin}
-                    disabled={isSubmitting || !currentUserIsAdmin}
+                    autoFocus={userPerms.canAdmin}
+                    disabled={isSubmitting || !userPerms.canAdmin}
                   />
                 </div>
                 <p
@@ -769,7 +678,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
               />
 
               <div className='flex justify-between'>
-                {hasPendingChanges && currentUserIsAdmin && (
+                {hasPendingChanges && userPerms.canAdmin && (
                   <div className='flex gap-2'>
                     <Button
                       type='button'
@@ -799,7 +708,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                   type='submit'
                   size='sm'
                   disabled={
-                    !currentUserIsAdmin ||
+                    !userPerms.canAdmin ||
                     !hasNewInvites ||
                     isSubmitting ||
                     isSaving ||
@@ -814,7 +723,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                   )}
                 >
                   {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
-                  {!currentUserIsAdmin ? 'Admin Access Required' : (showSent ? 'Sent!' : 'Send Invitations')}
+                  {!userPerms.canAdmin ? 'Admin Access Required' : (showSent ? 'Sent!' : 'Send Invitations')}
                 </Button>
               </div>
             </div>

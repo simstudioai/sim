@@ -9,7 +9,6 @@ export interface WorkspaceUserPermissions {
   // Core permission checks
   canRead: boolean
   canEdit: boolean
-  canDeploy: boolean
   canAdmin: boolean
   
   // Computed permission checks for specific features
@@ -17,12 +16,10 @@ export interface WorkspaceUserPermissions {
   canAutoLayout: boolean
   canDeleteWorkflow: boolean
   canDuplicateWorkflow: boolean
-  canDeployApi: boolean
   
   // Utility properties
   isReadOnly: boolean
-  hasAnyEditPermission: boolean
-  userPermissions: PermissionType[]
+  userPermissions: PermissionType
   isLoading: boolean
   error: string | null
 }
@@ -43,16 +40,13 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
       return {
         canRead: false,
         canEdit: false,
-        canDeploy: false,
         canAdmin: false,
         canInteractWithBlocks: false,
         canAutoLayout: false,
         canDeleteWorkflow: false,
         canDuplicateWorkflow: false,
-        canDeployApi: false,
         isReadOnly: true,
-        hasAnyEditPermission: false,
-        userPermissions: [],
+        userPermissions: 'read',
         isLoading: loading,
         error,
       }
@@ -75,27 +69,23 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
       return {
         canRead: false,
         canEdit: false,
-        canDeploy: false,
         canAdmin: false,
         canInteractWithBlocks: false,
         canAutoLayout: false,
         canDeleteWorkflow: false,
         canDuplicateWorkflow: false,
-        canDeployApi: false,
         isReadOnly: true,
-        hasAnyEditPermission: false,
-        userPermissions: [],
+        userPermissions: 'read',
         isLoading: false,
         error: error || 'User not found in workspace',
       }
     }
 
-    const userPerms = currentUser.permissions || []
+    const userPerms = currentUser.permissionType || 'read'
 
     // Core permission checks
-    const canAdmin = userPerms.includes('admin')
-    const canDeploy = userPerms.includes('deploy') || canAdmin
-    const canEdit = userPerms.includes('edit') || canAdmin
+    const canAdmin = userPerms === 'admin'
+    const canEdit = userPerms === 'write' || userPerms === 'admin'
     const canRead = true // If user is found in workspace permissions, they have read access
 
     // Computed permission checks for specific features
@@ -103,24 +93,19 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
     const canAutoLayout = canEdit // Only edit+ can use auto-layout
     const canDeleteWorkflow = canEdit // Only edit+ can delete workflows
     const canDuplicateWorkflow = canEdit // Only edit+ can duplicate workflows
-    const canDeployApi = canDeploy // Only deploy+ can deploy as API
 
     // Utility properties
-    const isReadOnly = !canEdit && !canDeploy && !canAdmin // Read-only if they don't have edit permissions
-    const hasAnyEditPermission = canEdit || canDeploy || canAdmin
+    const isReadOnly = !canEdit && !canAdmin // Read-only if they don't have edit permissions
 
     return {
       canRead,
       canEdit,
-      canDeploy,
       canAdmin,
       canInteractWithBlocks,
       canAutoLayout,
       canDeleteWorkflow,
       canDuplicateWorkflow,
-      canDeployApi,
       isReadOnly,
-      hasAnyEditPermission,
       userPermissions: userPerms,
       isLoading: false,
       error,
