@@ -62,7 +62,7 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
       logger.info('Workspace permissions loaded', {
         workspaceId: id,
         userCount: data.total,
-        users: data.users.map(u => ({ email: u.email, permissions: u.permissions }))
+        users: data.users.map(u => ({ email: u.email, permissions: u.permissionType }))
       })
 
     } catch (err) {

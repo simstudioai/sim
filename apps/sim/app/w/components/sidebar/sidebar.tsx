@@ -54,7 +54,7 @@ export function Sidebar() {
   const [explicitMouseEnter, setExplicitMouseEnter] = useState(false)
 
   useEffect(() => {
-    setIsDevEnvironment(process.env.NODE_ENV === 'development')
+    setIsDevEnvironment(false)
   }, [])
 
   // Track when active workspace changes to ensure we refresh the UI

@@ -79,7 +79,16 @@ function WorkflowContent() {
   
   // Get workspace ID from current workflow
   const workflowId = params.id as string
-  const { workflows, setActiveWorkflow, createWorkflow } = useWorkflowRegistry()
+  const {
+    workflows,
+    activeWorkflowId,
+    isLoading,
+    setActiveWorkflow,
+    createWorkflow,
+    removeWorkflow,
+    updateWorkflow,
+    duplicateWorkflow,
+  } = useWorkflowRegistry()
   const currentWorkflow = workflows[workflowId]
   const workspaceId = currentWorkflow?.workspaceId
   
@@ -118,7 +127,7 @@ function WorkflowContent() {
         userCount: workspacePermissions.total,
         permissions: workspacePermissions.users.map(u => ({
           email: u.email,
-          permissions: u.permissions
+          permissions: u.permissionType
         }))
       })
     }
@@ -777,7 +786,7 @@ function WorkflowContent() {
     // Check if we have the necessary data to render the workflow
     const hasActiveWorkflow = activeWorkflowId === currentId
     const hasWorkflowInRegistry = Boolean(workflows[currentId])
-    const isNotLoading = !workflowsLoading
+    const isNotLoading = !isLoading
 
     // Workflow is ready when:
     // 1. We have an active workflow that matches the URL
@@ -792,7 +801,7 @@ function WorkflowContent() {
       return () => clearTimeout(timeoutId)
     }
     setIsWorkflowReady(false)
-  }, [activeWorkflowId, params.id, workflows, workflowsLoading])
+  }, [activeWorkflowId, params.id, workflows, isLoading])
 
   // Init workflow
   useEffect(() => {
@@ -801,7 +810,7 @@ function WorkflowContent() {
       const currentId = params.id as string
 
       // Wait for both initialization and workflow loading to complete
-      if (workflowsLoading) {
+      if (isLoading) {
         logger.info('Workflows still loading, waiting...')
         return
       }
@@ -850,7 +859,7 @@ function WorkflowContent() {
   }, [
     params.id,
     workflows,
-    workflowsLoading,
+    isLoading,
     setActiveWorkflow,
     createWorkflow,
     router,

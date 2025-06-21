@@ -1,6 +1,6 @@
 {
-  "id": "fe2a6727-7131-46bb-8632-06401a8ad22f",
-  "prevId": "987b9c44-f844-4937-9a96-0ad30c2656ac",
+  "id": "cc643ea0-33d4-410a-9c53-82faa9d2c352",
+  "prevId": "9e6a8ffc-fb16-466b-b09f-20441e4a1ccc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -452,12 +452,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "file_hash": {
-          "name": "file_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "chunk_count": {
           "name": "chunk_count",
           "type": "integer",
@@ -531,21 +525,6 @@
           "columns": [
             {
               "expression": "knowledge_base_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "doc_file_hash_idx": {
-          "name": "doc_file_hash_idx",
-          "columns": [
-            {
-              "expression": "file_hash",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -712,45 +691,12 @@
           "primaryKey": false,
           "notNull": true
         },
-        "overlap_tokens": {
-          "name": "overlap_tokens",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'"
-        },
-        "search_rank": {
-          "name": "search_rank",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'1.0'"
-        },
-        "access_count": {
-          "name": "access_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "last_accessed_at": {
-          "name": "last_accessed_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "quality_score": {
-          "name": "quality_score",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
         },
         "enabled": {
           "name": "enabled",
@@ -847,63 +793,6 @@
             },
             {
               "expression": "embedding_model",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_chunk_hash_idx": {
-          "name": "emb_chunk_hash_idx",
-          "columns": [
-            {
-              "expression": "chunk_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_kb_access_idx": {
-          "name": "emb_kb_access_idx",
-          "columns": [
-            {
-              "expression": "knowledge_base_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "last_accessed_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "emb_kb_rank_idx": {
-          "name": "emb_kb_rank_idx",
-          "columns": [
-            {
-              "expression": "knowledge_base_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "search_rank",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
