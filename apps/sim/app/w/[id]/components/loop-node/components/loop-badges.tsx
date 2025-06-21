@@ -44,14 +44,7 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   const { loops } = useWorkflowStore()
   const loopConfig = loops[nodeId]
 
-  // Debug logging
-  console.log(`[LOOP-BADGES] ${nodeId} data sources:`, {
-    'data.count': data?.count,
-    'loopConfig.iterations': loopConfig?.iterations,
-    'data.loopType': data?.loopType,
-    'loopConfig.loopType': loopConfig?.loopType,
-    loopConfig,
-  })
+
 
   // Use loop config as primary source, fallback to data for backward compatibility
   const configIterations = loopConfig?.iterations ?? data?.count ?? 5
@@ -105,12 +98,7 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
       const newIterations = loopConfig.iterations || 5
       const newCollection = loopConfig.forEachItems || ''
 
-      console.log(`[LOOP-BADGES] ${nodeId} updating from loopConfig:`, {
-        newLoopType,
-        newIterations,
-        newCollection,
-        currentIterations: iterations,
-      })
+
 
       if (newLoopType !== loopType) {
         setLoopType(newLoopType)
