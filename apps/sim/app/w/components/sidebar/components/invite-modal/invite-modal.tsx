@@ -384,9 +384,9 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         throw new Error(data.error || 'Failed to update permissions')
       }
 
-      // Use the updated permissions from the API response instead of refetching
-      if (data.permissions) {
-        updatePermissions(data.permissions)
+      // Use the updated permissions from the API response - updated structure
+      if (data.users && data.total !== undefined) {
+        updatePermissions({ users: data.users, total: data.total })
       }
       
       // Clear staged changes now that we have fresh data

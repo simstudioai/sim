@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
@@ -12,6 +12,36 @@ interface UpdatePermissionsRequest {
     userId: string
     permissions: PermissionType // Single permission type instead of object with booleans
   }>
+}
+
+// Helper function to fetch users with permissions for a workspace
+async function getUsersWithPermissions(workspaceId: string) {
+  const usersWithPermissions = await db
+    .select({
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+      image: user.image,
+      permissionType: permissions.permissionType,
+    })
+    .from(permissions)
+    .innerJoin(user, eq(permissions.userId, user.id))
+    .where(
+      and(
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId)
+      )
+    )
+    .orderBy(user.email)
+
+  // Since each user has only one permission, we can use the results directly
+  return usersWithPermissions.map(row => ({
+    userId: row.userId,
+    email: row.email,
+    name: row.name,
+    image: row.image,
+    permissionType: row.permissionType
+  }))
 }
 
 /**
@@ -57,63 +87,7 @@ export async function GET(
       )
     }
 
-    // Query all users with permissions for this workspace
-    const usersWithPermissions = await db
-      .select({
-        userId: user.id,
-        email: user.email,
-        name: user.name,
-        image: user.image,
-        permissionType: permissions.permissionType,
-      })
-      .from(permissions)
-      .innerJoin(user, eq(permissions.userId, user.id))
-      .where(
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workspaceId)
-        )
-      )
-      .orderBy(user.email)
-
-    // Since we now ensure only one permission per user, we can directly use the results
-    // But we'll still handle potential legacy data with multiple permissions per user
-    const userPermissionsMap = new Map<string, {
-      userId: string
-      email: string
-      name: string | null
-      image: string | null
-      permissionType: PermissionType
-    }>()
-
-    for (const row of usersWithPermissions) {
-      const key = row.userId
-      
-      if (!userPermissionsMap.has(key)) {
-        userPermissionsMap.set(key, {
-          userId: row.userId,
-          email: row.email,
-          name: row.name,
-          image: row.image,
-          permissionType: row.permissionType
-        })
-      } else {
-        // Handle legacy data with multiple permissions - keep the highest permission level
-        const existing = userPermissionsMap.get(key)!
-        const currentPermission = existing.permissionType
-        const newPermission = row.permissionType
-        
-        // Permission hierarchy: admin > write > read
-        const permissionOrder: Record<PermissionType, number> = { admin: 3, write: 2, read: 1 }
-        
-        if (permissionOrder[newPermission] > permissionOrder[currentPermission]) {
-          existing.permissionType = newPermission
-        }
-      }
-    }
-
-    // Convert map to array
-    const result = Array.from(userPermissionsMap.values())
+    const result = await getUsersWithPermissions(workspaceId)
 
     return NextResponse.json({
       users: result,
@@ -178,39 +152,6 @@ export async function PATCH(
     // Parse and validate request body
     const body: UpdatePermissionsRequest = await request.json()
 
-    if (!body.updates || !Array.isArray(body.updates) || body.updates.length === 0) {
-      return NextResponse.json(
-        { error: 'Invalid request: updates array is required' },
-        { status: 400 }
-      )
-    }
-
-    // Validate each update
-    for (const update of body.updates) {
-      if (!update.userId || typeof update.userId !== 'string') {
-        return NextResponse.json(
-          { error: 'Invalid request: userId is required for each update' },
-          { status: 400 }
-        )
-      }
-
-      if (!update.permissions || typeof update.permissions !== 'string') {
-        return NextResponse.json(
-          { error: 'Invalid request: permissions must be a valid PermissionType' },
-          { status: 400 }
-        )
-      }
-
-      // Validate permission type
-      const validPermissions: PermissionType[] = ['admin', 'write', 'read']
-      if (!validPermissions.includes(update.permissions)) {
-        return NextResponse.json(
-          { error: 'Invalid request: permission must be one of: admin, write, read' },
-          { status: 400 }
-        )
-      }
-    }
-
     // Prevent users from modifying their own admin permissions
     const selfUpdate = body.updates.find(update => update.userId === session.user.id)
     if (selfUpdate && selfUpdate.permissions !== 'admin') {
@@ -223,14 +164,12 @@ export async function PATCH(
     // Process updates in a transaction
     await db.transaction(async (tx) => {
       for (const update of body.updates) {
-        const userId = update.userId
-        
         // Delete existing permissions for this user and workspace
         await tx
           .delete(permissions)
           .where(
             and(
-              eq(permissions.userId, userId),
+              eq(permissions.userId, update.userId),
               eq(permissions.entityType, 'workspace'),
               eq(permissions.entityId, workspaceId)
             )
@@ -239,7 +178,7 @@ export async function PATCH(
         // Insert the single new permission
         await tx.insert(permissions).values({
           id: crypto.randomUUID(),
-          userId,
+          userId: update.userId,
           entityType: 'workspace' as const,
           entityId: workspaceId,
           permissionType: update.permissions,
@@ -249,70 +188,12 @@ export async function PATCH(
       }
     })
 
-    // Fetch and return the updated permissions
-    const updatedUsersWithPermissions = await db
-      .select({
-        userId: user.id,
-        email: user.email,
-        name: user.name,
-        image: user.image,
-        permissionType: permissions.permissionType,
-      })
-      .from(permissions)
-      .innerJoin(user, eq(permissions.userId, user.id))
-      .where(
-        and(
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, workspaceId)
-        )
-      )
-      .orderBy(user.email)
-
-    // Group permissions by user and determine highest permission level
-    const userPermissionsMap = new Map<string, {
-      userId: string
-      email: string
-      name: string | null
-      image: string | null
-      permissionType: PermissionType
-    }>()
-
-    for (const row of updatedUsersWithPermissions) {
-      const key = row.userId
-      
-      if (!userPermissionsMap.has(key)) {
-        userPermissionsMap.set(key, {
-          userId: row.userId,
-          email: row.email,
-          name: row.name,
-          image: row.image,
-          permissionType: row.permissionType
-        })
-      } else {
-        // If user already exists, keep the highest permission level
-        const existing = userPermissionsMap.get(key)!
-        const currentPermission = existing.permissionType
-        const newPermission = row.permissionType
-        
-        // Permission hierarchy: admin > write > read
-        const permissionOrder: Record<PermissionType, number> = { admin: 3, write: 2, read: 1 }
-        
-        if (permissionOrder[newPermission] > permissionOrder[currentPermission]) {
-          existing.permissionType = newPermission
-        }
-      }
-    }
-
-    // Convert map to array
-    const updatedUsers = Array.from(userPermissionsMap.values())
+    const updatedUsers = await getUsersWithPermissions(workspaceId)
 
     return NextResponse.json({
       message: 'Permissions updated successfully',
-      updatedUsers: body.updates.length,
-      permissions: {
-        users: updatedUsers,
-        total: updatedUsers.length
-      }
+      users: updatedUsers,
+      total: updatedUsers.length
     })
 
   } catch (error) {

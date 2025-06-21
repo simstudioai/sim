@@ -5,28 +5,6 @@ import { db } from '@/db'
 import { workspace, workspaceMember, permissions, permissionTypeEnum } from '@/db/schema'
 import { getUserEntityPermissions, type PermissionType } from '@/lib/permissions/utils'
 
-/**
- * Helper function to check if a user has a specific permission for a workspace
- */
-async function hasWorkspacePermission(
-  userId: string, 
-  workspaceId: string, 
-  permission: PermissionType
-): Promise<boolean> {
-  const result = await db
-    .select()
-    .from(permissions)
-    .where(and(
-      eq(permissions.userId, userId),
-      eq(permissions.entityType, 'workspace'),
-      eq(permissions.entityId, workspaceId),
-      eq(permissions.permissionType, permission)
-    ))
-    .limit(1)
-    
-  return result.length > 0
-}
-
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const session = await getSession()
@@ -38,9 +16,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const workspaceId = id
 
   // Check if user has read access to this workspace
-  const hasReadAccess = await hasWorkspacePermission(session.user.id, workspaceId, 'read')
-  
-  if (!hasReadAccess) {
+  const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+  if (userPermission !== 'read') {
     return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
   }
 
@@ -55,13 +32,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
   }
 
-  // Get user's permissions for this workspace
-  const userPermissions = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-
   return NextResponse.json({
     workspace: {
       ...workspaceDetails,
-      permissions: userPermissions,
+      permissions: userPermission,
     },
   })
 }
@@ -77,9 +51,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const workspaceId = id
 
   // Check if user has admin permissions to update workspace
-  const hasAdminAccess = await hasWorkspacePermission(session.user.id, workspaceId, 'admin')
-  
-  if (!hasAdminAccess) {
+  const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+  if (userPermission !== 'admin') {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
@@ -106,13 +79,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .where(eq(workspace.id, workspaceId))
       .then((rows) => rows[0])
 
-    // Get user's permissions for this workspace
-    const userPermissions = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-
     return NextResponse.json({
       workspace: {
         ...updatedWorkspace,
-        permissions: userPermissions,
+        permissions: userPermission,
       },
     })
   } catch (error) {
@@ -135,9 +105,8 @@ export async function DELETE(
   const workspaceId = id
 
   // Check if user has admin permissions to delete workspace
-  const hasAdminAccess = await hasWorkspacePermission(session.user.id, workspaceId, 'admin')
-  
-  if (!hasAdminAccess) {
+  const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+  if (userPermission !== 'admin') {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
