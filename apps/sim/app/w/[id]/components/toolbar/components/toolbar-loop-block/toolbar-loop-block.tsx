@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
-import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { LoopTool } from '../../../loop-node/loop-config'
 
 type LoopToolbarItemProps = {
@@ -23,19 +23,22 @@ export default function LoopToolbarItem({ disabled = false }: LoopToolbarItemPro
   }
 
   // Handle click to add loop block
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    if (disabled) return
-    
-    // Dispatch a custom event to be caught by the workflow component
-    const event = new CustomEvent('add-block-from-toolbar', {
-      detail: {
-        type: 'loop',
-        clientX: e.clientX,
-        clientY: e.clientY,
-      },
-    })
-    window.dispatchEvent(event)
-  }, [disabled])
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (disabled) return
+
+      // Dispatch a custom event to be caught by the workflow component
+      const event = new CustomEvent('add-block-from-toolbar', {
+        detail: {
+          type: 'loop',
+          clientX: e.clientX,
+          clientY: e.clientY,
+        },
+      })
+      window.dispatchEvent(event)
+    },
+    [disabled]
+  )
 
   const blockContent = (
     <div
@@ -53,10 +56,12 @@ export default function LoopToolbarItem({ disabled = false }: LoopToolbarItemPro
         className='relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg'
         style={{ backgroundColor: LoopTool.bgColor }}
       >
-        <LoopTool.icon className={cn(
-          'h-[22px] w-[22px] text-white transition-transform duration-200',
-          !disabled && 'group-hover:scale-110'
-        )} />
+        <LoopTool.icon
+          className={cn(
+            'h-[22px] w-[22px] text-white transition-transform duration-200',
+            !disabled && 'group-hover:scale-110'
+          )}
+        />
       </div>
       <div className='mb-[-2px] flex flex-col gap-1'>
         <h3 className='font-medium leading-none'>{LoopTool.name}</h3>
@@ -68,12 +73,8 @@ export default function LoopToolbarItem({ disabled = false }: LoopToolbarItemPro
   if (disabled) {
     return (
       <Tooltip>
-        <TooltipTrigger asChild>
-          {blockContent}
-        </TooltipTrigger>
-        <TooltipContent>
-          Edit permissions required to add blocks
-        </TooltipContent>
+        <TooltipTrigger asChild>{blockContent}</TooltipTrigger>
+        <TooltipContent>Edit permissions required to add blocks</TooltipContent>
       </Tooltip>
     )
   }

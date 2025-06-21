@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useSession } from '@/lib/auth-client'
-import { useWorkspacePermissions, type PermissionType } from './use-workspace-permissions'
 import { createLogger } from '@/lib/logs/console-logger'
+import { type PermissionType, useWorkspacePermissions } from './use-workspace-permissions'
 
 const logger = createLogger('useUserPermissions')
 
@@ -10,7 +10,7 @@ export interface WorkspaceUserPermissions {
   canRead: boolean
   canEdit: boolean
   canAdmin: boolean
-  
+
   // Utility properties
   userPermissions: PermissionType
   isLoading: boolean
@@ -19,7 +19,7 @@ export interface WorkspaceUserPermissions {
 
 /**
  * Custom hook to check current user's permissions within a workspace
- * 
+ *
  * @param workspaceId - The workspace ID to check permissions for
  * @returns Object containing permission flags and utility properties
  */
@@ -41,9 +41,7 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
     }
 
     // Find current user in workspace permissions
-    const currentUser = permissions?.users?.find(
-      (user) => user.email === session.user.email
-    )
+    const currentUser = permissions?.users?.find((user) => user.email === session.user.email)
 
     // If user not found in workspace, they have no permissions
     if (!currentUser) {
@@ -82,4 +80,4 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
   }, [session, permissions, loading, error, workspaceId])
 
   return userPermissions
-} 
+}

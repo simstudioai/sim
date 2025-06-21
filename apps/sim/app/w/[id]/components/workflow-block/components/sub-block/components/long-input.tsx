@@ -85,7 +85,7 @@ export function LongInput({
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     // Don't allow changes if disabled
     if (disabled) return
-    
+
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0
 

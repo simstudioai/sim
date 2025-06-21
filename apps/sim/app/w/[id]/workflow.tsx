@@ -13,12 +13,12 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 
 import { createLogger } from '@/lib/logs/console-logger'
-import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
-import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
 import { getBlock } from '@/blocks'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
+import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -76,7 +76,7 @@ function WorkflowContent() {
   const params = useParams()
   const router = useRouter()
   const { project, getNodes, fitView } = useReactFlow()
-  
+
   // Get workspace ID from current workflow
   const workflowId = params.id as string
   const {
@@ -91,10 +91,14 @@ function WorkflowContent() {
   } = useWorkflowRegistry()
   const currentWorkflow = workflows[workflowId]
   const workspaceId = currentWorkflow?.workspaceId
-  
+
   // Workspace permissions - only fetch if we have a workspace ID
-  const { permissions: workspacePermissions, loading: permissionsLoading, error: permissionsError } = useWorkspacePermissions(workspaceId || '')
-  
+  const {
+    permissions: workspacePermissions,
+    loading: permissionsLoading,
+    error: permissionsError,
+  } = useWorkspacePermissions(workspaceId || '')
+
   // User permissions - get current user's specific permissions
   const userPermissions = useUserPermissions(workspaceId || null)
 
@@ -125,10 +129,10 @@ function WorkflowContent() {
       logger.info('Workspace permissions loaded in workflow', {
         workspaceId,
         userCount: workspacePermissions.total,
-        permissions: workspacePermissions.users.map(u => ({
+        permissions: workspacePermissions.users.map((u) => ({
           email: u.email,
-          permissions: u.permissionType
-        }))
+          permissions: u.permissionType,
+        })),
       })
     }
   }, [workspacePermissions, workspaceId])
@@ -138,7 +142,7 @@ function WorkflowContent() {
     if (permissionsError) {
       logger.error('Failed to load workspace permissions', {
         workspaceId,
-        error: permissionsError
+        error: permissionsError,
       })
     }
   }, [permissionsError, workspaceId])
@@ -364,7 +368,7 @@ function WorkflowContent() {
       if (!userPermissions.canEdit) {
         return
       }
-      
+
       const { type } = event.detail
 
       if (!type) return

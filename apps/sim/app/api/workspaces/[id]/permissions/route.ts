@@ -2,10 +2,10 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { permissions, user, workspaceMember, permissionTypeEnum } from '@/db/schema'
+import { permissions, type permissionTypeEnum, user, workspaceMember } from '@/db/schema'
 
 // Extract the enum type from Drizzle schema
-type PermissionType = typeof permissionTypeEnum.enumValues[number]
+type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 interface UpdatePermissionsRequest {
   updates: Array<{
@@ -26,46 +26,35 @@ async function getUsersWithPermissions(workspaceId: string) {
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
-    .where(
-      and(
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId)
-      )
-    )
+    .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
     .orderBy(user.email)
 
   // Since each user has only one permission, we can use the results directly
-  return usersWithPermissions.map(row => ({
+  return usersWithPermissions.map((row) => ({
     userId: row.userId,
     email: row.email,
     name: row.name,
     image: row.image,
-    permissionType: row.permissionType
+    permissionType: row.permissionType,
   }))
 }
 
 /**
  * GET /api/workspaces/[id]/permissions
- * 
+ *
  * Retrieves all users who have permissions for the specified workspace.
  * Returns user details along with their specific permissions.
- * 
+ *
  * @param workspaceId - The workspace ID from the URL parameters
  * @returns Array of users with their permissions for the workspace
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: workspaceId } = await params
     const session = await getSession()
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
     // Verify the current user has access to this workspace
@@ -81,51 +70,38 @@ export async function GET(
       .limit(1)
 
     if (userMembership.length === 0) {
-      return NextResponse.json(
-        { error: 'Workspace not found or access denied' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
     }
 
     const result = await getUsersWithPermissions(workspaceId)
 
     return NextResponse.json({
       users: result,
-      total: result.length
+      total: result.length,
     })
-
   } catch (error) {
     console.error('Error fetching workspace permissions:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch workspace permissions' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch workspace permissions' }, { status: 500 })
   }
 }
 
 /**
  * PATCH /api/workspaces/[id]/permissions
- * 
+ *
  * Updates permissions for existing workspace members.
  * Only admin users can update permissions.
- * 
+ *
  * @param workspaceId - The workspace ID from the URL parameters
  * @param updates - Array of permission updates for users
  * @returns Success message or error
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: workspaceId } = await params
     const session = await getSession()
 
     if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
 
     // Verify the current user has admin access to this workspace
@@ -153,7 +129,7 @@ export async function PATCH(
     const body: UpdatePermissionsRequest = await request.json()
 
     // Prevent users from modifying their own admin permissions
-    const selfUpdate = body.updates.find(update => update.userId === session.user.id)
+    const selfUpdate = body.updates.find((update) => update.userId === session.user.id)
     if (selfUpdate && selfUpdate.permissions !== 'admin') {
       return NextResponse.json(
         { error: 'Cannot remove your own admin permissions' },
@@ -193,14 +169,10 @@ export async function PATCH(
     return NextResponse.json({
       message: 'Permissions updated successfully',
       users: updatedUsers,
-      total: updatedUsers.length
+      total: updatedUsers.length,
     })
-
   } catch (error) {
     console.error('Error updating workspace permissions:', error)
-    return NextResponse.json(
-      { error: 'Failed to update workspace permissions' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to update workspace permissions' }, { status: 500 })
   }
-} 
+}

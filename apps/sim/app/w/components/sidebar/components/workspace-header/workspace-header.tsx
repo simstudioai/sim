@@ -29,9 +29,9 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
 import { cn } from '@/lib/utils'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useUserPermissions } from '@/hooks/use-user-permissions'
 
 interface Workspace {
   id: string
@@ -368,7 +368,9 @@ export function WorkspaceHeader({
 
       if (!response.ok) {
         if (response.status === 403) {
-          console.error('Permission denied: Only users with admin permissions can update workspaces')
+          console.error(
+            'Permission denied: Only users with admin permissions can update workspaces'
+          )
         }
         throw new Error('Failed to update workspace')
       }
@@ -377,7 +379,9 @@ export function WorkspaceHeader({
 
       // Update workspaces list
       setWorkspaces((prevWorkspaces) =>
-        prevWorkspaces.map((w) => (w.id === updatedWorkspace.id ? { ...w, name: updatedWorkspace.name } : w))
+        prevWorkspaces.map((w) =>
+          w.id === updatedWorkspace.id ? { ...w, name: updatedWorkspace.name } : w
+        )
       )
 
       // If active workspace was updated, update it too
@@ -404,7 +408,9 @@ export function WorkspaceHeader({
 
       if (!response.ok) {
         if (response.status === 403) {
-          console.error('Permission denied: Only users with admin permissions can delete workspaces')
+          console.error(
+            'Permission denied: Only users with admin permissions can delete workspaces'
+          )
         }
         throw new Error('Failed to delete workspace')
       }

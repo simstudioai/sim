@@ -1,9 +1,9 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { workspace, workspaceMember, permissions, permissionTypeEnum } from '@/db/schema'
-import { getUserEntityPermissions, type PermissionType } from '@/lib/permissions/utils'
+import { permissions, workspace } from '@/db/schema'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -116,12 +116,7 @@ export async function DELETE(
       // 1. Delete all permissions associated with this workspace
       await tx
         .delete(permissions)
-        .where(
-          and(
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workspaceId)
-          )
-        )
+        .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
 
       // 2. Delete workspace (cascade will handle members, workflows, etc.)
       await tx.delete(workspace).where(eq(workspace.id, workspaceId))

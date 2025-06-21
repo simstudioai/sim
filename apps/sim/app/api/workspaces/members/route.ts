@@ -2,10 +2,10 @@ import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { user, workspaceMember, permissions, permissionTypeEnum } from '@/db/schema'
+import { permissions, type permissionTypeEnum, user, workspaceMember } from '@/db/schema'
 
 // Extract the enum type from Drizzle schema
-type PermissionType = typeof permissionTypeEnum.enumValues[number]
+type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 /**
  * Helper function to check if a user has admin permission for a workspace
@@ -14,21 +14,27 @@ async function hasAdminPermission(userId: string, workspaceId: string): Promise<
   const result = await db
     .select()
     .from(permissions)
-    .where(and(
-      eq(permissions.userId, userId),
-      eq(permissions.entityType, 'workspace'),
-      eq(permissions.entityId, workspaceId),
-      eq(permissions.permissionType, 'admin')
-    ))
+    .where(
+      and(
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, 'workspace'),
+        eq(permissions.entityId, workspaceId),
+        eq(permissions.permissionType, 'admin')
+      )
+    )
     .limit(1)
-    
+
   return result.length > 0
 }
 
 /**
  * Helper function to create default permissions for a new member
  */
-async function createMemberPermissions(userId: string, workspaceId: string, memberPermission: PermissionType = 'read'): Promise<void> {
+async function createMemberPermissions(
+  userId: string,
+  workspaceId: string,
+  memberPermission: PermissionType = 'read'
+): Promise<void> {
   await db.insert(permissions).values({
     id: crypto.randomUUID(),
     userId,
@@ -69,7 +75,7 @@ export async function POST(req: Request) {
 
     // Check if current user has admin permission for the workspace
     const hasAdmin = await hasAdminPermission(session.user.id, workspaceId)
-    
+
     if (!hasAdmin) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
@@ -128,9 +134,9 @@ export async function POST(req: Request) {
       })
     })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      message: `User added to workspace with ${permission} permission`
+      message: `User added to workspace with ${permission} permission`,
     })
   } catch (error) {
     console.error('Error adding workspace member:', error)

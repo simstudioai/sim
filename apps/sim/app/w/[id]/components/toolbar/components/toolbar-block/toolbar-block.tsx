@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
-import { cn } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import type { BlockConfig } from '@/blocks/types'
 
 export type ToolbarBlockProps = {
@@ -65,12 +65,8 @@ export function ToolbarBlock({ config, disabled = false }: ToolbarBlockProps) {
   if (disabled) {
     return (
       <Tooltip>
-        <TooltipTrigger asChild>
-          {blockContent}
-        </TooltipTrigger>
-        <TooltipContent>
-          Edit permissions required to add blocks
-        </TooltipContent>
+        <TooltipTrigger asChild>{blockContent}</TooltipTrigger>
+        <TooltipContent>Edit permissions required to add blocks</TooltipContent>
       </Tooltip>
     )
   }

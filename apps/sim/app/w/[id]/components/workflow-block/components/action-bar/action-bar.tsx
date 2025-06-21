@@ -58,14 +58,14 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
                 toggleBlockEnabled(blockId)
               }
             }}
-            className={cn('text-gray-500', disabled && 'opacity-50 cursor-not-allowed')}
+            className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
             disabled={disabled}
           >
             {isEnabled ? <Circle className='h-4 w-4' /> : <CircleOff className='h-4 w-4' />}
           </Button>
         </TooltipTrigger>
         <TooltipContent side='right'>
-          {disabled ? 'Read-only mode' : (isEnabled ? 'Disable Block' : 'Enable Block')}
+          {disabled ? 'Read-only mode' : isEnabled ? 'Disable Block' : 'Enable Block'}
         </TooltipContent>
       </Tooltip>
 
@@ -80,7 +80,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
                   duplicateBlock(blockId)
                 }
               }}
-              className={cn('text-gray-500', disabled && 'opacity-50 cursor-not-allowed')}
+              className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
               disabled={disabled}
             >
               <Copy className='h-4 w-4' />
@@ -102,7 +102,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
                 toggleBlockHandles(blockId)
               }
             }}
-            className={cn('text-gray-500', disabled && 'opacity-50 cursor-not-allowed')}
+            className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
             disabled={disabled}
           >
             {horizontalHandles ? (
@@ -113,7 +113,7 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
           </Button>
         </TooltipTrigger>
         <TooltipContent side='right'>
-          {disabled ? 'Read-only mode' : (horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports')}
+          {disabled ? 'Read-only mode' : horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports'}
         </TooltipContent>
       </Tooltip>
 
@@ -128,7 +128,10 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
                   removeBlock(blockId)
                 }
               }}
-              className={cn('text-gray-500 hover:text-red-600', disabled && 'opacity-50 cursor-not-allowed hover:text-gray-500')}
+              className={cn(
+                'text-gray-500 hover:text-red-600',
+                disabled && 'cursor-not-allowed opacity-50 hover:text-gray-500'
+              )}
               disabled={disabled}
             >
               <Trash2 className='h-4 w-4' />

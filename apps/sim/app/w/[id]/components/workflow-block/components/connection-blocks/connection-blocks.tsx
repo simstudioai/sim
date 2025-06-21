@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { type ConnectedBlock, useBlockConnections } from '@/app/w/[id]/hooks/use-block-connections'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { cn } from '@/lib/utils'
 
 interface ConnectionBlocksProps {
   blockId: string
@@ -15,7 +15,11 @@ interface ResponseField {
   description?: string
 }
 
-export function ConnectionBlocks({ blockId, setIsConnecting, isDisabled = false }: ConnectionBlocksProps) {
+export function ConnectionBlocks({
+  blockId,
+  setIsConnecting,
+  isDisabled = false,
+}: ConnectionBlocksProps) {
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(blockId)
 
   if (!hasIncomingConnections) return null
@@ -29,7 +33,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting, isDisabled = false 
       e.preventDefault()
       return
     }
-    
+
     e.stopPropagation() // Prevent parent drag handlers from firing
     setIsConnecting(true)
     e.dataTransfer.setData(
@@ -139,7 +143,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting, isDisabled = false 
         onDragEnd={handleDragEnd}
         className={cn(
           'group flex w-max items-center rounded-lg border bg-card p-2 shadow-sm transition-colors',
-          !isDisabled 
+          !isDisabled
             ? 'cursor-grab hover:bg-accent/50 active:cursor-grabbing'
             : 'cursor-not-allowed opacity-60'
         )}

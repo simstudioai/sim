@@ -537,7 +537,6 @@ export const workspaceMember = pgTable(
 // Define the permission enum
 export const permissionTypeEnum = pgEnum('permission_type', ['admin', 'write', 'read'])
 
-
 export const workspaceInvitation = pgTable('workspace_invitation', {
   id: text('id').primaryKey(),
   workspaceId: text('workspace_id')
@@ -572,30 +571,27 @@ export const permissions = pgTable(
   (table) => ({
     // Primary access pattern - get all permissions for a user
     userIdIdx: index('permissions_user_id_idx').on(table.userId),
-    
+
     // Entity-based queries - get all users with permissions on an entity
     entityIdx: index('permissions_entity_idx').on(table.entityType, table.entityId),
-    
+
     // User + entity type queries - get user's permissions for all workspaces
-    userEntityTypeIdx: index('permissions_user_entity_type_idx').on(
-      table.userId, 
-      table.entityType
-    ),
-    
+    userEntityTypeIdx: index('permissions_user_entity_type_idx').on(table.userId, table.entityType),
+
     // Specific permission checks - does user have specific permission on entity
     userEntityPermissionIdx: index('permissions_user_entity_permission_idx').on(
       table.userId,
-      table.entityType, 
+      table.entityType,
       table.permissionType
     ),
-    
+
     // User + specific entity queries - get user's permissions for specific entity
     userEntityIdx: index('permissions_user_entity_idx').on(
       table.userId,
       table.entityType,
       table.entityId
     ),
-    
+
     // Uniqueness constraint - prevent duplicate permission rows (one permission per user/entity)
     uniquePermissionConstraint: uniqueIndex('permissions_unique_constraint').on(
       table.userId,

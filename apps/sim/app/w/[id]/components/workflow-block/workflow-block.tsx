@@ -405,7 +405,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const shouldShowScheduleBadge = isStarterBlock && !isLoadingScheduleInfo && scheduleInfo !== null
 
   const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const currentWorkflow = useWorkflowRegistry((state) => 
+  const currentWorkflow = useWorkflowRegistry((state) =>
     workflowId ? state.workflows[workflowId] : null
   )
   const workspaceId = currentWorkflow?.workspaceId || null
@@ -433,9 +433,9 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         )}
 
         <ActionBar blockId={id} blockType={type} disabled={!userPermissions.canEdit} />
-        <ConnectionBlocks 
-          blockId={id} 
-          setIsConnecting={setIsConnecting} 
+        <ConnectionBlocks
+          blockId={id}
+          setIsConnecting={setIsConnecting}
           isDisabled={!userPermissions.canEdit}
         />
 
@@ -709,7 +709,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   }}
                   className={cn(
                     'h-7 p-1 text-gray-500',
-                    !userPermissions.canEdit && 'opacity-50 cursor-not-allowed'
+                    !userPermissions.canEdit && 'cursor-not-allowed opacity-50'
                   )}
                   disabled={!userPermissions.canEdit}
                 >
@@ -721,7 +721,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side='top'>
-                {!userPermissions.canEdit ? 'Read-only mode' : (isWide ? 'Narrow Block' : 'Expand Block')}
+                {!userPermissions.canEdit
+                  ? 'Read-only mode'
+                  : isWide
+                    ? 'Narrow Block'
+                    : 'Expand Block'}
               </TooltipContent>
             </Tooltip>
           </div>

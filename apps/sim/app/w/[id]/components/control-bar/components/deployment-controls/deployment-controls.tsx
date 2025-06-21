@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import type { WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { DeployModal } from '../deploy-modal/deploy-modal'
 
 interface DeploymentControlsProps {
@@ -91,9 +91,9 @@ export function DeploymentControls({
               onClick={handleDeployClick}
               disabled={isDisabled}
               className={cn(
-                'hover:text-[#802FFF]', 
+                'hover:text-[#802FFF]',
                 isDeployed && 'text-[#802FFF]',
-                isDisabled && 'opacity-50 cursor-not-allowed'
+                isDisabled && 'cursor-not-allowed opacity-50'
               )}
             >
               {isDeploying ? (
@@ -115,9 +115,7 @@ export function DeploymentControls({
             )}
           </div>
         </TooltipTrigger>
-        <TooltipContent>
-          {getTooltipText()}
-        </TooltipContent>
+        <TooltipContent>{getTooltipText()}</TooltipContent>
       </Tooltip>
 
       <DeployModal

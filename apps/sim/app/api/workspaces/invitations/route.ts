@@ -9,7 +9,13 @@ import { env } from '@/lib/env'
 import { createLogger } from '@/lib/logs/console-logger'
 import { getEmailDomain } from '@/lib/urls/utils'
 import { db } from '@/db'
-import { user, workspace, workspaceInvitation, workspaceMember, permissionTypeEnum } from '@/db/schema'
+import {
+  type permissionTypeEnum,
+  user,
+  workspace,
+  workspaceInvitation,
+  workspaceMember,
+} from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +23,7 @@ const logger = createLogger('WorkspaceInvitationsAPI')
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null
 
 // Define the permission type
-type PermissionType = typeof permissionTypeEnum.enumValues[number]
+type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 // Get all invitations for the user's workspaces
 export async function GET(req: NextRequest) {

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@/lib/logs/console-logger'
-import { permissionTypeEnum } from '@/db/schema'
+import type { permissionTypeEnum } from '@/db/schema'
 import { API_ENDPOINTS } from '@/stores/constants'
 
 const logger = createLogger('useWorkspacePermissions')
 
 // Use the enum from the database schema for type safety
-export type PermissionType = typeof permissionTypeEnum.enumValues[number]
+export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 export interface WorkspaceUser {
   userId: string
@@ -30,7 +30,7 @@ interface UseWorkspacePermissionsReturn {
 
 /**
  * Custom hook to fetch and manage workspace permissions
- * 
+ *
  * @param workspaceId - The workspace ID to fetch permissions for
  * @returns Object containing permissions data, loading state, error state, and refetch function
  */
@@ -45,7 +45,7 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
       setError(null)
 
       const response = await fetch(API_ENDPOINTS.WORKSPACE_PERMISSIONS(id))
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error('Workspace not found or access denied')
@@ -58,19 +58,18 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
 
       const data: WorkspacePermissions = await response.json()
       setPermissions(data)
-      
+
       logger.info('Workspace permissions loaded', {
         workspaceId: id,
         userCount: data.total,
-        users: data.users.map(u => ({ email: u.email, permissions: u.permissionType }))
+        users: data.users.map((u) => ({ email: u.email, permissions: u.permissionType })),
       })
-
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
       setError(errorMessage)
       logger.error('Failed to fetch workspace permissions', {
         workspaceId: id,
-        error: errorMessage
+        error: errorMessage,
       })
     } finally {
       setLoading(false)
@@ -96,6 +95,6 @@ export function useWorkspacePermissions(workspaceId: string | null): UseWorkspac
     permissions,
     loading,
     error,
-    updatePermissions
+    updatePermissions,
   }
-} 
+}

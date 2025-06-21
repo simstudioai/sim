@@ -2,8 +2,7 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { workspaceMember} from '@/db/schema'
-
+import { workspaceMember } from '@/db/schema'
 
 // DELETE /api/workspaces/members/[id] - Remove a member from a workspace
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

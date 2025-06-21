@@ -37,14 +37,14 @@ describe('Permission Utils', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    
+
     // Import the mocked modules
     const { db } = await import('@/db')
     const { permissions } = await import('@/db/schema')
-    
+
     mockDb = db
     mockPermissions = permissions
-    
+
     // Setup default mock chain
     mockDb.select.mockReturnValue(mockDb)
     mockDb.from.mockReturnValue(mockDb)

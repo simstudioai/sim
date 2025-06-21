@@ -1,13 +1,13 @@
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/db'
-import { permissions, permissionTypeEnum } from '@/db/schema'
+import { permissions, type permissionTypeEnum } from '@/db/schema'
 
 // Extract the enum type from Drizzle schema
-export type PermissionType = typeof permissionTypeEnum.enumValues[number]
+export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 /**
  * Get the highest permission level a user has for a specific entity
- * 
+ *
  * @param userId - The ID of the user to check permissions for
  * @param entityType - The type of entity (e.g., 'workspace', 'workflow', etc.)
  * @param entityId - The ID of the specific entity
@@ -21,12 +21,14 @@ export async function getUserEntityPermissions(
   const result = await db
     .select({ permissionType: permissions.permissionType })
     .from(permissions)
-    .where(and(
-      eq(permissions.userId, userId),
-      eq(permissions.entityType, entityType),
-      eq(permissions.entityId, entityId)
-    ))
-  
+    .where(
+      and(
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, entityType),
+        eq(permissions.entityId, entityId)
+      )
+    )
+
   if (result.length === 0) {
     return null
   }
@@ -34,8 +36,8 @@ export async function getUserEntityPermissions(
   // If multiple permissions exist (legacy data), return the highest one
   const permissionOrder: Record<PermissionType, number> = { admin: 3, write: 2, read: 1 }
   const highestPermission = result.reduce((highest, current) => {
-    return permissionOrder[current.permissionType] > permissionOrder[highest.permissionType] 
-      ? current 
+    return permissionOrder[current.permissionType] > permissionOrder[highest.permissionType]
+      ? current
       : highest
   })
 

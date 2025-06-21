@@ -107,7 +107,7 @@ export function ControlBar() {
 
   // Get current workflow and workspace ID for permissions
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
-  
+
   // User permissions - use stable activeWorkspaceId from registry instead of deriving from currentWorkflow
   const userPermissions = useUserPermissions(activeWorkspaceId)
 
@@ -397,7 +397,7 @@ export function ControlBar() {
 
   const handleNameSubmit = () => {
     if (!userPermissions.canEdit) return
-    
+
     if (editedName.trim() && activeWorkflowId) {
       updateWorkflow(activeWorkflowId, { name: editedName.trim() })
     }
@@ -600,7 +600,7 @@ export function ControlBar() {
    */
   const renderWorkflowName = () => {
     const canEdit = userPermissions.canEdit
-    
+
     return (
       <div className='flex flex-col gap-[2px]'>
         {isEditing ? (
@@ -618,9 +618,7 @@ export function ControlBar() {
               <h2
                 className={cn(
                   'w-fit font-medium text-sm',
-                  canEdit 
-                    ? 'cursor-pointer hover:text-muted-foreground' 
-                    : 'cursor-default'
+                  canEdit ? 'cursor-pointer hover:text-muted-foreground' : 'cursor-default'
                 )}
                 onClick={canEdit ? handleNameClick : undefined}
               >
@@ -628,9 +626,7 @@ export function ControlBar() {
               </h2>
             </TooltipTrigger>
             {!canEdit && (
-              <TooltipContent>
-                Edit permissions required to rename workflows
-              </TooltipContent>
+              <TooltipContent>Edit permissions required to rename workflows</TooltipContent>
             )}
           </Tooltip>
         )}
@@ -653,13 +649,13 @@ export function ControlBar() {
     const canEdit = userPermissions.canEdit
     const hasMultipleWorkflows = Object.keys(workflows).length > 1
     const isDisabled = !canEdit || !hasMultipleWorkflows
-    
+
     const getTooltipText = () => {
       if (!canEdit) return 'Edit permissions required to delete workflows'
       if (!hasMultipleWorkflows) return 'Cannot delete the last workflow'
       return 'Delete Workflow'
     }
-    
+
     return (
       <AlertDialog>
         <Tooltip>
@@ -669,10 +665,7 @@ export function ControlBar() {
                 variant='ghost'
                 size='icon'
                 disabled={isDisabled}
-                className={cn(
-                  'hover:text-red-600',
-                  isDisabled && 'opacity-50 cursor-not-allowed'
-                )}
+                className={cn('hover:text-red-600', isDisabled && 'cursor-not-allowed opacity-50')}
               >
                 <Trash2 className='h-5 w-5' />
                 <span className='sr-only'>Delete Workflow</span>
@@ -867,7 +860,7 @@ export function ControlBar() {
    */
   const renderDuplicateButton = () => {
     const canEdit = userPermissions.canEdit
-    
+
     return (
       <Tooltip>
         <TooltipTrigger asChild>
@@ -876,10 +869,7 @@ export function ControlBar() {
             size='icon'
             onClick={handleDuplicateWorkflow}
             disabled={!canEdit}
-            className={cn(
-              'hover:text-primary',
-              !canEdit && 'opacity-50 cursor-not-allowed'
-            )}
+            className={cn('hover:text-primary', !canEdit && 'cursor-not-allowed opacity-50')}
           >
             <Copy className='h-5 w-5' />
             <span className='sr-only'>Duplicate Workflow</span>
@@ -903,7 +893,7 @@ export function ControlBar() {
 
       window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
     }
-    
+
     const isDisabled = isExecuting || isMultiRunning || isDebugging || !userPermissions.canEdit
 
     return (
@@ -913,10 +903,7 @@ export function ControlBar() {
             variant='ghost'
             size='icon'
             onClick={handleAutoLayoutClick}
-            className={cn(
-              'hover:text-primary',
-              isDisabled && 'opacity-50 cursor-not-allowed'
-            )}
+            className={cn('hover:text-primary', isDisabled && 'cursor-not-allowed opacity-50')}
             disabled={isDisabled}
           >
             <Layers className='h-5 w-5' />
@@ -924,10 +911,9 @@ export function ControlBar() {
           </Button>
         </TooltipTrigger>
         <TooltipContent command='Shift+L'>
-          {!userPermissions.canEdit 
+          {!userPermissions.canEdit
             ? 'Edit permissions required to use auto-layout'
-            : 'Auto Layout'
-          }
+            : 'Auto Layout'}
         </TooltipContent>
       </Tooltip>
     )
@@ -999,10 +985,10 @@ export function ControlBar() {
    */
   const renderDebugModeToggle = () => {
     const canDebug = userPermissions.canRead // Debug mode now requires only read permissions
-    
+
     const handleToggleDebugMode = () => {
       if (!canDebug) return
-      
+
       if (isDebugModeEnabled) {
         if (!isExecuting) {
           useExecutionStore.getState().setIsDebugging(false)
@@ -1022,7 +1008,7 @@ export function ControlBar() {
             disabled={isExecuting || isMultiRunning || !canDebug}
             className={cn(
               isDebugModeEnabled && 'text-amber-500',
-              !canDebug && 'opacity-50 cursor-not-allowed'
+              !canDebug && 'cursor-not-allowed opacity-50'
             )}
           >
             <Bug className='h-5 w-5' />
@@ -1030,12 +1016,11 @@ export function ControlBar() {
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          {!canDebug 
+          {!canDebug
             ? 'Read permissions required to use debug mode'
-            : isDebugModeEnabled 
-              ? 'Disable Debug Mode' 
-              : 'Enable Debug Mode'
-          }
+            : isDebugModeEnabled
+              ? 'Disable Debug Mode'
+              : 'Enable Debug Mode'}
         </TooltipContent>
       </Tooltip>
     )
@@ -1047,7 +1032,8 @@ export function ControlBar() {
   const renderRunButton = () => {
     const canRun = userPermissions.canRead // Running only requires read permissions
     const isLoadingPermissions = userPermissions.isLoading
-    const isButtonDisabled = isExecuting || isMultiRunning || isCancelling || (!canRun && !isLoadingPermissions)
+    const isButtonDisabled =
+      isExecuting || isMultiRunning || isCancelling || (!canRun && !isLoadingPermissions)
 
     return (
       <div className='flex items-center'>
@@ -1127,8 +1113,8 @@ export function ControlBar() {
                 <div className='text-center'>
                   <p className='font-medium text-destructive'>Usage Limit Exceeded</p>
                   <p className='text-xs'>
-                    You've used {usageData?.currentUsage.toFixed(2)}$ of {usageData?.limit}$. Upgrade
-                    your plan to continue.
+                    You've used {usageData?.currentUsage.toFixed(2)}$ of {usageData?.limit}$.
+                    Upgrade your plan to continue.
                   </p>
                 </div>
               ) : (

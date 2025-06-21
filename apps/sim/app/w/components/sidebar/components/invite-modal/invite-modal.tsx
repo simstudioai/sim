@@ -5,13 +5,16 @@ import { Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSession } from '@/lib/auth-client'
-import { useWorkspacePermissions, WorkspacePermissions } from '@/hooks/use-workspace-permissions'
-import { API_ENDPOINTS } from '@/stores/constants'
-import { PermissionType } from '@/lib/permissions/utils'
+import type { PermissionType } from '@/lib/permissions/utils'
+import { cn } from '@/lib/utils'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
+import {
+  useWorkspacePermissions,
+  type WorkspacePermissions,
+} from '@/hooks/use-workspace-permissions'
+import { API_ENDPOINTS } from '@/stores/constants'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface InviteModalProps {
   open: boolean
@@ -61,12 +64,12 @@ const EmailTag = ({ email, onRemove, disabled, isInvalid }: EmailTagProps) => (
   </div>
 )
 
-const PermissionSelector = ({ 
-  value, 
-  onChange, 
-  disabled = false, 
-  className = '' 
-}: { 
+const PermissionSelector = ({
+  value,
+  onChange,
+  disabled = false,
+  className = '',
+}: {
   value: PermissionType
   onChange: (value: PermissionType) => void
   disabled?: boolean
@@ -75,9 +78,9 @@ const PermissionSelector = ({
   const permissionOptions = [
     { value: 'read' as PermissionType, label: 'Read' },
     { value: 'write' as PermissionType, label: 'Write' },
-    { value: 'admin' as PermissionType, label: 'Admin' }
+    { value: 'admin' as PermissionType, label: 'Admin' },
   ]
-  
+
   return (
     <div className={cn('inline-flex rounded-md border border-input bg-background', className)}>
       {permissionOptions.map((option, index) => (
@@ -87,13 +90,13 @@ const PermissionSelector = ({
           onClick={() => !disabled && onChange(option.value)}
           disabled={disabled}
           className={cn(
-            'px-3 py-1.5 text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+            'px-3 py-1.5 font-medium text-sm transition-all focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
             'first:rounded-l-md last:rounded-r-md',
-            disabled && 'opacity-50 cursor-not-allowed',
+            disabled && 'cursor-not-allowed opacity-50',
             value === option.value
               ? 'bg-primary text-primary-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
-            index > 0 && 'border-l border-input'
+              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+            index > 0 && 'border-input border-l'
           )}
         >
           {option.label}
@@ -103,35 +106,36 @@ const PermissionSelector = ({
   )
 }
 
-const PermissionsTable = ({ 
-  userPermissions, 
-  onPermissionChange, 
-  disabled, 
-  existingUserPermissionChanges, 
-  isSaving, 
-  workspacePermissions, 
-  permissionsLoading 
+const PermissionsTable = ({
+  userPermissions,
+  onPermissionChange,
+  disabled,
+  existingUserPermissionChanges,
+  isSaving,
+  workspacePermissions,
+  permissionsLoading,
 }: PermissionsTableProps) => {
   const { data: session } = useSession()
   const { activeWorkspaceId } = useWorkflowRegistry()
   const userPerms = useUserPermissions(activeWorkspaceId)
-  
-  if (userPermissions.length === 0 && !session?.user?.email && !workspacePermissions?.users?.length) return null
+
+  if (userPermissions.length === 0 && !session?.user?.email && !workspacePermissions?.users?.length)
+    return null
 
   // Show loading state during save operations to prevent UI inconsistencies
   if (isSaving) {
     return (
       <div className='space-y-2'>
-        <label className='font-medium text-sm text-foreground'>Member Permissions</label>
+        <h3 className='font-medium text-foreground text-sm'>Member Permissions</h3>
         <div className='rounded-lg border border-border bg-card'>
           <div className='flex items-center justify-center py-12'>
             <div className='flex items-center space-x-2 text-muted-foreground'>
               <Loader2 className='h-5 w-5 animate-spin' />
-              <span className='text-sm font-medium'>Saving permission changes...</span>
+              <span className='font-medium text-sm'>Saving permission changes...</span>
             </div>
           </div>
         </div>
-        <p className='text-xs text-muted-foreground'>
+        <p className='text-muted-foreground text-xs'>
           Please wait while we update the permissions.
         </p>
       </div>
@@ -139,97 +143,104 @@ const PermissionsTable = ({
   }
 
   // Convert workspace users to UserPermissions format, merging with pending changes
-  const existingUsers: UserPermissions[] = workspacePermissions?.users?.map(user => {
-    const changes = existingUserPermissionChanges[user.userId] || {}
-    
-    // Use the single permissionType directly
-    const permissionType = user.permissionType || 'read'
-    
-    return {
-      userId: user.userId,
-      email: user.email,
-      permissionType: changes.permissionType !== undefined ? changes.permissionType : permissionType,
-      isCurrentUser: user.email === session?.user?.email
-    }
-  }) || []
+  const existingUsers: UserPermissions[] =
+    workspacePermissions?.users?.map((user) => {
+      const changes = existingUserPermissionChanges[user.userId] || {}
+
+      // Use the single permissionType directly
+      const permissionType = user.permissionType || 'read'
+
+      return {
+        userId: user.userId,
+        email: user.email,
+        permissionType:
+          changes.permissionType !== undefined ? changes.permissionType : permissionType,
+        isCurrentUser: user.email === session?.user?.email,
+      }
+    }) || []
 
   // Find current user from existing users or create fallback
-  const currentUser: UserPermissions | null = session?.user?.email ? 
-    existingUsers.find(user => user.isCurrentUser) || {
-      email: session.user.email,
-      permissionType: 'admin', // Fallback if not found in workspace users
-      isCurrentUser: true 
-    } : null
+  const currentUser: UserPermissions | null = session?.user?.email
+    ? existingUsers.find((user) => user.isCurrentUser) || {
+        email: session.user.email,
+        permissionType: 'admin', // Fallback if not found in workspace users
+        isCurrentUser: true,
+      }
+    : null
 
   // Use the useUserPermissions hook for admin check instead of manual checking
   const currentUserIsAdmin = userPerms.canAdmin
 
   // Filter out current user from existing users to avoid duplication
-  const filteredExistingUsers = existingUsers.filter(user => !user.isCurrentUser)
+  const filteredExistingUsers = existingUsers.filter((user) => !user.isCurrentUser)
 
   // Combine current user, existing users, and new invites
   const allUsers: UserPermissions[] = [
     ...(currentUser ? [currentUser] : []),
     ...filteredExistingUsers,
-    ...userPermissions
+    ...userPermissions,
   ]
 
   return (
     <div className='space-y-2'>
-      <label className='font-medium text-sm text-foreground'>Member Permissions</label>
+      <h3 className='font-medium text-foreground text-sm'>Member Permissions</h3>
       <div className='rounded-lg border border-border bg-card'>
         <div className='max-h-64 overflow-y-auto'>
           <table className='w-full text-sm'>
-            <thead className='sticky top-0 z-10 bg-card border-b border-border'>
+            <thead className='sticky top-0 z-10 border-border border-b bg-card'>
               <tr>
-                <th className='px-4 py-3 text-left font-medium text-muted-foreground bg-card'>Email</th>
-                <th className='px-4 py-3 text-center font-medium text-muted-foreground bg-card'>Permission Level</th>
+                <th className='bg-card px-4 py-3 text-left font-medium text-muted-foreground'>
+                  Email
+                </th>
+                <th className='bg-card px-4 py-3 text-center font-medium text-muted-foreground'>
+                  Permission Level
+                </th>
               </tr>
             </thead>
             <tbody className='divide-y divide-border'>
               {permissionsLoading && (
                 <tr>
                   <td colSpan={2} className='px-4 py-3 text-center text-muted-foreground'>
-                    <Loader2 className='h-4 w-4 animate-spin inline-block mr-2' />
+                    <Loader2 className='mr-2 inline-block h-4 w-4 animate-spin' />
                     Loading workspace members...
                   </td>
                 </tr>
               )}
               {allUsers.map((user, index) => {
                 const isCurrentUser = user.isCurrentUser === true
-                const isExistingUser = filteredExistingUsers.some(eu => eu.email === user.email)
-                const isNewInvite = userPermissions.some(up => up.email === user.email)
+                const isExistingUser = filteredExistingUsers.some((eu) => eu.email === user.email)
+                const isNewInvite = userPermissions.some((up) => up.email === user.email)
                 const userIdentifier = user.userId || user.email // Use userId for existing users, email for new invites
                 const hasChanges = existingUserPermissionChanges[userIdentifier] !== undefined
-                
+
                 return (
-                  <tr 
-                    key={user.email} 
+                  <tr
+                    key={user.email}
                     className={cn(
                       'transition-colors hover:bg-muted/50',
                       index % 2 === 0 ? 'bg-card' : 'bg-muted/20',
-                      isCurrentUser && 'bg-primary/5 border-primary/20'
+                      isCurrentUser && 'border-primary/20 bg-primary/5'
                     )}
                   >
-                    <td className='px-4 py-3 font-medium text-card-foreground max-w-[200px] truncate'>
+                    <td className='max-w-[200px] truncate px-4 py-3 font-medium text-card-foreground'>
                       {user.email}
                       {isCurrentUser && (
-                        <span className='ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary'>
+                        <span className='ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs'>
                           You
                         </span>
                       )}
                       {isExistingUser && !isCurrentUser && (
-                        <span className='ml-2 inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-400'>
+                        <span className='ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700 text-xs dark:bg-green-900/30 dark:text-green-400'>
                           Member
                         </span>
                       )}
                       {isNewInvite && (
-                        <span className='ml-2 inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-400'>
+                        <span className='ml-2 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700 text-xs dark:bg-blue-900/30 dark:text-blue-400'>
                           New Invite
                         </span>
                       )}
                       {hasChanges && (
-                        <span className='ml-2 inline-flex items-center rounded-full bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 text-xs font-medium text-orange-700 dark:text-orange-400'>
+                        <span className='ml-2 inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 font-medium text-orange-700 text-xs dark:bg-orange-900/30 dark:text-orange-400'>
                           Modified
                         </span>
                       )}
@@ -238,8 +249,14 @@ const PermissionsTable = ({
                       <div className='flex justify-center'>
                         <PermissionSelector
                           value={user.permissionType}
-                          onChange={(newPermissionType) => onPermissionChange(userIdentifier, newPermissionType)}
-                          disabled={disabled || !currentUserIsAdmin || (isCurrentUser && user.permissionType === 'admin')}
+                          onChange={(newPermissionType) =>
+                            onPermissionChange(userIdentifier, newPermissionType)
+                          }
+                          disabled={
+                            disabled ||
+                            !currentUserIsAdmin ||
+                            (isCurrentUser && user.permissionType === 'admin')
+                          }
                         />
                       </div>
                     </td>
@@ -250,11 +267,10 @@ const PermissionsTable = ({
           </table>
         </div>
       </div>
-      <p className='text-xs text-muted-foreground'>
-        {!currentUserIsAdmin 
+      <p className='text-muted-foreground text-xs'>
+        {!currentUserIsAdmin
           ? 'Only administrators can invite new members and modify permissions.'
-          : 'Admin grants all permissions automatically. Modified permissions are highlighted and require saving.'
-        }
+          : 'Admin grants all permissions automatically. Modified permissions are highlighted and require saving.'}
       </p>
     </div>
   )
@@ -270,7 +286,9 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const [emails, setEmails] = useState<string[]>([])
   const [invalidEmails, setInvalidEmails] = useState<string[]>([])
   const [userPermissions, setUserPermissions] = useState<UserPermissions[]>([])
-  const [existingUserPermissionChanges, setExistingUserPermissionChanges] = useState<Record<string, Partial<UserPermissions>>>({})
+  const [existingUserPermissionChanges, setExistingUserPermissionChanges] = useState<
+    Record<string, Partial<UserPermissions>>
+  >({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [showSent, setShowSent] = useState(false)
@@ -278,7 +296,11 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const { activeWorkspaceId } = useWorkflowRegistry()
   const { data: session } = useSession()
-  const { permissions: workspacePermissions, loading: permissionsLoading, updatePermissions } = useWorkspacePermissions(activeWorkspaceId)
+  const {
+    permissions: workspacePermissions,
+    loading: permissionsLoading,
+    updatePermissions,
+  } = useWorkspacePermissions(activeWorkspaceId)
   const userPerms = useUserPermissions(activeWorkspaceId)
 
   // Check if there are pending changes to existing users
@@ -307,16 +329,16 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
     // Add to emails array
     setEmails([...emails, normalizedEmail])
-    
+
     // Add to permissions table with default permissions
-    setUserPermissions(prev => [
+    setUserPermissions((prev) => [
       ...prev,
       {
         email: normalizedEmail,
-        permissionType: 'read' // Default: read access
-      }
+        permissionType: 'read', // Default: read access
+      },
     ])
-    
+
     setInputValue('')
     return true
   }
@@ -326,9 +348,9 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     const newEmails = [...emails]
     newEmails.splice(index, 1)
     setEmails(newEmails)
-    
+
     // Remove from permissions table
-    setUserPermissions(prev => prev.filter(user => user.email !== emailToRemove))
+    setUserPermissions((prev) => prev.filter((user) => user.email !== emailToRemove))
   }
 
   const removeInvalidEmail = (index: number) => {
@@ -339,21 +361,19 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
   const handlePermissionChange = (identifier: string, permissionType: PermissionType) => {
     // Check if this is an existing user by looking for userId in workspace permissions
-    const existingUser = workspacePermissions?.users?.find(user => user.userId === identifier)
-    
+    const existingUser = workspacePermissions?.users?.find((user) => user.userId === identifier)
+
     if (existingUser) {
       // Handle existing user permission changes using userId
-      setExistingUserPermissionChanges(prev => ({
+      setExistingUserPermissionChanges((prev) => ({
         ...prev,
-        [identifier]: { permissionType }
+        [identifier]: { permissionType },
       }))
     } else {
       // Handle new invites (using email as identifier)
-      setUserPermissions(prev => prev.map(user => 
-        user.email === identifier 
-          ? { ...user, permissionType }
-          : user
-      ))
+      setUserPermissions((prev) =>
+        prev.map((user) => (user.email === identifier ? { ...user, permissionType } : user))
+      )
     }
   }
 
@@ -367,7 +387,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       // Convert existingUserPermissionChanges to the API format using userId
       const updates = Object.entries(existingUserPermissionChanges).map(([userId, changes]) => ({
         userId,
-        permissions: changes.permissionType || 'read'
+        permissions: changes.permissionType || 'read',
       }))
 
       const response = await fetch(API_ENDPOINTS.WORKSPACE_PERMISSIONS(activeWorkspaceId), {
@@ -388,16 +408,20 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       if (data.users && data.total !== undefined) {
         updatePermissions({ users: data.users, total: data.total })
       }
-      
+
       // Clear staged changes now that we have fresh data
       setExistingUserPermissionChanges({})
 
-      setSuccessMessage(`Permission changes saved for ${updates.length} user${updates.length !== 1 ? 's' : ''}!`)
+      setSuccessMessage(
+        `Permission changes saved for ${updates.length} user${updates.length !== 1 ? 's' : ''}!`
+      )
       setTimeout(() => setSuccessMessage(null), 3000)
-
     } catch (error) {
       console.error('Error saving permission changes:', error)
-      const errorMsg = error instanceof Error ? error.message : 'Failed to save permission changes. Please try again.'
+      const errorMsg =
+        error instanceof Error
+          ? error.message
+          : 'Failed to save permission changes. Please try again.'
       setErrorMessage(errorMsg)
     } finally {
       setIsSaving(false)
@@ -406,11 +430,11 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
   const handleRestoreChanges = () => {
     if (!userPerms.canAdmin || !hasPendingChanges) return
-    
+
     // Clear all pending changes to revert to original permissions
     setExistingUserPermissionChanges({})
     setSuccessMessage('Changes restored to original permissions!')
-    
+
     setTimeout(() => setSuccessMessage(null), 3000)
   }
 
@@ -476,7 +500,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         emails.map(async (email) => {
           try {
             // Find permissions for this email
-            const userPermission = userPermissions.find(up => up.email === email)
+            const userPermission = userPermissions.find((up) => up.email === email)
             const permissionType = userPermission?.permissionType || 'read'
 
             const response = await fetch('/api/workspaces/invitations', {
@@ -529,7 +553,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         if (failedInvites.length > 0) {
           setEmails(failedInvites)
           // Keep permissions only for failed invites
-          setUserPermissions(prev => prev.filter(user => failedInvites.includes(user.email)))
+          setUserPermissions((prev) => prev.filter((user) => failedInvites.includes(user.email)))
         } else {
           setEmails([])
           setUserPermissions([])
@@ -599,7 +623,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
           </div>
         </DialogHeader>
 
-        <div className='px-6 pt-4 pb-6 max-h-[80vh] overflow-y-auto'>
+        <div className='max-h-[80vh] overflow-y-auto px-6 pt-4 pb-6'>
           <form onSubmit={handleSubmit}>
             <div className='space-y-4'>
               <div className='space-y-2'>
@@ -640,8 +664,8 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                       !userPerms.canAdmin
                         ? 'Only administrators can invite new members'
                         : emails.length > 0 || invalidEmails.length > 0
-                        ? 'Add another email'
-                        : 'Enter email addresses (comma or Enter to separate)'
+                          ? 'Add another email'
+                          : 'Enter email addresses (comma or Enter to separate)'
                     }
                     className={cn(
                       'h-7 min-w-[180px] flex-1 border-none py-1 focus-visible:ring-0 focus-visible:ring-offset-0',
@@ -703,7 +727,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     </Button>
                   </div>
                 )}
-                
+
                 <Button
                   type='submit'
                   size='sm'
@@ -715,7 +739,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     !activeWorkspaceId
                   }
                   className={cn(
-                    'gap-2 font-medium ml-auto',
+                    'ml-auto gap-2 font-medium',
                     'bg-[#802FFF] hover:bg-[#7028E6]',
                     'shadow-[0_0_0_0_#802FFF] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
                     'text-white transition-all duration-200',
@@ -723,7 +747,11 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                   )}
                 >
                   {isSubmitting && <Loader2 className='h-4 w-4 animate-spin' />}
-                  {!userPerms.canAdmin ? 'Admin Access Required' : (showSent ? 'Sent!' : 'Send Invitations')}
+                  {!userPerms.canAdmin
+                    ? 'Admin Access Required'
+                    : showSent
+                      ? 'Sent!'
+                      : 'Send Invitations'}
                 </Button>
               </div>
             </div>

@@ -99,7 +99,7 @@ export function ShortInput({
       e.preventDefault()
       return
     }
-    
+
     const newValue = e.target.value
     const newCursorPosition = e.target.selectionStart ?? 0
 

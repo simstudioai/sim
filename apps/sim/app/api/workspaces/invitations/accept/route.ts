@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/env'
 import { db } from '@/db'
-import { user, workspace, workspaceInvitation, workspaceMember, permissions } from '@/db/schema'
+import { permissions, user, workspace, workspaceInvitation, workspaceMember } from '@/db/schema'
 
 // Accept an invitation via token
 export async function GET(req: NextRequest) {
@@ -166,15 +166,17 @@ export async function GET(req: NextRequest) {
       })
 
       // Create permissions for the user
-      const permissionsToInsert = [{
-        id: randomUUID(),
-        entityType: 'workspace' as const,
-        entityId: invitation.workspaceId,
-        userId: session.user.id,
-        permissionType: invitation.permissions || 'read',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }]
+      const permissionsToInsert = [
+        {
+          id: randomUUID(),
+          entityType: 'workspace' as const,
+          entityId: invitation.workspaceId,
+          userId: session.user.id,
+          permissionType: invitation.permissions || 'read',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]
 
       if (permissionsToInsert.length > 0) {
         await tx.insert(permissions).values(permissionsToInsert)
