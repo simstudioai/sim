@@ -156,8 +156,8 @@ const EdgeOperationSchema = z.object({
     id: z.string(),
     source: z.string().optional(),
     target: z.string().optional(),
-    sourceHandle: z.string().optional(),
-    targetHandle: z.string().optional(),
+    sourceHandle: z.string().nullable().optional(),
+    targetHandle: z.string().nullable().optional(),
   }),
   timestamp: z.number(),
 })
