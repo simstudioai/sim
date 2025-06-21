@@ -104,9 +104,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     setIsConnecting(true)
 
     const socketUrl =
-      process.env.NODE_ENV === 'production'
-        ? process.env.NEXT_PUBLIC_SOCKET_URL || 'wss://your-railway-app.railway.app'
-        : 'http://localhost:3002'
+      process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'
 
     logger.info('Attempting to connect to Socket.IO server', {
       url: socketUrl,

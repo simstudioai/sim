@@ -69,14 +69,20 @@ const httpServer = createServer((req, res) => {
   res.end(JSON.stringify({ error: 'Not found' }))
 })
 
+// Configure allowed origins
+const allowedOrigins = [
+  process.env.NEXT_PUBLIC_APP_URL,
+  process.env.VERCEL_URL, 
+  'http://localhost:3000',
+  'http://localhost:3001',
+  ...(process.env.ALLOWED_ORIGINS?.split(',') || [])
+].filter((url): url is string => Boolean(url))
+
+logger.info('Socket.IO CORS configuration:', { allowedOrigins })
+
 const io = new Server(httpServer, {
   cors: {
-    origin:
-      process.env.NODE_ENV === 'production'
-        ? [process.env.NEXT_PUBLIC_APP_URL, process.env.VERCEL_URL].filter((url): url is string =>
-            Boolean(url)
-          )
-        : ['http://localhost:3000', 'http://localhost:3001'],
+    origin: allowedOrigins,
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'socket.io'],
     credentials: true, // Enable credentials to accept cookies
