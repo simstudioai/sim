@@ -784,7 +784,7 @@ async function handleSubflowOperationImpl(
 
           logger.debug(`[SERVER] ✅ Also updated parallel block ${payload.id} data:`, {
             count: payload.config.count,
-            collection: payload.config.distribution
+            collection: payload.config.distribution,
           })
         }
 

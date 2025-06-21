@@ -125,7 +125,7 @@ export class ParallelBlockHandler implements BlockHandler {
         parallelType,
         countValue,
         distribution: parallel.distribution,
-        configSource: parallel.count ? 'workflow_subflows' : 'block.config'
+        configSource: parallel.count ? 'workflow_subflows' : 'block.config',
       })
 
       // Evaluate distribution items if provided and type is collection
