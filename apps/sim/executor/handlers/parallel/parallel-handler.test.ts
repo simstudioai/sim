@@ -271,7 +271,7 @@ describe('ParallelBlockHandler', () => {
     expect((result as any).response).toMatchObject({
       parallelId: 'parallel-1',
       parallelCount: 1,
-      distributionType: 'simple',
+      distributionType: 'count',
       started: true,
       message: 'Initialized 1 parallel execution',
     })

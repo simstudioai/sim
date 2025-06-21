@@ -191,11 +191,8 @@ export class ParallelBlockHandler implements BlockHandler {
       // Store the distribution items for access by child blocks
       if (distributionItems) {
         context.loopItems.set(`${block.id}_items`, distributionItems)
-      } else if (parallelType === 'count') {
-        // For count-based parallel, create an array of indices
-        const indices = Array.from({ length: parallelCount }, (_, i) => i)
-        context.loopItems.set(`${block.id}_items`, indices)
       }
+      // Note: For simple count-based parallels without distribution, we don't store items
 
       // Activate all child nodes (the executor will handle creating virtual instances)
       const parallelStartConnections =

@@ -736,7 +736,7 @@ describe('InputResolver', () => {
         environmentVariables: {},
         decisions: { router: new Map(), condition: new Map() },
         loopIterations: new Map([['loop-1', 1]]),
-        loopItems: new Map([['loop-1', ['item1']]]),
+        loopItems: new Map([['loop-1', 'item1']]),
         completedLoops: new Set(),
         executedBlocks: new Set(),
         activeExecutionPath: new Set(['function-1']),
@@ -853,7 +853,7 @@ describe('InputResolver', () => {
 
       const resolver = new InputResolver(workflow, {})
       const loopItemsMap = new Map<string, any>()
-      loopItemsMap.set('loop-1', ['item1'])
+      loopItemsMap.set('loop-1', 'item1')
       loopItemsMap.set('loop-1_items', items)
 
       const context: ExecutionContext = {
@@ -920,7 +920,7 @@ describe('InputResolver', () => {
 
       const resolver = new InputResolver(workflow, {})
       const loopItemsMap = new Map<string, any>()
-      loopItemsMap.set('loop-1', ['item1'])
+      loopItemsMap.set('loop-1', 'item1')
       // Note: loop-1_items is NOT set to test fallback behavior
 
       const context: ExecutionContext = {
@@ -989,7 +989,7 @@ describe('InputResolver', () => {
         environmentVariables: {},
         decisions: { router: new Map(), condition: new Map() },
         loopIterations: new Map(),
-        loopItems: new Map([['parallel-1', ['test-item']]]),
+        loopItems: new Map([['parallel-1', 'test-item']]),
         completedLoops: new Set(),
         executedBlocks: new Set(),
         activeExecutionPath: new Set(['function-1']),
