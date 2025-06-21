@@ -3,6 +3,11 @@ import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/env'
 
+// Compute Socket.IO URLs once so we can safely add both HTTP(S) and WS(S) variants to CSP
+const rawSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'
+// turns http:// -> ws:// and https:// -> wss://
+const socketWsUrl = rawSocketUrl.replace(/^http(s?):\/\//, 'ws$1://')
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   images: {
@@ -72,6 +77,26 @@ const nextConfig: NextConfig = {
     return config
   },
   transpilePackages: ['prettier', '@react-email/components', '@react-email/render'],
+  // Proxy Socket.IO requests to the dedicated socket server so they appear to
+  // come from the same origin (helps cookies to be sent and avoids CORS issues).
+  async rewrites() {
+    return [
+      // Handle the exact root path used by the Engine.IO handshake
+      {
+        source: '/socket.io',
+        destination: `${rawSocketUrl}/socket.io`,
+      },
+      {
+        source: '/socket.io/',
+        destination: `${rawSocketUrl}/socket.io/`,
+      },
+      // Handle any sub-path requests (long-polling, websocket upgrade, …)
+      {
+        source: '/socket.io/:path*',
+        destination: `${rawSocketUrl}/socket.io/:path*`,
+      },
+    ]
+  },
   async headers() {
     return [
       {
@@ -154,7 +179,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://*.vercel-scripts.com https://*.vercel-insights.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com https://*.githubusercontent.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${process.env.NEXT_PUBLIC_APP_URL || ''} ${env.OLLAMA_URL || 'http://localhost:11434'} ${process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'} ${process.env.NEXT_PUBLIC_SOCKET_URL?.replace('http://', 'ws://') || 'ws://localhost:3002'} https://api.browser-use.com https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://*.vercel-insights.com https://*.atlassian.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app; frame-src https://drive.google.com https://*.google.com; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.google.com https://apis.google.com https://*.vercel-scripts.com https://*.vercel-insights.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.googleusercontent.com https://*.google.com https://*.atlassian.com https://cdn.discordapp.com https://*.githubusercontent.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ${process.env.NEXT_PUBLIC_APP_URL || ''} ${env.OLLAMA_URL || 'http://localhost:11434'} ${rawSocketUrl} ${socketWsUrl} https://api.browser-use.com https://*.googleapis.com https://*.amazonaws.com https://*.s3.amazonaws.com https://*.blob.core.windows.net https://*.vercel-insights.com https://*.atlassian.com https://vercel.live https://*.vercel.live https://vercel.com https://*.vercel.app; frame-src https://drive.google.com https://*.google.com; frame-ancestors 'self'; form-action 'self'; base-uri 'self'; object-src 'none'`,
           },
         ],
       },

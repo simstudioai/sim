@@ -103,9 +103,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     logger.info('Initializing socket connection for user:', user.id)
     setIsConnecting(true)
 
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'
+    // Connect to the current origin (rewrites in next.config.ts forward to the actual socket server)
+    const socketUrl = '/'
 
-    logger.info('Attempting to connect to Socket.IO server', {
+    logger.info('Attempting to connect to Socket.IO server via same-origin path', {
       url: socketUrl,
       userId: user?.id || 'no-user',
       timestamp: new Date().toISOString(),

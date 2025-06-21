@@ -64,6 +64,11 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Let Socket.IO handle its own requests
+  if (req.url && req.url.startsWith('/socket.io')) {
+    return // Socket.IO will respond
+  }
+
   // Default response for other requests
   res.writeHead(404, { 'Content-Type': 'application/json' })
   res.end(JSON.stringify({ error: 'Not found' }))
