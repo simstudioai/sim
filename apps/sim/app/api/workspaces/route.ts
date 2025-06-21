@@ -99,19 +99,15 @@ async function createWorkspace(userId: string, name: string) {
   })
 
   // Create default permissions for the workspace owner
-  const permissionEntries = [
-    {
-      id: crypto.randomUUID(),
-      entityType: 'workspace' as const,
-      entityId: workspaceId,
-      userId: userId,
-      permissionType: 'admin' as const,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-  ]
-
-  await db.insert(permissions).values(permissionEntries)
+  await db.insert(permissions).values({
+    id: crypto.randomUUID(),
+    entityType: 'workspace' as const,
+    entityId: workspaceId,
+    userId: userId,
+    permissionType: 'admin' as const,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
 
   // Return the workspace data directly instead of querying again
   return {

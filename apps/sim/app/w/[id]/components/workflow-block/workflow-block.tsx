@@ -436,7 +436,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         <ConnectionBlocks 
           blockId={id} 
           setIsConnecting={setIsConnecting} 
-          canInteract={userPermissions.canEdit}
+          isDisabled={!userPermissions.canEdit}
         />
 
         {/* Input Handle - Don't show for starter blocks */}

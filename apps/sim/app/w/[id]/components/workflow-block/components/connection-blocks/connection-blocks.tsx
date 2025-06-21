@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 interface ConnectionBlocksProps {
   blockId: string
   setIsConnecting: (isConnecting: boolean) => void
-  canInteract?: boolean
+  isDisabled?: boolean
 }
 
 interface ResponseField {
@@ -15,7 +15,7 @@ interface ResponseField {
   description?: string
 }
 
-export function ConnectionBlocks({ blockId, setIsConnecting, canInteract = true }: ConnectionBlocksProps) {
+export function ConnectionBlocks({ blockId, setIsConnecting, isDisabled = false }: ConnectionBlocksProps) {
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(blockId)
 
   if (!hasIncomingConnections) return null
@@ -25,7 +25,7 @@ export function ConnectionBlocks({ blockId, setIsConnecting, canInteract = true 
     connection: ConnectedBlock,
     field?: ResponseField
   ) => {
-    if (!canInteract) {
+    if (isDisabled) {
       e.preventDefault()
       return
     }
@@ -134,12 +134,12 @@ export function ConnectionBlocks({ blockId, setIsConnecting, canInteract = true 
     return (
       <Card
         key={`${field ? field.name : connection.id}`}
-        draggable={canInteract}
+        draggable={!isDisabled}
         onDragStart={(e) => handleDragStart(e, connection, field)}
         onDragEnd={handleDragEnd}
         className={cn(
           'group flex w-max items-center rounded-lg border bg-card p-2 shadow-sm transition-colors',
-          canInteract 
+          !isDisabled 
             ? 'cursor-grab hover:bg-accent/50 active:cursor-grabbing'
             : 'cursor-not-allowed opacity-60'
         )}
