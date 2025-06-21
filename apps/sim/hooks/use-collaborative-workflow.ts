@@ -7,6 +7,7 @@ import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { Position } from '@/stores/workflows/workflow/types'
 
+
 const logger = createLogger('CollaborativeWorkflow')
 
 export function useCollaborativeWorkflow() {
@@ -325,6 +326,158 @@ export function useCollaborativeWorkflow() {
     [subBlockStore, emitSubblockUpdate, isConnected, currentWorkflowId, activeWorkflowId]
   )
 
+  // Collaborative loop/parallel configuration updates
+  const collaborativeUpdateLoopCount = useCallback(
+    (loopId: string, count: number) => {
+      // Apply locally first
+      workflowStore.updateLoopCount(loopId, count)
+
+      // Emit subflow update operation to persist configuration changes
+      if (!isApplyingRemoteChange.current) {
+        // Build the configuration manually to ensure it matches the database structure
+        const block = workflowStore.blocks[loopId]
+        if (block && block.type === 'loop') {
+          // Find child nodes
+          const childNodes = Object.values(workflowStore.blocks)
+            .filter(b => b.data?.parentId === loopId)
+            .map(b => b.id)
+
+          const config = {
+            id: loopId,
+            nodes: childNodes,
+            iterations: count,
+            loopType: block.data?.loopType || 'for',
+            forEachItems: block.data?.collection || '',
+          }
+
+          emitWorkflowOperation('update', 'subflow', {
+            id: loopId,
+            type: 'loop',
+            config,
+          })
+        }
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
+  const collaborativeUpdateLoopType = useCallback(
+    (loopId: string, loopType: 'for' | 'forEach') => {
+      // Apply locally first
+      workflowStore.updateLoopType(loopId, loopType)
+
+      // Emit subflow update operation to persist configuration changes
+      if (!isApplyingRemoteChange.current) {
+        const block = workflowStore.blocks[loopId]
+        if (block && block.type === 'loop') {
+          // Find child nodes
+          const childNodes = Object.values(workflowStore.blocks)
+            .filter(b => b.data?.parentId === loopId)
+            .map(b => b.id)
+
+          const config = {
+            id: loopId,
+            nodes: childNodes,
+            iterations: block.data?.count || 5,
+            loopType,
+            forEachItems: block.data?.collection || '',
+          }
+
+          emitWorkflowOperation('update', 'subflow', {
+            id: loopId,
+            type: 'loop',
+            config,
+          })
+        }
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
+  const collaborativeUpdateLoopCollection = useCallback(
+    (loopId: string, collection: string) => {
+      // Apply locally first
+      workflowStore.updateLoopCollection(loopId, collection)
+
+      // Emit subflow update operation to persist configuration changes
+      if (!isApplyingRemoteChange.current) {
+        const block = workflowStore.blocks[loopId]
+        if (block && block.type === 'loop') {
+          // Find child nodes
+          const childNodes = Object.values(workflowStore.blocks)
+            .filter(b => b.data?.parentId === loopId)
+            .map(b => b.id)
+
+          const config = {
+            id: loopId,
+            nodes: childNodes,
+            iterations: block.data?.count || 5,
+            loopType: block.data?.loopType || 'for',
+            forEachItems: collection,
+          }
+
+          emitWorkflowOperation('update', 'subflow', {
+            id: loopId,
+            type: 'loop',
+            config,
+          })
+        }
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
+  const collaborativeUpdateParallelCount = useCallback(
+    (parallelId: string, count: number) => {
+      // Apply locally first
+      workflowStore.updateParallelCount(parallelId, count)
+
+      // Emit subflow update operation to persist configuration changes
+      if (!isApplyingRemoteChange.current) {
+        const parallels = workflowStore.parallels
+        const config = parallels[parallelId]
+
+        if (config) {
+          emitWorkflowOperation('update', 'subflow', {
+            id: parallelId,
+            type: 'parallel',
+            config: {
+              ...config,
+              // Note: parallel blocks don't have a count field in the config
+              // This might need adjustment based on the actual parallel config structure
+            },
+          })
+        }
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
+  const collaborativeUpdateParallelCollection = useCallback(
+    (parallelId: string, collection: string) => {
+      // Apply locally first
+      workflowStore.updateParallelCollection(parallelId, collection)
+
+      // Emit subflow update operation to persist configuration changes
+      if (!isApplyingRemoteChange.current) {
+        const parallels = workflowStore.parallels
+        const config = parallels[parallelId]
+
+        if (config) {
+          emitWorkflowOperation('update', 'subflow', {
+            id: parallelId,
+            type: 'parallel',
+            config: {
+              ...config,
+              distribution: collection, // Ensure the new collection is included
+            },
+          })
+        }
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
   return {
     // Connection status
     isConnected,
@@ -345,6 +498,13 @@ export function useCollaborativeWorkflow() {
     collaborativeAddEdge,
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,
+
+    // Collaborative loop/parallel operations
+    collaborativeUpdateLoopCount,
+    collaborativeUpdateLoopType,
+    collaborativeUpdateLoopCollection,
+    collaborativeUpdateParallelCount,
+    collaborativeUpdateParallelCollection,
 
     // Direct access to stores for non-collaborative operations
     workflowStore,

@@ -79,11 +79,13 @@ export async function loadWorkflowFromNormalizedTables(
           id: subflow.id,
           ...config,
         }
+        logger.debug(`[DB-HELPERS] Loaded loop ${subflow.id} with iterations: ${config.iterations}`)
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
         parallels[subflow.id] = {
           id: subflow.id,
           ...config,
         }
+        logger.debug(`[DB-HELPERS] Loaded parallel ${subflow.id}`)
       } else {
         logger.warn(`Unknown subflow type: ${subflow.type} for subflow ${subflow.id}`)
       }

@@ -162,6 +162,72 @@ const EdgeOperationSchema = z.object({
   timestamp: z.number(),
 })
 
+// Constants
+const DEFAULT_LOOP_ITERATIONS = 5
+
+// Enum for subflow types
+enum SubflowType {
+  LOOP = 'loop',
+  PARALLEL = 'parallel'
+}
+
+// Helper function to check if a block type is a subflow type
+function isSubflowBlockType(blockType: string): blockType is SubflowType {
+  return Object.values(SubflowType).includes(blockType as SubflowType)
+}
+
+// Helper function to update subflow node lists when child blocks are added/removed
+async function updateSubflowNodeList(
+  dbOrTx: any,
+  workflowId: string,
+  parentId: string
+) {
+  try {
+    // Get all child blocks of this parent
+    const childBlocks = await dbOrTx
+      .select({ id: workflowBlocks.id })
+      .from(workflowBlocks)
+      .where(
+        and(
+          eq(workflowBlocks.workflowId, workflowId),
+          eq(workflowBlocks.parentId, parentId)
+        )
+      )
+
+    const childNodeIds = childBlocks.map(block => block.id)
+
+    // Get current subflow config
+    const subflowData = await dbOrTx
+      .select({ config: workflowSubflows.config })
+      .from(workflowSubflows)
+      .where(
+        and(eq(workflowSubflows.id, parentId), eq(workflowSubflows.workflowId, workflowId))
+      )
+      .limit(1)
+
+    if (subflowData.length > 0) {
+      const updatedConfig = {
+        ...subflowData[0].config,
+        nodes: childNodeIds
+      }
+
+      await dbOrTx
+        .update(workflowSubflows)
+        .set({
+          config: updatedConfig,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(workflowSubflows.id, parentId), eq(workflowSubflows.workflowId, workflowId))
+        )
+
+      logger.debug(`Updated subflow ${parentId} node list: [${childNodeIds.join(', ')}]`)
+    }
+  } catch (error) {
+    logger.error(`Error updating subflow node list for ${parentId}:`, error)
+  }
+}
+
 const SubflowOperationSchema = z.object({
   operation: z.enum(['add', 'remove', 'update']),
   target: z.literal('subflow'),
@@ -613,8 +679,141 @@ async function handleSubflowOperationImpl(
   payload: any,
   userId: string
 ) {
-  // Move the existing handleSubflowOperation logic here
-  return handleSubflowOperation(workflowId, operation, payload, userId)
+  try {
+    switch (operation) {
+      case 'add':
+        // Validate required fields
+        if (!payload.id || !payload.type || !payload.config) {
+          throw new Error('Missing required fields for add subflow operation')
+        }
+
+        // Validate subflow type
+        if (!['loop', 'parallel'].includes(payload.type)) {
+          throw new Error(`Invalid subflow type: ${payload.type}`)
+        }
+
+        // Validate config structure based on type
+        if (payload.type === 'loop') {
+          if (!payload.config.nodes || !Array.isArray(payload.config.nodes)) {
+            throw new Error('Loop subflow requires nodes array in config')
+          }
+          if (!payload.config.loopType || !['for', 'forEach'].includes(payload.config.loopType)) {
+            throw new Error('Loop subflow requires valid loopType (for or forEach)')
+          }
+        } else if (payload.type === 'parallel') {
+          if (!payload.config.nodes || !Array.isArray(payload.config.nodes)) {
+            throw new Error('Parallel subflow requires nodes array in config')
+          }
+        }
+
+        await dbOrTx.insert(workflowSubflows).values({
+          id: payload.id,
+          workflowId,
+          type: payload.type,
+          config: payload.config,
+        })
+
+        logger.debug(`Added ${payload.type} subflow ${payload.id} to workflow ${workflowId}`)
+        break
+
+      case 'update': {
+        if (!payload.id || !payload.config) {
+          throw new Error('Missing required fields for update subflow operation')
+        }
+
+        logger.debug(`[SERVER] Updating subflow ${payload.id} with config:`, payload.config)
+
+        // Update the subflow configuration
+        const updateResult = await dbOrTx
+          .update(workflowSubflows)
+          .set({
+            config: payload.config,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
+          )
+          .returning({ id: workflowSubflows.id })
+
+        if (updateResult.length === 0) {
+          throw new Error(`Subflow ${payload.id} not found in workflow ${workflowId}`)
+        }
+
+        // Also update the corresponding block's data to keep UI in sync
+        if (payload.type === 'loop' && payload.config.iterations !== undefined) {
+          // Update the loop block's data.count property
+          await dbOrTx
+            .update(workflowBlocks)
+            .set({
+              data: {
+                ...payload.config,
+                count: payload.config.iterations,
+                loopType: payload.config.loopType,
+                collection: payload.config.forEachItems,
+                width: 500,
+                height: 300,
+                type: 'loopNode',
+              },
+              updatedAt: new Date(),
+            })
+            .where(
+              and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId))
+            )
+
+          logger.debug(`[SERVER] ✅ Also updated loop block ${payload.id} data.count = ${payload.config.iterations}`)
+        } else if (payload.type === 'parallel' && payload.config.distribution !== undefined) {
+          // Update the parallel block's data.collection property
+          await dbOrTx
+            .update(workflowBlocks)
+            .set({
+              data: {
+                ...payload.config,
+                collection: payload.config.distribution,
+                width: 500,
+                height: 300,
+                type: 'parallelNode',
+              },
+              updatedAt: new Date(),
+            })
+            .where(
+              and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId))
+            )
+
+          logger.debug(`[SERVER] ✅ Also updated parallel block ${payload.id} data.collection`)
+        }
+
+        logger.debug(`[SERVER] ✅ Successfully updated subflow ${payload.id} in workflow ${workflowId}`)
+        break
+      }
+
+      case 'remove': {
+        if (!payload.id) {
+          throw new Error('Missing subflow ID for remove operation')
+        }
+
+        const deleteResult = await dbOrTx
+          .delete(workflowSubflows)
+          .where(
+            and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
+          )
+          .returning({ id: workflowSubflows.id })
+
+        if (deleteResult.length === 0) {
+          throw new Error(`Subflow ${payload.id} not found in workflow ${workflowId}`)
+        }
+
+        logger.debug(`Removed subflow ${payload.id} from workflow ${workflowId}`)
+        break
+      }
+
+      default:
+        logger.warn(`Unknown subflow operation: ${operation}`)
+        throw new Error(`Unsupported subflow operation: ${operation}`)
+    }
+  } catch (error) {
+    logger.error(`Error in handleSubflowOperation (${operation}):`, error)
+    throw error
+  }
 }
 
 // Enhanced operation handlers with comprehensive validation
@@ -642,6 +841,11 @@ async function handleBlockOperationImpl(
           throw new Error('Missing required fields for add block operation')
         }
 
+        logger.debug(`[SERVER] Adding block: ${payload.type} (${payload.id})`, {
+          isSubflowType: isSubflowBlockType(payload.type),
+          payload
+        })
+
         await dbOrTx.insert(workflowBlocks).values({
           id: payload.id,
           workflowId,
@@ -654,6 +858,44 @@ async function handleBlockOperationImpl(
           extent: payload.extent || null,
           enabled: true, // Default to enabled
         })
+
+        // Auto-create subflow entry for loop/parallel blocks
+        if (isSubflowBlockType(payload.type)) {
+          try {
+            const subflowConfig = payload.type === SubflowType.LOOP
+              ? {
+                  id: payload.id,
+                  nodes: [], // Empty initially, will be populated when child blocks are added
+                  iterations: payload.data?.count || DEFAULT_LOOP_ITERATIONS,
+                  loopType: payload.data?.loopType || 'for',
+                  forEachItems: payload.data?.collection || '',
+                }
+              : {
+                  id: payload.id,
+                  nodes: [], // Empty initially, will be populated when child blocks are added
+                  distribution: payload.data?.collection || '',
+                }
+
+            logger.debug(`[SERVER] Auto-creating ${payload.type} subflow ${payload.id}:`, subflowConfig)
+
+            await dbOrTx.insert(workflowSubflows).values({
+              id: payload.id,
+              workflowId,
+              type: payload.type,
+              config: subflowConfig,
+            })
+
+            logger.debug(`[SERVER] ✅ Successfully created ${payload.type} subflow ${payload.id}`)
+          } catch (subflowError) {
+            logger.error(`[SERVER] ❌ Failed to create ${payload.type} subflow ${payload.id}:`, subflowError)
+            throw subflowError
+          }
+        }
+
+        // If this block has a parent, update the parent's subflow node list
+        if (payload.parentId) {
+          await updateSubflowNodeList(dbOrTx, workflowId, payload.parentId)
+        }
 
         logger.debug(`Added block ${payload.id} (${payload.type}) to workflow ${workflowId}`)
         break
@@ -693,12 +935,21 @@ async function handleBlockOperationImpl(
           .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
         break
 
-      case 'update-parent':
+      case 'update-parent': {
         if (!payload.id) {
           throw new Error('Missing block ID for update parent operation')
         }
 
-        await db
+        // Get the current parent before updating
+        const currentBlock = await dbOrTx
+          .select({ parentId: workflowBlocks.parentId })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        const oldParentId = currentBlock.length > 0 ? currentBlock[0].parentId : null
+
+        await dbOrTx
           .update(workflowBlocks)
           .set({
             parentId: payload.parentId || null,
@@ -706,15 +957,78 @@ async function handleBlockOperationImpl(
             updatedAt: new Date(),
           })
           .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+
+        // Update subflow node lists for both old and new parents
+        if (oldParentId) {
+          await updateSubflowNodeList(dbOrTx, workflowId, oldParentId)
+        }
+        if (payload.parentId && payload.parentId !== oldParentId) {
+          await updateSubflowNodeList(dbOrTx, workflowId, payload.parentId)
+        }
         break
+      }
 
       case 'remove':
         if (!payload.id) {
           throw new Error('Missing block ID for remove operation')
         }
 
-        // First remove any edges connected to this block
-        await db
+        // Check if this is a subflow block that needs cascade deletion
+        const blockToRemove = await dbOrTx
+          .select({ type: workflowBlocks.type, parentId: workflowBlocks.parentId })
+          .from(workflowBlocks)
+          .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+          .limit(1)
+
+        if (blockToRemove.length > 0 && isSubflowBlockType(blockToRemove[0].type)) {
+          // Cascade delete: Remove all child blocks first
+          const childBlocks = await dbOrTx
+            .select({ id: workflowBlocks.id })
+            .from(workflowBlocks)
+            .where(
+              and(
+                eq(workflowBlocks.workflowId, workflowId),
+                eq(workflowBlocks.parentId, payload.id)
+              )
+            )
+
+          // Remove edges connected to child blocks
+          for (const childBlock of childBlocks) {
+            await dbOrTx
+              .delete(workflowEdges)
+              .where(
+                and(
+                  eq(workflowEdges.workflowId, workflowId),
+                  or(
+                    eq(workflowEdges.sourceBlockId, childBlock.id),
+                    eq(workflowEdges.targetBlockId, childBlock.id)
+                  )
+                )
+              )
+          }
+
+          // Remove child blocks
+          await dbOrTx
+            .delete(workflowBlocks)
+            .where(
+              and(
+                eq(workflowBlocks.workflowId, workflowId),
+                eq(workflowBlocks.parentId, payload.id)
+              )
+            )
+
+          // Remove the subflow entry
+          await dbOrTx
+            .delete(workflowSubflows)
+            .where(
+              and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
+            )
+
+          logger.debug(`Cascade deleted ${childBlocks.length} child blocks and subflow ${payload.id}`)
+        }
+
+        // Remove any edges connected to this block
+        await dbOrTx
           .delete(workflowEdges)
           .where(
             and(
@@ -726,10 +1040,15 @@ async function handleBlockOperationImpl(
             )
           )
 
-        // Then remove the block
-        await db
+        // Finally remove the block itself
+        await dbOrTx
           .delete(workflowBlocks)
           .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+
+        // If this block had a parent, update the parent's subflow node list
+        if (blockToRemove.length > 0 && blockToRemove[0].parentId) {
+          await updateSubflowNodeList(dbOrTx, workflowId, blockToRemove[0].parentId)
+        }
 
         logger.debug(`Removed block ${payload.id} and its connections from workflow ${workflowId}`)
         break
@@ -893,102 +1212,7 @@ async function handleEdgeOperation(
   }
 }
 
-async function handleSubflowOperation(
-  workflowId: string,
-  operation: string,
-  payload: any,
-  userId: string
-) {
-  try {
-    switch (operation) {
-      case 'add':
-        // Validate required fields
-        if (!payload.id || !payload.type || !payload.config) {
-          throw new Error('Missing required fields for add subflow operation')
-        }
 
-        // Validate subflow type
-        if (!['loop', 'parallel'].includes(payload.type)) {
-          throw new Error(`Invalid subflow type: ${payload.type}`)
-        }
-
-        // Validate config structure based on type
-        if (payload.type === 'loop') {
-          if (!payload.config.nodes || !Array.isArray(payload.config.nodes)) {
-            throw new Error('Loop subflow requires nodes array in config')
-          }
-          if (!payload.config.loopType || !['for', 'forEach'].includes(payload.config.loopType)) {
-            throw new Error('Loop subflow requires valid loopType (for or forEach)')
-          }
-        } else if (payload.type === 'parallel') {
-          if (!payload.config.nodes || !Array.isArray(payload.config.nodes)) {
-            throw new Error('Parallel subflow requires nodes array in config')
-          }
-        }
-
-        await db.insert(workflowSubflows).values({
-          id: payload.id,
-          workflowId,
-          type: payload.type,
-          config: payload.config,
-        })
-
-        logger.debug(`Added ${payload.type} subflow ${payload.id} to workflow ${workflowId}`)
-        break
-
-      case 'update': {
-        if (!payload.id || !payload.config) {
-          throw new Error('Missing required fields for update subflow operation')
-        }
-
-        const updateResult = await db
-          .update(workflowSubflows)
-          .set({
-            config: payload.config,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
-          )
-          .returning({ id: workflowSubflows.id })
-
-        if (updateResult.length === 0) {
-          throw new Error(`Subflow ${payload.id} not found in workflow ${workflowId}`)
-        }
-
-        logger.debug(`Updated subflow ${payload.id} in workflow ${workflowId}`)
-        break
-      }
-
-      case 'remove': {
-        if (!payload.id) {
-          throw new Error('Missing subflow ID for remove operation')
-        }
-
-        const deleteResult = await db
-          .delete(workflowSubflows)
-          .where(
-            and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
-          )
-          .returning({ id: workflowSubflows.id })
-
-        if (deleteResult.length === 0) {
-          throw new Error(`Subflow ${payload.id} not found in workflow ${workflowId}`)
-        }
-
-        logger.debug(`Removed subflow ${payload.id} from workflow ${workflowId}`)
-        break
-      }
-
-      default:
-        logger.warn(`Unknown subflow operation: ${operation}`)
-        throw new Error(`Unsupported subflow operation: ${operation}`)
-    }
-  } catch (error) {
-    logger.error(`Error in handleSubflowOperation (${operation}):`, error)
-    throw error
-  }
-}
 
 // Global error handling
 process.on('uncaughtException', (error) => {

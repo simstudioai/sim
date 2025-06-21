@@ -28,6 +28,11 @@ export class ParallelBlockHandler implements BlockHandler {
     // Get the parallel configuration from the workflow
     const parallel = context.workflow?.parallels?.[block.id]
     if (!parallel) {
+      logger.error(`Parallel configuration not found for block ${block.id}`, {
+        blockId: block.id,
+        availableParallels: Object.keys(context.workflow?.parallels || {}),
+        workflowParallels: context.workflow?.parallels
+      })
       throw new Error(`Parallel configuration not found for block ${block.id}`)
     }
 

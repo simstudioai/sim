@@ -78,11 +78,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Try to load from normalized tables first
+    logger.debug(`[${requestId}] Attempting to load workflow ${workflowId} from normalized tables`)
     const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
 
     const finalWorkflowData = { ...workflowData }
 
     if (normalizedData) {
+      logger.debug(`[${requestId}] Found normalized data for workflow ${workflowId}:`, {
+        blocksCount: Object.keys(normalizedData.blocks).length,
+        edgesCount: normalizedData.edges.length,
+        loopsCount: Object.keys(normalizedData.loops).length,
+        parallelsCount: Object.keys(normalizedData.parallels).length,
+        loops: normalizedData.loops,
+      })
       // Use normalized table data - reconstruct complete state object
       // First get any existing state properties, then override with normalized data
       const existingState =
@@ -107,7 +115,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
     } else {
       // Fallback to JSON blob
-      logger.info(`[${requestId}] Using JSON blob for workflow ${workflowId}`)
+      logger.info(`[${requestId}] Using JSON blob for workflow ${workflowId} - no normalized data found`)
     }
 
     const elapsed = Date.now() - startTime

@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
 
@@ -39,10 +40,28 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   // Check if this is preview mode
   const isPreview = data?.isPreview || false
 
+  // Get loop configuration from the workflow store (single source of truth)
+  const { loops } = useWorkflowStore()
+  const loopConfig = loops[nodeId]
+
+  // Debug logging
+  console.log(`[LOOP-BADGES] ${nodeId} data sources:`, {
+    'data.count': data?.count,
+    'loopConfig.iterations': loopConfig?.iterations,
+    'data.loopType': data?.loopType,
+    'loopConfig.loopType': loopConfig?.loopType,
+    loopConfig
+  })
+
+  // Use loop config as primary source, fallback to data for backward compatibility
+  const configIterations = loopConfig?.iterations ?? data?.count ?? 5
+  const configLoopType = loopConfig?.loopType ?? data?.loopType ?? 'for'
+  const configCollection = loopConfig?.forEachItems ?? data?.collection ?? ''
+
   // State
-  const [loopType, setLoopType] = useState(data?.loopType || 'for')
-  const [iterations, setIterations] = useState(data?.count || 5)
-  const [inputValue, setInputValue] = useState((data?.count || 5).toString())
+  const [loopType, setLoopType] = useState(configLoopType)
+  const [iterations, setIterations] = useState(configIterations)
+  const [inputValue, setInputValue] = useState(configIterations.toString())
   const [editorValue, setEditorValue] = useState('')
   const [typePopoverOpen, setTypePopoverOpen] = useState(false)
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
@@ -72,30 +91,46 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
     [nodeId, isPreview]
   )
 
-  const updateLoopType = useWorkflowStore((state) => state.updateLoopType)
-  const updateLoopCount = useWorkflowStore((state) => state.updateLoopCount)
-  const updateLoopCollection = useWorkflowStore((state) => state.updateLoopCollection)
+  // Get collaborative functions
+  const {
+    collaborativeUpdateLoopType,
+    collaborativeUpdateLoopCount,
+    collaborativeUpdateLoopCollection
+  } = useCollaborativeWorkflow()
 
-  // Initialize editor value from data when it changes
+  // Update state when loop config changes (single source of truth)
   useEffect(() => {
-    if (data?.loopType && data.loopType !== loopType) {
-      setLoopType(data.loopType)
-    }
-    if (data?.count && data.count !== iterations) {
-      setIterations(data.count)
-      setInputValue(data.count.toString())
-    }
+    if (loopConfig) {
+      const newLoopType = loopConfig.loopType || 'for'
+      const newIterations = loopConfig.iterations || 5
+      const newCollection = loopConfig.forEachItems || ''
 
-    if (loopType === 'forEach' && data?.collection) {
-      if (typeof data.collection === 'string') {
-        setEditorValue(data.collection)
-      } else if (Array.isArray(data.collection) || typeof data.collection === 'object') {
-        setEditorValue(JSON.stringify(data.collection))
+      console.log(`[LOOP-BADGES] ${nodeId} updating from loopConfig:`, {
+        newLoopType,
+        newIterations,
+        newCollection,
+        currentIterations: iterations
+      })
+
+      if (newLoopType !== loopType) {
+        setLoopType(newLoopType)
       }
-    } else if (loopType === 'for') {
-      setEditorValue('')
+      if (newIterations !== iterations) {
+        setIterations(newIterations)
+        setInputValue(newIterations.toString())
+      }
+
+      if (newLoopType === 'forEach' && newCollection) {
+        if (typeof newCollection === 'string') {
+          setEditorValue(newCollection)
+        } else if (Array.isArray(newCollection) || typeof newCollection === 'object') {
+          setEditorValue(JSON.stringify(newCollection))
+        }
+      } else if (newLoopType === 'for') {
+        setEditorValue('')
+      }
     }
-  }, [data?.loopType, data?.count, data?.collection, loopType, iterations])
+  }, [loopConfig, loopType, iterations, nodeId])
 
   // Handle loop type change
   const handleLoopTypeChange = useCallback(
@@ -103,10 +138,10 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
       if (isPreview) return // Don't allow changes in preview mode
 
       setLoopType(newType)
-      updateLoopType(nodeId, newType)
+      collaborativeUpdateLoopType(nodeId, newType)
       setTypePopoverOpen(false)
     },
-    [nodeId, updateLoopType, isPreview]
+    [nodeId, collaborativeUpdateLoopType, isPreview]
   )
 
   // Handle iterations input change
@@ -135,13 +170,13 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
     if (!Number.isNaN(value)) {
       const newValue = Math.min(100, Math.max(1, value))
       setIterations(newValue)
-      updateLoopCount(nodeId, newValue)
+      collaborativeUpdateLoopCount(nodeId, newValue)
       setInputValue(newValue.toString())
     } else {
       setInputValue(iterations.toString())
     }
     setConfigPopoverOpen(false)
-  }, [inputValue, iterations, nodeId, updateLoopCount, isPreview])
+  }, [inputValue, iterations, nodeId, collaborativeUpdateLoopCount, isPreview])
 
   // Handle editor change with tag dropdown support
   const handleEditorChange = useCallback(
@@ -149,7 +184,7 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
       if (isPreview) return // Don't allow changes in preview mode
 
       setEditorValue(value)
-      updateLoopCollection(nodeId, value)
+      collaborativeUpdateLoopCollection(nodeId, value)
 
       // Get the textarea element from the editor
       const textarea = editorContainerRef.current?.querySelector('textarea')
@@ -163,7 +198,7 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
         setShowTagDropdown(triggerCheck.show)
       }
     },
-    [nodeId, updateLoopCollection, isPreview]
+    [nodeId, collaborativeUpdateLoopCollection, isPreview]
   )
 
   // Handle tag selection
@@ -172,7 +207,7 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
       if (isPreview) return // Don't allow changes in preview mode
 
       setEditorValue(newValue)
-      updateLoopCollection(nodeId, newValue)
+      collaborativeUpdateLoopCollection(nodeId, newValue)
       setShowTagDropdown(false)
 
       // Focus back on the editor after a short delay
@@ -183,7 +218,7 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
         }
       }, 0)
     },
-    [nodeId, updateLoopCollection, isPreview]
+    [nodeId, collaborativeUpdateLoopCollection, isPreview]
   )
 
   return (
