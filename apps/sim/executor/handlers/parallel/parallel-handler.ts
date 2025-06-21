@@ -118,8 +118,23 @@ export class ParallelBlockHandler implements BlockHandler {
       logger.info(`Initializing parallel block ${block.id}`)
 
       // Get the parallel type and count from parallel config (primary) or block data (fallback)
-      const parallelType = parallel.distribution ? 'collection' : 'count'
-      const countValue = parallel.count || block.config?.params?.count || 5
+      const hasDistribution = parallel.distribution && parallel.distribution !== ''
+      const hasCount = parallel.count || block.config?.params?.count
+
+      let parallelType: string
+      let countValue: number
+
+      if (hasDistribution) {
+        parallelType = 'collection'
+        countValue = 1 // Will be overridden by distribution items length
+      } else if (hasCount) {
+        parallelType = 'count'
+        countValue = parallel.count || block.config?.params?.count || 5
+      } else {
+        // No distribution and no count specified - simple parallel with 1 execution
+        parallelType = 'simple'
+        countValue = 1
+      }
 
       logger.info(`Parallel ${block.id} configuration:`, {
         parallelType,
@@ -145,7 +160,7 @@ export class ParallelBlockHandler implements BlockHandler {
         // Use the count value for count-based parallel
         parallelCount = Math.min(20, Math.max(1, countValue))
         logger.info(`Parallel ${block.id} will execute ${parallelCount} times based on count`)
-      } else if (distributionItems) {
+      } else if (parallelType === 'collection' && distributionItems) {
         // Use distribution items length for collection-based parallel
         parallelCount = Array.isArray(distributionItems)
           ? distributionItems.length
@@ -153,6 +168,10 @@ export class ParallelBlockHandler implements BlockHandler {
         logger.info(
           `Parallel ${block.id} will execute ${parallelCount} times based on distribution items`
         )
+      } else {
+        // Simple parallel - single execution
+        parallelCount = 1
+        logger.info(`Parallel ${block.id} will execute ${parallelCount} time (simple mode)`)
       }
 
       // Initialize parallel execution state
@@ -191,10 +210,10 @@ export class ParallelBlockHandler implements BlockHandler {
         response: {
           parallelId: block.id,
           parallelCount,
-          distributionType:
-            parallelType === 'count' ? 'count' : distributionItems ? 'distributed' : 'simple',
+          distributionType: parallelType === 'count' ? 'count' :
+                           parallelType === 'collection' ? 'distributed' : 'simple',
           started: true,
-          message: `Initialized ${parallelCount} parallel executions`,
+          message: `Initialized ${parallelCount} parallel execution${parallelCount > 1 ? 's' : ''}`,
         },
       }
     }

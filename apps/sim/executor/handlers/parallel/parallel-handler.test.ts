@@ -256,6 +256,8 @@ describe('ParallelBlockHandler', () => {
   it('should handle parallel without distribution', async () => {
     const handler = new ParallelBlockHandler(mockResolver as any)
     const block = createMockBlock('parallel-1')
+    // Ensure block.config.params doesn't have a count
+    block.config.params = {}
     const parallel: SerializedParallel = {
       id: 'parallel-1',
       nodes: ['agent-1'],
@@ -271,7 +273,7 @@ describe('ParallelBlockHandler', () => {
       parallelCount: 1,
       distributionType: 'simple',
       started: true,
-      message: 'Initialized 1 parallel executions',
+      message: 'Initialized 1 parallel execution',
     })
 
     // Should not have items when no distribution
