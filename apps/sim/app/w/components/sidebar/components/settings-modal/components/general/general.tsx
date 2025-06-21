@@ -19,6 +19,7 @@ const TOOLTIPS = {
   debugMode: 'Enable visual debugging information during execution.',
   autoConnect: 'Automatically connect nodes.',
   autoFillEnvVars: 'Automatically fill API keys.',
+  autoPan: 'Automatically pan to active blocks during workflow execution.',
 }
 
 export function General() {
@@ -30,11 +31,13 @@ export function General() {
   const isAutoConnectEnabled = useGeneralStore((state) => state.isAutoConnectEnabled)
   const isDebugModeEnabled = useGeneralStore((state) => state.isDebugModeEnabled)
   const isAutoFillEnvVarsEnabled = useGeneralStore((state) => state.isAutoFillEnvVarsEnabled)
+  const isAutoPanEnabled = useGeneralStore((state) => state.isAutoPanEnabled)
 
   const setTheme = useGeneralStore((state) => state.setTheme)
   const toggleAutoConnect = useGeneralStore((state) => state.toggleAutoConnect)
   const toggleDebugMode = useGeneralStore((state) => state.toggleDebugMode)
   const toggleAutoFillEnvVars = useGeneralStore((state) => state.toggleAutoFillEnvVars)
+  const toggleAutoPan = useGeneralStore((state) => state.toggleAutoPan)
   const loadSettings = useGeneralStore((state) => state.loadSettings)
 
   useEffect(() => {
@@ -63,6 +66,12 @@ export function General() {
   const handleAutoFillEnvVarsChange = (checked: boolean) => {
     if (checked !== isAutoFillEnvVarsEnabled) {
       toggleAutoFillEnvVars()
+    }
+  }
+
+  const handleAutoPanChange = (checked: boolean) => {
+    if (checked !== isAutoPanEnabled) {
+      toggleAutoPan()
     }
   }
 
@@ -197,6 +206,35 @@ export function General() {
                   id='auto-fill-env-vars'
                   checked={isAutoFillEnvVarsEnabled}
                   onCheckedChange={handleAutoFillEnvVarsChange}
+                  disabled={isLoading}
+                />
+              </div>
+              <div className='flex items-center justify-between py-1'>
+                <div className='flex items-center gap-2'>
+                  <Label htmlFor='auto-pan' className='font-medium'>
+                    Auto-pan during execution
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        className='h-7 p-1 text-gray-500'
+                        aria-label='Learn more about auto-pan feature'
+                        disabled={isLoading}
+                      >
+                        <Info className='h-5 w-5' />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side='top' className='max-w-[300px] p-3'>
+                      <p className='text-sm'>{TOOLTIPS.autoPan}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Switch
+                  id='auto-pan'
+                  checked={isAutoPanEnabled}
+                  onCheckedChange={handleAutoPanChange}
                   disabled={isLoading}
                 />
               </div>

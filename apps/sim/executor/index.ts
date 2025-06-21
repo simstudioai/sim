@@ -1043,7 +1043,7 @@ export class Executor {
         }
       })
 
-      useExecutionStore.setState({ activeBlockIds })
+      setActiveBlocks(activeBlockIds)
 
       const results = await Promise.all(
         blockIds.map((blockId) => this.executeBlock(blockId, context))
@@ -1058,7 +1058,7 @@ export class Executor {
       return results
     } catch (error) {
       // If there's an uncaught error, clear all active blocks as a safety measure
-      useExecutionStore.setState({ activeBlockIds: new Set() })
+      setActiveBlocks(new Set())
       throw error
     }
   }

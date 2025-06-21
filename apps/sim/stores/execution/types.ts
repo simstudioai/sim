@@ -8,6 +8,7 @@ export interface ExecutionState {
   pendingBlocks: string[]
   executor: Executor | null
   debugContext: ExecutionContext | null
+  autoPanDisabled: boolean
 }
 
 export interface ExecutionActions {
@@ -17,6 +18,7 @@ export interface ExecutionActions {
   setPendingBlocks: (blockIds: string[]) => void
   setExecutor: (executor: Executor | null) => void
   setDebugContext: (context: ExecutionContext | null) => void
+  setAutoPanDisabled: (disabled: boolean) => void
   reset: () => void
 }
 
@@ -27,4 +29,9 @@ export const initialState: ExecutionState = {
   pendingBlocks: [],
   executor: null,
   debugContext: null,
+  autoPanDisabled: false,
 }
+
+// Types for panning functionality
+export type PanToBlockCallback = (blockId: string) => void
+export type SetPanToBlockCallback = (callback: PanToBlockCallback | null) => void

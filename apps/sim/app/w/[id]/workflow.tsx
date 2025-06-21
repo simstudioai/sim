@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   Background,
@@ -21,7 +21,7 @@ import { getBlock } from '@/blocks'
 import { useSocket } from '@/contexts/socket-context'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
-import { useExecutionStore } from '@/stores/execution/store'
+import { setPanToBlockCallback, useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
@@ -92,7 +92,7 @@ const WorkflowContent = React.memo(() => {
   // Hooks
   const params = useParams()
   const router = useRouter()
-  const { project, getNodes, fitView } = useReactFlow()
+  const { project, getNodes, fitView, getNode, setCenter } = useReactFlow()
 
   // Get workspace ID from current workflow
   const workflowId = params.id as string
@@ -128,7 +128,7 @@ const WorkflowContent = React.memo(() => {
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
 
   // Execution and debug mode state
-  const { activeBlockIds, pendingBlocks } = useExecutionStore()
+  const { activeBlockIds, pendingBlocks, setAutoPanDisabled } = useExecutionStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
 
@@ -1427,6 +1427,109 @@ const WorkflowContent = React.memo(() => {
     }
   }, [emitSubblockUpdate, isConnected, currentWorkflowId, activeWorkflowId])
 
+  // Refs for efficient pan state tracking
+  const lastAutoPanTimeRef = useRef<number>(0)
+  const panTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const lastPanTimeRef = useRef<number>(0)
+  const isAutoPanningRef = useRef<boolean>(false)
+
+  // Create smooth panning callback with optimized performance
+  const createPanToBlockCallback = useCallback(() => {
+    const DEBOUNCE_MS = 150 // Prevent rapid-fire panning
+
+    return (blockId: string) => {
+      // Only pan if workflow is ready
+      if (!isWorkflowReady) return
+
+      const now = performance.now()
+
+      // Clear any pending pan operation
+      if (panTimeoutRef.current) {
+        clearTimeout(panTimeoutRef.current)
+        panTimeoutRef.current = null
+      }
+
+      // Debounce rapid successive calls
+      const timeSinceLastPan = now - lastPanTimeRef.current
+      const delay = timeSinceLastPan < DEBOUNCE_MS ? DEBOUNCE_MS - timeSinceLastPan : 50
+
+      panTimeoutRef.current = setTimeout(() => {
+        const node = getNode(blockId)
+        if (!node) return
+
+        // Calculate the center position of the block
+        const nodeWidth = node.width || (blocks[blockId]?.isWide ? 480 : 320)
+        const nodeHeight = node.height || Math.max(blocks[blockId]?.height || 100, 100)
+
+        const centerX = node.position.x + nodeWidth / 2
+        const centerY = node.position.y + nodeHeight / 2
+
+        // Track auto-pan timing and state efficiently
+        lastAutoPanTimeRef.current = performance.now()
+        isAutoPanningRef.current = true
+
+        // Smooth pan with optimized duration for quick transitions
+        setCenter(centerX, centerY, {
+          zoom: 0.7,
+          duration: 400, // Shorter duration for smoother rapid transitions
+        })
+
+        // Reset auto-panning flag after animation completes + buffer
+        setTimeout(() => {
+          isAutoPanningRef.current = false
+        }, 500) // 100ms buffer after 400ms animation
+
+        lastPanTimeRef.current = now
+        panTimeoutRef.current = null
+
+        logger.info('Auto-panned to block', {
+          blockId,
+          position: { x: centerX, y: centerY },
+          debounced: timeSinceLastPan < DEBOUNCE_MS,
+        })
+      }, delay)
+    }
+  }, [isWorkflowReady, getNode, setCenter, blocks])
+
+  // Handle React Flow initialization
+  const handleReactFlowInit = useCallback(() => {
+    // Register the panning callback when ReactFlow initializes
+    const panCallback = createPanToBlockCallback()
+    setPanToBlockCallback(panCallback)
+
+    // Return the callback for accessing isAutoPanning state
+    return panCallback
+  }, [createPanToBlockCallback])
+
+  // Handle manual viewport changes (pan/zoom) - optimized for performance
+  const handleMove = useCallback(() => {
+    // Ignore moves during auto-pan animations
+    if (isAutoPanningRef.current) {
+      return
+    }
+
+    // Check if this move is from user interaction vs auto-pan
+    const now = performance.now()
+    const timeSinceAutoPan = now - lastAutoPanTimeRef.current
+
+    // If onMove is called >600ms after auto-pan and we're not auto-panning, it's manual
+    if (timeSinceAutoPan > 600) {
+      setAutoPanDisabled(true)
+      logger.info('Manual pan detected - disabling auto-pan for this execution')
+    }
+  }, [setAutoPanDisabled])
+
+  // Cleanup timeouts on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (panTimeoutRef.current) {
+        clearTimeout(panTimeoutRef.current)
+      }
+      // Reset auto-panning flag on cleanup
+      isAutoPanningRef.current = false
+    }
+  }, [])
+
   // Show skeleton UI while loading, then smoothly transition to real content
   const showSkeletonUI = !isWorkflowReady
 
@@ -1476,6 +1579,8 @@ const WorkflowContent = React.memo(() => {
           edgeTypes={edgeTypes}
           onDrop={userPermissions.canEdit ? onDrop : undefined}
           onDragOver={userPermissions.canEdit ? onDragOver : undefined}
+          onInit={handleReactFlowInit}
+          onMove={handleMove}
           fitView
           minZoom={0.1}
           maxZoom={1.3}
