@@ -829,7 +829,7 @@ async function handleBlockOperationImpl(
 ) {
   try {
     switch (operation) {
-      case 'add':
+      case 'add': {
         // Validate required fields for add operation
         if (!payload.id || !payload.type || !payload.name || !payload.position) {
           throw new Error('Missing required fields for add block operation')
@@ -850,7 +850,7 @@ async function handleBlockOperationImpl(
           parentId,
           extent,
           payloadParentId: payload.parentId,
-          dataParentId: payload.data?.parentId
+          dataParentId: payload.data?.parentId,
         })
 
         await dbOrTx.insert(workflowBlocks).values({
@@ -913,6 +913,7 @@ async function handleBlockOperationImpl(
 
         logger.debug(`Added block ${payload.id} (${payload.type}) to workflow ${workflowId}`)
         break
+      }
 
       case 'update-position': {
         if (!payload.id || !payload.position) {
@@ -1006,8 +1007,12 @@ async function handleBlockOperationImpl(
               )
             )
 
-          logger.debug(`[SERVER] Starting cascade deletion for subflow block ${payload.id} (type: ${blockToRemove[0].type})`)
-          logger.debug(`[SERVER] Found ${childBlocks.length} child blocks to delete: [${childBlocks.map(b => `${b.id} (${b.type})`).join(', ')}]`)
+          logger.debug(
+            `[SERVER] Starting cascade deletion for subflow block ${payload.id} (type: ${blockToRemove[0].type})`
+          )
+          logger.debug(
+            `[SERVER] Found ${childBlocks.length} child blocks to delete: [${childBlocks.map((b) => `${b.id} (${b.type})`).join(', ')}]`
+          )
 
           // Remove edges connected to child blocks
           for (const childBlock of childBlocks) {
@@ -1041,7 +1046,9 @@ async function handleBlockOperationImpl(
               and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
             )
 
-          logger.debug(`[SERVER] ✅ Cascade deleted ${childBlocks.length} child blocks and subflow ${payload.id}`)
+          logger.debug(
+            `[SERVER] ✅ Cascade deleted ${childBlocks.length} child blocks and subflow ${payload.id}`
+          )
         }
 
         // Remove any edges connected to this block
