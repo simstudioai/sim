@@ -1,8 +1,9 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { workspace, workspaceMember } from '@/db/schema'
+import { permissions, workspace } from '@/db/schema'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -14,16 +15,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const workspaceId = id
 
-  // Check if user is a member of this workspace
-  const membership = await db
-    .select()
-    .from(workspaceMember)
-    .where(
-      and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, session.user.id))
-    )
-    .then((rows) => rows[0])
-
-  if (!membership) {
+  // Check if user has read access to this workspace
+  const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+  if (userPermission !== 'read') {
     return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
   }
 
@@ -41,7 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   return NextResponse.json({
     workspace: {
       ...workspaceDetails,
-      role: membership.role,
+      permissions: userPermission,
     },
   })
 }
@@ -56,21 +50,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const workspaceId = id
 
-  // Check if user is a member with appropriate permissions
-  const membership = await db
-    .select()
-    .from(workspaceMember)
-    .where(
-      and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, session.user.id))
-    )
-    .then((rows) => rows[0])
-
-  if (!membership) {
-    return NextResponse.json({ error: 'Workspace not found or access denied' }, { status: 404 })
-  }
-
-  // For now, only allow owners to update workspace
-  if (membership.role !== 'owner') {
+  // Check if user has admin permissions to update workspace
+  const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+  if (userPermission !== 'admin') {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
@@ -100,7 +82,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({
       workspace: {
         ...updatedWorkspace,
-        role: membership.role,
+        permissions: userPermission,
       },
     })
   } catch (error) {
@@ -122,22 +104,23 @@ export async function DELETE(
 
   const workspaceId = id
 
-  // Check if user is the owner
-  const membership = await db
-    .select()
-    .from(workspaceMember)
-    .where(
-      and(eq(workspaceMember.workspaceId, workspaceId), eq(workspaceMember.userId, session.user.id))
-    )
-    .then((rows) => rows[0])
-
-  if (!membership || membership.role !== 'owner') {
+  // Check if user has admin permissions to delete workspace
+  const userPermission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
+  if (userPermission !== 'admin') {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
   }
 
   try {
-    // Delete workspace (cascade will handle members)
-    await db.delete(workspace).where(eq(workspace.id, workspaceId))
+    // Use a transaction to ensure data consistency
+    await db.transaction(async (tx) => {
+      // 1. Delete all permissions associated with this workspace
+      await tx
+        .delete(permissions)
+        .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
+
+      // 2. Delete workspace (cascade will handle members, workflows, etc.)
+      await tx.delete(workspace).where(eq(workspace.id, workspaceId))
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {
