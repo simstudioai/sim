@@ -6,7 +6,7 @@ import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
-import type { WorkflowState, LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
+import type { LoopConfig, ParallelConfig, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDuplicateAPI')
 
@@ -142,9 +142,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (sourceSubflows.length > 0) {
         const newSubflows = sourceSubflows.map((subflow) => {
           // Update block references in subflow config
-          let updatedConfig: LoopConfig | ParallelConfig = subflow.config as LoopConfig | ParallelConfig
+          let updatedConfig: LoopConfig | ParallelConfig = subflow.config as
+            | LoopConfig
+            | ParallelConfig
           if (subflow.config && typeof subflow.config === 'object') {
-            updatedConfig = JSON.parse(JSON.stringify(subflow.config)) as LoopConfig | ParallelConfig
+            updatedConfig = JSON.parse(JSON.stringify(subflow.config)) as
+              | LoopConfig
+              | ParallelConfig
 
             // Update node references in config if they exist
             if ('nodes' in updatedConfig && Array.isArray(updatedConfig.nodes)) {
@@ -176,7 +180,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         // Update blocks object keys
         if (updatedState.blocks && typeof updatedState.blocks === 'object') {
-          const newBlocks = {} as Record<string, typeof updatedState.blocks[string]>
+          const newBlocks = {} as Record<string, (typeof updatedState.blocks)[string]>
           for (const [oldId, blockData] of Object.entries(updatedState.blocks)) {
             const newId = blockIdMapping.get(oldId) || oldId
             newBlocks[newId] = {
@@ -199,7 +203,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         // Update loops and parallels if they exist
         if (updatedState.loops && typeof updatedState.loops === 'object') {
-          const newLoops = {} as Record<string, typeof updatedState.loops[string]>
+          const newLoops = {} as Record<string, (typeof updatedState.loops)[string]>
           for (const [oldId, loopData] of Object.entries(updatedState.loops)) {
             const newId = blockIdMapping.get(oldId) || oldId
             newLoops[newId] = loopData
@@ -208,7 +212,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         if (updatedState.parallels && typeof updatedState.parallels === 'object') {
-          const newParallels = {} as Record<string, typeof updatedState.parallels[string]>
+          const newParallels = {} as Record<string, (typeof updatedState.parallels)[string]>
           for (const [oldId, parallelData] of Object.entries(updatedState.parallels)) {
             const newId = blockIdMapping.get(oldId) || oldId
             newParallels[newId] = parallelData
@@ -247,9 +251,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof Error && error.message === 'Source workflow not found or access denied') {
-      logger.warn(
-        `[${requestId}] Source workflow ${sourceWorkflowId} not found or access denied`
-      )
+      logger.warn(`[${requestId}] Source workflow ${sourceWorkflowId} not found or access denied`)
       return NextResponse.json({ error: 'Source workflow not found' }, { status: 404 })
     }
 
