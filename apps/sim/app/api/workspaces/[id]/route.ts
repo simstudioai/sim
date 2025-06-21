@@ -3,9 +3,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { workspace, workspaceMember, permissions, permissionTypeEnum } from '@/db/schema'
-
-// Extract the enum type from Drizzle schema
-type PermissionType = typeof permissionTypeEnum.enumValues[number]
+import { getUserEntityPermissions, type PermissionType } from '@/lib/permissions/utils'
 
 /**
  * Helper function to check if a user has a specific permission for a workspace
@@ -27,22 +25,6 @@ async function hasWorkspacePermission(
     .limit(1)
     
   return result.length > 0
-}
-
-/**
- * Helper function to get user's permissions for a workspace
- */
-async function getUserWorkspacePermissions(userId: string, workspaceId: string): Promise<PermissionType[]> {
-  const userPermissions = await db
-    .select({ permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(and(
-      eq(permissions.userId, userId),
-      eq(permissions.entityType, 'workspace'),
-      eq(permissions.entityId, workspaceId)
-    ))
-  
-  return userPermissions.map(p => p.permissionType)
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -74,7 +56,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   // Get user's permissions for this workspace
-  const userPermissions = await getUserWorkspacePermissions(session.user.id, workspaceId)
+  const userPermissions = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
 
   return NextResponse.json({
     workspace: {
@@ -125,7 +107,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .then((rows) => rows[0])
 
     // Get user's permissions for this workspace
-    const userPermissions = await getUserWorkspacePermissions(session.user.id, workspaceId)
+    const userPermissions = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
 
     return NextResponse.json({
       workspace: {

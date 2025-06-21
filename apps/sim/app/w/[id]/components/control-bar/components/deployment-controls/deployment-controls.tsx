@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Loader2, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -58,6 +58,12 @@ export function DeploymentControls({
   const canDeploy = userPermissions.canDeployApi
   const isDisabled = isDeploying || !canDeploy
 
+  const handleDeployClick = useCallback(() => {
+    if (canDeploy) {
+      setIsModalOpen(true)
+    }
+  }, [canDeploy, setIsModalOpen])
+
   const getTooltipText = () => {
     if (!canDeploy) {
       return 'Deploy permissions required to deploy workflows as API'
@@ -82,7 +88,7 @@ export function DeploymentControls({
             <Button
               variant='ghost'
               size='icon'
-              onClick={() => canDeploy && setIsModalOpen(true)}
+              onClick={handleDeployClick}
               disabled={isDisabled}
               className={cn(
                 'hover:text-[#802FFF]', 

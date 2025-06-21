@@ -107,7 +107,6 @@ export function Toolbar() {
                   key={block.type} 
                   config={block} 
                   disabled={!userPermissions.canEdit}
-                  canInteract={userPermissions.canInteractWithBlocks}
                 />
               ))}
               {activeTab === 'blocks' && !searchQuery && (

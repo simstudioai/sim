@@ -26,6 +26,7 @@ interface EmailTagProps {
 }
 
 interface UserPermissions {
+  userId?: string
   email: string
   admin: boolean
   read: boolean
@@ -36,7 +37,7 @@ interface UserPermissions {
 
 interface PermissionsTableProps {
   userPermissions: UserPermissions[]
-  onPermissionChange: (email: string, permission: keyof Omit<UserPermissions, 'email'>, value: boolean) => void
+  onPermissionChange: (userId: string, permission: keyof Omit<UserPermissions, 'email' | 'userId'>, value: boolean) => void
   disabled?: boolean
   existingUserPermissionChanges: Record<string, Partial<UserPermissions>>
   isSaving?: boolean
@@ -98,9 +99,10 @@ const PermissionsTable = ({
   // Convert workspace users to UserPermissions format, merging with pending changes
   // Simplified logic: always merge changes if they exist, otherwise use original permissions
   const existingUsers: UserPermissions[] = workspacePermissions?.users?.map(user => {
-    const changes = existingUserPermissionChanges[user.email] || {}
+    const changes = existingUserPermissionChanges[user.userId] || {}
     
     return {
+      userId: user.userId,
       email: user.email,
       admin: changes.admin !== undefined ? changes.admin : user.permissions.includes('admin'),
       read: changes.read !== undefined ? changes.read : user.permissions.includes('read'),
@@ -162,7 +164,8 @@ const PermissionsTable = ({
                 const isCurrentUser = user.isCurrentUser === true
                 const isExistingUser = filteredExistingUsers.some(eu => eu.email === user.email)
                 const isNewInvite = userPermissions.some(up => up.email === user.email)
-                const hasChanges = existingUserPermissionChanges[user.email] !== undefined
+                const userIdentifier = user.userId || user.email // Use userId for existing users, email for new invites
+                const hasChanges = existingUserPermissionChanges[userIdentifier] !== undefined
                 
                 return (
                   <tr 
@@ -202,7 +205,7 @@ const PermissionsTable = ({
                           checked={user.admin}
                           onCheckedChange={!currentUserIsAdmin ? undefined : 
                             (isCurrentUser && user.admin) ? undefined : 
-                            (checked) => onPermissionChange(user.email, 'admin', Boolean(checked))
+                            (checked) => onPermissionChange(userIdentifier, 'admin', Boolean(checked))
                           }
                           disabled={disabled || !currentUserIsAdmin || (isCurrentUser && user.admin)}
                           className={cn(
@@ -230,7 +233,7 @@ const PermissionsTable = ({
                         <Checkbox
                           checked={user.edit}
                           onCheckedChange={!currentUserIsAdmin ? undefined : (checked) => 
-                            onPermissionChange(user.email, 'edit', Boolean(checked))
+                            onPermissionChange(userIdentifier, 'edit', Boolean(checked))
                           }
                           disabled={disabled || user.admin || !currentUserIsAdmin}
                           className={cn(
@@ -245,7 +248,7 @@ const PermissionsTable = ({
                         <Checkbox
                           checked={user.deploy}
                           onCheckedChange={!currentUserIsAdmin ? undefined : (checked) => 
-                            onPermissionChange(user.email, 'deploy', Boolean(checked))
+                            onPermissionChange(userIdentifier, 'deploy', Boolean(checked))
                           }
                           disabled={disabled || user.admin || !currentUserIsAdmin}
                           className={cn(
@@ -356,21 +359,21 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     setInvalidEmails(newInvalidEmails)
   }
 
-  const handlePermissionChange = (email: string, permission: keyof Omit<UserPermissions, 'email'>, value: boolean) => {
-    const isExistingUser = workspacePermissions?.users?.some(user => user.email === email)
+  const handlePermissionChange = (identifier: string, permission: keyof Omit<UserPermissions, 'email' | 'userId'>, value: boolean) => {
+    // Check if this is an existing user by looking for userId in workspace permissions
+    const existingUser = workspacePermissions?.users?.find(user => user.userId === identifier)
     
-    if (isExistingUser) {
-      // Handle existing user permission changes
+    if (existingUser) {
+      // Handle existing user permission changes using userId
       setExistingUserPermissionChanges(prev => {
-        const currentUser = workspacePermissions?.users?.find(user => user.email === email)
-        const currentChanges = prev[email] || {}
+        const currentChanges = prev[identifier] || {}
         
         // Get the current permissions (original + any changes)
         const currentPermissions = {
-          admin: currentChanges.admin !== undefined ? currentChanges.admin : currentUser?.permissions.includes('admin') || false,
-          read: currentChanges.read !== undefined ? currentChanges.read : currentUser?.permissions.includes('read') || false,
-          edit: currentChanges.edit !== undefined ? currentChanges.edit : currentUser?.permissions.includes('edit') || false,
-          deploy: currentChanges.deploy !== undefined ? currentChanges.deploy : currentUser?.permissions.includes('deploy') || false,
+          admin: currentChanges.admin !== undefined ? currentChanges.admin : existingUser.permissions.includes('admin'),
+          read: currentChanges.read !== undefined ? currentChanges.read : existingUser.permissions.includes('read'),
+          edit: currentChanges.edit !== undefined ? currentChanges.edit : existingUser.permissions.includes('edit'),
+          deploy: currentChanges.deploy !== undefined ? currentChanges.deploy : existingUser.permissions.includes('deploy'),
         }
 
         const updatedPermissions = { ...currentPermissions, [permission]: value }
@@ -396,13 +399,13 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
 
         return {
           ...prev,
-          [email]: updatedPermissions
+          [identifier]: updatedPermissions
         }
       })
     } else {
-      // Handle new invites (existing logic)
+      // Handle new invites (using email as identifier)
       setUserPermissions(prev => prev.map(user => {
-        if (user.email === email) {
+        if (user.email === identifier) {
           const updatedUser = { ...user, [permission]: value }
           
           if (permission === 'admin') {
@@ -437,9 +440,9 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     setErrorMessage(null)
 
     try {
-      // Convert existingUserPermissionChanges to the API format
-      const updates = Object.entries(existingUserPermissionChanges).map(([email, changes]) => ({
-        email,
+      // Convert existingUserPermissionChanges to the API format using userId
+      const updates = Object.entries(existingUserPermissionChanges).map(([userId, changes]) => ({
+        userId,
         permissions: {
           admin: changes.admin ?? false,
           read: changes.read ?? true,

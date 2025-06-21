@@ -6,12 +6,11 @@ import type { BlockConfig } from '@/blocks/types'
 export type ToolbarBlockProps = {
   config: BlockConfig
   disabled?: boolean
-  canInteract?: boolean
 }
 
-export function ToolbarBlock({ config, disabled = false, canInteract = true }: ToolbarBlockProps) {
+export function ToolbarBlock({ config, disabled = false }: ToolbarBlockProps) {
   const handleDragStart = (e: React.DragEvent) => {
-    if (disabled || !canInteract) {
+    if (disabled) {
       e.preventDefault()
       return
     }
@@ -21,7 +20,7 @@ export function ToolbarBlock({ config, disabled = false, canInteract = true }: T
 
   // Handle click to add block
   const handleClick = useCallback(() => {
-    if (config.type === 'connectionBlock' || disabled || !canInteract) return
+    if (config.type === 'connectionBlock' || disabled) return
 
     // Dispatch a custom event to be caught by the workflow component
     const event = new CustomEvent('add-block-from-toolbar', {
@@ -30,16 +29,16 @@ export function ToolbarBlock({ config, disabled = false, canInteract = true }: T
       },
     })
     window.dispatchEvent(event)
-  }, [config.type, disabled, canInteract])
+  }, [config.type, disabled])
 
   const blockContent = (
     <div
-      draggable={!disabled && canInteract}
+      draggable={!disabled}
       onDragStart={handleDragStart}
       onClick={handleClick}
       className={cn(
         'group flex items-center gap-3 rounded-lg border bg-card p-3.5 shadow-sm transition-colors',
-        disabled || !canInteract
+        disabled
           ? 'cursor-not-allowed opacity-60'
           : 'cursor-pointer hover:bg-accent/50 active:cursor-grabbing'
       )}
@@ -51,7 +50,7 @@ export function ToolbarBlock({ config, disabled = false, canInteract = true }: T
         <config.icon
           className={cn(
             'text-white transition-transform duration-200',
-            !disabled && canInteract && 'group-hover:scale-110',
+            !disabled && 'group-hover:scale-110',
             config.type === 'agent' ? 'h-[24px] w-[24px]' : 'h-[22px] w-[22px]'
           )}
         />
@@ -63,7 +62,7 @@ export function ToolbarBlock({ config, disabled = false, canInteract = true }: T
     </div>
   )
 
-  if (disabled || !canInteract) {
+  if (disabled) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>

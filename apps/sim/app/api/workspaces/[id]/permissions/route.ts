@@ -9,7 +9,7 @@ type PermissionType = typeof permissionTypeEnum.enumValues[number]
 
 interface UpdatePermissionsRequest {
   updates: Array<{
-    email: string
+    userId: string
     permissions: {
       admin: boolean
       read: boolean
@@ -188,9 +188,9 @@ export async function PATCH(
 
     // Validate each update
     for (const update of body.updates) {
-      if (!update.email || typeof update.email !== 'string') {
+      if (!update.userId || typeof update.userId !== 'string') {
         return NextResponse.json(
-          { error: 'Invalid request: email is required for each update' },
+          { error: 'Invalid request: userId is required for each update' },
           { status: 400 }
         )
       }
@@ -212,29 +212,9 @@ export async function PATCH(
       }
     }
 
-    // Get user IDs for the provided emails
-    const emails = body.updates.map(update => update.email)
-    const users = await db
-      .select({ id: user.id, email: user.email })
-      .from(user)
-      .where(inArray(user.email, emails))
-      
-    // Build a map of email to userId
-    const userMap = new Map<string, string>() // email -> userId
-    users.forEach(u => userMap.set(u.email, u.id))
-
-    // Check if all users exist
-    const missingUsers = emails.filter(email => !userMap.has(email))
-    if (missingUsers.length > 0) {
-      return NextResponse.json(
-        { error: `Users not found: ${missingUsers.join(', ')}` },
-        { status: 404 }
-      )
-    }
-
     // Prevent users from modifying their own admin permissions
     const currentUserEmail = session.user.email
-    const selfUpdate = body.updates.find(update => update.email === currentUserEmail)
+    const selfUpdate = body.updates.find(update => update.userId === session.user.id)
     if (selfUpdate && !selfUpdate.permissions.admin) {
       return NextResponse.json(
         { error: 'Cannot remove your own admin permissions' },
@@ -245,7 +225,7 @@ export async function PATCH(
     // Process updates in a transaction
     await db.transaction(async (tx) => {
       for (const update of body.updates) {
-        const userId = userMap.get(update.email)!
+        const userId = update.userId
         
         // Delete existing permissions for this user and workspace
         await tx
