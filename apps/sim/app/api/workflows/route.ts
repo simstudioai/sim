@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
         enabled: true,
         horizontalHandles: true,
         isWide: false,
-        height: 95,
+        height: '95',
         subBlocks: {
           startWorkflow: {
             id: 'startWorkflow',
