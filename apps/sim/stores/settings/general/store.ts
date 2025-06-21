@@ -19,6 +19,7 @@ export const useGeneralStore = create<GeneralStore>()(
           isAutoConnectEnabled: true,
           isDebugModeEnabled: false,
           isAutoFillEnvVarsEnabled: true,
+          isAutoPanEnabled: true,
           theme: 'system',
           telemetryEnabled: true,
           telemetryNotifiedUser: false,
@@ -42,6 +43,12 @@ export const useGeneralStore = create<GeneralStore>()(
             const newValue = !get().isAutoFillEnvVarsEnabled
             set({ isAutoFillEnvVarsEnabled: newValue })
             get().updateSetting('autoFillEnvVars', newValue)
+          },
+
+          toggleAutoPan: () => {
+            const newValue = !get().isAutoPanEnabled
+            set({ isAutoPanEnabled: newValue })
+            get().updateSetting('autoPan', newValue)
           },
 
           setTheme: (theme) => {
@@ -96,6 +103,7 @@ export const useGeneralStore = create<GeneralStore>()(
                 isAutoConnectEnabled: data.autoConnect,
                 isDebugModeEnabled: data.debugMode,
                 isAutoFillEnvVarsEnabled: data.autoFillEnvVars,
+                isAutoPanEnabled: data.autoPan ?? true, // Default to true if undefined
                 theme: data.theme,
                 telemetryEnabled: data.telemetryEnabled,
                 telemetryNotifiedUser: data.telemetryNotifiedUser,

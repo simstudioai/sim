@@ -14,6 +14,7 @@ const SettingsSchema = z.object({
   debugMode: z.boolean().optional(),
   autoConnect: z.boolean().optional(),
   autoFillEnvVars: z.boolean().optional(),
+  autoPan: z.boolean().optional(),
   telemetryEnabled: z.boolean().optional(),
   telemetryNotifiedUser: z.boolean().optional(),
   emailPreferences: z
@@ -32,6 +33,7 @@ const defaultSettings = {
   debugMode: false,
   autoConnect: true,
   autoFillEnvVars: true,
+  autoPan: true,
   telemetryEnabled: true,
   telemetryNotifiedUser: false,
   emailPreferences: {},
@@ -65,6 +67,7 @@ export async function GET() {
           debugMode: userSettings.debugMode,
           autoConnect: userSettings.autoConnect,
           autoFillEnvVars: userSettings.autoFillEnvVars,
+          autoPan: userSettings.autoPan,
           telemetryEnabled: userSettings.telemetryEnabled,
           telemetryNotifiedUser: userSettings.telemetryNotifiedUser,
           emailPreferences: userSettings.emailPreferences ?? {},
