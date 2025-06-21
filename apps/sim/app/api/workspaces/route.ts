@@ -2,7 +2,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { workflow, workspace, workspaceMember } from '@/db/schema'
+import { permissions, workflow, workspace, workspaceMember } from '@/db/schema'
 
 // Get all workspaces for the current user
 export async function GET() {
@@ -95,6 +95,17 @@ async function createWorkspace(userId: string, name: string) {
     userId,
     role: 'owner',
     joinedAt: new Date(),
+    updatedAt: new Date(),
+  })
+
+  // Create default permissions for the workspace owner
+  await db.insert(permissions).values({
+    id: crypto.randomUUID(),
+    entityType: 'workspace' as const,
+    entityId: workspaceId,
+    userId: userId,
+    permissionType: 'admin' as const,
+    createdAt: new Date(),
     updatedAt: new Date(),
   })
 
