@@ -72,10 +72,10 @@ const httpServer = createServer((req, res) => {
 // Configure allowed origins
 const allowedOrigins = [
   process.env.NEXT_PUBLIC_APP_URL,
-  process.env.VERCEL_URL, 
+  process.env.VERCEL_URL,
   'http://localhost:3000',
   'http://localhost:3001',
-  ...(process.env.ALLOWED_ORIGINS?.split(',') || [])
+  ...(process.env.ALLOWED_ORIGINS?.split(',') || []),
 ].filter((url): url is string => Boolean(url))
 
 logger.info('Socket.IO CORS configuration:', { allowedOrigins })

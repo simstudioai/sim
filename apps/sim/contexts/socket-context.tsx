@@ -103,8 +103,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     logger.info('Initializing socket connection for user:', user.id)
     setIsConnecting(true)
 
-    const socketUrl =
-      process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'
 
     logger.info('Attempting to connect to Socket.IO server', {
       url: socketUrl,
