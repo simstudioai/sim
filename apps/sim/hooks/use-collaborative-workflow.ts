@@ -433,18 +433,24 @@ export function useCollaborativeWorkflow() {
 
       // Emit subflow update operation to persist configuration changes
       if (!isApplyingRemoteChange.current) {
-        const parallels = workflowStore.parallels
-        const config = parallels[parallelId]
+        const block = workflowStore.blocks[parallelId]
+        if (block && block.type === 'parallel') {
+          // Find child nodes
+          const childNodes = Object.values(workflowStore.blocks)
+            .filter((b) => b.data?.parentId === parallelId)
+            .map((b) => b.id)
 
-        if (config) {
+          const config = {
+            id: parallelId,
+            nodes: childNodes,
+            count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
+            distribution: block.data?.collection || '',
+          }
+
           emitWorkflowOperation('update', 'subflow', {
             id: parallelId,
             type: 'parallel',
-            config: {
-              ...config,
-              // Note: parallel blocks don't have a count field in the config
-              // This might need adjustment based on the actual parallel config structure
-            },
+            config,
           })
         }
       }

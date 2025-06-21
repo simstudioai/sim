@@ -753,25 +753,39 @@ async function handleSubflowOperationImpl(
           logger.debug(
             `[SERVER] ✅ Also updated loop block ${payload.id} data.count = ${payload.config.iterations}`
           )
-        } else if (payload.type === 'parallel' && payload.config.distribution !== undefined) {
-          // Update the parallel block's data.collection property
+        } else if (payload.type === 'parallel') {
+          // Update the parallel block's data properties
+          const blockData = {
+            ...payload.config,
+            width: 500,
+            height: 300,
+            type: 'parallelNode',
+          }
+
+          // Include count if provided
+          if (payload.config.count !== undefined) {
+            blockData.count = payload.config.count
+          }
+
+          // Include collection if provided
+          if (payload.config.distribution !== undefined) {
+            blockData.collection = payload.config.distribution
+          }
+
           await dbOrTx
             .update(workflowBlocks)
             .set({
-              data: {
-                ...payload.config,
-                collection: payload.config.distribution,
-                width: 500,
-                height: 300,
-                type: 'parallelNode',
-              },
+              data: blockData,
               updatedAt: new Date(),
             })
             .where(
               and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId))
             )
 
-          logger.debug(`[SERVER] ✅ Also updated parallel block ${payload.id} data.collection`)
+          logger.debug(`[SERVER] ✅ Also updated parallel block ${payload.id} data:`, {
+            count: payload.config.count,
+            collection: payload.config.distribution
+          })
         }
 
         logger.debug(

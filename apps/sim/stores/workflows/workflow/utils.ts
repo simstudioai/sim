@@ -65,10 +65,13 @@ export function convertParallelBlockToParallel(
   const distribution =
     validatedParallelType === 'collection' ? parallelBlock.data?.collection || '' : ''
 
+  const count = parallelBlock.data?.count || 5
+
   return {
     id: parallelBlockId,
     nodes: findChildNodes(parallelBlockId, blocks),
     distribution,
+    count,
   }
 }
 

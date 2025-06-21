@@ -117,9 +117,16 @@ export class ParallelBlockHandler implements BlockHandler {
     if (!parallelState) {
       logger.info(`Initializing parallel block ${block.id}`)
 
-      // Get the parallel type and count from block data
-      const parallelType = block.config?.params?.parallelType || 'collection'
-      const countValue = block.config?.params?.count || 5
+      // Get the parallel type and count from parallel config (primary) or block data (fallback)
+      const parallelType = parallel.distribution ? 'collection' : 'count'
+      const countValue = parallel.count || block.config?.params?.count || 5
+
+      logger.info(`Parallel ${block.id} configuration:`, {
+        parallelType,
+        countValue,
+        distribution: parallel.distribution,
+        configSource: parallel.count ? 'workflow_subflows' : 'block.config'
+      })
 
       // Evaluate distribution items if provided and type is collection
       let distributionItems: any[] | Record<string, any> | null = null

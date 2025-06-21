@@ -52,4 +52,5 @@ export interface SerializedParallel {
   id: string
   nodes: string[]
   distribution?: any[] | Record<string, any> | string // Items to distribute or expression to evaluate
+  count?: number // Number of parallel executions for count-based parallel
 }

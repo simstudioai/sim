@@ -38,6 +38,17 @@ export async function loadWorkflowFromNormalizedTables(
     // Convert blocks to the expected format
     const blocksMap: Record<string, any> = {}
     blocks.forEach((block) => {
+      // Get parentId and extent from the database columns (primary source)
+      const parentId = block.parentId || null
+      const extent = block.extent || null
+
+      // Merge data with parent info for backward compatibility
+      const blockData = {
+        ...(block.data || {}),
+        ...(parentId && { parentId }),
+        ...(extent && { extent }),
+      }
+
       blocksMap[block.id] = {
         id: block.id,
         type: block.type,
@@ -52,9 +63,10 @@ export async function loadWorkflowFromNormalizedTables(
         height: Number(block.height),
         subBlocks: block.subBlocks || {},
         outputs: block.outputs || {},
-        data: block.data || {},
-        parentId: (block.data as any)?.parentId || null,
-        extent: (block.data as any)?.extent || null,
+        data: blockData,
+        // Set parentId and extent at the block level for ReactFlow
+        parentId,
+        extent,
       }
     })
 
