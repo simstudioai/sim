@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm'
 import { createLogger } from '@/lib/logs/console-logger'
 import { db } from '@/db'
 import { workflowBlocks, workflowEdges, workflowSubflows } from '@/db/schema'
-import type { WorkflowState, LoopConfig } from '@/stores/workflows/workflow/types'
+import type { LoopConfig, WorkflowState } from '@/stores/workflows/workflow/types'
 import { SUBFLOW_TYPES } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowDBHelpers')
@@ -92,7 +92,9 @@ export async function loadWorkflowFromNormalizedTables(
           id: subflow.id,
           ...config,
         }
-        logger.debug(`[DB-HELPERS] Loaded loop ${subflow.id} with iterations: ${loopConfig.iterations || 'unknown'}`)
+        logger.debug(
+          `[DB-HELPERS] Loaded loop ${subflow.id} with iterations: ${loopConfig.iterations || 'unknown'}`
+        )
       } else if (subflow.type === SUBFLOW_TYPES.PARALLEL) {
         parallels[subflow.id] = {
           id: subflow.id,
