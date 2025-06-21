@@ -1,5 +1,13 @@
 import { cn } from '@/lib/utils'
-import { AgentIcon, ApiIcon, ChartBarIcon, CodeIcon, ConditionalIcon, ConnectIcon } from '../icons'
+import {
+  AgentIcon,
+  ApiIcon,
+  ChartBarIcon,
+  CodeIcon,
+  ConditionalIcon,
+  ConnectIcon,
+  ResponseIcon,
+} from '../icons'
 
 // Custom Feature component specifically for BlockTypes to handle the 6-item layout
 const BlockFeature = ({
@@ -126,6 +134,13 @@ export function BlockTypes() {
         'Assess content using customizable evaluation metrics and scoring criteria across multiple dimensions.',
       icon: <ChartBarIcon className='h-6 w-6' />,
       href: '/blocks/evaluator',
+    },
+    {
+      title: 'Response',
+      description:
+        'Send a response back to the caller with customizable data, status, and headers.',
+      icon: <ResponseIcon className='h-6 w-6' />,
+      href: '/blocks/response',
     },
   ]
 

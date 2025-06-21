@@ -45,6 +45,7 @@ import { OutlookBlock } from './blocks/outlook'
 import { PerplexityBlock } from './blocks/perplexity'
 import { PineconeBlock } from './blocks/pinecone'
 import { RedditBlock } from './blocks/reddit'
+import { ResponseBlock } from './blocks/response'
 import { RouterBlock } from './blocks/router'
 import { S3Block } from './blocks/s3'
 import { SerperBlock } from './blocks/serper'
@@ -128,6 +129,7 @@ export const registry: Record<string, BlockConfig> = {
   x: XBlock,
   youtube: YouTubeBlock,
   huggingface: HuggingFaceBlock,
+  response: ResponseBlock,
 }
 
 // Helper functions to access the registry

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Wand2 } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-javascript'
@@ -24,7 +24,7 @@ interface CodeProps {
   isConnecting: boolean
   placeholder?: string
   language?: 'javascript' | 'json'
-  generationType?: 'javascript-function-body' | 'json-schema'
+  generationType?: 'javascript-function-body' | 'json-schema' | 'json-object'
   value?: string
   isPreview?: boolean
   previewValue?: string | null
@@ -62,10 +62,16 @@ export function Code({
   disabled = false,
 }: CodeProps) {
   // Determine the AI prompt placeholder based on language
-  const aiPromptPlaceholder =
-    language === 'json'
-      ? 'Describe the JSON schema to generate...'
-      : 'Describe the JavaScript code to generate...'
+  const aiPromptPlaceholder = useMemo(() => {
+    switch (generationType) {
+      case 'json-schema':
+        return 'Describe the JSON schema to generate...'
+      case 'json-object':
+        return 'Describe the JSON object to generate...'
+      default:
+        return 'Describe the JavaScript code to generate...'
+    }
+  }, [generationType])
 
   // State management
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
