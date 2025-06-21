@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/db-helpers'
@@ -13,6 +14,14 @@ import {
 } from '@/db/schema'
 
 const logger = createLogger('WorkflowByIdAPI')
+
+// Schema for workflow metadata updates
+const UpdateWorkflowSchema = z.object({
+  name: z.string().min(1, 'Name is required').optional(),
+  description: z.string().optional(),
+  color: z.string().optional(),
+  folderId: z.string().nullable().optional(),
+})
 
 /**
  * GET /api/workflows/[id]
@@ -244,6 +253,109 @@ export async function DELETE(
   } catch (error: any) {
     const elapsed = Date.now() - startTime
     logger.error(`[${requestId}] Error deleting workflow ${workflowId} after ${elapsed}ms`, error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * PUT /api/workflows/[id]
+ * Update workflow metadata (name, description, color, folderId)
+ */
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const requestId = crypto.randomUUID().slice(0, 8)
+  const startTime = Date.now()
+  const { id: workflowId } = await params
+
+  try {
+    // Get the session
+    const session = await getSession()
+    if (!session?.user?.id) {
+      logger.warn(`[${requestId}] Unauthorized update attempt for workflow ${workflowId}`)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const userId = session.user.id
+
+    // Parse and validate request body
+    const body = await request.json()
+    const updates = UpdateWorkflowSchema.parse(body)
+
+    // Fetch the workflow to check ownership/access
+    const workflowData = await db
+      .select()
+      .from(workflow)
+      .where(eq(workflow.id, workflowId))
+      .then((rows) => rows[0])
+
+    if (!workflowData) {
+      logger.warn(`[${requestId}] Workflow ${workflowId} not found for update`)
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+    }
+
+    // Check if user has permission to update this workflow
+    let canUpdate = false
+
+    // Case 1: User owns the workflow
+    if (workflowData.userId === userId) {
+      canUpdate = true
+    }
+
+    // Case 2: Workflow belongs to a workspace and user has admin/owner role
+    if (!canUpdate && workflowData.workspaceId) {
+      const membership = await db
+        .select({ role: workspaceMember.role })
+        .from(workspaceMember)
+        .where(
+          and(
+            eq(workspaceMember.workspaceId, workflowData.workspaceId),
+            eq(workspaceMember.userId, userId)
+          )
+        )
+        .then((rows) => rows[0])
+
+      if (membership && (membership.role === 'owner' || membership.role === 'admin')) {
+        canUpdate = true
+      }
+    }
+
+    if (!canUpdate) {
+      logger.warn(`[${requestId}] User ${userId} denied permission to update workflow ${workflowId}`)
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
+    // Build update object
+    const updateData: any = { updatedAt: new Date() }
+    if (updates.name !== undefined) updateData.name = updates.name
+    if (updates.description !== undefined) updateData.description = updates.description
+    if (updates.color !== undefined) updateData.color = updates.color
+    if (updates.folderId !== undefined) updateData.folderId = updates.folderId
+
+    // Update the workflow
+    const [updatedWorkflow] = await db
+      .update(workflow)
+      .set(updateData)
+      .where(eq(workflow.id, workflowId))
+      .returning()
+
+    const elapsed = Date.now() - startTime
+    logger.info(`[${requestId}] Successfully updated workflow ${workflowId} in ${elapsed}ms`, {
+      updates: updateData,
+    })
+
+    return NextResponse.json({ workflow: updatedWorkflow }, { status: 200 })
+  } catch (error: any) {
+    const elapsed = Date.now() - startTime
+    if (error instanceof z.ZodError) {
+      logger.warn(`[${requestId}] Invalid workflow update data for ${workflowId}`, {
+        errors: error.errors,
+      })
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    logger.error(`[${requestId}] Error updating workflow ${workflowId} after ${elapsed}ms`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -1519,27 +1519,69 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
       },
 
       // Update workflow metadata
-      updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => {
-        set((state) => {
-          const workflow = state.workflows[id]
-          if (!workflow) return state
+      updateWorkflow: async (id: string, metadata: Partial<WorkflowMetadata>) => {
+        const { workflows } = get()
+        const workflow = workflows[id]
+        if (!workflow) {
+          logger.warn(`Cannot update workflow ${id}: not found in registry`)
+          return
+        }
 
-          const updatedWorkflows = {
+        // Optimistically update local state first
+        set((state) => ({
+          workflows: {
             ...state.workflows,
             [id]: {
               ...workflow,
               ...metadata,
               lastModified: new Date(),
             },
+          },
+          error: null,
+        }))
+
+        // Persist to database via API
+        try {
+          const response = await fetch(`/api/workflows/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(metadata),
+          })
+
+          if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || 'Failed to update workflow')
           }
 
-          // Note: Workflow metadata updates are handled by Socket.IO real-time sync
+          const { workflow: updatedWorkflow } = await response.json()
+          logger.info(`Successfully updated workflow ${id} metadata`, metadata)
 
-          return {
-            workflows: updatedWorkflows,
-            error: null,
-          }
-        })
+          // Update with server response to ensure consistency
+          set((state) => ({
+            workflows: {
+              ...state.workflows,
+              [id]: {
+                ...state.workflows[id],
+                name: updatedWorkflow.name,
+                description: updatedWorkflow.description,
+                color: updatedWorkflow.color,
+                folderId: updatedWorkflow.folderId,
+                lastModified: new Date(updatedWorkflow.updatedAt),
+              },
+            },
+          }))
+        } catch (error) {
+          logger.error(`Failed to update workflow ${id} metadata:`, error)
+
+          // Revert optimistic update on error
+          set((state) => ({
+            workflows: {
+              ...state.workflows,
+              [id]: workflow, // Revert to original state
+            },
+            error: `Failed to update workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }))
+        }
       },
 
       logout: () => {

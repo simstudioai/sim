@@ -97,7 +97,7 @@ function FolderSection({
 
 // Custom hook for drag and drop handling
 function useDragHandlers(
-  updateWorkflow: (id: string, updates: Partial<WorkflowMetadata>) => void,
+  updateWorkflow: (id: string, updates: Partial<WorkflowMetadata>) => Promise<void>,
   targetFolderId: string | null, // null for root
   logMessage?: string
 ) {
@@ -115,7 +115,7 @@ function useDragHandlers(
     setIsDragOver(false)
   }
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setIsDragOver(false)
@@ -125,9 +125,10 @@ function useDragHandlers(
       const workflowIds = JSON.parse(workflowIdsData) as string[]
 
       try {
-        workflowIds.forEach((workflowId) =>
-          updateWorkflow(workflowId, { folderId: targetFolderId })
-        )
+        // Update workflows sequentially to avoid race conditions
+        for (const workflowId of workflowIds) {
+          await updateWorkflow(workflowId, { folderId: targetFolderId })
+        }
         console.log(logMessage || `Moved ${workflowIds.length} workflow(s)`)
       } catch (error) {
         console.error('Failed to move workflows:', error)

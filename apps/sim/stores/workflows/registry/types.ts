@@ -39,7 +39,7 @@ export interface WorkflowRegistryActions {
   loadWorkspaceFromWorkflowId: (workflowId: string | null) => Promise<void>
   handleWorkspaceDeletion: (newWorkspaceId: string) => void
   removeWorkflow: (id: string) => Promise<void>
-  updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => void
+  updateWorkflow: (id: string, metadata: Partial<WorkflowMetadata>) => Promise<void>
   createWorkflow: (options?: {
     isInitial?: boolean
     marketplaceId?: string
