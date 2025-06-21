@@ -17,7 +17,7 @@ interface FolderSectionProps {
   workflowsByFolder: Record<string, WorkflowMetadata[]>
   expandedFolders: Set<string>
   pathname: string
-  updateWorkflow: (id: string, updates: Partial<WorkflowMetadata>) => void
+  updateWorkflow: (id: string, updates: Partial<WorkflowMetadata>) => Promise<void>
   renderFolderTree: (
     nodes: FolderTreeNode[],
     level: number,

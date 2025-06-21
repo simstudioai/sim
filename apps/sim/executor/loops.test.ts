@@ -391,7 +391,7 @@ describe('LoopManager', () => {
 
   describe('getCurrentItem', () => {
     test('should return current item for loop', () => {
-      mockContext.loopItems.set('loop-1', 'current-item')
+      mockContext.loopItems.set('loop-1', ['current-item'])
 
       const item = manager.getCurrentItem('loop-1', mockContext)
 

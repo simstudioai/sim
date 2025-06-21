@@ -98,6 +98,7 @@ describe('ConditionBlockHandler', () => {
           {
             output: { response: { value: 10, text: 'hello' } },
             executed: true,
+            executionTime: 100,
           },
         ],
       ]),

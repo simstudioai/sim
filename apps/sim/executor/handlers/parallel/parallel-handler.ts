@@ -121,19 +121,16 @@ export class ParallelBlockHandler implements BlockHandler {
       const hasDistribution = parallel.distribution && parallel.distribution !== ''
       const hasCount = parallel.count || block.config?.params?.count
 
-      let parallelType: string
+      let parallelType: 'count' | 'collection'
       let countValue: number
 
       if (hasDistribution) {
         parallelType = 'collection'
         countValue = 1 // Will be overridden by distribution items length
-      } else if (hasCount) {
-        parallelType = 'count'
-        countValue = parallel.count || block.config?.params?.count || 5
       } else {
-        // No distribution and no count specified - simple parallel with 1 execution
-        parallelType = 'simple'
-        countValue = 1
+        // Default to count-based parallel
+        parallelType = 'count'
+        countValue = parallel.count || block.config?.params?.count || 1
       }
 
       logger.info(`Parallel ${block.id} configuration:`, {
@@ -184,6 +181,11 @@ export class ParallelBlockHandler implements BlockHandler {
         currentIteration: 1, // Start at 1 to indicate activation
         parallelType,
       }
+
+      // Initialize parallelExecutions if it doesn't exist
+      if (!context.parallelExecutions) {
+        context.parallelExecutions = new Map()
+      }
       context.parallelExecutions.set(block.id, parallelState)
 
       // Store the distribution items for access by child blocks
@@ -210,12 +212,7 @@ export class ParallelBlockHandler implements BlockHandler {
         response: {
           parallelId: block.id,
           parallelCount,
-          distributionType:
-            parallelType === 'count'
-              ? 'count'
-              : parallelType === 'collection'
-                ? 'distributed'
-                : 'simple',
+          distributionType: parallelType === 'count' ? 'count' : 'distributed',
           started: true,
           message: `Initialized ${parallelCount} parallel execution${parallelCount > 1 ? 's' : ''}`,
         },

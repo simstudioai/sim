@@ -348,7 +348,7 @@ export const useFolderStore = create<FolderState>()(
 
         if (workflowRegistry.activeWorkspaceId) {
           // Trigger workflow refresh through registry store
-          await workflowRegistry.switchWorkspace(workflowRegistry.activeWorkspaceId)
+          await workflowRegistry.switchToWorkspace(workflowRegistry.activeWorkspaceId)
         }
       },
 

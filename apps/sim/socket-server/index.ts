@@ -191,7 +191,7 @@ async function updateSubflowNodeList(dbOrTx: any, workflowId: string, parentId: 
       .from(workflowBlocks)
       .where(and(eq(workflowBlocks.workflowId, workflowId), eq(workflowBlocks.parentId, parentId)))
 
-    const childNodeIds = childBlocks.map((block) => block.id)
+    const childNodeIds = childBlocks.map((block: any) => block.id)
 
     // Get current subflow config
     const subflowData = await dbOrTx
@@ -1031,7 +1031,7 @@ async function handleBlockOperationImpl(
             `[SERVER] Starting cascade deletion for subflow block ${payload.id} (type: ${blockToRemove[0].type})`
           )
           logger.debug(
-            `[SERVER] Found ${childBlocks.length} child blocks to delete: [${childBlocks.map((b) => `${b.id} (${b.type})`).join(', ')}]`
+            `[SERVER] Found ${childBlocks.length} child blocks to delete: [${childBlocks.map((b: any) => `${b.id} (${b.type})`).join(', ')}]`
           )
 
           // Remove edges connected to child blocks

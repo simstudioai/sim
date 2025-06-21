@@ -6,11 +6,13 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 export default function WorkflowsPage() {
   const router = useRouter()
-  const { workflowIds, workflowsLoading } = useWorkflowRegistry()
+  const { workflows, isLoading } = useWorkflowRegistry()
 
   useEffect(() => {
     // Wait for workflows to load
-    if (workflowsLoading) return
+    if (isLoading) return
+
+    const workflowIds = Object.keys(workflows)
 
     // If we have workflows, redirect to the first one
     if (workflowIds.length > 0) {
@@ -22,7 +24,7 @@ export default function WorkflowsPage() {
     // or the user doesn't have any workspaces. Redirect to home to let the system
     // handle workspace/workflow creation properly.
     router.replace('/')
-  }, [workflowIds, workflowsLoading, router])
+  }, [workflows, isLoading, router])
 
   // Show loading state while determining where to redirect
   return (
