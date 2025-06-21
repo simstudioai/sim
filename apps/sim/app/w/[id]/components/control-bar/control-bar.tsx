@@ -72,11 +72,15 @@ let usageDataCache = {
 // Predefined run count options
 const RUN_COUNT_OPTIONS = [1, 5, 10, 25, 50, 100]
 
+interface ControlBarProps {
+  hasValidationErrors?: boolean
+}
+
 /**
  * Control bar for managing workflows - handles editing, deletion, deployment,
  * history, notifications and execution.
  */
-export function ControlBar() {
+export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const router = useRouter()
   const { data: session } = useSession()
 
@@ -151,7 +155,7 @@ export function ControlBar() {
   // Register keyboard shortcut for running workflow
   useKeyboardShortcuts(
     () => {
-      if (!isExecuting && !isMultiRunning && !isCancelling) {
+      if (!isExecuting && !isMultiRunning && !isCancelling && !hasValidationErrors) {
         if (isDebugModeEnabled) {
           handleRunWorkflow()
         } else {
@@ -159,7 +163,7 @@ export function ControlBar() {
         }
       }
     },
-    isExecuting || isMultiRunning || isCancelling
+    isExecuting || isMultiRunning || isCancelling || hasValidationErrors
   )
 
   // Get the marketplace data from the workflow registry if available
@@ -1010,7 +1014,7 @@ export function ControlBar() {
                     ? handleRunWorkflow
                     : handleMultipleRuns
               }
-              disabled={isExecuting || isMultiRunning || isCancelling}
+              disabled={isExecuting || isMultiRunning || isCancelling || hasValidationErrors}
             >
               {isCancelling ? (
                 <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
@@ -1035,7 +1039,14 @@ export function ControlBar() {
             </Button>
           </TooltipTrigger>
           <TooltipContent command={getKeyboardShortcutText('Enter', true)}>
-            {usageExceeded ? (
+            {hasValidationErrors ? (
+              <div className='text-center'>
+                <p className='font-medium text-destructive'>Workflow Has Errors</p>
+                <p className='text-xs'>
+                  Nested subflows are not supported. Remove subflow blocks from inside other subflow blocks.
+                </p>
+              </div>
+            ) : usageExceeded ? (
               <div className='text-center'>
                 <p className='font-medium text-destructive'>Usage Limit Exceeded</p>
                 <p className='text-xs'>
@@ -1071,7 +1082,7 @@ export function ControlBar() {
                   'disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none',
                   'h-10 rounded-l-none'
                 )}
-                disabled={isExecuting || isMultiRunning || isCancelling}
+                disabled={isExecuting || isMultiRunning || isCancelling || hasValidationErrors}
               >
                 <ChevronDown className='h-4 w-4' />
               </Button>
