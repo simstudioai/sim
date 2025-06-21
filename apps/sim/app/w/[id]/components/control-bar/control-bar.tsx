@@ -416,7 +416,7 @@ export function ControlBar() {
    * Handle deleting the current workflow
    */
   const handleDeleteWorkflow = () => {
-    if (!activeWorkflowId || !userPermissions.canDeleteWorkflow) return
+    if (!activeWorkflowId || !userPermissions.canEdit) return
 
     const workflowIds = Object.keys(workflows)
     const currentIndex = workflowIds.indexOf(activeWorkflowId)
@@ -584,7 +584,7 @@ export function ControlBar() {
    * Handle duplicating the current workflow
    */
   const handleDuplicateWorkflow = () => {
-    if (!activeWorkflowId || !userPermissions.canDuplicateWorkflow) return
+    if (!activeWorkflowId || !userPermissions.canEdit) return
 
     // Duplicate the workflow and get the new ID
     const newWorkflowId = duplicateWorkflow(activeWorkflowId)
@@ -650,12 +650,12 @@ export function ControlBar() {
    * Render delete workflow button with confirmation dialog
    */
   const renderDeleteButton = () => {
-    const canDelete = userPermissions.canDeleteWorkflow
+    const canEdit = userPermissions.canEdit
     const hasMultipleWorkflows = Object.keys(workflows).length > 1
-    const isDisabled = !canDelete || !hasMultipleWorkflows
+    const isDisabled = !canEdit || !hasMultipleWorkflows
     
     const getTooltipText = () => {
-      if (!canDelete) return 'Edit permissions required to delete workflows'
+      if (!canEdit) return 'Edit permissions required to delete workflows'
       if (!hasMultipleWorkflows) return 'Cannot delete the last workflow'
       return 'Delete Workflow'
     }
@@ -866,7 +866,7 @@ export function ControlBar() {
    * Render workflow duplicate button
    */
   const renderDuplicateButton = () => {
-    const canDuplicate = userPermissions.canDuplicateWorkflow
+    const canEdit = userPermissions.canEdit
     
     return (
       <Tooltip>
@@ -875,10 +875,10 @@ export function ControlBar() {
             variant='ghost'
             size='icon'
             onClick={handleDuplicateWorkflow}
-            disabled={!canDuplicate}
+            disabled={!canEdit}
             className={cn(
               'hover:text-primary',
-              !canDuplicate && 'opacity-50 cursor-not-allowed'
+              !canEdit && 'opacity-50 cursor-not-allowed'
             )}
           >
             <Copy className='h-5 w-5' />
@@ -886,7 +886,7 @@ export function ControlBar() {
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          {canDuplicate ? 'Duplicate Workflow' : 'Edit permissions required to duplicate workflows'}
+          {canEdit ? 'Duplicate Workflow' : 'Edit permissions required to duplicate workflows'}
         </TooltipContent>
       </Tooltip>
     )
@@ -897,14 +897,14 @@ export function ControlBar() {
    */
   const renderAutoLayoutButton = () => {
     const handleAutoLayoutClick = () => {
-      if (isExecuting || isMultiRunning || isDebugging || !userPermissions.canAutoLayout) {
+      if (isExecuting || isMultiRunning || isDebugging || !userPermissions.canEdit) {
         return
       }
 
       window.dispatchEvent(new CustomEvent('trigger-auto-layout'))
     }
     
-    const isDisabled = isExecuting || isMultiRunning || isDebugging || !userPermissions.canAutoLayout
+    const isDisabled = isExecuting || isMultiRunning || isDebugging || !userPermissions.canEdit
 
     return (
       <Tooltip>
@@ -924,7 +924,7 @@ export function ControlBar() {
           </Button>
         </TooltipTrigger>
         <TooltipContent command='Shift+L'>
-          {!userPermissions.canAutoLayout 
+          {!userPermissions.canEdit 
             ? 'Edit permissions required to use auto-layout'
             : 'Auto Layout'
           }

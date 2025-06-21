@@ -11,14 +11,7 @@ export interface WorkspaceUserPermissions {
   canEdit: boolean
   canAdmin: boolean
   
-  // Computed permission checks for specific features
-  canInteractWithBlocks: boolean // Covers both clicking and dragging blocks
-  canAutoLayout: boolean
-  canDeleteWorkflow: boolean
-  canDuplicateWorkflow: boolean
-  
   // Utility properties
-  isReadOnly: boolean
   userPermissions: PermissionType
   isLoading: boolean
   error: string | null
@@ -41,11 +34,6 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
         canRead: false,
         canEdit: false,
         canAdmin: false,
-        canInteractWithBlocks: false,
-        canAutoLayout: false,
-        canDeleteWorkflow: false,
-        canDuplicateWorkflow: false,
-        isReadOnly: true,
         userPermissions: 'read',
         isLoading: loading,
         error,
@@ -70,11 +58,6 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
         canRead: false,
         canEdit: false,
         canAdmin: false,
-        canInteractWithBlocks: false,
-        canAutoLayout: false,
-        canDeleteWorkflow: false,
-        canDuplicateWorkflow: false,
-        isReadOnly: true,
         userPermissions: 'read',
         isLoading: false,
         error: error || 'User not found in workspace',
@@ -88,24 +71,10 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
     const canEdit = userPerms === 'write' || userPerms === 'admin'
     const canRead = true // If user is found in workspace permissions, they have read access
 
-    // Computed permission checks for specific features
-    const canInteractWithBlocks = canEdit // Only edit+ can click/drag blocks
-    const canAutoLayout = canEdit // Only edit+ can use auto-layout
-    const canDeleteWorkflow = canEdit // Only edit+ can delete workflows
-    const canDuplicateWorkflow = canEdit // Only edit+ can duplicate workflows
-
-    // Utility properties
-    const isReadOnly = !canEdit && !canAdmin // Read-only if they don't have edit permissions
-
     return {
       canRead,
       canEdit,
       canAdmin,
-      canInteractWithBlocks,
-      canAutoLayout,
-      canDeleteWorkflow,
-      canDuplicateWorkflow,
-      isReadOnly,
       userPermissions: userPerms,
       isLoading: false,
       error,

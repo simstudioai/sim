@@ -361,7 +361,7 @@ function WorkflowContent() {
   useEffect(() => {
     const handleAddBlockFromToolbar = (event: CustomEvent) => {
       // Check if user has permission to interact with blocks
-      if (!userPermissions.canInteractWithBlocks) {
+      if (!userPermissions.canEdit) {
         return
       }
       
@@ -1455,11 +1455,11 @@ function WorkflowContent() {
           edges={edgesWithSelection}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={userPermissions.canInteractWithBlocks ? onConnect : undefined}
+          onConnect={userPermissions.canEdit ? onConnect : undefined}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          onDrop={userPermissions.canInteractWithBlocks ? onDrop : undefined}
-          onDragOver={userPermissions.canInteractWithBlocks ? onDragOver : undefined}
+          onDrop={userPermissions.canEdit ? onDrop : undefined}
+          onDragOver={userPermissions.canEdit ? onDragOver : undefined}
           fitView
           minZoom={0.1}
           maxZoom={1.3}
@@ -1479,22 +1479,22 @@ function WorkflowContent() {
           onEdgeClick={onEdgeClick}
           elementsSelectable={true}
           selectNodesOnDrag={false}
-          nodesConnectable={userPermissions.canInteractWithBlocks}
-          nodesDraggable={userPermissions.canInteractWithBlocks}
+          nodesConnectable={userPermissions.canEdit}
+          nodesDraggable={userPermissions.canEdit}
           draggable={false}
           noWheelClassName='allow-scroll'
           edgesFocusable={true}
-          edgesUpdatable={userPermissions.canInteractWithBlocks}
+          edgesUpdatable={userPermissions.canEdit}
           className='workflow-container h-full'
-          onNodeDrag={userPermissions.canInteractWithBlocks ? onNodeDrag : undefined}
-          onNodeDragStop={userPermissions.canInteractWithBlocks ? onNodeDragStop : undefined}
-          onNodeDragStart={userPermissions.canInteractWithBlocks ? onNodeDragStart : undefined}
+          onNodeDrag={userPermissions.canEdit ? onNodeDrag : undefined}
+          onNodeDragStop={userPermissions.canEdit ? onNodeDragStop : undefined}
+          onNodeDragStart={userPermissions.canEdit ? onNodeDragStart : undefined}
           snapToGrid={false}
           snapGrid={[20, 20]}
           elevateEdgesOnSelect={true}
           elevateNodesOnSelect={true}
-          autoPanOnConnect={userPermissions.canInteractWithBlocks}
-          autoPanOnNodeDrag={userPermissions.canInteractWithBlocks}
+          autoPanOnConnect={userPermissions.canEdit}
+          autoPanOnNodeDrag={userPermissions.canEdit}
         >
           <Background />
         </ReactFlow>
