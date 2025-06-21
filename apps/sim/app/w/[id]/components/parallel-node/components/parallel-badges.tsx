@@ -111,9 +111,10 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
       }
 
       // Always ensure editorValue is a string
-      const distributionString = typeof newDistribution === 'string'
-        ? newDistribution
-        : JSON.stringify(newDistribution) || ''
+      const distributionString =
+        typeof newDistribution === 'string'
+          ? newDistribution
+          : JSON.stringify(newDistribution) || ''
       setEditorValue(distributionString)
     }
   }, [parallelConfig, parallelType, iterations, nodeId])
@@ -132,9 +133,10 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
         collaborativeUpdateParallelCount(nodeId, iterations)
       } else {
         collaborativeUpdateParallelCount(nodeId, 1)
-        const collectionValue = typeof editorValue === 'string'
-          ? editorValue || '[]'
-          : JSON.stringify(editorValue) || '[]'
+        const collectionValue =
+          typeof editorValue === 'string'
+            ? editorValue || '[]'
+            : JSON.stringify(editorValue) || '[]'
         collaborativeUpdateParallelCollection(nodeId, collectionValue)
       }
 
