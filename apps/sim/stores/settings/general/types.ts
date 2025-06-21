@@ -2,6 +2,7 @@ export interface General {
   isAutoConnectEnabled: boolean
   isDebugModeEnabled: boolean
   isAutoFillEnvVarsEnabled: boolean
+  isAutoPanEnabled: boolean
   theme: 'system' | 'light' | 'dark'
   telemetryEnabled: boolean
   telemetryNotifiedUser: boolean
@@ -13,6 +14,7 @@ export interface GeneralActions {
   toggleAutoConnect: () => void
   toggleDebugMode: () => void
   toggleAutoFillEnvVars: () => void
+  toggleAutoPan: () => void
   setTheme: (theme: 'system' | 'light' | 'dark') => void
   setTelemetryEnabled: (enabled: boolean) => void
   setTelemetryNotifiedUser: (notified: boolean) => void
@@ -27,6 +29,7 @@ export type UserSettings = {
   debugMode: boolean
   autoConnect: boolean
   autoFillEnvVars: boolean
+  autoPan: boolean
   telemetryEnabled: boolean
   telemetryNotifiedUser: boolean
 }
