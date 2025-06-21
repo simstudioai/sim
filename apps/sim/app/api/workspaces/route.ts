@@ -196,7 +196,7 @@ async function createWorkspace(userId: string, name: string) {
         enabled: true,
         horizontalHandles: true,
         isWide: false,
-        height: 95,
+        height: '95',
         subBlocks: {
           startWorkflow: {
             id: 'startWorkflow',
