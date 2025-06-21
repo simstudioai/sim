@@ -44,8 +44,6 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   const { loops } = useWorkflowStore()
   const loopConfig = loops[nodeId]
 
-
-
   // Use loop config as primary source, fallback to data for backward compatibility
   const configIterations = loopConfig?.iterations ?? data?.count ?? 5
   const configLoopType = loopConfig?.loopType ?? data?.loopType ?? 'for'
@@ -97,8 +95,6 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
       const newLoopType = loopConfig.loopType || 'for'
       const newIterations = loopConfig.iterations || 5
       const newCollection = loopConfig.forEachItems || ''
-
-
 
       if (newLoopType !== loopType) {
         setLoopType(newLoopType)

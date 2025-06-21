@@ -44,8 +44,6 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   const { parallels } = useWorkflowStore()
   const parallelConfig = parallels[nodeId]
 
-
-
   // Use parallel config as primary source, fallback to data for backward compatibility
   const configCount = parallelConfig?.count ?? data?.count ?? 5
   const configDistribution = parallelConfig?.distribution ?? data?.collection ?? ''
@@ -99,8 +97,6 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
       const newCount = parallelConfig.count || 5
       const newDistribution = parallelConfig.distribution || ''
       const newParallelType = newDistribution ? 'collection' : 'count'
-
-
 
       if (newParallelType !== parallelType) {
         setParallelType(newParallelType)
