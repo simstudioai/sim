@@ -12,7 +12,6 @@ import ReactFlow, {
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
-import { PresenceIndicator } from '@/components/workflow/presence-indicator'
 import { createLogger } from '@/lib/logs/console-logger'
 import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
@@ -1400,10 +1399,6 @@ function WorkflowContent() {
           <NotificationList />
         </div>
 
-        {/* Collaborative presence indicator */}
-        <div className='-translate-x-1/2 fixed top-4 left-1/2 z-20 transform'>
-          <PresenceIndicator />
-        </div>
         <ReactFlow
           nodes={nodes}
           edges={edgesWithSelection}

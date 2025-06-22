@@ -154,7 +154,7 @@ const mobileEdges: Edge[] = [
 
 const workflowVariants = {
   hidden: { opacity: 0, scale: 0.98 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.5, delay: 0.1, ease: 'easeOut' } },
+  visible: { opacity: 1, scale: 1 },
 }
 
 export function HeroWorkflow() {
@@ -208,6 +208,7 @@ export function HeroWorkflow() {
       variants={workflowVariants}
       initial='hidden'
       animate='visible'
+      transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
     >
       <style jsx global>{`
         .react-flow__edge-path {

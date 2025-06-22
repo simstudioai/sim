@@ -103,155 +103,179 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     logger.info('Initializing socket connection for user:', user.id)
     setIsConnecting(true)
 
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'
+    const initializeSocket = async () => {
+      try {
+        // Generate one-time token for socket authentication
+        const tokenResponse = await fetch('/api/auth/socket-token', {
+          method: 'POST',
+          credentials: 'include',
+        })
 
-    logger.info('Attempting to connect to Socket.IO server', {
-      url: socketUrl,
-      userId: user?.id || 'no-user',
-      timestamp: new Date().toISOString(),
-    })
+        if (!tokenResponse.ok) {
+          throw new Error('Failed to generate socket token')
+        }
 
-    const socketInstance = io(socketUrl, {
-      transports: ['polling', 'websocket'],
-      withCredentials: true, // Enable credentials to send cookies with connection
-      reconnectionAttempts: 5,
-      timeout: 10000,
-    })
+        const { token } = await tokenResponse.json()
 
-    // Connection events
-    socketInstance.on('connect', () => {
-      setIsConnected(true)
-      setIsConnecting(false)
-      logger.info('Socket connected successfully', {
-        socketId: socketInstance.id,
-        connected: socketInstance.connected,
-        transport: socketInstance.io.engine?.transport?.name,
-      })
-    })
+        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3002'
 
-    socketInstance.on('disconnect', (reason) => {
-      setIsConnected(false)
-      setIsConnecting(false)
-      logger.info('Socket disconnected', { reason })
+        logger.info('Attempting to connect to Socket.IO server', {
+          url: socketUrl,
+          userId: user?.id || 'no-user',
+          hasToken: !!token,
+          timestamp: new Date().toISOString(),
+        })
 
-      // Clear presence when disconnected
-      setPresenceUsers([])
-    })
+        const socketInstance = io(socketUrl, {
+          transports: ['polling', 'websocket'],
+          withCredentials: true,
+          reconnectionAttempts: 5,
+          timeout: 10000,
+          auth: {
+            token, // Send one-time token for authentication
+          },
+        })
 
-    socketInstance.on('connect_error', (error: any) => {
-      setIsConnecting(false)
-      logger.error('Socket connection error:', {
-        message: error.message,
-        stack: error.stack,
-        description: error.description,
-        type: error.type,
-        transport: error.transport,
-      })
-    })
+        // Connection events
+        socketInstance.on('connect', () => {
+          setIsConnected(true)
+          setIsConnecting(false)
+          logger.info('Socket connected successfully', {
+            socketId: socketInstance.id,
+            connected: socketInstance.connected,
+            transport: socketInstance.io.engine?.transport?.name,
+          })
+        })
 
-    // Add reconnection logging
-    socketInstance.on('reconnect', (attemptNumber) => {
-      logger.info('Socket reconnected', { attemptNumber })
-    })
+        socketInstance.on('disconnect', (reason) => {
+          setIsConnected(false)
+          setIsConnecting(false)
+          logger.info('Socket disconnected', { reason })
 
-    socketInstance.on('reconnect_attempt', (attemptNumber) => {
-      logger.info('Socket reconnection attempt', { attemptNumber })
-    })
+          // Clear presence when disconnected
+          setPresenceUsers([])
+        })
 
-    socketInstance.on('reconnect_error', (error: any) => {
-      logger.error('Socket reconnection error:', error)
-    })
+        socketInstance.on('connect_error', (error: any) => {
+          setIsConnecting(false)
+          logger.error('Socket connection error:', {
+            message: error.message,
+            stack: error.stack,
+            description: error.description,
+            type: error.type,
+            transport: error.transport,
+          })
+        })
 
-    socketInstance.on('reconnect_failed', () => {
-      logger.error('Socket reconnection failed - all attempts exhausted')
-    })
+        // Add reconnection logging
+        socketInstance.on('reconnect', (attemptNumber) => {
+          logger.info('Socket reconnected', { attemptNumber })
+        })
 
-    // Presence events
-    socketInstance.on('presence-update', (users: PresenceUser[]) => {
-      setPresenceUsers(users)
-    })
+        socketInstance.on('reconnect_attempt', (attemptNumber) => {
+          logger.info('Socket reconnection attempt', { attemptNumber })
+        })
 
-    socketInstance.on('user-joined', (userData) => {
-      setPresenceUsers((prev) => [...prev, userData])
-      eventHandlers.current.userJoined?.(userData)
-    })
+        socketInstance.on('reconnect_error', (error: any) => {
+          logger.error('Socket reconnection error:', error)
+        })
 
-    socketInstance.on('user-left', ({ userId, socketId }) => {
-      setPresenceUsers((prev) => prev.filter((u) => u.socketId !== socketId))
-      eventHandlers.current.userLeft?.({ userId, socketId })
-    })
+        socketInstance.on('reconnect_failed', () => {
+          logger.error('Socket reconnection failed - all attempts exhausted')
+        })
 
-    // Workflow operation events
-    socketInstance.on('workflow-operation', (data) => {
-      eventHandlers.current.workflowOperation?.(data)
-    })
+        // Presence events
+        socketInstance.on('presence-update', (users: PresenceUser[]) => {
+          setPresenceUsers(users)
+        })
 
-    // Subblock update events
-    socketInstance.on('subblock-update', (data) => {
-      eventHandlers.current.subblockUpdate?.(data)
-    })
+        socketInstance.on('user-joined', (userData) => {
+          setPresenceUsers((prev) => [...prev, userData])
+          eventHandlers.current.userJoined?.(userData)
+        })
 
-    // Workflow deletion events
-    socketInstance.on('workflow-deleted', (data) => {
-      logger.warn(`Workflow ${data.workflowId} has been deleted`)
-      // Clear current workflow ID if it matches the deleted workflow
-      if (currentWorkflowId === data.workflowId) {
-        setCurrentWorkflowId(null)
-        setPresenceUsers([])
+        socketInstance.on('user-left', ({ userId, socketId }) => {
+          setPresenceUsers((prev) => prev.filter((u) => u.socketId !== socketId))
+          eventHandlers.current.userLeft?.({ userId, socketId })
+        })
+
+        // Workflow operation events
+        socketInstance.on('workflow-operation', (data) => {
+          eventHandlers.current.workflowOperation?.(data)
+        })
+
+        // Subblock update events
+        socketInstance.on('subblock-update', (data) => {
+          eventHandlers.current.subblockUpdate?.(data)
+        })
+
+        // Workflow deletion events
+        socketInstance.on('workflow-deleted', (data) => {
+          logger.warn(`Workflow ${data.workflowId} has been deleted`)
+          // Clear current workflow ID if it matches the deleted workflow
+          if (currentWorkflowId === data.workflowId) {
+            setCurrentWorkflowId(null)
+            setPresenceUsers([])
+          }
+          eventHandlers.current.workflowDeleted?.(data)
+        })
+
+        // Cursor update events
+        socketInstance.on('cursor-update', (data) => {
+          setPresenceUsers((prev) =>
+            prev.map((user) =>
+              user.socketId === data.socketId ? { ...user, cursor: data.cursor } : user
+            )
+          )
+          eventHandlers.current.cursorUpdate?.(data)
+        })
+
+        // Selection update events
+        socketInstance.on('selection-update', (data) => {
+          setPresenceUsers((prev) =>
+            prev.map((user) =>
+              user.socketId === data.socketId ? { ...user, selection: data.selection } : user
+            )
+          )
+          eventHandlers.current.selectionUpdate?.(data)
+        })
+
+        // Enhanced error handling for new server events
+        socketInstance.on('error', (error) => {
+          logger.error('Socket error:', error)
+        })
+
+        socketInstance.on('operation-error', (error) => {
+          logger.error('Operation error:', error)
+        })
+
+        socketInstance.on('operation-forbidden', (error) => {
+          logger.warn('Operation forbidden:', error)
+          // Could show a toast notification to user
+        })
+
+        socketInstance.on('operation-confirmed', (data) => {
+          logger.debug('Operation confirmed:', data)
+        })
+
+        socketInstance.on('workflow-state', (state) => {
+          logger.info('Received workflow state from server:', state)
+          // This will be used to sync initial state when joining a workflow
+        })
+
+        setSocket(socketInstance)
+
+        return () => {
+          socketInstance.close()
+        }
+      } catch (error) {
+        logger.error('Failed to initialize socket with token:', error)
+        setIsConnecting(false)
       }
-      eventHandlers.current.workflowDeleted?.(data)
-    })
-
-    // Cursor update events
-    socketInstance.on('cursor-update', (data) => {
-      setPresenceUsers((prev) =>
-        prev.map((user) =>
-          user.socketId === data.socketId ? { ...user, cursor: data.cursor } : user
-        )
-      )
-      eventHandlers.current.cursorUpdate?.(data)
-    })
-
-    // Selection update events
-    socketInstance.on('selection-update', (data) => {
-      setPresenceUsers((prev) =>
-        prev.map((user) =>
-          user.socketId === data.socketId ? { ...user, selection: data.selection } : user
-        )
-      )
-      eventHandlers.current.selectionUpdate?.(data)
-    })
-
-    // Enhanced error handling for new server events
-    socketInstance.on('error', (error) => {
-      logger.error('Socket error:', error)
-    })
-
-    socketInstance.on('operation-error', (error) => {
-      logger.error('Operation error:', error)
-    })
-
-    socketInstance.on('operation-forbidden', (error) => {
-      logger.warn('Operation forbidden:', error)
-      // Could show a toast notification to user
-    })
-
-    socketInstance.on('operation-confirmed', (data) => {
-      logger.debug('Operation confirmed:', data)
-    })
-
-    socketInstance.on('workflow-state', (state) => {
-      logger.info('Received workflow state from server:', state)
-      // This will be used to sync initial state when joining a workflow
-    })
-
-    // Remove duplicate handlers - they're already defined above
-
-    setSocket(socketInstance)
-
-    return () => {
-      socketInstance.close()
     }
+
+    // Start the socket initialization
+    initializeSocket()
   }, [user?.id])
 
   // Join workflow room

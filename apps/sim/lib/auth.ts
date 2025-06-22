@@ -2,7 +2,13 @@ import { stripe } from '@better-auth/stripe'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { nextCookies } from 'better-auth/next-js'
-import { createAuthMiddleware, emailOTP, genericOAuth, organization } from 'better-auth/plugins'
+import {
+  createAuthMiddleware,
+  emailOTP,
+  genericOAuth,
+  oneTimeToken,
+  organization,
+} from 'better-auth/plugins'
 import { and, eq } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { Resend } from 'resend'
@@ -60,6 +66,7 @@ export const auth = betterAuth({
   trustedOrigins: [
     env.NEXT_PUBLIC_APP_URL,
     ...(env.NEXT_PUBLIC_VERCEL_URL ? [`https://${env.NEXT_PUBLIC_VERCEL_URL}`] : []),
+    ...(env.NEXT_PUBLIC_SOCKET_URL ? [env.NEXT_PUBLIC_SOCKET_URL] : []),
   ].filter(Boolean),
   database: drizzleAdapter(db, {
     provider: 'pg',
@@ -179,6 +186,9 @@ export const auth = betterAuth({
   },
   plugins: [
     nextCookies(),
+    oneTimeToken({
+      expiresIn: 10, // 10 minutes - enough time for socket connection
+    }),
     emailOTP({
       sendVerificationOTP: async (data: {
         email: string

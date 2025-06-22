@@ -58,6 +58,7 @@ import { DeploymentControls } from './components/deployment-controls/deployment-
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
+import { UserAvatarStack } from './components/user-avatar-stack/user-avatar-stack'
 
 const logger = createLogger('ControlBar')
 
@@ -577,32 +578,37 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
    * Render workflow name section (editable/non-editable)
    */
   const renderWorkflowName = () => (
-    <div className='flex flex-col gap-[2px]'>
-      {isEditing ? (
-        <input
-          type='text'
-          value={editedName}
-          onChange={(e) => setEditedName(e.target.value)}
-          onBlur={handleNameSubmit}
-          onKeyDown={handleNameKeyDown}
-          className='w-[200px] border-none bg-transparent p-0 font-medium text-sm outline-none'
-        />
-      ) : (
-        <h2
-          className='w-fit cursor-pointer font-medium text-sm hover:text-muted-foreground'
-          onClick={handleNameClick}
-        >
-          {activeWorkflowId ? workflows[activeWorkflowId]?.name : 'Workflow'}
-        </h2>
-      )}
-      {mounted && (
-        <p className='text-muted-foreground text-xs'>
-          Saved{' '}
-          {formatDistanceToNow(lastSaved || Date.now(), {
-            addSuffix: true,
-          })}
-        </p>
-      )}
+    <div className='flex items-center'>
+      <div className='flex flex-col'>
+        <div className='flex items-center'>
+          {isEditing ? (
+            <input
+              type='text'
+              value={editedName}
+              onChange={(e) => setEditedName(e.target.value)}
+              onBlur={handleNameSubmit}
+              onKeyDown={handleNameKeyDown}
+              className='w-[200px] border-none bg-transparent p-0 font-medium text-sm outline-none'
+            />
+          ) : (
+            <h2
+              className='w-fit cursor-pointer font-medium text-sm hover:text-muted-foreground'
+              onClick={handleNameClick}
+            >
+              {activeWorkflowId ? workflows[activeWorkflowId]?.name : 'Workflow'}
+            </h2>
+          )}
+          <UserAvatarStack className='ml-3' />
+        </div>
+        {mounted && (
+          <p className='pt-[1px] text-muted-foreground text-xs'>
+            Saved{' '}
+            {formatDistanceToNow(lastSaved || Date.now(), {
+              addSuffix: true,
+            })}
+          </p>
+        )}
+      </div>
     </div>
   )
 

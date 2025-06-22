@@ -1,5 +1,4 @@
 import { createServer } from 'http'
-import { getSessionCookie } from 'better-auth/cookies'
 import { Server, type Socket } from 'socket.io'
 
 // Extend Socket interface to include user data
@@ -84,7 +83,7 @@ const io = new Server(httpServer, {
   cors: {
     origin: allowedOrigins,
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'socket.io'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'socket.io'],
     credentials: true, // Enable credentials to accept cookies
   },
   transports: ['polling', 'websocket'],
@@ -92,7 +91,13 @@ const io = new Server(httpServer, {
   pingTimeout: 60000,
   pingInterval: 25000,
   maxHttpBufferSize: 1e6,
-  cookie: false,
+  cookie: {
+    name: 'io',
+    path: '/',
+    httpOnly: true,
+    sameSite: 'none', // Required for cross-origin cookies
+    secure: process.env.NODE_ENV === 'production', // HTTPS in production
+  },
 })
 
 // Enhanced connection and presence tracking
@@ -248,49 +253,38 @@ function shouldAcceptOperation(operation: any, roomLastModified: number): boolea
 // Enhanced authentication middleware
 async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
   try {
-    // Extract session from socket handshake
-    const cookies = socket.handshake.headers.cookie
-    logger.info(`Socket ${socket.id} handshake headers:`, {
-      cookie: cookies,
+    // Extract authentication data from socket handshake
+    const token = socket.handshake.auth?.token
+    const origin = socket.handshake.headers.origin
+    const referer = socket.handshake.headers.referer
+
+    logger.info(`Socket ${socket.id} authentication attempt:`, {
+      hasToken: !!token,
+      origin,
+      referer,
       allHeaders: Object.keys(socket.handshake.headers),
     })
 
-    if (!cookies) {
-      logger.warn(`Socket ${socket.id} rejected: No cookies found`)
+    if (!token) {
+      logger.warn(`Socket ${socket.id} rejected: No authentication token found`)
       return next(new Error('Authentication required'))
     }
 
-    // Create a mock request object to use Better Auth's cookie utility
-    const mockRequest = {
-      headers: {
-        get: (name: string) => {
-          if (name.toLowerCase() === 'cookie') {
-            return cookies
-          }
-          return null
-        },
-      },
-    } as any
-
-    // Use Better Auth's utility to get the session cookie
-    const sessionCookie = getSessionCookie(mockRequest)
-    if (!sessionCookie) {
-      logger.warn(`Socket ${socket.id} rejected: No session cookie found`)
-      return next(new Error('Authentication required'))
-    }
-
-    // Validate session with better-auth
+    // Validate one-time token with Better Auth
     try {
-      // Create a mock request object for better-auth
-      const mockHeaders = new Headers()
-      mockHeaders.set('cookie', cookies)
+      logger.debug(`Attempting token validation for socket ${socket.id}`, {
+        tokenLength: token?.length || 0,
+        origin,
+      })
 
-      const session = await auth.api.getSession({
-        headers: mockHeaders,
+      const session = await auth.api.verifyOneTimeToken({
+        body: {
+          token,
+        },
       })
 
       if (!session?.user?.id) {
-        logger.warn(`Socket ${socket.id} rejected: Invalid session`)
+        logger.warn(`Socket ${socket.id} rejected: Invalid token - no user found`)
         return next(new Error('Invalid session'))
       }
 
@@ -300,15 +294,24 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
       socket.userEmail = session.user.email
       socket.activeOrganizationId = session.session.activeOrganizationId || undefined
 
-      logger.info(`✅ Socket.IO user authenticated: ${socket.id}`, {
+      logger.info(`✅ Socket.IO user authenticated via token: ${socket.id}`, {
         userId: session.user.id,
         userName: socket.userName,
         organizationId: socket.activeOrganizationId,
+        origin,
       })
       next()
-    } catch (sessionError) {
-      logger.warn(`Session validation failed for socket ${socket.id}:`, sessionError)
-      return next(new Error('Session validation failed'))
+    } catch (tokenError) {
+      const errorMessage = tokenError instanceof Error ? tokenError.message : String(tokenError)
+      const errorStack = tokenError instanceof Error ? tokenError.stack : undefined
+
+      logger.warn(`Token validation failed for socket ${socket.id}:`, {
+        error: errorMessage,
+        stack: errorStack,
+        origin,
+        referer,
+      })
+      return next(new Error('Token validation failed'))
     }
   } catch (error) {
     logger.error(`Socket authentication error for ${socket.id}:`, error)
