@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
 import { workflow, workflowBlocks, workspace, workspaceMember } from '@/db/schema'
+import { permissions, workflow, workspace, workspaceMember } from '@/db/schema'
 
 // Get all workspaces for the current user
 export async function GET() {
@@ -248,6 +249,17 @@ async function createWorkspace(userId: string, name: string) {
     console.error(`❌ Failed to create workspace ${workspaceId} with initial workflow:`, error)
     throw error
   }
+
+  // Create default permissions for the workspace owner
+  await db.insert(permissions).values({
+    id: crypto.randomUUID(),
+    entityType: 'workspace' as const,
+    entityId: workspaceId,
+    userId: userId,
+    permissionType: 'admin' as const,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
 
   // Return the workspace data directly instead of querying again
   return {

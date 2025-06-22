@@ -8,6 +8,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 interface ActionBarProps {
   blockId: string
   blockType: string
+  disabled?: boolean
 }
 
 export function ActionBar({ blockId, blockType }: ActionBarProps) {
@@ -53,13 +54,20 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
           <Button
             variant='ghost'
             size='sm'
-            onClick={() => toggleBlockEnabled(blockId)}
-            className='text-gray-500'
+            onClick={() => {
+              if (!disabled) {
+                toggleBlockEnabled(blockId)
+              }
+            }}
+            className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+            disabled={disabled}
           >
             {isEnabled ? <Circle className='h-4 w-4' /> : <CircleOff className='h-4 w-4' />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side='right'>{isEnabled ? 'Disable Block' : 'Enable Block'}</TooltipContent>
+        <TooltipContent side='right'>
+          {disabled ? 'Read-only mode' : isEnabled ? 'Disable Block' : 'Enable Block'}
+        </TooltipContent>
       </Tooltip>
 
       {!isStarterBlock && (
@@ -68,13 +76,20 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
             <Button
               variant='ghost'
               size='sm'
-              onClick={() => duplicateBlock(blockId)}
-              className='text-gray-500'
+              onClick={() => {
+                if (!disabled) {
+                  duplicateBlock(blockId)
+                }
+              }}
+              className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+              disabled={disabled}
             >
               <Copy className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side='right'>Duplicate Block</TooltipContent>
+          <TooltipContent side='right'>
+            {disabled ? 'Read-only mode' : 'Duplicate Block'}
+          </TooltipContent>
         </Tooltip>
       )}
 
@@ -83,8 +98,13 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
           <Button
             variant='ghost'
             size='sm'
-            onClick={() => toggleBlockHandles(blockId)}
-            className='text-gray-500'
+            onClick={() => {
+              if (!disabled) {
+                toggleBlockHandles(blockId)
+              }
+            }}
+            className={cn('text-gray-500', disabled && 'cursor-not-allowed opacity-50')}
+            disabled={disabled}
           >
             {horizontalHandles ? (
               <ArrowLeftRight className='h-4 w-4' />
@@ -94,7 +114,7 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
           </Button>
         </TooltipTrigger>
         <TooltipContent side='right'>
-          {horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports'}
+          {disabled ? 'Read-only mode' : horizontalHandles ? 'Vertical Ports' : 'Horizontal Ports'}
         </TooltipContent>
       </Tooltip>
 
@@ -110,7 +130,9 @@ export function ActionBar({ blockId, blockType }: ActionBarProps) {
               <Trash2 className='h-4 w-4' />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side='right'>Delete Block</TooltipContent>
+          <TooltipContent side='right'>
+            {disabled ? 'Read-only mode' : 'Delete Block'}
+          </TooltipContent>
         </Tooltip>
       )}
     </div>

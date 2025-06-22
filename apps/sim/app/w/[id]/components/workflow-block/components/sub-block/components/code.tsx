@@ -28,6 +28,7 @@ interface CodeProps {
   value?: string
   isPreview?: boolean
   previewValue?: string | null
+  disabled?: boolean
 }
 
 if (typeof document !== 'undefined') {
@@ -58,6 +59,7 @@ export function Code({
   value: propValue,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: CodeProps) {
   // Determine the AI prompt placeholder based on language
   const aiPromptPlaceholder =
@@ -102,7 +104,7 @@ export function Code({
 
   const handleGeneratedContent = (generatedCode: string) => {
     setCode(generatedCode)
-    if (!isPreview) {
+    if (!isPreview && !disabled) {
       setStoreValue(generatedCode)
     }
   }
@@ -111,7 +113,7 @@ export function Code({
   const handleStreamChunk = (chunk: string) => {
     setCode((currentCode) => {
       const newCode = currentCode + chunk
-      if (!isPreview) {
+      if (!isPreview && !disabled) {
         setStoreValue(newCode)
       }
       return newCode
@@ -378,7 +380,7 @@ export function Code({
           <Editor
             value={code}
             onValueChange={(newCode) => {
-              if (!isCollapsed && !isAiStreaming && !isPreview) {
+              if (!isCollapsed && !isAiStreaming && !isPreview && !disabled) {
                 setCode(newCode)
                 setStoreValue(newCode)
 

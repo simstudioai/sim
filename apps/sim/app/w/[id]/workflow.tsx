@@ -18,6 +18,8 @@ import { NotificationList } from '@/app/w/[id]/components/notifications/notifica
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
 import { getBlock } from '@/blocks'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useUserPermissions } from '@/hooks/use-user-permissions'
+import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -78,17 +80,34 @@ function WorkflowContent() {
   const router = useRouter()
   const { project, getNodes, fitView } = useReactFlow()
 
-  // Store access
+  // Get workspace ID from current workflow
+  const workflowId = params.id as string
   const {
     workflows,
     activeWorkflowId,
+    isLoading,
     setActiveWorkflow,
     createWorkflow,
-    isLoading: workflowsLoading,
+    removeWorkflow,
+    updateWorkflow,
+    duplicateWorkflow,
   } = useWorkflowRegistry()
   const { blocks, edges, updateNodeDimensions } = useWorkflowStore()
-
   // Use collaborative operations for real-time sync
+  const currentWorkflow = workflows[workflowId]
+  const workspaceId = currentWorkflow?.workspaceId
+
+  // Workspace permissions - only fetch if we have a workspace ID
+  const {
+    permissions: workspacePermissions,
+    loading: permissionsLoading,
+    error: permissionsError,
+  } = useWorkspacePermissions(workspaceId || '')
+
+  // User permissions - get current user's specific permissions
+  const userPermissions = useUserPermissions(workspaceId || null)
+
+  // Store access
   const {
     collaborativeAddBlock: addBlock,
     collaborativeAddEdge: addEdge,
@@ -131,6 +150,30 @@ function WorkflowContent() {
     setNestedSubflowErrors(errors)
     return errors.size === 0
   }, [blocks])
+
+  // Log permissions when they load
+  useEffect(() => {
+    if (workspacePermissions) {
+      logger.info('Workspace permissions loaded in workflow', {
+        workspaceId,
+        userCount: workspacePermissions.total,
+        permissions: workspacePermissions.users.map((u) => ({
+          email: u.email,
+          permissions: u.permissionType,
+        })),
+      })
+    }
+  }, [workspacePermissions, workspaceId])
+
+  // Log permissions errors
+  useEffect(() => {
+    if (permissionsError) {
+      logger.error('Failed to load workspace permissions', {
+        workspaceId,
+        error: permissionsError,
+      })
+    }
+  }, [permissionsError, workspaceId])
 
   // Helper function to update a node's parent with proper position calculation
   const updateNodeParent = useCallback(
@@ -357,6 +400,11 @@ function WorkflowContent() {
   // Listen for toolbar block click events
   useEffect(() => {
     const handleAddBlockFromToolbar = (event: CustomEvent) => {
+      // Check if user has permission to interact with blocks
+      if (!userPermissions.canEdit) {
+        return
+      }
+
       const { type } = event.detail
 
       if (!type) return
@@ -735,7 +783,7 @@ function WorkflowContent() {
     // Check if we have the necessary data to render the workflow
     const hasActiveWorkflow = activeWorkflowId === currentId
     const hasWorkflowInRegistry = Boolean(workflows[currentId])
-    const isNotLoading = !workflowsLoading
+    const isNotLoading = !isLoading
 
     // Workflow is ready when:
     // 1. We have an active workflow that matches the URL
@@ -750,7 +798,7 @@ function WorkflowContent() {
       return () => clearTimeout(timeoutId)
     }
     setIsWorkflowReady(false)
-  }, [activeWorkflowId, params.id, workflows, workflowsLoading])
+  }, [activeWorkflowId, params.id, workflows, isLoading])
 
   // Init workflow
   useEffect(() => {
@@ -759,7 +807,7 @@ function WorkflowContent() {
       const currentId = params.id as string
 
       // Wait for both initialization and workflow loading to complete
-      if (workflowsLoading) {
+      if (isLoading) {
         logger.info('Workflows still loading, waiting...')
         return
       }
@@ -798,7 +846,7 @@ function WorkflowContent() {
   }, [
     params.id,
     workflows,
-    workflowsLoading,
+    isLoading,
     setActiveWorkflow,
     createWorkflow,
     router,
@@ -1404,11 +1452,11 @@ function WorkflowContent() {
           edges={edgesWithSelection}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
+          onConnect={userPermissions.canEdit ? onConnect : undefined}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
+          onDrop={userPermissions.canEdit ? onDrop : undefined}
+          onDragOver={userPermissions.canEdit ? onDragOver : undefined}
           fitView
           minZoom={0.1}
           maxZoom={1.3}
@@ -1428,22 +1476,22 @@ function WorkflowContent() {
           onEdgeClick={onEdgeClick}
           elementsSelectable={true}
           selectNodesOnDrag={false}
-          nodesConnectable={true}
-          nodesDraggable={true}
+          nodesConnectable={userPermissions.canEdit}
+          nodesDraggable={userPermissions.canEdit}
           draggable={false}
           noWheelClassName='allow-scroll'
           edgesFocusable={true}
-          edgesUpdatable={true}
+          edgesUpdatable={userPermissions.canEdit}
           className='workflow-container h-full'
-          onNodeDrag={onNodeDrag}
-          onNodeDragStop={onNodeDragStop}
-          onNodeDragStart={onNodeDragStart}
+          onNodeDrag={userPermissions.canEdit ? onNodeDrag : undefined}
+          onNodeDragStop={userPermissions.canEdit ? onNodeDragStop : undefined}
+          onNodeDragStart={userPermissions.canEdit ? onNodeDragStart : undefined}
           snapToGrid={false}
           snapGrid={[20, 20]}
           elevateEdgesOnSelect={true}
           elevateNodesOnSelect={true}
-          autoPanOnConnect={true}
-          autoPanOnNodeDrag={true}
+          autoPanOnConnect={userPermissions.canEdit}
+          autoPanOnNodeDrag={userPermissions.canEdit}
         >
           <Background />
         </ReactFlow>

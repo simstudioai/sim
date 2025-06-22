@@ -12,6 +12,7 @@ interface SliderInputProps {
   integer?: boolean
   isPreview?: boolean
   previewValue?: number | null
+  disabled?: boolean
 }
 
 export function SliderInput({
@@ -24,6 +25,7 @@ export function SliderInput({
   integer = false,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: SliderInputProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<number>(blockId, subBlockId)
 
@@ -44,7 +46,7 @@ export function SliderInput({
   }, [normalizedValue, value, setStoreValue, isPreview])
 
   const handleValueChange = (newValue: number[]) => {
-    if (!isPreview) {
+    if (!isPreview && !disabled) {
       const processedValue = integer ? Math.round(newValue[0]) : newValue[0]
       setStoreValue(processedValue)
     }
@@ -57,8 +59,8 @@ export function SliderInput({
         min={min}
         max={max}
         step={integer ? 1 : step}
-        onValueChange={(value) => setStoreValue(integer ? Math.round(value[0]) : value[0])}
-        disabled={isPreview}
+        onValueChange={handleValueChange}
+        disabled={isPreview || disabled}
         className='[&_[class*=SliderTrack]]:h-1 [&_[role=slider]]:h-4 [&_[role=slider]]:w-4'
       />
       <div
