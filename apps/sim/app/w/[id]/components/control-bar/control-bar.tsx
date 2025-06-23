@@ -47,7 +47,6 @@ import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
@@ -165,18 +164,15 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const isWorkflowBlocked = isExecuting || isMultiRunning || isCancelling || hasValidationErrors
 
   // Register keyboard shortcut for running workflow
-  useKeyboardShortcuts(
-    () => {
-      if (!isWorkflowBlocked) {
-        if (isDebugModeEnabled) {
-          handleRunWorkflow()
-        } else {
-          handleMultipleRuns()
-        }
+  useKeyboardShortcuts(() => {
+    if (!isWorkflowBlocked) {
+      if (isDebugModeEnabled) {
+        handleRunWorkflow()
+      } else {
+        handleMultipleRuns()
       }
-    },
-    isWorkflowBlocked
-  )
+    }
+  }, isWorkflowBlocked)
 
   // Get the marketplace data from the workflow registry if available
   const getMarketplaceData = () => {
@@ -294,8 +290,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const subBlockValues = useSubBlockStore((state) =>
     activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
   )
-
-
 
   useEffect(() => {
     if (!activeWorkflowId || !deployedState) {

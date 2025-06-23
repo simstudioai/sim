@@ -129,7 +129,10 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
                   collaborativeRemoveBlock(blockId)
                 }
               }}
-              className={cn('text-gray-500 hover:text-red-600', disabled && 'cursor-not-allowed opacity-50')}
+              className={cn(
+                'text-gray-500 hover:text-red-600',
+                disabled && 'cursor-not-allowed opacity-50'
+              )}
               disabled={disabled}
             >
               <Trash2 className='h-4 w-4' />
