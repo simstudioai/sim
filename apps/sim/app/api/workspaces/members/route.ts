@@ -1,50 +1,11 @@
 import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { hasAdminPermission } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { permissions, type permissionTypeEnum, user, workspaceMember } from '@/db/schema'
 
-// Extract the enum type from Drizzle schema
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
-
-/**
- * Helper function to check if a user has admin permission for a workspace
- */
-async function hasAdminPermission(userId: string, workspaceId: string): Promise<boolean> {
-  const result = await db
-    .select()
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId),
-        eq(permissions.permissionType, 'admin')
-      )
-    )
-    .limit(1)
-
-  return result.length > 0
-}
-
-/**
- * Helper function to create default permissions for a new member
- */
-async function createMemberPermissions(
-  userId: string,
-  workspaceId: string,
-  memberPermission: PermissionType = 'read'
-): Promise<void> {
-  await db.insert(permissions).values({
-    id: crypto.randomUUID(),
-    userId,
-    entityType: 'workspace' as const,
-    entityId: workspaceId,
-    permissionType: memberPermission,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  })
-}
 
 // Add a member to a workspace
 export async function POST(req: Request) {

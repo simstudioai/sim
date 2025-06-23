@@ -7,8 +7,8 @@ import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, formatDateTime, validateName } from '@/lib/utils'
+import { useUserPermissionsContext } from '@/app/w/components/providers/workspace-permissions-provider'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
-import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -409,7 +409,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
     workflowId ? state.workflows[workflowId] : null
   )
   const workspaceId = currentWorkflow?.workspaceId || null
-  const userPermissions = useUserPermissions(workspaceId)
+  const userPermissions = useUserPermissionsContext()
 
   return (
     <div className='group relative'>

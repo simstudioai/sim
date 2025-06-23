@@ -10,14 +10,37 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { cn } from '@/lib/utils'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const logger = createLogger('InvitesSent')
+
+type InvitationStatus = 'pending' | 'accepted' | 'rejected' | 'expired'
 
 type Invitation = {
   id: string
   email: string
-  status: 'pending' | 'accepted' | 'rejected' | 'expired'
+  status: InvitationStatus
   createdAt: string
+}
+
+const getInvitationStatusStyles = (status: InvitationStatus) => {
+  switch (status) {
+    case 'accepted':
+      return 'inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400'
+    case 'pending':
+      return 'inline-flex items-center rounded-md bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    case 'rejected':
+      return 'inline-flex items-center rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300'
+    case 'expired':
+      return 'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+    default:
+      return 'inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+  }
+}
+
+const formatInvitationStatus = (status: InvitationStatus): string => {
+  return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
 export function InvitesSent() {
@@ -28,7 +51,10 @@ export function InvitesSent() {
 
   useEffect(() => {
     async function fetchInvitations() {
-      if (!activeWorkspaceId) return
+      if (!activeWorkspaceId) {
+        setIsLoading(false)
+        return
+      }
 
       setIsLoading(true)
       setError(null)
@@ -37,14 +63,19 @@ export function InvitesSent() {
         const response = await fetch('/api/workspaces/invitations')
 
         if (!response.ok) {
-          throw new Error('Failed to fetch invitations')
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+          throw new Error(errorData.error || `Failed to fetch invitations (${response.status})`)
         }
 
         const data = await response.json()
-        setInvitations(data.invitations || [])
+        const filteredInvitations = (data.invitations || []).filter(
+          (inv: Invitation) => inv.status === 'pending'
+        )
+        setInvitations(filteredInvitations)
       } catch (err) {
-        console.error('Error fetching invitations:', err)
-        setError('Failed to load invitations')
+        logger.error('Error fetching invitations:', err)
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load invitations'
+        setError(errorMessage)
       } finally {
         setIsLoading(false)
       }
@@ -55,64 +86,78 @@ export function InvitesSent() {
 
   const TableSkeleton = () => (
     <div className='space-y-2'>
-      {Array(5)
-        .fill(0)
-        .map((_, i) => (
-          <div key={i} className='flex items-center justify-between'>
-            <Skeleton className='h-6 w-3/4' />
-            <Skeleton className='h-6 w-16' />
-          </div>
-        ))}
+      {Array.from({ length: 3 }, (_, i) => (
+        <div key={i} className='flex items-center justify-between'>
+          <Skeleton className='h-6 w-3/4' />
+          <Skeleton className='h-6 w-16' />
+        </div>
+      ))}
     </div>
   )
 
   if (error) {
-    return <div className='py-2 text-red-500 text-sm'>{error}</div>
+    return (
+      <div className='mt-4'>
+        <h3 className='mb-2 font-medium text-sm'>Sent Invitations</h3>
+        <div className='rounded-md border border-red-200 bg-red-50 p-3'>
+          <p className='text-red-800 text-sm'>{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!activeWorkspaceId) {
+    return null
   }
 
   return (
     <div className='mt-4 transition-all duration-300'>
-      <h3 className='font-medium text-sm'>Sent Invitations</h3>
+      <h3 className='mb-3 font-medium text-sm'>Sent Invitations</h3>
 
       {isLoading ? (
         <TableSkeleton />
       ) : invitations.length === 0 ? (
-        <div className='py-2 text-muted-foreground text-sm'>No invitations sent yet</div>
+        <div className='rounded-md border bg-muted/30 p-4 text-center'>
+          <p className='text-muted-foreground text-sm'>No pending invitations</p>
+        </div>
       ) : (
-        <div className='overflow-auto' style={{ maxHeight: '250px' }}>
-          <Table>
-            <TableHeader>
-              <TableRow className='border-x-0 border-t-0 border-b hover:bg-transparent'>
-                <TableHead className='!font-sm !text-sm w-3/4 px-2 text-muted-foreground'>
-                  Email
-                </TableHead>
-                <TableHead className='!font-sm !text-sm w-1/4 px-2 text-muted-foreground'>
-                  Status
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invitations.map((invitation) => (
-                <TableRow
-                  key={invitation.id}
-                  className={cn('border-x-0 border-t-0 border-b', 'hover:bg-transparent')}
-                >
-                  <TableCell className='w-3/4 px-2 py-2'>{invitation.email}</TableCell>
-                  <TableCell className='w-1/4 px-2 py-2'>
-                    <span
-                      className={`inline-flex items-center rounded-md border px-2 py-0.5 font-semibold text-xs ${
-                        invitation.status === 'accepted'
-                          ? 'border-green-200 bg-green-50 text-green-700'
-                          : 'border-gray-200 bg-gray-100 text-slate-700'
-                      }`}
-                    >
-                      {invitation.status.charAt(0).toUpperCase() + invitation.status.slice(1)}
-                    </span>
-                  </TableCell>
+        <div className='overflow-hidden rounded-md border'>
+          <div className='max-h-[250px] overflow-auto'>
+            <Table>
+              <TableHeader>
+                <TableRow className='border-x-0 border-t-0 hover:bg-transparent'>
+                  <TableHead className='px-3 py-2 font-medium text-muted-foreground text-xs'>
+                    Email
+                  </TableHead>
+                  <TableHead className='px-3 py-2 font-medium text-muted-foreground text-xs'>
+                    Status
+                  </TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {invitations.map((invitation) => (
+                  <TableRow
+                    key={invitation.id}
+                    className='border-x-0 border-t-0 hover:bg-accent/50'
+                  >
+                    <TableCell className='px-3 py-2'>
+                      <span
+                        className='block max-w-[200px] truncate font-medium text-sm'
+                        title={invitation.email}
+                      >
+                        {invitation.email}
+                      </span>
+                    </TableCell>
+                    <TableCell className='px-3 py-2'>
+                      <span className={getInvitationStatusStyles(invitation.status)}>
+                        {formatInvitationStatus(invitation.status)}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
     </div>
