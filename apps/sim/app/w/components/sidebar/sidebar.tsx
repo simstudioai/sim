@@ -13,6 +13,7 @@ import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import { useRegistryLoading } from '../../hooks/use-registry-loading'
+import { useUserPermissionsContext } from '../providers/workspace-permissions-provider'
 import { CreateMenu } from './components/create-menu/create-menu'
 import { FolderTree } from './components/folder-tree/folder-tree'
 import { HelpModal } from './components/help-modal/help-modal'
@@ -24,7 +25,7 @@ import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 const logger = createLogger('Sidebar')
 
-const IS_DEV = false
+const IS_DEV = process.env.NODE_ENV === 'development'
 
 export function Sidebar() {
   useRegistryLoading()
@@ -37,6 +38,7 @@ export function Sidebar() {
     isLoading: workflowsLoading,
   } = useWorkflowRegistry()
   const { isPending: sessionLoading } = useSession()
+  const userPermissions = useUserPermissionsContext()
   const isLoading = workflowsLoading || sessionLoading
   const router = useRouter()
   const pathname = usePathname()
@@ -213,13 +215,24 @@ export function Sidebar() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
-                    onClick={() => setShowInviteMembers(true)}
-                    className='mx-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-md font-medium text-muted-foreground text-sm hover:bg-accent/50'
+                    onClick={
+                      userPermissions.canAdmin ? () => setShowInviteMembers(true) : undefined
+                    }
+                    className={clsx(
+                      'mx-auto flex h-8 w-8 items-center justify-center rounded-md font-medium text-sm',
+                      userPermissions.canAdmin
+                        ? 'cursor-pointer text-muted-foreground hover:bg-accent/50'
+                        : 'cursor-not-allowed text-muted-foreground/50'
+                    )}
                   >
                     <Send className='h-[18px] w-[18px]' />
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side='right'>Invite Members</TooltipContent>
+                <TooltipContent side='right'>
+                  {userPermissions.canAdmin
+                    ? 'Invite Members'
+                    : 'Admin permission required to invite members'}
+                </TooltipContent>
               </Tooltip>
             )}
 
@@ -247,13 +260,29 @@ export function Sidebar() {
         <>
           {!IS_DEV && (
             <div className='flex-shrink-0 px-3 pt-1'>
-              <div
-                onClick={() => setShowInviteMembers(true)}
-                className='flex cursor-pointer items-center rounded-md px-2 py-1.5 font-medium text-muted-foreground text-sm hover:bg-accent/50'
-              >
-                <Send className='h-[18px] w-[18px]' />
-                <span className='ml-2'>Invite members</span>
-              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div
+                    onClick={
+                      userPermissions.canAdmin ? () => setShowInviteMembers(true) : undefined
+                    }
+                    className={clsx(
+                      'flex items-center rounded-md px-2 py-1.5 font-medium text-sm',
+                      userPermissions.canAdmin
+                        ? 'cursor-pointer text-muted-foreground hover:bg-accent/50'
+                        : 'cursor-not-allowed text-muted-foreground/50'
+                    )}
+                  >
+                    <Send className='h-[18px] w-[18px]' />
+                    <span className='ml-2'>Invite members</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side='top'>
+                  {userPermissions.canAdmin
+                    ? 'Invite new members to this workspace'
+                    : 'Admin permission required to invite members'}
+                </TooltipContent>
+              </Tooltip>
             </div>
           )}
 
