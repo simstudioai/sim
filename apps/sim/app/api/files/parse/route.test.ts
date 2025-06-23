@@ -6,7 +6,12 @@ import { NextRequest } from 'next/server'
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest } from '@/app/api/__test-utils__/utils'
+import {
+  createMockRequest,
+  mockFileSystem,
+  mockUploadUtils,
+  setupApiTestMocks,
+} from '@/app/api/__test-utils__/utils'
 import { POST } from './route'
 
 const mockJoin = vi.fn((...args: string[]): string => {
@@ -17,58 +22,40 @@ const mockJoin = vi.fn((...args: string[]): string => {
 })
 
 describe('File Parse API Route', () => {
-  const mockReadFile = vi.fn().mockResolvedValue(Buffer.from('test file content'))
-  const mockWriteFile = vi.fn().mockResolvedValue(undefined)
-  const mockUnlink = vi.fn().mockResolvedValue(undefined)
-  const mockAccessFs = vi.fn().mockResolvedValue(undefined)
-  const mockStatFs = vi.fn().mockImplementation(() => ({ isFile: () => true }))
-  const mockDownloadFile = vi.fn().mockResolvedValue(Buffer.from('test cloud file content'))
-  const mockIsUsingCloudStorage = vi.fn().mockReturnValue(false)
-  const mockParseFile = vi.fn().mockResolvedValue({
-    content: 'parsed content',
-    metadata: { pageCount: 1 },
-  })
-  const mockParseBuffer = vi.fn().mockResolvedValue({
-    content: 'parsed buffer content',
-    metadata: { pageCount: 1 },
-  })
-
   beforeEach(() => {
     vi.resetModules()
-
     vi.resetAllMocks()
 
-    mockReadFile.mockResolvedValue(Buffer.from('test file content'))
-    mockAccessFs.mockResolvedValue(undefined)
-    mockStatFs.mockImplementation(() => ({ isFile: () => true }))
+    setupApiTestMocks({
+      withFileSystem: true,
+      withUploadUtils: true,
+    })
+
+    mockFileSystem({
+      readFileContent: 'test file content',
+      existsResult: true,
+    })
 
     vi.doMock('fs', () => ({
       existsSync: vi.fn().mockReturnValue(true),
       constants: { R_OK: 4 },
       promises: {
-        access: mockAccessFs,
-        stat: mockStatFs,
-        readFile: mockReadFile,
+        access: vi.fn().mockResolvedValue(undefined),
+        stat: vi.fn().mockImplementation(() => ({ isFile: () => true })),
+        readFile: vi.fn().mockResolvedValue(Buffer.from('test file content')),
       },
-    }))
-
-    vi.doMock('fs/promises', () => ({
-      readFile: mockReadFile,
-      writeFile: mockWriteFile,
-      unlink: mockUnlink,
-      access: mockAccessFs,
-      stat: mockStatFs,
-    }))
-
-    vi.doMock('@/lib/uploads', () => ({
-      downloadFile: mockDownloadFile,
-      isUsingCloudStorage: mockIsUsingCloudStorage,
     }))
 
     vi.doMock('@/lib/file-parsers', () => ({
       isSupportedFileType: vi.fn().mockReturnValue(true),
-      parseFile: mockParseFile,
-      parseBuffer: mockParseBuffer,
+      parseFile: vi.fn().mockResolvedValue({
+        content: 'parsed content',
+        metadata: { pageCount: 1 },
+      }),
+      parseBuffer: vi.fn().mockResolvedValue({
+        content: 'parsed buffer content',
+        metadata: { pageCount: 1 },
+      }),
     }))
 
     vi.doMock('path', () => {
@@ -79,21 +66,6 @@ describe('File Parse API Route', () => {
         extname: path.extname,
       }
     })
-
-    vi.doMock('@/lib/logs/console-logger', () => ({
-      createLogger: vi.fn().mockReturnValue({
-        info: vi.fn(),
-        error: vi.fn(),
-        warn: vi.fn(),
-        debug: vi.fn(),
-      }),
-    }))
-
-    vi.doMock('@/lib/uploads/setup', () => ({
-      UPLOAD_DIR: '/test/uploads',
-      USE_S3_STORAGE: false,
-      USE_BLOB_STORAGE: false,
-    }))
 
     vi.doMock('@/lib/uploads/setup.server', () => ({}))
   })
@@ -134,6 +106,17 @@ describe('File Parse API Route', () => {
   })
 
   it('should process S3 files', async () => {
+    mockUploadUtils({
+      isCloudStorage: true,
+      uploadResult: {
+        path: '/api/files/serve/s3/test-file.pdf',
+        key: 'test-file.pdf',
+        name: 'test-file.pdf',
+        size: 100,
+        type: 'application/pdf',
+      },
+    })
+
     const req = createMockRequest('POST', {
       filePath: '/api/files/serve/s3/test-file.pdf',
     })
@@ -168,9 +151,17 @@ describe('File Parse API Route', () => {
   })
 
   it('should handle S3 access errors gracefully', async () => {
-    mockIsUsingCloudStorage.mockReturnValue(true)
-
-    mockDownloadFile.mockRejectedValueOnce(new Error('Access denied'))
+    vi.doMock('@/lib/uploads', () => ({
+      downloadFile: vi.fn().mockRejectedValue(new Error('Access denied')),
+      isUsingCloudStorage: vi.fn().mockReturnValue(true),
+      uploadFile: vi.fn().mockResolvedValue({
+        path: '/api/files/serve/test-key',
+        key: 'test-key',
+        name: 'test.txt',
+        size: 100,
+        type: 'text/plain',
+      }),
+    }))
 
     const req = new NextRequest('http://localhost:3000/api/files/parse', {
       method: 'POST',
@@ -190,7 +181,13 @@ describe('File Parse API Route', () => {
   })
 
   it('should handle access errors gracefully', async () => {
-    mockAccessFs.mockRejectedValueOnce(new Error('ENOENT: no such file'))
+    vi.doMock('fs/promises', () => ({
+      access: vi.fn().mockRejectedValue(new Error('ENOENT: no such file')),
+      stat: vi.fn().mockImplementation(() => ({ isFile: () => true })),
+      readFile: vi.fn().mockResolvedValue(Buffer.from('test file content')),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      unlink: vi.fn().mockResolvedValue(undefined),
+    }))
 
     const req = createMockRequest('POST', {
       filePath: '/api/files/serve/nonexistent.txt',

@@ -871,3 +871,377 @@ export function createMockTransaction(
     return await callback(tx)
   })
 }
+
+/**
+ * Mock authentication with session management
+ * @param isAuthenticated - Whether to return an authenticated session
+ * @param user - Optional user object to use for authenticated requests
+ * @returns Mock functions for controlling auth state
+ */
+export function mockAuthSession(isAuthenticated = true, user: MockUser = mockUser) {
+  const mockGetSession = vi.fn()
+
+  vi.doMock('@/lib/auth', () => ({
+    getSession: mockGetSession,
+  }))
+
+  if (isAuthenticated) {
+    mockGetSession.mockResolvedValue({ user })
+  } else {
+    mockGetSession.mockResolvedValue(null)
+  }
+
+  return {
+    mockGetSession,
+    setAuthenticated: (authUser?: MockUser) =>
+      mockGetSession.mockResolvedValue({ user: authUser || user }),
+    setUnauthenticated: () => mockGetSession.mockResolvedValue(null),
+  }
+}
+
+/**
+ * Mock UUID generation for consistent test results
+ * @param mockValue - The UUID value to return (defaults to 'test-uuid')
+ */
+export function mockUuid(mockValue = 'test-uuid') {
+  vi.doMock('uuid', () => ({
+    v4: vi.fn().mockReturnValue(mockValue),
+  }))
+}
+
+/**
+ * Mock crypto.randomUUID for tests
+ * @param mockValue - The UUID value to return
+ */
+export function mockCryptoUuid(mockValue = 'mock-uuid-1234-5678') {
+  vi.stubGlobal('crypto', {
+    randomUUID: vi.fn().mockReturnValue(mockValue),
+  })
+}
+
+/**
+ * Mock file system operations
+ * @param options - Configuration for file system mocks
+ */
+export function mockFileSystem(
+  options: { writeFileSuccess?: boolean; readFileContent?: string; existsResult?: boolean } = {}
+) {
+  const { writeFileSuccess = true, readFileContent = 'test content', existsResult = true } = options
+
+  vi.doMock('fs/promises', () => ({
+    writeFile: vi.fn().mockImplementation(() => {
+      if (writeFileSuccess) {
+        return Promise.resolve()
+      }
+      return Promise.reject(new Error('Write failed'))
+    }),
+    readFile: vi.fn().mockResolvedValue(readFileContent),
+    stat: vi.fn().mockResolvedValue({ size: 100, isFile: () => true }),
+    access: vi.fn().mockImplementation(() => {
+      if (existsResult) {
+        return Promise.resolve()
+      }
+      return Promise.reject(new Error('File not found'))
+    }),
+  }))
+}
+
+/**
+ * Mock upload utilities
+ * @param options - Configuration for upload mocks
+ */
+export function mockUploadUtils(
+  options: { isCloudStorage?: boolean; uploadResult?: any; uploadError?: boolean } = {}
+) {
+  const {
+    isCloudStorage = false,
+    uploadResult = {
+      path: '/api/files/serve/test-key',
+      key: 'test-key',
+      name: 'test.txt',
+      size: 100,
+      type: 'text/plain',
+    },
+    uploadError = false,
+  } = options
+
+  vi.doMock('@/lib/uploads', () => ({
+    uploadFile: vi.fn().mockImplementation(() => {
+      if (uploadError) {
+        return Promise.reject(new Error('Upload failed'))
+      }
+      return Promise.resolve(uploadResult)
+    }),
+    isUsingCloudStorage: vi.fn().mockReturnValue(isCloudStorage),
+  }))
+
+  vi.doMock('@/lib/uploads/setup', () => ({
+    UPLOAD_DIR: '/test/uploads',
+    USE_S3_STORAGE: isCloudStorage,
+    USE_BLOB_STORAGE: false,
+    ensureUploadsDirectory: vi.fn().mockResolvedValue(true),
+    S3_CONFIG: {
+      bucket: 'test-bucket',
+      region: 'test-region',
+    },
+  }))
+}
+
+/**
+ * Mock workflow utilities and response helpers
+ */
+export function mockWorkflowUtils() {
+  vi.doMock('@/app/api/workflows/utils', () => ({
+    createSuccessResponse: vi.fn().mockImplementation((data) => {
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }),
+    createErrorResponse: vi.fn().mockImplementation((message, status = 500) => {
+      return new Response(JSON.stringify({ error: message }), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }),
+  }))
+}
+
+/**
+ * Mock encryption utilities
+ * @param options - Configuration for encryption mocks
+ */
+export function mockEncryption(options: { encryptedValue?: string; decryptedValue?: string } = {}) {
+  const { encryptedValue = 'encrypted-value', decryptedValue = 'decrypted-value' } = options
+
+  vi.doMock('@/lib/utils', () => ({
+    encryptSecret: vi.fn().mockResolvedValue({ encrypted: encryptedValue }),
+    decryptSecret: vi.fn().mockResolvedValue({ decrypted: decryptedValue }),
+  }))
+}
+
+/**
+ * Mock auth API utilities (for forget password, reset password, etc.)
+ * @param options - Configuration for auth API mocks
+ */
+export function mockAuthApi(
+  options: {
+    forgetPasswordSuccess?: boolean
+    forgetPasswordError?: string
+    resetPasswordSuccess?: boolean
+    resetPasswordError?: string
+  } = {}
+) {
+  const {
+    forgetPasswordSuccess = true,
+    forgetPasswordError = 'Auth error',
+    resetPasswordSuccess = true,
+    resetPasswordError = 'Reset error',
+  } = options
+
+  vi.doMock('@/lib/auth', () => ({
+    auth: {
+      api: {
+        forgetPassword: vi.fn().mockImplementation(() => {
+          if (forgetPasswordSuccess) {
+            return Promise.resolve()
+          }
+          return Promise.reject(new Error(forgetPasswordError))
+        }),
+        resetPassword: vi.fn().mockImplementation(() => {
+          if (resetPasswordSuccess) {
+            return Promise.resolve()
+          }
+          return Promise.reject(new Error(resetPasswordError))
+        }),
+      },
+    },
+  }))
+}
+
+/**
+ * Mock environment configuration
+ * @param config - Environment configuration overrides
+ */
+export function mockEnvConfig(config: Record<string, any> = {}) {
+  const defaultConfig = {
+    NODE_ENV: 'test',
+    NEXT_PUBLIC_APP_URL: 'http://localhost:3000',
+  }
+
+  vi.doMock('@/lib/env', () => ({
+    env: { ...defaultConfig, ...config },
+  }))
+
+  vi.stubGlobal('process', {
+    ...process,
+    env: {
+      ...process.env,
+      ...defaultConfig,
+      ...config,
+    },
+  })
+}
+
+/**
+ * Create a comprehensive mock database setup with common query patterns
+ * @param options - Configuration for database mocking
+ */
+export function createComprehensiveMockDb(
+  options: {
+    selectResults?: any[][]
+    insertResults?: any[]
+    updateResults?: any[]
+    deleteResults?: any[]
+    throwError?: boolean
+  } = {}
+) {
+  const {
+    selectResults = [[]],
+    insertResults = [{ id: 'mock-id' }],
+    updateResults = [{ id: 'mock-id' }],
+    deleteResults = [{ id: 'mock-id' }],
+    throwError = false,
+  } = options
+
+  let selectCallCount = 0
+
+  const mockDb = {
+    select: vi.fn().mockImplementation(() => ({
+      from: vi.fn().mockImplementation(() => ({
+        leftJoin: vi.fn().mockReturnThis(),
+        where: vi.fn().mockImplementation(() => ({
+          groupBy: vi.fn().mockReturnThis(),
+          orderBy: vi.fn().mockImplementation(() => {
+            const result = selectResults[selectCallCount] || selectResults[0] || []
+            selectCallCount++
+            if (throwError) {
+              return Promise.reject(new Error('Database error'))
+            }
+            return Promise.resolve(result)
+          }),
+          limit: vi.fn().mockImplementation(() => {
+            const result = selectResults[selectCallCount] || selectResults[0] || []
+            selectCallCount++
+            if (throwError) {
+              return Promise.reject(new Error('Database error'))
+            }
+            return Promise.resolve(result)
+          }),
+        })),
+        orderBy: vi.fn().mockImplementation(() => {
+          const result = selectResults[selectCallCount] || selectResults[0] || []
+          selectCallCount++
+          if (throwError) {
+            return Promise.reject(new Error('Database error'))
+          }
+          return Promise.resolve(result)
+        }),
+        limit: vi.fn().mockImplementation(() => {
+          const result = selectResults[selectCallCount] || selectResults[0] || []
+          selectCallCount++
+          if (throwError) {
+            return Promise.reject(new Error('Database error'))
+          }
+          return Promise.resolve(result)
+        }),
+      })),
+    })),
+    insert: vi.fn().mockImplementation(() => ({
+      values: vi.fn().mockImplementation(() => ({
+        returning: vi.fn().mockImplementation(() => {
+          if (throwError) {
+            return Promise.reject(new Error('Database error'))
+          }
+          return Promise.resolve(insertResults)
+        }),
+        onConflictDoUpdate: vi.fn().mockImplementation(() => {
+          if (throwError) {
+            return Promise.reject(new Error('Database error'))
+          }
+          return Promise.resolve(insertResults)
+        }),
+      })),
+    })),
+    update: vi.fn().mockImplementation(() => ({
+      set: vi.fn().mockImplementation(() => ({
+        where: vi.fn().mockImplementation(() => {
+          if (throwError) {
+            return Promise.reject(new Error('Database error'))
+          }
+          return Promise.resolve(updateResults)
+        }),
+      })),
+    })),
+    delete: vi.fn().mockImplementation(() => ({
+      where: vi.fn().mockImplementation(() => {
+        if (throwError) {
+          return Promise.reject(new Error('Database error'))
+        }
+        return Promise.resolve(deleteResults)
+      }),
+    })),
+  }
+
+  vi.doMock('@/db', () => ({ db: mockDb }))
+
+  return {
+    mockDb,
+    resetSelectCallCount: () => {
+      selectCallCount = 0
+    },
+  }
+}
+
+/**
+ * Setup all common mocks for API route testing
+ * This is a convenience function that sets up the most commonly used mocks
+ */
+export function setupApiTestMocks(
+  options: {
+    authenticated?: boolean
+    user?: MockUser
+    dbResults?: any[][]
+    withWorkflowUtils?: boolean
+    withFileSystem?: boolean
+    withUploadUtils?: boolean
+  } = {}
+) {
+  const {
+    authenticated = true,
+    user = mockUser,
+    dbResults = [[]],
+    withWorkflowUtils = false,
+    withFileSystem = false,
+    withUploadUtils = false,
+  } = options
+
+  // Setup basic mocks
+  setupCommonApiMocks()
+  mockUuid()
+  mockCryptoUuid()
+
+  // Setup auth
+  const authMocks = mockAuthSession(authenticated, user)
+
+  // Setup database
+  const dbMocks = createComprehensiveMockDb({ selectResults: dbResults })
+
+  // Optional mocks
+  if (withWorkflowUtils) {
+    mockWorkflowUtils()
+  }
+
+  if (withFileSystem) {
+    mockFileSystem()
+  }
+
+  if (withUploadUtils) {
+    mockUploadUtils()
+  }
+
+  return {
+    auth: authMocks,
+    db: dbMocks,
+  }
+}

@@ -1,83 +1,16 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { OPTIONS, POST } from './route'
-
-vi.mock('@/lib/logs/console-logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    error: vi.fn(),
-    warn: vi.fn(),
-  }),
-}))
-
-vi.mock('@/lib/uploads', () => ({
-  getStorageProvider: vi.fn(),
-  isUsingCloudStorage: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/s3/s3-client', () => ({
-  getS3Client: vi.fn(),
-  sanitizeFilenameForMetadata: vi.fn((filename) => filename),
-}))
-
-vi.mock('@/lib/uploads/blob/blob-client', () => ({
-  getBlobServiceClient: vi.fn(),
-  sanitizeFilenameForMetadata: vi.fn((filename) => filename),
-}))
-
-vi.mock('@/lib/uploads/setup', () => ({
-  S3_CONFIG: {
-    bucket: 'test-s3-bucket',
-    region: 'us-east-1',
-  },
-  BLOB_CONFIG: {
-    accountName: 'testaccount',
-    accountKey: 'testkey',
-    containerName: 'test-container',
-  },
-}))
-
-vi.mock('@aws-sdk/client-s3', () => ({
-  PutObjectCommand: vi.fn(),
-}))
-
-vi.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: vi.fn(),
-}))
-
-vi.mock('@azure/storage-blob', () => ({
-  BlobSASPermissions: {
-    parse: vi.fn(() => 'w'),
-  },
-  generateBlobSASQueryParameters: vi.fn(() => ({
-    toString: () => 'sas-token-string',
-  })),
-  StorageSharedKeyCredential: vi.fn(),
-}))
-
-vi.mock('uuid', () => ({
-  v4: () => 'mock-uuid-1234',
-}))
+import { mockUuid, setupApiTestMocks } from '@/app/api/__test-utils__/utils'
 
 describe('/api/files/presigned', () => {
-  let mockGetStorageProvider: any
-  let mockIsUsingCloudStorage: any
-  let mockGetS3Client: any
-  let mockGetBlobServiceClient: any
-  let mockGetSignedUrl: any
-
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks()
+    vi.resetModules()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2024-01-01T00:00:00Z'))
 
-    mockGetStorageProvider = vi.mocked((await import('@/lib/uploads')).getStorageProvider)
-    mockIsUsingCloudStorage = vi.mocked((await import('@/lib/uploads')).isUsingCloudStorage)
-    mockGetS3Client = vi.mocked((await import('@/lib/uploads/s3/s3-client')).getS3Client)
-    mockGetBlobServiceClient = vi.mocked(
-      (await import('@/lib/uploads/blob/blob-client')).getBlobServiceClient
-    )
-    mockGetSignedUrl = vi.mocked((await import('@aws-sdk/s3-request-presigner')).getSignedUrl)
+    setupApiTestMocks()
+    mockUuid('mock-uuid-1234')
   })
 
   afterEach(() => {
@@ -86,7 +19,12 @@ describe('/api/files/presigned', () => {
 
   describe('POST', () => {
     test('should return error when cloud storage is not enabled', async () => {
-      mockIsUsingCloudStorage.mockReturnValue(false)
+      vi.doMock('@/lib/uploads', () => ({
+        getStorageProvider: vi.fn().mockReturnValue('s3'),
+        isUsingCloudStorage: vi.fn().mockReturnValue(false),
+      }))
+
+      const { POST } = await import('./route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -105,8 +43,13 @@ describe('/api/files/presigned', () => {
       expect(data.directUploadSupported).toBe(false)
     })
 
-    test('should return error when fileName is missing', async () => {
-      mockIsUsingCloudStorage.mockReturnValue(true)
+    it('should return error when fileName is missing', async () => {
+      vi.doMock('@/lib/uploads', () => ({
+        getStorageProvider: vi.fn().mockReturnValue('s3'),
+        isUsingCloudStorage: vi.fn().mockReturnValue(true),
+      }))
+
+      const { POST } = await import('./route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -123,8 +66,13 @@ describe('/api/files/presigned', () => {
       expect(data.error).toBe('Missing fileName or contentType')
     })
 
-    test('should return error when contentType is missing', async () => {
-      mockIsUsingCloudStorage.mockReturnValue(true)
+    it('should return error when contentType is missing', async () => {
+      vi.doMock('@/lib/uploads', () => ({
+        getStorageProvider: vi.fn().mockReturnValue('s3'),
+        isUsingCloudStorage: vi.fn().mockReturnValue(true),
+      }))
+
+      const { POST } = await import('./route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -141,11 +89,35 @@ describe('/api/files/presigned', () => {
       expect(data.error).toBe('Missing fileName or contentType')
     })
 
-    test('should generate S3 presigned URL successfully', async () => {
-      mockIsUsingCloudStorage.mockReturnValue(true)
-      mockGetStorageProvider.mockReturnValue('s3')
-      mockGetS3Client.mockReturnValue({} as any)
-      mockGetSignedUrl.mockResolvedValue('https://s3.amazonaws.com/test-bucket/presigned-url')
+    it('should generate S3 presigned URL successfully', async () => {
+      vi.doMock('@/lib/uploads', () => ({
+        getStorageProvider: vi.fn().mockReturnValue('s3'),
+        isUsingCloudStorage: vi.fn().mockReturnValue(true),
+      }))
+
+      vi.doMock('@/lib/uploads/s3/s3-client', () => ({
+        getS3Client: vi.fn().mockReturnValue({}),
+        sanitizeFilenameForMetadata: vi.fn((filename) => filename),
+      }))
+
+      vi.doMock('@/lib/uploads/setup', () => ({
+        S3_CONFIG: {
+          bucket: 'test-s3-bucket',
+          region: 'us-east-1',
+        },
+      }))
+
+      vi.doMock('@aws-sdk/client-s3', () => ({
+        PutObjectCommand: vi.fn(),
+      }))
+
+      vi.doMock('@aws-sdk/s3-request-presigner', () => ({
+        getSignedUrl: vi
+          .fn()
+          .mockResolvedValue('https://s3.amazonaws.com/test-bucket/presigned-url'),
+      }))
+
+      const { POST } = await import('./route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -171,9 +143,11 @@ describe('/api/files/presigned', () => {
       expect(data.directUploadSupported).toBe(true)
     })
 
-    test('should generate Azure Blob presigned URL successfully', async () => {
-      mockIsUsingCloudStorage.mockReturnValue(true)
-      mockGetStorageProvider.mockReturnValue('blob')
+    it('should generate Azure Blob presigned URL successfully', async () => {
+      vi.doMock('@/lib/uploads', () => ({
+        getStorageProvider: vi.fn().mockReturnValue('blob'),
+        isUsingCloudStorage: vi.fn().mockReturnValue(true),
+      }))
 
       const mockBlockBlobClient = {
         url: 'https://testaccount.blob.core.windows.net/test-container/1704067200000-mock-uuid-1234-test-document.txt',
@@ -185,7 +159,30 @@ describe('/api/files/presigned', () => {
         getContainerClient: vi.fn(() => mockContainerClient),
       }
 
-      mockGetBlobServiceClient.mockReturnValue(mockBlobServiceClient as any)
+      vi.doMock('@/lib/uploads/blob/blob-client', () => ({
+        getBlobServiceClient: vi.fn().mockReturnValue(mockBlobServiceClient),
+        sanitizeFilenameForMetadata: vi.fn((filename) => filename),
+      }))
+
+      vi.doMock('@/lib/uploads/setup', () => ({
+        BLOB_CONFIG: {
+          accountName: 'testaccount',
+          accountKey: 'testkey',
+          containerName: 'test-container',
+        },
+      }))
+
+      vi.doMock('@azure/storage-blob', () => ({
+        BlobSASPermissions: {
+          parse: vi.fn(() => 'w'),
+        },
+        generateBlobSASQueryParameters: vi.fn(() => ({
+          toString: () => 'sas-token-string',
+        })),
+        StorageSharedKeyCredential: vi.fn(),
+      }))
+
+      const { POST } = await import('./route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -218,16 +215,19 @@ describe('/api/files/presigned', () => {
         'x-ms-meta-uploadedat': '2024-01-01T00:00:00.000Z',
       })
 
-      // Verify Azure-specific calls
       expect(mockBlobServiceClient.getContainerClient).toHaveBeenCalledWith('test-container')
       expect(mockContainerClient.getBlockBlobClient).toHaveBeenCalledWith(
         expect.stringContaining('test-document.txt')
       )
     })
 
-    test('should return error for unknown storage provider', async () => {
-      mockIsUsingCloudStorage.mockReturnValue(true)
-      mockGetStorageProvider.mockReturnValue('unknown' as any)
+    it('should return error for unknown storage provider', async () => {
+      vi.doMock('@/lib/uploads', () => ({
+        getStorageProvider: vi.fn().mockReturnValue('unknown'),
+        isUsingCloudStorage: vi.fn().mockReturnValue(true),
+      }))
+
+      const { POST } = await import('./route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -246,11 +246,33 @@ describe('/api/files/presigned', () => {
       expect(data.directUploadSupported).toBe(false)
     })
 
-    test('should handle S3 errors gracefully', async () => {
-      mockIsUsingCloudStorage.mockReturnValue(true)
-      mockGetStorageProvider.mockReturnValue('s3')
-      mockGetS3Client.mockReturnValue({} as any)
-      mockGetSignedUrl.mockRejectedValue(new Error('S3 service unavailable'))
+    it('should handle S3 errors gracefully', async () => {
+      vi.doMock('@/lib/uploads', () => ({
+        getStorageProvider: vi.fn().mockReturnValue('s3'),
+        isUsingCloudStorage: vi.fn().mockReturnValue(true),
+      }))
+
+      vi.doMock('@/lib/uploads/s3/s3-client', () => ({
+        getS3Client: vi.fn().mockReturnValue({}),
+        sanitizeFilenameForMetadata: vi.fn((filename) => filename),
+      }))
+
+      vi.doMock('@/lib/uploads/setup', () => ({
+        S3_CONFIG: {
+          bucket: 'test-s3-bucket',
+          region: 'us-east-1',
+        },
+      }))
+
+      vi.doMock('@aws-sdk/client-s3', () => ({
+        PutObjectCommand: vi.fn(),
+      }))
+
+      vi.doMock('@aws-sdk/s3-request-presigner', () => ({
+        getSignedUrl: vi.fn().mockRejectedValue(new Error('S3 service unavailable')),
+      }))
+
+      const { POST } = await import('./route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -269,12 +291,20 @@ describe('/api/files/presigned', () => {
       expect(data.message).toBe('S3 service unavailable')
     })
 
-    test('should handle Azure Blob errors gracefully', async () => {
-      mockIsUsingCloudStorage.mockReturnValue(true)
-      mockGetStorageProvider.mockReturnValue('blob')
-      mockGetBlobServiceClient.mockImplementation(() => {
-        throw new Error('Azure service unavailable')
-      })
+    it('should handle Azure Blob errors gracefully', async () => {
+      vi.doMock('@/lib/uploads', () => ({
+        getStorageProvider: vi.fn().mockReturnValue('blob'),
+        isUsingCloudStorage: vi.fn().mockReturnValue(true),
+      }))
+
+      vi.doMock('@/lib/uploads/blob/blob-client', () => ({
+        getBlobServiceClient: vi.fn().mockImplementation(() => {
+          throw new Error('Azure service unavailable')
+        }),
+        sanitizeFilenameForMetadata: vi.fn((filename) => filename),
+      }))
+
+      const { POST } = await import('./route')
 
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
@@ -293,7 +323,9 @@ describe('/api/files/presigned', () => {
       expect(data.message).toBe('Azure service unavailable')
     })
 
-    test('should handle malformed JSON gracefully', async () => {
+    it('should handle malformed JSON gracefully', async () => {
+      const { POST } = await import('./route')
+
       const request = new NextRequest('http://localhost:3000/api/files/presigned', {
         method: 'POST',
         body: 'invalid json',
@@ -309,7 +341,9 @@ describe('/api/files/presigned', () => {
   })
 
   describe('OPTIONS', () => {
-    test('should handle CORS preflight requests', async () => {
+    it('should handle CORS preflight requests', async () => {
+      const { OPTIONS } = await import('./route')
+
       const response = await OPTIONS()
 
       expect(response.status).toBe(204)

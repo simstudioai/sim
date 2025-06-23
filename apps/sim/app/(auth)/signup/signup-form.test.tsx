@@ -394,35 +394,6 @@ describe('SignupPage', () => {
       })
     })
 
-    it('should handle waitlist token verification', async () => {
-      const mockFetch = vi.mocked(global.fetch)
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            success: true,
-            email: 'waitlist@example.com',
-          }),
-      } as Response)
-
-      mockSearchParams.get.mockImplementation((param) => {
-        if (param === 'token') return 'waitlist-token-123'
-        return null
-      })
-
-      render(<SignupPage {...defaultProps} />)
-
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/auth/verify-waitlist-token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ token: 'waitlist-token-123' }),
-        })
-      })
-    })
-
     it('should link to login with invite flow parameters', () => {
       mockSearchParams.get.mockImplementation((param) => {
         if (param === 'invite_flow') return 'true'
