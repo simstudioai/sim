@@ -135,7 +135,7 @@ export function InputFormat({
   return (
     <div className='space-y-2'>
       {fields.length === 0 ? (
-        <div className='flex flex-col items-center justify-center rounded-md border border-dashed border-input/50 py-8'>
+        <div className='flex flex-col items-center justify-center rounded-md border border-input/50 border-dashed py-8'>
           <p className='mb-3 text-muted-foreground text-sm'>No input fields defined</p>
           <Button
             variant='outline'
