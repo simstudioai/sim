@@ -1605,6 +1605,7 @@ io.on('connection', (socket: AuthenticatedSocket) => {
       }
 
       // Persist subblock update to database
+      let updateSuccessful = false
       await db.transaction(async (tx) => {
         // Get the current block subBlocks data
         const [block] = await tx
@@ -1614,7 +1615,12 @@ io.on('connection', (socket: AuthenticatedSocket) => {
           .limit(1)
 
         if (!block) {
-          throw new Error(`Block ${blockId} not found in workflow ${workflowId}`)
+          // Block was deleted - this is a normal race condition in collaborative editing
+          // Log it as debug info and gracefully ignore the update
+          logger.debug(
+            `Ignoring subblock update for deleted block: ${workflowId}/${blockId}.${subblockId}`
+          )
+          return // Exit transaction gracefully without error
         }
 
         // Parse the current subBlocks data
@@ -1638,17 +1644,20 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         logger.debug(
           `✅ Persisted subblock update: ${workflowId}/${blockId}.${subblockId} = ${JSON.stringify(value)}`
         )
+        updateSuccessful = true
       })
 
-      // Broadcast to other clients after successful persistence
-      socket.to(workflowId).emit('subblock-update', {
-        blockId,
-        subblockId,
-        value,
-        timestamp,
-        senderId: socket.id,
-        userId: session.userId,
-      })
+      // Only broadcast to other clients if the update was successful
+      if (updateSuccessful) {
+        socket.to(workflowId).emit('subblock-update', {
+          blockId,
+          subblockId,
+          value,
+          timestamp,
+          senderId: socket.id,
+          userId: session.userId,
+        })
+      }
 
       logger.debug(`Subblock update in workflow ${workflowId}: ${blockId}.${subblockId}`)
     } catch (error) {

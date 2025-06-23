@@ -324,20 +324,49 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
       return
     }
 
-    const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
+    // Use the workflow status API to get accurate change detection
+    // This uses the same logic as the deployment API (reading from normalized tables)
+    const checkForChanges = async () => {
+      try {
+        const response = await fetch(`/api/workflows/${activeWorkflowId}/status`)
+        if (response.ok) {
+          const data = await response.json()
+          setChangeDetected(data.needsRedeployment || false)
+        } else {
+          // Fallback to client-side comparison if API fails
+          const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
+          const deployedBlocks = deployedState?.blocks
+          if (!deployedBlocks) {
+            setChangeDetected(false)
+            return
+          }
 
-    const deployedBlocks = deployedState?.blocks
-    if (!deployedBlocks) {
-      setChangeDetected(false)
-      return
+          const normalizedCurrentBlocks = normalizeBlocksForComparison(currentMergedState)
+          const normalizedDeployedBlocks = normalizeBlocksForComparison(deployedBlocks)
+
+          const hasChanges =
+            JSON.stringify(normalizedCurrentBlocks) !== JSON.stringify(normalizedDeployedBlocks)
+          setChangeDetected(hasChanges)
+        }
+      } catch (error) {
+        // Fallback to client-side comparison if API fails
+        const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
+        const deployedBlocks = deployedState?.blocks
+        if (!deployedBlocks) {
+          setChangeDetected(false)
+          return
+        }
+
+        const normalizedCurrentBlocks = normalizeBlocksForComparison(currentMergedState)
+        const normalizedDeployedBlocks = normalizeBlocksForComparison(deployedBlocks)
+
+        const hasChanges =
+          JSON.stringify(normalizedCurrentBlocks) !== JSON.stringify(normalizedDeployedBlocks)
+        setChangeDetected(hasChanges)
+      }
     }
 
-    const normalizedCurrentBlocks = normalizeBlocksForComparison(currentMergedState)
-    const normalizedDeployedBlocks = normalizeBlocksForComparison(deployedBlocks)
-
-    const hasChanges =
-      JSON.stringify(normalizedCurrentBlocks) !== JSON.stringify(normalizedDeployedBlocks)
-    setChangeDetected(hasChanges)
+    checkForChanges()
   }, [activeWorkflowId, deployedState, currentBlocks, subBlockValues, isLoadingDeployedState])
 
   useEffect(() => {
