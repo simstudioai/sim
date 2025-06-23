@@ -47,7 +47,7 @@ import { usePanelStore } from '@/stores/panel/store'
 import { useGeneralStore } from '@/stores/settings/general/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import { mergeSubblockState } from '@/stores/workflows/utils'
+
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import {
@@ -161,10 +161,13 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     limit: number
   } | null>(null)
 
+  // Shared condition for keyboard shortcut and button disabled state
+  const isWorkflowBlocked = isExecuting || isMultiRunning || isCancelling || hasValidationErrors
+
   // Register keyboard shortcut for running workflow
   useKeyboardShortcuts(
     () => {
-      if (!isExecuting && !isMultiRunning && !isCancelling && !hasValidationErrors) {
+      if (!isWorkflowBlocked) {
         if (isDebugModeEnabled) {
           handleRunWorkflow()
         } else {
@@ -172,7 +175,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         }
       }
     },
-    isExecuting || isMultiRunning || isCancelling || hasValidationErrors
+    isWorkflowBlocked
   )
 
   // Get the marketplace data from the workflow registry if available
@@ -292,27 +295,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     activeWorkflowId ? state.workflowValues[activeWorkflowId] : null
   )
 
-  /**
-   * Normalize blocks for semantic comparison - only compare what matters functionally
-   * Ignores: IDs, positions, dimensions, metadata that don't affect workflow logic
-   * Compares: type, name, subBlock values
-   */
-  const normalizeBlocksForComparison = (blocks: Record<string, any>) => {
-    if (!blocks) return []
 
-    return Object.values(blocks)
-      .map((block: any) => ({
-        type: block.type,
-        name: block.name,
-        subBlocks: block.subBlocks || {},
-      }))
-      .sort((a, b) => {
-        const typeA = a.type || ''
-        const typeB = b.type || ''
-        if (typeA !== typeB) return typeA.localeCompare(typeB)
-        return (a.name || '').localeCompare(b.name || '')
-      })
-  }
 
   useEffect(() => {
     if (!activeWorkflowId || !deployedState) {
@@ -333,36 +316,12 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
           const data = await response.json()
           setChangeDetected(data.needsRedeployment || false)
         } else {
-          // Fallback to client-side comparison if API fails
-          const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
-          const deployedBlocks = deployedState?.blocks
-          if (!deployedBlocks) {
-            setChangeDetected(false)
-            return
-          }
-
-          const normalizedCurrentBlocks = normalizeBlocksForComparison(currentMergedState)
-          const normalizedDeployedBlocks = normalizeBlocksForComparison(deployedBlocks)
-
-          const hasChanges =
-            JSON.stringify(normalizedCurrentBlocks) !== JSON.stringify(normalizedDeployedBlocks)
-          setChangeDetected(hasChanges)
+          logger.error('Failed to fetch workflow status:', response.status, response.statusText)
+          setChangeDetected(false)
         }
       } catch (error) {
-        // Fallback to client-side comparison if API fails
-        const currentMergedState = mergeSubblockState(currentBlocks, activeWorkflowId)
-        const deployedBlocks = deployedState?.blocks
-        if (!deployedBlocks) {
-          setChangeDetected(false)
-          return
-        }
-
-        const normalizedCurrentBlocks = normalizeBlocksForComparison(currentMergedState)
-        const normalizedDeployedBlocks = normalizeBlocksForComparison(deployedBlocks)
-
-        const hasChanges =
-          JSON.stringify(normalizedCurrentBlocks) !== JSON.stringify(normalizedDeployedBlocks)
-        setChangeDetected(hasChanges)
+        logger.error('Error fetching workflow status:', error)
+        setChangeDetected(false)
       }
     }
 
@@ -1090,8 +1049,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const renderRunButton = () => {
     const canRun = userPermissions.canRead // Running only requires read permissions
     const isLoadingPermissions = userPermissions.isLoading
-    const isButtonDisabled =
-      isExecuting || isMultiRunning || isCancelling || (!canRun && !isLoadingPermissions)
+    const isButtonDisabled = isWorkflowBlocked || (!canRun && !isLoadingPermissions)
 
     return (
       <div className='flex items-center'>
@@ -1138,7 +1096,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                       ? handleRunWorkflow
                       : handleMultipleRuns
                 }
-                disabled={isExecuting || isMultiRunning || isCancelling || hasValidationErrors}
+                disabled={isButtonDisabled}
               >
                 {isCancelling ? (
                   <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
