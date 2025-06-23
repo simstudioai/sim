@@ -96,13 +96,8 @@ const WorkflowContent = React.memo(() => {
 
   // Get workspace ID from current workflow
   const workflowId = params.id as string
-  const {
-    workflows,
-    activeWorkflowId,
-    isLoading,
-    setActiveWorkflow,
-    createWorkflow,
-  } = useWorkflowRegistry()
+  const { workflows, activeWorkflowId, isLoading, setActiveWorkflow, createWorkflow } =
+    useWorkflowRegistry()
 
   const { blocks, edges, updateNodeDimensions } = useWorkflowStore()
   // Use collaborative operations for real-time sync
@@ -113,7 +108,9 @@ const WorkflowContent = React.memo(() => {
   const userPermissions = useUserPermissionsContext()
 
   // Workspace permissions - get all users and their permissions for this workspace
-  const { permissions: workspacePermissions, error: permissionsError } = useWorkspacePermissions(workspaceId || null)
+  const { permissions: workspacePermissions, error: permissionsError } = useWorkspacePermissions(
+    workspaceId || null
+  )
 
   // Store access
   const {
