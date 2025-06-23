@@ -157,7 +157,7 @@ describe('Workflow Deployment API Route', () => {
                   enabled: true,
                   subBlocks: {},
                   data: {},
-                }
+                },
               ]),
             }),
           })
@@ -253,7 +253,7 @@ describe('Workflow Deployment API Route', () => {
                   enabled: true,
                   subBlocks: {},
                   data: {},
-                }
+                },
               ]),
             }),
           })
