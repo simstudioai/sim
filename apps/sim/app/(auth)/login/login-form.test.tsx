@@ -122,7 +122,6 @@ describe('LoginPage', () => {
         fireEvent.click(submitButton)
       })
 
-      // Check for loading state immediately after form submission
       await waitFor(() => {
         expect(screen.getByText('Signing in...')).toBeInTheDocument()
         expect(submitButton).toBeDisabled()
