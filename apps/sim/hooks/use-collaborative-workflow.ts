@@ -445,6 +445,7 @@ export function useCollaborativeWorkflow() {
             nodes: childNodes,
             count: Math.max(1, Math.min(20, count)), // Clamp between 1-20
             distribution: block.data?.collection || '',
+            parallelType: block.data?.parallelType || 'collection',
           }
 
           emitWorkflowOperation('update', 'subflow', {
@@ -469,13 +470,48 @@ export function useCollaborativeWorkflow() {
         const config = parallels[parallelId]
 
         if (config) {
+          const block = workflowStore.blocks[parallelId]
           emitWorkflowOperation('update', 'subflow', {
             id: parallelId,
             type: 'parallel',
             config: {
               ...config,
               distribution: collection, // Ensure the new collection is included
+              parallelType: block?.data?.parallelType || 'collection', // Include parallelType
             },
+          })
+        }
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
+  const collaborativeUpdateParallelType = useCallback(
+    (parallelId: string, parallelType: 'count' | 'collection') => {
+      // Apply locally first
+      workflowStore.updateParallelType(parallelId, parallelType)
+
+      // Emit subflow update operation to persist configuration changes
+      if (!isApplyingRemoteChange.current) {
+        const block = workflowStore.blocks[parallelId]
+        if (block && block.type === 'parallel') {
+          // Find child nodes
+          const childNodes = Object.values(workflowStore.blocks)
+            .filter((b) => b.data?.parentId === parallelId)
+            .map((b) => b.id)
+
+          const config = {
+            id: parallelId,
+            nodes: childNodes,
+            count: block.data?.count || 5,
+            distribution: block.data?.collection || '',
+            parallelType,
+          }
+
+          emitWorkflowOperation('update', 'subflow', {
+            id: parallelId,
+            type: 'parallel',
+            config,
           })
         }
       }
@@ -510,6 +546,7 @@ export function useCollaborativeWorkflow() {
     collaborativeUpdateLoopCollection,
     collaborativeUpdateParallelCount,
     collaborativeUpdateParallelCollection,
+    collaborativeUpdateParallelType,
 
     // Direct access to stores for non-collaborative operations
     workflowStore,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import Editor from 'react-simple-code-editor'
@@ -49,11 +49,17 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   const configLoopType = loopConfig?.loopType ?? data?.loopType ?? 'for'
   const configCollection = loopConfig?.forEachItems ?? data?.collection ?? ''
 
-  // State
-  const [loopType, setLoopType] = useState(configLoopType)
-  const [iterations, setIterations] = useState(configIterations)
-  const [inputValue, setInputValue] = useState(configIterations.toString())
-  const [editorValue, setEditorValue] = useState('')
+  // Derive values directly from props - no useState needed for synchronized data
+  const loopType = configLoopType
+  const iterations = configIterations
+  const collectionString = typeof configCollection === 'string'
+    ? configCollection
+    : JSON.stringify(configCollection) || ''
+
+  // Use actual values directly for display, temporary state only for active editing
+  const [tempInputValue, setTempInputValue] = useState<string | null>(null)
+  const inputValue = tempInputValue ?? iterations.toString()
+  const editorValue = collectionString
   const [typePopoverOpen, setTypePopoverOpen] = useState(false)
   const [configPopoverOpen, setConfigPopoverOpen] = useState(false)
   const [showTagDropdown, setShowTagDropdown] = useState(false)
@@ -61,26 +67,7 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
 
-  // Get store methods
-  const updateNodeData = useCallback(
-    (updates: Partial<LoopNodeData>) => {
-      if (isPreview) return // Don't update in preview mode
 
-      useWorkflowStore.setState((state) => ({
-        blocks: {
-          ...state.blocks,
-          [nodeId]: {
-            ...state.blocks[nodeId],
-            data: {
-              ...state.blocks[nodeId].data,
-              ...updates,
-            },
-          },
-        },
-      }))
-    },
-    [nodeId, isPreview]
-  )
 
   // Get collaborative functions
   const {
@@ -89,39 +76,14 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
     collaborativeUpdateLoopCollection,
   } = useCollaborativeWorkflow()
 
-  // Update state when loop config changes (single source of truth)
-  useEffect(() => {
-    if (loopConfig) {
-      const newLoopType = loopConfig.loopType || 'for'
-      const newIterations = loopConfig.iterations || 5
-      const newCollection = loopConfig.forEachItems || ''
 
-      if (newLoopType !== loopType) {
-        setLoopType(newLoopType)
-      }
-      if (newIterations !== iterations) {
-        setIterations(newIterations)
-        setInputValue(newIterations.toString())
-      }
-
-      if (newLoopType === 'forEach' && newCollection) {
-        if (typeof newCollection === 'string') {
-          setEditorValue(newCollection)
-        } else if (Array.isArray(newCollection) || typeof newCollection === 'object') {
-          setEditorValue(JSON.stringify(newCollection))
-        }
-      } else if (newLoopType === 'for') {
-        setEditorValue('')
-      }
-    }
-  }, [loopConfig, loopType, iterations, nodeId])
 
   // Handle loop type change
   const handleLoopTypeChange = useCallback(
     (newType: 'for' | 'forEach') => {
       if (isPreview) return // Don't allow changes in preview mode
 
-      setLoopType(newType)
+      // Update the collaborative state - this will cause the component to re-render with new derived values
       collaborativeUpdateLoopType(nodeId, newType)
       setTypePopoverOpen(false)
     },
@@ -137,9 +99,9 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
       const numValue = Number.parseInt(sanitizedValue)
 
       if (!Number.isNaN(numValue)) {
-        setInputValue(Math.min(100, numValue).toString())
+        setTempInputValue(Math.min(100, numValue).toString())
       } else {
-        setInputValue(sanitizedValue)
+        setTempInputValue(sanitizedValue)
       }
     },
     [isPreview]
@@ -153,21 +115,20 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
 
     if (!Number.isNaN(value)) {
       const newValue = Math.min(100, Math.max(1, value))
-      setIterations(newValue)
+      // Update the collaborative state - this will cause iterations to be derived from props
       collaborativeUpdateLoopCount(nodeId, newValue)
-      setInputValue(newValue.toString())
-    } else {
-      setInputValue(iterations.toString())
     }
+    // Clear temporary input state to show the actual value
+    setTempInputValue(null)
     setConfigPopoverOpen(false)
-  }, [inputValue, iterations, nodeId, collaborativeUpdateLoopCount, isPreview])
+  }, [inputValue, nodeId, collaborativeUpdateLoopCount, isPreview])
 
   // Handle editor change with tag dropdown support
   const handleEditorChange = useCallback(
     (value: string) => {
       if (isPreview) return // Don't allow changes in preview mode
 
-      setEditorValue(value)
+      // Update collaborative state directly - no local state needed
       collaborativeUpdateLoopCollection(nodeId, value)
 
       // Get the textarea element from the editor
@@ -190,7 +151,7 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
     (newValue: string) => {
       if (isPreview) return // Don't allow changes in preview mode
 
-      setEditorValue(newValue)
+      // Update collaborative state directly - no local state needed
       collaborativeUpdateLoopCollection(nodeId, newValue)
       setShowTagDropdown(false)
 

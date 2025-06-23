@@ -951,6 +951,34 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Note: Socket.IO handles real-time sync automatically
       },
 
+      updateParallelType: (parallelId: string, parallelType: 'count' | 'collection') => {
+        const block = get().blocks[parallelId]
+        if (!block || block.type !== 'parallel') return
+
+        const newBlocks = {
+          ...get().blocks,
+          [parallelId]: {
+            ...block,
+            data: {
+              ...block.data,
+              parallelType,
+            },
+          },
+        }
+
+        const newState = {
+          blocks: newBlocks,
+          edges: [...get().edges],
+          loops: { ...get().loops },
+          parallels: generateParallelBlocks(newBlocks), // Regenerate parallels
+        }
+
+        set(newState)
+        pushHistory(set, get, newState, `Update parallel type`)
+        get().updateLastSaved()
+        // Note: Socket.IO handles real-time sync automatically
+      },
+
       // Function to convert UI parallel blocks to execution format
       generateParallelBlocks: () => {
         return generateParallelBlocks(get().blocks)

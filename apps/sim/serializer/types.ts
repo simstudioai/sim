@@ -53,4 +53,5 @@ export interface SerializedParallel {
   nodes: string[]
   distribution?: any[] | Record<string, any> | string // Items to distribute or expression to evaluate
   count?: number // Number of parallel executions for count-based parallel
+  parallelType?: 'count' | 'collection' // Explicit parallel type to avoid inference bugs
 }

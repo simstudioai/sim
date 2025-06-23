@@ -117,21 +117,9 @@ export class ParallelBlockHandler implements BlockHandler {
     if (!parallelState) {
       logger.info(`Initializing parallel block ${block.id}`)
 
-      // Get the parallel type and count from parallel config (primary) or block data (fallback)
-      const hasDistribution = parallel.distribution && parallel.distribution !== ''
-      const hasCount = parallel.count || block.config?.params?.count
-
-      let parallelType: 'count' | 'collection'
-      let countValue: number
-
-      if (hasDistribution) {
-        parallelType = 'collection'
-        countValue = 1 // Will be overridden by distribution items length
-      } else {
-        // Default to count-based parallel
-        parallelType = 'count'
-        countValue = parallel.count || block.config?.params?.count || 1
-      }
+      // Get the parallel type from the parallel config (explicit type to avoid inference bugs)
+      const parallelType = parallel.parallelType || 'collection' // Default to collection for backward compatibility
+      const countValue = parallel.count || block.config?.params?.count || 1
 
       logger.info(`Parallel ${block.id} configuration:`, {
         parallelType,

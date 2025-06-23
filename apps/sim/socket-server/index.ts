@@ -781,6 +781,11 @@ async function handleSubflowOperationImpl(
             blockData.collection = payload.config.distribution
           }
 
+          // Include parallelType if provided
+          if (payload.config.parallelType !== undefined) {
+            blockData.parallelType = payload.config.parallelType
+          }
+
           await dbOrTx
             .update(workflowBlocks)
             .set({
@@ -794,6 +799,7 @@ async function handleSubflowOperationImpl(
           logger.debug(`[SERVER] ✅ Also updated parallel block ${payload.id} data:`, {
             count: payload.config.count,
             collection: payload.config.distribution,
+            parallelType: payload.config.parallelType,
           })
         }
 

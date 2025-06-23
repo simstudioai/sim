@@ -617,16 +617,11 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   /**
    * Handle duplicating the current workflow
    */
-  const handleDuplicateWorkflow = () => {
+  const handleDuplicateWorkflow = async () => {
     if (!activeWorkflowId || !userPermissions.canEdit) return
 
-    // Duplicate the workflow and get the new ID
-    const newWorkflowId = duplicateWorkflow(activeWorkflowId)
-
-    if (newWorkflowId) {
-      // Navigate to the new workflow
-      router.push(`/w/${newWorkflowId}`)
-    }
+    // Duplicate the workflow - no automatic navigation
+    await duplicateWorkflow(activeWorkflowId)
   }
 
   /**
