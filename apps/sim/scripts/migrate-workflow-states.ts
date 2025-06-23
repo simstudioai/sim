@@ -4,6 +4,7 @@ import { readFileSync } from 'fs'
 import { and, eq, inArray, isNotNull } from 'drizzle-orm'
 import { db } from '../db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '../db/schema'
+import { nanoid } from 'nanoid'
 
 interface WorkflowState {
   blocks: Record<string, any>
@@ -107,13 +108,19 @@ async function migrateWorkflowStates(specificWorkflowIds?: string[] | null) {
         }
 
         await db.transaction(async (tx) => {
-          // Migrate blocks
+          // Migrate blocks - generate new IDs and create mapping
           const blocks = Object.values(state.blocks)
           console.log(`  📦 Migrating ${blocks.length} blocks...`)
 
+          // Create mapping from old block IDs to new block IDs
+          const blockIdMapping: Record<string, string> = {}
+
           for (const block of blocks) {
+            const newBlockId = nanoid()
+            blockIdMapping[block.id] = newBlockId
+
             await tx.insert(workflowBlocks).values({
-              id: block.id,
+              id: newBlockId,
               workflowId: wf.id,
               type: block.type,
               name: block.name,
@@ -126,39 +133,51 @@ async function migrateWorkflowStates(specificWorkflowIds?: string[] | null) {
               subBlocks: block.subBlocks || {},
               outputs: block.outputs || {},
               data: block.data || {},
-              parentId: block.data?.parentId || null,
+              parentId: block.data?.parentId ? blockIdMapping[block.data.parentId] || null : null,
             })
           }
 
-          // Migrate edges
+          // Migrate edges - use new block IDs
           const edges = state.edges || []
           console.log(`  🔗 Migrating ${edges.length} edges...`)
 
           for (const edge of edges) {
+            const newSourceId = blockIdMapping[edge.source]
+            const newTargetId = blockIdMapping[edge.target]
+
+            // Skip edges that reference blocks that don't exist in our mapping
+            if (!newSourceId || !newTargetId) {
+              console.log(`    ⚠️  Skipping edge ${edge.id} - references missing blocks`)
+              continue
+            }
+
             await tx.insert(workflowEdges).values({
-              id: edge.id,
+              id: nanoid(),
               workflowId: wf.id,
-              sourceBlockId: edge.source,
-              targetBlockId: edge.target,
+              sourceBlockId: newSourceId,
+              targetBlockId: newTargetId,
               sourceHandle: edge.sourceHandle || null,
               targetHandle: edge.targetHandle || null,
             })
           }
 
-          // Migrate loops
+          // Migrate loops - update node IDs to use new block IDs
           const loops = state.loops || {}
           const loopIds = Object.keys(loops)
           console.log(`  🔄 Migrating ${loopIds.length} loops...`)
 
           for (const loopId of loopIds) {
             const loop = loops[loopId]
+            // Map old node IDs to new block IDs
+            const updatedNodes = (loop.nodes || []).map((nodeId: string) => blockIdMapping[nodeId]).filter(Boolean)
+
             await tx.insert(workflowSubflows).values({
-              id: loopId,
+              id: nanoid(),
               workflowId: wf.id,
               type: 'loop',
               config: {
                 id: loop.id,
-                nodes: loop.nodes || [],
+                nodes: updatedNodes,
                 iterationCount: loop.iterations || 5,
                 iterationType: loop.loopType || 'for',
                 collection: loop.forEachItems || '',
@@ -166,20 +185,23 @@ async function migrateWorkflowStates(specificWorkflowIds?: string[] | null) {
             })
           }
 
-          // Migrate parallels
+          // Migrate parallels - update node IDs to use new block IDs
           const parallels = state.parallels || {}
           const parallelIds = Object.keys(parallels)
           console.log(`  ⚡ Migrating ${parallelIds.length} parallels...`)
 
           for (const parallelId of parallelIds) {
             const parallel = parallels[parallelId]
+            // Map old node IDs to new block IDs
+            const updatedNodes = (parallel.nodes || []).map((nodeId: string) => blockIdMapping[nodeId]).filter(Boolean)
+
             await tx.insert(workflowSubflows).values({
-              id: parallelId,
+              id: nanoid(),
               workflowId: wf.id,
               type: 'parallel',
               config: {
                 id: parallel.id,
-                nodes: parallel.nodes || [],
+                nodes: updatedNodes,
                 parallelCount: 2, // Default parallel count
                 collection: parallel.distribution || '',
               },
