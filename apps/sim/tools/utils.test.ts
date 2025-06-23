@@ -10,7 +10,6 @@ import {
   validateToolRequest,
 } from './utils'
 
-// Mock logger
 vi.mock('@/lib/logs/console-logger', () => ({
   createLogger: vi.fn().mockReturnValue({
     debug: vi.fn(),
@@ -20,7 +19,6 @@ vi.mock('@/lib/logs/console-logger', () => ({
   }),
 }))
 
-// Mock environment store
 vi.mock('@/stores/settings/environment/store', () => {
   const mockStore = {
     getAllVariables: vi.fn().mockReturnValue({
@@ -36,28 +34,24 @@ vi.mock('@/stores/settings/environment/store', () => {
   }
 })
 
-// Mock window for browser environment tests
 const originalWindow = global.window
 beforeEach(() => {
-  // Define window to simulate browser environment
   global.window = {} as any
 })
 
 afterEach(() => {
-  // Reset window to original value
   global.window = originalWindow
 
-  // Clear mock call history
   vi.clearAllMocks()
 })
 
 describe('transformTable', () => {
-  it('should return empty object for null input', () => {
+  it.concurrent('should return empty object for null input', () => {
     const result = transformTable(null)
     expect(result).toEqual({})
   })
 
-  it('should transform table rows to key-value pairs', () => {
+  it.concurrent('should transform table rows to key-value pairs', () => {
     const table = [
       { id: '1', cells: { Key: 'name', Value: 'John Doe' } },
       { id: '2', cells: { Key: 'age', Value: 30 } },
@@ -75,7 +69,7 @@ describe('transformTable', () => {
     })
   })
 
-  it('should skip rows without Key or Value properties', () => {
+  it.concurrent('should skip rows without Key or Value properties', () => {
     const table: any = [
       { id: '1', cells: { Key: 'name', Value: 'John Doe' } },
       { id: '2', cells: { Key: 'age' } }, // Missing Value
@@ -90,7 +84,7 @@ describe('transformTable', () => {
     })
   })
 
-  it('should handle Value=0 and Value=false correctly', () => {
+  it.concurrent('should handle Value=0 and Value=false correctly', () => {
     const table = [
       { id: '1', cells: { Key: 'count', Value: 0 } },
       { id: '2', cells: { Key: 'enabled', Value: false } },
@@ -126,7 +120,7 @@ describe('formatRequestParams', () => {
     }
   })
 
-  it('should format request with static URL', () => {
+  it.concurrent('should format request with static URL', () => {
     const params = { foo: 'bar' }
     const result = formatRequestParams(mockTool, params)
 
@@ -140,7 +134,7 @@ describe('formatRequestParams', () => {
     expect(mockTool.request.headers).toHaveBeenCalledWith(params)
   })
 
-  it('should format request with dynamic URL function', () => {
+  it.concurrent('should format request with dynamic URL function', () => {
     mockTool.request.url = (params) => `https://api.example.com/${params.id}`
     const params = { id: '123' }
 
@@ -154,7 +148,7 @@ describe('formatRequestParams', () => {
     })
   })
 
-  it('should use method from params over tool default', () => {
+  it.concurrent('should use method from params over tool default', () => {
     const params = { method: 'POST' }
     const result = formatRequestParams(mockTool, params)
 
@@ -163,7 +157,7 @@ describe('formatRequestParams', () => {
     expect(mockTool.request.body).toHaveBeenCalledWith(params)
   })
 
-  it('should handle preformatted content types', () => {
+  it.concurrent('should handle preformatted content types', () => {
     // Set Content-Type to a preformatted type
     mockTool.request.headers = vi.fn().mockReturnValue({
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -178,7 +172,7 @@ describe('formatRequestParams', () => {
     expect(result.body).toBe('key1=value1&key2=value2')
   })
 
-  it('should handle NDJSON content type', () => {
+  it.concurrent('should handle NDJSON content type', () => {
     // Set Content-Type to NDJSON
     mockTool.request.headers = vi.fn().mockReturnValue({
       'Content-Type': 'application/x-ndjson',
@@ -226,13 +220,13 @@ describe('validateToolRequest', () => {
     }
   })
 
-  it('should throw error for missing tool', () => {
+  it.concurrent('should throw error for missing tool', () => {
     expect(() => {
       validateToolRequest('missing-tool', undefined, {})
     }).toThrow('Tool not found: missing-tool')
   })
 
-  it('should throw error for missing required parameters', () => {
+  it.concurrent('should throw error for missing required parameters', () => {
     expect(() => {
       validateToolRequest('test-tool', mockTool, {
         required1: 'value',
@@ -241,7 +235,7 @@ describe('validateToolRequest', () => {
     }).toThrow('Parameter "required2" is required for test-tool but was not provided')
   })
 
-  it('should not throw error when all required parameters are provided', () => {
+  it.concurrent('should not throw error when all required parameters are provided', () => {
     expect(() => {
       validateToolRequest('test-tool', mockTool, {
         required1: 'value',
@@ -250,7 +244,7 @@ describe('validateToolRequest', () => {
     }).not.toThrow()
   })
 
-  it('should not require optional parameters', () => {
+  it.concurrent('should not require optional parameters', () => {
     expect(() => {
       validateToolRequest('test-tool', mockTool, {
         required1: 'value',
@@ -320,7 +314,7 @@ describe('executeRequest', () => {
     })
   })
 
-  it('should use default transform response if not provided', async () => {
+  it.concurrent('should use default transform response if not provided', async () => {
     // Remove custom transform response
     mockTool.transformResponse = undefined
 
@@ -367,7 +361,7 @@ describe('executeRequest', () => {
     })
   })
 
-  it('should handle network errors', async () => {
+  it.concurrent('should handle network errors', async () => {
     // Setup a network error
     const networkError = new Error('Network error')
     mockFetch.mockRejectedValueOnce(networkError)
@@ -409,7 +403,7 @@ describe('executeRequest', () => {
     })
   })
 
-  it('should handle various Promise return types from transformError', async () => {
+  it.concurrent('should handle various Promise return types from transformError', async () => {
     // Case 1: transformError returns a Promise<string>
     mockTool.transformError = vi.fn().mockResolvedValue('Promise string error')
 
@@ -499,7 +493,7 @@ describe('executeRequest', () => {
 })
 
 describe('createParamSchema', () => {
-  it('should create parameter schema from custom tool schema', () => {
+  it.concurrent('should create parameter schema from custom tool schema', () => {
     const customTool = {
       id: 'test-tool',
       title: 'Test Tool',
@@ -537,7 +531,7 @@ describe('createParamSchema', () => {
     })
   })
 
-  it('should handle empty or missing schema gracefully', () => {
+  it.concurrent('should handle empty or missing schema gracefully', () => {
     const emptyTool = {
       id: 'empty-tool',
       title: 'Empty Tool',
@@ -560,7 +554,7 @@ describe('createParamSchema', () => {
 })
 
 describe('getClientEnvVars', () => {
-  it('should return environment variables from store in browser environment', () => {
+  it.concurrent('should return environment variables from store in browser environment', () => {
     // Create a mock store for testing
     const mockStoreGetter = () => ({
       getAllVariables: () => ({
@@ -577,7 +571,7 @@ describe('getClientEnvVars', () => {
     })
   })
 
-  it('should return empty object in server environment', () => {
+  it.concurrent('should return empty object in server environment', () => {
     // Remove window to simulate server environment
     global.window = undefined as any
 
@@ -588,7 +582,7 @@ describe('getClientEnvVars', () => {
 })
 
 describe('createCustomToolRequestBody', () => {
-  it('should create request body function for client-side execution', () => {
+  it.concurrent('should create request body function for client-side execution', () => {
     const customTool = {
       code: 'return a + b',
       schema: {
@@ -622,7 +616,7 @@ describe('createCustomToolRequestBody', () => {
     })
   })
 
-  it('should create request body function for server-side execution', () => {
+  it.concurrent('should create request body function for server-side execution', () => {
     const customTool = {
       code: 'return a + b',
       schema: {
