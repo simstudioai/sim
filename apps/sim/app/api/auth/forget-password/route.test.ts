@@ -4,13 +4,11 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest, mockAuthApi, setupApiTestMocks } from '@/app/api/__test-utils__/utils'
+import { createMockRequest, setupAuthApiMocks } from '@/app/api/__test-utils__/utils'
 
 describe('Forget Password API Route', () => {
   beforeEach(() => {
     vi.resetModules()
-    setupApiTestMocks()
-    mockAuthApi()
   })
 
   afterEach(() => {
@@ -18,6 +16,12 @@ describe('Forget Password API Route', () => {
   })
 
   it('should send password reset email successfully', async () => {
+    setupAuthApiMocks({
+      operations: {
+        forgetPassword: { success: true },
+      },
+    })
+
     const req = createMockRequest('POST', {
       email: 'test@example.com',
       redirectTo: 'https://example.com/reset',
@@ -42,6 +46,12 @@ describe('Forget Password API Route', () => {
   })
 
   it('should send password reset email without redirectTo', async () => {
+    setupAuthApiMocks({
+      operations: {
+        forgetPassword: { success: true },
+      },
+    })
+
     const req = createMockRequest('POST', {
       email: 'test@example.com',
     })
@@ -65,6 +75,8 @@ describe('Forget Password API Route', () => {
   })
 
   it('should handle missing email', async () => {
+    setupAuthApiMocks()
+
     const req = createMockRequest('POST', {})
 
     const { POST } = await import('./route')
@@ -80,6 +92,8 @@ describe('Forget Password API Route', () => {
   })
 
   it('should handle empty email', async () => {
+    setupAuthApiMocks()
+
     const req = createMockRequest('POST', {
       email: '',
     })
@@ -99,9 +113,13 @@ describe('Forget Password API Route', () => {
   it('should handle auth service error with message', async () => {
     const errorMessage = 'User not found'
 
-    mockAuthApi({
-      forgetPasswordSuccess: false,
-      forgetPasswordError: errorMessage,
+    setupAuthApiMocks({
+      operations: {
+        forgetPassword: {
+          success: false,
+          error: errorMessage,
+        },
+      },
     })
 
     const req = createMockRequest('POST', {
@@ -124,6 +142,8 @@ describe('Forget Password API Route', () => {
   })
 
   it('should handle unknown error', async () => {
+    setupAuthApiMocks()
+
     vi.doMock('@/lib/auth', () => ({
       auth: {
         api: {

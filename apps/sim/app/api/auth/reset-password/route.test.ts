@@ -4,13 +4,11 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createMockRequest, mockAuthApi, setupApiTestMocks } from '@/app/api/__test-utils__/utils'
+import { createMockRequest, setupAuthApiMocks } from '@/app/api/__test-utils__/utils'
 
 describe('Reset Password API Route', () => {
   beforeEach(() => {
     vi.resetModules()
-    setupApiTestMocks()
-    mockAuthApi()
   })
 
   afterEach(() => {
@@ -18,6 +16,12 @@ describe('Reset Password API Route', () => {
   })
 
   it('should reset password successfully', async () => {
+    setupAuthApiMocks({
+      operations: {
+        resetPassword: { success: true },
+      },
+    })
+
     const req = createMockRequest('POST', {
       token: 'valid-reset-token',
       newPassword: 'newSecurePassword123',
@@ -42,6 +46,8 @@ describe('Reset Password API Route', () => {
   })
 
   it('should handle missing token', async () => {
+    setupAuthApiMocks()
+
     const req = createMockRequest('POST', {
       newPassword: 'newSecurePassword123',
     })
@@ -59,6 +65,8 @@ describe('Reset Password API Route', () => {
   })
 
   it('should handle missing new password', async () => {
+    setupAuthApiMocks()
+
     const req = createMockRequest('POST', {
       token: 'valid-reset-token',
     })
@@ -76,6 +84,8 @@ describe('Reset Password API Route', () => {
   })
 
   it('should handle empty token', async () => {
+    setupAuthApiMocks()
+
     const req = createMockRequest('POST', {
       token: '',
       newPassword: 'newSecurePassword123',
@@ -94,6 +104,8 @@ describe('Reset Password API Route', () => {
   })
 
   it('should handle empty new password', async () => {
+    setupAuthApiMocks()
+
     const req = createMockRequest('POST', {
       token: 'valid-reset-token',
       newPassword: '',
@@ -114,13 +126,14 @@ describe('Reset Password API Route', () => {
   it('should handle auth service error with message', async () => {
     const errorMessage = 'Invalid or expired token'
 
-    vi.doMock('@/lib/auth', () => ({
-      auth: {
-        api: {
-          resetPassword: vi.fn().mockRejectedValue(new Error(errorMessage)),
+    setupAuthApiMocks({
+      operations: {
+        resetPassword: {
+          success: false,
+          error: errorMessage,
         },
       },
-    }))
+    })
 
     const req = createMockRequest('POST', {
       token: 'invalid-token',
@@ -143,6 +156,8 @@ describe('Reset Password API Route', () => {
   })
 
   it('should handle unknown error', async () => {
+    setupAuthApiMocks()
+
     vi.doMock('@/lib/auth', () => ({
       auth: {
         api: {
