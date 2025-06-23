@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
 import { validateAndNormalizeEmail } from '@/lib/email/utils'
+import { createLogger } from '@/lib/logs/console-logger'
 import type { PermissionType } from '@/lib/permissions/utils'
 import { cn } from '@/lib/utils'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
@@ -18,6 +19,8 @@ import {
 } from '@/hooks/use-workspace-permissions'
 import { API_ENDPOINTS } from '@/stores/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const logger = createLogger('InviteModal')
 
 interface InviteModalProps {
   open: boolean
@@ -392,7 +395,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         setPendingInvitations(workspacePendingInvitations)
       }
     } catch (error) {
-      console.error('Error fetching pending invitations:', error)
+      logger.error('Error fetching pending invitations:', error)
     }
   }
 
@@ -523,7 +526,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       )
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (error) {
-      console.error('Error saving permission changes:', error)
+      logger.error('Error saving permission changes:', error)
       const errorMsg =
         error instanceof Error
           ? error.message
@@ -668,7 +671,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         }, 4000)
       }
     } catch (err) {
-      console.error('Error inviting members:', err)
+      logger.error('Error inviting members:', err)
       setErrorMessage('An unexpected error occurred. Please try again.')
     } finally {
       setIsSubmitting(false)

@@ -10,7 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { createLogger } from '@/lib/logs/console-logger'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const logger = createLogger('InvitesSent')
 
 type InvitationStatus = 'pending' | 'accepted' | 'rejected' | 'expired'
 
@@ -70,7 +73,7 @@ export function InvitesSent() {
         )
         setInvitations(filteredInvitations)
       } catch (err) {
-        console.error('Error fetching invitations:', err)
+        logger.error('Error fetching invitations:', err)
         const errorMessage = err instanceof Error ? err.message : 'Failed to load invitations'
         setError(errorMessage)
       } finally {

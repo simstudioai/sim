@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import { getKeyboardShortcutText, useGlobalShortcuts } from '@/app/w/hooks/use-keyboard-shortcuts'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -20,6 +21,8 @@ import { NavSection } from './components/nav-section/nav-section'
 import { SettingsModal } from './components/settings-modal/settings-modal'
 import { SidebarControl } from './components/sidebar-control/sidebar-control'
 import { WorkspaceHeader } from './components/workspace-header/workspace-header'
+
+const logger = createLogger('Sidebar')
 
 const IS_DEV = process.env.NODE_ENV === 'development'
 
@@ -93,18 +96,13 @@ export function Sidebar() {
   // Create workflow handler
   const handleCreateWorkflow = async (folderId?: string) => {
     try {
-<<<<<<< Updated upstream
-      // Create the workflow and ensure it's associated with the active workspace and folder
-      const id = createWorkflow({
-=======
       const id = await createWorkflow({
->>>>>>> Stashed changes
         workspaceId: activeWorkspaceId || undefined,
         folderId: folderId || undefined,
       })
       router.push(`/w/${id}`)
     } catch (error) {
-      console.error('Error creating workflow:', error)
+      logger.error('Error creating workflow:', error)
     }
   }
 
