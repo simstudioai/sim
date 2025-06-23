@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
-import { and, eq, isNotNull } from 'drizzle-orm'
+import { readFileSync } from 'fs'
+import { and, eq, isNotNull, inArray } from 'drizzle-orm'
 import { db } from '../db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '../db/schema'
 
@@ -13,9 +14,24 @@ interface WorkflowState {
   isDeployed?: boolean
 }
 
-async function migrateWorkflowStates() {
+async function migrateWorkflowStates(specificWorkflowIds?: string[] | null) {
   try {
-    console.log('🔍 Finding workflows with old JSON state format...')
+    if (specificWorkflowIds) {
+      console.log(`🔍 Finding ${specificWorkflowIds.length} specific workflows...`)
+    } else {
+      console.log('🔍 Finding workflows with old JSON state format...')
+    }
+
+    // Build the where condition based on whether we have specific IDs
+    const whereCondition = specificWorkflowIds
+      ? and(
+          isNotNull(workflow.state), // Has JSON state
+          inArray(workflow.id, specificWorkflowIds) // Only specific IDs
+        )
+      : and(
+          isNotNull(workflow.state) // Has JSON state
+          // We'll check for normalized data existence per workflow
+        )
 
     // Find workflows that have state but no normalized table entries
     const workflowsToMigrate = await db
@@ -25,14 +41,19 @@ async function migrateWorkflowStates() {
         state: workflow.state,
       })
       .from(workflow)
-      .where(
-        and(
-          isNotNull(workflow.state) // Has JSON state
-          // We'll check for normalized data existence per workflow
-        )
-      )
+      .where(whereCondition)
 
     console.log(`📊 Found ${workflowsToMigrate.length} workflows with JSON state`)
+
+    if (specificWorkflowIds) {
+      const foundIds = workflowsToMigrate.map(w => w.id)
+      const missingIds = specificWorkflowIds.filter(id => !foundIds.includes(id))
+      if (missingIds.length > 0) {
+        console.log(`⚠️  Warning: ${missingIds.length} specified workflow IDs not found:`)
+        missingIds.forEach(id => console.log(`    - ${id}`))
+      }
+      console.log('')
+    }
 
     let migratedCount = 0
     let skippedCount = 0
@@ -79,7 +100,9 @@ async function migrateWorkflowStates() {
         }
 
         if (removedBlockCount > 0) {
-          console.log(`    🧹 Cleaned up ${removedBlockCount} invalid blocks (${originalBlockCount} → ${Object.keys(validBlocks).length})`)
+          console.log(
+            `    🧹 Cleaned up ${removedBlockCount} invalid blocks (${originalBlockCount} → ${Object.keys(validBlocks).length})`
+          )
           state.blocks = validBlocks
         }
 
@@ -197,10 +220,59 @@ async function migrateWorkflowStates() {
 // Add command line argument parsing
 const args = process.argv.slice(2)
 const dryRun = args.includes('--dry-run')
+const showHelp = args.includes('--help') || args.includes('-h')
+
+if (showHelp) {
+  console.log('🔄 Workflow State Migration Script')
+  console.log('')
+  console.log('Usage:')
+  console.log('  bun run scripts/migrate-workflow-states.ts [options]')
+  console.log('')
+  console.log('Options:')
+  console.log('  --dry-run              Show what would be migrated without making changes')
+  console.log('  --file <path>          Migrate only workflow IDs listed in file (comma-separated)')
+  console.log('  --help, -h             Show this help message')
+  console.log('')
+  console.log('Examples:')
+  console.log('  bun run scripts/migrate-workflow-states.ts')
+  console.log('  bun run scripts/migrate-workflow-states.ts --dry-run')
+  console.log('  bun run scripts/migrate-workflow-states.ts --file workflow-ids.txt')
+  console.log('  bun run scripts/migrate-workflow-states.ts --dry-run --file workflow-ids.txt')
+  console.log('')
+  console.log('File format (workflow-ids.txt):')
+  console.log('  abc-123,def-456,ghi-789')
+  console.log('')
+  process.exit(0)
+}
+
+// Parse --file flag for workflow IDs
+let specificWorkflowIds: string[] | null = null
+const fileIndex = args.findIndex(arg => arg === '--file')
+if (fileIndex !== -1 && args[fileIndex + 1]) {
+  const filePath = args[fileIndex + 1]
+  try {
+    console.log(`📁 Reading workflow IDs from file: ${filePath}`)
+    const fileContent = readFileSync(filePath, 'utf-8')
+    specificWorkflowIds = fileContent
+      .split(',')
+      .map(id => id.trim())
+      .filter(id => id.length > 0)
+    console.log(`📋 Found ${specificWorkflowIds.length} workflow IDs in file`)
+    console.log('')
+  } catch (error) {
+    console.error(`❌ Error reading file ${filePath}:`, error)
+    process.exit(1)
+  }
+}
 
 if (dryRun) {
   console.log('🔍 DRY RUN MODE - No changes will be made')
   console.log('')
 }
 
-migrateWorkflowStates()
+if (specificWorkflowIds) {
+  console.log('🎯 TARGETED MIGRATION - Only migrating specified workflow IDs')
+  console.log('')
+}
+
+migrateWorkflowStates(specificWorkflowIds)
