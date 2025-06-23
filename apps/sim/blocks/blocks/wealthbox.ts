@@ -48,13 +48,13 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
       },
       {
         id: 'noteId',
-        title: 'Select Contact',
+        title: 'Select Note',
         type: 'file-selector',
         provider: 'wealthbox',
         serviceId: 'wealthbox',
         requiredScopes: [],
         layout: 'full',
-        placeholder: 'Enter Note ID',
+        placeholder: 'Select the note to read',
         condition: { field: 'operation', value: ['read_note', 'write_note'] },
       },
       {
@@ -66,7 +66,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
         requiredScopes: [],
         layout: 'full',
         placeholder: 'Enter Contact ID',
-        condition: { field: 'operation', value: ['read_contact', 'write_contact', 'write_task'] },
+        condition: { field: 'operation', value: ['read_contact', 'write_task'] },
       },
       {
         id: 'taskId',
@@ -104,14 +104,6 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
         condition: { field: 'operation', value: ['write_task'] },
       },
       {
-        id: 'content',
-        title: 'Content',
-        type: 'long-input',
-        layout: 'full',
-        placeholder: 'Enter Content',
-        condition: { field: 'operation', value: ['write_note', 'write_contact', 'write_event', 'write_task'] },
-      },
-      {
         id: 'firstName',
         title: 'First Name',
         type: 'short-input',
@@ -128,12 +120,20 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
         condition: { field: 'operation', value: ['write_contact'] },
       },
       {
-        id: 'companyName',
-        title: 'Company Name',
+        id: 'emailAddress',
+        title: 'Email Address',
         type: 'short-input',
         layout: 'full',
-        placeholder: 'Enter Company Name',
+        placeholder: 'Enter Email Address',
         condition: { field: 'operation', value: ['write_contact'] },
+      },
+      {
+        id: 'content',
+        title: 'Content',
+        type: 'long-input',
+        layout: 'full',
+        placeholder: 'Enter Content',
+        condition: { field: 'operation', value: ['write_note', 'write_event', 'write_task'] },
       },
       {
         id: 'backgroundInformation',
@@ -193,7 +193,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
         }
 
         // For contact operations, we need contactId
-        if (operation === 'read_contact' || operation === 'write_contact' || operation === 'read_note' || operation === 'write_note') {
+        if (operation === 'read_contact' || operation === 'read_note') {
           if (!params.contactId) {
             throw new Error('Contact ID is required for contact operations')
           }
@@ -204,7 +204,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
         }
 
         // For task operations, we need taskId
-        if (operation === 'read_task' || operation === 'write_task') {
+        if (operation === 'read_task') {
           if (!params.taskId) {
             throw new Error('Task ID is required for task operations')
           }
@@ -221,13 +221,13 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
   inputs: {
     operation: { type: 'string', required: true },
     credential: { type: 'string', required: true },
-    noteId: { type: 'string', required: true },
+    noteId: { type: 'string', required: false },
     contactId: { type: 'string', required: false },
-    taskId: { type: 'string', required: true },
+    taskId: { type: 'string', required: false },
     content: { type: 'string', required: true },
     firstName: { type: 'string', required: true },
     lastName: { type: 'string', required: true },
-    companyName: { type: 'string', required: false },
+    emailAddress: { type: 'string', required: false },
     backgroundInformation: { type: 'string', required: false },
     title: { type: 'string', required: true },
     time: { type: 'string', required: true },

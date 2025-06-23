@@ -123,12 +123,13 @@ export interface WealthboxWriteParams {
   firstName?: string
   lastName?: string
   backgroundInformation?: string
-  companyName?: string
+  emailAddress?: string
   
   // Task fields
   title?: string
   description?: string
-  dueDate?: string
+  dueDay?: string
+  dueTime?: string
   complete?: boolean
   category?: number
   priority?: 'Low' | 'Medium' | 'High'
