@@ -40,7 +40,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { useUserPermissions } from '@/hooks/use-user-permissions'
+import { useUserPermissionsContext } from '@/app/w/components/providers/workspace-permissions-provider'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
@@ -114,7 +114,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
   // User permissions - use stable activeWorkspaceId from registry instead of deriving from currentWorkflow
-  const userPermissions = useUserPermissions(activeWorkspaceId)
+  const userPermissions = useUserPermissionsContext()
 
   // Debug mode state
   const { isDebugModeEnabled, toggleDebugMode } = useGeneralStore()
@@ -683,9 +683,22 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     const isDisabled = !canEdit || !hasMultipleWorkflows
 
     const getTooltipText = () => {
-      if (!canEdit) return 'Edit permissions required to delete workflows'
+      if (!canEdit) return 'Admin permission required to delete workflows'
       if (!hasMultipleWorkflows) return 'Cannot delete the last workflow'
       return 'Delete Workflow'
+    }
+
+    if (isDisabled) {
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className='inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+              <Trash2 className='h-5 w-5' />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent>{getTooltipText()}</TooltipContent>
+        </Tooltip>
+      )
     }
 
     return (
@@ -693,12 +706,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
         <Tooltip>
           <TooltipTrigger asChild>
             <AlertDialogTrigger asChild>
-              <Button
-                variant='ghost'
-                size='icon'
-                disabled={isDisabled}
-                className={cn('hover:text-red-600', isDisabled && 'cursor-not-allowed opacity-50')}
-              >
+              <Button variant='ghost' size='icon' className='hover:text-red-600'>
                 <Trash2 className='h-5 w-5' />
                 <span className='sr-only'>Delete Workflow</span>
               </Button>
@@ -896,19 +904,24 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            variant='ghost'
-            size='icon'
-            onClick={handleDuplicateWorkflow}
-            disabled={!canEdit}
-            className={cn('hover:text-primary', !canEdit && 'cursor-not-allowed opacity-50')}
-          >
-            <Copy className='h-5 w-5' />
-            <span className='sr-only'>Duplicate Workflow</span>
-          </Button>
+          {canEdit ? (
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={handleDuplicateWorkflow}
+              className='hover:text-primary'
+            >
+              <Copy className='h-5 w-5' />
+              <span className='sr-only'>Duplicate Workflow</span>
+            </Button>
+          ) : (
+            <div className='inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+              <Copy className='h-5 w-5' />
+            </div>
+          )}
         </TooltipTrigger>
         <TooltipContent>
-          {canEdit ? 'Duplicate Workflow' : 'Edit permissions required to duplicate workflows'}
+          {canEdit ? 'Duplicate Workflow' : 'Admin permission required to duplicate workflows'}
         </TooltipContent>
       </Tooltip>
     )
@@ -931,20 +944,25 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            variant='ghost'
-            size='icon'
-            onClick={handleAutoLayoutClick}
-            className={cn('hover:text-primary', isDisabled && 'cursor-not-allowed opacity-50')}
-            disabled={isDisabled}
-          >
-            <Layers className='h-5 w-5' />
-            <span className='sr-only'>Auto Layout</span>
-          </Button>
+          {isDisabled ? (
+            <div className='inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0'>
+              <Layers className='h-5 w-5' />
+            </div>
+          ) : (
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={handleAutoLayoutClick}
+              className='hover:text-primary'
+            >
+              <Layers className='h-5 w-5' />
+              <span className='sr-only'>Auto Layout</span>
+            </Button>
+          )}
         </TooltipTrigger>
         <TooltipContent command='Shift+L'>
           {!userPermissions.canEdit
-            ? 'Edit permissions required to use auto-layout'
+            ? 'Admin permission required to use auto-layout'
             : 'Auto Layout'}
         </TooltipContent>
       </Tooltip>
@@ -1017,6 +1035,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
    */
   const renderDebugModeToggle = () => {
     const canDebug = userPermissions.canRead // Debug mode now requires only read permissions
+    const isDisabled = isExecuting || isMultiRunning || !canDebug
 
     const handleToggleDebugMode = () => {
       if (!canDebug) return
@@ -1033,23 +1052,30 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button
-            variant='ghost'
-            size='icon'
-            onClick={handleToggleDebugMode}
-            disabled={isExecuting || isMultiRunning || !canDebug}
-            className={cn(
-              isDebugModeEnabled && 'text-amber-500',
-              !canDebug && 'cursor-not-allowed opacity-50'
-            )}
-          >
-            <Bug className='h-5 w-5' />
-            <span className='sr-only'>Toggle Debug Mode</span>
-          </Button>
+          {isDisabled ? (
+            <div
+              className={cn(
+                'inline-flex h-10 w-10 cursor-not-allowed items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium text-sm opacity-50 ring-offset-background transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+                isDebugModeEnabled && 'text-amber-500'
+              )}
+            >
+              <Bug className='h-5 w-5' />
+            </div>
+          ) : (
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={handleToggleDebugMode}
+              className={cn(isDebugModeEnabled && 'text-amber-500')}
+            >
+              <Bug className='h-5 w-5' />
+              <span className='sr-only'>Toggle Debug Mode</span>
+            </Button>
+          )}
         </TooltipTrigger>
         <TooltipContent>
           {!canDebug
-            ? 'Read permissions required to use debug mode'
+            ? 'Read permission required to use debug mode'
             : isDebugModeEnabled
               ? 'Disable Debug Mode'
               : 'Enable Debug Mode'}
@@ -1145,6 +1171,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                     subflow blocks.
                   </p>
                 </div>
+              {!canRun && !isLoadingPermissions ? (
+                'Read permission required to run workflows'
               ) : usageExceeded ? (
                 <div className='text-center'>
                   <p className='font-medium text-destructive'>Usage Limit Exceeded</p>

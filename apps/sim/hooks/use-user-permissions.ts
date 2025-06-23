@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
-import { type PermissionType, useWorkspacePermissions } from './use-workspace-permissions'
+import type { PermissionType, WorkspacePermissions } from './use-workspace-permissions'
 
 const logger = createLogger('useUserPermissions')
 
@@ -19,37 +19,44 @@ export interface WorkspaceUserPermissions {
 
 /**
  * Custom hook to check current user's permissions within a workspace
+ * This version accepts workspace permissions to avoid duplicate API calls
  *
- * @param workspaceId - The workspace ID to check permissions for
+ * @param workspacePermissions - The workspace permissions data
+ * @param permissionsLoading - Whether permissions are currently loading
+ * @param permissionsError - Any error from fetching permissions
  * @returns Object containing permission flags and utility properties
  */
-export function useUserPermissions(workspaceId: string | null): WorkspaceUserPermissions {
+export function useUserPermissions(
+  workspacePermissions: WorkspacePermissions | null,
+  permissionsLoading = false,
+  permissionsError: string | null = null
+): WorkspaceUserPermissions {
   const { data: session } = useSession()
-  const { permissions, loading, error } = useWorkspacePermissions(workspaceId)
 
   const userPermissions = useMemo((): WorkspaceUserPermissions => {
     // If still loading or no session, return safe defaults
-    if (loading || !session?.user?.email) {
+    if (permissionsLoading || !session?.user?.email) {
       return {
         canRead: false,
         canEdit: false,
         canAdmin: false,
         userPermissions: 'read',
-        isLoading: loading,
-        error,
+        isLoading: permissionsLoading,
+        error: permissionsError,
       }
     }
 
     // Find current user in workspace permissions
-    const currentUser = permissions?.users?.find((user) => user.email === session.user.email)
+    const currentUser = workspacePermissions?.users?.find(
+      (user) => user.email === session.user.email
+    )
 
     // If user not found in workspace, they have no permissions
     if (!currentUser) {
       logger.warn('User not found in workspace permissions', {
         userEmail: session.user.email,
-        workspaceId,
-        hasPermissions: !!permissions,
-        userCount: permissions?.users?.length || 0,
+        hasPermissions: !!workspacePermissions,
+        userCount: workspacePermissions?.users?.length || 0,
       })
 
       return {
@@ -58,7 +65,7 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
         canAdmin: false,
         userPermissions: 'read',
         isLoading: false,
-        error: error || 'User not found in workspace',
+        error: permissionsError || 'User not found in workspace',
       }
     }
 
@@ -75,9 +82,9 @@ export function useUserPermissions(workspaceId: string | null): WorkspaceUserPer
       canAdmin,
       userPermissions: userPerms,
       isLoading: false,
-      error,
+      error: permissionsError,
     }
-  }, [session, permissions, loading, error, workspaceId])
+  }, [session, workspacePermissions, permissionsLoading, permissionsError])
 
   return userPermissions
 }

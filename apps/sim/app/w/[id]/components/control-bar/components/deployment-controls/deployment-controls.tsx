@@ -66,7 +66,7 @@ export function DeploymentControls({
 
   const getTooltipText = () => {
     if (!canDeploy) {
-      return 'Admin permissions required to deploy workflows as API'
+      return 'Admin permissions required to deploy workflows'
     }
     if (isDeploying) {
       return 'Deploying...'

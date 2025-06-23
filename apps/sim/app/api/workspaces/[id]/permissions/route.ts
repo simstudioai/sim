@@ -1,10 +1,10 @@
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { getUsersWithPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
-import { permissions, type permissionTypeEnum, user, workspaceMember } from '@/db/schema'
+import { permissions, type permissionTypeEnum, workspaceMember } from '@/db/schema'
 
-// Extract the enum type from Drizzle schema
 type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 interface UpdatePermissionsRequest {
@@ -12,31 +12,6 @@ interface UpdatePermissionsRequest {
     userId: string
     permissions: PermissionType // Single permission type instead of object with booleans
   }>
-}
-
-// Helper function to fetch users with permissions for a workspace
-async function getUsersWithPermissions(workspaceId: string) {
-  const usersWithPermissions = await db
-    .select({
-      userId: user.id,
-      email: user.email,
-      name: user.name,
-      image: user.image,
-      permissionType: permissions.permissionType,
-    })
-    .from(permissions)
-    .innerJoin(user, eq(permissions.userId, user.id))
-    .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
-    .orderBy(user.email)
-
-  // Since each user has only one permission, we can use the results directly
-  return usersWithPermissions.map((row) => ({
-    userId: row.userId,
-    email: row.email,
-    name: row.name,
-    image: row.image,
-    permissionType: row.permissionType,
-  }))
 }
 
 /**

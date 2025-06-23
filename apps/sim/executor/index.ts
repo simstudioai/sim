@@ -13,6 +13,7 @@ import {
   GenericBlockHandler,
   LoopBlockHandler,
   ParallelBlockHandler,
+  ResponseBlockHandler,
   RouterBlockHandler,
   WorkflowBlockHandler,
 } from './handlers/index'
@@ -143,6 +144,7 @@ export class Executor {
       new ApiBlockHandler(),
       new LoopBlockHandler(this.resolver),
       new ParallelBlockHandler(this.resolver),
+      new ResponseBlockHandler(),
       new WorkflowBlockHandler(),
       new GenericBlockHandler(),
     ]
@@ -560,8 +562,7 @@ export class Executor {
     if (starterBlock) {
       // Initialize the starter block with the workflow input
       try {
-        const _blockParams = starterBlock.config.params
-        /* Commenting out input format handling
+        const blockParams = starterBlock.config.params
         const inputFormat = blockParams?.inputFormat
 
         // If input format is defined, structure the input according to the schema
@@ -575,12 +576,15 @@ export class Executor {
               // Get the field value from workflow input if available
               // First try to access via input.field, then directly from field
               // This handles both input formats: { input: { field: value } } and { field: value }
-              const inputValue = this.workflowInput?.input?.[field.name] !== undefined 
-                ? this.workflowInput.input[field.name]  // Try to get from input.field
-                : this.workflowInput?.[field.name]     // Fallback to direct field access
-              
-              logger.info(`[Executor] Processing input field ${field.name} (${field.type}):`, 
-                inputValue !== undefined ? JSON.stringify(inputValue) : 'undefined')
+              const inputValue =
+                this.workflowInput?.input?.[field.name] !== undefined
+                  ? this.workflowInput.input[field.name] // Try to get from input.field
+                  : this.workflowInput?.[field.name] // Fallback to direct field access
+
+              logger.info(
+                `[Executor] Processing input field ${field.name} (${field.type}):`,
+                inputValue !== undefined ? JSON.stringify(inputValue) : 'undefined'
+              )
 
               // Convert the value to the appropriate type
               let typedValue = inputValue
@@ -608,15 +612,16 @@ export class Executor {
 
           // Check if we managed to process any fields - if not, use the raw input
           const hasProcessedFields = Object.keys(structuredInput).length > 0
-          
+
           // If no fields matched the input format, extract the raw input to use instead
-          const rawInputData = this.workflowInput?.input !== undefined
-            ? this.workflowInput.input  // Use the nested input data
-            : this.workflowInput       // Fallback to direct input
-          
+          const rawInputData =
+            this.workflowInput?.input !== undefined
+              ? this.workflowInput.input // Use the nested input data
+              : this.workflowInput // Fallback to direct input
+
           // Use the structured input if we processed fields, otherwise use raw input
           const finalInput = hasProcessedFields ? structuredInput : rawInputData
-          
+
           // Initialize the starter block with structured input
           // Ensure both input and direct fields are available
           const starterOutput = {
@@ -625,7 +630,7 @@ export class Executor {
               ...finalInput, // Add input fields directly at response level too
             },
           }
-          
+
           logger.info(`[Executor] Starter output:`, JSON.stringify(starterOutput, null, 2))
 
           context.blockStates.set(starterBlock.id, {
@@ -634,40 +639,40 @@ export class Executor {
             executionTime: 0,
           })
         } else {
-        */
-        // Handle structured input (like API calls or chat messages)
-        if (this.workflowInput && typeof this.workflowInput === 'object') {
-          // Preserve complete workflowInput structure to maintain JSON format
-          // when referenced through <start.response.input>
-          const starterOutput = {
-            response: {
-              input: this.workflowInput,
-              // Add top-level fields for backward compatibility
-              message: this.workflowInput.input,
-              conversationId: this.workflowInput.conversationId,
-            },
-          }
+          // Handle structured input (like API calls or chat messages)
+          if (this.workflowInput && typeof this.workflowInput === 'object') {
+            // Preserve complete workflowInput structure to maintain JSON format
+            // when referenced through <start.response.input>
 
-          context.blockStates.set(starterBlock.id, {
-            output: starterOutput,
-            executed: true,
-            executionTime: 0,
-          })
-        } else {
-          // Fallback for primitive input values
-          const starterOutput = {
-            response: {
-              input: this.workflowInput,
-            },
-          }
+            const starterOutput = {
+              response: {
+                input: this.workflowInput,
+                // Add top-level fields for backward compatibility
+                message: this.workflowInput.input,
+                conversationId: this.workflowInput.conversationId,
+              },
+            }
 
-          context.blockStates.set(starterBlock.id, {
-            output: starterOutput,
-            executed: true,
-            executionTime: 0,
-          })
+            context.blockStates.set(starterBlock.id, {
+              output: starterOutput,
+              executed: true,
+              executionTime: 0,
+            })
+          } else {
+            // Fallback for primitive input values
+            const starterOutput = {
+              response: {
+                input: this.workflowInput,
+              },
+            }
+
+            context.blockStates.set(starterBlock.id, {
+              output: starterOutput,
+              executed: true,
+              executionTime: 0,
+            })
+          }
         }
-        //} // End of inputFormat conditional
       } catch (e) {
         logger.warn('Error processing starter block input format:', e)
 

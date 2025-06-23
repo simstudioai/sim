@@ -12,6 +12,7 @@ type GenerationType =
   | 'javascript-function-body'
   | 'typescript-function-body'
   | 'custom-tool-schema'
+  | 'json-object'
 
 interface UseCodeGenerationProps {
   generationType: GenerationType

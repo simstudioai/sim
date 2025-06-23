@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   Background,
@@ -16,6 +16,7 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
+import { useUserPermissionsContext } from '@/app/w/components/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks'
 import { useSocket } from '@/contexts/socket-context'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
@@ -57,13 +58,30 @@ const nodeTypes: NodeTypes = {
 }
 const edgeTypes: EdgeTypes = { workflowEdge: WorkflowEdge }
 
-function WorkflowContent() {
+interface SelectedEdgeInfo {
+  id: string
+  parentLoopId?: string
+  contextId?: string // Unique identifier combining edge ID and context
+}
+
+interface BlockData {
+  id: string
+  type: string
+  position: { x: number; y: number }
+  distance: number
+}
+
+const WorkflowContent = React.memo(() => {
   // State
   const [isWorkflowReady, setIsWorkflowReady] = useState(false)
   const { mode, isExpanded } = useSidebarStore()
+
   // In hover mode, act as if sidebar is always collapsed for layout purposes
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
+  const isSidebarCollapsed = useMemo(
+    () => (mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'),
+    [mode, isExpanded]
+  )
+
   // State for tracking node dragging
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
@@ -71,11 +89,8 @@ function WorkflowContent() {
   const [nestedSubflowErrors, setNestedSubflowErrors] = useState<Set<string>>(new Set())
   const [draggedBlockType, setDraggedBlockType] = useState<string | null>(null)
   // Enhanced edge selection with parent context and unique identifier
-  const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<{
-    id: string
-    parentLoopId?: string
-    contextId?: string // Unique identifier combining edge ID and context
-  } | null>(null)
+  const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<SelectedEdgeInfo | null>(null)
+
   // Hooks
   const params = useParams()
   const router = useRouter()
@@ -93,20 +108,17 @@ function WorkflowContent() {
     updateWorkflow,
     duplicateWorkflow,
   } = useWorkflowRegistry()
+
   const { blocks, edges, updateNodeDimensions } = useWorkflowStore()
   // Use collaborative operations for real-time sync
   const currentWorkflow = workflows[workflowId]
   const workspaceId = currentWorkflow?.workspaceId
 
-  // Workspace permissions - only fetch if we have a workspace ID
-  const {
-    permissions: workspacePermissions,
-    loading: permissionsLoading,
-    error: permissionsError,
-  } = useWorkspacePermissions(workspaceId || '')
+  const currentWorkflow = useMemo(() => workflows[workflowId], [workflows, workflowId])
+  const workspaceId = currentWorkflow?.workspaceId
 
-  // User permissions - get current user's specific permissions
-  const userPermissions = useUserPermissions(workspaceId || null)
+  // User permissions - get current user's specific permissions from context
+  const userPermissions = useUserPermissionsContext()
 
   // Store access
   const {
@@ -352,7 +364,7 @@ function WorkflowContent() {
 
   // Handle drops
   const findClosestOutput = useCallback(
-    (newNodePosition: { x: number; y: number }) => {
+    (newNodePosition: { x: number; y: number }): BlockData | null => {
       const existingBlocks = Object.entries(blocks)
         .filter(([_, block]) => block.enabled)
         .map(([id, block]) => ({
@@ -366,7 +378,7 @@ function WorkflowContent() {
         }))
         .sort((a, b) => a.distance - b.distance)
 
-      return existingBlocks[0] ? existingBlocks[0] : null
+      return existingBlocks[0] || null
     },
     [blocks]
   )
@@ -507,7 +519,15 @@ function WorkflowContent() {
         handleAddBlockFromToolbar as EventListener
       )
     }
-  }, [project, blocks, addBlock, addEdge, findClosestOutput, determineSourceHandle])
+  }, [
+    project,
+    blocks,
+    addBlock,
+    addEdge,
+    findClosestOutput,
+    determineSourceHandle,
+    userPermissions.canEdit,
+  ])
 
   // Update the onDrop handler
   const onDrop = useCallback(
@@ -1505,10 +1525,12 @@ function WorkflowContent() {
       </div>
     </div>
   )
-}
+})
+
+WorkflowContent.displayName = 'WorkflowContent'
 
 // Workflow wrapper
-export default function Workflow() {
+const Workflow = React.memo(() => {
   return (
     <ReactFlowProvider>
       <ErrorBoundary>
@@ -1516,4 +1538,8 @@ export default function Workflow() {
       </ErrorBoundary>
     </ReactFlowProvider>
   )
-}
+})
+
+Workflow.displayName = 'Workflow'
+
+export default Workflow
