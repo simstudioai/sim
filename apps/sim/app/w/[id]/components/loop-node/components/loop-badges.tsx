@@ -52,9 +52,8 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   // Derive values directly from props - no useState needed for synchronized data
   const loopType = configLoopType
   const iterations = configIterations
-  const collectionString = typeof configCollection === 'string'
-    ? configCollection
-    : JSON.stringify(configCollection) || ''
+  const collectionString =
+    typeof configCollection === 'string' ? configCollection : JSON.stringify(configCollection) || ''
 
   // Use actual values directly for display, temporary state only for active editing
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
@@ -67,16 +66,12 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const editorContainerRef = useRef<HTMLDivElement>(null)
 
-
-
   // Get collaborative functions
   const {
     collaborativeUpdateLoopType,
     collaborativeUpdateLoopCount,
     collaborativeUpdateLoopCollection,
   } = useCollaborativeWorkflow()
-
-
 
   // Handle loop type change
   const handleLoopTypeChange = useCallback(

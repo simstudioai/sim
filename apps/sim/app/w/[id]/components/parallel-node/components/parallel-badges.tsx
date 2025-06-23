@@ -54,9 +54,10 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   // Derive values directly from props - no useState needed for synchronized data
   const parallelType = configParallelType
   const iterations = configCount
-  const distributionString = typeof configDistribution === 'string'
-    ? configDistribution
-    : JSON.stringify(configDistribution) || ''
+  const distributionString =
+    typeof configDistribution === 'string'
+      ? configDistribution
+      : JSON.stringify(configDistribution) || ''
 
   // Use actual values directly for display, temporary state only for active editing
   const [tempInputValue, setTempInputValue] = useState<string | null>(null)
@@ -73,12 +74,8 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
   const {
     collaborativeUpdateParallelCount,
     collaborativeUpdateParallelCollection,
-    collaborativeUpdateParallelType
+    collaborativeUpdateParallelType,
   } = useCollaborativeWorkflow()
-
-
-
-
 
   // Handle parallel type change
   const handleParallelTypeChange = useCallback(

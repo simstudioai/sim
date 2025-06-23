@@ -319,7 +319,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     if (!canUpdate) {
-      logger.warn(`[${requestId}] User ${userId} denied permission to update workflow ${workflowId}`)
+      logger.warn(
+        `[${requestId}] User ${userId} denied permission to update workflow ${workflowId}`
+      )
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
