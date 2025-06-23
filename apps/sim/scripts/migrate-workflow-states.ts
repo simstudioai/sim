@@ -62,6 +62,27 @@ async function migrateWorkflowStates() {
           continue
         }
 
+        // Clean up invalid blocks (those without an id field) before migration
+        const originalBlockCount = Object.keys(state.blocks).length
+        const validBlocks: Record<string, any> = {}
+        let removedBlockCount = 0
+
+        for (const [blockKey, block] of Object.entries(state.blocks)) {
+          if (block && typeof block === 'object' && block.id) {
+            // Valid block - has an id field
+            validBlocks[blockKey] = block
+          } else {
+            // Invalid block - missing id field
+            console.log(`    🗑️  Removing invalid block ${blockKey} (no id field)`)
+            removedBlockCount++
+          }
+        }
+
+        if (removedBlockCount > 0) {
+          console.log(`    🧹 Cleaned up ${removedBlockCount} invalid blocks (${originalBlockCount} → ${Object.keys(validBlocks).length})`)
+          state.blocks = validBlocks
+        }
+
         await db.transaction(async (tx) => {
           // Migrate blocks
           const blocks = Object.values(state.blocks)
