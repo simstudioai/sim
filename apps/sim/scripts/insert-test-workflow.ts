@@ -1,117 +1,114 @@
 #!/usr/bin/env bun
 
-import { eq } from 'drizzle-orm'
 import { db } from '../db'
-import { workflow, workspace, user } from '../db/schema'
+import { user, workflow, workspace } from '../db/schema'
 
 const testWorkflowState = {
-  "blocks": {
-    "start-block-123": {
-      "id": "start-block-123",
-      "type": "starter",
-      "name": "Start",
-      "position": {
-        "x": 100,
-        "y": 100
+  blocks: {
+    'start-block-123': {
+      id: 'start-block-123',
+      type: 'starter',
+      name: 'Start',
+      position: {
+        x: 100,
+        y: 100,
       },
-      "subBlocks": {
-        "startWorkflow": {
-          "id": "startWorkflow",
-          "type": "dropdown",
-          "value": "manual"
-        }
+      subBlocks: {
+        startWorkflow: {
+          id: 'startWorkflow',
+          type: 'dropdown',
+          value: 'manual',
+        },
       },
-      "outputs": {
-        "response": {
-          "input": "any"
-        }
+      outputs: {
+        response: {
+          input: 'any',
+        },
       },
-      "enabled": true,
-      "horizontalHandles": true,
-      "isWide": false,
-      "height": 90
+      enabled: true,
+      horizontalHandles: true,
+      isWide: false,
+      height: 90,
     },
-    "loop-block-456": {
-      "id": "loop-block-456",
-      "type": "loop",
-      "name": "For Loop",
-      "position": {
-        "x": 400,
-        "y": 100
+    'loop-block-456': {
+      id: 'loop-block-456',
+      type: 'loop',
+      name: 'For Loop',
+      position: {
+        x: 400,
+        y: 100,
       },
-      "subBlocks": {},
-      "outputs": {},
-      "enabled": true,
-      "horizontalHandles": true,
-      "isWide": false,
-      "height": 0,
-      "data": {
-        "width": 400,
-        "height": 200,
-        "type": "loopNode"
-      }
+      subBlocks: {},
+      outputs: {},
+      enabled: true,
+      horizontalHandles: true,
+      isWide: false,
+      height: 0,
+      data: {
+        width: 400,
+        height: 200,
+        type: 'loopNode',
+      },
     },
-    "function-block-789": {
-      "id": "function-block-789",
-      "type": "function",
-      "name": "Return X",
-      "position": {
-        "x": 50,
-        "y": 50
+    'function-block-789': {
+      id: 'function-block-789',
+      type: 'function',
+      name: 'Return X',
+      position: {
+        x: 50,
+        y: 50,
       },
-      "subBlocks": {
-        "code": {
-          "id": "code",
-          "type": "code",
-          "value": "return 'X'"
-        }
+      subBlocks: {
+        code: {
+          id: 'code',
+          type: 'code',
+          value: "return 'X'",
+        },
       },
-      "outputs": {
-        "response": {
-          "result": "any",
-          "stdout": "string"
-        }
+      outputs: {
+        response: {
+          result: 'any',
+          stdout: 'string',
+        },
       },
-      "enabled": true,
-      "horizontalHandles": true,
-      "isWide": false,
-      "height": 144,
-      "data": {
-        "parentId": "loop-block-456",
-        "extent": "parent"
-      }
-    }
+      enabled: true,
+      horizontalHandles: true,
+      isWide: false,
+      height: 144,
+      data: {
+        parentId: 'loop-block-456',
+        extent: 'parent',
+      },
+    },
   },
-  "edges": [
+  edges: [
     {
-      "id": "edge-start-to-loop",
-      "source": "start-block-123",
-      "target": "loop-block-456",
-      "sourceHandle": "source",
-      "targetHandle": "target"
+      id: 'edge-start-to-loop',
+      source: 'start-block-123',
+      target: 'loop-block-456',
+      sourceHandle: 'source',
+      targetHandle: 'target',
     },
     {
-      "id": "edge-loop-to-function",
-      "source": "loop-block-456",
-      "target": "function-block-789",
-      "sourceHandle": "loop-start-source",
-      "targetHandle": "target"
-    }
+      id: 'edge-loop-to-function',
+      source: 'loop-block-456',
+      target: 'function-block-789',
+      sourceHandle: 'loop-start-source',
+      targetHandle: 'target',
+    },
   ],
-  "loops": {
-    "loop-block-456": {
-      "id": "loop-block-456",
-      "nodes": [
-        "function-block-789"
-      ],
-      "iterations": 3,
-      "loopType": "for",
-      "forEachItems": ""
-    }
+  loops: {
+    'loop-block-456': {
+      id: 'loop-block-456',
+      nodes: ['function-block-789'],
+      iterations: 3,
+      loopType: 'for',
+      forEachItems: '',
+    },
   },
-  "parallels": {},
-  "lastSaved": Date.now(),
-  "isDeployed": false
+  parallels: {},
+  lastSaved: Date.now(),
+  isDeployed: false,
 }
 
 async function insertTestWorkflow() {
@@ -136,7 +133,7 @@ async function insertTestWorkflow() {
     console.log(`✅ Using user: ${userId}`)
 
     // Insert workflow with old JSON state format
-    const testWorkflowId = 'test-migration-workflow-' + Date.now()
+    const testWorkflowId = `test-migration-workflow-${Date.now()}`
 
     const now = new Date()
 
@@ -152,7 +149,7 @@ async function insertTestWorkflow() {
       isDeployed: false,
       isPublished: false,
     })
-    
+
     console.log(`✅ Inserted test workflow with old JSON format: ${testWorkflowId}`)
     console.log(`🌐 Access it at: http://localhost:3000/w/${testWorkflowId}`)
     console.log('')
@@ -162,7 +159,6 @@ async function insertTestWorkflow() {
     console.log('3. Try editing some subblock values')
     console.log('4. Run the migration script')
     console.log('5. Verify it still works after migration')
-    
   } catch (error) {
     console.error('❌ Error inserting test workflow:', error)
     process.exit(1)
