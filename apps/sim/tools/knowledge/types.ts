@@ -12,11 +12,7 @@ export interface KnowledgeSearchResponse {
   output: {
     results: KnowledgeSearchResult[]
     query: string
-    knowledgeBaseId: string
-    knowledgeBaseIds?: string[]
-    topK: number
     totalResults: number
-    message: string
   }
   error?: string
 }

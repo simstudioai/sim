@@ -228,18 +228,30 @@ export class AgentBlockHandler implements BlockHandler {
     return messages
   }
 
-  private addSystemPrompt(messages: Message[], systemPrompt: string) {
+  private addSystemPrompt(messages: Message[], systemPrompt: any) {
+    let content: string
+
+    if (typeof systemPrompt === 'string') {
+      content = systemPrompt
+    } else {
+      try {
+        content = JSON.stringify(systemPrompt, null, 2)
+      } catch (error) {
+        content = String(systemPrompt)
+      }
+    }
+
     const systemMessages = messages.filter((msg) => msg.role === 'system')
 
     if (systemMessages.length > 0) {
-      messages.splice(0, 0, { role: 'system', content: systemPrompt })
+      messages.splice(0, 0, { role: 'system', content })
       for (let i = messages.length - 1; i >= 1; i--) {
         if (messages[i].role === 'system') {
           messages.splice(i, 1)
         }
       }
     } else {
-      messages.splice(0, 0, { role: 'system', content: systemPrompt })
+      messages.splice(0, 0, { role: 'system', content })
     }
   }
 

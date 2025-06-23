@@ -73,11 +73,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         output: {
           results: data.results || [],
           query: data.query,
-          knowledgeBaseId: data.knowledgeBaseId,
-          knowledgeBaseIds: data.knowledgeBaseIds,
-          topK: data.topK,
           totalResults: data.totalResults || 0,
-          message: `Found ${data.totalResults || 0} similar results${data.knowledgeBaseIds ? ` across ${data.knowledgeBaseIds.length} knowledge bases` : ''}`,
         },
       }
     } catch (error: any) {
@@ -86,10 +82,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         output: {
           results: [],
           query: '',
-          knowledgeBaseId: '',
-          topK: 0,
           totalResults: 0,
-          message: `Vector search failed: ${error.message || 'Unknown error'}`,
         },
         error: `Vector search failed: ${error.message || 'Unknown error'}`,
       }
@@ -102,10 +95,7 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
       output: {
         results: [],
         query: '',
-        knowledgeBaseId: '',
-        topK: 0,
         totalResults: 0,
-        message: errorMessage,
       },
       error: errorMessage,
     }

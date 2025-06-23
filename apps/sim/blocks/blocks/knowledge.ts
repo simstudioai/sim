@@ -40,13 +40,7 @@ export const KnowledgeBlock: BlockConfig = {
       type: {
         results: 'json',
         query: 'string',
-        knowledgeBaseId: 'string',
-        knowledgeBaseIds: 'json',
-        topK: 'number',
         totalResults: 'number',
-        message: 'string',
-        success: 'boolean',
-        data: 'json',
       },
     },
   },

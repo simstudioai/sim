@@ -5,7 +5,7 @@ import type { BlockConfig } from '../types'
 export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   type: 'response',
   name: 'Response',
-  description: 'Send a structured response back to API calls only',
+  description: 'Send structured API response',
   longDescription:
     "Transform your workflow's variables into a structured HTTP response for API calls. Define response data, status code, and headers. This is the final block in a workflow and cannot have further connections.",
   docsLink: 'https://docs.simstudio.ai/blocks/response',

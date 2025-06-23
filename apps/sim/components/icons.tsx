@@ -2939,8 +2939,17 @@ export function HuggingFaceIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export const ResponseIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' {...props}>
-    <path d='M20 18v-2a4 4 0 0 0-4-4H4' />
-    <path d='m9 17-5-5 5-5' />
+  <svg
+    {...props}
+    fill='currentColor'
+    width='800px'
+    height='800px'
+    viewBox='0 0 1920 1920'
+    xmlns='http://www.w3.org/2000/svg'
+  >
+    <path
+      d='m1044.768 224 150.827 150.827-306.88 306.88h99.413c508.8 0 922.667 413.866 922.667 922.666v90.667H1697.46v-90.667c0-391.146-318.186-709.333-709.333-709.333h-100.16l307.627 307.733-150.827 150.827-564.8-564.8 564.8-564.8ZM564.8 224l150.827 150.827L301.653 788.8l413.974 413.973L564.8 1353.6 0 788.8 564.8 224Z'
+      fill-rule='evenodd'
+    />
   </svg>
 )

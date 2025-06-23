@@ -31,12 +31,13 @@ export const StarterBlock: BlockConfig<StarterBlockOutput> = {
       ],
       value: () => 'manual',
     },
-    // Structured Input format - visible if manual run is selected
+    // Structured Input format - visible if manual run is selected (advanced mode)
     {
       id: 'inputFormat',
       title: 'Input Format (for API calls)',
       type: 'input-format',
       layout: 'full',
+      mode: 'advanced',
       condition: { field: 'startWorkflow', value: 'manual' },
     },
     // Webhook configuration
