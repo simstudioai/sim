@@ -36,6 +36,7 @@ interface SubBlockProps {
   isConnecting: boolean
   isPreview?: boolean
   subBlockValues?: Record<string, any>
+  disabled?: boolean
 }
 
 export function SubBlock({
@@ -44,6 +45,7 @@ export function SubBlock({
   isConnecting,
   isPreview = false,
   subBlockValues,
+  disabled = false,
 }: SubBlockProps) {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -67,6 +69,8 @@ export function SubBlock({
 
   const renderInput = () => {
     const previewValue = getPreviewValue()
+    // Disable input if explicitly disabled or in preview mode
+    const isDisabled = disabled || isPreview
 
     switch (config.type) {
       case 'short-input':
@@ -80,6 +84,7 @@ export function SubBlock({
             config={config}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'long-input':
@@ -93,6 +98,7 @@ export function SubBlock({
             config={config}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'dropdown':
@@ -104,6 +110,7 @@ export function SubBlock({
               options={config.options as string[]}
               isPreview={isPreview}
               previewValue={previewValue}
+              disabled={isDisabled}
             />
           </div>
         )
@@ -119,6 +126,7 @@ export function SubBlock({
             integer={config.integer}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'table':
@@ -129,6 +137,7 @@ export function SubBlock({
             columns={config.columns ?? []}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'code':
@@ -142,6 +151,7 @@ export function SubBlock({
             generationType={config.generationType}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'switch':
@@ -152,6 +162,7 @@ export function SubBlock({
             title={config.title ?? ''}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'tool-input':
@@ -161,6 +172,7 @@ export function SubBlock({
             subBlockId={config.id}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'checkbox-list':
@@ -173,6 +185,7 @@ export function SubBlock({
             layout={config.layout}
             isPreview={isPreview}
             subBlockValues={subBlockValues}
+            disabled={isDisabled}
           />
         )
       case 'condition-input':
@@ -183,6 +196,7 @@ export function SubBlock({
             isConnecting={isConnecting}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'eval-input':
@@ -192,6 +206,7 @@ export function SubBlock({
             subBlockId={config.id}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'date-input':
@@ -202,6 +217,7 @@ export function SubBlock({
             placeholder={config.placeholder}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'time-input':
@@ -212,6 +228,7 @@ export function SubBlock({
             placeholder={config.placeholder}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'file-upload':
@@ -224,6 +241,7 @@ export function SubBlock({
             maxSize={config.maxSize}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'webhook-config': {
@@ -244,6 +262,7 @@ export function SubBlock({
             isConnecting={isConnecting}
             isPreview={isPreview}
             value={webhookValue}
+            disabled={isDisabled}
           />
         )
       }
@@ -255,6 +274,7 @@ export function SubBlock({
             isConnecting={isConnecting}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       case 'oauth-input':
@@ -264,8 +284,8 @@ export function SubBlock({
               isPreview ? previewValue || '' : typeof config.value === 'string' ? config.value : ''
             }
             onChange={(value) => {
-              // Only allow changes in non-preview mode
-              if (!isPreview) {
+              // Only allow changes in non-preview mode and when not disabled
+              if (!isPreview && !disabled) {
                 const event = new CustomEvent('update-subblock-value', {
                   detail: {
                     blockId,
@@ -280,7 +300,7 @@ export function SubBlock({
             requiredScopes={config.requiredScopes || []}
             label={config.placeholder || 'Select a credential'}
             serviceId={config.serviceId}
-            disabled={isPreview}
+            disabled={isDisabled}
           />
         )
       case 'file-selector':
@@ -288,7 +308,7 @@ export function SubBlock({
           <FileSelectorInput
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isPreview}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />
@@ -298,7 +318,7 @@ export function SubBlock({
           <ProjectSelectorInput
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isPreview}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />
@@ -308,7 +328,7 @@ export function SubBlock({
           <FolderSelectorInput
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isPreview}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />
@@ -318,7 +338,7 @@ export function SubBlock({
           <KnowledgeBaseSelector
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isPreview}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />
@@ -328,7 +348,7 @@ export function SubBlock({
           <DocumentSelector
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isPreview}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />
@@ -340,6 +360,7 @@ export function SubBlock({
             subBlockId={config.id}
             isPreview={isPreview}
             previewValue={previewValue}
+            disabled={isDisabled}
           />
         )
       }
@@ -357,7 +378,7 @@ export function SubBlock({
           <ChannelSelectorInput
             blockId={blockId}
             subBlock={config}
-            disabled={isConnecting || isPreview}
+            disabled={isDisabled}
             isPreview={isPreview}
             previewValue={previewValue}
           />

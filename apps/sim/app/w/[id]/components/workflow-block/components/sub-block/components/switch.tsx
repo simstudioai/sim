@@ -9,6 +9,7 @@ interface SwitchProps {
   value?: boolean
   isPreview?: boolean
   previewValue?: boolean | null
+  disabled?: boolean
 }
 
 export function Switch({
@@ -18,6 +19,7 @@ export function Switch({
   value: propValue,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: SwitchProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<boolean>(blockId, subBlockId)
 
@@ -25,8 +27,8 @@ export function Switch({
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
   const handleChange = (checked: boolean) => {
-    // Only update store when not in preview mode
-    if (!isPreview) {
+    // Only update store when not in preview mode and not disabled
+    if (!isPreview && !disabled) {
       setStoreValue(checked)
     }
   }
@@ -37,7 +39,7 @@ export function Switch({
         id={`${blockId}-${subBlockId}`}
         checked={Boolean(value)}
         onCheckedChange={handleChange}
-        disabled={isPreview}
+        disabled={isPreview || disabled}
       />
       <Label
         htmlFor={`${blockId}-${subBlockId}`}

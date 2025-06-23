@@ -14,6 +14,7 @@ interface TableProps {
   columns: string[]
   isPreview?: boolean
   previewValue?: TableRow[] | null
+  disabled?: boolean
 }
 
 interface TableRow {
@@ -27,6 +28,7 @@ export function Table({
   columns,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: TableProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<TableRow[]>(blockId, subBlockId)
 
@@ -82,7 +84,7 @@ export function Table({
   }, [activeCell])
 
   const handleCellChange = (rowIndex: number, column: string, value: string) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
 
     const updatedRows = [...rows].map((row, idx) =>
       idx === rowIndex
@@ -104,7 +106,7 @@ export function Table({
   }
 
   const handleDeleteRow = (rowIndex: number) => {
-    if (isPreview || rows.length === 1) return
+    if (isPreview || disabled || rows.length === 1) return
     setStoreValue(rows.filter((_, index) => index !== rowIndex))
   }
 
@@ -164,16 +166,18 @@ export function Table({
               })
             }}
             onFocus={(e) => {
-              setActiveCell({
-                rowIndex,
-                column,
-                showEnvVars: false,
-                showTags: false,
-                cursorPosition: 0,
-                searchTerm: '',
-                activeSourceBlockId: null,
-                element: e.target,
-              })
+              if (!disabled) {
+                setActiveCell({
+                  rowIndex,
+                  column,
+                  showEnvVars: false,
+                  showTags: false,
+                  cursorPosition: 0,
+                  searchTerm: '',
+                  activeSourceBlockId: null,
+                  element: e.target,
+                })
+              }
             }}
             onBlur={() => {
               setTimeout(() => {
@@ -185,7 +189,7 @@ export function Table({
                 setActiveCell(null)
               }
             }}
-            disabled={isPreview}
+            disabled={isPreview || disabled}
             className='w-full border-0 text-transparent caret-foreground placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
           />
           <div
@@ -201,7 +205,8 @@ export function Table({
 
   const renderDeleteButton = (rowIndex: number) =>
     rows.length > 1 &&
-    !isPreview && (
+    !isPreview &&
+    !disabled && (
       <td className='w-0 p-0'>
         <Button
           variant='ghost'
@@ -216,7 +221,7 @@ export function Table({
 
   return (
     <div className='relative'>
-      <div className='overflow-hidden rounded-md border'>
+      <div className='overflow-visible rounded-md border'>
         <table className='w-full'>
           {renderHeader()}
           <tbody>

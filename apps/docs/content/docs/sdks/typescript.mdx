@@ -1,0 +1,598 @@
+---
+title: TypeScript/JavaScript SDK
+description: The official TypeScript/JavaScript SDK for Sim Studio
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Step, Steps } from 'fumadocs-ui/components/steps'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+
+The official TypeScript/JavaScript SDK for Sim Studio allows you to execute workflows programmatically from your Node.js applications, web applications, and other JavaScript environments.
+
+<Callout type="info">
+  The TypeScript SDK provides full type safety and supports both Node.js and browser environments. All workflow executions are currently synchronous.
+</Callout>
+
+## Installation
+
+Install the SDK using your preferred package manager:
+
+<Tabs items={['npm', 'yarn', 'bun']}>
+  <Tab value="npm">
+    ```bash
+    npm install simstudio-ts-sdk
+    ```
+  </Tab>
+  <Tab value="yarn">
+    ```bash
+    yarn add simstudio-ts-sdk
+    ```
+  </Tab>
+  <Tab value="bun">
+    ```bash
+    bun add simstudio-ts-sdk
+    ```
+  </Tab>
+</Tabs>
+
+## Quick Start
+
+Here's a simple example to get you started:
+
+```typescript
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+// Initialize the client
+const client = new SimStudioClient({
+  apiKey: 'your-api-key-here',
+  baseUrl: 'https://simstudio.ai' // optional, defaults to https://simstudio.ai
+});
+
+// Execute a workflow
+try {
+  const result = await client.executeWorkflow('workflow-id');
+  console.log('Workflow executed successfully:', result);
+} catch (error) {
+  console.error('Workflow execution failed:', error);
+}
+```
+
+## API Reference
+
+### SimStudioClient
+
+#### Constructor
+
+```typescript
+new SimStudioClient(config: SimStudioConfig)
+```
+
+**Configuration:**
+- `config.apiKey` (string): Your Sim Studio API key
+- `config.baseUrl` (string, optional): Base URL for the Sim Studio API (defaults to `https://simstudio.ai`)
+
+#### Methods
+
+##### executeWorkflow()
+
+Execute a workflow with optional input data.
+
+```typescript
+const result = await client.executeWorkflow('workflow-id', {
+  input: { message: 'Hello, world!' },
+  timeout: 30000 // 30 seconds
+});
+```
+
+**Parameters:**
+- `workflowId` (string): The ID of the workflow to execute
+- `options` (ExecutionOptions, optional):
+  - `input` (any): Input data to pass to the workflow
+  - `timeout` (number): Timeout in milliseconds (default: 30000)
+
+**Returns:** `Promise<WorkflowExecutionResult>`
+
+##### getWorkflowStatus()
+
+Get the status of a workflow (deployment status, etc.).
+
+```typescript
+const status = await client.getWorkflowStatus('workflow-id');
+console.log('Is deployed:', status.isDeployed);
+```
+
+**Parameters:**
+- `workflowId` (string): The ID of the workflow
+
+**Returns:** `Promise<WorkflowStatus>`
+
+##### validateWorkflow()
+
+Validate that a workflow is ready for execution.
+
+```typescript
+const isReady = await client.validateWorkflow('workflow-id');
+if (isReady) {
+  // Workflow is deployed and ready
+}
+```
+
+**Parameters:**
+- `workflowId` (string): The ID of the workflow
+
+**Returns:** `Promise<boolean>`
+
+##### executeWorkflowSync()
+
+<Callout type="info">
+  Currently, this method is identical to `executeWorkflow()` since all executions are synchronous. This method is provided for future compatibility when asynchronous execution is added.
+</Callout>
+
+Execute a workflow (currently synchronous, same as `executeWorkflow()`).
+
+```typescript
+const result = await client.executeWorkflowSync('workflow-id', {
+  input: { data: 'some input' },
+  timeout: 60000
+});
+```
+
+**Parameters:**
+- `workflowId` (string): The ID of the workflow to execute
+- `options` (ExecutionOptions, optional):
+  - `input` (any): Input data to pass to the workflow
+  - `timeout` (number): Timeout for the initial request in milliseconds
+
+**Returns:** `Promise<WorkflowExecutionResult>`
+
+##### setApiKey()
+
+Update the API key.
+
+```typescript
+client.setApiKey('new-api-key');
+```
+
+##### setBaseUrl()
+
+Update the base URL.
+
+```typescript
+client.setBaseUrl('https://my-custom-domain.com');
+```
+
+## Types
+
+### WorkflowExecutionResult
+
+```typescript
+interface WorkflowExecutionResult {
+  success: boolean;
+  output?: any;
+  error?: string;
+  logs?: any[];
+  metadata?: {
+    duration?: number;
+    executionId?: string;
+    [key: string]: any;
+  };
+  traceSpans?: any[];
+  totalDuration?: number;
+}
+```
+
+### WorkflowStatus
+
+```typescript
+interface WorkflowStatus {
+  isDeployed: boolean;
+  deployedAt?: string;
+  isPublished: boolean;
+  needsRedeployment: boolean;
+}
+```
+
+### SimStudioError
+
+```typescript
+class SimStudioError extends Error {
+  code?: string;
+  status?: number;
+}
+```
+
+## Examples
+
+### Basic Workflow Execution
+
+<Steps>
+  <Step title="Initialize the client">
+    Set up the SimStudioClient with your API key.
+  </Step>
+  <Step title="Validate the workflow">
+    Check if the workflow is deployed and ready for execution.
+  </Step>
+  <Step title="Execute the workflow">
+    Run the workflow with your input data.
+  </Step>
+  <Step title="Handle the result">
+    Process the execution result and handle any errors.
+  </Step>
+</Steps>
+
+```typescript
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({
+  apiKey: process.env.SIMSTUDIO_API_KEY!
+});
+
+async function runWorkflow() {
+  try {
+    // Check if workflow is ready
+    const isReady = await client.validateWorkflow('my-workflow-id');
+    if (!isReady) {
+      throw new Error('Workflow is not deployed or ready');
+    }
+
+    // Execute the workflow
+    const result = await client.executeWorkflow('my-workflow-id', {
+      input: {
+        message: 'Process this data',
+        userId: '12345'
+      }
+    });
+
+    if (result.success) {
+      console.log('Output:', result.output);
+      console.log('Duration:', result.metadata?.duration);
+    } else {
+      console.error('Workflow failed:', result.error);
+    }
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+runWorkflow();
+```
+
+### Error Handling
+
+Handle different types of errors that may occur during workflow execution:
+
+```typescript
+import { SimStudioClient, SimStudioError } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({
+  apiKey: process.env.SIMSTUDIO_API_KEY!
+});
+
+async function executeWithErrorHandling() {
+  try {
+    const result = await client.executeWorkflow('workflow-id');
+    return result;
+  } catch (error) {
+    if (error instanceof SimStudioError) {
+      switch (error.code) {
+        case 'UNAUTHORIZED':
+          console.error('Invalid API key');
+          break;
+        case 'TIMEOUT':
+          console.error('Workflow execution timed out');
+          break;
+        case 'USAGE_LIMIT_EXCEEDED':
+          console.error('Usage limit exceeded');
+          break;
+        case 'INVALID_JSON':
+          console.error('Invalid JSON in request body');
+          break;
+        default:
+          console.error('Workflow error:', error.message);
+      }
+    } else {
+      console.error('Unexpected error:', error);
+    }
+    throw error;
+  }
+}
+```
+
+### Environment Configuration
+
+Configure the client using environment variables:
+
+<Tabs items={['Development', 'Production']}>
+  <Tab value="Development">
+    ```typescript
+    import { SimStudioClient } from 'simstudio-ts-sdk';
+
+    // Development configuration
+    const apiKey = process.env.SIMSTUDIO_API_KEY;
+    if (!apiKey) {
+      throw new Error('SIMSTUDIO_API_KEY environment variable is required');
+    }
+
+    const client = new SimStudioClient({
+      apiKey,
+      baseUrl: process.env.SIMSTUDIO_BASE_URL // optional
+    });
+    ```
+  </Tab>
+  <Tab value="Production">
+    ```typescript
+    import { SimStudioClient } from 'simstudio-ts-sdk';
+
+    // Production configuration with validation
+    const apiKey = process.env.SIMSTUDIO_API_KEY;
+    if (!apiKey) {
+      throw new Error('SIMSTUDIO_API_KEY environment variable is required');
+    }
+
+    const client = new SimStudioClient({
+      apiKey,
+      baseUrl: process.env.SIMSTUDIO_BASE_URL || 'https://simstudio.ai'
+    });
+    ```
+  </Tab>
+</Tabs>
+
+### Node.js Express Integration
+
+Integrate with an Express.js server:
+
+```typescript
+import express from 'express';
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const app = express();
+const client = new SimStudioClient({
+  apiKey: process.env.SIMSTUDIO_API_KEY!
+});
+
+app.use(express.json());
+
+app.post('/execute-workflow', async (req, res) => {
+  try {
+    const { workflowId, input } = req.body;
+    
+    const result = await client.executeWorkflow(workflowId, {
+      input,
+      timeout: 60000
+    });
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Workflow execution error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+app.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
+```
+
+### Next.js API Route
+
+Use with Next.js API routes:
+
+```typescript
+// pages/api/workflow.ts or app/api/workflow/route.ts
+import { NextApiRequest, NextApiResponse } from 'next';
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({
+  apiKey: process.env.SIMSTUDIO_API_KEY!
+});
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { workflowId, input } = req.body;
+
+    const result = await client.executeWorkflow(workflowId, {
+      input,
+      timeout: 30000
+    });
+
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Error executing workflow:', error);
+    res.status(500).json({
+      error: 'Failed to execute workflow'
+    });
+  }
+}
+```
+
+### Browser Usage
+
+Use in the browser (with proper CORS configuration):
+
+```typescript
+import { SimStudioClient } from 'simstudio-ts-sdk';
+
+// Note: In production, use a proxy server to avoid exposing API keys
+const client = new SimStudioClient({
+  apiKey: 'your-public-api-key', // Use with caution in browser
+  baseUrl: 'https://simstudio.ai'
+});
+
+async function executeClientSideWorkflow() {
+  try {
+    const result = await client.executeWorkflow('workflow-id', {
+      input: {
+        userInput: 'Hello from browser'
+      }
+    });
+
+    console.log('Workflow result:', result);
+    
+    // Update UI with result
+    document.getElementById('result')!.textContent = 
+      JSON.stringify(result.output, null, 2);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+// Attach to button click
+document.getElementById('executeBtn')?.addEventListener('click', executeClientSideWorkflow);
+```
+
+<Callout type="warning">
+  When using the SDK in the browser, be careful not to expose sensitive API keys. Consider using a backend proxy or public API keys with limited permissions.
+</Callout>
+
+### React Hook Example
+
+Create a custom React hook for workflow execution:
+
+```typescript
+import { useState, useCallback } from 'react';
+import { SimStudioClient, WorkflowExecutionResult } from 'simstudio-ts-sdk';
+
+const client = new SimStudioClient({
+  apiKey: process.env.NEXT_PUBLIC_SIMSTUDIO_API_KEY!
+});
+
+interface UseWorkflowResult {
+  result: WorkflowExecutionResult | null;
+  loading: boolean;
+  error: Error | null;
+  executeWorkflow: (workflowId: string, input?: any) => Promise<void>;
+}
+
+export function useWorkflow(): UseWorkflowResult {
+  const [result, setResult] = useState<WorkflowExecutionResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const executeWorkflow = useCallback(async (workflowId: string, input?: any) => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const workflowResult = await client.executeWorkflow(workflowId, {
+        input,
+        timeout: 30000
+      });
+      setResult(workflowResult);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return {
+    result,
+    loading,
+    error,
+    executeWorkflow
+  };
+}
+
+// Usage in component
+function WorkflowComponent() {
+  const { result, loading, error, executeWorkflow } = useWorkflow();
+
+  const handleExecute = () => {
+    executeWorkflow('my-workflow-id', {
+      message: 'Hello from React!'
+    });
+  };
+
+  return (
+    <div>
+      <button onClick={handleExecute} disabled={loading}>
+        {loading ? 'Executing...' : 'Execute Workflow'}
+      </button>
+      
+      {error && <div>Error: {error.message}</div>}
+      {result && (
+        <div>
+          <h3>Result:</h3>
+          <pre>{JSON.stringify(result, null, 2)}</pre>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+## Getting Your API Key
+
+<Steps>
+  <Step title="Log in to Sim Studio">
+    Navigate to [Sim Studio](https://simstudio.ai) and log in to your account.
+  </Step>
+  <Step title="Open your workflow">
+    Navigate to the workflow you want to execute programmatically.
+  </Step>
+  <Step title="Deploy your workflow">
+    Click on "Deploy" to deploy your workflow if it hasn't been deployed yet.
+  </Step>
+  <Step title="Create or select an API key">
+    During the deployment process, select or create an API key.
+  </Step>
+  <Step title="Copy the API key">
+    Copy the API key to use in your TypeScript/JavaScript application.
+  </Step>
+</Steps>
+
+<Callout type="warning">
+  Keep your API key secure and never commit it to version control. Use environment variables or secure configuration management.
+</Callout>
+
+## Requirements
+
+- Node.js 16+
+- TypeScript 5.0+ (for TypeScript projects)
+
+## TypeScript Support
+
+The SDK is written in TypeScript and provides full type safety:
+
+```typescript
+import { 
+  SimStudioClient, 
+  WorkflowExecutionResult, 
+  WorkflowStatus,
+  SimStudioError 
+} from 'simstudio-ts-sdk';
+
+// Type-safe client initialization
+const client: SimStudioClient = new SimStudioClient({
+  apiKey: process.env.SIMSTUDIO_API_KEY!
+});
+
+// Type-safe workflow execution
+const result: WorkflowExecutionResult = await client.executeWorkflow('workflow-id', {
+  input: {
+    message: 'Hello, TypeScript!'
+  }
+});
+
+// Type-safe status checking
+const status: WorkflowStatus = await client.getWorkflowStatus('workflow-id');
+```
+
+## License
+
+Apache-2.0 

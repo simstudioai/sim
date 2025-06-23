@@ -24,6 +24,7 @@ interface InputFormatProps {
   subBlockId: string
   isPreview?: boolean
   previewValue?: InputField[] | null
+  disabled?: boolean
 }
 
 // Default values
@@ -39,6 +40,7 @@ export function InputFormat({
   subBlockId,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: InputFormatProps) {
   const [storeValue, setStoreValue] = useSubBlockValue<InputField[]>(blockId, subBlockId)
 
@@ -48,7 +50,7 @@ export function InputFormat({
 
   // Field operations
   const addField = () => {
-    if (isPreview) return
+    if (isPreview || disabled) return
 
     const newField: InputField = {
       ...DEFAULT_FIELD,
@@ -58,18 +60,18 @@ export function InputFormat({
   }
 
   const removeField = (id: string) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
     setStoreValue(fields.filter((field: InputField) => field.id !== id))
   }
 
   // Update handlers
   const updateField = (id: string, field: keyof InputField, value: any) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
     setStoreValue(fields.map((f: InputField) => (f.id === id ? { ...f, [field]: value } : f)))
   }
 
   const toggleCollapse = (id: string) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
     setStoreValue(
       fields.map((f: InputField) => (f.id === id ? { ...f, collapsed: !f.collapsed } : f))
     )
@@ -104,7 +106,7 @@ export function InputFormat({
             variant='ghost'
             size='icon'
             onClick={addField}
-            disabled={isPreview}
+            disabled={isPreview || disabled}
             className='h-6 w-6 rounded-full'
           >
             <Plus className='h-3.5 w-3.5' />
@@ -115,7 +117,7 @@ export function InputFormat({
             variant='ghost'
             size='icon'
             onClick={() => removeField(field.id)}
-            disabled={isPreview}
+            disabled={isPreview || disabled}
             className='h-6 w-6 rounded-full text-destructive hover:text-destructive'
           >
             <Trash className='h-3.5 w-3.5' />
@@ -133,13 +135,13 @@ export function InputFormat({
   return (
     <div className='space-y-2'>
       {fields.length === 0 ? (
-        <div className='flex flex-col items-center justify-center rounded-md border border-input/50 border-dashed py-8'>
+        <div className='flex flex-col items-center justify-center rounded-md border border-dashed border-input/50 py-8'>
           <p className='mb-3 text-muted-foreground text-sm'>No input fields defined</p>
           <Button
             variant='outline'
             size='sm'
             onClick={addField}
-            disabled={isPreview}
+            disabled={isPreview || disabled}
             className='h-8'
           >
             <Plus className='mr-1.5 h-3.5 w-3.5' />
@@ -171,7 +173,7 @@ export function InputFormat({
                       value={field.name}
                       onChange={(e) => updateField(field.id, 'name', e.target.value)}
                       placeholder='firstName'
-                      disabled={isPreview}
+                      disabled={isPreview || disabled}
                       className='h-9 placeholder:text-muted-foreground/50'
                     />
                   </div>
@@ -182,7 +184,7 @@ export function InputFormat({
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant='outline'
-                          disabled={isPreview}
+                          disabled={isPreview || disabled}
                           className='h-9 w-full justify-between font-normal'
                         >
                           <div className='flex items-center'>

@@ -131,6 +131,8 @@ export interface SubBlockConfig {
   integer?: boolean
   // Long input specific properties
   rows?: number
+  // Multi-select functionality
+  multiSelect?: boolean
 }
 
 // Main block definition

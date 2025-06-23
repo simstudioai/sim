@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { AlertCircle, FileText, Loader2, X } from 'lucide-react'
+import { AlertCircle, Loader2, X } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,7 +13,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -38,7 +37,6 @@ export function CreateChunkModal({
   onChunkCreated,
 }: CreateChunkModalProps) {
   const [content, setContent] = useState('')
-  const [enabled, setEnabled] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showUnsavedChangesAlert, setShowUnsavedChangesAlert] = useState(false)
@@ -68,7 +66,7 @@ export function CreateChunkModal({
           },
           body: JSON.stringify({
             content: content.trim(),
-            enabled,
+            enabled: true,
           }),
         }
       )
@@ -104,7 +102,6 @@ export function CreateChunkModal({
     onOpenChange(false)
     // Reset form state when modal closes
     setContent('')
-    setEnabled(true)
     setError(null)
     setShowUnsavedChangesAlert(false)
   }
@@ -148,52 +145,16 @@ export function CreateChunkModal({
 
           <div className='flex flex-1 flex-col overflow-hidden'>
             <div className='scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/25 scrollbar-track-transparent min-h-0 flex-1 overflow-y-auto px-6'>
-              <div className='py-4'>
-                <div className='space-y-4'>
-                  {/* Document Info */}
+              <div className='flex min-h-full flex-col py-4'>
+                {/* Document Info Section - Fixed at top */}
+                <div className='flex-shrink-0 space-y-4'>
                   <div className='flex items-center gap-3 rounded-lg border bg-muted/30 p-4'>
-                    <FileText className='h-5 w-5 text-muted-foreground' />
                     <div className='min-w-0 flex-1'>
                       <p className='font-medium text-sm'>
                         {document?.filename || 'Unknown Document'}
                       </p>
                       <p className='text-muted-foreground text-xs'>Adding chunk to this document</p>
                     </div>
-                  </div>
-
-                  {/* Content Input */}
-                  <div className='space-y-2'>
-                    <Label htmlFor='content' className='font-medium text-sm'>
-                      Chunk Content
-                    </Label>
-                    <Textarea
-                      id='content'
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      placeholder='Enter the content for this chunk...'
-                      className='min-h-[200px] resize-none'
-                      disabled={isCreating}
-                    />
-                    <div className='flex items-center justify-between text-muted-foreground text-xs'>
-                      <span>{content.length}/10000 characters</span>
-                      {content.length > 10000 && (
-                        <span className='text-red-500'>Content too long</span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Enabled Toggle */}
-                  <div className='flex items-center space-x-2'>
-                    <Checkbox
-                      id='enabled'
-                      checked={enabled}
-                      onCheckedChange={(checked) => setEnabled(checked as boolean)}
-                      disabled={isCreating}
-                      className='h-4 w-4'
-                    />
-                    <Label htmlFor='enabled' className='text-sm'>
-                      Enable chunk for search
-                    </Label>
                   </div>
 
                   {/* Error Display */}
@@ -203,6 +164,21 @@ export function CreateChunkModal({
                       <p className='text-red-800 text-sm'>{error}</p>
                     </div>
                   )}
+                </div>
+
+                {/* Content Input Section - Expands to fill remaining space */}
+                <div className='mt-4 flex flex-1 flex-col'>
+                  <Label htmlFor='content' className='mb-2 font-medium text-sm'>
+                    Chunk Content
+                  </Label>
+                  <Textarea
+                    id='content'
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder='Enter the content for this chunk...'
+                    className='flex-1 resize-none'
+                    disabled={isCreating}
+                  />
                 </div>
               </div>
             </div>

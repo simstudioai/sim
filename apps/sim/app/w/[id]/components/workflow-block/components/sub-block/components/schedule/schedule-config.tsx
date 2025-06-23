@@ -21,6 +21,7 @@ interface ScheduleConfigProps {
   isConnecting: boolean
   isPreview?: boolean
   previewValue?: any | null
+  disabled?: boolean
 }
 
 export function ScheduleConfig({
@@ -29,6 +30,7 @@ export function ScheduleConfig({
   isConnecting,
   isPreview = false,
   previewValue,
+  disabled = false,
 }: ScheduleConfigProps) {
   const [error, setError] = useState<string | null>(null)
   const [scheduleId, setScheduleId] = useState<string | null>(null)
@@ -137,7 +139,7 @@ export function ScheduleConfig({
   }
 
   const handleOpenModal = () => {
-    if (isPreview) return
+    if (isPreview || disabled) return
     setIsModalOpen(true)
   }
 
@@ -151,7 +153,7 @@ export function ScheduleConfig({
   }
 
   const handleSaveSchedule = async (): Promise<boolean> => {
-    if (isPreview) return false
+    if (isPreview || disabled) return false
 
     setIsSaving(true)
     setError(null)
@@ -255,7 +257,7 @@ export function ScheduleConfig({
   }
 
   const handleDeleteSchedule = async (): Promise<boolean> => {
-    if (isPreview || !scheduleId) return false
+    if (isPreview || !scheduleId || disabled) return false
 
     setIsDeleting(true)
     try {
@@ -328,7 +330,7 @@ export function ScheduleConfig({
               size='icon'
               className='h-8 w-8 shrink-0'
               onClick={handleOpenModal}
-              disabled={isPreview || isDeleting || isConnecting}
+              disabled={isPreview || isDeleting || isConnecting || disabled}
             >
               {isDeleting ? (
                 <div className='h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
@@ -344,7 +346,7 @@ export function ScheduleConfig({
           size='sm'
           className='flex h-10 w-full items-center bg-background font-normal text-sm'
           onClick={handleOpenModal}
-          disabled={isPreview || isConnecting || isSaving || isDeleting}
+          disabled={isPreview || isConnecting || isSaving || isDeleting || disabled}
         >
           {isLoading ? (
             <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />

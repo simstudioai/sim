@@ -8,6 +8,7 @@ import {
   integer,
   json,
   jsonb,
+  pgEnum,
   pgTable,
   text,
   timestamp,
@@ -146,14 +147,14 @@ export const workflowBlocks = pgTable(
     name: text('name').notNull(), // Display name of the block
 
     // Position coordinates (from position.x, position.y)
-    positionX: integer('position_x').notNull(), // X coordinate on canvas
-    positionY: integer('position_y').notNull(), // Y coordinate on canvas
+    positionX: decimal('position_x').notNull(), // X coordinate on canvas
+    positionY: decimal('position_y').notNull(), // Y coordinate on canvas
 
     // Block behavior flags (from current BlockState)
     enabled: boolean('enabled').notNull().default(true), // Whether block is active
     horizontalHandles: boolean('horizontal_handles').notNull().default(true), // UI layout preference
     isWide: boolean('is_wide').notNull().default(false), // Whether block uses wide layout
-    height: integer('height').notNull().default(0), // Custom height override
+    height: decimal('height').notNull().default('0'), // Custom height override
 
     // Block data (keeping JSON for flexibility as current system does)
     subBlocks: jsonb('sub_blocks').notNull().default('{}'), // All subblock configurations
@@ -533,6 +534,9 @@ export const workspaceMember = pgTable(
   }
 )
 
+// Define the permission enum
+export const permissionTypeEnum = pgEnum('permission_type', ['admin', 'write', 'read'])
+
 export const workspaceInvitation = pgTable('workspace_invitation', {
   id: text('id').primaryKey(),
   workspaceId: text('workspace_id')
@@ -545,10 +549,57 @@ export const workspaceInvitation = pgTable('workspace_invitation', {
   role: text('role').notNull().default('member'),
   status: text('status').notNull().default('pending'),
   token: text('token').notNull().unique(),
+  permissions: permissionTypeEnum('permissions').notNull().default('admin'),
   expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+export const permissions = pgTable(
+  'permissions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    entityType: text('entity_type').notNull(), // 'workspace', 'workflow', 'organization', etc.
+    entityId: text('entity_id').notNull(), // ID of the workspace, workflow, etc.
+    permissionType: permissionTypeEnum('permission_type').notNull(), // Use enum instead of text
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    // Primary access pattern - get all permissions for a user
+    userIdIdx: index('permissions_user_id_idx').on(table.userId),
+
+    // Entity-based queries - get all users with permissions on an entity
+    entityIdx: index('permissions_entity_idx').on(table.entityType, table.entityId),
+
+    // User + entity type queries - get user's permissions for all workspaces
+    userEntityTypeIdx: index('permissions_user_entity_type_idx').on(table.userId, table.entityType),
+
+    // Specific permission checks - does user have specific permission on entity
+    userEntityPermissionIdx: index('permissions_user_entity_permission_idx').on(
+      table.userId,
+      table.entityType,
+      table.permissionType
+    ),
+
+    // User + specific entity queries - get user's permissions for specific entity
+    userEntityIdx: index('permissions_user_entity_idx').on(
+      table.userId,
+      table.entityType,
+      table.entityId
+    ),
+
+    // Uniqueness constraint - prevent duplicate permission rows (one permission per user/entity)
+    uniquePermissionConstraint: uniqueIndex('permissions_unique_constraint').on(
+      table.userId,
+      table.entityType,
+      table.entityId
+    ),
+  })
+)
 
 export const memory = pgTable(
   'memory',
@@ -633,7 +684,6 @@ export const document = pgTable(
     fileUrl: text('file_url').notNull(),
     fileSize: integer('file_size').notNull(), // Size in bytes
     mimeType: text('mime_type').notNull(), // e.g., 'application/pdf', 'text/plain'
-    fileHash: text('file_hash'), // SHA-256 hash for deduplication
 
     // Content statistics
     chunkCount: integer('chunk_count').notNull().default(0),
@@ -656,8 +706,6 @@ export const document = pgTable(
   (table) => ({
     // Primary access pattern - documents by knowledge base
     knowledgeBaseIdIdx: index('doc_kb_id_idx').on(table.knowledgeBaseId),
-    // File deduplication
-    fileHashIdx: index('doc_file_hash_idx').on(table.fileHash),
     // Search by filename (for search functionality)
     filenameIdx: index('doc_filename_idx').on(table.filename),
     // Order by upload date (for listing documents)
@@ -695,18 +743,9 @@ export const embedding = pgTable(
     // Chunk boundaries and overlap
     startOffset: integer('start_offset').notNull(),
     endOffset: integer('end_offset').notNull(),
-    overlapTokens: integer('overlap_tokens').notNull().default(0),
 
     // Rich metadata for advanced filtering
     metadata: jsonb('metadata').notNull().default('{}'),
-
-    // Search optimization
-    searchRank: decimal('search_rank').default('1.0'),
-    accessCount: integer('access_count').notNull().default(0),
-    lastAccessedAt: timestamp('last_accessed_at'),
-
-    // Quality metrics
-    qualityScore: decimal('quality_score'),
 
     // Chunk state - enable/disable from knowledge base
     enabled: boolean('enabled').notNull().default(true),
@@ -732,15 +771,6 @@ export const embedding = pgTable(
 
     // Model-specific queries for A/B testing or migrations
     kbModelIdx: index('emb_kb_model_idx').on(table.knowledgeBaseId, table.embeddingModel),
-
-    // Deduplication
-    chunkHashIdx: index('emb_chunk_hash_idx').on(table.chunkHash),
-
-    // Access patterns for hot data
-    kbAccessIdx: index('emb_kb_access_idx').on(table.knowledgeBaseId, table.lastAccessedAt),
-
-    // Search rank optimization
-    kbRankIdx: index('emb_kb_rank_idx').on(table.knowledgeBaseId, table.searchRank),
 
     // Enabled state filtering indexes (for chunk enable/disable functionality)
     kbEnabledIdx: index('emb_kb_enabled_idx').on(table.knowledgeBaseId, table.enabled),

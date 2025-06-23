@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -12,8 +13,6 @@ const logger = createLogger('ChunkByIdAPI')
 const UpdateChunkSchema = z.object({
   content: z.string().min(1, 'Content is required').optional(),
   enabled: z.boolean().optional(),
-  searchRank: z.number().min(0).optional(),
-  qualityScore: z.number().min(0).max(1).optional(),
 })
 
 export async function GET(
@@ -103,21 +102,27 @@ export async function PUT(
     try {
       const validatedData = UpdateChunkSchema.parse(body)
 
-      const updateData: any = {
-        updatedAt: new Date(),
-      }
+      const updateData: Partial<{
+        content: string
+        contentLength: number
+        tokenCount: number
+        chunkHash: string
+        enabled: boolean
+        updatedAt: Date
+      }> = {}
 
-      if (validatedData.content !== undefined) {
+      if (validatedData.content) {
         updateData.content = validatedData.content
         updateData.contentLength = validatedData.content.length
         // Update token count estimation (rough approximation: 4 chars per token)
         updateData.tokenCount = Math.ceil(validatedData.content.length / 4)
+        updateData.chunkHash = crypto
+          .createHash('sha256')
+          .update(validatedData.content)
+          .digest('hex')
       }
+
       if (validatedData.enabled !== undefined) updateData.enabled = validatedData.enabled
-      if (validatedData.searchRank !== undefined)
-        updateData.searchRank = validatedData.searchRank.toString()
-      if (validatedData.qualityScore !== undefined)
-        updateData.qualityScore = validatedData.qualityScore.toString()
 
       await db.update(embedding).set(updateData).where(eq(embedding.id, chunkId))
 

@@ -18,6 +18,7 @@ interface FileUploadProps {
   multiple?: boolean // whether to allow multiple file uploads
   isPreview?: boolean
   previewValue?: any | null
+  disabled?: boolean
 }
 
 interface UploadedFile {
@@ -41,6 +42,7 @@ export function FileUpload({
   multiple = false, // Default to single file for backward compatibility
   isPreview = false,
   previewValue,
+  disabled = false,
 }: FileUploadProps) {
   // State management - handle both single file and array of files
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
@@ -68,6 +70,8 @@ export function FileUpload({
     e.preventDefault()
     e.stopPropagation()
 
+    if (disabled) return
+
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
       fileInputRef.current.click()
@@ -87,7 +91,7 @@ export function FileUpload({
    * Handles file upload when new file(s) are selected
    */
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isPreview) return
+    if (isPreview || disabled) return
 
     e.stopPropagation()
 

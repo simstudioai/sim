@@ -1,0 +1,61 @@
+{
+  "name": "simstudio-ts-sdk",
+  "version": "0.1.0",
+  "description": "Sim Studio SDK - Execute workflows programmatically",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "bun run build:tsc",
+    "build:tsc": "tsc",
+    "dev:watch": "tsc --watch",
+    "prepublishOnly": "bun run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "simstudio",
+    "ai",
+    "workflow",
+    "sdk",
+    "api",
+    "automation",
+    "typescript"
+  ],
+  "author": "Sim Studio",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.5.1",
+    "typescript": "^5.1.6",
+    "vitest": "^3.0.8",
+    "@vitest/coverage-v8": "^3.0.8"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/simstudioai/sim.git",
+    "directory": "packages/ts-sdk"
+  },
+  "homepage": "https://simstudio.ai",
+  "bugs": {
+    "url": "https://github.com/simstudioai/sim/issues"
+  }
+}
