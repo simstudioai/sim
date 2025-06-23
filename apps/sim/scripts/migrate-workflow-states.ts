@@ -2,9 +2,9 @@
 
 import { readFileSync } from 'fs'
 import { and, eq, inArray, isNotNull } from 'drizzle-orm'
+import { nanoid } from 'nanoid'
 import { db } from '../db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '../db/schema'
-import { nanoid } from 'nanoid'
 
 interface WorkflowState {
   blocks: Record<string, any>
@@ -169,7 +169,9 @@ async function migrateWorkflowStates(specificWorkflowIds?: string[] | null) {
           for (const loopId of loopIds) {
             const loop = loops[loopId]
             // Map old node IDs to new block IDs
-            const updatedNodes = (loop.nodes || []).map((nodeId: string) => blockIdMapping[nodeId]).filter(Boolean)
+            const updatedNodes = (loop.nodes || [])
+              .map((nodeId: string) => blockIdMapping[nodeId])
+              .filter(Boolean)
 
             await tx.insert(workflowSubflows).values({
               id: nanoid(),
@@ -193,7 +195,9 @@ async function migrateWorkflowStates(specificWorkflowIds?: string[] | null) {
           for (const parallelId of parallelIds) {
             const parallel = parallels[parallelId]
             // Map old node IDs to new block IDs
-            const updatedNodes = (parallel.nodes || []).map((nodeId: string) => blockIdMapping[nodeId]).filter(Boolean)
+            const updatedNodes = (parallel.nodes || [])
+              .map((nodeId: string) => blockIdMapping[nodeId])
+              .filter(Boolean)
 
             await tx.insert(workflowSubflows).values({
               id: nanoid(),
