@@ -99,7 +99,6 @@ function SignupFormContent({
   const [emailError, setEmailError] = useState('')
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const [showEmailValidationError, setShowEmailValidationError] = useState(false)
-  const [waitlistToken, setWaitlistToken] = useState('')
   const [redirectUrl, setRedirectUrl] = useState('')
   const [isInviteFlow, setIsInviteFlow] = useState(false)
 
@@ -113,14 +112,6 @@ function SignupFormContent({
     const emailParam = searchParams.get('email')
     if (emailParam) {
       setEmail(emailParam)
-    }
-
-    // Check for waitlist token
-    const tokenParam = searchParams.get('token')
-    if (tokenParam) {
-      setWaitlistToken(tokenParam)
-      // Verify the token and get the email
-      verifyWaitlistToken(tokenParam)
     }
 
     // Handle redirection for invitation flow
@@ -140,28 +131,6 @@ function SignupFormContent({
       setIsInviteFlow(true)
     }
   }, [searchParams])
-
-  // Verify waitlist token and pre-fill email
-  const verifyWaitlistToken = async (token: string) => {
-    try {
-      const response = await fetch('/api/auth/verify-waitlist-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token }),
-      })
-
-      const data = await response.json()
-
-      if (data.success && data.email) {
-        setEmail(data.email)
-      }
-    } catch (error) {
-      console.error('Error verifying waitlist token:', error)
-      // Continue regardless of errors - we don't want to block sign up
-    }
-  }
 
   // Validate password and return array of error messages
   const validatePassword = (passwordValue: string): string[] => {
@@ -399,26 +368,6 @@ function SignupFormContent({
       if (!response || response.error) {
         setIsLoading(false)
         return
-      }
-
-      // If we have a waitlist token, mark it as used
-      if (waitlistToken) {
-        try {
-          await fetch('/api/waitlist', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              token: waitlistToken,
-              email: emailValue,
-              action: 'use',
-            }),
-          })
-        } catch (error) {
-          console.error('Error marking waitlist token as used:', error)
-          // Continue regardless - this is not critical
-        }
       }
 
       // Handle invitation flow redirect

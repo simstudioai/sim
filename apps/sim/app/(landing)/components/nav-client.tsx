@@ -20,13 +20,26 @@ import { usePrefetchOnHover } from '../utils/prefetch'
 // --- Framer Motion Variants ---
 const desktopNavContainerVariants = {
   hidden: { opacity: 0, y: -10 },
-  visible: { opacity: 1, y: 0 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      delay: 0.2,
+      duration: 0.3,
+    },
+  },
 }
 
 const mobileSheetContainerVariants = {
   hidden: { x: '100%' },
-  visible: { x: 0 },
-  exit: { x: '100%' },
+  visible: {
+    x: 0,
+    transition: { duration: 0.3 },
+  },
+  exit: {
+    x: '100%',
+    transition: { duration: 0.2 },
+  },
 }
 
 const mobileNavItemsContainerVariants = {
@@ -36,12 +49,20 @@ const mobileNavItemsContainerVariants = {
 
 const mobileNavItemVariants = {
   hidden: { opacity: 0, x: 20 },
-  visible: { opacity: 1, x: 0 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.3 },
+  },
 }
 
 const mobileButtonVariants = {
   hidden: { opacity: 0, y: 10 },
-  visible: { opacity: 1, y: 0 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3 },
+  },
 }
 // --- End Framer Motion Variants ---
 
@@ -205,7 +226,7 @@ export default function NavClient({
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, ease: 'easeOut', delay: 0.4 }}
+                  transition={{ duration: 0.3, delay: 0.4 }}
                 >
                   <Link
                     href='https://form.typeform.com/to/jqCO12pF'
