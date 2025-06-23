@@ -19,6 +19,7 @@ import { FolderSelectorInput } from './components/folder-selector/components/fol
 import { KnowledgeBaseSelector } from './components/knowledge-base-selector/knowledge-base-selector'
 import { LongInput } from './components/long-input'
 import { ProjectSelectorInput } from './components/project-selector/project-selector-input'
+import { ResponseFormat } from './components/response/response-format'
 import { ScheduleConfig } from './components/schedule/schedule-config'
 import { ShortInput } from './components/short-input'
 import { SliderInput } from './components/slider-input'
@@ -352,7 +353,7 @@ export function SubBlock({
             previewValue={previewValue}
           />
         )
-      case 'input-format':
+      case 'input-format': {
         return (
           <InputFormat
             blockId={blockId}
@@ -360,6 +361,16 @@ export function SubBlock({
             isPreview={isPreview}
             previewValue={previewValue}
             disabled={isDisabled}
+          />
+        )
+      }
+      case 'response-format':
+        return (
+          <ResponseFormat
+            blockId={blockId}
+            subBlockId={config.id}
+            isPreview={isPreview}
+            previewValue={previewValue}
           />
         )
       case 'channel-selector':

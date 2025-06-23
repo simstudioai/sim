@@ -763,7 +763,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
         </div>
 
         {/* Output Handle */}
-        {type !== 'condition' && (
+        {type !== 'condition' && type !== 'response' && (
           <>
             <Handle
               type='source'
