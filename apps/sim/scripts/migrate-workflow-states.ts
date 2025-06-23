@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { readFileSync } from 'fs'
-import { and, eq, isNotNull, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull } from 'drizzle-orm'
 import { db } from '../db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '../db/schema'
 
@@ -46,11 +46,11 @@ async function migrateWorkflowStates(specificWorkflowIds?: string[] | null) {
     console.log(`📊 Found ${workflowsToMigrate.length} workflows with JSON state`)
 
     if (specificWorkflowIds) {
-      const foundIds = workflowsToMigrate.map(w => w.id)
-      const missingIds = specificWorkflowIds.filter(id => !foundIds.includes(id))
+      const foundIds = workflowsToMigrate.map((w) => w.id)
+      const missingIds = specificWorkflowIds.filter((id) => !foundIds.includes(id))
       if (missingIds.length > 0) {
         console.log(`⚠️  Warning: ${missingIds.length} specified workflow IDs not found:`)
-        missingIds.forEach(id => console.log(`    - ${id}`))
+        missingIds.forEach((id) => console.log(`    - ${id}`))
       }
       console.log('')
     }
@@ -247,7 +247,7 @@ if (showHelp) {
 
 // Parse --file flag for workflow IDs
 let specificWorkflowIds: string[] | null = null
-const fileIndex = args.findIndex(arg => arg === '--file')
+const fileIndex = args.findIndex((arg) => arg === '--file')
 if (fileIndex !== -1 && args[fileIndex + 1]) {
   const filePath = args[fileIndex + 1]
   try {
@@ -255,8 +255,8 @@ if (fileIndex !== -1 && args[fileIndex + 1]) {
     const fileContent = readFileSync(filePath, 'utf-8')
     specificWorkflowIds = fileContent
       .split(',')
-      .map(id => id.trim())
-      .filter(id => id.length > 0)
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0)
     console.log(`📋 Found ${specificWorkflowIds.length} workflow IDs in file`)
     console.log('')
   } catch (error) {
