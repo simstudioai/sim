@@ -236,22 +236,25 @@ const WorkflowContent = React.memo(() => {
     const detectedOrientation = detectHandleOrientation(blocks)
 
     // Optimize spacing based on handle orientation
-    const orientationConfig =
-      detectedOrientation === 'vertical'
-        ? {
-            // Vertical handles: optimize for top-to-bottom flow
-            horizontalSpacing: 400,
-            verticalSpacing: 300,
-            startX: 200,
-            startY: 200,
-          }
-        : {
-            // Horizontal handles: optimize for left-to-right flow
-            horizontalSpacing: 600,
-            verticalSpacing: 200,
-            startX: 150,
-            startY: 300,
-          }
+    const orientationConfig = useMemo(
+      () =>
+        detectedOrientation === 'vertical'
+          ? {
+              // Vertical handles: optimize for top-to-bottom flow
+              horizontalSpacing: 400,
+              verticalSpacing: 300,
+              startX: 200,
+              startY: 200,
+            }
+          : {
+              // Horizontal handles: optimize for left-to-right flow
+              horizontalSpacing: 600,
+              verticalSpacing: 200,
+              startX: 150,
+              startY: 300,
+            },
+      [detectedOrientation]
+    )
 
     applyAutoLayoutSmooth(blocks, edges, updateBlockPosition, fitView, resizeLoopNodesWrapper, {
       ...orientationConfig,
