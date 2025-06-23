@@ -160,7 +160,7 @@ export class PathTracker {
    */
   private updateRouterPaths(block: SerializedBlock, context: ExecutionContext): void {
     const routerOutput = context.blockStates.get(block.id)?.output
-    const selectedPath = routerOutput?.response?.selectedPath?.blockId
+    const selectedPath = routerOutput?.selectedPath?.blockId
 
     if (selectedPath) {
       context.decisions.router.set(block.id, selectedPath)
@@ -174,7 +174,7 @@ export class PathTracker {
    */
   private updateConditionPaths(block: SerializedBlock, context: ExecutionContext): void {
     const conditionOutput = context.blockStates.get(block.id)?.output
-    const selectedConditionId = conditionOutput?.response?.selectedConditionId
+    const selectedConditionId = conditionOutput?.selectedConditionId
 
     if (!selectedConditionId) return
 
@@ -231,9 +231,7 @@ export class PathTracker {
    * Check if a block has an error
    */
   private blockHasError(blockState: BlockState | undefined): boolean {
-    return (
-      blockState?.output?.error !== undefined || blockState?.output?.response?.error !== undefined
-    )
+    return blockState?.output?.error !== undefined
   }
 
   /**

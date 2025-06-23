@@ -549,42 +549,6 @@ describe('JSON and Structured Output', () => {
       expect(generateStructuredOutputInstructions(objectFormat)).toBe('')
     })
 
-    it.concurrent('should generate instructions for legacy fields format', () => {
-      const fieldsFormat = {
-        fields: [
-          { name: 'score', type: 'number', description: 'A score from 1-10' },
-          { name: 'comment', type: 'string', description: 'A comment' },
-        ],
-      }
-      const result = generateStructuredOutputInstructions(fieldsFormat)
-
-      expect(result).toContain('JSON format')
-      expect(result).toContain('score')
-      expect(result).toContain('comment')
-      expect(result).toContain('A score from 1-10')
-    })
-
-    it.concurrent('should handle object fields with properties', () => {
-      const fieldsFormat = {
-        fields: [
-          {
-            name: 'metadata',
-            type: 'object',
-            properties: {
-              version: { type: 'string', description: 'Version number' },
-              count: { type: 'number', description: 'Item count' },
-            },
-          },
-        ],
-      }
-      const result = generateStructuredOutputInstructions(fieldsFormat)
-
-      expect(result).toContain('metadata')
-      expect(result).toContain('Properties:')
-      expect(result).toContain('version')
-      expect(result).toContain('count')
-    })
-
     it.concurrent('should return empty string for missing fields', () => {
       expect(generateStructuredOutputInstructions({})).toBe('')
       expect(generateStructuredOutputInstructions(null)).toBe('')

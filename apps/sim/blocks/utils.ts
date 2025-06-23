@@ -26,12 +26,29 @@ function isCodeEditorValue(value: any[]): value is CodeLine[] {
 }
 
 export function resolveOutputType(
-  outputs: Record<string, OutputConfig>,
+  outputs: Record<string, OutputConfig | BlockOutput>,
   subBlocks: Record<string, SubBlockState>
 ): Record<string, BlockOutput> {
   const resolvedOutputs: Record<string, BlockOutput> = {}
 
-  for (const [key, outputConfig] of Object.entries(outputs)) {
+  for (const [key, outputValue] of Object.entries(outputs)) {
+    // Handle backward compatibility: Check if the output is a primitive value or object (old format)
+    // If it's a string OR an object without 'type' and 'dependsOn' properties, it's the old format
+    if (
+      typeof outputValue === 'string' ||
+      (typeof outputValue === 'object' &&
+        outputValue !== null &&
+        !('type' in outputValue) &&
+        !('dependsOn' in outputValue))
+    ) {
+      // This is a primitive BlockOutput value (old format like 'string', 'any', etc.)
+      resolvedOutputs[key] = outputValue as BlockOutput
+      continue
+    }
+
+    // Handle new format: OutputConfig with type and optional dependsOn
+    const outputConfig = outputValue as OutputConfig
+
     // If no dependencies, use the type directly
     if (!outputConfig.dependsOn) {
       resolvedOutputs[key] = outputConfig.type

@@ -211,7 +211,7 @@ export async function validateChatAuth(
 /**
  * Executes a workflow for a chat request and returns the formatted output.
  *
- * When workflows reference <start.response.input>, they receive a structured JSON
+ * When workflows reference <start.input>, they receive a structured JSON
  * containing both the message and conversationId for maintaining chat context.
  *
  * @param chatId - Chat deployment identifier
@@ -461,8 +461,8 @@ export async function executeWorkflowForChat(
       if (result && 'success' in result) {
         result.logs?.forEach((log: BlockLog) => {
           if (streamedContent.has(log.blockId)) {
-            if (log.output?.response) {
-              log.output.response.content = streamedContent.get(log.blockId)
+            if (log.output) {
+              log.output.content = streamedContent.get(log.blockId)
             }
           }
         })

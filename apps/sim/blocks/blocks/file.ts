@@ -130,11 +130,7 @@ export const FileBlock: BlockConfig<FileParserOutput> = {
     file: { type: 'json', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        files: 'json',
-        combinedContent: 'string',
-      },
-    },
+    files: 'json',
+    combinedContent: 'string',
   },
 }

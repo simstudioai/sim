@@ -48,16 +48,9 @@ interface TagDropdownProps {
   style?: React.CSSProperties
 }
 
-// Extract fields from JSON Schema or legacy format
 export const extractFieldsFromSchema = (responseFormat: any): Field[] => {
   if (!responseFormat) return []
 
-  // Handle legacy format with fields array
-  if (Array.isArray(responseFormat.fields)) {
-    return responseFormat.fields
-  }
-
-  // Handle new JSON Schema format
   const schema = responseFormat.schema || responseFormat
   if (
     !schema ||
@@ -142,37 +135,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
     blockTagGroups = [],
   } = useMemo(() => {
     // Get output paths from block outputs recursively
-    const getOutputPaths = (obj: any, prefix = '', isStarterBlock = false): string[] => {
+    const getOutputPaths = (obj: any, prefix = ''): string[] => {
       if (typeof obj !== 'object' || obj === null) {
         return prefix ? [prefix] : []
-      }
-
-      // Special handling for starter block with input format
-      if (isStarterBlock && prefix === 'response') {
-        try {
-          // Check if there's an input format defined
-          const inputFormatValue = useSubBlockStore
-            .getState()
-            .getValue(activeSourceBlockId || blockId, 'inputFormat')
-          if (inputFormatValue && Array.isArray(inputFormatValue) && inputFormatValue.length > 0) {
-            // Check if any fields have been configured with names
-            const hasConfiguredFields = inputFormatValue.some(
-              (field: any) => field.name && field.name.trim() !== ''
-            )
-
-            // If no fields have been configured, return the default input path
-            if (!hasConfiguredFields) {
-              return ['response.input']
-            }
-
-            // Return fields from input format
-            return inputFormatValue.map((field: any) => `response.input.${field.name}`)
-          }
-        } catch (e) {
-          logger.error('Error parsing input format:', { e })
-        }
-
-        return ['response.input']
       }
 
       if ('type' in obj && typeof obj.type === 'string') {
@@ -180,8 +145,13 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       return Object.entries(obj).flatMap(([key, value]) => {
+        // Skip configuration properties that shouldn't be available as tags
+        if (key === 'dependsOn') {
+          return []
+        }
+
         const newPrefix = prefix ? `${prefix}.${key}` : key
-        return getOutputPaths(value, newPrefix, isStarterBlock)
+        return getOutputPaths(value, newPrefix)
       })
     }
 
@@ -283,7 +253,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             .getValue(activeSourceBlockId, 'metrics') as unknown as Metric[]
           if (Array.isArray(metricsValue)) {
             blockTags = metricsValue.map(
-              (metric) => `${normalizedBlockName}.response.${metric.name.toLowerCase()}`
+              (metric) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
             )
           }
         } catch (e) {
@@ -306,9 +276,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             if (responseFormat) {
               const fields = extractFieldsFromSchema(responseFormat)
               if (fields.length > 0) {
-                blockTags = fields.map(
-                  (field: Field) => `${normalizedBlockName}.response.${field.name}`
-                )
+                blockTags = fields.map((field: Field) => `${normalizedBlockName}.${field.name}`)
               }
             }
           }
@@ -319,7 +287,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
       // Fall back to default outputs
       if (blockTags.length === 0) {
-        const outputPaths = getOutputPaths(sourceBlock.outputs, '', sourceBlock.type === 'starter')
+        const outputPaths = getOutputPaths(sourceBlock.outputs, '')
         blockTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
       }
 
@@ -357,22 +325,26 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         endSourceConnections.push({
           id: sourceBlock.id,
           type: sourceBlock.type,
-          outputType: ['response'],
+          outputType: ['completed', 'results', 'message'],
           name: blockName,
           responseFormat: {
-            fields: [
-              {
-                name: 'completed',
-                type: 'boolean',
-                description: 'Whether all executions completed',
+            schema: {
+              type: 'object',
+              properties: {
+                completed: {
+                  type: 'boolean',
+                  description: 'Whether all executions completed',
+                },
+                results: {
+                  type: 'array',
+                  description: 'Aggregated results from all parallel executions',
+                },
+                message: {
+                  type: 'string',
+                  description: 'Status message',
+                },
               },
-              {
-                name: 'results',
-                type: 'array',
-                description: 'Aggregated results from all parallel executions',
-              },
-              { name: 'message', type: 'string', description: 'Status message' },
-            ],
+            },
           },
         })
       } else if (edge.sourceHandle === 'loop-end-source' && sourceBlock.type === 'loop') {
@@ -381,22 +353,26 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
         endSourceConnections.push({
           id: sourceBlock.id,
           type: sourceBlock.type,
-          outputType: ['response'],
+          outputType: ['completed', 'results', 'message'],
           name: blockName,
           responseFormat: {
-            fields: [
-              {
-                name: 'completed',
-                type: 'boolean',
-                description: 'Whether all iterations completed',
+            schema: {
+              type: 'object',
+              properties: {
+                completed: {
+                  type: 'boolean',
+                  description: 'Whether all iterations completed',
+                },
+                results: {
+                  type: 'array',
+                  description: 'Aggregated results from all loop iterations',
+                },
+                message: {
+                  type: 'string',
+                  description: 'Status message',
+                },
               },
-              {
-                name: 'results',
-                type: 'array',
-                description: 'Aggregated results from all loop iterations',
-              },
-              { name: 'message', type: 'string', description: 'Status message' },
-            ],
+            },
           },
         })
       }
@@ -426,9 +402,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (connection.responseFormat) {
         const fields = extractFieldsFromSchema(connection.responseFormat)
         if (fields.length > 0) {
-          connectionTags = fields.map(
-            (field: Field) => `${normalizedBlockName}.response.${field.name}`
-          )
+          connectionTags = fields.map((field: Field) => `${normalizedBlockName}.${field.name}`)
         }
       }
 
@@ -440,7 +414,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
             .getValue(connection.id, 'metrics') as unknown as Metric[]
           if (Array.isArray(metricsValue)) {
             connectionTags = metricsValue.map(
-              (metric) => `${normalizedBlockName}.response.${metric.name.toLowerCase()}`
+              (metric) => `${normalizedBlockName}.${metric.name.toLowerCase()}`
             )
           }
         } catch (e) {
@@ -453,11 +427,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (connectionTags.length === 0) {
         const sourceBlock = blocks[connection.id]
         if (sourceBlock) {
-          const outputPaths = getOutputPaths(
-            sourceBlock.outputs,
-            '',
-            sourceBlock.type === 'starter'
-          )
+          const outputPaths = getOutputPaths(sourceBlock.outputs, '')
           connectionTags = outputPaths.map((path) => `${normalizedBlockName}.${path}`)
         }
       }
@@ -868,7 +838,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                       <div>
                         {group.tags.map((tag: string) => {
                           const tagIndex = tagIndexMap.get(tag) ?? -1
-                          // Extract path after block name (e.g., "response.field" from "blockname.response.field")
+                          // Extract path after block name (e.g., "field" from "blockname.field")
                           const tagParts = tag.split('.')
                           const path = tagParts.slice(1).join('.')
 

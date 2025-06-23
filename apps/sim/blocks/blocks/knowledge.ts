@@ -36,13 +36,9 @@ export const KnowledgeBlock: BlockConfig = {
     content: { type: 'string', required: false },
   },
   outputs: {
-    response: {
-      type: {
-        results: 'json',
-        query: 'string',
-        totalResults: 'number',
-      },
-    },
+    results: 'json',
+    query: 'string',
+    totalResults: 'number',
   },
   subBlocks: [
     {

@@ -63,11 +63,7 @@ export const LinkupBlock: BlockConfig<LinkupSearchToolResponse> = {
   },
 
   outputs: {
-    response: {
-      type: {
-        answer: 'string',
-        sources: 'json',
-      },
-    },
+    answer: 'string',
+    sources: 'json',
   },
 }

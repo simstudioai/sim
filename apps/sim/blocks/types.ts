@@ -154,20 +154,17 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
     }
   }
   inputs: Record<string, ParamConfig>
-  outputs: {
-    response: {
-      type: ToolOutputToValueType<ExtractToolOutput<T>>
-      dependsOn?: {
-        subBlockId: string
-        condition: {
-          whenEmpty: ToolOutputToValueType<ExtractToolOutput<T>>
-          whenFilled: 'json'
-        }
+  outputs: ToolOutputToValueType<ExtractToolOutput<T>> & {
+    dependsOn?: {
+      subBlockId: string
+      condition: {
+        whenEmpty: ToolOutputToValueType<ExtractToolOutput<T>>
+        whenFilled: 'json'
       }
-      visualization?: {
-        type: 'image'
-        url: string
-      }
+    }
+    visualization?: {
+      type: 'image'
+      url: string
     }
   }
   hideFromToolbar?: boolean

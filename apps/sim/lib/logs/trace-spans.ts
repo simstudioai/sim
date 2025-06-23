@@ -57,8 +57,8 @@ export function buildTraceSpans(result: ExecutionResult): {
     }
 
     // Add provider timing data if it exists
-    if (log.output?.response?.providerTiming) {
-      const providerTiming = log.output.response.providerTiming
+    if (log.output?.providerTiming) {
+      const providerTiming = log.output.providerTiming
 
       // If we have time segments, use them to create a more detailed timeline
       if (providerTiming.timeSegments && providerTiming.timeSegments.length > 0) {
@@ -149,18 +149,18 @@ export function buildTraceSpans(result: ExecutionResult): {
         // Create a child span for the provider execution
         const providerSpan: TraceSpan = {
           id: `${spanId}-provider`,
-          name: log.output.response.model || 'AI Provider',
+          name: log.output.model || 'AI Provider',
           type: 'provider',
           duration: providerTiming.duration || 0,
           startTime: providerTiming.startTime || log.startedAt,
           endTime: providerTiming.endTime || log.endedAt,
           status: 'success',
-          tokens: log.output.response.tokens?.total,
+          tokens: log.output.tokens?.total,
         }
 
         // If we have model time, create a child span for just the model processing
         if (providerTiming.modelTime) {
-          const modelName = log.output.response.model || ''
+          const modelName = log.output.model || ''
           const modelSpan: TraceSpan = {
             id: `${spanId}-model`,
             name: `Model Generation${modelName ? ` (${modelName})` : ''}`,
@@ -169,7 +169,7 @@ export function buildTraceSpans(result: ExecutionResult): {
             startTime: providerTiming.startTime, // Approximate
             endTime: providerTiming.endTime, // Approximate
             status: 'success',
-            tokens: log.output.response.tokens?.completion,
+            tokens: log.output.tokens?.completion,
           }
 
           if (!providerSpan.children) providerSpan.children = []
@@ -180,8 +180,8 @@ export function buildTraceSpans(result: ExecutionResult): {
         span.children.push(providerSpan)
 
         // When using provider timing without segments, still add tool calls if they exist
-        if (log.output?.response?.toolCalls?.list) {
-          span.toolCalls = log.output.response.toolCalls.list.map((tc: any) => ({
+        if (log.output?.toolCalls?.list) {
+          span.toolCalls = log.output.toolCalls.list.map((tc: any) => ({
             name: stripCustomToolPrefix(tc.name),
             duration: tc.duration || 0,
             startTime: tc.startTime || log.startedAt,
@@ -205,15 +205,15 @@ export function buildTraceSpans(result: ExecutionResult): {
 
       // Wrap extraction in try-catch to handle unexpected toolCalls formats
       try {
-        if (log.output?.response?.toolCalls?.list) {
+        if (log.output?.toolCalls?.list) {
           // Standard format with list property
-          toolCallsList = log.output.response.toolCalls.list
-        } else if (Array.isArray(log.output?.response?.toolCalls)) {
+          toolCallsList = log.output.toolCalls.list
+        } else if (Array.isArray(log.output?.toolCalls)) {
           // Direct array format
-          toolCallsList = log.output.response.toolCalls
-        } else if (log.output?.executionData?.output?.response?.toolCalls) {
+          toolCallsList = log.output.toolCalls
+        } else if (log.output?.executionData?.output?.toolCalls) {
           // Streaming format with executionData
-          const tcObj = log.output.executionData.output.response.toolCalls
+          const tcObj = log.output.executionData.output.toolCalls
           toolCallsList = Array.isArray(tcObj) ? tcObj : tcObj.list || []
         }
 

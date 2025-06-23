@@ -49,12 +49,8 @@ export const OpenAIBlock: BlockConfig = {
     apiKey: { type: 'string', required: true },
   },
   outputs: {
-    response: {
-      type: {
-        embeddings: 'json',
-        model: 'string',
-        usage: 'json',
-      },
-    },
+    embeddings: 'json',
+    model: 'string',
+    usage: 'json',
   },
 }
