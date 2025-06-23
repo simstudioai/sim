@@ -20,7 +20,6 @@ import { useUserPermissionsContext } from '@/app/w/components/providers/workspac
 import { getBlock } from '@/blocks'
 import { useSocket } from '@/contexts/socket-context'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
-import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -87,7 +86,6 @@ const WorkflowContent = React.memo(() => {
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   // State for tracking validation errors
   const [nestedSubflowErrors, setNestedSubflowErrors] = useState<Set<string>>(new Set())
-  const [draggedBlockType, setDraggedBlockType] = useState<string | null>(null)
   // Enhanced edge selection with parent context and unique identifier
   const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<SelectedEdgeInfo | null>(null)
 
@@ -104,21 +102,18 @@ const WorkflowContent = React.memo(() => {
     isLoading,
     setActiveWorkflow,
     createWorkflow,
-    removeWorkflow,
-    updateWorkflow,
-    duplicateWorkflow,
   } = useWorkflowRegistry()
 
   const { blocks, edges, updateNodeDimensions } = useWorkflowStore()
   // Use collaborative operations for real-time sync
-  const currentWorkflow = workflows[workflowId]
-  const workspaceId = currentWorkflow?.workspaceId
-
   const currentWorkflow = useMemo(() => workflows[workflowId], [workflows, workflowId])
   const workspaceId = currentWorkflow?.workspaceId
 
   // User permissions - get current user's specific permissions from context
   const userPermissions = useUserPermissionsContext()
+
+  // Workspace permissions - get all users and their permissions for this workspace
+  const { permissions: workspacePermissions, error: permissionsError } = useWorkspacePermissions(workspaceId || null)
 
   // Store access
   const {
@@ -126,12 +121,9 @@ const WorkflowContent = React.memo(() => {
     collaborativeAddEdge: addEdge,
     collaborativeRemoveEdge: removeEdge,
     collaborativeUpdateBlockPosition: updateBlockPosition,
-    collaborativeRemoveBlock: removeBlock,
     collaborativeUpdateParentId: updateParentId,
-    collaborativeSetSubblockValue: setSubBlockValue,
     isConnected,
     currentWorkflowId,
-    presenceUsers,
     joinWorkflow,
   } = useCollaborativeWorkflow()
   const { emitSubblockUpdate } = useSocket()
@@ -1113,7 +1105,7 @@ const WorkflowContent = React.memo(() => {
 
   // Handle node drag to detect intersections with container nodes
   const onNodeDrag = useCallback(
-    (event: React.MouseEvent, node: any) => {
+    (_event: React.MouseEvent, node: any) => {
       // Store currently dragged node ID
       setDraggedNodeId(node.id)
 
@@ -1268,7 +1260,7 @@ const WorkflowContent = React.memo(() => {
 
   // Add in a nodeDrag start event to set the dragStartParentId
   const onNodeDragStart = useCallback(
-    (event: React.MouseEvent, node: any) => {
+    (_event: React.MouseEvent, node: any) => {
       // Store the original parent ID when starting to drag
       const currentParentId = node.parentId || blocks[node.id]?.data?.parentId || null
       setDragStartParentId(currentParentId)
@@ -1278,7 +1270,7 @@ const WorkflowContent = React.memo(() => {
 
   // Handle node drag stop to establish parent-child relationships
   const onNodeDragStop = useCallback(
-    (event: React.MouseEvent, node: any) => {
+    (_event: React.MouseEvent, node: any) => {
       // Clear UI effects
       document.querySelectorAll('.loop-node-drag-over, .parallel-node-drag-over').forEach((el) => {
         el.classList.remove('loop-node-drag-over', 'parallel-node-drag-over')
@@ -1496,7 +1488,7 @@ const WorkflowContent = React.memo(() => {
             strokeDasharray: '5,5',
           }}
           connectionLineType={ConnectionLineType.SmoothStep}
-          onNodeClick={(e, node) => {
+          onNodeClick={(e, _node) => {
             e.stopPropagation()
           }}
           onPaneClick={onPaneClick}

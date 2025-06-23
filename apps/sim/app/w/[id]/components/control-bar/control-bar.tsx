@@ -1171,7 +1171,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                     subflow blocks.
                   </p>
                 </div>
-              {!canRun && !isLoadingPermissions ? (
+              ) : !canRun && !isLoadingPermissions ? (
                 'Read permission required to run workflows'
               ) : usageExceeded ? (
                 <div className='text-center'>
