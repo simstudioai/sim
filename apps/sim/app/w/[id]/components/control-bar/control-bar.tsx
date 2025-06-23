@@ -40,7 +40,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useSession } from '@/lib/auth-client'
 import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
-import { useUserPermissions } from '@/hooks/use-user-permissions'
+import { useUserPermissionsContext } from '@/app/w/components/providers/workspace-permissions-provider'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { usePanelStore } from '@/stores/panel/store'
@@ -109,7 +109,7 @@ export function ControlBar() {
   const currentWorkflow = activeWorkflowId ? workflows[activeWorkflowId] : null
 
   // User permissions - use stable activeWorkspaceId from registry instead of deriving from currentWorkflow
-  const userPermissions = useUserPermissions(activeWorkspaceId)
+  const userPermissions = useUserPermissionsContext()
 
   // Debug mode state
   const { isDebugModeEnabled, toggleDebugMode } = useGeneralStore()

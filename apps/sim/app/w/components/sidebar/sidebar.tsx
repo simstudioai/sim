@@ -24,7 +24,7 @@ import { WorkspaceHeader } from './components/workspace-header/workspace-header'
 
 const logger = createLogger('Sidebar')
 
-const IS_DEV = process.env.NODE_ENV === 'development'
+const IS_DEV = false
 
 export function Sidebar() {
   useRegistryLoading()

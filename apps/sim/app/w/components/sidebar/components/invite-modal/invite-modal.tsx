@@ -1,6 +1,6 @@
 'use client'
 
-import { type KeyboardEvent, useEffect, useState } from 'react'
+import React, { type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { HelpCircle, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -12,11 +12,11 @@ import { validateAndNormalizeEmail } from '@/lib/email/utils'
 import { createLogger } from '@/lib/logs/console-logger'
 import type { PermissionType } from '@/lib/permissions/utils'
 import { cn } from '@/lib/utils'
-import { useUserPermissions } from '@/hooks/use-user-permissions'
 import {
-  useWorkspacePermissions,
-  type WorkspacePermissions,
-} from '@/hooks/use-workspace-permissions'
+  useUserPermissionsContext,
+  useWorkspacePermissionsContext,
+} from '@/app/w/components/providers/workspace-permissions-provider'
+import type { WorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { API_ENDPOINTS } from '@/stores/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
@@ -52,6 +52,7 @@ interface PermissionsTableProps {
   workspacePermissions: WorkspacePermissions | null
   permissionsLoading: boolean
   pendingInvitations: UserPermissions[]
+  isPendingInvitationsLoading: boolean
 }
 
 interface PendingInvitation {
@@ -63,7 +64,7 @@ interface PendingInvitation {
   createdAt: string
 }
 
-const EmailTag = ({ email, onRemove, disabled, isInvalid }: EmailTagProps) => (
+const EmailTag = React.memo<EmailTagProps>(({ email, onRemove, disabled, isInvalid }) => (
   <div
     className={`flex items-center ${isInvalid ? 'border-red-200 bg-red-50 text-red-700' : 'border-gray-200 bg-gray-100 text-slate-700'} my-0 ml-0 w-auto gap-1 rounded-md border px-2 py-0.5 text-sm`}
   >
@@ -79,51 +80,57 @@ const EmailTag = ({ email, onRemove, disabled, isInvalid }: EmailTagProps) => (
       </button>
     )}
   </div>
-)
+))
 
-const PermissionSelector = ({
-  value,
-  onChange,
-  disabled = false,
-  className = '',
-}: {
+EmailTag.displayName = 'EmailTag'
+
+interface PermissionSelectorProps {
   value: PermissionType
   onChange: (value: PermissionType) => void
   disabled?: boolean
   className?: string
-}) => {
-  const permissionOptions = [
-    { value: 'read' as PermissionType, label: 'Read' },
-    { value: 'write' as PermissionType, label: 'Write' },
-    { value: 'admin' as PermissionType, label: 'Admin' },
-  ]
-
-  return (
-    <div className={cn('inline-flex rounded-md border border-input bg-background', className)}>
-      {permissionOptions.map((option, index) => (
-        <button
-          key={option.value}
-          type='button'
-          onClick={() => !disabled && onChange(option.value)}
-          disabled={disabled}
-          className={cn(
-            'px-3 py-1.5 font-medium text-sm transition-colors focus:outline-none',
-            'first:rounded-l-md last:rounded-r-md',
-            disabled && 'cursor-not-allowed opacity-50',
-            value === option.value
-              ? 'bg-primary text-primary-foreground shadow-sm'
-              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
-            index > 0 && 'border-input border-l'
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  )
 }
 
-const PermissionsTableSkeleton = () => (
+const PermissionSelector = React.memo<PermissionSelectorProps>(
+  ({ value, onChange, disabled = false, className = '' }) => {
+    const permissionOptions = useMemo(
+      () => [
+        { value: 'read' as PermissionType, label: 'Read' },
+        { value: 'write' as PermissionType, label: 'Write' },
+        { value: 'admin' as PermissionType, label: 'Admin' },
+      ],
+      []
+    )
+
+    return (
+      <div className={cn('inline-flex rounded-md border border-input bg-background', className)}>
+        {permissionOptions.map((option, index) => (
+          <button
+            key={option.value}
+            type='button'
+            onClick={() => !disabled && onChange(option.value)}
+            disabled={disabled}
+            className={cn(
+              'px-3 py-1.5 font-medium text-sm transition-colors focus:outline-none',
+              'first:rounded-l-md last:rounded-r-md',
+              disabled && 'cursor-not-allowed opacity-50',
+              value === option.value
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+              index > 0 && 'border-input border-l'
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
+)
+
+PermissionSelector.displayName = 'PermissionSelector'
+
+const PermissionsTableSkeleton = React.memo(() => (
   <div className='space-y-4'>
     <div className='flex items-center gap-2'>
       <h3 className='font-medium text-sm'>Member Permissions</h3>
@@ -165,176 +172,11 @@ const PermissionsTableSkeleton = () => (
       </div>
     </div>
   </div>
-)
+))
 
-const PermissionsTable = ({
-  userPermissions,
-  onPermissionChange,
-  disabled,
-  existingUserPermissionChanges,
-  isSaving,
-  workspacePermissions,
-  permissionsLoading,
-  pendingInvitations,
-}: PermissionsTableProps) => {
-  const { data: session } = useSession()
-  const { activeWorkspaceId } = useWorkflowRegistry()
-  const userPerms = useUserPermissions(activeWorkspaceId)
+PermissionsTableSkeleton.displayName = 'PermissionsTableSkeleton'
 
-  // Show skeleton while loading permissions data
-  if (permissionsLoading || userPerms.isLoading) {
-    return <PermissionsTableSkeleton />
-  }
-
-  if (userPermissions.length === 0 && !session?.user?.email && !workspacePermissions?.users?.length)
-    return null
-
-  if (isSaving) {
-    return (
-      <div className='space-y-4'>
-        <h3 className='font-medium text-sm'>Member Permissions</h3>
-        <div className='rounded-md border bg-card'>
-          <div className='flex items-center justify-center py-12'>
-            <div className='flex items-center space-x-2 text-muted-foreground'>
-              <Loader2 className='h-5 w-5 animate-spin' />
-              <span className='font-medium text-sm'>Saving permission changes...</span>
-            </div>
-          </div>
-        </div>
-        <div className='flex min-h-[2rem] items-start'>
-          <p className='text-muted-foreground text-xs'>
-            Please wait while we update the permissions.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  const existingUsers: UserPermissions[] =
-    workspacePermissions?.users?.map((user) => {
-      const changes = existingUserPermissionChanges[user.userId] || {}
-      const permissionType = user.permissionType || 'read'
-
-      return {
-        userId: user.userId,
-        email: user.email,
-        permissionType:
-          changes.permissionType !== undefined ? changes.permissionType : permissionType,
-        isCurrentUser: user.email === session?.user?.email,
-      }
-    }) || []
-
-  const currentUser: UserPermissions | null = session?.user?.email
-    ? existingUsers.find((user) => user.isCurrentUser) || {
-        email: session.user.email,
-        permissionType: 'admin',
-        isCurrentUser: true,
-      }
-    : null
-
-  const currentUserIsAdmin = userPerms.canAdmin
-  const filteredExistingUsers = existingUsers.filter((user) => !user.isCurrentUser)
-
-  const allUsers: UserPermissions[] = [
-    ...(currentUser ? [currentUser] : []),
-    ...filteredExistingUsers,
-    ...userPermissions,
-    ...pendingInvitations,
-  ]
-
-  return (
-    <div className='space-y-4'>
-      <div className='flex items-center gap-2'>
-        <h3 className='font-medium text-sm'>Member Permissions</h3>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant='ghost'
-              size='sm'
-              className='h-5 w-5 p-0 text-muted-foreground hover:text-foreground'
-              type='button'
-            >
-              <HelpCircle className='h-4 w-4' />
-              <span className='sr-only'>Member permissions help</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side='top' className='max-w-[320px]'>
-            <div className='space-y-2'>
-              {userPerms.isLoading || permissionsLoading ? (
-                <p className='text-sm'>Loading permissions...</p>
-              ) : !currentUserIsAdmin ? (
-                <p className='text-sm'>
-                  Only administrators can invite new members and modify permissions.
-                </p>
-              ) : (
-                <div className='space-y-1'>
-                  <p className='text-sm'>Admin grants all permissions automatically.</p>
-                </div>
-              )}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </div>
-      <div className='rounded-md border'>
-        {allUsers.length > 0 && (
-          <div className='divide-y'>
-            {allUsers.map((user) => {
-              const isCurrentUser = user.isCurrentUser === true
-              const isExistingUser = filteredExistingUsers.some((eu) => eu.email === user.email)
-              const isPendingInvitation = user.isPendingInvitation === true
-              const userIdentifier = user.userId || user.email
-              const hasChanges = existingUserPermissionChanges[userIdentifier] !== undefined
-
-              const uniqueKey = user.userId
-                ? `existing-${user.userId}`
-                : isPendingInvitation
-                  ? `pending-${user.email}`
-                  : `new-${user.email}`
-
-              return (
-                <div key={uniqueKey} className='flex items-center justify-between p-4'>
-                  <div className='min-w-0 flex-1'>
-                    <div className='flex items-center gap-2'>
-                      <span className='font-medium text-card-foreground text-sm'>{user.email}</span>
-                      {isPendingInvitation && (
-                        <span className={getStatusBadgeStyles('sent')}>Sent</span>
-                      )}
-                    </div>
-                    <div className='mt-1 flex items-center gap-2'>
-                      {isExistingUser && !isCurrentUser && (
-                        <span className={getStatusBadgeStyles('member')}>Member</span>
-                      )}
-                      {hasChanges && (
-                        <span className={getStatusBadgeStyles('modified')}>Modified</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className='flex-shrink-0'>
-                    <PermissionSelector
-                      value={user.permissionType}
-                      onChange={(newPermission) =>
-                        onPermissionChange(userIdentifier, newPermission)
-                      }
-                      disabled={
-                        disabled ||
-                        !currentUserIsAdmin ||
-                        isPendingInvitation ||
-                        (isCurrentUser && user.permissionType === 'admin')
-                      }
-                      className='w-auto'
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-const getStatusBadgeStyles = (status: 'sent' | 'member' | 'modified') => {
+const getStatusBadgeStyles = (status: 'sent' | 'member' | 'modified'): string => {
   switch (status) {
     case 'sent':
       return 'inline-flex items-center rounded-md bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
@@ -347,12 +189,206 @@ const getStatusBadgeStyles = (status: 'sent' | 'member' | 'modified') => {
   }
 }
 
+const PermissionsTable = React.memo<PermissionsTableProps>(
+  ({
+    userPermissions,
+    onPermissionChange,
+    disabled,
+    existingUserPermissionChanges,
+    isSaving,
+    workspacePermissions,
+    permissionsLoading,
+    pendingInvitations,
+    isPendingInvitationsLoading,
+  }) => {
+    // Always call hooks first - before any conditional returns
+    const { data: session } = useSession()
+    const userPerms = useUserPermissionsContext()
+
+    // All useMemo hooks must be called before any conditional returns
+    const existingUsers: UserPermissions[] = useMemo(
+      () =>
+        workspacePermissions?.users?.map((user) => {
+          const changes = existingUserPermissionChanges[user.userId] || {}
+          const permissionType = user.permissionType || 'read'
+
+          return {
+            userId: user.userId,
+            email: user.email,
+            permissionType:
+              changes.permissionType !== undefined ? changes.permissionType : permissionType,
+            isCurrentUser: user.email === session?.user?.email,
+          }
+        }) || [],
+      [workspacePermissions?.users, existingUserPermissionChanges, session?.user?.email]
+    )
+
+    const currentUser: UserPermissions | null = useMemo(
+      () =>
+        session?.user?.email
+          ? existingUsers.find((user) => user.isCurrentUser) || {
+              email: session.user.email,
+              permissionType: 'admin',
+              isCurrentUser: true,
+            }
+          : null,
+      [session?.user?.email, existingUsers]
+    )
+
+    const filteredExistingUsers = useMemo(
+      () => existingUsers.filter((user) => !user.isCurrentUser),
+      [existingUsers]
+    )
+
+    const allUsers: UserPermissions[] = useMemo(
+      () => [
+        ...(currentUser ? [currentUser] : []),
+        ...filteredExistingUsers,
+        ...userPermissions,
+        ...pendingInvitations,
+      ],
+      [currentUser, filteredExistingUsers, userPermissions, pendingInvitations]
+    )
+
+    // Now we can safely have conditional returns after all hooks are called
+    if (permissionsLoading || userPerms.isLoading || isPendingInvitationsLoading) {
+      return <PermissionsTableSkeleton />
+    }
+
+    if (
+      userPermissions.length === 0 &&
+      !session?.user?.email &&
+      !workspacePermissions?.users?.length
+    )
+      return null
+
+    if (isSaving) {
+      return (
+        <div className='space-y-4'>
+          <h3 className='font-medium text-sm'>Member Permissions</h3>
+          <div className='rounded-md border bg-card'>
+            <div className='flex items-center justify-center py-12'>
+              <div className='flex items-center space-x-2 text-muted-foreground'>
+                <Loader2 className='h-5 w-5 animate-spin' />
+                <span className='font-medium text-sm'>Saving permission changes...</span>
+              </div>
+            </div>
+          </div>
+          <div className='flex min-h-[2rem] items-start'>
+            <p className='text-muted-foreground text-xs'>
+              Please wait while we update the permissions.
+            </p>
+          </div>
+        </div>
+      )
+    }
+
+    const currentUserIsAdmin = userPerms.canAdmin
+
+    return (
+      <div className='space-y-4'>
+        <div className='flex items-center gap-2'>
+          <h3 className='font-medium text-sm'>Member Permissions</h3>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-5 w-5 p-0 text-muted-foreground hover:text-foreground'
+                type='button'
+              >
+                <HelpCircle className='h-4 w-4' />
+                <span className='sr-only'>Member permissions help</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side='top' className='max-w-[320px]'>
+              <div className='space-y-2'>
+                {userPerms.isLoading || permissionsLoading ? (
+                  <p className='text-sm'>Loading permissions...</p>
+                ) : !currentUserIsAdmin ? (
+                  <p className='text-sm'>
+                    Only administrators can invite new members and modify permissions.
+                  </p>
+                ) : (
+                  <div className='space-y-1'>
+                    <p className='text-sm'>Admin grants all permissions automatically.</p>
+                  </div>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        <div className='rounded-md border'>
+          {allUsers.length > 0 && (
+            <div className='divide-y'>
+              {allUsers.map((user) => {
+                const isCurrentUser = user.isCurrentUser === true
+                const isExistingUser = filteredExistingUsers.some((eu) => eu.email === user.email)
+                const isPendingInvitation = user.isPendingInvitation === true
+                const userIdentifier = user.userId || user.email
+                const hasChanges = existingUserPermissionChanges[userIdentifier] !== undefined
+
+                const uniqueKey = user.userId
+                  ? `existing-${user.userId}`
+                  : isPendingInvitation
+                    ? `pending-${user.email}`
+                    : `new-${user.email}`
+
+                return (
+                  <div key={uniqueKey} className='flex items-center justify-between p-4'>
+                    <div className='min-w-0 flex-1'>
+                      <div className='flex items-center gap-2'>
+                        <span className='font-medium text-card-foreground text-sm'>
+                          {user.email}
+                        </span>
+                        {isPendingInvitation && (
+                          <span className={getStatusBadgeStyles('sent')}>Sent</span>
+                        )}
+                      </div>
+                      <div className='mt-1 flex items-center gap-2'>
+                        {isExistingUser && !isCurrentUser && (
+                          <span className={getStatusBadgeStyles('member')}>Member</span>
+                        )}
+                        {hasChanges && (
+                          <span className={getStatusBadgeStyles('modified')}>Modified</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className='flex-shrink-0'>
+                      <PermissionSelector
+                        value={user.permissionType}
+                        onChange={(newPermission) =>
+                          onPermissionChange(userIdentifier, newPermission)
+                        }
+                        disabled={
+                          disabled ||
+                          !currentUserIsAdmin ||
+                          isPendingInvitation ||
+                          (isCurrentUser && user.permissionType === 'admin')
+                        }
+                        className='w-auto'
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+)
+
+PermissionsTable.displayName = 'PermissionsTable'
+
 export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const [inputValue, setInputValue] = useState('')
   const [emails, setEmails] = useState<string[]>([])
   const [invalidEmails, setInvalidEmails] = useState<string[]>([])
   const [userPermissions, setUserPermissions] = useState<UserPermissions[]>([])
   const [pendingInvitations, setPendingInvitations] = useState<UserPermissions[]>([])
+  const [isPendingInvitationsLoading, setIsPendingInvitationsLoading] = useState(false)
   const [existingUserPermissionChanges, setExistingUserPermissionChanges] = useState<
     Record<string, Partial<UserPermissions>>
   >({})
@@ -364,18 +400,19 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const { activeWorkspaceId } = useWorkflowRegistry()
   const { data: session } = useSession()
   const {
-    permissions: workspacePermissions,
-    loading: permissionsLoading,
+    workspacePermissions,
+    permissionsLoading,
     updatePermissions,
-  } = useWorkspacePermissions(activeWorkspaceId)
-  const userPerms = useUserPermissions(activeWorkspaceId)
+    userPermissions: userPerms,
+  } = useWorkspacePermissionsContext()
 
   const hasPendingChanges = Object.keys(existingUserPermissionChanges).length > 0
   const hasNewInvites = emails.length > 0 || inputValue.trim()
 
-  const fetchPendingInvitations = async () => {
+  const fetchPendingInvitations = useCallback(async () => {
     if (!activeWorkspaceId) return
 
+    setIsPendingInvitationsLoading(true)
     try {
       const response = await fetch('/api/workspaces/invitations')
       if (response.ok) {
@@ -396,100 +433,108 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       }
     } catch (error) {
       logger.error('Error fetching pending invitations:', error)
+    } finally {
+      setIsPendingInvitationsLoading(false)
     }
-  }
+  }, [activeWorkspaceId])
 
   useEffect(() => {
     if (open && activeWorkspaceId) {
       fetchPendingInvitations()
     }
-  }, [open, activeWorkspaceId])
+  }, [open, fetchPendingInvitations])
 
   useEffect(() => {
     setErrorMessage(null)
   }, [pendingInvitations, workspacePermissions])
 
-  const addEmail = (email: string) => {
-    if (!email.trim()) return false
+  const addEmail = useCallback(
+    (email: string) => {
+      if (!email.trim()) return false
 
-    const { isValid, normalized } = validateAndNormalizeEmail(email)
+      const { isValid, normalized } = validateAndNormalizeEmail(email)
 
-    if (emails.includes(normalized) || invalidEmails.includes(normalized)) {
-      return false
-    }
+      if (emails.includes(normalized) || invalidEmails.includes(normalized)) {
+        return false
+      }
 
-    const hasPendingInvitation = pendingInvitations.some((inv) => inv.email === normalized)
-    if (hasPendingInvitation) {
-      setErrorMessage(`${normalized} already has a pending invitation`)
-      setInputValue('')
-      return false
-    }
+      const hasPendingInvitation = pendingInvitations.some((inv) => inv.email === normalized)
+      if (hasPendingInvitation) {
+        setErrorMessage(`${normalized} already has a pending invitation`)
+        setInputValue('')
+        return false
+      }
 
-    const isExistingMember = workspacePermissions?.users?.some((user) => user.email === normalized)
-    if (isExistingMember) {
-      setErrorMessage(`${normalized} is already a member of this workspace`)
-      setInputValue('')
-      return false
-    }
-
-    if (session?.user?.email && session.user.email.toLowerCase() === normalized) {
-      setErrorMessage('You cannot invite yourself')
-      setInputValue('')
-      return false
-    }
-
-    if (!isValid) {
-      setInvalidEmails([...invalidEmails, normalized])
-      setInputValue('')
-      return false
-    }
-
-    setErrorMessage(null)
-    setEmails([...emails, normalized])
-
-    setUserPermissions((prev) => [
-      ...prev,
-      {
-        email: normalized,
-        permissionType: 'read',
-      },
-    ])
-
-    setInputValue('')
-    return true
-  }
-
-  const removeEmail = (index: number) => {
-    const emailToRemove = emails[index]
-    const newEmails = [...emails]
-    newEmails.splice(index, 1)
-    setEmails(newEmails)
-
-    setUserPermissions((prev) => prev.filter((user) => user.email !== emailToRemove))
-  }
-
-  const removeInvalidEmail = (index: number) => {
-    const newInvalidEmails = [...invalidEmails]
-    newInvalidEmails.splice(index, 1)
-    setInvalidEmails(newInvalidEmails)
-  }
-
-  const handlePermissionChange = (identifier: string, permissionType: PermissionType) => {
-    const existingUser = workspacePermissions?.users?.find((user) => user.userId === identifier)
-
-    if (existingUser) {
-      setExistingUserPermissionChanges((prev) => ({
-        ...prev,
-        [identifier]: { permissionType },
-      }))
-    } else {
-      setUserPermissions((prev) =>
-        prev.map((user) => (user.email === identifier ? { ...user, permissionType } : user))
+      const isExistingMember = workspacePermissions?.users?.some(
+        (user) => user.email === normalized
       )
-    }
-  }
+      if (isExistingMember) {
+        setErrorMessage(`${normalized} is already a member of this workspace`)
+        setInputValue('')
+        return false
+      }
 
-  const handleSaveChanges = async () => {
+      if (session?.user?.email && session.user.email.toLowerCase() === normalized) {
+        setErrorMessage('You cannot invite yourself')
+        setInputValue('')
+        return false
+      }
+
+      if (!isValid) {
+        setInvalidEmails((prev) => [...prev, normalized])
+        setInputValue('')
+        return false
+      }
+
+      setErrorMessage(null)
+      setEmails((prev) => [...prev, normalized])
+
+      setUserPermissions((prev) => [
+        ...prev,
+        {
+          email: normalized,
+          permissionType: 'read',
+        },
+      ])
+
+      setInputValue('')
+      return true
+    },
+    [emails, invalidEmails, pendingInvitations, workspacePermissions?.users, session?.user?.email]
+  )
+
+  const removeEmail = useCallback(
+    (index: number) => {
+      const emailToRemove = emails[index]
+      setEmails((prev) => prev.filter((_, i) => i !== index))
+      setUserPermissions((prev) => prev.filter((user) => user.email !== emailToRemove))
+    },
+    [emails]
+  )
+
+  const removeInvalidEmail = useCallback((index: number) => {
+    setInvalidEmails((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const handlePermissionChange = useCallback(
+    (identifier: string, permissionType: PermissionType) => {
+      const existingUser = workspacePermissions?.users?.find((user) => user.userId === identifier)
+
+      if (existingUser) {
+        setExistingUserPermissionChanges((prev) => ({
+          ...prev,
+          [identifier]: { permissionType },
+        }))
+      } else {
+        setUserPermissions((prev) =>
+          prev.map((user) => (user.email === identifier ? { ...user, permissionType } : user))
+        )
+      }
+    },
+    [workspacePermissions?.users]
+  )
+
+  const handleSaveChanges = useCallback(async () => {
     if (!userPerms.canAdmin || !hasPendingChanges || !activeWorkspaceId) return
 
     setIsSaving(true)
@@ -535,162 +580,187 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     } finally {
       setIsSaving(false)
     }
-  }
+  }, [
+    userPerms.canAdmin,
+    hasPendingChanges,
+    activeWorkspaceId,
+    existingUserPermissionChanges,
+    updatePermissions,
+  ])
 
-  const handleRestoreChanges = () => {
+  const handleRestoreChanges = useCallback(() => {
     if (!userPerms.canAdmin || !hasPendingChanges) return
 
     setExistingUserPermissionChanges({})
     setSuccessMessage('Changes restored to original permissions!')
 
     setTimeout(() => setSuccessMessage(null), 3000)
-  }
+  }, [userPerms.canAdmin, hasPendingChanges])
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (['Enter', ',', ' '].includes(e.key) && inputValue.trim()) {
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (['Enter', ',', ' '].includes(e.key) && inputValue.trim()) {
+        e.preventDefault()
+        addEmail(inputValue)
+      }
+
+      if (e.key === 'Backspace' && !inputValue) {
+        if (invalidEmails.length > 0) {
+          removeInvalidEmail(invalidEmails.length - 1)
+        } else if (emails.length > 0) {
+          removeEmail(emails.length - 1)
+        }
+      }
+    },
+    [inputValue, addEmail, invalidEmails, emails, removeInvalidEmail, removeEmail]
+  )
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent<HTMLInputElement>) => {
       e.preventDefault()
-      addEmail(inputValue)
-    }
+      const pastedText = e.clipboardData.getData('text')
+      const pastedEmails = pastedText.split(/[\s,;]+/).filter(Boolean)
 
-    if (e.key === 'Backspace' && !inputValue) {
-      if (invalidEmails.length > 0) {
-        removeInvalidEmail(invalidEmails.length - 1)
-      } else if (emails.length > 0) {
-        removeEmail(emails.length - 1)
+      let addedCount = 0
+      pastedEmails.forEach((email) => {
+        if (addEmail(email)) {
+          addedCount++
+        }
+      })
+
+      if (addedCount === 0 && pastedEmails.length === 1) {
+        setInputValue(inputValue + pastedEmails[0])
       }
-    }
-  }
+    },
+    [addEmail, inputValue]
+  )
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault()
-    const pastedText = e.clipboardData.getData('text')
-    const pastedEmails = pastedText.split(/[\s,;]+/).filter(Boolean)
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
 
-    let addedCount = 0
-    pastedEmails.forEach((email) => {
-      if (addEmail(email)) {
-        addedCount++
+      if (inputValue.trim()) {
+        addEmail(inputValue)
       }
-    })
 
-    if (addedCount === 0 && pastedEmails.length === 1) {
-      setInputValue(inputValue + pastedEmails[0])
-    }
-  }
+      setErrorMessage(null)
+      setSuccessMessage(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+      if (emails.length === 0 || !activeWorkspaceId) {
+        return
+      }
 
-    if (inputValue.trim()) {
-      addEmail(inputValue)
-    }
+      setIsSubmitting(true)
 
-    setErrorMessage(null)
-    setSuccessMessage(null)
+      try {
+        const failedInvites: string[] = []
 
-    if (emails.length === 0 || !activeWorkspaceId) {
-      return
-    }
+        const results = await Promise.all(
+          emails.map(async (email) => {
+            try {
+              const userPermission = userPermissions.find((up) => up.email === email)
+              const permissionType = userPermission?.permissionType || 'read'
 
-    setIsSubmitting(true)
+              const response = await fetch('/api/workspaces/invitations', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  workspaceId: activeWorkspaceId,
+                  email: email,
+                  role: 'member',
+                  permission: permissionType,
+                }),
+              })
 
-    try {
-      const failedInvites: string[] = []
+              const data = await response.json()
 
-      const results = await Promise.all(
-        emails.map(async (email) => {
-          try {
-            const userPermission = userPermissions.find((up) => up.email === email)
-            const permissionType = userPermission?.permissionType || 'read'
+              if (!response.ok) {
+                if (!invalidEmails.includes(email)) {
+                  failedInvites.push(email)
+                }
 
-            const response = await fetch('/api/workspaces/invitations', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                workspaceId: activeWorkspaceId,
-                email: email,
-                role: 'member',
-                permission: permissionType,
-              }),
-            })
+                if (data.error) {
+                  setErrorMessage(data.error)
+                }
 
-            const data = await response.json()
+                return false
+              }
 
-            if (!response.ok) {
+              return true
+            } catch {
               if (!invalidEmails.includes(email)) {
                 failedInvites.push(email)
               }
-
-              if (data.error) {
-                setErrorMessage(data.error)
-              }
-
               return false
             }
+          })
+        )
 
-            return true
-          } catch {
-            if (!invalidEmails.includes(email)) {
-              failedInvites.push(email)
-            }
-            return false
+        const successCount = results.filter(Boolean).length
+
+        if (successCount > 0) {
+          fetchPendingInvitations()
+          setInputValue('')
+
+          if (failedInvites.length > 0) {
+            setEmails(failedInvites)
+            setUserPermissions((prev) => prev.filter((user) => failedInvites.includes(user.email)))
+          } else {
+            setEmails([])
+            setUserPermissions([])
+            setSuccessMessage(
+              successCount === 1
+                ? 'Invitation sent successfully!'
+                : `${successCount} invitations sent successfully!`
+            )
+
+            setTimeout(() => {
+              onOpenChange(false)
+            }, 1500)
           }
-        })
-      )
 
-      const successCount = results.filter(Boolean).length
-
-      if (successCount > 0) {
-        fetchPendingInvitations()
-        setInputValue('')
-
-        if (failedInvites.length > 0) {
-          setEmails(failedInvites)
-          setUserPermissions((prev) => prev.filter((user) => failedInvites.includes(user.email)))
-        } else {
-          setEmails([])
-          setUserPermissions([])
-          setSuccessMessage(
-            successCount === 1
-              ? 'Invitation sent successfully!'
-              : `${successCount} invitations sent successfully!`
-          )
+          setInvalidEmails([])
+          setShowSent(true)
 
           setTimeout(() => {
-            onOpenChange(false)
-          }, 1500)
+            setShowSent(false)
+          }, 4000)
         }
-
-        setInvalidEmails([])
-        setShowSent(true)
-
-        setTimeout(() => {
-          setShowSent(false)
-        }, 4000)
+      } catch (err) {
+        logger.error('Error inviting members:', err)
+        setErrorMessage('An unexpected error occurred. Please try again.')
+      } finally {
+        setIsSubmitting(false)
       }
-    } catch (err) {
-      logger.error('Error inviting members:', err)
-      setErrorMessage('An unexpected error occurred. Please try again.')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+    },
+    [
+      inputValue,
+      addEmail,
+      emails,
+      activeWorkspaceId,
+      userPermissions,
+      invalidEmails,
+      fetchPendingInvitations,
+      onOpenChange,
+    ]
+  )
 
-  const resetState = () => {
+  const resetState = useCallback(() => {
     setInputValue('')
     setEmails([])
     setInvalidEmails([])
     setUserPermissions([])
     setPendingInvitations([])
+    setIsPendingInvitationsLoading(false)
     setExistingUserPermissionChanges({})
     setIsSubmitting(false)
     setIsSaving(false)
     setShowSent(false)
     setErrorMessage(null)
     setSuccessMessage(null)
-  }
+  }, [])
 
   return (
     <Dialog
@@ -814,6 +884,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                 workspacePermissions={workspacePermissions}
                 permissionsLoading={permissionsLoading}
                 pendingInvitations={pendingInvitations}
+                isPendingInvitationsLoading={isPendingInvitationsLoading}
               />
 
               <div className='flex justify-between'>

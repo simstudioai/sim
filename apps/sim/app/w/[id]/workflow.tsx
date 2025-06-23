@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   Background,
@@ -16,9 +16,8 @@ import { createLogger } from '@/lib/logs/console-logger'
 import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
+import { useUserPermissionsContext } from '@/app/w/components/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks'
-import { useUserPermissions } from '@/hooks/use-user-permissions'
-import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { useVariablesStore } from '@/stores/panel/variables/store'
@@ -56,22 +55,36 @@ const nodeTypes: NodeTypes = {
 }
 const edgeTypes: EdgeTypes = { workflowEdge: WorkflowEdge }
 
-function WorkflowContent() {
+interface SelectedEdgeInfo {
+  id: string
+  parentLoopId?: string
+  contextId?: string // Unique identifier combining edge ID and context
+}
+
+interface BlockData {
+  id: string
+  type: string
+  position: { x: number; y: number }
+  distance: number
+}
+
+const WorkflowContent = React.memo(() => {
   // State
   const [isWorkflowReady, setIsWorkflowReady] = useState(false)
   const { mode, isExpanded } = useSidebarStore()
+
   // In hover mode, act as if sidebar is always collapsed for layout purposes
-  const isSidebarCollapsed =
-    mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'
+  const isSidebarCollapsed = useMemo(
+    () => (mode === 'expanded' ? !isExpanded : mode === 'collapsed' || mode === 'hover'),
+    [mode, isExpanded]
+  )
+
   // State for tracking node dragging
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
   // Enhanced edge selection with parent context and unique identifier
-  const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<{
-    id: string
-    parentLoopId?: string
-    contextId?: string // Unique identifier combining edge ID and context
-  } | null>(null)
+  const [selectedEdgeInfo, setSelectedEdgeInfo] = useState<SelectedEdgeInfo | null>(null)
+
   // Hooks
   const params = useParams()
   const router = useRouter()
@@ -89,18 +102,12 @@ function WorkflowContent() {
     updateWorkflow,
     duplicateWorkflow,
   } = useWorkflowRegistry()
-  const currentWorkflow = workflows[workflowId]
+
+  const currentWorkflow = useMemo(() => workflows[workflowId], [workflows, workflowId])
   const workspaceId = currentWorkflow?.workspaceId
 
-  // Workspace permissions - only fetch if we have a workspace ID
-  const {
-    permissions: workspacePermissions,
-    loading: permissionsLoading,
-    error: permissionsError,
-  } = useWorkspacePermissions(workspaceId || '')
-
-  // User permissions - get current user's specific permissions
-  const userPermissions = useUserPermissions(workspaceId || null)
+  // User permissions - get current user's specific permissions from context
+  const userPermissions = useUserPermissionsContext()
 
   // Store access
   const {
@@ -122,30 +129,6 @@ function WorkflowContent() {
   const { activeBlockIds, pendingBlocks } = useExecutionStore()
   const { isDebugModeEnabled } = useGeneralStore()
   const [dragStartParentId, setDragStartParentId] = useState<string | null>(null)
-
-  // Log permissions when they load
-  useEffect(() => {
-    if (workspacePermissions) {
-      logger.info('Workspace permissions loaded in workflow', {
-        workspaceId,
-        userCount: workspacePermissions.total,
-        permissions: workspacePermissions.users.map((u) => ({
-          email: u.email,
-          permissions: u.permissionType,
-        })),
-      })
-    }
-  }, [workspacePermissions, workspaceId])
-
-  // Log permissions errors
-  useEffect(() => {
-    if (permissionsError) {
-      logger.error('Failed to load workspace permissions', {
-        workspaceId,
-        error: permissionsError,
-      })
-    }
-  }, [permissionsError, workspaceId])
 
   // Helper function to update a node's parent with proper position calculation
   const updateNodeParent = useCallback(
@@ -204,22 +187,25 @@ function WorkflowContent() {
     const detectedOrientation = detectHandleOrientation(blocks)
 
     // Optimize spacing based on handle orientation
-    const orientationConfig =
-      detectedOrientation === 'vertical'
-        ? {
-            // Vertical handles: optimize for top-to-bottom flow
-            horizontalSpacing: 400,
-            verticalSpacing: 300,
-            startX: 200,
-            startY: 200,
-          }
-        : {
-            // Horizontal handles: optimize for left-to-right flow
-            horizontalSpacing: 600,
-            verticalSpacing: 200,
-            startX: 150,
-            startY: 300,
-          }
+    const orientationConfig = useMemo(
+      () =>
+        detectedOrientation === 'vertical'
+          ? {
+              // Vertical handles: optimize for top-to-bottom flow
+              horizontalSpacing: 400,
+              verticalSpacing: 300,
+              startX: 200,
+              startY: 200,
+            }
+          : {
+              // Horizontal handles: optimize for left-to-right flow
+              horizontalSpacing: 600,
+              verticalSpacing: 200,
+              startX: 150,
+              startY: 300,
+            },
+      [detectedOrientation]
+    )
 
     applyAutoLayoutSmooth(blocks, edges, updateBlockPosition, fitView, resizeLoopNodesWrapper, {
       ...orientationConfig,
@@ -313,7 +299,7 @@ function WorkflowContent() {
 
   // Handle drops
   const findClosestOutput = useCallback(
-    (newNodePosition: { x: number; y: number }) => {
+    (newNodePosition: { x: number; y: number }): BlockData | null => {
       const existingBlocks = Object.entries(blocks)
         .filter(([_, block]) => block.enabled)
         .map(([id, block]) => ({
@@ -327,7 +313,7 @@ function WorkflowContent() {
         }))
         .sort((a, b) => a.distance - b.distance)
 
-      return existingBlocks[0] ? existingBlocks[0] : null
+      return existingBlocks[0] || null
     },
     [blocks]
   )
@@ -468,7 +454,15 @@ function WorkflowContent() {
         handleAddBlockFromToolbar as EventListener
       )
     }
-  }, [project, blocks, addBlock, addEdge, findClosestOutput, determineSourceHandle])
+  }, [
+    project,
+    blocks,
+    addBlock,
+    addEdge,
+    findClosestOutput,
+    determineSourceHandle,
+    userPermissions.canEdit,
+  ])
 
   // Update the onDrop handler
   const onDrop = useCallback(
@@ -1505,10 +1499,12 @@ function WorkflowContent() {
       </div>
     </div>
   )
-}
+})
+
+WorkflowContent.displayName = 'WorkflowContent'
 
 // Workflow wrapper
-export default function Workflow() {
+const Workflow = React.memo(() => {
   return (
     <ReactFlowProvider>
       <ErrorBoundary>
@@ -1516,4 +1512,8 @@ export default function Workflow() {
       </ErrorBoundary>
     </ReactFlowProvider>
   )
-}
+})
+
+Workflow.displayName = 'Workflow'
+
+export default Workflow
