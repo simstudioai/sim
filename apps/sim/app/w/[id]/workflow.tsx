@@ -17,6 +17,7 @@ import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
 import { getBlock } from '@/blocks'
+import { useSocket } from '@/contexts/socket-context'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
@@ -117,9 +118,11 @@ function WorkflowContent() {
     collaborativeUpdateParentId: updateParentId,
     collaborativeSetSubblockValue: setSubBlockValue,
     isConnected,
+    currentWorkflowId,
     presenceUsers,
     joinWorkflow,
   } = useCollaborativeWorkflow()
+  const { emitSubblockUpdate } = useSocket()
   const { markAllAsRead } = useNotificationStore()
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
 
@@ -813,7 +816,7 @@ function WorkflowContent() {
       }
 
       // If no workflows exist, redirect to workspace root to let server handle workflow creation
-      if (workflowIds.length === 0 && !workflowsLoading) {
+      if (workflowIds.length === 0 && !isLoading) {
         logger.info('No workflows found, redirecting to workspace root')
         router.replace('/w')
         return
@@ -1394,7 +1397,11 @@ function WorkflowContent() {
     const handleSubBlockValueUpdate = (event: CustomEvent) => {
       const { blockId, subBlockId, value } = event.detail
       if (blockId && subBlockId) {
-        setSubBlockValue(blockId, subBlockId, value)
+        // Only emit the socket update, don't update the store again
+        // The store was already updated in the setValue function
+        if (isConnected && currentWorkflowId && activeWorkflowId === currentWorkflowId) {
+          emitSubblockUpdate(blockId, subBlockId, value)
+        }
       }
     }
 
@@ -1406,7 +1413,7 @@ function WorkflowContent() {
         handleSubBlockValueUpdate as EventListener
       )
     }
-  }, [setSubBlockValue])
+  }, [emitSubblockUpdate, isConnected, currentWorkflowId, activeWorkflowId])
 
   // Show skeleton UI while loading, then smoothly transition to real content
   const showSkeletonUI = !isWorkflowReady

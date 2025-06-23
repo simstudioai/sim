@@ -3,8 +3,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { db } from '@/db'
-import { workflow, workflowBlocks, workspace, workspaceMember } from '@/db/schema'
-import { permissions, workflow, workspace, workspaceMember } from '@/db/schema'
+import { permissions, workflow, workflowBlocks, workspace, workspaceMember } from '@/db/schema'
 
 // Get all workspaces for the current user
 export async function GET() {

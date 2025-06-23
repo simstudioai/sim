@@ -228,8 +228,10 @@ export function useSubBlockValue<T = any>(
           storeApiKeyValue(blockId, blockType, modelValue, newValue, storeValue)
         }
 
-        // Update the subblock store with the new value using the collaborative system
-        // Dispatch event to trigger collaborative update
+        // Update the subblock store directly
+        useSubBlockStore.getState().setValue(blockId, subBlockId, valueCopy)
+
+        // Dispatch event to trigger socket emission only (not store update)
         const event = new CustomEvent('update-subblock-value', {
           detail: {
             blockId,
@@ -316,5 +318,5 @@ export function useSubBlockValue<T = any>(
     }
   }, [storeValue, initialValue])
 
-  return [valueRef.current as T | null, setValue] as const
+  return [storeValue !== undefined ? storeValue : initialValue, setValue] as const
 }

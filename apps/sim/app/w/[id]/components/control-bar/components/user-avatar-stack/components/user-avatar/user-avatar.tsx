@@ -72,7 +72,7 @@ export function UserAvatar({
   const avatarElement = (
     <div
       className={`
-        ${sizeClass}flex flex-shrink-0 cursor-default items-center justify-center rounded-full border-2 border-white font-semibold text-white shadow-sm `}
+        ${sizeClass} flex flex-shrink-0 cursor-default items-center justify-center rounded-full border-2 border-white font-semibold text-white shadow-sm `}
       style={
         {
           background: backgroundStyle,

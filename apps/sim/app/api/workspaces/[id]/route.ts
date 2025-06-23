@@ -2,17 +2,16 @@ import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { createLogger } from '@/lib/logs/console-logger'
-import { db } from '@/db'
 import {
   workflow,
   workflowBlocks,
   workflowEdges,
   workflowSubflows,
-  workspace,
   workspaceMember,
 } from '@/db/schema'
 
 const logger = createLogger('WorkspaceByIdAPI')
+
 import { getUserEntityPermissions } from '@/lib/permissions/utils'
 import { db } from '@/db'
 import { permissions, workspace } from '@/db/schema'
@@ -146,19 +145,15 @@ export async function DELETE(
       // Delete workspace members
       await tx.delete(workspaceMember).where(eq(workspaceMember.workspaceId, workspaceId))
 
-      // Delete the workspace itself
-      await tx.delete(workspace).where(eq(workspace.id, workspaceId))
-
-      logger.info(`Successfully deleted workspace ${workspaceId} and all related data`)
-    // Use a transaction to ensure data consistency
-    await db.transaction(async (tx) => {
-      // 1. Delete all permissions associated with this workspace
+      // Delete all permissions associated with this workspace
       await tx
         .delete(permissions)
         .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId)))
 
-      // 2. Delete workspace (cascade will handle members, workflows, etc.)
+      // Delete the workspace itself
       await tx.delete(workspace).where(eq(workspace.id, workspaceId))
+
+      logger.info(`Successfully deleted workspace ${workspaceId} and all related data`)
     })
 
     return NextResponse.json({ success: true })

@@ -603,10 +603,12 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
   /**
    * Render workflow name section (editable/non-editable)
    */
-  const renderWorkflowName = () => (
-    <div className='flex items-center'>
-      <div className='flex flex-col'>
-        <div className='flex items-center'>
+  const renderWorkflowName = () => {
+    const canEdit = userPermissions.canEdit
+
+    return (
+      <div className='flex items-center'>
+        <div className='flex flex-col gap-[2px]'>
           {isEditing ? (
             <input
               type='text'
@@ -617,63 +619,36 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               className='w-[200px] border-none bg-transparent p-0 font-medium text-sm outline-none'
             />
           ) : (
-            <h2
-              className='w-fit cursor-pointer font-medium text-sm hover:text-muted-foreground'
-              onClick={handleNameClick}
-            >
-              {activeWorkflowId ? workflows[activeWorkflowId]?.name : 'Workflow'}
-            </h2>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <h2
+                  className={cn(
+                    'w-fit font-medium text-sm',
+                    canEdit ? 'cursor-pointer hover:text-muted-foreground' : 'cursor-default'
+                  )}
+                  onClick={canEdit ? handleNameClick : undefined}
+                >
+                  {activeWorkflowId ? workflows[activeWorkflowId]?.name : 'Workflow'}
+                </h2>
+              </TooltipTrigger>
+              {!canEdit && (
+                <TooltipContent>Edit permissions required to rename workflows</TooltipContent>
+              )}
+            </Tooltip>
           )}
-          <UserAvatarStack className='ml-3' />
+          {mounted && (
+            <p className='text-muted-foreground text-xs'>
+              Saved{' '}
+              {formatDistanceToNow(lastSaved || Date.now(), {
+                addSuffix: true,
+              })}
+            </p>
+          )}
         </div>
-        {mounted && (
-          <p className='pt-[1px] text-muted-foreground text-xs'>
-  const renderWorkflowName = () => {
-    const canEdit = userPermissions.canEdit
-
-    return (
-      <div className='flex flex-col gap-[2px]'>
-        {isEditing ? (
-          <input
-            type='text'
-            value={editedName}
-            onChange={(e) => setEditedName(e.target.value)}
-            onBlur={handleNameSubmit}
-            onKeyDown={handleNameKeyDown}
-            className='w-[200px] border-none bg-transparent p-0 font-medium text-sm outline-none'
-          />
-        ) : (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <h2
-                className={cn(
-                  'w-fit font-medium text-sm',
-                  canEdit ? 'cursor-pointer hover:text-muted-foreground' : 'cursor-default'
-                )}
-                onClick={canEdit ? handleNameClick : undefined}
-              >
-                {activeWorkflowId ? workflows[activeWorkflowId]?.name : 'Workflow'}
-              </h2>
-            </TooltipTrigger>
-            {!canEdit && (
-              <TooltipContent>Edit permissions required to rename workflows</TooltipContent>
-            )}
-          </Tooltip>
-        )}
-        {mounted && (
-          <p className='text-muted-foreground text-xs'>
-            Saved{' '}
-            {formatDistanceToNow(lastSaved || Date.now(), {
-              addSuffix: true,
-            })}
-          </p>
-        )}
+        <UserAvatarStack className='ml-3' />
       </div>
-    </div>
-  )
     )
   }
-
 
   /**
    * Render delete workflow button with confirmation dialog
@@ -1087,84 +1062,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
             </div>
           </div>
         )}
-      <div className='ml-1 flex'>
-        {/* Main Run/Debug Button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              className={cn(
-                'gap-2 font-medium',
-                'bg-[#701FFC] hover:bg-[#6518E6]',
-                'shadow-[0_0_0_0_#701FFC] hover:shadow-[0_0_0_4px_rgba(127,47,255,0.15)]',
-                'text-white transition-all duration-200',
-                (isExecuting || isMultiRunning) &&
-                  !isCancelling &&
-                  'relative after:absolute after:inset-0 after:animate-pulse after:bg-white/20',
-                'disabled:opacity-50 disabled:hover:bg-[#701FFC] disabled:hover:shadow-none',
-                isDebugModeEnabled || isMultiRunning
-                  ? 'h-10 rounded px-4 py-2'
-                  : 'h-10 rounded-r-none border-r border-r-[#6420cc] px-4 py-2'
-              )}
-              onClick={
-                usageExceeded
-                  ? openSubscriptionSettings
-                  : isDebugModeEnabled
-                    ? handleRunWorkflow
-                    : handleMultipleRuns
-              }
-              disabled={isExecuting || isMultiRunning || isCancelling || hasValidationErrors}
-            >
-              {isCancelling ? (
-                <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
-              ) : isDebugModeEnabled ? (
-                <Bug className={cn('mr-1.5 h-3.5 w-3.5', 'fill-current stroke-current')} />
-              ) : (
-                <Play className={cn('h-3.5 w-3.5', 'fill-current stroke-current')} />
-              )}
-              {isCancelling
-                ? 'Cancelling...'
-                : isMultiRunning
-                  ? `Running (${completedRuns}/${runCount})`
-                  : isExecuting
-                    ? isDebugging
-                      ? 'Debugging'
-                      : 'Running'
-                    : isDebugModeEnabled
-                      ? 'Debug'
-                      : runCount === 1
-                        ? 'Run'
-                        : `Run (${runCount})`}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent command={getKeyboardShortcutText('Enter', true)}>
-            {hasValidationErrors ? (
-              <div className='text-center'>
-                <p className='font-medium text-destructive'>Workflow Has Errors</p>
-                <p className='text-xs'>
-                  Nested subflows are not supported. Remove subflow blocks from inside other subflow
-                  blocks.
-                </p>
-              </div>
-            ) : usageExceeded ? (
-              <div className='text-center'>
-                <p className='font-medium text-destructive'>Usage Limit Exceeded</p>
-                <p className='text-xs'>
-                  You've used {usageData?.currentUsage.toFixed(2)}$ of {usageData?.limit}$. Upgrade
-                  your plan to continue.
-                </p>
-              </div>
-            ) : (
-              <>
-                {isDebugModeEnabled
-                  ? 'Debug Workflow'
-                  : runCount === 1
-                    ? 'Run Workflow'
-                    : `Run Workflow ${runCount} times`}
-              </>
-            )}
-          </TooltipContent>
-        </Tooltip>
-        {renderDebugControls()}
 
         <div className='ml-1 flex'>
           {/* Main Run/Debug Button */}
@@ -1184,39 +1081,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                     ? 'h-10 rounded px-4 py-2'
                     : 'h-10 rounded-r-none border-r border-r-[#6420cc] px-4 py-2'
                 )}
-                disabled={isExecuting || isMultiRunning || isCancelling || hasValidationErrors}
-              >
-                <ChevronDown className='h-4 w-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end' className='w-20'>
-              {RUN_COUNT_OPTIONS.map((count) => (
-                <DropdownMenuItem
-                  key={count}
-                  onClick={() => setRunCount(count)}
-                  className={cn('justify-center', runCount === count && 'bg-muted')}
-                >
-                  {count}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-
-        {/* Cancel Button - Only show when multi-running */}
-        {isMultiRunning && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant='outline'
-                size='icon'
-                onClick={() => {
-                  logger.info('Cancel button clicked - setting ref and state')
-                  cancelFlagRef.current = true
-                  setIsCancelling(true)
-                }}
-                disabled={isCancelling}
-                className='ml-2 h-10 w-10'
                 onClick={
                   usageExceeded
                     ? openSubscriptionSettings
@@ -1224,7 +1088,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                       ? handleRunWorkflow
                       : handleMultipleRuns
                 }
-                disabled={isButtonDisabled}
+                disabled={isExecuting || isMultiRunning || isCancelling || hasValidationErrors}
               >
                 {isCancelling ? (
                   <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin' />
@@ -1249,8 +1113,14 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               </Button>
             </TooltipTrigger>
             <TooltipContent command={getKeyboardShortcutText('Enter', true)}>
-              {!canRun && !isLoadingPermissions ? (
-                'Read permissions required to run workflows'
+              {hasValidationErrors ? (
+                <div className='text-center'>
+                  <p className='font-medium text-destructive'>Workflow Has Errors</p>
+                  <p className='text-xs'>
+                    Nested subflows are not supported. Remove subflow blocks from inside other
+                    subflow blocks.
+                  </p>
+                </div>
               ) : usageExceeded ? (
                 <div className='text-center'>
                   <p className='font-medium text-destructive'>Usage Limit Exceeded</p>
@@ -1259,6 +1129,8 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                     Upgrade your plan to continue.
                   </p>
                 </div>
+              ) : !canRun && !isLoadingPermissions ? (
+                'Read permissions required to run workflows'
               ) : (
                 <>
                   {isDebugModeEnabled
@@ -1270,6 +1142,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
               )}
             </TooltipContent>
           </Tooltip>
+          {renderDebugControls()}
 
           {/* Dropdown Trigger - Only show when not in debug mode and not multi-running */}
           {!isDebugModeEnabled && !isMultiRunning && (
@@ -1314,7 +1187,6 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
                   variant='outline'
                   size='icon'
                   onClick={() => {
-                    logger.info('Cancel button clicked - setting ref and state')
                     cancelFlagRef.current = true
                     setIsCancelling(true)
                   }}
