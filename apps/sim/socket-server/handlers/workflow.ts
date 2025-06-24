@@ -65,10 +65,8 @@ export function setupWorkflowHandlers(
         socket.leave(currentWorkflowId)
         roomManager.cleanupUserFromRoom(socket.id, currentWorkflowId)
 
-        socket.to(currentWorkflowId).emit('user-left', {
-          userId,
-          socketId: socket.id,
-        })
+        // Broadcast updated presence list to all remaining users
+        roomManager.broadcastPresenceUpdate(currentWorkflowId)
       }
 
       socket.join(workflowId)
@@ -93,17 +91,11 @@ export function setupWorkflowHandlers(
       roomManager.setWorkflowForSocket(socket.id, workflowId)
       roomManager.setUserSession(socket.id, { userId, userName })
 
-      const roomPresence = Array.from(room.users.values())
-
       const workflowState = await getWorkflowState(workflowId)
       socket.emit('workflow-state', workflowState)
-      socket.emit('presence-update', roomPresence)
 
-      socket.to(workflowId).emit('user-joined', {
-        userId,
-        userName,
-        socketId: socket.id,
-      })
+      // Send complete presence list to all users in the room (including the new user)
+      roomManager.broadcastPresenceUpdate(workflowId)
 
       logger.info(
         `User ${userId} (${userName}) joined workflow ${workflowId}. Room now has ${room.activeConnections} users.`
@@ -148,10 +140,8 @@ export function setupWorkflowHandlers(
       socket.leave(workflowId)
       roomManager.cleanupUserFromRoom(socket.id, workflowId)
 
-      socket.to(workflowId).emit('user-left', {
-        userId: session.userId,
-        socketId: socket.id,
-      })
+      // Broadcast updated presence list to all remaining users
+      roomManager.broadcastPresenceUpdate(workflowId)
 
       logger.info(`User ${session.userId} (${session.userName}) left workflow ${workflowId}`)
     }

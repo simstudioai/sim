@@ -172,4 +172,12 @@ export class RoomManager {
       0
     )
   }
+
+  broadcastPresenceUpdate(workflowId: string): void {
+    const room = this.workflowRooms.get(workflowId)
+    if (room) {
+      const roomPresence = Array.from(room.users.values())
+      this.io.to(workflowId).emit('presence-update', roomPresence)
+    }
+  }
 }

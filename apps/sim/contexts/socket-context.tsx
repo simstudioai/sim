@@ -202,15 +202,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           setPresenceUsers(users)
         })
 
-        socketInstance.on('user-joined', (userData) => {
-          setPresenceUsers((prev) => [...prev, userData])
-          eventHandlers.current.userJoined?.(userData)
-        })
-
-        socketInstance.on('user-left', ({ userId, socketId }) => {
-          setPresenceUsers((prev) => prev.filter((u) => u.socketId !== socketId))
-          eventHandlers.current.userLeft?.({ userId, socketId })
-        })
+        // Note: user-joined and user-left events removed in favor of authoritative presence-update
 
         // Workflow operation events
         socketInstance.on('workflow-operation', (data) => {
