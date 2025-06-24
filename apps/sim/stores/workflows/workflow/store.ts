@@ -594,11 +594,7 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
               const regex = new RegExp(`<${oldBlockName}\\.`, 'g')
 
               // Use a recursive function to handle all object types
-              const updatedValue = updateReferences(
-                value,
-                regex,
-                `<${newBlockName}.`
-              )
+              const updatedValue = updateReferences(value, regex, `<${newBlockName}.`)
 
               // Check if the value actually changed
               if (JSON.stringify(updatedValue) !== JSON.stringify(value)) {
