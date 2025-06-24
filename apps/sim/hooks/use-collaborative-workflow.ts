@@ -107,6 +107,40 @@ export function useCollaborativeWorkflow() {
               workflowStore.removeEdge(payload.id)
               break
           }
+        } else if (target === 'subflow') {
+          switch (operation) {
+            case 'update':
+              // Handle subflow configuration updates
+              if (payload.type === 'loop') {
+                // Update loop configuration
+                if (payload.config.iterations !== undefined) {
+                  workflowStore.updateLoopCount(payload.id, payload.config.iterations)
+                }
+                if (payload.config.loopType !== undefined) {
+                  workflowStore.updateLoopType(payload.id, payload.config.loopType)
+                }
+                if (payload.config.forEachItems !== undefined) {
+                  workflowStore.updateLoopCollection(payload.id, payload.config.forEachItems)
+                }
+              } else if (payload.type === 'parallel') {
+                // Update parallel configuration
+                if (payload.config.count !== undefined) {
+                  workflowStore.updateParallelCount(payload.id, payload.config.count)
+                }
+                if (payload.config.distribution !== undefined) {
+                  workflowStore.updateParallelCollection(payload.id, payload.config.distribution)
+                }
+              }
+              break
+            case 'add':
+              // Handle subflow creation - this is typically handled by block creation
+              logger.debug(`Subflow add operation received for ${payload.id}`)
+              break
+            case 'remove':
+              // Handle subflow removal - this is typically handled by block removal
+              logger.debug(`Subflow remove operation received for ${payload.id}`)
+              break
+          }
         }
       } catch (error) {
         logger.error('Error applying remote operation:', error)
