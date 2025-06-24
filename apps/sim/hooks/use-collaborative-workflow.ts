@@ -233,6 +233,36 @@ export function useCollaborativeWorkflow() {
     ) => {
       // Create complete block data upfront using the same logic as the store
       const blockConfig = getBlock(type)
+
+      // Handle loop/parallel blocks that don't use BlockConfig
+      if (!blockConfig && (type === 'loop' || type === 'parallel')) {
+        // For loop/parallel blocks, use empty subBlocks and outputs
+        const completeBlockData = {
+          id,
+          type,
+          name,
+          position,
+          data: data || {},
+          subBlocks: {},
+          outputs: {},
+          enabled: true,
+          horizontalHandles: true,
+          isWide: false,
+          height: 0,
+          parentId,
+          extent,
+        }
+
+        // Apply locally first
+        workflowStore.addBlock(id, type, name, position, data, parentId, extent)
+
+        // Then broadcast to other clients with complete block data
+        if (!isApplyingRemoteChange.current) {
+          emitWorkflowOperation('add', 'block', completeBlockData)
+        }
+        return
+      }
+
       if (!blockConfig) {
         console.error(`Block type ${type} not found`)
         return
