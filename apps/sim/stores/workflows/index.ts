@@ -88,7 +88,7 @@ export function getBlockWithValues(blockId: string): BlockState | null {
  * @returns An object containing workflows, with state only for the active workflow
  */
 export function getAllWorkflowsWithValues() {
-  const { workflows, activeWorkspaceId } = useWorkflowRegistry.getState()
+  const { workflows } = useWorkflowRegistry.getState()
   const result: Record<string, any> = {}
   const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
   const currentState = useWorkflowStore.getState()
@@ -96,14 +96,6 @@ export function getAllWorkflowsWithValues() {
   // Only sync the active workflow to ensure we always send valid state data
   if (activeWorkflowId && workflows[activeWorkflowId]) {
     const metadata = workflows[activeWorkflowId]
-
-    // Skip if workflow doesn't belong to the active workspace
-    if (activeWorkspaceId && metadata.workspaceId !== activeWorkspaceId) {
-      logger.debug(
-        `Skipping active workflow ${activeWorkflowId} - belongs to workspace ${metadata.workspaceId}, not active workspace ${activeWorkspaceId}`
-      )
-      return result
-    }
 
     // Get deployment status from registry
     const deploymentStatus = useWorkflowRegistry

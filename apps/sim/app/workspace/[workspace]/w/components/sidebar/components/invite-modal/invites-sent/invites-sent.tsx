@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -11,7 +12,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { createLogger } from '@/lib/logs/console-logger'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('InvitesSent')
 
@@ -47,11 +47,12 @@ export function InvitesSent() {
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { activeWorkspaceId } = useWorkflowRegistry()
+  const params = useParams()
+  const workspaceId = params.workspace as string
 
   useEffect(() => {
     async function fetchInvitations() {
-      if (!activeWorkspaceId) {
+      if (!workspaceId) {
         setIsLoading(false)
         return
       }
@@ -82,7 +83,7 @@ export function InvitesSent() {
     }
 
     fetchInvitations()
-  }, [activeWorkspaceId])
+  }, [workspaceId])
 
   const TableSkeleton = () => (
     <div className='space-y-2'>
@@ -106,7 +107,7 @@ export function InvitesSent() {
     )
   }
 
-  if (!activeWorkspaceId) {
+  if (!workspaceId) {
     return null
   }
 

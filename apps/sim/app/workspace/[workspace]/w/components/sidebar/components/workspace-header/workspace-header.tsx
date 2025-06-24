@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronDown, Pencil, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { AgentIcon } from '@/components/icons'
 import {
   AlertDialog,
@@ -254,7 +254,9 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
     const router = useRouter()
 
     // Get workflowRegistry state and actions
-    const { activeWorkspaceId, switchToWorkspace, setActiveWorkspaceId } = useWorkflowRegistry()
+    const { switchToWorkspace } = useWorkflowRegistry()
+    const params = useParams()
+    const currentWorkspaceId = params.workspace as string
 
     // Get user permissions for the active workspace
     const userPermissions = useUserPermissionsContext()
@@ -289,30 +291,36 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
           const fetchedWorkspaces = data.workspaces as Workspace[]
           setWorkspaces(fetchedWorkspaces)
 
-          // Only update workspace if we have a valid activeWorkspaceId from registry
-          if (activeWorkspaceId) {
+          // Only update workspace if we have a valid currentWorkspaceId from URL
+          if (currentWorkspaceId) {
             const matchingWorkspace = fetchedWorkspaces.find(
-              (workspace) => workspace.id === activeWorkspaceId
+              (workspace) => workspace.id === currentWorkspaceId
             )
             if (matchingWorkspace) {
               setActiveWorkspace(matchingWorkspace)
             } else {
-              // Active workspace not found, fallback to first workspace
-              const fallbackWorkspace = fetchedWorkspaces[0]
-              if (fallbackWorkspace) {
+              // Log the mismatch for debugging
+              console.warn(`Workspace ${currentWorkspaceId} not found in user's workspaces`)
+
+              // Current workspace not found, fallback to first workspace
+              if (fetchedWorkspaces.length > 0) {
+                const fallbackWorkspace = fetchedWorkspaces[0]
                 setActiveWorkspace(fallbackWorkspace)
-                setActiveWorkspaceId(fallbackWorkspace.id)
+                // Navigate to the fallback workspace
+                router.push(`/workspace/${fallbackWorkspace.id}/w`)
+              } else {
+                // No workspaces available - handle this edge case
+                console.error('No workspaces available for user')
               }
             }
           }
-          // If no activeWorkspaceId, let loadWorkspaceFromWorkflowId handle workspace selection
         }
       } catch (err) {
         console.error('Error fetching workspaces:', err)
       } finally {
         setIsWorkspacesLoading(false)
       }
-    }, [activeWorkspaceId, setActiveWorkspaceId])
+    }, [currentWorkspaceId, router])
 
     useEffect(() => {
       // Fetch subscription status if user is logged in

@@ -34,12 +34,7 @@ export function Sidebar() {
   useRegistryLoading()
   useGlobalShortcuts()
 
-  const {
-    workflows,
-    activeWorkspaceId,
-    createWorkflow,
-    isLoading: workflowsLoading,
-  } = useWorkflowRegistry()
+  const { workflows, createWorkflow, isLoading: workflowsLoading } = useWorkflowRegistry()
   const { isPending: sessionLoading } = useSession()
   const userPermissions = useUserPermissionsContext()
   const isLoading = workflowsLoading || sessionLoading
@@ -71,7 +66,7 @@ export function Sidebar() {
 
     if (!isLoading) {
       Object.values(workflows).forEach((workflow) => {
-        if (workflow.workspaceId === activeWorkspaceId || !workflow.workspaceId) {
+        if (workflow.workspaceId === workspaceId || !workflow.workspaceId) {
           if (workflow.marketplaceData?.status === 'temp') {
             temp.push(workflow)
           } else {
@@ -98,7 +93,7 @@ export function Sidebar() {
     }
 
     return { regularWorkflows: regular, tempWorkflows: temp }
-  }, [workflows, isLoading, activeWorkspaceId])
+  }, [workflows, isLoading, workspaceId])
 
   // Create workflow handler
   const handleCreateWorkflow = async (folderId?: string) => {

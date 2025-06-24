@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown, Folder } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,7 +11,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useFilterStore } from '@/app/workspace/[workspace]/w/logs/stores/store'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface FolderOption {
   id: string
@@ -22,7 +22,8 @@ interface FolderOption {
 export default function FolderFilter() {
   const { folderIds, toggleFolderId, setFolderIds } = useFilterStore()
   const { getFolderTree, getFolderPath, fetchFolders } = useFolderStore()
-  const { activeWorkspaceId } = useWorkflowRegistry()
+  const params = useParams()
+  const workspaceId = params.workspace as string
   const [folders, setFolders] = useState<FolderOption[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -31,9 +32,9 @@ export default function FolderFilter() {
     const fetchFoldersData = async () => {
       try {
         setLoading(true)
-        if (activeWorkspaceId) {
-          await fetchFolders(activeWorkspaceId)
-          const folderTree = getFolderTree(activeWorkspaceId)
+        if (workspaceId) {
+          await fetchFolders(workspaceId)
+          const folderTree = getFolderTree(workspaceId)
 
           // Flatten the folder tree and create options with full paths
           const flattenFolders = (nodes: any[], parentPath = ''): FolderOption[] => {
@@ -68,7 +69,7 @@ export default function FolderFilter() {
     }
 
     fetchFoldersData()
-  }, [activeWorkspaceId, fetchFolders, getFolderTree])
+  }, [workspaceId, fetchFolders, getFolderTree])
 
   // Get display text for the dropdown button
   const getSelectedFoldersText = () => {

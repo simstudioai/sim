@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { File, Folder, Plus } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -9,7 +10,6 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface CreateMenuProps {
   onCreateWorkflow: (folderId?: string) => void
@@ -22,7 +22,8 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
   const [isCreating, setIsCreating] = useState(false)
   const [isHoverOpen, setIsHoverOpen] = useState(false)
 
-  const { activeWorkspaceId } = useWorkflowRegistry()
+  const params = useParams()
+  const workspaceId = params.workspace as string
   const { createFolder } = useFolderStore()
 
   const handleCreateWorkflow = () => {
@@ -37,13 +38,13 @@ export function CreateMenu({ onCreateWorkflow, isCollapsed }: CreateMenuProps) {
 
   const handleFolderSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!folderName.trim() || !activeWorkspaceId) return
+    if (!folderName.trim() || !workspaceId) return
 
     setIsCreating(true)
     try {
       await createFolder({
         name: folderName.trim(),
-        workspaceId: activeWorkspaceId,
+        workspaceId: workspaceId,
       })
       setFolderName('')
       setShowFolderDialog(false)

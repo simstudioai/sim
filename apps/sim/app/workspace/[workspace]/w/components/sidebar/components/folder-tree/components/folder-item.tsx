@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,7 +40,8 @@ export function FolderItem({
   const { expandedFolders, toggleExpanded, updateFolderAPI, deleteFolder } = useFolderStore()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-
+  const params = useParams()
+  const workspaceId = params.workspace as string
   const isExpanded = expandedFolders.has(folder.id)
   const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pendingStateRef = useRef<boolean | null>(null)
@@ -87,7 +89,7 @@ export function FolderItem({
   const confirmDelete = async () => {
     setIsDeleting(true)
     try {
-      await deleteFolder(folder.id)
+      await deleteFolder(folder.id, workspaceId)
       setShowDeleteDialog(false)
     } catch (error) {
       console.error('Failed to delete folder:', error)

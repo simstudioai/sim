@@ -43,15 +43,14 @@ export const Toolbar = React.memo(() => {
   const params = useParams()
   const workflowId = params?.id as string
 
-  // Get the workspace ID from the workflow registry
-  const { activeWorkspaceId, workflows } = useWorkflowRegistry()
+  // Get the workspace ID from URL params
+  const { workflows } = useWorkflowRegistry()
+  const workspaceId = params.workspace as string
 
   const currentWorkflow = useMemo(
     () => (workflowId ? workflows[workflowId] : null),
     [workflowId, workflows]
   )
-
-  const workspaceId = currentWorkflow?.workspaceId || activeWorkspaceId
 
   const userPermissions = useUserPermissionsContext()
 

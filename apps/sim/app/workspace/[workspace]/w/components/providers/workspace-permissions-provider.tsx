@@ -1,12 +1,12 @@
 'use client'
 
 import React, { createContext, useContext, useMemo } from 'react'
+import { useParams } from 'next/navigation'
 import { useUserPermissions, type WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import {
   useWorkspacePermissions,
   type WorkspacePermissions,
 } from '@/hooks/use-workspace-permissions'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface WorkspacePermissionsContextType {
   // Raw workspace permissions data
@@ -27,7 +27,8 @@ interface WorkspacePermissionsProviderProps {
 
 const WorkspacePermissionsProvider = React.memo<WorkspacePermissionsProviderProps>(
   ({ children }) => {
-    const { activeWorkspaceId } = useWorkflowRegistry()
+    const params = useParams()
+    const workspaceId = params.workspace as string
 
     // Fetch workspace permissions once
     const {
@@ -35,7 +36,7 @@ const WorkspacePermissionsProvider = React.memo<WorkspacePermissionsProviderProp
       loading: permissionsLoading,
       error: permissionsError,
       updatePermissions,
-    } = useWorkspacePermissions(activeWorkspaceId)
+    } = useWorkspacePermissions(workspaceId)
 
     // Compute user permissions based on workspace permissions
     const userPermissions = useUserPermissions(

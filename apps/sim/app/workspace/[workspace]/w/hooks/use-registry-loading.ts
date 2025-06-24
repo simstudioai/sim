@@ -34,40 +34,33 @@ function extractWorkflowIdFromPathname(pathname: string): string | null {
  * Custom hook to manage workflow registry loading state and handle first-time navigation
  *
  * This hook initializes the loading state and automatically clears it
- * when workflows are loaded. It also handles smart workspace selection
- * and navigation for first-time users.
+ * when workflows are loaded. It also handles navigation for first-time users.
  */
 export function useRegistryLoading() {
-  const { workflows, setLoading, isLoading, activeWorkspaceId, loadWorkspaceFromWorkflowId } =
-    useWorkflowRegistry()
+  const { workflows, setLoading, isLoading, loadWorkflows } = useWorkflowRegistry()
   const pathname = usePathname()
   const router = useRouter()
   const params = useParams()
   const workspaceId = params.workspace as string
 
-  // Handle workspace selection from URL
+  // Load workflows for current workspace
   useEffect(() => {
-    if (!activeWorkspaceId) {
-      const workflowIdFromUrl = extractWorkflowIdFromPathname(pathname)
-      if (workflowIdFromUrl) {
-        loadWorkspaceFromWorkflowId(workflowIdFromUrl).catch((error) => {
-          logger.warn('Failed to load workspace from workflow ID:', error)
-        })
-      }
+    if (workspaceId) {
+      loadWorkflows(workspaceId).catch((error) => {
+        logger.warn('Failed to load workflows for workspace:', error)
+      })
     }
-  }, [activeWorkspaceId, pathname, loadWorkspaceFromWorkflowId])
+  }, [workspaceId, loadWorkflows])
 
   // Handle first-time navigation: if we're at /w and have workflows, navigate to first one
   useEffect(() => {
-    if (!isLoading && activeWorkspaceId && Object.keys(workflows).length > 0) {
-      const workflowCount = Object.keys(workflows).length
+    if (!isLoading && workspaceId && Object.keys(workflows).length > 0) {
       const currentWorkflowId = extractWorkflowIdFromPathname(pathname)
 
       // Check if we're on the workspace root and need to redirect to first workflow
       if (
         (pathname === `/workspace/${workspaceId}/w` ||
-          pathname === `/workspace/${workspaceId}/w/` ||
-          pathname === `/workspace/${workspaceId}/w/${activeWorkspaceId}`) &&
+          pathname === `/workspace/${workspaceId}/w/`) &&
         Object.keys(workflows).length > 0
       ) {
         const firstWorkflowId = Object.keys(workflows)[0]
@@ -75,7 +68,7 @@ export function useRegistryLoading() {
         router.replace(`/workspace/${workspaceId}/w/${firstWorkflowId}`)
       }
     }
-  }, [isLoading, activeWorkspaceId, workflows, pathname, router])
+  }, [isLoading, workspaceId, workflows, pathname, router])
 
   // Handle loading states
   useEffect(() => {

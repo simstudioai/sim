@@ -2,6 +2,7 @@
 
 import React, { type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { HelpCircle, Loader2, X } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -18,7 +19,6 @@ import {
 } from '@/app/workspace/[workspace]/w/components/providers/workspace-permissions-provider'
 import type { WorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { API_ENDPOINTS } from '@/stores/constants'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('InviteModal')
 
@@ -397,7 +397,9 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const [showSent, setShowSent] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const { activeWorkspaceId } = useWorkflowRegistry()
+  const params = useParams()
+  const workspaceId = params.workspace as string
+
   const { data: session } = useSession()
   const {
     workspacePermissions,
@@ -410,7 +412,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   const hasNewInvites = emails.length > 0 || inputValue.trim()
 
   const fetchPendingInvitations = useCallback(async () => {
-    if (!activeWorkspaceId) return
+    if (!workspaceId) return
 
     setIsPendingInvitationsLoading(true)
     try {
@@ -421,7 +423,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
           data.invitations
             ?.filter(
               (inv: PendingInvitation) =>
-                inv.status === 'pending' && inv.workspaceId === activeWorkspaceId
+                inv.status === 'pending' && inv.workspaceId === workspaceId
             )
             .map((inv: PendingInvitation) => ({
               email: inv.email,
@@ -436,10 +438,10 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
     } finally {
       setIsPendingInvitationsLoading(false)
     }
-  }, [activeWorkspaceId])
+  }, [workspaceId])
 
   useEffect(() => {
-    if (open && activeWorkspaceId) {
+    if (open && workspaceId) {
       fetchPendingInvitations()
     }
   }, [open, fetchPendingInvitations])
@@ -535,7 +537,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   )
 
   const handleSaveChanges = useCallback(async () => {
-    if (!userPerms.canAdmin || !hasPendingChanges || !activeWorkspaceId) return
+    if (!userPerms.canAdmin || !hasPendingChanges || !workspaceId) return
 
     setIsSaving(true)
     setErrorMessage(null)
@@ -546,7 +548,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
         permissions: changes.permissionType || 'read',
       }))
 
-      const response = await fetch(API_ENDPOINTS.WORKSPACE_PERMISSIONS(activeWorkspaceId), {
+      const response = await fetch(API_ENDPOINTS.WORKSPACE_PERMISSIONS(workspaceId), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -583,7 +585,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
   }, [
     userPerms.canAdmin,
     hasPendingChanges,
-    activeWorkspaceId,
+    workspaceId,
     existingUserPermissionChanges,
     updatePermissions,
   ])
@@ -646,7 +648,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       setErrorMessage(null)
       setSuccessMessage(null)
 
-      if (emails.length === 0 || !activeWorkspaceId) {
+      if (emails.length === 0 || !workspaceId) {
         return
       }
 
@@ -667,7 +669,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                  workspaceId: activeWorkspaceId,
+                  workspaceId,
                   email: email,
                   role: 'member',
                   permission: permissionType,
@@ -739,7 +741,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
       inputValue,
       addEmail,
       emails,
-      activeWorkspaceId,
+      workspaceId,
       userPermissions,
       invalidEmails,
       fetchPendingInvitations,
@@ -922,7 +924,7 @@ export function InviteModal({ open, onOpenChange }: InviteModalProps) {
                     !hasNewInvites ||
                     isSubmitting ||
                     isSaving ||
-                    !activeWorkspaceId
+                    !workspaceId
                   }
                   className={cn(
                     'ml-auto gap-2 font-medium',

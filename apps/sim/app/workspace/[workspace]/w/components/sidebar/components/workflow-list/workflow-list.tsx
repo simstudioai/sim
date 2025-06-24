@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { useParams, usePathname } from 'next/navigation'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 interface WorkflowItemProps {
@@ -62,7 +61,6 @@ export function WorkflowList({
   const pathname = usePathname()
   const params = useParams()
   const workspaceId = params.workspace as string
-  const { activeWorkspaceId } = useWorkflowRegistry()
   const { data: session } = useSession()
 
   // Generate skeleton items for loading state
@@ -137,8 +135,8 @@ export function WorkflowList({
           {/* Empty state */}
           {showEmptyState && !isCollapsed && (
             <div className='px-2 py-1.5 text-muted-foreground text-xs'>
-              No workflows in {activeWorkspaceId ? 'this workspace' : 'your account'}. Create one to
-              get started.
+              No workflows in {workspaceId ? 'this workspace' : 'your account'}. Create one to get
+              started.
             </div>
           )}
         </>

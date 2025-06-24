@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
-export default function WorkflowsPage({ params }: { params: { workspace: string } }) {
+export default function WorkflowsPage() {
   const router = useRouter()
   const { workflows, isLoading } = useWorkflowRegistry()
+  const params = useParams()
   const workspaceId = params.workspace
 
   useEffect(() => {

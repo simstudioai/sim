@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { File, Folder, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -14,7 +15,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useFolderStore } from '@/stores/folders/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 interface FolderContextMenuProps {
   folderId: string
@@ -37,8 +37,9 @@ export function FolderContextMenu({
   const [renameName, setRenameName] = useState(folderName)
   const [isCreating, setIsCreating] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
+  const params = useParams()
+  const workspaceId = params.workspace as string
 
-  const { activeWorkspaceId } = useWorkflowRegistry()
   const { createFolder, updateFolder, deleteFolder } = useFolderStore()
 
   const handleCreateWorkflow = () => {
@@ -59,19 +60,19 @@ export function FolderContextMenu({
       onDelete(folderId)
     } else {
       // Default delete behavior
-      deleteFolder(folderId)
+      deleteFolder(folderId, workspaceId)
     }
   }
 
   const handleSubfolderSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!subfolderName.trim() || !activeWorkspaceId) return
+    if (!subfolderName.trim() || !workspaceId) return
 
     setIsCreating(true)
     try {
       await createFolder({
         name: subfolderName.trim(),
-        workspaceId: activeWorkspaceId,
+        workspaceId: workspaceId,
         parentId: folderId,
       })
       setSubfolderName('')

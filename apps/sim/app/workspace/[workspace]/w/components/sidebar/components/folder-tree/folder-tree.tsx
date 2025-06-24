@@ -164,7 +164,6 @@ export function FolderTree({
   const pathname = usePathname()
   const params = useParams()
   const workspaceId = params.workspace as string
-  const { activeWorkspaceId } = useWorkflowRegistry()
   const {
     getFolderTree,
     expandedFolders,
@@ -176,16 +175,16 @@ export function FolderTree({
 
   // Fetch folders when workspace changes
   useEffect(() => {
-    if (activeWorkspaceId) {
-      fetchFolders(activeWorkspaceId)
+    if (workspaceId) {
+      fetchFolders(workspaceId)
     }
-  }, [activeWorkspaceId, fetchFolders])
+  }, [workspaceId, fetchFolders])
 
   useEffect(() => {
     clearSelection()
-  }, [activeWorkspaceId, clearSelection])
+  }, [workspaceId, clearSelection])
 
-  const folderTree = activeWorkspaceId ? getFolderTree(activeWorkspaceId) : []
+  const folderTree = workspaceId ? getFolderTree(workspaceId) : []
 
   // Group workflows by folder
   const workflowsByFolder = regularWorkflows.reduce(
@@ -298,8 +297,8 @@ export function FolderTree({
         folderTree.length === 0 &&
         !isCollapsed && (
           <div className='px-2 py-1.5 text-muted-foreground text-xs'>
-            No workflows or folders in {activeWorkspaceId ? 'this workspace' : 'your account'}.
-            Create one to get started.
+            No workflows or folders in {workspaceId ? 'this workspace' : 'your account'}. Create one
+            to get started.
           </div>
         )}
     </div>
