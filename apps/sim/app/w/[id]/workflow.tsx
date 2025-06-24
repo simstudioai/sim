@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import ReactFlow, {
   Background,
@@ -228,33 +228,34 @@ const WorkflowContent = React.memo(() => {
     [getNodes]
   )
 
-  // Auto-layout handler
-  const handleAutoLayout = useCallback(() => {
-    if (Object.keys(blocks).length === 0) return
+  // Optimize spacing based on handle orientation
+  const orientationConfig = useMemo(() => {
+    if (Object.keys(blocks).length === 0) return null
 
-    // Detect the predominant handle orientation in the workflow
     const detectedOrientation = detectHandleOrientation(blocks)
 
-    // Optimize spacing based on handle orientation
-    const orientationConfig = useMemo(
-      () =>
-        detectedOrientation === 'vertical'
-          ? {
-              // Vertical handles: optimize for top-to-bottom flow
-              horizontalSpacing: 400,
-              verticalSpacing: 300,
-              startX: 200,
-              startY: 200,
-            }
-          : {
-              // Horizontal handles: optimize for left-to-right flow
-              horizontalSpacing: 600,
-              verticalSpacing: 200,
-              startX: 150,
-              startY: 300,
-            },
-      [detectedOrientation]
-    )
+    return detectedOrientation === 'vertical'
+      ? {
+          // Vertical handles: optimize for top-to-bottom flow
+          horizontalSpacing: 400,
+          verticalSpacing: 300,
+          startX: 200,
+          startY: 200,
+        }
+      : {
+          // Horizontal handles: optimize for left-to-right flow
+          horizontalSpacing: 600,
+          verticalSpacing: 200,
+          startX: 150,
+          startY: 300,
+        }
+  }, [blocks])
+
+  // Auto-layout handler
+  const handleAutoLayout = useCallback(() => {
+    if (!orientationConfig) return
+
+    const detectedOrientation = detectHandleOrientation(blocks)
 
     applyAutoLayoutSmooth(blocks, edges, updateBlockPosition, fitView, resizeLoopNodesWrapper, {
       ...orientationConfig,

@@ -118,11 +118,7 @@ export async function POST(req: NextRequest) {
             },
           },
           outputs: {
-            response: {
-              type: {
-                input: 'any',
-              },
-            },
+            input: 'any',
           },
           enabled: true,
           horizontalHandles: true,
@@ -248,11 +244,7 @@ export async function POST(req: NextRequest) {
           },
         },
         outputs: {
-          response: {
-            type: {
-              input: 'any',
-            },
-          },
+          input: 'any',
         },
         createdAt: now,
         updatedAt: now,
