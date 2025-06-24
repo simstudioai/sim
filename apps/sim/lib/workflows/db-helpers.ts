@@ -60,6 +60,7 @@ export async function loadWorkflowFromNormalizedTables(
         enabled: block.enabled,
         horizontalHandles: block.horizontalHandles,
         isWide: block.isWide,
+        advancedMode: block.advancedMode,
         height: Number(block.height),
         subBlocks: block.subBlocks || {},
         outputs: block.outputs || {},

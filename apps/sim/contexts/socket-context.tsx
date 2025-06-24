@@ -139,8 +139,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           },
         })
 
-
-
         // Connection events
         socketInstance.on('connect', () => {
           setIsConnected(true)
@@ -154,8 +152,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             reconnectCount: reconnectCount.current,
           })
         })
-
-
 
         socketInstance.on('disconnect', (reason) => {
           setIsConnected(false)
@@ -301,8 +297,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       })
       positionUpdateTimeouts.current.clear()
       pendingPositionUpdates.current.clear()
-
-
     }
   }, [user?.id])
 
@@ -342,9 +336,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
 
-
-
-
   // Emit workflow operations (blocks, edges, subflows)
   const emitWorkflowOperation = useCallback(
     (operation: string, target: string, payload: any) => {
@@ -355,7 +346,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
       if (isPositionUpdate && payload.id) {
         const blockId = payload.id
-
 
         // Store the latest position update for this block
         pendingPositionUpdates.current.set(blockId, {
@@ -370,20 +360,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         if (!existingTimeout) {
           // No active interval - start emitting at regular intervals
-          const intervalId = window.setInterval(
-            () => {
-              const latestUpdate = pendingPositionUpdates.current.get(blockId)
-              if (latestUpdate) {
-                socket.emit('workflow-operation', latestUpdate)
-                pendingPositionUpdates.current.delete(blockId)
-              } else {
-                // No more updates pending - stop the interval
-                clearInterval(intervalId)
-                positionUpdateTimeouts.current.delete(blockId)
-              }
-            },
-            THROTTLE_DELAY
-          )
+          const intervalId = window.setInterval(() => {
+            const latestUpdate = pendingPositionUpdates.current.get(blockId)
+            if (latestUpdate) {
+              socket.emit('workflow-operation', latestUpdate)
+              pendingPositionUpdates.current.delete(blockId)
+            } else {
+              // No more updates pending - stop the interval
+              clearInterval(intervalId)
+              positionUpdateTimeouts.current.delete(blockId)
+            }
+          }, THROTTLE_DELAY)
 
           positionUpdateTimeouts.current.set(blockId, intervalId)
 

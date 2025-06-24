@@ -42,6 +42,4 @@ export function setupConnectionHandlers(
 
     roomManager.clearPendingOperations(socket.id)
   })
-
-
 }

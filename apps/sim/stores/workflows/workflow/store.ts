@@ -673,6 +673,22 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Note: Socket.IO handles real-time sync automatically
       },
 
+      setBlockAdvancedMode: (id: string, advancedMode: boolean) => {
+        set((state) => ({
+          blocks: {
+            ...state.blocks,
+            [id]: {
+              ...state.blocks[id],
+              advancedMode,
+            },
+          },
+          edges: [...state.edges],
+          loops: { ...state.loops },
+        }))
+        get().updateLastSaved()
+        // Note: Socket.IO handles real-time sync automatically
+      },
+
       updateBlockHeight: (id: string, height: number) => {
         set((state) => ({
           blocks: {

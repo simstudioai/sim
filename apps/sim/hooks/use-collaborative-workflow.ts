@@ -101,6 +101,9 @@ export function useCollaborativeWorkflow() {
             case 'update-wide':
               workflowStore.setBlockWide(payload.id, payload.isWide)
               break
+            case 'update-advanced-mode':
+              workflowStore.setBlockAdvancedMode(payload.id, payload.advancedMode)
+              break
           }
         } else if (target === 'edge') {
           switch (operation) {
@@ -279,13 +282,39 @@ export function useCollaborativeWorkflow() {
 
   const collaborativeToggleBlockWide = useCallback(
     (id: string) => {
-      // Apply locally first to get the new state
+      // Get the current state before toggling
+      const currentBlock = workflowStore.blocks[id]
+      if (!currentBlock) return
+
+      // Calculate the new isWide value
+      const newIsWide = !currentBlock.isWide
+
+      // Apply locally first
       workflowStore.toggleBlockWide(id)
 
-      // Get the updated state after the toggle
-      const updatedBlock = workflowStore.blocks[id]
-      if (updatedBlock && !isApplyingRemoteChange.current) {
-        emitWorkflowOperation('update-wide', 'block', { id, isWide: updatedBlock.isWide })
+      // Emit with the calculated new value (don't rely on async state update)
+      if (!isApplyingRemoteChange.current) {
+        emitWorkflowOperation('update-wide', 'block', { id, isWide: newIsWide })
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
+  const collaborativeToggleBlockAdvancedMode = useCallback(
+    (id: string) => {
+      // Get the current state before toggling
+      const currentBlock = workflowStore.blocks[id]
+      if (!currentBlock) return
+
+      // Calculate the new advancedMode value
+      const newAdvancedMode = !currentBlock.advancedMode
+
+      // Apply locally first
+      workflowStore.toggleBlockAdvancedMode(id)
+
+      // Emit with the calculated new value (don't rely on async state update)
+      if (!isApplyingRemoteChange.current) {
+        emitWorkflowOperation('update-advanced-mode', 'block', { id, advancedMode: newAdvancedMode })
       }
     },
     [workflowStore, emitWorkflowOperation]
@@ -555,6 +584,7 @@ export function useCollaborativeWorkflow() {
     collaborativeToggleBlockEnabled,
     collaborativeUpdateParentId,
     collaborativeToggleBlockWide,
+    collaborativeToggleBlockAdvancedMode,
     collaborativeAddEdge,
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,

@@ -68,13 +68,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const blockHeight = useWorkflowStore((state) => state.blocks[id]?.height ?? 0)
   const hasActiveWebhook = useWorkflowStore((state) => state.hasActiveWebhook ?? false)
   const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
-  const toggleBlockAdvancedMode = useWorkflowStore((state) => state.toggleBlockAdvancedMode)
 
   // Collaborative workflow actions
-  const { collaborativeUpdateBlockName } = useCollaborativeWorkflow()
+  const { collaborativeUpdateBlockName, collaborativeToggleBlockWide, collaborativeToggleBlockAdvancedMode } = useCollaborativeWorkflow()
 
   // Workflow store actions
-  const toggleBlockWide = useWorkflowStore((state) => state.toggleBlockWide)
   const updateBlockHeight = useWorkflowStore((state) => state.updateBlockHeight)
 
   // Execution store
@@ -625,14 +623,27 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   <Button
                     variant='ghost'
                     size='sm'
-                    onClick={() => toggleBlockAdvancedMode(id)}
-                    className={cn('h-7 p-1 text-gray-500', blockAdvancedMode && 'text-[#701FFC]')}
+                    onClick={() => {
+                      if (userPermissions.canEdit) {
+                        collaborativeToggleBlockAdvancedMode(id)
+                      }
+                    }}
+                    className={cn(
+                      'h-7 p-1 text-gray-500',
+                      blockAdvancedMode && 'text-[#701FFC]',
+                      !userPermissions.canEdit && 'cursor-not-allowed opacity-50'
+                    )}
+                    disabled={!userPermissions.canEdit}
                   >
                     <Code className='h-5 w-5' />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side='top'>
-                  {blockAdvancedMode ? 'Switch to Basic Mode' : 'Switch to Advanced Mode'}
+                  {!userPermissions.canEdit
+                    ? 'Read-only mode'
+                    : blockAdvancedMode
+                      ? 'Switch to Basic Mode'
+                      : 'Switch to Advanced Mode'}
                 </TooltipContent>
               </Tooltip>
             )}
@@ -707,7 +718,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
                   size='sm'
                   onClick={() => {
                     if (userPermissions.canEdit) {
-                      toggleBlockWide(id)
+                      collaborativeToggleBlockWide(id)
                     }
                   }}
                   className={cn(

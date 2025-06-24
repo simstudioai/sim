@@ -2,6 +2,7 @@ import { and, eq, or } from 'drizzle-orm'
 import { db } from '../../db'
 import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '../../db/schema'
 import { createLogger } from '../../lib/logs/console-logger'
+import { loadWorkflowFromNormalizedTables } from '../../lib/workflows/db-helpers'
 
 const logger = createLogger('SocketDatabase')
 
@@ -71,9 +72,41 @@ export async function getWorkflowState(workflowId: string) {
       throw new Error(`Workflow ${workflowId} not found`)
     }
 
-    return {
-      ...workflowData[0],
-      lastModified: Date.now(),
+    // Load from normalized tables first (same logic as REST API)
+    const normalizedData = await loadWorkflowFromNormalizedTables(workflowId)
+
+    if (normalizedData) {
+      // Use normalized data as source of truth
+      const existingState = workflowData[0].state || {}
+
+      const finalState = {
+        // Default values for expected properties
+        deploymentStatuses: {},
+        hasActiveSchedule: false,
+        hasActiveWebhook: false,
+        // Preserve any existing state properties
+        ...existingState,
+        // Override with normalized data (this takes precedence)
+        blocks: normalizedData.blocks,
+        edges: normalizedData.edges,
+        loops: normalizedData.loops,
+        parallels: normalizedData.parallels,
+        lastSaved: Date.now(),
+        isDeployed: workflowData[0].isDeployed || false,
+        deployedAt: workflowData[0].deployedAt,
+      }
+
+      return {
+        ...workflowData[0],
+        state: finalState,
+        lastModified: Date.now(),
+      }
+    } else {
+      // Fallback to JSON blob
+      return {
+        ...workflowData[0],
+        lastModified: Date.now(),
+      }
     }
   } catch (error) {
     logger.error(`Error fetching workflow state for ${workflowId}:`, error)
@@ -417,6 +450,28 @@ async function handleBlockOperationTx(
       }
 
       logger.debug(`Updated block wide state: ${payload.id} -> ${payload.isWide}`)
+      break
+    }
+
+    case 'update-advanced-mode': {
+      if (!payload.id || payload.advancedMode === undefined) {
+        throw new Error('Missing required fields for update advanced mode operation')
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          advancedMode: payload.advancedMode,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(`Updated block advanced mode: ${payload.id} -> ${payload.advancedMode}`)
       break
     }
 
