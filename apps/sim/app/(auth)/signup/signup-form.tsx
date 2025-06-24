@@ -410,7 +410,7 @@ function SignupFormContent({
           <SocialLoginButtons
             githubAvailable={githubAvailable}
             googleAvailable={googleAvailable}
-            callbackURL={redirectUrl || '/w'}
+            callbackURL={redirectUrl || '/workspace'}
             isProduction={isProduction}
           />
 

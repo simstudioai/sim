@@ -44,13 +44,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(new URL(`/chat/${subdomain}${url.pathname}`, request.url))
   }
 
-  // Check if the path is exactly /w
-  if (url.pathname === '/w') {
-    return NextResponse.redirect(new URL('/w/1', request.url))
+  // Legacy redirect: /w -> /workspace (will be handled by workspace layout)
+  if (url.pathname === '/w' || url.pathname.startsWith('/w/')) {
+    // Extract workflow ID if present
+    const pathParts = url.pathname.split('/')
+    if (pathParts.length >= 3 && pathParts[1] === 'w') {
+      const workflowId = pathParts[2]
+      // Redirect old workflow URLs to new format
+      // We'll need to resolve the workspace ID for this workflow
+      return NextResponse.redirect(
+        new URL(`/workspace?redirect_workflow=${workflowId}`, request.url)
+      )
+    }
+    // Simple /w redirect to workspace root
+    return NextResponse.redirect(new URL('/workspace', request.url))
   }
 
   // Handle protected routes that require authentication
-  if (url.pathname.startsWith('/w/') || url.pathname === '/w') {
+  if (url.pathname.startsWith('/workspace')) {
     if (!hasActiveSession) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
@@ -137,8 +148,9 @@ export async function middleware(request: NextRequest) {
 // Update matcher to include invitation routes
 export const config = {
   matcher: [
-    '/w', // Match exactly /w
-    '/w/:path*', // Match protected routes
+    '/w', // Legacy /w redirect
+    '/w/:path*', // Legacy /w/* redirects
+    '/workspace/:path*', // New workspace routes
     '/login',
     '/signup',
     '/invite/:path*', // Match invitation routes
