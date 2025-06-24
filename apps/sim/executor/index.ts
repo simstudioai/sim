@@ -621,7 +621,7 @@ export class Executor {
 
           // Use the structured input if we processed fields, otherwise use raw input
           const finalInput = hasProcessedFields ? structuredInput : rawInputData
-          
+
           // Initialize the starter block with structured input (flattened)
           const starterOutput = {
             input: finalInput,
@@ -636,26 +636,26 @@ export class Executor {
             executionTime: 0,
           })
         } else {
-        // Handle structured input (like API calls or chat messages)
-        if (this.workflowInput && typeof this.workflowInput === 'object') {
-          // Flatten structure: input is directly accessible as <start.input>
-          const starterOutput = {
-            input: this.workflowInput,
-            // Add compatibility fields directly at top level
-            message: this.workflowInput.input,
-            conversationId: this.workflowInput.conversationId,
-          }
+          // Handle structured input (like API calls or chat messages)
+          if (this.workflowInput && typeof this.workflowInput === 'object') {
+            // Flatten structure: input is directly accessible as <start.input>
+            const starterOutput = {
+              input: this.workflowInput,
+              // Add compatibility fields directly at top level
+              message: this.workflowInput.input,
+              conversationId: this.workflowInput.conversationId,
+            }
 
-          context.blockStates.set(starterBlock.id, {
-            output: starterOutput,
-            executed: true,
-            executionTime: 0,
-          })
-        } else {
-          // Fallback for primitive input values
-          const starterOutput = {
-            input: this.workflowInput,
-          }
+            context.blockStates.set(starterBlock.id, {
+              output: starterOutput,
+              executed: true,
+              executionTime: 0,
+            })
+          } else {
+            // Fallback for primitive input values
+            const starterOutput = {
+              input: this.workflowInput,
+            }
 
             context.blockStates.set(starterBlock.id, {
               output: starterOutput,

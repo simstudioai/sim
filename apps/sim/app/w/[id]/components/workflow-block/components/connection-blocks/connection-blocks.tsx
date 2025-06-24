@@ -18,7 +18,8 @@ interface ResponseField {
 
 export function ConnectionBlocks({
   blockId,
-  horizontalHandles, setIsConnecting,
+  horizontalHandles,
+  setIsConnecting,
   isDisabled = false,
 }: ConnectionBlocksProps) {
   const { incomingConnections, hasIncomingConnections } = useBlockConnections(blockId)
