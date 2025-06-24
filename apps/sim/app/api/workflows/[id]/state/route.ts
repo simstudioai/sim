@@ -71,7 +71,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Merge subblock values into blocks before saving
     const mergedState = { ...state }
     if (subblockValues && Object.keys(subblockValues).length > 0) {
-      logger.info(`[${requestId}] Merging subblock values for ${Object.keys(subblockValues).length} blocks`)
+      logger.info(
+        `[${requestId}] Merging subblock values for ${Object.keys(subblockValues).length} blocks`
+      )
 
       // Update each block's subBlocks with the current values
       Object.entries(subblockValues).forEach(([blockId, blockSubblocks]) => {

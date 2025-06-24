@@ -10,8 +10,8 @@ import {
   useState,
 } from 'react'
 import { io, type Socket } from 'socket.io-client'
-import { createLogger } from '@/lib/logs/console-logger'
 import { isCollaborationEnabled } from '@/lib/environment'
+import { createLogger } from '@/lib/logs/console-logger'
 
 const logger = createLogger('SocketContext')
 

@@ -38,7 +38,10 @@ export class LocalWorkflowOperations implements WorkflowOperationManager {
   // Cleanup method to remove event listener
   destroy = () => {
     if (this.subblockEventListener) {
-      window.removeEventListener('update-subblock-value', this.subblockEventListener as EventListener)
+      window.removeEventListener(
+        'update-subblock-value',
+        this.subblockEventListener as EventListener
+      )
       this.subblockEventListener = null
     }
   }
@@ -155,8 +158,6 @@ export class LocalWorkflowOperations implements WorkflowOperationManager {
     workflowStore.updateParallelCollection(parallelId, collection)
     this.markDirty(`parallel-collection-${parallelId}`)
   }
-
-
 
   // State management
   isDirty = () => this.dirtyState.size > 0

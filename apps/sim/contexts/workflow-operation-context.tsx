@@ -89,7 +89,11 @@ export function WorkflowOperationProvider({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (operationManager && 'destroy' in operationManager && typeof operationManager.destroy === 'function') {
+      if (
+        operationManager &&
+        'destroy' in operationManager &&
+        typeof operationManager.destroy === 'function'
+      ) {
         operationManager.destroy()
       }
     }

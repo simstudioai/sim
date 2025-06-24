@@ -58,7 +58,8 @@ export function useWorkflowOperationsCompat() {
       collaborativeUpdateLoopType: collaborativeHook.collaborativeUpdateLoopType,
       collaborativeUpdateLoopCollection: collaborativeHook.collaborativeUpdateLoopCollection,
       collaborativeUpdateParallelCount: collaborativeHook.collaborativeUpdateParallelCount,
-      collaborativeUpdateParallelCollection: collaborativeHook.collaborativeUpdateParallelCollection,
+      collaborativeUpdateParallelCollection:
+        collaborativeHook.collaborativeUpdateParallelCollection,
 
       isConnected: collaborativeHook.isConnected,
       currentWorkflowId: collaborativeHook.currentWorkflowId,

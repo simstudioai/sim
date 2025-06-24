@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Save, Check, AlertCircle } from 'lucide-react'
+import { AlertCircle, Check, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
 import { isCollaborationEnabled } from '@/lib/environment'
+import { cn } from '@/lib/utils'
 import { useWorkflowOperationsSafe } from '@/contexts/workflow-operation-context'
 import { useWorkflowSaveState } from '@/hooks/use-workflow-save-state'
 
@@ -14,7 +14,8 @@ import { useWorkflowSaveState } from '@/hooks/use-workflow-save-state'
  * Only shows when collaboration is disabled
  */
 export function ControlBarSaveButton() {
-  const { operationManager, isCollaborative, isReady, localOperations } = useWorkflowOperationsSafe()
+  const { operationManager, isCollaborative, isReady, localOperations } =
+    useWorkflowOperationsSafe()
   const saveState = useWorkflowSaveState(localOperations || null)
   const [showSaved, setShowSaved] = useState(false)
 
@@ -49,7 +50,7 @@ export function ControlBarSaveButton() {
     if (saveState.isSaving) {
       return (
         <>
-          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent" />
+          <div className='mr-2 h-4 w-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           Saving...
         </>
       )
@@ -58,7 +59,7 @@ export function ControlBarSaveButton() {
     if (saveState.error) {
       return (
         <>
-          <AlertCircle className="mr-2 h-4 w-4" />
+          <AlertCircle className='mr-2 h-4 w-4' />
           Retry
         </>
       )
@@ -67,7 +68,7 @@ export function ControlBarSaveButton() {
     if (showSaved && !saveState.isDirty) {
       return (
         <>
-          <Check className="mr-2 h-4 w-4" />
+          <Check className='mr-2 h-4 w-4' />
           Saved
         </>
       )
@@ -75,7 +76,7 @@ export function ControlBarSaveButton() {
 
     return (
       <>
-        <Save className="mr-2 h-4 w-4" />
+        <Save className='mr-2 h-4 w-4' />
         Save
       </>
     )
@@ -104,7 +105,13 @@ export function ControlBarSaveButton() {
   }
 
   // Don't render if collaboration is enabled or operations aren't ready
-  if (collaborationEnabled || isCollaborative || !isReady || !operationManager || !localOperations) {
+  if (
+    collaborationEnabled ||
+    isCollaborative ||
+    !isReady ||
+    !operationManager ||
+    !localOperations
+  ) {
     return null
   }
 
@@ -115,21 +122,17 @@ export function ControlBarSaveButton() {
           onClick={handleClick}
           disabled={(!saveState.isDirty && !saveState.error) || saveState.isSaving}
           variant={getButtonVariant()}
-          size="sm"
-          className={cn(
-            'transition-all duration-200',
-            {
-              'bg-green-600 hover:bg-green-700 text-white': showSaved && !saveState.isDirty && !saveState.error,
-              'animate-pulse': saveState.isSaving,
-            }
-          )}
+          size='sm'
+          className={cn('transition-all duration-200', {
+            'bg-green-600 text-white hover:bg-green-700':
+              showSaved && !saveState.isDirty && !saveState.error,
+            'animate-pulse': saveState.isSaving,
+          })}
         >
           {getButtonContent()}
         </Button>
       </TooltipTrigger>
-      <TooltipContent>
-        {getTooltipContent()}
-      </TooltipContent>
+      <TooltipContent>{getTooltipContent()}</TooltipContent>
     </Tooltip>
   )
 }

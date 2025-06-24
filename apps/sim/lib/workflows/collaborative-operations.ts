@@ -81,8 +81,6 @@ export class CollaborativeWorkflowOperations implements WorkflowOperationManager
     this.collaborativeHook.collaborativeUpdateParallelCollection(parallelId, collection)
   }
 
-
-
   // State management - collaborative mode doesn't need manual save
   isDirty = () => false // Always clean in collaborative mode
   save = async () => {} // No-op in collaborative mode
