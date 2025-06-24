@@ -86,13 +86,13 @@ export function setupSubblocksHandlers(
           subBlocks[subblockId] = {
             id: subblockId,
             type: 'unknown', // Will be corrected by next collaborative update
-            value: value
+            value: value,
           }
         } else {
           // Preserve existing id and type, only update value
           subBlocks[subblockId] = {
             ...subBlocks[subblockId],
-            value: value
+            value: value,
           }
         }
 

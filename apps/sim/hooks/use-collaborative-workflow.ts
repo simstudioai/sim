@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { Edge } from 'reactflow'
 import { createLogger } from '@/lib/logs/console-logger'
+import { getBlock } from '@/blocks'
+import { resolveOutputType } from '@/blocks/utils'
 import { useSocket } from '@/contexts/socket-context'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { getBlock } from '@/blocks'
-import { resolveOutputType } from '@/blocks/utils'
 import type { Position } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('CollaborativeWorkflow')
@@ -325,7 +325,10 @@ export function useCollaborativeWorkflow() {
           subBlocks,
           completeBlockData,
         })
-        console.log('[CollaborativeWorkflow] JSON stringified payload:', JSON.stringify(completeBlockData, null, 2))
+        console.log(
+          '[CollaborativeWorkflow] JSON stringified payload:',
+          JSON.stringify(completeBlockData, null, 2)
+        )
         emitWorkflowOperation('add', 'block', completeBlockData)
       }
     },
