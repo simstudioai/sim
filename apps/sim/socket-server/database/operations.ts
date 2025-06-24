@@ -166,6 +166,10 @@ async function handleBlockOperationTx(
 
       logger.debug(`[SERVER] Adding block: ${payload.type} (${payload.id})`, {
         isSubflowType: isSubflowBlockType(payload.type),
+        hasOutputs: !!payload.outputs,
+        outputs: payload.outputs,
+        hasSubBlocks: !!payload.subBlocks,
+        subBlocks: payload.subBlocks,
         payload,
       })
 
@@ -182,18 +186,41 @@ async function handleBlockOperationTx(
         dataParentId: payload.data?.parentId,
       })
 
-      await tx.insert(workflowBlocks).values({
-        id: payload.id,
-        workflowId,
-        type: payload.type,
-        name: payload.name,
-        positionX: payload.position.x,
-        positionY: payload.position.y,
-        data: payload.data || {},
-        parentId,
-        extent,
-        enabled: true, // Default to enabled
-      })
+      try {
+        const insertData = {
+          id: payload.id,
+          workflowId,
+          type: payload.type,
+          name: payload.name,
+          positionX: payload.position.x,
+          positionY: payload.position.y,
+          data: payload.data || {},
+          subBlocks: payload.subBlocks || {},
+          outputs: payload.outputs || {},
+          parentId,
+          extent,
+          enabled: payload.enabled ?? true,
+          horizontalHandles: payload.horizontalHandles ?? true,
+          isWide: payload.isWide ?? false,
+          height: payload.height || 0,
+        }
+
+        logger.debug(`[SERVER] Inserting block data:`, {
+          id: insertData.id,
+          type: insertData.type,
+          hasOutputs: !!insertData.outputs && Object.keys(insertData.outputs).length > 0,
+          outputs: insertData.outputs,
+          hasSubBlocks: !!insertData.subBlocks && Object.keys(insertData.subBlocks).length > 0,
+          subBlocks: insertData.subBlocks,
+        })
+
+        await tx.insert(workflowBlocks).values(insertData)
+
+        logger.debug(`[SERVER] Successfully inserted block ${payload.id}`)
+      } catch (insertError) {
+        logger.error(`[SERVER] ❌ Failed to insert block ${payload.id}:`, insertError)
+        throw insertError
+      }
 
       // Auto-create subflow entry for loop/parallel blocks
       if (isSubflowBlockType(payload.type)) {

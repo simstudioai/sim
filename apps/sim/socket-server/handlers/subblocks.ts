@@ -82,9 +82,19 @@ export function setupSubblocksHandlers(
         const subBlocks = (block.subBlocks as any) || {}
 
         if (!subBlocks[subblockId]) {
-          subBlocks[subblockId] = {}
+          // Create new subblock with minimal structure
+          subBlocks[subblockId] = {
+            id: subblockId,
+            type: 'unknown', // Will be corrected by next collaborative update
+            value: value
+          }
+        } else {
+          // Preserve existing id and type, only update value
+          subBlocks[subblockId] = {
+            ...subBlocks[subblockId],
+            value: value
+          }
         }
-        subBlocks[subblockId].value = value
 
         await tx
           .update(workflowBlocks)

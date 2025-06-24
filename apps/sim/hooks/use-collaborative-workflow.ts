@@ -5,6 +5,8 @@ import { useSocket } from '@/contexts/socket-context'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { getBlock } from '@/blocks'
+import { resolveOutputType } from '@/blocks/utils'
 import type { Position } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('CollaborativeWorkflow')
@@ -72,15 +74,45 @@ export function useCollaborativeWorkflow() {
         if (target === 'block') {
           switch (operation) {
             case 'add':
-              workflowStore.addBlock(
-                payload.id,
-                payload.type,
-                payload.name,
-                payload.position,
-                payload.data,
-                payload.parentId,
-                payload.extent
-              )
+              // For remote block additions, use the complete block data from the payload
+              // to ensure exact consistency across clients
+              if (payload.subBlocks && payload.outputs) {
+                // Direct state update with complete block data
+                const currentState = workflowStore.getState()
+                const newState = {
+                  blocks: {
+                    ...currentState.blocks,
+                    [payload.id]: {
+                      id: payload.id,
+                      type: payload.type,
+                      name: payload.name,
+                      position: payload.position,
+                      subBlocks: payload.subBlocks,
+                      outputs: payload.outputs,
+                      enabled: payload.enabled ?? true,
+                      horizontalHandles: payload.horizontalHandles ?? true,
+                      isWide: payload.isWide ?? false,
+                      height: payload.height || 0,
+                      data: payload.data || {},
+                    },
+                  },
+                  edges: [...currentState.edges],
+                  loops: currentState.generateLoopBlocks(),
+                  parallels: currentState.generateParallelBlocks(),
+                }
+                workflowStore.setState(newState)
+              } else {
+                // Fallback to normal addBlock for backwards compatibility
+                workflowStore.addBlock(
+                  payload.id,
+                  payload.type,
+                  payload.name,
+                  payload.position,
+                  payload.data,
+                  payload.parentId,
+                  payload.extent
+                )
+              }
               break
             case 'update-position':
               // Apply immediate position update with smooth interpolation for other users
@@ -225,20 +257,76 @@ export function useCollaborativeWorkflow() {
       parentId?: string,
       extent?: 'parent'
     ) => {
+      console.log('[CollaborativeWorkflow] collaborativeAddBlock called:', { id, type, name })
+      // Create complete block data upfront using the same logic as the store
+      const blockConfig = getBlock(type)
+      if (!blockConfig) {
+        console.error(`Block type ${type} not found`)
+        return
+      }
+
+      console.log('[CollaborativeWorkflow] Block config:', {
+        type,
+        hasSubBlocks: !!blockConfig.subBlocks,
+        subBlocksLength: blockConfig.subBlocks?.length,
+        hasOutputs: !!blockConfig.outputs,
+        outputs: blockConfig.outputs,
+        fullBlockConfig: blockConfig,
+      })
+
+      // Generate subBlocks and outputs from the block configuration
+      const subBlocks: Record<string, any> = {}
+
+      // Create subBlocks from the block configuration
+      if (blockConfig.subBlocks) {
+        blockConfig.subBlocks.forEach((subBlock) => {
+          subBlocks[subBlock.id] = {
+            id: subBlock.id,
+            type: subBlock.type,
+            value: null,
+          }
+        })
+      }
+
+      console.log('[CollaborativeWorkflow] Generated subBlocks:', subBlocks)
+
+      // Generate outputs using the same logic as the store
+      const outputs = resolveOutputType(blockConfig.outputs, subBlocks)
+
+      console.log('[CollaborativeWorkflow] Generated outputs:', outputs)
+
+      const completeBlockData = {
+        id,
+        type,
+        name,
+        position,
+        data: data || {},
+        subBlocks,
+        outputs,
+        enabled: true,
+        horizontalHandles: true,
+        isWide: false,
+        height: blockConfig.height || 0,
+        parentId,
+        extent,
+      }
+
       // Apply locally first
       workflowStore.addBlock(id, type, name, position, data, parentId, extent)
 
-      // Then broadcast to other clients
+      // Then broadcast to other clients with complete block data
       if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('add', 'block', {
+        console.log('[CollaborativeWorkflow] Emitting block with outputs:', {
           id,
           type,
-          name,
-          position,
-          data,
-          parentId,
-          extent,
+          hasOutputs: !!outputs,
+          outputs,
+          hasSubBlocks: !!subBlocks,
+          subBlocks,
+          completeBlockData,
         })
+        console.log('[CollaborativeWorkflow] JSON stringified payload:', JSON.stringify(completeBlockData, null, 2))
+        emitWorkflowOperation('add', 'block', completeBlockData)
       }
     },
     [workflowStore, emitWorkflowOperation]
