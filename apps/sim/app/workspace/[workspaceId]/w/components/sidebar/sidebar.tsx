@@ -179,18 +179,18 @@ export function Sidebar() {
           <NavSection isLoading={isLoading} itemCount={3} isCollapsed={isCollapsed}>
             <NavSection.Item
               icon={<ScrollText className='h-[18px] w-[18px]' />}
-              href={`/workspace/${workspaceId}/w/logs`}
+              href={`/workspace/${workspaceId}/logs`}
               label='Logs'
-              active={pathname === `/workspace/${workspaceId}/w/logs`}
+              active={pathname === `/workspace/${workspaceId}/logs`}
               isCollapsed={isCollapsed}
               shortcutCommand={getKeyboardShortcutText('L', true, true)}
               shortcutCommandPosition='below'
             />
             <NavSection.Item
               icon={<LibraryBig className='h-[18px] w-[18px]' />}
-              href={`/workspace/${workspaceId}/w/knowledge`}
+              href={`/workspace/${workspaceId}/knowledge`}
               label='Knowledge'
-              active={pathname === `/workspace/${workspaceId}/w/knowledge`}
+              active={pathname === `/workspace/${workspaceId}/knowledge`}
               isCollapsed={isCollapsed}
               shortcutCommand={getKeyboardShortcutText('K', true, true)}
               shortcutCommandPosition='below'

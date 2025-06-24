@@ -28,10 +28,10 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
-import { ActionBar } from '@/app/workspace/[workspaceId]/w/knowledge/[id]/components/action-bar/action-bar'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/w/knowledge/components/icons/document-icons'
-import { PrimaryButton } from '@/app/workspace/[workspaceId]/w/knowledge/components/primary-button/primary-button'
-import { SearchInput } from '@/app/workspace/[workspaceId]/w/knowledge/components/search-input/search-input'
+import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
+import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
+import { PrimaryButton } from '@/app/workspace/[workspaceId]/knowledge/components/primary-button/primary-button'
+import { SearchInput } from '@/app/workspace/[workspaceId]/knowledge/components/search-input/search-input'
 import { useKnowledgeBase, useKnowledgeBaseDocuments } from '@/hooks/use-knowledge'
 import { type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -408,7 +408,7 @@ export function KnowledgeBase({
       kbName: knowledgeBaseName, // Use the instantly available name
       docName: document?.filename || 'Document',
     })
-    router.push(`/workspace/${workspaceId}/w/knowledge/${id}/${docId}?${urlParams.toString()}`)
+    router.push(`/workspace/${workspaceId}/knowledge/${id}/${docId}?${urlParams.toString()}`)
   }
 
   const handleDeleteKnowledgeBase = async () => {
@@ -430,7 +430,7 @@ export function KnowledgeBase({
       if (result.success) {
         // Remove from store and redirect to knowledge bases list
         removeKnowledgeBase(id)
-        router.push(`/workspace/${workspaceId}/w/knowledge`)
+        router.push(`/workspace/${workspaceId}/knowledge`)
       } else {
         throw new Error(result.error || 'Failed to delete knowledge base')
       }
@@ -743,7 +743,7 @@ export function KnowledgeBase({
     {
       id: 'knowledge-root',
       label: 'Knowledge',
-      href: '/w/knowledge',
+      href: '/knowledge',
     },
     {
       id: `knowledge-base-${id}`,
@@ -762,7 +762,7 @@ export function KnowledgeBase({
       {
         id: 'knowledge-root',
         label: 'Knowledge',
-        href: '/w/knowledge',
+        href: '/knowledge',
       },
       {
         id: 'error',

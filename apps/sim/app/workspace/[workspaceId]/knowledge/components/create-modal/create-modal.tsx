@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { createLogger } from '@/lib/logs/console-logger'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/w/knowledge/components/icons/document-icons'
+import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components/icons/document-icons'
 import type { DocumentData, KnowledgeBaseData } from '@/stores/knowledge/store'
 import { useKnowledgeStore } from '@/stores/knowledge/store'
 

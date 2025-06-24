@@ -95,7 +95,7 @@ export function useGlobalShortcuts() {
         ((isMac && event.metaKey) || (!isMac && event.ctrlKey))
       ) {
         event.preventDefault()
-        router.push('/w/logs')
+        router.push('/logs')
       }
     }
 

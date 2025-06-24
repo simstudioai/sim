@@ -1,6 +1,6 @@
 import { WorkspaceProvider } from '@/providers/workspace-provider'
-import Providers from './components/providers/providers'
-import { Sidebar } from './components/sidebar/sidebar'
+import Providers from './w/components/providers/providers'
+import { Sidebar } from './w/components/sidebar/sidebar'
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   return (

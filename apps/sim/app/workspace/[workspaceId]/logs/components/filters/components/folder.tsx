@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useFilterStore } from '@/app/workspace/[workspaceId]/w/logs/stores/store'
+import { useFilterStore } from '@/app/workspace/[workspaceId]/logs/stores/store'
 import { useFolderStore } from '@/stores/folders/store'
 
 interface FolderOption {

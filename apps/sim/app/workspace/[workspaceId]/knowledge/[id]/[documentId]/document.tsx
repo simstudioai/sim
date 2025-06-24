@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { createLogger } from '@/lib/logs/console-logger'
-import { ActionBar } from '@/app/workspace/[workspaceId]/w/knowledge/[id]/components/action-bar/action-bar'
+import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar/action-bar'
 import { useDocumentChunks } from '@/hooks/use-knowledge'
 import { type ChunkData, type DocumentData, useKnowledgeStore } from '@/stores/knowledge/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -170,10 +170,10 @@ export function Document({
   const effectiveDocumentName = document?.filename || documentName || 'Document'
 
   const breadcrumbs = [
-    { label: 'Knowledge', href: '/w/knowledge' },
+    { label: 'Knowledge', href: '/knowledge' },
     {
       label: effectiveKnowledgeBaseName,
-      href: `/w/knowledge/${knowledgeBaseId}`,
+      href: `/knowledge/${knowledgeBaseId}`,
     },
     { label: effectiveDocumentName },
   ]
@@ -360,10 +360,10 @@ export function Document({
 
   if (combinedError && !isLoadingChunks) {
     const errorBreadcrumbs = [
-      { label: 'Knowledge', href: '/w/knowledge' },
+      { label: 'Knowledge', href: '/knowledge' },
       {
         label: effectiveKnowledgeBaseName,
-        href: `/w/knowledge/${knowledgeBaseId}`,
+        href: `/knowledge/${knowledgeBaseId}`,
       },
       { label: 'Error' },
     ]

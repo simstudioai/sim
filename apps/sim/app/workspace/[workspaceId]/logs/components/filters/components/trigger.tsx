@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useFilterStore } from '@/app/workspace/[workspaceId]/w/logs/stores/store'
+import { useFilterStore } from '@/app/workspace/[workspaceId]/logs/stores/store'
 import type { TriggerType } from '../../../stores/types'
 
 export default function Trigger() {

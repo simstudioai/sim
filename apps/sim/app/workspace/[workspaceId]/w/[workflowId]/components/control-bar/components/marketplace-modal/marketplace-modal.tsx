@@ -35,7 +35,7 @@ import {
   getCategoryColor,
   getCategoryIcon,
   getCategoryLabel,
-} from '@/app/workspace/[workspaceId]/w/marketplace/constants/categories'
+} from '@/app/workspace/[workspaceId]/marketplace/constants/categories'
 import { useNotificationStore } from '@/stores/notifications/store'
 import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

@@ -18,7 +18,7 @@ export function BaseOverview({ id, title, docCount, description }: BaseOverviewP
   const params = new URLSearchParams({
     kbName: title,
   })
-  const href = `/w/knowledge/${id || title.toLowerCase().replace(/\s+/g, '-')}?${params.toString()}`
+  const href = `/knowledge/${id || title.toLowerCase().replace(/\s+/g, '-')}?${params.toString()}`
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.preventDefault()
