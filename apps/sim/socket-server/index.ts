@@ -294,7 +294,6 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
       socket.userEmail = session.user.email
       socket.activeOrganizationId = session.session.activeOrganizationId || undefined
 
-
       next()
     } catch (tokenError) {
       const errorMessage = tokenError instanceof Error ? tokenError.message : String(tokenError)
@@ -576,8 +575,6 @@ async function persistWorkflowOperation(workflowId: string, operation: any) {
           throw new Error(`Unknown operation target: ${target}`)
       }
     })
-
-
   } catch (error) {
     logger.error(
       `❌ Error persisting workflow operation (${operation.operation} on ${operation.target}):`,
@@ -753,8 +750,6 @@ async function handleSubflowOperationImpl(
             .where(
               and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId))
             )
-
-
         } else if (payload.type === 'parallel') {
           // Update the parallel block's data properties
           const blockData = {
@@ -788,10 +783,7 @@ async function handleSubflowOperationImpl(
             .where(
               and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId))
             )
-
-
         }
-
 
         break
       }
@@ -911,8 +903,6 @@ async function handleBlockOperationImpl(
               type: payload.type,
               config: subflowConfig,
             })
-
-
           } catch (subflowError) {
             logger.error(
               `[SERVER] ❌ Failed to create ${payload.type} subflow ${payload.id}:`,
@@ -1061,8 +1051,6 @@ async function handleBlockOperationImpl(
             .where(
               and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
             )
-
-
         }
 
         // Remove any edges connected to this block
@@ -1276,8 +1264,6 @@ io.engine.on('connection_error', (err) => {
 })
 
 io.on('connection', (socket: AuthenticatedSocket) => {
-
-
   // Set up error handling for this socket
   socket.on('error', (error) => {
     logger.error(`Socket ${socket.id} error:`, error)
@@ -1484,8 +1470,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         operationId: broadcastData.metadata.operationId,
         serverTimestamp,
       })
-
-
     } catch (error) {
       if (error instanceof z.ZodError) {
         socket.emit('operation-error', {
@@ -1624,7 +1608,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
             updatedAt: new Date(),
           })
           .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-
 
         updateSuccessful = true
       })
