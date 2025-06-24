@@ -1,4 +1,4 @@
-import { type SQL, sql } from 'drizzle-orm'
+import { isNull, type SQL, sql } from 'drizzle-orm'
 import {
   boolean,
   check,
@@ -622,10 +622,9 @@ export const memory = pgTable(
       workflowIdx: index('memory_workflow_idx').on(table.workflowId),
 
       // Compound unique index to ensure keys are unique per workflow
-      uniqueKeyPerWorkflowIdx: uniqueIndex('memory_workflow_key_idx').on(
-        table.workflowId,
-        table.key
-      ),
+      uniqueKeyPerWorkflowActiveIdx: uniqueIndex('memory_workflow_key_active_idx')
+        .on(table.workflowId, table.key)
+        .where(isNull(table.deletedAt)),
     }
   }
 )
