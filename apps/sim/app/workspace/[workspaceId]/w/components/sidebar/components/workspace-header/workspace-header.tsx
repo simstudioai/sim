@@ -28,10 +28,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSession } from '@/lib/auth-client'
+import { createLogger } from '@/lib/logs/console-logger'
 import { cn } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/w/components/providers/workspace-permissions-provider'
 import { useSidebarStore } from '@/stores/sidebar/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+const logger = createLogger('WorkspaceHeader')
 
 interface Workspace {
   id: string
@@ -277,7 +280,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
         const data = await response.json()
         setPlan(data.isPro ? 'Pro Plan' : 'Free Plan')
       } catch (err) {
-        console.error('Error fetching subscription status:', err)
+        logger.error('Error fetching subscription status:', err)
       }
     }, [])
 
@@ -300,7 +303,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
               setActiveWorkspace(matchingWorkspace)
             } else {
               // Log the mismatch for debugging
-              console.warn(`Workspace ${currentWorkspaceId} not found in user's workspaces`)
+              logger.warn(`Workspace ${currentWorkspaceId} not found in user's workspaces`)
 
               // Current workspace not found, fallback to first workspace
               if (fetchedWorkspaces.length > 0) {
@@ -310,13 +313,13 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
                 router.push(`/workspace/${fallbackWorkspace.id}/w`)
               } else {
                 // No workspaces available - handle this edge case
-                console.error('No workspaces available for user')
+                logger.error('No workspaces available for user')
               }
             }
           }
         }
       } catch (err) {
-        console.error('Error fetching workspaces:', err)
+        logger.error('Error fetching workspaces:', err)
       } finally {
         setIsWorkspacesLoading(false)
       }
@@ -378,7 +381,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
             router.push(`/workspace/${newWorkspace.id}/w`)
           }
         } catch (err) {
-          console.error('Error creating workspace:', err)
+          logger.error('Error creating workspace:', err)
         } finally {
           setIsWorkspacesLoading(false)
         }
@@ -404,7 +407,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
 
           if (!response.ok) {
             if (response.status === 403) {
-              console.error(
+              logger.error(
                 'Permission denied: Only users with admin permissions can update workspaces'
               )
             }
@@ -428,7 +431,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
             })
           }
         } catch (err) {
-          console.error('Error updating workspace:', err)
+          logger.error('Error updating workspace:', err)
         } finally {
           setIsWorkspacesLoading(false)
         }
@@ -450,7 +453,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
 
           if (!response.ok) {
             if (response.status === 403) {
-              console.error(
+              logger.error(
                 'Permission denied: Only users with admin permissions can delete workspaces'
               )
             }
@@ -471,7 +474,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
 
           setIsOpen(false)
         } catch (err) {
-          console.error('Error deleting workspace:', err)
+          logger.error('Error deleting workspace:', err)
         } finally {
           setIsDeleting(false)
         }
