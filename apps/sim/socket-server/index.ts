@@ -294,12 +294,6 @@ async function authenticateSocket(socket: AuthenticatedSocket, next: any) {
       socket.userEmail = session.user.email
       socket.activeOrganizationId = session.session.activeOrganizationId || undefined
 
-      logger.info(`✅ Socket.IO user authenticated via token: ${socket.id}`, {
-        userId: session.user.id,
-        userName: socket.userName,
-        organizationId: socket.activeOrganizationId,
-        origin,
-      })
       next()
     } catch (tokenError) {
       const errorMessage = tokenError instanceof Error ? tokenError.message : String(tokenError)
@@ -581,8 +575,6 @@ async function persistWorkflowOperation(workflowId: string, operation: any) {
           throw new Error(`Unknown operation target: ${target}`)
       }
     })
-
-    logger.debug(`✅ Persisted ${op} operation on ${target} for workflow ${workflowId}`)
   } catch (error) {
     logger.error(
       `❌ Error persisting workflow operation (${operation.operation} on ${operation.target}):`,
@@ -758,10 +750,6 @@ async function handleSubflowOperationImpl(
             .where(
               and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId))
             )
-
-          logger.debug(
-            `[SERVER] ✅ Also updated loop block ${payload.id} data.count = ${payload.config.iterations}`
-          )
         } else if (payload.type === 'parallel') {
           // Update the parallel block's data properties
           const blockData = {
@@ -795,17 +783,8 @@ async function handleSubflowOperationImpl(
             .where(
               and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId))
             )
-
-          logger.debug(`[SERVER] ✅ Also updated parallel block ${payload.id} data:`, {
-            count: payload.config.count,
-            collection: payload.config.distribution,
-            parallelType: payload.config.parallelType,
-          })
         }
 
-        logger.debug(
-          `[SERVER] ✅ Successfully updated subflow ${payload.id} in workflow ${workflowId}`
-        )
         break
       }
 
@@ -924,8 +903,6 @@ async function handleBlockOperationImpl(
               type: payload.type,
               config: subflowConfig,
             })
-
-            logger.debug(`[SERVER] ✅ Successfully created ${payload.type} subflow ${payload.id}`)
           } catch (subflowError) {
             logger.error(
               `[SERVER] ❌ Failed to create ${payload.type} subflow ${payload.id}:`,
@@ -1074,10 +1051,6 @@ async function handleBlockOperationImpl(
             .where(
               and(eq(workflowSubflows.id, payload.id), eq(workflowSubflows.workflowId, workflowId))
             )
-
-          logger.debug(
-            `[SERVER] ✅ Cascade deleted ${childBlocks.length} child blocks and subflow ${payload.id}`
-          )
         }
 
         // Remove any edges connected to this block
@@ -1291,13 +1264,6 @@ io.engine.on('connection_error', (err) => {
 })
 
 io.on('connection', (socket: AuthenticatedSocket) => {
-  logger.info(`✅ Socket.IO user connected: ${socket.id}`, {
-    transport: socket.conn.transport.name,
-    remoteAddress: socket.conn.remoteAddress,
-    userId: socket.userId,
-    userName: socket.userName,
-  })
-
   // Set up error handling for this socket
   socket.on('error', (error) => {
     logger.error(`Socket ${socket.id} error:`, error)
@@ -1504,10 +1470,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
         operationId: broadcastData.metadata.operationId,
         serverTimestamp,
       })
-
-      logger.info(
-        `✅ Operation ${operation} on ${target} in workflow ${workflowId} by user ${session.userId} (${session.userName})`
-      )
     } catch (error) {
       if (error instanceof z.ZodError) {
         socket.emit('operation-error', {
@@ -1647,9 +1609,6 @@ io.on('connection', (socket: AuthenticatedSocket) => {
           })
           .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
 
-        logger.debug(
-          `✅ Persisted subblock update: ${workflowId}/${blockId}.${subblockId} = ${JSON.stringify(value)}`
-        )
         updateSuccessful = true
       })
 
@@ -1854,7 +1813,7 @@ logger.info('Starting Socket.IO server...', {
 })
 
 httpServer.listen(PORT, '0.0.0.0', () => {
-  logger.info(`✅ Socket.IO server running on port ${PORT}`)
+  logger.info(`Socket.IO server running on port ${PORT}`)
   logger.info(`🏥 Health check available at: http://localhost:${PORT}/health`)
 })
 
