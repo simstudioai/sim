@@ -70,7 +70,11 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
 
   // Collaborative workflow actions
-  const { collaborativeUpdateBlockName, collaborativeToggleBlockWide, collaborativeToggleBlockAdvancedMode } = useCollaborativeWorkflow()
+  const {
+    collaborativeUpdateBlockName,
+    collaborativeToggleBlockWide,
+    collaborativeToggleBlockAdvancedMode,
+  } = useCollaborativeWorkflow()
 
   // Workflow store actions
   const updateBlockHeight = useWorkflowStore((state) => state.updateBlockHeight)

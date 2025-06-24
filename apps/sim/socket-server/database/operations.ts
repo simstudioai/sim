@@ -101,12 +101,11 @@ export async function getWorkflowState(workflowId: string) {
         state: finalState,
         lastModified: Date.now(),
       }
-    } else {
-      // Fallback to JSON blob
-      return {
-        ...workflowData[0],
-        lastModified: Date.now(),
-      }
+    }
+    // Fallback to JSON blob
+    return {
+      ...workflowData[0],
+      lastModified: Date.now(),
     }
   } catch (error) {
     logger.error(`Error fetching workflow state for ${workflowId}:`, error)

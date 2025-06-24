@@ -314,7 +314,10 @@ export function useCollaborativeWorkflow() {
 
       // Emit with the calculated new value (don't rely on async state update)
       if (!isApplyingRemoteChange.current) {
-        emitWorkflowOperation('update-advanced-mode', 'block', { id, advancedMode: newAdvancedMode })
+        emitWorkflowOperation('update-advanced-mode', 'block', {
+          id,
+          advancedMode: newAdvancedMode,
+        })
       }
     },
     [workflowStore, emitWorkflowOperation]
