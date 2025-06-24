@@ -565,6 +565,8 @@ async function handleSubflowOperationTx(
         throw new Error(`Subflow ${payload.id} not found in workflow ${workflowId}`)
       }
 
+      logger.debug(`[SERVER] Successfully updated subflow ${payload.id} in database`)
+
       // Also update the corresponding block's data to keep UI in sync
       if (payload.type === 'loop' && payload.config.iterations !== undefined) {
         // Update the loop block's data.count property
