@@ -316,9 +316,20 @@ export function useCollaborativeWorkflow() {
       // Then broadcast to other clients
       if (!isApplyingRemoteChange.current) {
         emitWorkflowOperation('update-name', 'block', { id, name })
+
+        // Check for pending subblock updates from the store
+        const pendingUpdates = (window as any).__pendingSubblockUpdates
+        if (pendingUpdates && Array.isArray(pendingUpdates)) {
+          // Emit collaborative subblock updates for each changed subblock
+          pendingUpdates.forEach(({ blockId, subBlockId, newValue }) => {
+            emitSubblockUpdate(blockId, subBlockId, newValue)
+          })
+          // Clear the pending updates
+          delete (window as any).__pendingSubblockUpdates
+        }
       }
     },
-    [workflowStore, emitWorkflowOperation]
+    [workflowStore, emitWorkflowOperation, emitSubblockUpdate]
   )
 
   const collaborativeToggleBlockEnabled = useCallback(
