@@ -9,6 +9,4 @@ export const API_ENDPOINTS = {
   WORKSPACE_PERMISSIONS: (id: string) => `/api/workspaces/${id}/permissions`,
 }
 
-export const SYNC_INTERVALS = {
-  DEFAULT: 30000, // 30 seconds
-}
+// Removed SYNC_INTERVALS - Socket.IO handles real-time sync

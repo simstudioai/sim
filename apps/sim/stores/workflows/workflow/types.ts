@@ -130,6 +130,8 @@ export interface Parallel {
   id: string
   nodes: string[]
   distribution?: any[] | Record<string, any> | string // Items or expression
+  count?: number // Number of parallel executions for count-based parallel
+  parallelType?: 'count' | 'collection' // Explicit parallel type to avoid inference bugs
 }
 
 export interface WorkflowState {
@@ -189,6 +191,7 @@ export interface WorkflowActions {
   updateLoopCollection: (loopId: string, collection: string) => void
   updateParallelCount: (parallelId: string, count: number) => void
   updateParallelCollection: (parallelId: string, collection: string) => void
+  updateParallelType: (parallelId: string, parallelType: 'count' | 'collection') => void
   generateLoopBlocks: () => Record<string, Loop>
   generateParallelBlocks: () => Record<string, Parallel>
   setNeedsRedeploymentFlag: (needsRedeployment: boolean) => void

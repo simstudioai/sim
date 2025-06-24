@@ -53,7 +53,7 @@ export function convertParallelBlockToParallel(
   const parallelBlock = blocks[parallelBlockId]
   if (!parallelBlock || parallelBlock.type !== 'parallel') return undefined
 
-  // Only set distribution if it's a collection-based parallel
+  // Get the parallel type from block data, defaulting to 'collection' for backward compatibility
   const parallelType = parallelBlock.data?.parallelType || 'collection'
 
   // Validate parallelType against allowed values
@@ -62,13 +62,18 @@ export function convertParallelBlockToParallel(
     ? parallelType
     : 'collection'
 
+  // Only set distribution if it's a collection-based parallel
   const distribution =
     validatedParallelType === 'collection' ? parallelBlock.data?.collection || '' : ''
+
+  const count = parallelBlock.data?.count || 5
 
   return {
     id: parallelBlockId,
     nodes: findChildNodes(parallelBlockId, blocks),
     distribution,
+    count,
+    parallelType: validatedParallelType,
   }
 }
 

@@ -170,6 +170,7 @@ describe('PathTracker', () => {
         const blockState: BlockState = {
           output: { response: { selectedPath: { blockId: 'block1' } } },
           executed: true,
+          executionTime: 100,
         }
         mockContext.blockStates.set('router1', blockState)
 
@@ -183,6 +184,7 @@ describe('PathTracker', () => {
         const blockState: BlockState = {
           output: { response: {} },
           executed: true,
+          executionTime: 100,
         }
         mockContext.blockStates.set('router1', blockState)
 
@@ -198,6 +200,7 @@ describe('PathTracker', () => {
         const blockState: BlockState = {
           output: { response: { selectedConditionId: 'if' } },
           executed: true,
+          executionTime: 100,
         }
         mockContext.blockStates.set('condition1', blockState)
 
@@ -211,6 +214,7 @@ describe('PathTracker', () => {
         const blockState: BlockState = {
           output: { response: { selectedConditionId: 'unknown' } },
           executed: true,
+          executionTime: 100,
         }
         mockContext.blockStates.set('condition1', blockState)
 
@@ -235,6 +239,7 @@ describe('PathTracker', () => {
         const blockState: BlockState = {
           output: { response: { data: 'success' } },
           executed: true,
+          executionTime: 100,
         }
         mockContext.blockStates.set('block1', blockState)
         mockContext.executedBlocks.add('block1')
@@ -256,6 +261,7 @@ describe('PathTracker', () => {
         const blockState: BlockState = {
           output: { error: 'Something failed', response: { error: 'Something failed' } },
           executed: true,
+          executionTime: 100,
         }
         mockContext.blockStates.set('block1', blockState)
         mockContext.executedBlocks.add('block1')
@@ -328,10 +334,12 @@ describe('PathTracker', () => {
       const blockState1: BlockState = {
         output: { response: { data: 'success' } },
         executed: true,
+        executionTime: 100,
       }
       const blockState2: BlockState = {
         output: { response: { selectedPath: { blockId: 'block1' } } },
         executed: true,
+        executionTime: 150,
       }
       mockContext.blockStates.set('block1', blockState1)
       mockContext.blockStates.set('router1', blockState2)

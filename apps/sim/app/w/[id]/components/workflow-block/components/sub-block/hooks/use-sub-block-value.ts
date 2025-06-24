@@ -5,6 +5,18 @@ import { useGeneralStore } from '@/stores/settings/general/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
+// Helper function to dispatch collaborative subblock updates
+const dispatchSubblockUpdate = (blockId: string, subBlockId: string, value: any) => {
+  const event = new CustomEvent('update-subblock-value', {
+    detail: {
+      blockId,
+      subBlockId,
+      value,
+    },
+  })
+  window.dispatchEvent(event)
+}
+
 /**
  * Helper to handle API key auto-fill for provider-based blocks
  * Used for agent, router, evaluator, and any other blocks that use LLM providers
@@ -37,12 +49,12 @@ function handleProviderBasedApiKey(
   if (savedValue && savedValue !== '' && isAutoFillEnabled) {
     // Only update if the current value is different to avoid unnecessary updates
     if (storeValue !== savedValue) {
-      subBlockStore.setValue(blockId, subBlockId, savedValue)
+      dispatchSubblockUpdate(blockId, subBlockId, savedValue)
     }
   } else if (isModelChange && (!storeValue || storeValue === '')) {
     // Only clear the field when switching models AND the field is already empty
     // Don't clear existing user-entered values on initial load
-    subBlockStore.setValue(blockId, subBlockId, '')
+    dispatchSubblockUpdate(blockId, subBlockId, '')
   }
   // If no saved value and this is initial load, preserve existing value
 }
@@ -67,7 +79,7 @@ function handleStandardBlockApiKey(
 
     if (savedValue && savedValue !== '' && savedValue !== storeValue) {
       // Auto-fill the API key from the param store
-      subBlockStore.setValue(blockId, subBlockId, savedValue)
+      dispatchSubblockUpdate(blockId, subBlockId, savedValue)
     }
   }
   // Handle environment variable references
@@ -84,7 +96,7 @@ function handleStandardBlockApiKey(
       // If we got a replacement or null, update the field
       if (currentValue) {
         // Replacement found - update to new reference
-        subBlockStore.setValue(blockId, subBlockId, currentValue)
+        dispatchSubblockUpdate(blockId, subBlockId, currentValue)
       }
     }
   }
@@ -216,9 +228,18 @@ export function useSubBlockValue<T = any>(
           storeApiKeyValue(blockId, blockType, modelValue, newValue, storeValue)
         }
 
-        // Update the subblock store with the new value
-        // The store's setValue method will now trigger the debounced sync automatically
+        // Update the subblock store directly
         useSubBlockStore.getState().setValue(blockId, subBlockId, valueCopy)
+
+        // Dispatch event to trigger socket emission only (not store update)
+        const event = new CustomEvent('update-subblock-value', {
+          detail: {
+            blockId,
+            subBlockId,
+            value: valueCopy,
+          },
+        })
+        window.dispatchEvent(event)
 
         if (triggerWorkflowUpdate) {
           useWorkflowStore.getState().triggerUpdate()
@@ -274,7 +295,7 @@ export function useSubBlockValue<T = any>(
         handleProviderBasedApiKey(blockId, subBlockId, modelValue, storeValue, true)
       } else {
         // If no model is selected, clear the API key field
-        useSubBlockStore.getState().setValue(blockId, subBlockId, '')
+        dispatchSubblockUpdate(blockId, subBlockId, '')
       }
     }
   }, [
@@ -297,5 +318,5 @@ export function useSubBlockValue<T = any>(
     }
   }, [storeValue, initialValue])
 
-  return [valueRef.current as T | null, setValue] as const
+  return [storeValue !== undefined ? storeValue : initialValue, setValue] as const
 }

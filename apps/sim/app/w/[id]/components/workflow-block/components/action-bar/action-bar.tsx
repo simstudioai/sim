@@ -2,6 +2,7 @@ import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Copy, Trash2 } from 'lu
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 interface ActionBarProps {
@@ -11,7 +12,7 @@ interface ActionBarProps {
 }
 
 export function ActionBar({ blockId, blockType, disabled = false }: ActionBarProps) {
-  const removeBlock = useWorkflowStore((state) => state.removeBlock)
+  const { collaborativeRemoveBlock } = useCollaborativeWorkflow()
   const toggleBlockEnabled = useWorkflowStore((state) => state.toggleBlockEnabled)
   const toggleBlockHandles = useWorkflowStore((state) => state.toggleBlockHandles)
   const duplicateBlock = useWorkflowStore((state) => state.duplicateBlock)
@@ -125,12 +126,12 @@ export function ActionBar({ blockId, blockType, disabled = false }: ActionBarPro
               size='sm'
               onClick={() => {
                 if (!disabled) {
-                  removeBlock(blockId)
+                  collaborativeRemoveBlock(blockId)
                 }
               }}
               className={cn(
                 'text-gray-500 hover:text-red-600',
-                disabled && 'cursor-not-allowed opacity-50 hover:text-gray-500'
+                disabled && 'cursor-not-allowed opacity-50'
               )}
               disabled={disabled}
             >

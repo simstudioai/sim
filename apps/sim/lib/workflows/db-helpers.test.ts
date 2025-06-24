@@ -72,6 +72,7 @@ vi.doMock('@/lib/logs/console-logger', () => ({
     info: vi.fn(),
     error: vi.fn(),
     warn: vi.fn(),
+    debug: vi.fn(),
   })),
 }))
 
@@ -225,22 +226,30 @@ describe('Database Helpers', () => {
 
   describe('loadWorkflowFromNormalizedTables', () => {
     it('should successfully load workflow data from normalized tables', async () => {
-      // Mock the database queries properly
+      // Reset all mocks first
+      vi.clearAllMocks()
+
+      // Mock each database query call separately since Promise.all makes 3 separate calls
       let callCount = 0
-      mockDb.select.mockReturnValue({
+      mockDb.select.mockImplementation(() => ({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockImplementation(() => {
             callCount++
-            if (callCount === 1) return mockBlocksFromDb // blocks query
-            if (callCount === 2) return mockEdgesFromDb // edges query
-            if (callCount === 3) return mockSubflowsFromDb // subflows query
-            return []
+            if (callCount === 1) {
+              return Promise.resolve(mockBlocksFromDb)
+            }
+            if (callCount === 2) {
+              return Promise.resolve(mockEdgesFromDb)
+            }
+            if (callCount === 3) {
+              return Promise.resolve(mockSubflowsFromDb)
+            }
+            return Promise.resolve([])
           }),
         }),
-      })
+      }))
 
       const result = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId)
-
       expect(result).toBeDefined()
       expect(result?.isFromNormalizedTables).toBe(true)
       expect(result?.blocks).toBeDefined()
@@ -332,10 +341,10 @@ describe('Database Helpers', () => {
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockImplementation(() => {
             callCount++
-            if (callCount === 1) return mockBlocksFromDb // blocks query
-            if (callCount === 2) return mockEdgesFromDb // edges query
-            if (callCount === 3) return subflowsWithUnknownType // subflows query
-            return []
+            if (callCount === 1) return Promise.resolve(mockBlocksFromDb) // blocks query
+            if (callCount === 2) return Promise.resolve(mockEdgesFromDb) // edges query
+            if (callCount === 3) return Promise.resolve(subflowsWithUnknownType) // subflows query
+            return Promise.resolve([])
           }),
         }),
       })
@@ -379,10 +388,10 @@ describe('Database Helpers', () => {
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockImplementation(() => {
             callCount++
-            if (callCount === 1) return malformedBlocks // blocks query
-            if (callCount === 2) return [] // edges query
-            if (callCount === 3) return [] // subflows query
-            return []
+            if (callCount === 1) return Promise.resolve(malformedBlocks) // blocks query
+            if (callCount === 2) return Promise.resolve([]) // edges query
+            if (callCount === 3) return Promise.resolve([]) // subflows query
+            return Promise.resolve([])
           }),
         }),
       })

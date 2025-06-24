@@ -102,6 +102,7 @@ export const env = createEnv({
     LINEAR_CLIENT_SECRET: z.string().optional(),
     SLACK_CLIENT_ID: z.string().optional(),
     SLACK_CLIENT_SECRET: z.string().optional(),
+    SOCKET_SERVER_URL: z.string().url().optional(),
   },
 
   client: {
@@ -111,6 +112,7 @@ export const env = createEnv({
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: z.string().optional(),
     NEXT_PUBLIC_GOOGLE_API_KEY: z.string().optional(),
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: z.string().optional(),
+    NEXT_PUBLIC_SOCKET_URL: z.string().url().optional(),
   },
 
   // Only need to define client variables, server variables are automatically handled
@@ -121,6 +123,7 @@ export const env = createEnv({
     NEXT_PUBLIC_GOOGLE_CLIENT_ID: getEnv('NEXT_PUBLIC_GOOGLE_CLIENT_ID'),
     NEXT_PUBLIC_GOOGLE_API_KEY: getEnv('NEXT_PUBLIC_GOOGLE_API_KEY'),
     NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER: getEnv('NEXT_PUBLIC_GOOGLE_PROJECT_NUMBER'),
+    NEXT_PUBLIC_SOCKET_URL: getEnv('NEXT_PUBLIC_SOCKET_URL'),
   },
 })
 
