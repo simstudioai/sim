@@ -85,6 +85,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
 
+  // Connection health monitoring
+  const connectionHealth = useRef({ latency: 0, lastPing: 0, reconnectCount: 0 })
+  const healthCheckInterval = useRef<NodeJS.Timeout | null>(null)
+
   // Use refs to store event handlers to avoid stale closures
   const eventHandlers = useRef<{
     workflowOperation?: (data: any) => void
@@ -127,30 +131,74 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         })
 
         const socketInstance = io(socketUrl, {
-          transports: ['polling', 'websocket'],
+          transports: ['websocket', 'polling'], // Keep polling fallback for reliability
           withCredentials: true,
-          reconnectionAttempts: 5,
-          timeout: 10000,
+          reconnectionAttempts: 5, // Back to original conservative setting
+          timeout: 10000, // Back to original timeout
           auth: {
             token, // Send one-time token for authentication
           },
         })
 
+        // Connection health monitoring
+        const startHealthMonitoring = () => {
+          if (healthCheckInterval.current) {
+            clearInterval(healthCheckInterval.current)
+          }
+
+          healthCheckInterval.current = setInterval(() => {
+            if (socketInstance.connected) {
+              const pingStart = performance.now()
+              connectionHealth.current.lastPing = pingStart
+
+              socketInstance.emit('ping', pingStart)
+            }
+          }, 5000) // Check every 5 seconds
+        }
+
         // Connection events
         socketInstance.on('connect', () => {
           setIsConnected(true)
           setIsConnecting(false)
+          connectionHealth.current.reconnectCount = 0
+          startHealthMonitoring()
+
           logger.info('Socket connected successfully', {
             socketId: socketInstance.id,
             connected: socketInstance.connected,
             transport: socketInstance.io.engine?.transport?.name,
+            reconnectCount: connectionHealth.current.reconnectCount,
           })
+        })
+
+        // Handle pong for latency measurement
+        socketInstance.on('pong', (pingStart: number) => {
+          const latency = performance.now() - pingStart
+          connectionHealth.current.latency = latency
+
+          // Adapt throttling based on latency
+          if (latency > 100 && throttleDelay.current < 12) {
+            throttleDelay.current = Math.min(16, throttleDelay.current + 2)
+          } else if (latency < 50 && throttleDelay.current > 4) {
+            throttleDelay.current = Math.max(2, throttleDelay.current - 1)
+          }
         })
 
         socketInstance.on('disconnect', (reason) => {
           setIsConnected(false)
           setIsConnecting(false)
-          logger.info('Socket disconnected', { reason })
+
+          // Stop health monitoring
+          if (healthCheckInterval.current) {
+            clearInterval(healthCheckInterval.current)
+            healthCheckInterval.current = null
+          }
+
+          logger.info('Socket disconnected', {
+            reason,
+            latency: connectionHealth.current.latency,
+            reconnectCount: connectionHealth.current.reconnectCount,
+          })
 
           // Clear presence when disconnected
           setPresenceUsers([])
@@ -169,7 +217,12 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         // Add reconnection logging
         socketInstance.on('reconnect', (attemptNumber) => {
-          logger.info('Socket reconnected', { attemptNumber })
+          connectionHealth.current.reconnectCount = attemptNumber
+          startHealthMonitoring() // Restart health monitoring on reconnect
+          logger.info('Socket reconnected', {
+            attemptNumber,
+            latency: connectionHealth.current.latency,
+          })
         })
 
         socketInstance.on('reconnect_attempt', (attemptNumber) => {
@@ -276,6 +329,23 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
     // Start the socket initialization
     initializeSocket()
+
+    // Cleanup on unmount
+    return () => {
+      positionUpdateTimeouts.current.forEach((timeoutId) => {
+        clearTimeout(timeoutId)
+      })
+      positionUpdateTimeouts.current.clear()
+      pendingPositionUpdates.current.clear()
+      throttleDelay.current = 4
+      emitLatencies.current = []
+
+      // Stop health monitoring
+      if (healthCheckInterval.current) {
+        clearInterval(healthCheckInterval.current)
+        healthCheckInterval.current = null
+      }
+    }
   }, [user?.id])
 
   // Join workflow room
@@ -299,13 +369,132 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       socket.emit('leave-workflow')
       setCurrentWorkflowId(null)
       setPresenceUsers([])
+
+      // Clean up any pending position updates
+      positionUpdateTimeouts.current.forEach((timeoutId) => {
+        clearTimeout(timeoutId)
+      })
+      positionUpdateTimeouts.current.clear()
+      pendingPositionUpdates.current.clear()
+
+      // Reset adaptive throttling
+      throttleDelay.current = 4
+      emitLatencies.current = []
     }
   }, [socket, currentWorkflowId])
+
+  // Position update throttling - adaptive based on network performance
+  const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
+  const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
+  const throttleDelay = useRef(4) // Start at 4ms (240fps) for maximum smoothness
+
+  // Debug: Allow manual throttle testing (remove in production)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey) {
+        switch (e.key) {
+          case '1':
+            throttleDelay.current = 1
+            console.log('Throttle: 1ms (1000fps)')
+            break
+          case '2':
+            throttleDelay.current = 2
+            console.log('Throttle: 2ms (500fps)')
+            break
+          case '4':
+            throttleDelay.current = 4
+            console.log('Throttle: 4ms (240fps)')
+            break
+          case '8':
+            throttleDelay.current = 8
+            console.log('Throttle: 8ms (120fps)')
+            break
+          case '6':
+            throttleDelay.current = 16
+            console.log('Throttle: 16ms (60fps)')
+            break
+          case '0':
+            throttleDelay.current = 0
+            console.log('Throttle: OFF (unlimited fps)')
+            break
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+  const lastEmitTime = useRef(0)
+  const emitLatencies = useRef<number[]>([]) // Track network performance
 
   // Emit workflow operations (blocks, edges, subflows)
   const emitWorkflowOperation = useCallback(
     (operation: string, target: string, payload: any) => {
-      if (socket && currentWorkflowId) {
+      if (!socket || !currentWorkflowId) return
+
+      // Check if this is a position update that should be throttled
+      const isPositionUpdate = operation === 'update-position' && target === 'block'
+
+      if (isPositionUpdate && payload.id) {
+        const blockId = payload.id
+
+        // Store the latest position update for this block
+        pendingPositionUpdates.current.set(blockId, {
+          operation,
+          target,
+          payload,
+          timestamp: Date.now(),
+        })
+
+        // Clear any existing timeout for this block
+        const existingTimeout = positionUpdateTimeouts.current.get(blockId)
+        if (existingTimeout) {
+          clearTimeout(existingTimeout)
+        }
+
+        // Set a new timeout to send the latest position update
+        const timeoutId = window.setTimeout(
+          () => {
+            const latestUpdate = pendingPositionUpdates.current.get(blockId)
+            if (latestUpdate) {
+              const emitStartTime = performance.now()
+              socket.emit('workflow-operation', latestUpdate)
+
+              // Track emit timing for adaptive throttling
+              const emitTime = performance.now()
+              const timeSinceLastEmit = emitTime - lastEmitTime.current
+              lastEmitTime.current = emitTime
+
+              // If we're emitting too frequently (network might be overwhelmed), adapt
+              if (timeSinceLastEmit < throttleDelay.current * 0.8) {
+                emitLatencies.current.push(timeSinceLastEmit)
+                // Keep only last 10 measurements
+                if (emitLatencies.current.length > 10) {
+                  emitLatencies.current.shift()
+                }
+
+                // If consistently fast emissions, we might need to back off
+                const avgLatency =
+                  emitLatencies.current.reduce((a, b) => a + b, 0) / emitLatencies.current.length
+                if (avgLatency < throttleDelay.current * 0.6 && throttleDelay.current < 16) {
+                  throttleDelay.current = Math.min(16, throttleDelay.current * 1.2)
+                }
+              } else {
+                // Network is keeping up well, try to be more aggressive
+                if (throttleDelay.current > 2) {
+                  throttleDelay.current = Math.max(2, throttleDelay.current * 0.95)
+                }
+              }
+
+              pendingPositionUpdates.current.delete(blockId)
+            }
+            positionUpdateTimeouts.current.delete(blockId)
+          },
+          throttleDelay.current === 0 ? 0 : throttleDelay.current
+        ) // Allow bypassing throttle for testing
+
+        positionUpdateTimeouts.current.set(blockId, timeoutId)
+      } else {
+        // For all non-position updates, emit immediately
         socket.emit('workflow-operation', {
           operation,
           target,
@@ -340,11 +529,17 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     [socket, currentWorkflowId]
   )
 
-  // Emit cursor position updates
+  // Throttled cursor updates (lower priority than position updates)
+  const lastCursorEmit = useRef(0)
   const emitCursorUpdate = useCallback(
     (cursor: { x: number; y: number }) => {
       if (socket && currentWorkflowId) {
-        socket.emit('cursor-update', { cursor })
+        const now = performance.now()
+        // Throttle cursor updates to 30fps to reduce noise
+        if (now - lastCursorEmit.current >= 33) {
+          socket.emit('cursor-update', { cursor })
+          lastCursorEmit.current = now
+        }
       }
     },
     [socket, currentWorkflowId]
