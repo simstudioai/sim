@@ -84,10 +84,6 @@ export function OutputSelect({
           // For objects without type, recursively add each property
           if (!Array.isArray(outputObj)) {
             Object.entries(outputObj).forEach(([key, value]) => {
-              // Skip configuration properties that shouldn't be available as outputs
-              if (key === 'dependsOn') {
-                return
-              }
               addOutput(key, value, fullPath)
             })
           } else {
@@ -105,10 +101,6 @@ export function OutputSelect({
 
         // Process all output properties directly (flattened structure)
         Object.entries(block.outputs).forEach(([key, value]) => {
-          // Skip configuration properties that shouldn't be available as outputs
-          if (key === 'dependsOn') {
-            return
-          }
           addOutput(key, value)
         })
       }

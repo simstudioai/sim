@@ -145,11 +145,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       }
 
       return Object.entries(obj).flatMap(([key, value]) => {
-        // Skip configuration properties that shouldn't be available as tags
-        if (key === 'dependsOn') {
-          return []
-        }
-
         const newPrefix = prefix ? `${prefix}.${key}` : key
         return getOutputPaths(value, newPrefix)
       })

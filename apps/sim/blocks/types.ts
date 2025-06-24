@@ -155,13 +155,6 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
   }
   inputs: Record<string, ParamConfig>
   outputs: ToolOutputToValueType<ExtractToolOutput<T>> & {
-    dependsOn?: {
-      subBlockId: string
-      condition: {
-        whenEmpty: ToolOutputToValueType<ExtractToolOutput<T>>
-        whenFilled: 'json'
-      }
-    }
     visualization?: {
       type: 'image'
       url: string
@@ -173,11 +166,4 @@ export interface BlockConfig<T extends ToolResponse = ToolResponse> {
 // Output configuration rules
 export interface OutputConfig {
   type: BlockOutput
-  dependsOn?: {
-    subBlockId: string
-    condition: {
-      whenEmpty: BlockOutput
-      whenFilled: BlockOutput
-    }
-  }
 }
