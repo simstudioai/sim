@@ -166,10 +166,6 @@ async function handleBlockOperationTx(
 
       logger.debug(`[SERVER] Adding block: ${payload.type} (${payload.id})`, {
         isSubflowType: isSubflowBlockType(payload.type),
-        hasOutputs: !!payload.outputs,
-        outputs: payload.outputs,
-        hasSubBlocks: !!payload.subBlocks,
-        subBlocks: payload.subBlocks,
         payload,
       })
 

@@ -231,15 +231,12 @@ export function useCollaborativeWorkflow() {
       parentId?: string,
       extent?: 'parent'
     ) => {
-
       // Create complete block data upfront using the same logic as the store
       const blockConfig = getBlock(type)
       if (!blockConfig) {
         console.error(`Block type ${type} not found`)
         return
       }
-
-
 
       // Generate subBlocks and outputs from the block configuration
       const subBlocks: Record<string, any> = {}
@@ -255,12 +252,8 @@ export function useCollaborativeWorkflow() {
         })
       }
 
-
-
       // Generate outputs using the same logic as the store
       const outputs = resolveOutputType(blockConfig.outputs, subBlocks)
-
-
 
       const completeBlockData = {
         id,
@@ -283,7 +276,6 @@ export function useCollaborativeWorkflow() {
 
       // Then broadcast to other clients with complete block data
       if (!isApplyingRemoteChange.current) {
-
         emitWorkflowOperation('add', 'block', completeBlockData)
       }
     },
