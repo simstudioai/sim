@@ -1,5 +1,5 @@
 'use client'
 
-import { NextError } from './[id]/components/error'
+import { NextError } from './[workflowId]/components/error'
 
 export default NextError

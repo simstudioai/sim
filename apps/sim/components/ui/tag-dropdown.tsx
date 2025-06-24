@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import {
   type ConnectedBlock,
   useBlockConnections,
-} from '@/app/workspace/[workspaceId]/w/[id]/hooks/use-block-connections'
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-connections'
 import { getBlock } from '@/blocks'
 import { useVariablesStore } from '@/stores/panel/variables/store'
 import type { Variable } from '@/stores/panel/variables/types'
