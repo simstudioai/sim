@@ -27,9 +27,10 @@ const APP_COLORS = [
  */
 function generateGradient(connectionId: string | number): string {
   // Convert connectionId to a number for consistent hashing
-  const numericId = typeof connectionId === 'string'
-    ? Math.abs(connectionId.split('').reduce((a, b) => a + b.charCodeAt(0), 0))
-    : connectionId
+  const numericId =
+    typeof connectionId === 'string'
+      ? Math.abs(connectionId.split('').reduce((a, b) => a + b.charCodeAt(0), 0))
+      : connectionId
 
   // Use the numeric ID to select a color pair from our palette
   const colorPair = APP_COLORS[numericId % APP_COLORS.length]

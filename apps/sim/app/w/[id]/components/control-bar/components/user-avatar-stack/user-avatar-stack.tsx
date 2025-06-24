@@ -80,7 +80,7 @@ export function UserAvatarStack({
       {/* Render overflow indicator if there are more users */}
       {overflowCount > 0 && (
         <UserAvatar
-          connectionId="overflow-indicator" // Use a unique string identifier
+          connectionId='overflow-indicator' // Use a unique string identifier
           name={`+${overflowCount}`}
           size={size}
           index={visibleUsers.length}
