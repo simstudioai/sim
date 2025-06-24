@@ -201,18 +201,7 @@ async function handleBlockOperationTx(
           height: payload.height || 0,
         }
 
-        logger.debug(`[SERVER] Inserting block data:`, {
-          id: insertData.id,
-          type: insertData.type,
-          hasOutputs: !!insertData.outputs && Object.keys(insertData.outputs).length > 0,
-          outputs: insertData.outputs,
-          hasSubBlocks: !!insertData.subBlocks && Object.keys(insertData.subBlocks).length > 0,
-          subBlocks: insertData.subBlocks,
-        })
-
         await tx.insert(workflowBlocks).values(insertData)
-
-        logger.debug(`[SERVER] Successfully inserted block ${payload.id}`)
       } catch (insertError) {
         logger.error(`[SERVER] ❌ Failed to insert block ${payload.id}:`, insertError)
         throw insertError
