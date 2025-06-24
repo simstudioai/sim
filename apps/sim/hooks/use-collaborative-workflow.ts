@@ -697,7 +697,7 @@ export function useCollaborativeWorkflow() {
         // Keep existing count
       } else {
         newCount = 1
-        newDistribution = newDistribution || '[]'
+        newDistribution = newDistribution || ''
       }
 
       // Apply all changes locally first
