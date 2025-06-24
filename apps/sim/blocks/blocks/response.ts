@@ -92,12 +92,8 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
     },
   },
   outputs: {
-    response: {
-      type: {
-        data: 'json',
-        status: 'number',
-        headers: 'json',
-      },
-    },
+    data: 'json',
+    status: 'number',
+    headers: 'json',
   },
 }
