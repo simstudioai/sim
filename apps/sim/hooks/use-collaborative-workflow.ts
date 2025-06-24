@@ -318,14 +318,16 @@ export function useCollaborativeWorkflow() {
         emitWorkflowOperation('update-name', 'block', { id, name })
 
         // Check for pending subblock updates from the store
-        const pendingUpdates = (window as any).__pendingSubblockUpdates
+        const globalWindow = window as any
+        const pendingUpdates = globalWindow.__pendingSubblockUpdates
         if (pendingUpdates && Array.isArray(pendingUpdates)) {
           // Emit collaborative subblock updates for each changed subblock
-          pendingUpdates.forEach(({ blockId, subBlockId, newValue }) => {
+          for (const update of pendingUpdates) {
+            const { blockId, subBlockId, newValue } = update
             emitSubblockUpdate(blockId, subBlockId, newValue)
-          })
+          }
           // Clear the pending updates
-          delete (window as any).__pendingSubblockUpdates
+          globalWindow.__pendingSubblockUpdates = undefined
         }
       }
     },
