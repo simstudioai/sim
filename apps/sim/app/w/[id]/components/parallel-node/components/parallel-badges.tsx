@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkflowOperationsCompat } from '@/hooks/use-workflow-operations-compat'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -72,7 +72,7 @@ export function ParallelBadges({ nodeId, data }: ParallelBadgesProps) {
 
   // Get collaborative functions
   const { collaborativeUpdateParallelCount, collaborativeUpdateParallelCollection } =
-    useCollaborativeWorkflow()
+    useWorkflowOperationsCompat()
 
   // Update node data to include parallel type
   const updateNodeData = useCallback(

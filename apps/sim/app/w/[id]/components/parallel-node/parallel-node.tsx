@@ -6,7 +6,7 @@ import { StartIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkflowOperationsCompat } from '@/hooks/use-workflow-operations-compat'
 import { ParallelBadges } from './components/parallel-badges'
 
 const ParallelNodeStyles: React.FC = () => {
@@ -86,7 +86,7 @@ const ParallelNodeStyles: React.FC = () => {
 
 export const ParallelNodeComponent = memo(({ data, selected, id }: NodeProps) => {
   const { getNodes } = useReactFlow()
-  const { collaborativeRemoveBlock } = useCollaborativeWorkflow()
+  const { collaborativeRemoveBlock } = useWorkflowOperationsCompat()
   const blockRef = useRef<HTMLDivElement>(null)
 
   // Check if this is preview mode

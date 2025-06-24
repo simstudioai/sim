@@ -1,3 +1,3 @@
-import WorkFlow from './workflow'
+import WorkflowWrapper from './workflow-wrapper'
 
-export default WorkFlow
+export default WorkflowWrapper

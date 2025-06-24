@@ -32,6 +32,19 @@ export const isTest = getNodeEnv() === 'test'
 export const isHosted = env.NEXT_PUBLIC_APP_URL === 'https://www.simstudio.ai'
 
 /**
+ * Is real-time collaboration enabled
+ * Requires Socket.IO server to be running
+ */
+export const isCollaborationEnabled = () => {
+  try {
+    return env.NEXT_PUBLIC_ENABLE_COLLABORATION === 'true'
+  } catch {
+    // Fallback to checking environment variable directly
+    return process.env.NEXT_PUBLIC_ENABLE_COLLABORATION === 'true'
+  }
+}
+
+/**
  * Get cost multiplier based on environment
  */
 export function getCostMultiplier(): number {

@@ -17,9 +17,8 @@ import { LoopNodeComponent } from '@/app/w/[id]/components/loop-node/loop-node'
 import { NotificationList } from '@/app/w/[id]/components/notifications/notifications'
 import { ParallelNodeComponent } from '@/app/w/[id]/components/parallel-node/parallel-node'
 import { getBlock } from '@/blocks'
-import { useSocket } from '@/contexts/socket-context'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useUserPermissions } from '@/hooks/use-user-permissions'
+import { useWorkflowOperationsCompat } from '@/hooks/use-workflow-operations-compat'
 import { useWorkspacePermissions } from '@/hooks/use-workspace-permissions'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useNotificationStore } from '@/stores/notifications/store'
@@ -121,8 +120,8 @@ function WorkflowContent() {
     currentWorkflowId,
     presenceUsers,
     joinWorkflow,
-  } = useCollaborativeWorkflow()
-  const { emitSubblockUpdate } = useSocket()
+    emitSubblockUpdate,
+  } = useWorkflowOperationsCompat()
   const { markAllAsRead } = useNotificationStore()
   const { resetLoaded: resetVariablesLoaded } = useVariablesStore()
 

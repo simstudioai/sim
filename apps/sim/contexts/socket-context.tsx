@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { io, type Socket } from 'socket.io-client'
 import { createLogger } from '@/lib/logs/console-logger'
+import { isCollaborationEnabled } from '@/lib/environment'
 
 const logger = createLogger('SocketContext')
 
@@ -96,9 +97,15 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     workflowDeleted?: (data: any) => void
   }>({})
 
-  // Initialize socket when user is available
+  // Initialize socket when user is available and collaboration is enabled
   useEffect(() => {
     if (!user?.id || socket) return
+
+    // Skip socket initialization if collaboration is disabled
+    if (!isCollaborationEnabled()) {
+      logger.info('Collaboration disabled, skipping socket initialization')
+      return
+    }
 
     logger.info('Initializing socket connection for user:', user.id)
     setIsConnecting(true)

@@ -59,6 +59,7 @@ import { DeploymentControls } from './components/deployment-controls/deployment-
 import { HistoryDropdownItem } from './components/history-dropdown-item/history-dropdown-item'
 import { MarketplaceModal } from './components/marketplace-modal/marketplace-modal'
 import { NotificationDropdownItem } from './components/notification-dropdown-item/notification-dropdown-item'
+import { ControlBarSaveButton, SaveKeyboardShortcut } from './components/save-button'
 import { UserAvatarStack } from './components/user-avatar-stack/user-avatar-stack'
 
 const logger = createLogger('ControlBar')
@@ -1244,6 +1245,7 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
       {/* Right Section - Actions */}
       <div className='flex items-center gap-1 pr-4'>
+        <ControlBarSaveButton />
         {renderDeleteButton()}
         {renderHistoryDropdown()}
         {renderNotificationsDropdown()}
@@ -1256,6 +1258,9 @@ export function ControlBar({ hasValidationErrors = false }: ControlBarProps) {
 
         {/* Add the marketplace modal */}
         <MarketplaceModal open={isMarketplaceModalOpen} onOpenChange={setIsMarketplaceModalOpen} />
+
+        {/* Keyboard shortcut for save */}
+        <SaveKeyboardShortcut />
       </div>
     </div>
   )

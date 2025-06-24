@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { checkTagTrigger, TagDropdown } from '@/components/ui/tag-dropdown'
 import { cn } from '@/lib/utils'
-import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
+import { useWorkflowOperationsCompat } from '@/hooks/use-workflow-operations-compat'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/themes/prism.css'
@@ -87,7 +87,7 @@ export function LoopBadges({ nodeId, data }: LoopBadgesProps) {
     collaborativeUpdateLoopType,
     collaborativeUpdateLoopCount,
     collaborativeUpdateLoopCollection,
-  } = useCollaborativeWorkflow()
+  } = useWorkflowOperationsCompat()
 
   // Update state when loop config changes (single source of truth)
   useEffect(() => {
