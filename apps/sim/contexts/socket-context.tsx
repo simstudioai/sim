@@ -377,8 +377,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       positionUpdateTimeouts.current.clear()
       pendingPositionUpdates.current.clear()
 
-      // Reset adaptive throttling
-      throttleDelay.current = 4
+      // Reset adaptive throttling to optimal 60fps
+      throttleDelay.current = 16
       emitLatencies.current = []
     }
   }, [socket, currentWorkflowId])
@@ -386,7 +386,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   // Position update throttling - adaptive based on network performance
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
-  const throttleDelay = useRef(4) // Start at 4ms (240fps) for maximum smoothness
+  const throttleDelay = useRef(16) // Start at 16ms (60fps) - optimized for smooth collaborative movement like Figma
 
   // Debug: Allow manual throttle testing (remove in production)
   useEffect(() => {
@@ -436,6 +436,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
       if (isPositionUpdate && payload.id) {
         const blockId = payload.id
+        const now = performance.now()
 
         // Store the latest position update for this block
         pendingPositionUpdates.current.set(blockId, {
@@ -445,54 +446,66 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           timestamp: Date.now(),
         })
 
-        // Clear any existing timeout for this block
+        // Check if we have an active interval for this block
         const existingTimeout = positionUpdateTimeouts.current.get(blockId)
-        if (existingTimeout) {
-          clearTimeout(existingTimeout)
-        }
 
-        // Set a new timeout to send the latest position update
-        const timeoutId = window.setTimeout(
-          () => {
-            const latestUpdate = pendingPositionUpdates.current.get(blockId)
-            if (latestUpdate) {
-              const emitStartTime = performance.now()
-              socket.emit('workflow-operation', latestUpdate)
+        if (!existingTimeout) {
+          // No active interval - start emitting at regular intervals
+          const intervalId = window.setInterval(
+            () => {
+              const latestUpdate = pendingPositionUpdates.current.get(blockId)
+              if (latestUpdate) {
+                const emitStartTime = performance.now()
+                socket.emit('workflow-operation', latestUpdate)
 
-              // Track emit timing for adaptive throttling
-              const emitTime = performance.now()
-              const timeSinceLastEmit = emitTime - lastEmitTime.current
-              lastEmitTime.current = emitTime
+                // Track emit timing for adaptive throttling
+                const emitTime = performance.now()
+                const timeSinceLastEmit = emitTime - lastEmitTime.current
+                lastEmitTime.current = emitTime
 
-              // If we're emitting too frequently (network might be overwhelmed), adapt
-              if (timeSinceLastEmit < throttleDelay.current * 0.8) {
-                emitLatencies.current.push(timeSinceLastEmit)
-                // Keep only last 10 measurements
-                if (emitLatencies.current.length > 10) {
-                  emitLatencies.current.shift()
+                // If we're emitting too frequently (network might be overwhelmed), adapt
+                if (timeSinceLastEmit < throttleDelay.current * 0.8) {
+                  emitLatencies.current.push(timeSinceLastEmit)
+                  // Keep only last 10 measurements
+                  if (emitLatencies.current.length > 10) {
+                    emitLatencies.current.shift()
+                  }
+
+                  // If consistently fast emissions, we might need to back off
+                  const avgLatency =
+                    emitLatencies.current.reduce((a, b) => a + b, 0) / emitLatencies.current.length
+                  if (avgLatency < throttleDelay.current * 0.6 && throttleDelay.current < 16) {
+                    throttleDelay.current = Math.min(16, throttleDelay.current * 1.2)
+                  }
+                } else {
+                  // Network is keeping up well, try to be more aggressive
+                  if (throttleDelay.current > 2) {
+                    throttleDelay.current = Math.max(2, throttleDelay.current * 0.95)
+                  }
                 }
 
-                // If consistently fast emissions, we might need to back off
-                const avgLatency =
-                  emitLatencies.current.reduce((a, b) => a + b, 0) / emitLatencies.current.length
-                if (avgLatency < throttleDelay.current * 0.6 && throttleDelay.current < 16) {
-                  throttleDelay.current = Math.min(16, throttleDelay.current * 1.2)
-                }
+                // Clear the pending update after emitting
+                pendingPositionUpdates.current.delete(blockId)
               } else {
-                // Network is keeping up well, try to be more aggressive
-                if (throttleDelay.current > 2) {
-                  throttleDelay.current = Math.max(2, throttleDelay.current * 0.95)
-                }
+                // No more updates pending - stop the interval
+                clearInterval(intervalId)
+                positionUpdateTimeouts.current.delete(blockId)
               }
+            },
+            throttleDelay.current === 0 ? 0 : Math.max(16, throttleDelay.current) // Optimized 16ms for smooth 60fps (industry standard)
+          )
 
+          positionUpdateTimeouts.current.set(blockId, intervalId)
+
+          // Set a cleanup timeout to stop the interval if no updates come in
+          setTimeout(() => {
+            if (positionUpdateTimeouts.current.get(blockId) === intervalId) {
+              clearInterval(intervalId)
+              positionUpdateTimeouts.current.delete(blockId)
               pendingPositionUpdates.current.delete(blockId)
             }
-            positionUpdateTimeouts.current.delete(blockId)
-          },
-          throttleDelay.current === 0 ? 0 : throttleDelay.current
-        ) // Allow bypassing throttle for testing
-
-        positionUpdateTimeouts.current.set(blockId, timeoutId)
+          }, 50) // Faster cleanup: Stop after 50ms of no updates for immediate responsiveness
+        }
       } else {
         // For all non-position updates, emit immediately
         socket.emit('workflow-operation', {

@@ -83,6 +83,7 @@ export function useCollaborativeWorkflow() {
               )
               break
             case 'update-position':
+              // Apply immediate position update with smooth interpolation for other users
               workflowStore.updateBlockPosition(payload.id, payload.position)
               break
             case 'update-name':
@@ -96,6 +97,9 @@ export function useCollaborativeWorkflow() {
               break
             case 'update-parent':
               workflowStore.updateParentId(payload.id, payload.parentId, payload.extent)
+              break
+            case 'update-wide':
+              workflowStore.setBlockWide(payload.id, payload.isWide)
               break
           }
         } else if (target === 'edge') {
@@ -268,6 +272,20 @@ export function useCollaborativeWorkflow() {
       // Then broadcast to other clients
       if (!isApplyingRemoteChange.current) {
         emitWorkflowOperation('update-parent', 'block', { id, parentId, extent })
+      }
+    },
+    [workflowStore, emitWorkflowOperation]
+  )
+
+  const collaborativeToggleBlockWide = useCallback(
+    (id: string) => {
+      // Apply locally first to get the new state
+      workflowStore.toggleBlockWide(id)
+
+      // Get the updated state after the toggle
+      const updatedBlock = workflowStore.blocks[id]
+      if (updatedBlock && !isApplyingRemoteChange.current) {
+        emitWorkflowOperation('update-wide', 'block', { id, isWide: updatedBlock.isWide })
       }
     },
     [workflowStore, emitWorkflowOperation]
@@ -536,6 +554,7 @@ export function useCollaborativeWorkflow() {
     collaborativeRemoveBlock,
     collaborativeToggleBlockEnabled,
     collaborativeUpdateParentId,
+    collaborativeToggleBlockWide,
     collaborativeAddEdge,
     collaborativeRemoveEdge,
     collaborativeSetSubblockValue,

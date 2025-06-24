@@ -316,6 +316,110 @@ async function handleBlockOperationTx(
       break
     }
 
+    case 'update-name': {
+      if (!payload.id || !payload.name) {
+        throw new Error('Missing required fields for update name operation')
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          name: payload.name,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(`Updated block name: ${payload.id} -> "${payload.name}"`)
+      break
+    }
+
+    case 'toggle-enabled': {
+      if (!payload.id) {
+        throw new Error('Missing block ID for toggle enabled operation')
+      }
+
+      // Get current enabled state
+      const currentBlock = await tx
+        .select({ enabled: workflowBlocks.enabled })
+        .from(workflowBlocks)
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .limit(1)
+
+      if (currentBlock.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      const newEnabledState = !currentBlock[0].enabled
+
+      await tx
+        .update(workflowBlocks)
+        .set({
+          enabled: newEnabledState,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+
+      logger.debug(`Toggled block enabled: ${payload.id} -> ${newEnabledState}`)
+      break
+    }
+
+    case 'update-parent': {
+      if (!payload.id) {
+        throw new Error('Missing block ID for update parent operation')
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          parentId: payload.parentId || null,
+          extent: payload.extent || null,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      // If the block now has a parent, update the parent's subflow node list
+      if (payload.parentId) {
+        await updateSubflowNodeList(tx, workflowId, payload.parentId)
+      }
+
+      logger.debug(
+        `Updated block parent: ${payload.id} -> parent: ${payload.parentId}, extent: ${payload.extent}`
+      )
+      break
+    }
+
+    case 'update-wide': {
+      if (!payload.id || payload.isWide === undefined) {
+        throw new Error('Missing required fields for update wide operation')
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          isWide: payload.isWide,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(`Updated block wide state: ${payload.id} -> ${payload.isWide}`)
+      break
+    }
+
     // Add other block operations as needed
     default:
       logger.warn(`Unknown block operation: ${operation}`)

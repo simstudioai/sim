@@ -184,6 +184,7 @@ export interface WorkflowActions {
   toggleBlockHandles: (id: string) => void
   updateBlockName: (id: string, name: string) => void
   toggleBlockWide: (id: string) => void
+  setBlockWide: (id: string, isWide: boolean) => void
   updateBlockHeight: (id: string, height: number) => void
   triggerUpdate: () => void
   updateLoopCount: (loopId: string, count: number) => void

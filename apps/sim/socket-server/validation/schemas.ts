@@ -13,6 +13,7 @@ export const BlockOperationSchema = z.object({
     'update-name',
     'toggle-enabled',
     'update-parent',
+    'update-wide',
     'duplicate',
   ]),
   target: z.literal('block'),
@@ -25,6 +26,7 @@ export const BlockOperationSchema = z.object({
     parentId: z.string().optional(),
     extent: z.enum(['parent']).optional(),
     enabled: z.boolean().optional(),
+    isWide: z.boolean().optional(),
   }),
   timestamp: z.number(),
 })

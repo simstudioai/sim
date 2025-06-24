@@ -657,6 +657,22 @@ export const useWorkflowStore = create<WorkflowStoreWithHistory>()(
         // Note: Socket.IO handles real-time sync automatically
       },
 
+      setBlockWide: (id: string, isWide: boolean) => {
+        set((state) => ({
+          blocks: {
+            ...state.blocks,
+            [id]: {
+              ...state.blocks[id],
+              isWide,
+            },
+          },
+          edges: [...state.edges],
+          loops: { ...state.loops },
+        }))
+        get().updateLastSaved()
+        // Note: Socket.IO handles real-time sync automatically
+      },
+
       updateBlockHeight: (id: string, height: number) => {
         set((state) => ({
           blocks: {
