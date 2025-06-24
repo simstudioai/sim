@@ -85,9 +85,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
 
-  // Connection health monitoring
-  const connectionHealth = useRef({ latency: 0, lastPing: 0, reconnectCount: 0 })
-  const healthCheckInterval = useRef<NodeJS.Timeout | null>(null)
+  // Connection state tracking
+  const reconnectCount = useRef(0)
 
   // Use refs to store event handlers to avoid stale closures
   const eventHandlers = useRef<{
@@ -140,64 +139,31 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           },
         })
 
-        // Connection health monitoring
-        const startHealthMonitoring = () => {
-          if (healthCheckInterval.current) {
-            clearInterval(healthCheckInterval.current)
-          }
 
-          healthCheckInterval.current = setInterval(() => {
-            if (socketInstance.connected) {
-              const pingStart = performance.now()
-              connectionHealth.current.lastPing = pingStart
-
-              socketInstance.emit('ping', pingStart)
-            }
-          }, 5000) // Check every 5 seconds
-        }
 
         // Connection events
         socketInstance.on('connect', () => {
           setIsConnected(true)
           setIsConnecting(false)
-          connectionHealth.current.reconnectCount = 0
-          startHealthMonitoring()
+          reconnectCount.current = 0
 
           logger.info('Socket connected successfully', {
             socketId: socketInstance.id,
             connected: socketInstance.connected,
             transport: socketInstance.io.engine?.transport?.name,
-            reconnectCount: connectionHealth.current.reconnectCount,
+            reconnectCount: reconnectCount.current,
           })
         })
 
-        // Handle pong for latency measurement
-        socketInstance.on('pong', (pingStart: number) => {
-          const latency = performance.now() - pingStart
-          connectionHealth.current.latency = latency
 
-          // Adapt throttling based on latency
-          if (latency > 100 && throttleDelay.current < 12) {
-            throttleDelay.current = Math.min(16, throttleDelay.current + 2)
-          } else if (latency < 50 && throttleDelay.current > 4) {
-            throttleDelay.current = Math.max(2, throttleDelay.current - 1)
-          }
-        })
 
         socketInstance.on('disconnect', (reason) => {
           setIsConnected(false)
           setIsConnecting(false)
 
-          // Stop health monitoring
-          if (healthCheckInterval.current) {
-            clearInterval(healthCheckInterval.current)
-            healthCheckInterval.current = null
-          }
-
           logger.info('Socket disconnected', {
             reason,
-            latency: connectionHealth.current.latency,
-            reconnectCount: connectionHealth.current.reconnectCount,
+            reconnectCount: reconnectCount.current,
           })
 
           // Clear presence when disconnected
@@ -217,11 +183,9 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
         // Add reconnection logging
         socketInstance.on('reconnect', (attemptNumber) => {
-          connectionHealth.current.reconnectCount = attemptNumber
-          startHealthMonitoring() // Restart health monitoring on reconnect
+          reconnectCount.current = attemptNumber
           logger.info('Socket reconnected', {
             attemptNumber,
-            latency: connectionHealth.current.latency,
           })
         })
 
@@ -337,14 +301,8 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       })
       positionUpdateTimeouts.current.clear()
       pendingPositionUpdates.current.clear()
-      throttleDelay.current = 4
-      emitLatencies.current = []
 
-      // Stop health monitoring
-      if (healthCheckInterval.current) {
-        clearInterval(healthCheckInterval.current)
-        healthCheckInterval.current = null
-      }
+
     }
   }, [user?.id])
 
@@ -376,55 +334,16 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       })
       positionUpdateTimeouts.current.clear()
       pendingPositionUpdates.current.clear()
-
-      // Reset adaptive throttling to optimal 60fps
-      throttleDelay.current = 16
-      emitLatencies.current = []
     }
   }, [socket, currentWorkflowId])
 
-  // Position update throttling - adaptive based on network performance
+  // Position update throttling at 60fps (16ms)
+  const THROTTLE_DELAY = 16 // 60fps standard
   const positionUpdateTimeouts = useRef<Map<string, number>>(new Map())
   const pendingPositionUpdates = useRef<Map<string, any>>(new Map())
-  const throttleDelay = useRef(16) // Start at 16ms (60fps) - optimized for smooth collaborative movement like Figma
 
-  // Debug: Allow manual throttle testing (remove in production)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey) {
-        switch (e.key) {
-          case '1':
-            throttleDelay.current = 1
-            console.log('Throttle: 1ms (1000fps)')
-            break
-          case '2':
-            throttleDelay.current = 2
-            console.log('Throttle: 2ms (500fps)')
-            break
-          case '4':
-            throttleDelay.current = 4
-            console.log('Throttle: 4ms (240fps)')
-            break
-          case '8':
-            throttleDelay.current = 8
-            console.log('Throttle: 8ms (120fps)')
-            break
-          case '6':
-            throttleDelay.current = 16
-            console.log('Throttle: 16ms (60fps)')
-            break
-          case '0':
-            throttleDelay.current = 0
-            console.log('Throttle: OFF (unlimited fps)')
-            break
-        }
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
-  const lastEmitTime = useRef(0)
-  const emitLatencies = useRef<number[]>([]) // Track network performance
+
+
 
   // Emit workflow operations (blocks, edges, subflows)
   const emitWorkflowOperation = useCallback(
@@ -436,7 +355,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
       if (isPositionUpdate && payload.id) {
         const blockId = payload.id
-        const now = performance.now()
+
 
         // Store the latest position update for this block
         pendingPositionUpdates.current.set(blockId, {
@@ -455,36 +374,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             () => {
               const latestUpdate = pendingPositionUpdates.current.get(blockId)
               if (latestUpdate) {
-                const emitStartTime = performance.now()
                 socket.emit('workflow-operation', latestUpdate)
-
-                // Track emit timing for adaptive throttling
-                const emitTime = performance.now()
-                const timeSinceLastEmit = emitTime - lastEmitTime.current
-                lastEmitTime.current = emitTime
-
-                // If we're emitting too frequently (network might be overwhelmed), adapt
-                if (timeSinceLastEmit < throttleDelay.current * 0.8) {
-                  emitLatencies.current.push(timeSinceLastEmit)
-                  // Keep only last 10 measurements
-                  if (emitLatencies.current.length > 10) {
-                    emitLatencies.current.shift()
-                  }
-
-                  // If consistently fast emissions, we might need to back off
-                  const avgLatency =
-                    emitLatencies.current.reduce((a, b) => a + b, 0) / emitLatencies.current.length
-                  if (avgLatency < throttleDelay.current * 0.6 && throttleDelay.current < 16) {
-                    throttleDelay.current = Math.min(16, throttleDelay.current * 1.2)
-                  }
-                } else {
-                  // Network is keeping up well, try to be more aggressive
-                  if (throttleDelay.current > 2) {
-                    throttleDelay.current = Math.max(2, throttleDelay.current * 0.95)
-                  }
-                }
-
-                // Clear the pending update after emitting
                 pendingPositionUpdates.current.delete(blockId)
               } else {
                 // No more updates pending - stop the interval
@@ -492,7 +382,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
                 positionUpdateTimeouts.current.delete(blockId)
               }
             },
-            throttleDelay.current === 0 ? 0 : Math.max(16, throttleDelay.current) // Optimized 16ms for smooth 60fps (industry standard)
+            THROTTLE_DELAY
           )
 
           positionUpdateTimeouts.current.set(blockId, intervalId)
@@ -504,7 +394,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
               positionUpdateTimeouts.current.delete(blockId)
               pendingPositionUpdates.current.delete(blockId)
             }
-          }, 50) // Faster cleanup: Stop after 50ms of no updates for immediate responsiveness
+          }, 50) // Stop interval after 50ms of no updates
         }
       } else {
         // For all non-position updates, emit immediately

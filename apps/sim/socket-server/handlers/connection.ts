@@ -43,7 +43,5 @@ export function setupConnectionHandlers(
     roomManager.clearPendingOperations(socket.id)
   })
 
-  socket.on('ping', () => {
-    socket.emit('pong')
-  })
+
 }

@@ -9,6 +9,7 @@ import { parseCronToHumanReadable } from '@/lib/schedules/utils'
 import { cn, formatDateTime, validateName } from '@/lib/utils'
 import { useUserPermissionsContext } from '@/app/w/components/providers/workspace-permissions-provider'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
@@ -69,8 +70,10 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const blockAdvancedMode = useWorkflowStore((state) => state.blocks[id]?.advancedMode ?? false)
   const toggleBlockAdvancedMode = useWorkflowStore((state) => state.toggleBlockAdvancedMode)
 
+  // Collaborative workflow actions
+  const { collaborativeUpdateBlockName } = useCollaborativeWorkflow()
+
   // Workflow store actions
-  const updateBlockName = useWorkflowStore((state) => state.updateBlockName)
   const toggleBlockWide = useWorkflowStore((state) => state.toggleBlockWide)
   const updateBlockHeight = useWorkflowStore((state) => state.updateBlockHeight)
 
@@ -371,7 +374,7 @@ export function WorkflowBlock({ id, data }: NodeProps<WorkflowBlockProps>) {
   const handleNameSubmit = () => {
     const trimmedName = editedName.trim().slice(0, 18)
     if (trimmedName && trimmedName !== name) {
-      updateBlockName(id, trimmedName)
+      collaborativeUpdateBlockName(id, trimmedName)
     }
     setIsEditing(false)
   }
