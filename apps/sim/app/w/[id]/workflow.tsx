@@ -99,7 +99,12 @@ const WorkflowContent = React.memo(() => {
   const { workflows, activeWorkflowId, isLoading, setActiveWorkflow, createWorkflow } =
     useWorkflowRegistry()
 
-  const { blocks, edges, updateNodeDimensions, updateBlockPosition: storeUpdateBlockPosition } = useWorkflowStore()
+  const {
+    blocks,
+    edges,
+    updateNodeDimensions,
+    updateBlockPosition: storeUpdateBlockPosition,
+  } = useWorkflowStore()
   // Use collaborative operations for real-time sync
   const currentWorkflow = useMemo(() => workflows[workflowId], [workflows, workflowId])
   const workspaceId = currentWorkflow?.workspaceId
@@ -256,13 +261,20 @@ const WorkflowContent = React.memo(() => {
       [detectedOrientation]
     )
 
-    applyAutoLayoutSmooth(blocks, edges, collaborativeUpdateBlockPosition, fitView, resizeLoopNodesWrapper, {
-      ...orientationConfig,
-      alignByLayer: true,
-      animationDuration: 500, // Smooth 500ms animation
-      isSidebarCollapsed,
-      handleOrientation: detectedOrientation, // Explicitly set the detected orientation
-    })
+    applyAutoLayoutSmooth(
+      blocks,
+      edges,
+      collaborativeUpdateBlockPosition,
+      fitView,
+      resizeLoopNodesWrapper,
+      {
+        ...orientationConfig,
+        alignByLayer: true,
+        animationDuration: 500, // Smooth 500ms animation
+        isSidebarCollapsed,
+        handleOrientation: detectedOrientation, // Explicitly set the detected orientation
+      }
+    )
 
     const orientationMessage =
       detectedOrientation === 'vertical'
@@ -273,7 +285,14 @@ const WorkflowContent = React.memo(() => {
       orientation: detectedOrientation,
       blockCount: Object.keys(blocks).length,
     })
-  }, [blocks, edges, collaborativeUpdateBlockPosition, fitView, isSidebarCollapsed, resizeLoopNodesWrapper])
+  }, [
+    blocks,
+    edges,
+    collaborativeUpdateBlockPosition,
+    fitView,
+    isSidebarCollapsed,
+    resizeLoopNodesWrapper,
+  ])
 
   const debouncedAutoLayout = useCallback(() => {
     const debounceTimer = setTimeout(() => {
@@ -1330,7 +1349,14 @@ const WorkflowContent = React.memo(() => {
       setDraggedNodeId(null)
       setPotentialParentId(null)
     },
-    [getNodes, dragStartParentId, potentialParentId, updateNodeParent, getNodeHierarchyWrapper, collaborativeUpdateBlockPosition]
+    [
+      getNodes,
+      dragStartParentId,
+      potentialParentId,
+      updateNodeParent,
+      getNodeHierarchyWrapper,
+      collaborativeUpdateBlockPosition,
+    ]
   )
 
   // Update onPaneClick to only handle edge selection
