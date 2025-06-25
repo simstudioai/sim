@@ -986,9 +986,15 @@ export const applyAutoLayoutSmooth = (
   options: LayoutOptions & {
     animationDuration?: number
     isSidebarCollapsed?: boolean
+    onComplete?: (finalPositions: Map<string, { x: number; y: number }>) => void
   } = {}
 ): void => {
-  const { animationDuration = 500, isSidebarCollapsed = false, ...layoutOptions } = options
+  const {
+    animationDuration = 500,
+    isSidebarCollapsed = false,
+    onComplete,
+    ...layoutOptions
+  } = options
 
   if (!layoutOptions.handleOrientation || layoutOptions.handleOrientation === 'auto') {
     layoutOptions.handleOrientation = detectHandleOrientation(blocks)
@@ -1066,13 +1072,18 @@ export const applyAutoLayoutSmooth = (
     if (progress < 1) {
       requestAnimationFrame(animate)
     } else {
-      await resizeLoopNodes()
+      resizeLoopNodes()
 
       const padding = isSidebarCollapsed ? 0.35 : 0.55
-      await fitView({
+      fitView({
         padding,
         duration: 400,
       })
+
+      // Call completion callback with final positions
+      if (onComplete) {
+        onComplete(allPositions)
+      }
     }
   }
 

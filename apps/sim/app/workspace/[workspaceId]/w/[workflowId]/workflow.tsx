@@ -231,6 +231,25 @@ const WorkflowContent = React.memo(() => {
     [getNodes]
   )
 
+  // Helper function to get orientation config
+  const getOrientationConfig = useCallback((orientation: string) => {
+    return orientation === 'vertical'
+      ? {
+          // Vertical handles: optimize for top-to-bottom flow
+          horizontalSpacing: 400,
+          verticalSpacing: 300,
+          startX: 200,
+          startY: 200,
+        }
+      : {
+          // Horizontal handles: optimize for left-to-right flow
+          horizontalSpacing: 600,
+          verticalSpacing: 200,
+          startX: 150,
+          startY: 300,
+        }
+  }, [])
+
   // Auto-layout handler
   const handleAutoLayout = useCallback(() => {
     if (Object.keys(blocks).length === 0) return
@@ -238,31 +257,13 @@ const WorkflowContent = React.memo(() => {
     // Detect the predominant handle orientation in the workflow
     const detectedOrientation = detectHandleOrientation(blocks)
 
-    // Optimize spacing based on handle orientation
-    const orientationConfig = useMemo(
-      () =>
-        detectedOrientation === 'vertical'
-          ? {
-              // Vertical handles: optimize for top-to-bottom flow
-              horizontalSpacing: 400,
-              verticalSpacing: 300,
-              startX: 200,
-              startY: 200,
-            }
-          : {
-              // Horizontal handles: optimize for left-to-right flow
-              horizontalSpacing: 600,
-              verticalSpacing: 200,
-              startX: 150,
-              startY: 300,
-            },
-      [detectedOrientation]
-    )
+    // Get spacing configuration based on handle orientation
+    const orientationConfig = getOrientationConfig(detectedOrientation)
 
     applyAutoLayoutSmooth(
       blocks,
       edges,
-      collaborativeUpdateBlockPosition,
+      storeUpdateBlockPosition,
       fitView,
       resizeLoopNodesWrapper,
       {
@@ -271,6 +272,12 @@ const WorkflowContent = React.memo(() => {
         animationDuration: 500, // Smooth 500ms animation
         isSidebarCollapsed,
         handleOrientation: detectedOrientation, // Explicitly set the detected orientation
+        onComplete: (finalPositions) => {
+          // Emit collaborative updates for final positions after animation completes
+          finalPositions.forEach((position, blockId) => {
+            collaborativeUpdateBlockPosition(blockId, position)
+          })
+        },
       }
     )
 
@@ -286,10 +293,12 @@ const WorkflowContent = React.memo(() => {
   }, [
     blocks,
     edges,
+    storeUpdateBlockPosition,
     collaborativeUpdateBlockPosition,
     fitView,
     isSidebarCollapsed,
     resizeLoopNodesWrapper,
+    getOrientationConfig,
   ])
 
   const debouncedAutoLayout = useCallback(() => {
