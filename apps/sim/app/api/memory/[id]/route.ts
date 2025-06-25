@@ -128,7 +128,6 @@ export async function DELETE(
       )
     }
 
-    // Soft delete by setting deletedAt timestamp
     await db.delete(memory).where(and(eq(memory.key, id), eq(memory.workflowId, workflowId)))
 
     logger.info(`[${requestId}] Memory deleted successfully: ${id} for workflow: ${workflowId}`)
