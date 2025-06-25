@@ -97,7 +97,15 @@ export function useCollaborativeWorkflow() {
               // Apply position update only if it's newer than the last applied timestamp
               // This prevents jagged movement from out-of-order position updates
               const blockId = payload.id
-              const updateTimestamp = data.timestamp || Date.now()
+
+              // Server should always provide timestamp - if missing, skip ordering check
+              if (!data.timestamp) {
+                logger.warn('Position update missing timestamp, applying without ordering check', { blockId })
+                workflowStore.updateBlockPosition(payload.id, payload.position)
+                break
+              }
+
+              const updateTimestamp = data.timestamp
               const lastTimestamp = lastPositionTimestamps.current.get(blockId) || 0
 
               if (updateTimestamp >= lastTimestamp) {
