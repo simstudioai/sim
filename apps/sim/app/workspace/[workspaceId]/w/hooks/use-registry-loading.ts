@@ -31,7 +31,12 @@ export function useRegistryLoading() {
   // Load workflows for current workspace only after hydration
   useEffect(() => {
     // Only proceed if we're hydrated and have a valid workspaceId
-    if (!isHydrated || !workspaceId || typeof workspaceId !== 'string' || workspaceId.trim() === '') {
+    if (
+      !isHydrated ||
+      !workspaceId ||
+      typeof workspaceId !== 'string' ||
+      workspaceId.trim() === ''
+    ) {
       return
     }
 
@@ -50,8 +55,7 @@ export function useRegistryLoading() {
 
     // Check if we're on the workspace root and need to redirect to first workflow
     if (
-      (pathname === `/workspace/${workspaceId}/w` ||
-        pathname === `/workspace/${workspaceId}/w/`) &&
+      (pathname === `/workspace/${workspaceId}/w` || pathname === `/workspace/${workspaceId}/w/`) &&
       Object.keys(workflows).length > 0
     ) {
       const firstWorkflowId = Object.keys(workflows)[0]
