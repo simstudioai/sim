@@ -52,8 +52,16 @@ vi.mock('@/components/ui/card', () => ({
   Card: ({ children, ...props }: any) => ({ children, ...props }),
 }))
 
-vi.mock('@/components/icons', () => ({
-  StartIcon: ({ className }: any) => ({ className }),
+// Mock the block registry to avoid importing icons
+vi.mock('@/blocks/registry', () => ({
+  getBlock: vi.fn(() => ({
+    name: 'Mock Block',
+    description: 'Mock block description',
+    icon: () => null,
+    subBlocks: [],
+    outputs: {},
+  })),
+  getAllBlocks: vi.fn(() => ({})),
 }))
 
 vi.mock('@/lib/utils', () => ({
