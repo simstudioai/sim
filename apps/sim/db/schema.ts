@@ -622,7 +622,7 @@ export const memory = pgTable(
       workflowIdx: index('memory_workflow_idx').on(table.workflowId),
 
       // Compound unique index to ensure keys are unique per workflow
-      uniqueKeyPerWorkflowActiveIdx: uniqueIndex('memory_workflow_key_active_idx')
+      uniqueKeyPerWorkflowIdx: uniqueIndex('memory_workflow_key_idx')
         .on(table.workflowId, table.key)
         .where(isNull(table.deletedAt)),
     }
