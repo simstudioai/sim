@@ -323,6 +323,13 @@
       "when": 1750527995274,
       "tag": "0046_loose_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1750817514452,
+      "tag": "0047_orange_paibok",
+      "breakpoints": true
     }
   ]
 }

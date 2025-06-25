@@ -19,6 +19,7 @@
     "db:push": "bunx drizzle-kit push",
     "db:studio": "bunx drizzle-kit studio",
     "db:migrate": "bunx drizzle-kit migrate",
+    "db:set-defaults": "bun run scripts/set-default-credentials.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

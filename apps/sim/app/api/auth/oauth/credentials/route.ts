@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
           name: displayName,
           provider,
           lastUsed: acc.updatedAt.toISOString(),
-          isDefault: featureType === 'default',
+          isDefault: acc.isDefault,
         }
       })
     )

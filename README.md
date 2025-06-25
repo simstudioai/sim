@@ -88,34 +88,149 @@ docker compose -f docker-compose.prod.yml up -d
 2. Open the project and click "Reopen in Container" when prompted
 3. Run `bun run dev` in the terminal or use the `sim-start` alias
 
-### Option 4: Manual Setup
+### Option 4: Manual Setup (Recommended for Development)
 
-1. Clone and install dependencies:
+This option provides the most control and is ideal for development. It includes setting up PostgreSQL locally for full database functionality.
 
+#### Prerequisites
+
+- **Node.js** (v18 or higher)
+- **Bun** (recommended) or **npm**/**yarn**
+- **Homebrew** (for macOS users)
+- **Git**
+
+#### Step-by-Step Installation
+
+1. **Clone the repository:**
 ```bash
 git clone https://github.com/simstudioai/sim.git
 cd sim
+```
+
+2. **Install dependencies:**
+```bash
 bun install
 ```
 
-2. Set up environment:
+3. **Install PostgreSQL (Required for full functionality):**
 
+   **On macOS (using Homebrew):**
+   ```bash
+   # Install PostgreSQL 15
+   brew install postgresql@15
+   
+   # Start PostgreSQL service
+   brew services start postgresql@15
+   
+   # Add PostgreSQL to PATH (add this to your ~/.zshrc or ~/.bashrc)
+   echo 'export PATH="/usr/local/opt/postgresql@15/bin:$PATH"' >> ~/.zshrc
+   source ~/.zshrc
+   
+   # Create the postgres user and database
+   createuser -s postgres
+   createdb postgres
+   ```
+
+   **On Ubuntu/Debian:**
+   ```bash
+   sudo apt update
+   sudo apt install postgresql postgresql-contrib
+   sudo systemctl start postgresql
+   sudo systemctl enable postgresql
+   sudo -u postgres createuser --superuser postgres
+   ```
+
+   **On Windows:**
+   - Download and install PostgreSQL from [postgresql.org](https://www.postgresql.org/download/windows/)
+   - Add PostgreSQL bin directory to your PATH
+   - Create a postgres user during installation
+
+4. **Install pgvector extension (Required for AI features):**
+
+   **On macOS:**
+   ```bash
+   brew install pgvector
+   ```
+
+   **On Ubuntu/Debian:**
+   ```bash
+   sudo apt install postgresql-15-pgvector
+   ```
+
+   **Enable the extension:**
+   ```bash
+   psql -U postgres -d postgres -c "CREATE EXTENSION IF NOT EXISTS vector;"
+   ```
+
+5. **Set up environment variables:**
 ```bash
 cd apps/sim
-cp .env.example .env  # Configure with required variables (DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL)
+cp .env.example .env
 ```
 
-3. Set up the database:
+Edit the `.env` file and configure the following variables:
+```env
+# Database configuration
+DATABASE_URL="postgresql://postgres@localhost:5432/postgres"
 
+# Authentication (generate a secure random string)
+BETTER_AUTH_SECRET="your-secret-key-here"
+BETTER_AUTH_URL="http://localhost:3000"
+
+# Optional: Social login providers (Google, GitHub)
+# GOOGLE_CLIENT_ID="your-google-client-id"
+# GOOGLE_CLIENT_SECRET="your-google-client-secret"
+# GITHUB_CLIENT_ID="your-github-client-id"
+# GITHUB_CLIENT_SECRET="your-github-client-secret"
+```
+
+6. **Set up the database schema:**
 ```bash
 bunx drizzle-kit push
 ```
 
-4. Start the development server:
+7. **Start the development server:**
+```bash
+# From the project root
+bun run dev
+```
 
+8. **Access the application:**
+- **Main app**: http://localhost:3000
+- **Documentation**: http://localhost:3001
+
+#### Troubleshooting
+
+**Database Connection Issues:**
+- Ensure PostgreSQL is running: `brew services list | grep postgresql`
+- Check if the postgres user exists: `psql -U postgres -d postgres -c "\du"`
+- Verify pgvector extension is installed: `psql -U postgres -d postgres -c "SELECT * FROM pg_extension WHERE extname = 'vector';"`
+
+**Port Already in Use:**
+- Check what's running on port 3000: `lsof -i :3000`
+- Kill the process or change the port in the environment variables
+
+**Permission Issues:**
+- On macOS, you might need to grant full disk access to Terminal/VS Code for PostgreSQL
+- Ensure your user has the necessary permissions to create databases and users
+
+#### Development Workflow
+
+1. **Start the development server:**
 ```bash
 bun run dev
 ```
+
+2. **Make changes** to the code - the server will automatically reload
+
+3. **Database migrations** (when schema changes):
+```bash
+cd apps/sim
+bunx drizzle-kit generate
+bunx drizzle-kit push
+```
+
+4. **Stop the server:** Press `Ctrl+C` in the terminal
 
 ## Tech Stack
 
