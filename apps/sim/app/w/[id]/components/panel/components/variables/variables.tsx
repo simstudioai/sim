@@ -42,12 +42,12 @@ export function Variables({ panelWidth }: VariablesProps) {
   // Get variables for the current workflow
   const workflowVariables = activeWorkflowId ? getVariablesByWorkflowId(activeWorkflowId) : []
 
-  // Load variables when workflow changes
+  // Load variables when active workflow changes
   useEffect(() => {
-    if (activeWorkflowId && workflows[activeWorkflowId]) {
+    if (activeWorkflowId) {
       loadVariables(activeWorkflowId)
     }
-  }, [activeWorkflowId, workflows, loadVariables])
+  }, [activeWorkflowId, loadVariables])
 
   // Track editor references
   const editorRefs = useRef<Record<string, HTMLDivElement | null>>({})
