@@ -81,6 +81,5 @@ export function useRegistryLoading() {
     }
 
     // The fetch function itself handles setting isLoading to false
-    // No need for manual timeouts or intervals here
   }, [isHydrated, setLoading, workflows, isLoading])
 }

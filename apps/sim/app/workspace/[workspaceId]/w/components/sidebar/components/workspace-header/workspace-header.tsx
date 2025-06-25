@@ -239,10 +239,9 @@ WorkspaceEditModal.displayName = 'WorkspaceEditModal'
 export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
   ({ onCreateWorkflow, isCollapsed, onDropdownOpenChange }) => {
     // Get sidebar store state to check current mode
-    const { mode, workspaceDropdownOpen, setAnyModalOpen } = useSidebarStore()
+    const { mode, workspaceDropdownOpen, setWorkspaceDropdownOpen, setAnyModalOpen } =
+      useSidebarStore()
 
-    // Keep local isOpen state in sync with the store (for internal component use)
-    const [isOpen, setIsOpen] = useState(workspaceDropdownOpen)
     const { data: sessionData, isPending } = useSession()
     const [plan, setPlan] = useState('Free Plan')
     // Use client-side loading instead of isPending to avoid hydration mismatch
@@ -335,14 +334,14 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
 
     const switchWorkspace = useCallback(
       (workspace: Workspace) => {
-        // If already on this workspace, do nothing
+        // If already on this workspace, close dropdown and do nothing else
         if (activeWorkspace?.id === workspace.id) {
-          setIsOpen(false)
+          setWorkspaceDropdownOpen(false)
           return
         }
 
         setActiveWorkspace(workspace)
-        setIsOpen(false)
+        setWorkspaceDropdownOpen(false)
 
         // Use full workspace switch which now handles localStorage automatically
         switchToWorkspace(workspace.id)
@@ -350,7 +349,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
         // Update URL to include workspace ID
         router.push(`/workspace/${workspace.id}/w`)
       },
-      [activeWorkspace?.id, switchToWorkspace, router]
+      [activeWorkspace?.id, switchToWorkspace, router, setWorkspaceDropdownOpen]
     )
 
     const handleCreateWorkspace = useCallback(
@@ -472,7 +471,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
             setActiveWorkspace(updatedWorkspaces[0])
           }
 
-          setIsOpen(false)
+          setWorkspaceDropdownOpen(false)
         } catch (err) {
           logger.error('Error deleting workspace:', err)
         } finally {
@@ -504,13 +503,13 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
     // Notify parent component when dropdown opens/closes
     const handleDropdownOpenChange = useCallback(
       (open: boolean) => {
-        setIsOpen(open)
+        setWorkspaceDropdownOpen(open)
         // Inform the parent component about the dropdown state change
         if (onDropdownOpenChange) {
           onDropdownOpenChange(open)
         }
       },
-      [onDropdownOpenChange]
+      [onDropdownOpenChange, setWorkspaceDropdownOpen]
     )
 
     // Special handling for click interactions in hover mode
@@ -521,10 +520,10 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
           e.stopPropagation()
           e.preventDefault()
           // Toggle dropdown state
-          handleDropdownOpenChange(!isOpen)
+          handleDropdownOpenChange(!workspaceDropdownOpen)
         }
       },
-      [mode, isOpen, handleDropdownOpenChange]
+      [mode, workspaceDropdownOpen, handleDropdownOpenChange]
     )
 
     const handleContainerClick = useCallback(
@@ -568,7 +567,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
           workspace={editingWorkspace}
         />
 
-        <DropdownMenu open={isOpen} onOpenChange={handleDropdownOpenChange}>
+        <DropdownMenu open={workspaceDropdownOpen} onOpenChange={handleDropdownOpenChange}>
           <div
             className={`group relative cursor-pointer rounded-md ${isCollapsed ? 'flex justify-center' : ''}`}
             onClick={handleContainerClick}
@@ -600,7 +599,7 @@ export const WorkspaceHeader = React.memo<WorkspaceHeaderProps>(
                         href={workspaceUrl}
                         className='group flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#802FFF]'
                         onClick={(e) => {
-                          if (isOpen) e.preventDefault()
+                          if (workspaceDropdownOpen) e.preventDefault()
                         }}
                       >
                         <AgentIcon className='-translate-y-[0.5px] h-[18px] w-[18px] text-white transition-all group-hover:scale-105' />
