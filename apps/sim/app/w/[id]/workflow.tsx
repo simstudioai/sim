@@ -99,7 +99,7 @@ const WorkflowContent = React.memo(() => {
   const { workflows, activeWorkflowId, isLoading, setActiveWorkflow, createWorkflow } =
     useWorkflowRegistry()
 
-  const { blocks, edges, updateNodeDimensions } = useWorkflowStore()
+  const { blocks, edges, updateNodeDimensions, updateBlockPosition: storeUpdateBlockPosition } = useWorkflowStore()
   // Use collaborative operations for real-time sync
   const currentWorkflow = useMemo(() => workflows[workflowId], [workflows, workflowId])
   const workspaceId = currentWorkflow?.workspaceId
@@ -117,7 +117,7 @@ const WorkflowContent = React.memo(() => {
     collaborativeAddBlock: addBlock,
     collaborativeAddEdge: addEdge,
     collaborativeRemoveEdge: removeEdge,
-    collaborativeUpdateBlockPosition: updateBlockPosition,
+    collaborativeUpdateBlockPosition,
     collaborativeUpdateParentId: updateParentId,
     isConnected,
     currentWorkflowId,
@@ -186,12 +186,12 @@ const WorkflowContent = React.memo(() => {
         nodeId,
         newParentId,
         getNodes,
-        updateBlockPosition,
+        collaborativeUpdateBlockPosition,
         updateParentId,
         () => resizeLoopNodes(getNodes, updateNodeDimensions, blocks)
       )
     },
-    [getNodes, updateBlockPosition, updateParentId, updateNodeDimensions, blocks]
+    [getNodes, collaborativeUpdateBlockPosition, updateParentId, updateNodeDimensions, blocks]
   )
 
   // Function to resize all loop nodes with improved hierarchy handling
@@ -256,7 +256,7 @@ const WorkflowContent = React.memo(() => {
       [detectedOrientation]
     )
 
-    applyAutoLayoutSmooth(blocks, edges, updateBlockPosition, fitView, resizeLoopNodesWrapper, {
+    applyAutoLayoutSmooth(blocks, edges, collaborativeUpdateBlockPosition, fitView, resizeLoopNodesWrapper, {
       ...orientationConfig,
       alignByLayer: true,
       animationDuration: 500, // Smooth 500ms animation
@@ -273,7 +273,7 @@ const WorkflowContent = React.memo(() => {
       orientation: detectedOrientation,
       blockCount: Object.keys(blocks).length,
     })
-  }, [blocks, edges, updateBlockPosition, fitView, isSidebarCollapsed, resizeLoopNodesWrapper])
+  }, [blocks, edges, collaborativeUpdateBlockPosition, fitView, isSidebarCollapsed, resizeLoopNodesWrapper])
 
   const debouncedAutoLayout = useCallback(() => {
     const debounceTimer = setTimeout(() => {
@@ -956,18 +956,20 @@ const WorkflowContent = React.memo(() => {
     return nodeArray
   }, [blocks, activeBlockIds, pendingBlocks, isDebugModeEnabled, nestedSubflowErrors])
 
-  // Update nodes
+  // Update nodes - use store version to avoid collaborative feedback loops
   const onNodesChange = useCallback(
     (changes: any) => {
       changes.forEach((change: any) => {
         if (change.type === 'position' && change.position) {
           const node = nodes.find((n) => n.id === change.id)
           if (!node) return
-          updateBlockPosition(change.id, change.position)
+          // Use store version to avoid collaborative feedback loop
+          // React Flow position changes can be triggered by collaborative updates
+          storeUpdateBlockPosition(change.id, change.position)
         }
       })
     },
-    [nodes, updateBlockPosition]
+    [nodes, storeUpdateBlockPosition]
   )
 
   // Effect to resize loops when nodes change (add/remove/position change)
@@ -1002,11 +1004,11 @@ const WorkflowContent = React.memo(() => {
         const absolutePosition = getNodeAbsolutePositionWrapper(id)
 
         // Update the node to remove parent reference and use absolute position
-        updateBlockPosition(id, absolutePosition)
+        collaborativeUpdateBlockPosition(id, absolutePosition)
         updateParentId(id, '', 'parent')
       }
     })
-  }, [blocks, updateBlockPosition, updateParentId, getNodeAbsolutePositionWrapper])
+  }, [blocks, collaborativeUpdateBlockPosition, updateParentId, getNodeAbsolutePositionWrapper])
 
   // Validate nested subflows whenever blocks change
   useEffect(() => {
@@ -1108,6 +1110,9 @@ const WorkflowContent = React.memo(() => {
     (_event: React.MouseEvent, node: any) => {
       // Store currently dragged node ID
       setDraggedNodeId(node.id)
+
+      // Emit collaborative position update during drag for smooth real-time movement
+      collaborativeUpdateBlockPosition(node.id, node.position)
 
       // Get the current parent ID of the node being dragged
       const currentParentId = blocks[node.id]?.data?.parentId || null
@@ -1255,6 +1260,7 @@ const WorkflowContent = React.memo(() => {
       getNodeHierarchyWrapper,
       getNodeAbsolutePositionWrapper,
       getNodeDepthWrapper,
+      collaborativeUpdateBlockPosition,
     ]
   )
 
@@ -1277,7 +1283,11 @@ const WorkflowContent = React.memo(() => {
       })
       document.body.style.cursor = ''
 
-      // Don't process if the node hasn't actually changed parent or is being moved within same parent
+      // Emit collaborative position update for the final position
+      // This ensures other users see the smooth final position
+      collaborativeUpdateBlockPosition(node.id, node.position)
+
+      // Don't process parent changes if the node hasn't actually changed parent or is being moved within same parent
       if (potentialParentId === dragStartParentId) return
 
       // Check if this is a starter block - starter blocks should never be in containers
@@ -1320,7 +1330,7 @@ const WorkflowContent = React.memo(() => {
       setDraggedNodeId(null)
       setPotentialParentId(null)
     },
-    [getNodes, dragStartParentId, potentialParentId, updateNodeParent, getNodeHierarchyWrapper]
+    [getNodes, dragStartParentId, potentialParentId, updateNodeParent, getNodeHierarchyWrapper, collaborativeUpdateBlockPosition]
   )
 
   // Update onPaneClick to only handle edge selection
